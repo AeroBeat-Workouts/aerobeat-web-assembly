@@ -1,6 +1,6 @@
 {
   "name": "@aerobeat/web-assembly",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,8 +24,10 @@
     "@aerobeat/web-contracts": "file:../aerobeat-web-contracts",
     "@aerobeat/web-cv": "file:../aerobeat-web-cv",
     "@aerobeat/web-input": "file:../aerobeat-web-input",
+    "@aerobeat/web-renderer": "file:../aerobeat-web-renderer",
     "@aerobeat/web-style": "file:../aerobeat-web-style",
     "@aerobeat/web-ui": "file:../aerobeat-web-ui",
+    "@aerobeat/web-video": "file:../aerobeat-web-video",
     "@aerobeat/web-vendor-movenet": "file:../aerobeat-web-vendor-movenet"
   },
   "devDependencies": {

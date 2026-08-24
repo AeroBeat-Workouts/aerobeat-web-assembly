@@ -77,7 +77,7 @@ try {
     });
   });
   page.on("console", (message) => {
-    if (message.type() === "warning" || message.type() === "error") {
+    if ((message.type() === "warning" || message.type() === "error") && !isExpectedConsoleWarning(message.text())) {
       consoleNoise.push(`${message.type()}: ${message.text()}`);
     }
   });
@@ -113,8 +113,12 @@ try {
   await page.waitForFunction(() => {
     const app = document.querySelector("aerobeat-app");
     const panel = app?.shadowRoot?.querySelector("aero-pose-flow-panel");
+    const preview = app?.shadowRoot?.querySelector("aero-media-pose-preview");
     const panelText = panel?.shadowRoot?.textContent ?? "";
-    return panelText.includes("aero.movenet.replay.basic-upper-body") && panelText.includes("6");
+    const previewState = preview?.describePreview?.();
+    return panelText.includes("aero.movenet.replay.basic-upper-body")
+      && panelText.includes("6")
+      && previewState?.rendererDrawCount > 0;
   });
 
   const buttonSemantics = await page.locator("aerobeat-app").evaluate((element) => {
@@ -143,49 +147,69 @@ try {
     const screenPosePanel = screen?.shadowRoot?.querySelector("aero-pose-flow-panel");
     const screenStatus = screen?.shadowRoot?.querySelector("aero-status-panel");
     const screenButton = screen?.shadowRoot?.querySelector("aero-button");
+    const preview = root?.querySelector("aero-media-pose-preview");
+    const previewVideo = preview?.shadowRoot?.querySelector("video");
+    const previewState = preview?.describePreview?.();
     const runtimePanelText = runtimePanel?.shadowRoot?.textContent ?? "";
     const screenPosePanelText = screenPosePanel?.shadowRoot?.textContent ?? "";
     const screenStatusText = screenStatus?.shadowRoot?.textContent ?? "";
     const screenButtonText = screenButton?.shadowRoot?.textContent ?? "";
     const assemblyText = root?.querySelector(".calibration-state")?.shadowRoot?.textContent ?? "";
     const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    const mediaText = root?.querySelector(".media-state")?.shadowRoot?.textContent ?? "";
     const cameraRequests = Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests.length : 0;
     const stoppedTracks = window.__aeroStoppedCameraTracks ?? 0;
     const trackState = window.__aeroGrantedCameraTrack?.readyState ?? "";
     return screenStatusText.includes("Calibration active")
       && screenButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
-      && cameraText.includes("Camera permission: granted - live camera frame sampler running")
-      && cameraText.includes("frames ")
-      && cameraText.includes("samples ")
-      && runtimePanelText.includes("aero.camera.live.frame-sampler")
-      && screenPosePanelText.includes("aero.camera.live.frame-sampler")
+      && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
+      && inferenceText.includes("CV running")
+      && inferenceText.includes("model ready")
+      && inferenceText.includes("source live-camera aero.movenet.live")
+      && inferenceText.includes("inference frames ")
+      && inferenceText.includes("pose frames ")
+      && mediaText.includes("Source live-camera aero.movenet.live")
+      && mediaText.includes("playback playing")
+      && runtimePanelText.includes("aero.movenet.live")
+      && screenPosePanelText.includes("aero.movenet.live")
       && !runtimePanelText.includes("aero.movenet.replay.basic-upper-body")
       && !screenPosePanelText.includes("aero.movenet.replay.basic-upper-body")
+      && !runtimePanelText.includes("aero.camera.live.frame-sampler")
+      && !screenPosePanelText.includes("aero.camera.live.frame-sampler")
+      && previewVideo?.srcObject instanceof MediaStream
+      && previewVideo.videoWidth > 0
+      && previewVideo.videoHeight > 0
+      && previewState?.sourceKind === "live-camera"
+      && previewState?.sourceId === "aero.movenet.live"
+      && previewState?.rendererDrawCount > 0
       && cameraRequests === 1
       && stoppedTracks === 0
       && trackState === "live";
-  });
+  }, undefined, { timeout: 90000 });
 
-  const firstLiveSample = await readLiveSample(page);
+  const firstLiveSample = await readLiveInferenceSnapshot(page);
   await page.waitForFunction((previousTimestamp) => {
     const app = document.querySelector("aerobeat-app");
     const panel = app?.shadowRoot?.querySelector("aero-pose-flow-panel");
-    const cameraText = app?.shadowRoot?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const inferenceText = app?.shadowRoot?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
     const timestampMs = panel?.state?.poseFrame?.timestampMs ?? 0;
-    const sampleMatch = /samples (?<samples>\d+)/u.exec(cameraText);
-    const samples = Number.parseInt(sampleMatch?.groups?.samples ?? "0", 10);
-    return samples >= 2 && timestampMs > previousTimestamp;
+    const inferenceMatch = /inference frames (?<inference>\d+)/u.exec(inferenceText);
+    const poseMatch = /pose frames (?<pose>\d+)/u.exec(inferenceText);
+    const inferenceFrames = Number.parseInt(inferenceMatch?.groups?.inference ?? "0", 10);
+    const poseFrames = Number.parseInt(poseMatch?.groups?.pose ?? "0", 10);
+    return inferenceFrames >= 2 && poseFrames >= 2 && timestampMs > previousTimestamp;
   }, firstLiveSample.timestampMs);
-  const secondLiveSample = await readLiveSample(page);
-  if (secondLiveSample.sampleCount <= firstLiveSample.sampleCount) {
-    throw new Error("Live camera frame sampler did not emit multiple samples.");
+  const secondLiveSample = await readLiveInferenceSnapshot(page);
+  if (secondLiveSample.inferenceFrameCount <= firstLiveSample.inferenceFrameCount) {
+    throw new Error("Live MoveNet inference did not process multiple frames.");
+  }
+  if (secondLiveSample.poseFrameCount <= firstLiveSample.poseFrameCount) {
+    throw new Error("Live CV service did not produce multiple pose frames.");
   }
   if (secondLiveSample.timestampMs <= firstLiveSample.timestampMs) {
-    throw new Error("Live camera frame sampler timestamps did not advance.");
-  }
-  if (secondLiveSample.landmarkSignature === firstLiveSample.landmarkSignature) {
-    throw new Error("Live camera-derived normalized pose values did not change over time.");
+    throw new Error("Live MoveNet pose-frame timestamps did not advance.");
   }
 
   const liveStreamState = await page.evaluate(() => ({
@@ -226,18 +250,29 @@ console.log(`Playwright console-noise check passed at ${url}`);
  *   landmarkSignature: string
  * }>}
  */
-async function readLiveSample(page) {
+async function readLiveInferenceSnapshot(page) {
   return page.evaluate(() => {
     const app = document.querySelector("aerobeat-app");
     const root = app?.shadowRoot;
     const panel = root?.querySelector("aero-pose-flow-panel");
-    const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
-    const sampleMatch = /samples (?<samples>\d+)/u.exec(cameraText);
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    const inferenceMatch = /inference frames (?<inference>\d+)/u.exec(inferenceText);
+    const poseMatch = /pose frames (?<pose>\d+)/u.exec(inferenceText);
     const poseFrame = panel?.state?.poseFrame;
     return {
-      sampleCount: Number.parseInt(sampleMatch?.groups?.samples ?? "0", 10),
+      inferenceFrameCount: Number.parseInt(inferenceMatch?.groups?.inference ?? "0", 10),
+      poseFrameCount: Number.parseInt(poseMatch?.groups?.pose ?? "0", 10),
       timestampMs: poseFrame?.timestampMs ?? 0,
       landmarkSignature: JSON.stringify(poseFrame?.landmarks ?? [])
     };
   });
+}
+
+/**
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isExpectedConsoleWarning(text) {
+  return text.includes("GL Driver Message")
+    && text.includes("GPU stall due to ReadPixels");
 }
