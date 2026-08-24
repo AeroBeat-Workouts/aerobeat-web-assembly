@@ -1,9 +1,9 @@
 # AeroBeat Live MoveNet Inference
 
 **Date:** 2026-08-24
-**Status:** In Progress
-**Last Updated:** 2026-08-24 12:58 EDT
-**Blocked Reason:** None
+**Status:** Blocked
+**Last Updated:** 2026-08-24 13:23 EDT
+**Blocked Reason:** Physical Android Chrome confirmation is required to prove the real phone camera feed produces nonzero human MoveNet landmarks and visible WebGL2 skeleton overlay; automated fake-camera QA passed but cannot supply human-body landmarks.
 **Agent:** cookie
 
 ---
@@ -219,9 +219,9 @@ The first acceptable result is a phone-visible checkpoint where tapping `Begin c
 - `package-lock.json` if dependency/version changes require it
 - `.plans/2026-08-24-live-movenet-inference.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** `aerobeat-web-assembly` now wires the phone route through the final-shape live inference split instead of the assembly-local sampler proxy. Parent verification confirmed the repo is clean except this living plan update, `main` is pushed at `a0a104c` (`Wire live MoveNet inference route`), `package.json` is bumped to `0.0.4`, the running Tailscale route serves release-proof meta `0.0.4`, and `src/` references `createAeroCameraCvService`, `createMoveNetPoseAdapter`, and `aero-media-pose-preview` without the old `aero.camera.live.frame-sampler` source. Runtime status now reports media source/playback/size, CV/model/source state, inference frames, pose frames, rendered pose frames, live-camera source kind, and explicit fallback/error text. Coder validation passed: `npm test`, `npm run build`, and `npm run test:browser`. Caveats carried forward for QA: Playwright fake camera cannot prove nonzero human landmarks, and expected Chromium WebGL `ReadPixels` performance warnings are filtered by the browser console validator. Bead `oc-aa1` remains `in_progress` for QA/auditor closure.
 
 ---
 
@@ -239,9 +239,9 @@ The first acceptable result is a phone-visible checkpoint where tapping `Begin c
 **Files Created/Deleted/Modified:**
 - None expected, except plan/bead status if needed
 
-**Status:** ⏳ Pending
+**Status:** ❌ Blocked
 
-**Results:** Pending.
+**Results:** QA completed on 2026-08-24 13:22 EDT against `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` using Chromium mobile viewport and a canvas `captureStream` fake camera. Validation passed: `npm test`, `npm run build`, and `npm run test:browser`. The live route returned HTTP/2 200 with release-proof meta `0.0.4`; visible build proof showed `Version 0.0.4 / Built 2026-08-24T17:12:13.736Z / Cache mt7huf1l-j1rt01`. Calibration requested `getUserMedia` once with `{ audio: false, video: { facingMode: "user" } }`; the fake camera track stayed live; counters advanced over 2s from inference `7 -> 43`, pose `7 -> 43`, and rendered `6 -> 42`. Source reporting was truthful: `aero.movenet.live`, with no `aero.camera.live.frame-sampler` or replay source after calibration. Preview evidence showed `aero-media-pose-preview` using `sourceKind live-camera`, `sourceId aero.movenet.live`, `fitMode cover`, `mirrored true`, `video 320x240`, and renderer draw count `18 -> 90`. Console/page logs had no unexpected warnings/errors, with only the known Chromium WebGL `ReadPixels` warning filtered. Screenshot evidence is at `/tmp/aerobeat-live-mobile-qa-final.png`. QA blocked bead `oc-1j1` because the fake camera produced no human-body landmarks (`Landmarks 0`), so physical Android Chrome confirmation is still required for phone camera indicator persistence plus nonzero human landmark/skeleton overlay on the real feed.
 
 ---
 
@@ -259,15 +259,15 @@ The first acceptable result is a phone-visible checkpoint where tapping `Begin c
 **Files Created/Deleted/Modified:**
 - `.plans/2026-08-24-live-movenet-inference.md`
 
-**Status:** ⏳ Pending
+**Status:** ⏸️ Blocked
 
-**Results:** Pending.
+**Results:** Blocked behind `oc-1j1` physical Android Chrome confirmation. Auditor should not close the live inference checkpoint until the real phone feed proves nonzero human landmark/skeleton overlay or Derrick explicitly grants a narrower acceptance exception.
 
 ---
 
 ## Final Results
 
-**Status:** Pending
+**Status:** ⚠️ Blocked
 
 **What We Built:** Pending.
 
