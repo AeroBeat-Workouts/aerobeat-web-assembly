@@ -45,6 +45,13 @@ try {
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
       value: {
+        async enumerateDevices() {
+          return [
+            { kind: "audioinput", deviceId: "mic-1", label: "Mic", groupId: "audio" },
+            { kind: "videoinput", deviceId: "camera-front", label: "Front camera", groupId: "front" },
+            { kind: "videoinput", deviceId: "camera-rear", label: "Rear camera", groupId: "rear" }
+          ];
+        },
         async getUserMedia(constraints) {
           const canvas = document.createElement("canvas");
           canvas.width = 96;
@@ -179,6 +186,26 @@ try {
     throw new Error("Topbar Begin calibration was not visible in the mobile first viewport.");
   }
 
+  await page.waitForFunction(() => {
+    const app = document.querySelector("aerobeat-app");
+    const root = app?.shadowRoot;
+    const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
+    const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
+    return cameraSelect?.options.length === 3 && speedSelect?.options.length === 2;
+  });
+  await page.locator("aerobeat-app").evaluate((element) => {
+    const root = element.shadowRoot;
+    const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
+    const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
+    if (!cameraSelect || !speedSelect) {
+      throw new Error("Phone test controls were not rendered.");
+    }
+    cameraSelect.value = "camera-rear";
+    cameraSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    speedSelect.value = "fast";
+    speedSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
   await page.locator("aerobeat-app aero-button.calibration-entrypoint button").click();
   await page.waitForFunction(() => {
     const app = document.querySelector("aerobeat-app");
@@ -217,6 +244,7 @@ try {
       && inferenceText.includes("inference frames ")
       && inferenceText.includes("pose frames ")
       && inferenceText.includes("overlay landmarks 7")
+      && inferenceText.includes("tracking fast")
       && inferenceText.includes("media-pose delta ")
       && mediaText.includes("Source live-camera aero.movenet.live")
       && mediaText.includes("playback playing")
@@ -232,6 +260,7 @@ try {
       && previewState?.sourceKind === "live-camera"
       && previewState?.sourceId === "aero.movenet.live"
       && previewState?.landmarkCount === 7
+      && previewState?.trackingProfile === "fast"
       && previewState?.rendererDrawCount > 0
       && cameraRequests === 1
       && stoppedTracks === 0
@@ -261,12 +290,40 @@ try {
     throw new Error("Live MoveNet pose-frame timestamps did not advance.");
   }
 
+  const initialCameraRequest = await page.evaluate(() => window.__aeroCameraRequests?.[0]);
+  if (initialCameraRequest?.video?.deviceId?.exact !== "camera-rear") {
+    throw new Error("Selected camera deviceId did not reach the initial getUserMedia request.");
+  }
+
+  await page.locator("aerobeat-app").evaluate((element) => {
+    const cameraSelect = element.shadowRoot?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
+    if (!cameraSelect) {
+      throw new Error("Camera selector was not available for live restart.");
+    }
+    cameraSelect.value = "camera-front";
+    cameraSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await page.waitForFunction(() => {
+    const app = document.querySelector("aerobeat-app");
+    const cameraText = app?.shadowRoot?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const inferenceText = app?.shadowRoot?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    const cameraRequests = Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests.length : 0;
+    return cameraRequests === 2
+      && (window.__aeroStoppedCameraTracks ?? 0) === 1
+      && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
+      && inferenceText.includes("tracking fast");
+  }, undefined, { timeout: 90000 });
+  const restartCameraRequest = await page.evaluate(() => window.__aeroCameraRequests?.[1]);
+  if (restartCameraRequest?.video?.deviceId?.exact !== "camera-front") {
+    throw new Error("Selected camera deviceId did not reach the restarted getUserMedia request.");
+  }
+
   const liveStreamState = await page.evaluate(() => ({
     stoppedTracks: window.__aeroStoppedCameraTracks ?? 0,
     trackState: window.__aeroGrantedCameraTrack?.readyState ?? ""
   }));
-  if (liveStreamState.stoppedTracks !== 0 || liveStreamState.trackState !== "live") {
-    throw new Error("Granted camera stream was stopped before page teardown.");
+  if (liveStreamState.stoppedTracks !== 1 || liveStreamState.trackState !== "live") {
+    throw new Error("Restarted camera stream was not live before page teardown.");
   }
 
   const teardownState = await page.evaluate(() => {
@@ -276,7 +333,7 @@ try {
       trackState: window.__aeroGrantedCameraTrack?.readyState ?? ""
     };
   });
-  if (teardownState.stoppedTracks !== 1 || teardownState.trackState !== "ended") {
+  if (teardownState.stoppedTracks !== 2 || teardownState.trackState !== "ended") {
     throw new Error("Granted camera stream was not released when the app left the page.");
   }
 } finally {

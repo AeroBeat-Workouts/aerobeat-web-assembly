@@ -9,7 +9,12 @@ import {
 } from "@aerobeat/web-cv";
 import { createPoseInputRouter } from "@aerobeat/web-input";
 import { createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
-import { aeroButtonActivateEventName, aeroCalibrationEventNames, defineAeroUiElements } from "@aerobeat/web-ui";
+import {
+  aeroButtonActivateEventName,
+  aeroCalibrationEventNames,
+  aeroSelectChangeEventName,
+  defineAeroUiElements
+} from "@aerobeat/web-ui";
 import { createBrowserVideoMediaFacade, createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import {
   createMoveNetMockPoseAdapter,
@@ -66,6 +71,12 @@ class AeroBeatApp extends HTMLElement {
 
   /** @type {AeroVideoSurfaceDescriptor | undefined} */
   #activeSurface;
+
+  /** @type {string} */
+  #selectedCameraDeviceId = "";
+
+  /** @type {"smoother" | "fast"} */
+  #trackingProfile = "smoother";
 
   /**
    * Creates the app shadow DOM.
@@ -127,6 +138,13 @@ class AeroBeatApp extends HTMLElement {
           justify-items: end;
         }
 
+        .test-controls {
+          display: grid;
+          gap: 8px;
+          grid-template-columns: minmax(132px, 180px) minmax(128px, 168px);
+          inline-size: min(100%, 360px);
+        }
+
         .stage {
           align-items: stretch;
           display: grid;
@@ -185,6 +203,10 @@ class AeroBeatApp extends HTMLElement {
             max-inline-size: min(48vw, 220px);
           }
 
+          .test-controls {
+            grid-template-columns: 1fr;
+          }
+
           .stage {
             grid-template-columns: 1fr;
           }
@@ -201,6 +223,10 @@ class AeroBeatApp extends HTMLElement {
             <span class="subtitle">Browser assembly runtime</span>
           </div>
           <div class="topbar-actions">
+            <div class="test-controls" aria-label="Phone test controls">
+              <aero-select class="camera-device-select" label="Camera" value=""></aero-select>
+              <aero-select class="tracking-speed-select" label="Tracking" value="smoother"></aero-select>
+            </div>
             <aero-button class="calibration-entrypoint" label="Begin calibration"></aero-button>
             <aero-status-panel heading="Build" status="Version ${appMetadata.displayVersion} / Built ${appMetadata.buildStamp} / Cache ${appMetadata.cacheBust}"></aero-status-panel>
           </div>
@@ -232,7 +258,11 @@ class AeroBeatApp extends HTMLElement {
     root.addEventListener(aeroButtonActivateEventName, (event) => {
       this.#handleTopbarCalibrationStart(event);
     });
+    root.addEventListener(aeroSelectChangeEventName, (event) => {
+      this.#handlePhoneControlChange(event);
+    });
     window.requestAnimationFrame(() => {
+      this.#configurePhoneTestControls();
       this.#configurePreviewServices();
       this.#runRuntimeCheckpoint();
     });
@@ -309,6 +339,29 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
+   * Updates route-owned phone test controls.
+   *
+   * @param {Event} event
+   * @returns {void}
+   */
+  #handlePhoneControlChange(event) {
+    if (!(event instanceof CustomEvent)) {
+      return;
+    }
+    const path = event.composedPath();
+    if (path.includes(this.shadowRoot?.querySelector(".tracking-speed-select") ?? this)) {
+      this.#trackingProfile = event.detail?.value === "fast" ? "fast" : "smoother";
+      this.#getPosePreview().setTrackingProfile(this.#trackingProfile);
+      this.#updateInferenceStatus();
+      return;
+    }
+    if (path.includes(this.shadowRoot?.querySelector(".camera-device-select") ?? this)) {
+      this.#selectedCameraDeviceId = typeof event.detail?.value === "string" ? event.detail.value : "";
+      this.#restartLiveCameraIfRunning();
+    }
+  }
+
+  /**
    * Starts the live camera permission checkpoint once per app instance.
    *
    * @returns {void}
@@ -327,11 +380,13 @@ class AeroBeatApp extends HTMLElement {
   async #requestLiveCameraPermission() {
     const source = createLiveCameraSourceDescriptor({
       sourceId: moveNetLiveSourceId,
+      constraints: this.#liveCameraConstraints(),
       fitMode: "cover",
       mirrored: true
     });
     const result = await this.#videoMediaFacade.requestCamera(source);
     if (result.status === "granted") {
+      await this.#refreshCameraDeviceOptions();
       await this.#startLiveInferenceRoute(result.stream, result.source);
       return;
     }
@@ -364,6 +419,21 @@ class AeroBeatApp extends HTMLElement {
     }
     this.#videoMediaFacade.teardownCameraStream();
     this.#cvService.stop();
+    this.#cameraPermissionRequest = undefined;
+  }
+
+  /**
+   * Restarts the live camera path after a device selector change.
+   *
+   * @returns {void}
+   */
+  #restartLiveCameraIfRunning() {
+    if (!this.#videoMediaFacade.getRetainedCameraStream() && !this.#cvService.running) {
+      return;
+    }
+    this.#setCameraPermissionStatus("Camera permission: restarting selected input...");
+    this.#stopLiveInferenceRoute();
+    this.#cameraPermissionRequest = this.#requestLiveCameraPermission();
   }
 
   /**
@@ -376,6 +446,7 @@ class AeroBeatApp extends HTMLElement {
   async #startLiveInferenceRoute(stream, source) {
     this.#configurePreviewServices();
     const preview = this.#getPosePreview();
+    preview.setTrackingProfile(this.#trackingProfile);
     this.#activeSurface = preview.attachCameraStream(stream, source);
     this.#updateMediaStatus(this.#activeSurface);
     this.#updateInferenceStatus();
@@ -458,6 +529,7 @@ class AeroBeatApp extends HTMLElement {
         `pose frames ${status.poseFrameCount}`,
         `rendered pose frames ${this.#renderedPoseFrameCount}`,
         `overlay landmarks ${previewState?.landmarkCount ?? 0}`,
+        `tracking ${previewState?.trackingProfile ?? this.#trackingProfile}`,
         `media-pose delta ${mediaPoseDelta}`
       ].join(" / ") + error);
   }
@@ -483,6 +555,67 @@ class AeroBeatApp extends HTMLElement {
     const preview = this.#getPosePreview();
     preview.setVideoMediaFacade(this.#videoMediaFacade);
     preview.setRenderer(this.#renderer);
+    preview.setTrackingProfile(this.#trackingProfile);
+  }
+
+  /**
+   * Initializes and refreshes the phone testing control widgets.
+   *
+   * @returns {void}
+   */
+  #configurePhoneTestControls() {
+    const speedSelect = this.shadowRoot?.querySelector(".tracking-speed-select");
+    if (speedSelect && "setOptions" in speedSelect) {
+      speedSelect.setOptions([
+        { value: "smoother", label: "Smoother" },
+        { value: "fast", label: "Fast" }
+      ]);
+      speedSelect.setAttribute("value", this.#trackingProfile);
+    }
+    this.#refreshCameraDeviceOptions();
+  }
+
+  /**
+   * Refreshes available camera input choices when the browser permits labels.
+   *
+   * @returns {Promise<void>}
+   */
+  async #refreshCameraDeviceOptions() {
+    const cameraSelect = this.shadowRoot?.querySelector(".camera-device-select");
+    if (!cameraSelect || !("setOptions" in cameraSelect)) {
+      return;
+    }
+    const cameraDevices = await this.#videoMediaFacade.listCameraDevices();
+    cameraSelect.setOptions([
+      { value: "", label: "Default camera" },
+      ...cameraDevices.map((device) => ({
+        value: device.deviceId,
+        label: device.label
+      }))
+    ]);
+    cameraSelect.setAttribute("value", this.#selectedCameraDeviceId);
+  }
+
+  /**
+   * @returns {MediaStreamConstraints}
+   */
+  #liveCameraConstraints() {
+    if (this.#selectedCameraDeviceId) {
+      return {
+        audio: false,
+        video: {
+          deviceId: {
+            exact: this.#selectedCameraDeviceId
+          }
+        }
+      };
+    }
+    return {
+      audio: false,
+      video: {
+        facingMode: "user"
+      }
+    };
   }
 
   /**

@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-24
 **Status:** In Progress
-**Last Updated:** 2026-08-24 14:47 EDT
-**Blocked Reason:** Waiting on Derrick's physical Android Chrome verification of `0.0.6` overlay fidelity for `oc-hmt`; automation can verify package wiring, counters, and version proof, but not real phone landmark alignment/latency/readability.
+**Last Updated:** 2026-08-24 16:58 EDT
+**Blocked Reason:** Physical Android Chrome verified `0.0.6` has correct seven landmarks accurately tracking the body, but visible tracking delay remains too high. Coder slice `oc-4g8` now serves `0.0.7` with camera and tracking-speed selectors; next QA should physically retest camera switching plus fast versus smoother latency/readability.
 **Agent:** cookie
 
 ---
@@ -345,6 +345,41 @@ Remaining caveat for QA: this coder pass cannot physically inspect Derrick's And
 **Status:** ⏸️ Blocked
 
 **Results:** Blocked behind `oc-hmt` overlay fidelity and the downstream QA pass. Auditor should not close the live inference checkpoint until the real phone feed proves aligned, low-lag, readable landmark overlay behavior limited to the requested landmark set, or Derrick explicitly grants a narrower acceptance exception.
+
+---
+
+### Task 12: Expose Camera And Tracking Speed Controls
+
+**Bead ID:** `oc-4g8`
+**SubAgent:** `primary`
+**Role:** `coder`
+**References:** `REF-01`, `REF-03`, `REF-04`, `REF-08`
+**Prompt:** Run as the `coder` role on `primary`. Read the AeroBeat root README plus the READMEs for `aerobeat-web-assembly`, `aerobeat-web-ui`, `aerobeat-web-video`, `aerobeat-web-cv`, and `aerobeat-web-vendor-movenet` before editing. Claim bead `oc-4g8` on start with `bd update oc-4g8 --status in_progress --json`. Use Derrick's latest physical Android Chrome results as required evidence: `0.0.6` showed the correct seven landmarks accurately tracking the body, but the overlay had significant delay; Derrick also wants the landmark skeleton to connect both shoulders visually to the nose instead of only the left shoulder. Add a camera input dropdown in the phone testing scene so available camera devices can be selected and live inference restarts with the selected `deviceId` when possible. Add a tracking speed dropdown with at least a smoother/high-latency option and a fast/low-latency option; wire the selection into the preview smoothing/profile behavior so phone testing can compare jitter versus latency. Update the skeleton connections so the nose connects to both shoulders. Run relevant validation, bump version proof for phone verification, restart the `:8443` route, commit/push, and report retest instructions.
+
+**Folders Created/Deleted/Modified:**
+- `src/`
+- `../aerobeat-web-ui/`
+- `../aerobeat-web-video/` if camera device APIs need facade support
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `src/index.js`
+- `README.md`
+- `package.json`
+- `package-lock.json`
+- `scripts/validate-playwright-console-noise.js`
+- `../aerobeat-web-ui/src/elements/aero-media-pose-preview/aero-media-pose-preview.js`
+- `../aerobeat-web-ui/src/elements/aero-media-pose-preview/README.md`
+- `../aerobeat-web-ui/scripts/validate-media-pose-preview-browser.js` if preview behavior validation changes
+- `.plans/2026-08-24-live-movenet-inference.md`
+
+**Status:** ✅ Complete
+
+**Results:** Coder pass added first-viewport phone-test controls and profile wiring while preserving package boundaries. `aerobeat-web-ui` now exports reusable `aero-select`; `aero-media-pose-preview` supports `smoother` and `fast` tracking profiles, reports the active profile from `describePreview()`, uses `fast` as no-smoothing/low-latency behavior, keeps `smoother` at the previous low-jitter smoothing, and connects the nose to both shoulders in the skeleton. `aerobeat-web-video` now exposes `listCameraDevices()` normalized from browser `videoinput` devices. `aerobeat-web-assembly` populates a camera dropdown from that facade, builds selected-device constraints with `deviceId.exact`, restarts live inference when the selected camera changes after calibration, adds a tracking speed dropdown, forwards the selected profile into the preview, shows `tracking ...` in the Inference panel, and bumped phone proof to `0.0.7` including the HTML release-proof meta.
+
+Validation passed after the `0.0.7` bump: in `../aerobeat-web-ui`, `npm test` and `npm run test:browser`; in `../aerobeat-web-video`, `npm test` and `npm run test:browser`; in `aerobeat-web-assembly`, `npm test`, `npm run build`, and `npm run test:browser`. Assembly browser validation now verifies camera options render, selecting `camera-rear` reaches the initial `getUserMedia` request as `deviceId.exact`, selecting `camera-front` during live inference stops the old track and requests a new stream, and `tracking fast` is visible while live inference continues.
+
+Remaining caveat for QA: this coder pass still uses Playwright fake camera evidence. Derrick should retest physical Android Chrome on `0.0.7`, choose cameras from the Camera dropdown when labels are available, compare `Smoother` versus `Fast`, and verify the nose connects visually to both shoulders.
 
 ---
 
