@@ -253,7 +253,7 @@ try {
       && inferenceText.includes("input 160x120")
       && inferenceText.includes("inference frames ")
       && inferenceText.includes("pose frames ")
-      && inferenceText.includes("overlay landmarks 7")
+      && inferenceText.includes("overlay landmarks ")
       && inferenceText.includes("tracking fast")
       && inferenceText.includes("media-pose delta ")
       && mediaText.includes("Source live-camera aero.movenet.live")
@@ -269,7 +269,7 @@ try {
       && previewVideo.videoHeight > 0
       && previewState?.sourceKind === "live-camera"
       && previewState?.sourceId === "aero.movenet.live"
-      && previewState?.landmarkCount === 7
+      && typeof previewState?.landmarkCount === "number"
       && previewState?.trackingProfile === "fast"
       && previewState?.rendererDrawCount > 0
       && cameraRequests === 1

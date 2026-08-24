@@ -27,6 +27,9 @@ export default {
     },
     preserveSymlinks: true
   },
+  optimizeDeps: {
+    include: ["long", "seedrandom"]
+  },
   server: {
     allowedHosts: [tailscaleHost],
     host: "127.0.0.1",
