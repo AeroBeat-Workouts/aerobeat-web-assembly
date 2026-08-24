@@ -76,6 +76,15 @@ class AeroBeatApp extends HTMLElement {
   /** @type {AeroVideoSurfaceDescriptor | undefined} */
   #activeSurface;
 
+  /** @type {number | undefined} */
+  #mediaFrameRateFps;
+
+  /** @type {number | undefined} */
+  #lastMeasuredVideoFrameCount;
+
+  /** @type {number | undefined} */
+  #lastMeasuredVideoFrameTimeMs;
+
   /** @type {string} */
   #selectedCameraDeviceId = "";
 
@@ -432,6 +441,9 @@ class AeroBeatApp extends HTMLElement {
     this.#videoMediaFacade.teardownCameraStream();
     this.#cvService.stop();
     this.#cameraPermissionRequest = undefined;
+    this.#mediaFrameRateFps = undefined;
+    this.#lastMeasuredVideoFrameCount = undefined;
+    this.#lastMeasuredVideoFrameTimeMs = undefined;
   }
 
   /**
@@ -492,6 +504,7 @@ class AeroBeatApp extends HTMLElement {
     const preview = this.#getPosePreview();
     const video = this.#getPreviewVideo();
     this.#activeSurface = this.#videoMediaFacade.describeSurface(video);
+    this.#updateMediaFrameRate(video);
     preview.setSurfaceDescriptor(this.#activeSurface);
     this.#updateMediaStatus(this.#activeSurface);
     this.#updateInferenceStatus(status);
@@ -542,13 +555,62 @@ class AeroBeatApp extends HTMLElement {
         `model ${status.modelStatus ?? "idle"}`,
         `source ${source}`,
         `input ${status.inferenceInputWidth ?? "full"}x${status.inferenceInputHeight ?? "full"}`,
+        `camera ${this.#activeSurface?.intrinsicWidth ?? 0}x${this.#activeSurface?.intrinsicHeight ?? 0}`,
+        `video fps ${this.#formatFps(this.#mediaFrameRateFps)}`,
+        `prep ${this.#formatCvMs(status.framePrepMs)} avg ${this.#formatCvMs(status.averageFramePrepMs)}`,
+        `adapter ${this.#formatCvMs(status.adapterInferenceMs)} avg ${this.#formatCvMs(status.averageAdapterInferenceMs)}`,
+        `total ${this.#formatCvMs(status.totalCvMs)} avg ${this.#formatCvMs(status.averageTotalCvMs)}`,
         `inference frames ${status.inferenceCount}`,
         `pose frames ${status.poseFrameCount}`,
+        `dropped frames ${status.droppedFrameCount}`,
+        `submitted age ${this.#formatCvMs(status.lastSubmittedFrameAgeMs)}`,
+        `output age ${this.#formatCvMs(status.latestOutputAgeMs)}`,
         `rendered pose frames ${this.#renderedPoseFrameCount}`,
         `overlay landmarks ${overlayLandmarkCount}`,
         `tracking ${previewState?.trackingProfile ?? this.#trackingProfile}`,
         `media-pose delta ${mediaPoseDelta}`
       ].join(" / ") + error);
+  }
+
+  /**
+   * @param {number | undefined} value
+   * @returns {string}
+   */
+  #formatCvMs(value) {
+    return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}ms` : "n/a";
+  }
+
+  /**
+   * @param {number | undefined} value
+   * @returns {string}
+   */
+  #formatFps(value) {
+    return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}fps` : "n/a";
+  }
+
+  /**
+   * @param {HTMLVideoElement} video
+   * @returns {void}
+   */
+  #updateMediaFrameRate(video) {
+    const quality = typeof video.getVideoPlaybackQuality === "function" ? video.getVideoPlaybackQuality() : undefined;
+    const frameCount = quality?.totalVideoFrames;
+    if (typeof frameCount !== "number") {
+      return;
+    }
+    const currentTimeMs = performance.now();
+    if (this.#lastMeasuredVideoFrameCount === undefined || this.#lastMeasuredVideoFrameTimeMs === undefined) {
+      this.#lastMeasuredVideoFrameCount = frameCount;
+      this.#lastMeasuredVideoFrameTimeMs = currentTimeMs;
+      return;
+    }
+    const elapsedMs = currentTimeMs - this.#lastMeasuredVideoFrameTimeMs;
+    if (elapsedMs < 500) {
+      return;
+    }
+    this.#mediaFrameRateFps = ((frameCount - this.#lastMeasuredVideoFrameCount) * 1000) / elapsedMs;
+    this.#lastMeasuredVideoFrameCount = frameCount;
+    this.#lastMeasuredVideoFrameTimeMs = currentTimeMs;
   }
 
   /**
@@ -562,6 +624,7 @@ class AeroBeatApp extends HTMLElement {
         `Source ${surface?.sourceKind ?? "none"} ${surface?.sourceId ?? "none"}`,
         `playback ${surface?.playbackState ?? "idle"}`,
         `size ${surface?.intrinsicWidth ?? 0}x${surface?.intrinsicHeight ?? 0}`,
+        `video fps ${this.#formatFps(this.#mediaFrameRateFps)}`,
         `CV preset ${this.#cvPerformancePreset().label}`
       ].join(" / "));
   }
