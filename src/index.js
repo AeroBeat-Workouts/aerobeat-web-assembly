@@ -2,7 +2,7 @@
 
 import "@aerobeat/web-style/aero-theme.css";
 import { elementNames, serviceIds } from "@aerobeat/web-contracts";
-import { createReplayPoseFrame } from "@aerobeat/web-cv";
+import { createReplayPoseFrame, requestLiveCameraPermission } from "@aerobeat/web-cv";
 import { createPoseInputDraftEvents } from "@aerobeat/web-input";
 import { aeroCalibrationEventNames, defineAeroUiElements } from "@aerobeat/web-ui";
 import { appMetadata } from "./release-metadata.js";
@@ -13,6 +13,9 @@ defineAeroUiElements();
  * Root product shell for the AeroBeat browser app.
  */
 class AeroBeatApp extends HTMLElement {
+  /** @type {Promise<void> | undefined} */
+  #cameraPermissionRequest;
+
   /**
    * Creates the app shadow DOM.
    */
@@ -159,8 +162,9 @@ class AeroBeatApp extends HTMLElement {
           <div class="runtime">
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
             <aero-pose-flow-panel></aero-pose-flow-panel>
-            <p class="checkpoint-note">Runtime checkpoint uses replay CV frames for secure phone loading checks; live camera starts after device-specific permission debugging.</p>
+            <p class="checkpoint-note">Runtime checkpoint uses replay CV frames for secure phone loading checks; calibration requests the live camera permission path.</p>
             <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
+            <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
             <aero-calibration-screen></aero-calibration-screen>
           </div>
         </section>
@@ -209,6 +213,51 @@ class AeroBeatApp extends HTMLElement {
     if (typeof status === "string") {
       panel?.setAttribute("status", status);
     }
+    if (event.detail?.state === "active") {
+      this.#startLiveCameraPermissionRequest();
+    }
+  }
+
+  /**
+   * Starts the live camera permission checkpoint once per app instance.
+   *
+   * @returns {void}
+   */
+  #startLiveCameraPermissionRequest() {
+    if (this.#cameraPermissionRequest) {
+      return;
+    }
+    this.#setCameraPermissionStatus("Camera permission: requesting...");
+    this.#cameraPermissionRequest = this.#requestLiveCameraPermission();
+  }
+
+  /**
+   * @returns {Promise<void>}
+   */
+  async #requestLiveCameraPermission() {
+    const result = await requestLiveCameraPermission();
+    if (result.status === "granted") {
+      this.#setCameraPermissionStatus("Camera permission: granted");
+      for (const track of result.stream?.getTracks() ?? []) {
+        track.stop();
+      }
+      return;
+    }
+    if (result.status === "unsupported") {
+      this.#setCameraPermissionStatus("Camera permission: unsupported");
+      return;
+    }
+    this.#setCameraPermissionStatus(`Camera permission: blocked (${result.errorName ?? "unknown"})`);
+  }
+
+  /**
+   * @param {string} status
+   * @returns {void}
+   */
+  #setCameraPermissionStatus(status) {
+    this.shadowRoot
+      ?.querySelector(".camera-permission-state")
+      ?.setAttribute("status", status);
   }
 
   /**

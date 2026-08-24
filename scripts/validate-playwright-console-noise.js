@@ -1,7 +1,10 @@
 // @ts-check
 
 import { chromium } from "playwright";
+import { rmSync } from "node:fs";
 import { createServer } from "vite";
+
+rmSync("node_modules/.vite", { recursive: true, force: true });
 
 const server = await createServer({
   appType: "spa",
@@ -30,6 +33,20 @@ const pageErrors = [];
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        async getUserMedia(constraints) {
+          window.__aeroCameraRequests = [
+            ...(Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests : []),
+            constraints
+          ];
+          return new MediaStream();
+        }
+      }
+    });
+  });
   page.on("console", (message) => {
     if (message.type() === "warning" || message.type() === "error") {
       consoleNoise.push(`${message.type()}: ${message.text()}`);
@@ -87,9 +104,13 @@ try {
     const screenStatusText = screenStatus?.shadowRoot?.textContent ?? "";
     const screenButtonText = screenButton?.shadowRoot?.textContent ?? "";
     const assemblyText = root?.querySelector(".calibration-state")?.shadowRoot?.textContent ?? "";
+    const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const cameraRequests = Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests.length : 0;
     return screenStatusText.includes("Calibration active")
       && screenButtonText.includes("Calibration running")
-      && assemblyText.includes("Calibration active");
+      && assemblyText.includes("Calibration active")
+      && cameraText.includes("Camera permission: granted")
+      && cameraRequests === 1;
   });
 } finally {
   await browser.close();
