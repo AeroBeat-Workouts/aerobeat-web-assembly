@@ -1,7 +1,7 @@
 # AeroBeat Live MoveNet Inference
 
 **Date:** 2026-08-24
-**Status:** In Progress
+**Status:** Blocked
 **Last Updated:** 2026-08-24 16:51 EDT
 **Blocked Reason:** Physical Android Chrome verified `0.0.6` has correct seven landmarks accurately tracking the body, but visible tracking delay remains too high. `oc-4g8` automated QA/audit passed on `0.0.7`; Derrick's physical Android Chrome comparison of camera switching plus `Smoother` versus `Fast` latency/readability remains the next human retest.
 **Agent:** cookie
