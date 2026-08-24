@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 const packagePath = resolve("package.json");
 const lockPath = resolve("package-lock.json");
+const indexPath = resolve("index.html");
 
 /**
  * @param {string} version
@@ -30,5 +31,14 @@ if (lockJson.packages?.[""]) {
   lockJson.packages[""].version = nextVersion;
 }
 writeFileSync(lockPath, `${JSON.stringify(lockJson, null, 2)}\n`);
+
+const indexHtml = readFileSync(indexPath, "utf8");
+writeFileSync(
+  indexPath,
+  indexHtml.replace(
+    /(<meta name="aerobeat-release-proof" content=")([^"]*)(">)/u,
+    `$1${nextVersion}$3`
+  )
+);
 
 console.log(`AeroBeat web assembly version bumped to ${nextVersion}`);

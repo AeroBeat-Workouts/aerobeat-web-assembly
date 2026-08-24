@@ -54,8 +54,8 @@ try {
         },
         async getUserMedia(constraints) {
           const canvas = document.createElement("canvas");
-          canvas.width = 96;
-          canvas.height = 72;
+          canvas.width = 640;
+          canvas.height = 480;
           const context = canvas.getContext("2d");
           if (!context) {
             throw new Error("Fake camera canvas context unavailable.");
@@ -191,19 +191,25 @@ try {
     const root = app?.shadowRoot;
     const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
     const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
-    return cameraSelect?.options.length === 3 && speedSelect?.options.length === 2;
+    const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    return cameraSelect?.options.length === 3
+      && speedSelect?.options.length === 2
+      && performanceSelect?.options.length === 4;
   });
   await page.locator("aerobeat-app").evaluate((element) => {
     const root = element.shadowRoot;
     const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
     const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
-    if (!cameraSelect || !speedSelect) {
+    const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    if (!cameraSelect || !speedSelect || !performanceSelect) {
       throw new Error("Phone test controls were not rendered.");
     }
     cameraSelect.value = "camera-rear";
     cameraSelect.dispatchEvent(new Event("change", { bubbles: true }));
     speedSelect.value = "fast";
     speedSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    performanceSelect.value = "rescue";
+    performanceSelect.dispatchEvent(new Event("change", { bubbles: true }));
   });
 
   await page.locator("aerobeat-app aero-button.calibration-entrypoint button").click();
@@ -238,9 +244,13 @@ try {
       && topbarButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
+      && cameraText.includes("CV preset Low-end rescue")
       && inferenceText.includes("CV running")
+      && inferenceText.includes("preset Low-end rescue (360p camera / 160px CV)")
+      && (inferenceText.includes("execution worker") || inferenceText.includes("execution main-thread"))
       && inferenceText.includes("model ready")
       && inferenceText.includes("source live-camera aero.movenet.live")
+      && inferenceText.includes("input 160x120")
       && inferenceText.includes("inference frames ")
       && inferenceText.includes("pose frames ")
       && inferenceText.includes("overlay landmarks 7")
@@ -294,6 +304,9 @@ try {
   if (initialCameraRequest?.video?.deviceId?.exact !== "camera-rear") {
     throw new Error("Selected camera deviceId did not reach the initial getUserMedia request.");
   }
+  if (initialCameraRequest?.video?.width?.ideal !== 480 || initialCameraRequest?.video?.height?.ideal !== 360) {
+    throw new Error("Selected CV performance preset did not reduce initial camera constraints.");
+  }
 
   await page.locator("aerobeat-app").evaluate((element) => {
     const cameraSelect = element.shadowRoot?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
@@ -311,11 +324,15 @@ try {
     return cameraRequests === 2
       && (window.__aeroStoppedCameraTracks ?? 0) === 1
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
+      && cameraText.includes("CV preset Low-end rescue")
       && inferenceText.includes("tracking fast");
   }, undefined, { timeout: 90000 });
   const restartCameraRequest = await page.evaluate(() => window.__aeroCameraRequests?.[1]);
   if (restartCameraRequest?.video?.deviceId?.exact !== "camera-front") {
     throw new Error("Selected camera deviceId did not reach the restarted getUserMedia request.");
+  }
+  if (restartCameraRequest?.video?.width?.ideal !== 480 || restartCameraRequest?.video?.height?.ideal !== 360) {
+    throw new Error("Selected CV performance preset did not reduce restarted camera constraints.");
   }
 
   const liveStreamState = await page.evaluate(() => ({
