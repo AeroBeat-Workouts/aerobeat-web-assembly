@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-24
 **Status:** In Progress
-**Last Updated:** 2026-08-24 14:42 EDT
-**Blocked Reason:** None; `oc-hmt` is the next unblocked slice for the physical Android Chrome overlay fidelity issues.
+**Last Updated:** 2026-08-24 14:47 EDT
+**Blocked Reason:** Waiting on Derrick's physical Android Chrome verification of `0.0.6` overlay fidelity for `oc-hmt`; automation can verify package wiring, counters, and version proof, but not real phone landmark alignment/latency/readability.
 **Agent:** cookie
 
 ---
@@ -245,6 +245,8 @@ The first acceptable result is a phone-visible checkpoint where tapping `Begin c
 
 Derrick then tested on physical Android Chrome on 2026-08-24 14:16 EDT. The camera started and the live preview was visible, so the route is no longer blocked on proving real phone feed startup. The physical test exposed visual correctness issues: landmarks appeared above the video feed with vertical Y-axis misalignment, landmarks lagged behind the video, landmarks jittered, and extra landmarks were visible beyond the architecture-requested set of `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist`. QA remains failed/blocked for overlay geometry, latency, smoothing, and landmark filtering. A separate immediate usability bead `oc-cx5` was created because the `Begin calibration` control sits below the mobile fold.
 
+Coder handoff for `oc-hmt` completed on 2026-08-24 14:47 EDT and the route now serves `0.0.6`. QA is no longer blocked on an implementation slice; it is blocked on a fresh physical Android Chrome check of the seven-landmark overlay alignment, latency/readability, and phone-visible `media-pose delta` after pressing the first-viewport `Begin calibration` control.
+
 ---
 
 ### Task 10: Move Calibration Control Above Fold
@@ -322,7 +324,7 @@ Implemented changes preserve the package split. `aerobeat-web-ui` now limits the
 
 Validation passed: in `../aerobeat-web-ui`, `npm test` and `npm run test:browser`; in `../aerobeat-web-vendor-movenet`, `npm test` and `npm run test:browser`; in `aerobeat-web-assembly`, `npm test`, `npm run build`, and `npm run test:browser`. One assembly `npm run test:browser` attempt timed out during fake-camera/model startup after the version bump; the immediate rerun passed, so this is recorded as a Playwright/fake-camera startup flake rather than an accepted product caveat. Tailscale `:8443` still proxies to local Vite on `127.0.0.1:5174`, and `curl https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` confirms `aerobeat-release-proof` content `0.0.6`.
 
-Remaining caveat for QA: this coder pass cannot physically inspect Derrick's Android Chrome camera view. QA should reload `0.0.6`, press the first-viewport `Begin calibration`, and verify the overlay sits on the same live video rect, displays only the seven requested landmarks, is readable with smoothing, and reports the phone-visible `media-pose delta` value while inference counters advance.
+Remaining caveat for QA: this coder pass cannot physically inspect Derrick's Android Chrome camera view. QA should reload `0.0.6`, press the first-viewport `Begin calibration`, and verify the overlay sits on the same live video rect, displays only the seven requested landmarks, is readable with smoothing, and reports the phone-visible `media-pose delta` value while inference counters advance. This is now the current plan blocker.
 
 ---
 
