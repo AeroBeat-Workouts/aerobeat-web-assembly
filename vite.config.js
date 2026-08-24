@@ -13,6 +13,9 @@ export default {
     __AEROBEAT_BUILD_STAMP__: JSON.stringify(buildStamp),
     __AEROBEAT_CACHE_BUST__: JSON.stringify(cacheBust)
   },
+  resolve: {
+    preserveSymlinks: true
+  },
   server: {
     host: "127.0.0.1",
     port: 5173,

@@ -2,6 +2,8 @@
 
 import "@aerobeat/web-style/aero-theme.css";
 import { elementNames, serviceIds } from "@aerobeat/web-contracts";
+import { createReplayPoseFrame } from "@aerobeat/web-cv";
+import { createPoseInputDraftEvents } from "@aerobeat/web-input";
 import { defineAeroUiElements } from "@aerobeat/web-ui";
 import { appMetadata } from "./release-metadata.js";
 
@@ -113,6 +115,12 @@ class AeroBeatApp extends HTMLElement {
           gap: 12px;
         }
 
+        .checkpoint-note {
+          font-size: 0.86rem;
+          font-weight: 650;
+          line-height: 1.35;
+        }
+
         code {
           background: rgba(255, 255, 255, 0.62);
           border: 1px solid rgba(53, 141, 175, 0.24);
@@ -150,6 +158,8 @@ class AeroBeatApp extends HTMLElement {
           </div>
           <div class="runtime">
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
+            <aero-pose-flow-panel></aero-pose-flow-panel>
+            <p class="checkpoint-note">Runtime checkpoint uses replay CV frames for secure phone loading checks; live camera starts after device-specific permission debugging.</p>
             <aero-calibration-screen></aero-calibration-screen>
           </div>
         </section>
@@ -159,6 +169,7 @@ class AeroBeatApp extends HTMLElement {
         </footer>
       </main>
     `;
+    this.#runRuntimeCheckpoint();
   }
 
   /**
@@ -177,6 +188,33 @@ class AeroBeatApp extends HTMLElement {
       serviceIds.inputRouter,
       serviceIds.uiRouter
     ].join(" / ");
+  }
+
+  /**
+   * Drives the first replay-based integration checkpoint through public package APIs.
+   *
+   * @returns {Promise<void>}
+   */
+  async #runRuntimeCheckpoint() {
+    const panel = this.shadowRoot?.querySelector("aero-pose-flow-panel");
+    if (!panel || !("setProvingState" in panel)) {
+      return;
+    }
+
+    const poseFrame = await createReplayPoseFrame();
+    const inputEvents = [
+      ...createPoseInputDraftEvents(poseFrame, "boxing"),
+      ...createPoseInputDraftEvents(poseFrame, "flow")
+    ].map((event) => ({
+      mode: event.mode,
+      eventName: event.eventName,
+      summary: event.detail.kind ?? event.detail.name
+    }));
+
+    panel.setProvingState({
+      poseFrame,
+      inputEvents
+    });
   }
 }
 

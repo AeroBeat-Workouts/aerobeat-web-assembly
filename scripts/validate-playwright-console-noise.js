@@ -52,6 +52,13 @@ try {
   if (!visibleMetadata.includes("Cache")) {
     throw new Error("Visible cache-bust metadata was not rendered.");
   }
+
+  await page.waitForFunction(() => {
+    const app = document.querySelector("aerobeat-app");
+    const panel = app?.shadowRoot?.querySelector("aero-pose-flow-panel");
+    const panelText = panel?.shadowRoot?.textContent ?? "";
+    return panelText.includes("aero.movenet.replay.basic-upper-body") && panelText.includes("6");
+  });
 } finally {
   await browser.close();
   await server.close();

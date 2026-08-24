@@ -13,15 +13,18 @@
     "test:browser": "npm run check:console",
     "dev": "vite --host 127.0.0.1",
     "dev:host": "node scripts/print-host-urls.js",
-    "dev:secure": "vite --host 0.0.0.0 --https",
+    "dev:secure": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "build-release": "node scripts/build-release.js",
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
   },
   "dependencies": {
     "@aerobeat/web-contracts": "file:../aerobeat-web-contracts",
+    "@aerobeat/web-cv": "file:../aerobeat-web-cv",
+    "@aerobeat/web-input": "file:../aerobeat-web-input",
     "@aerobeat/web-style": "file:../aerobeat-web-style",
-    "@aerobeat/web-ui": "file:../aerobeat-web-ui"
+    "@aerobeat/web-ui": "file:../aerobeat-web-ui",
+    "@aerobeat/web-vendor-movenet": "file:../aerobeat-web-vendor-movenet"
   },
   "devDependencies": {
     "playwright": "^1.46.1",

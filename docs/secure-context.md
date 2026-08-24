@@ -30,6 +30,8 @@ tailscale serve --https=443 http://127.0.0.1:5173
 
 Open the Tailscale HTTPS URL on the phone. That origin should satisfy secure-context requirements for camera validation while keeping traffic on the tailnet.
 
+For the first mobile integration checkpoint, confirm the phone page loads over the Tailscale HTTPS URL, shows `Secure context: ready`, and shows the runtime pose flow source `aero.movenet.replay.basic-upper-body` with six draft input events. This checkpoint intentionally uses replay data; live `getUserMedia` and MoveNet debugging should be tracked as the next device-specific slice if the secure page loads but camera behavior needs more work.
+
 To stop the route:
 
 ```bash
