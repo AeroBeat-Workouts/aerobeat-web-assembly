@@ -25,6 +25,12 @@ Then start Vite with a host binding when another device needs to reach this mach
 npx vite --host 0.0.0.0 --port 5173
 ```
 
+For the Tailscale `/aerobeat` HTTPS checkpoint, use the subpath-aware dev script:
+
+```bash
+npm run dev:tailscale
+```
+
 The app renders the raw proof version `0.0.1`, a build stamp, and a cache-bust token in the first viewport so browser/device refresh state is visible.
 
 The first mobile integration checkpoint also renders `aero-pose-flow-panel` in the app shell and drives it with one deterministic replay frame through the public `@aerobeat/web-cv` and `@aerobeat/web-input` exports. This proves secure serving, cache refresh, and runtime package loading before live phone camera debugging starts.

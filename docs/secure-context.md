@@ -21,14 +21,14 @@ npx vite --host 0.0.0.0 --port 5173
 
 ## Tailscale HTTPS
 
-When Tailscale is available, serve Vite on all interfaces and front it with a Tailscale HTTPS endpoint:
+When Tailscale is available, serve Vite on all interfaces and front it with a Tailscale HTTPS endpoint. The current AeroBeat checkpoint keeps the existing root route intact and uses a separated `/aerobeat` route for this app:
 
 ```bash
-npx vite --host 0.0.0.0 --port 5173
-tailscale serve --https=443 http://127.0.0.1:5173
+npm run dev:tailscale
+tailscale serve --https=443 --set-path /aerobeat --yes http://127.0.0.1:5173
 ```
 
-Open the Tailscale HTTPS URL on the phone. That origin should satisfy secure-context requirements for camera validation while keeping traffic on the tailnet.
+Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net/aerobeat` on the phone. That origin should satisfy secure-context requirements for camera validation while keeping traffic on the tailnet. Preserve any existing `/` handler when adding the `/aerobeat` route.
 
 For the first mobile integration checkpoint, confirm the phone page loads over the Tailscale HTTPS URL, shows `Secure context: ready`, and shows the runtime pose flow source `aero.movenet.replay.basic-upper-body` with six draft input events. This checkpoint intentionally uses replay data; live `getUserMedia` and MoveNet debugging should be tracked as the next device-specific slice if the secure page loads but camera behavior needs more work.
 
