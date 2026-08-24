@@ -106,5 +106,7 @@ The current assembly code explains that behavior: it requests permission, report
 **Commits:**
 - `272cff6` - Keep calibration camera stream live
 - `70473d2` - Record live camera calibration plan result
+- `1771d0b` - Record live camera calibration audit
+- Archive commit - Archive completed live camera calibration plan
 
 **Lessons Learned:** Keeping camera permission truthful at the assembly layer needs both stream lifecycle evidence and visible source-state evidence; otherwise a permission prompt alone can still leave mobile testers seeing replay-only behavior.
