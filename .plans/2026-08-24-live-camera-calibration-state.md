@@ -55,7 +55,7 @@ The current assembly code explains that behavior: it requests permission, report
 
 **Status:** ✅ Complete
 
-**Results:** Implemented the live-camera checkpoint in `src/index.js`: granted streams are retained on the app instance instead of stopped immediately, Camera status now reports `Camera permission: granted - live stream running (...)`, and `disconnectedCallback()` releases tracks on page teardown. After permission grant, both the app runtime pose-flow panel and calibration screen pose-flow panel are refreshed through public `@aerobeat/web-cv` replay-frame and `@aerobeat/web-input` draft-event APIs with the live checkpoint source `aero.camera.live.permission-stream`. Updated `scripts/validate-playwright-console-noise.js` to stub a granted live video track, prove it is not stopped after calibration, verify both visible pose-flow panels switch away from replay to the live source, and prove teardown stops the track. Updated `README.md` and `docs/secure-context.md` to describe initial replay fallback, live checkpoint behavior, and deferred full MoveNet live inference. Validation passed: `npm test` and `npm run build`. Commit: `f8d2503`.
+**Results:** Implemented the live-camera checkpoint in `src/index.js`: granted streams are retained on the app instance instead of stopped immediately, Camera status now reports `Camera permission: granted - live stream running (...)`, and `disconnectedCallback()` releases tracks on page teardown. After permission grant, both the app runtime pose-flow panel and calibration screen pose-flow panel are refreshed through public `@aerobeat/web-cv` replay-frame and `@aerobeat/web-input` draft-event APIs with the live checkpoint source `aero.camera.live.permission-stream`. Updated `scripts/validate-playwright-console-noise.js` to stub a granted live video track, prove it is not stopped after calibration, verify both visible pose-flow panels switch away from replay to the live source, and prove teardown stops the track. Updated `README.md` and `docs/secure-context.md` to describe initial replay fallback, live checkpoint behavior, and deferred full MoveNet live inference. Validation passed: `npm test` and `npm run build`. Commit: `272cff6`.
 
 ### Task 2: Verify Live Camera Calibration State
 
@@ -104,6 +104,6 @@ The current assembly code explains that behavior: it requests permission, report
 **Reference Check:** Pending.
 
 **Commits:**
-- `f8d2503` - Keep calibration camera stream live
+- `272cff6` - Keep calibration camera stream live
 
 **Lessons Learned:** Pending.
