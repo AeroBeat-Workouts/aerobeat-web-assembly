@@ -1,8 +1,8 @@
 # AeroBeat Live Camera Derived Values
 
 **Date:** 2026-08-24  
-**Status:** In Progress  
-**Last Updated:** 2026-08-24 11:25 EDT  
+**Status:** Complete  
+**Last Updated:** 2026-08-24 11:38 EDT  
 **Blocked Reason:** None  
 **Agent:** cookie
 
@@ -67,9 +67,9 @@ The previous completed slice intentionally retained a permission stream and swap
 **References:** `REF-01`, `REF-03`, `REF-04`  
 **Prompt:** After coder handoff, verify bead `oc-3t1` without changing implementation unless asked. Read this repo's README first. Run relevant validation and use Playwright or the highest-fidelity available browser check to confirm the calibration path keeps a granted stream consumed by video, emits multiple changing camera-derived samples, updates visible status over time, keeps the track live before teardown, and releases it on teardown. Report exact evidence and any warnings/errors. Do not close the bead.
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed. Read `README.md` first and checked bead/plan context. `npm test` passed, including Playwright console/page-noise validation, and `npm run build` passed. A targeted Playwright probe against a Vite-served page with a canvas-backed fake `MediaStream` confirmed the video consumer retained the stream (`hasStream: true`, `paused: false`, `readyState: 4`, `videoWidth: 96`, `videoHeight: 72`), visible camera status advanced from `frames 2 / samples 2` to `frames 5 / samples 5`, both visible pose-flow panels showed `aero.camera.live.frame-sampler`, timestamps advanced from `622 ms` to `671 ms`, landmark values changed between samples, the track stayed live before teardown, teardown stopped it once, and there were no console/page warnings or errors.
 
 ### Task 3: Audit Live Camera Sampling
 
@@ -79,20 +79,26 @@ The previous completed slice intentionally retained a permission stream and swap
 **References:** `REF-01`, `REF-02`, `REF-03`, `REF-04`  
 **Prompt:** After QA handoff, independently audit bead `oc-3t1`. Read this repo's README first. Check the diff, docs, tests, and validation evidence against the plan and bead acceptance criteria. Close `oc-3t1` only if the implementation truthfully delivers changing live camera-derived values, validation is clean, Git is pushed, and the visible UI does not imply full MoveNet inference unless that is actually implemented. If it fails, leave the bead open and report exact gaps.
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Audit passed and closed bead `oc-3t1` locally. Auditor verified the diff, docs, tests, QA evidence, current version metadata, and Git state against the plan. Validation rerun clean: `npm run check`, `npm test`, `npm run test:browser`, and `npm run build`. Auditor confirmed `package.json`, `package-lock.json`, and `index.html` release proof are `0.0.3`; `main` matches `origin/main`; and the UI/docs truthfully label this as `aero.camera.live.frame-sampler` without claiming full MoveNet live inference. `bd dolt push` still fails with the known no-common-ancestor Dolt divergence, so bead closure is local until that tracker sync issue is repaired.
 
 ---
 
 ## Final Results
 
-**Status:** Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** AeroBeat now attaches the granted camera stream to a hidden `playsinline` video consumer, keeps it playing, samples frames on `requestAnimationFrame`, updates visible Camera frame/sample counters, and feeds changing camera-derived normalized pose/input proof values into both pose-flow panels. The phone-testable version is `0.0.3`.
 
-**Reference Check:** Pending.
+**Reference Check:** Satisfied `REF-01` by addressing the Android symptom: the stream is actively consumed and visible values update after permission is granted. Satisfied `REF-02` by preserving the scope boundary: this is a truthful live frame sampler, not a full MoveNet inference claim. Satisfied `REF-03` and `REF-04` through implementation and Playwright validation of stream consumption, changing samples, teardown release, no console/page noise, and release proof metadata.
 
-**Commits:** Pending.
+**Commits:**
+- `4a56cef` - Drive live camera frame sampler
+- `e2a778e` - Refresh AeroBeat release proof meta
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** A retained `MediaStream` is not enough for mobile validation; the page needs to attach the stream to an active media consumer and sample it continuously so browsers keep capture active and testers see values move.
+
+---
+
+*Completed on 2026-08-24*
