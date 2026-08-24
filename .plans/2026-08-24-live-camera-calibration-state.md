@@ -1,8 +1,8 @@
 # AeroBeat Live Camera Calibration State
 
 **Date:** 2026-08-24  
-**Status:** In Progress  
-**Last Updated:** 2026-08-24 10:15 America/New_York  
+**Status:** Complete  
+**Last Updated:** 2026-08-24 10:11 EDT  
 **Blocked Reason:** None  
 **Agent:** cookie
 
@@ -71,9 +71,9 @@ The current assembly code explains that behavior: it requests permission, report
 **Files Created/Deleted/Modified:**
 - None expected.
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed. Read `README.md`, plan, bead `oc-wks`, implementation, docs, and validation script. Validation passed: `npm test` ran `check:jsdoc`, `check:imports`, `check:components`, and `check:console`; the Playwright console-noise check passed at `http://127.0.0.1:35959/`. `npm run build` passed with Vite building 21 modules and writing `dist/index.html`, `dist/assets/index-BM7SCjV1.css`, and `dist/assets/index-D5Ge4ITf.js`. Independent Playwright/Vite validation passed at `http://127.0.0.1:40189/`: initial runtime and calibration pose-flow panels showed `aero.movenet.replay.basic-upper-body`; after `Begin calibration` and granted `getUserMedia`, the Camera panel reported `Camera permission: granted - live stream running (1 track)`, the shell and screen calibration statuses reported active calibration, both visible pose-flow panels included `aero.camera.live.permission-stream` and no longer included the replay source, `getUserMedia` was requested once, the granted track stayed `live`, and stopped-track count stayed `0`. Teardown by removing `aerobeat-app` stopped the granted track exactly once and left it `ended`. Browser console warnings/errors: none; page errors: none. No implementation files changed. This should proceed to audit.
 
 ### Task 3: Audit Live Camera Calibration State
 
@@ -89,21 +89,22 @@ The current assembly code explains that behavior: it requests permission, report
 **Files Created/Deleted/Modified:**
 - None expected.
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Audit passed. Read `README.md` first, then independently checked bead `oc-wks`, the plan, implementation, validation script, docs, public CV/input package boundaries, and current history. The implementation retains the granted `MediaStream` on the app instance, reports `Camera permission: granted - live stream running (...)`, switches both the runtime and calibration pose-flow panels to `aero.camera.live.permission-stream` through public `@aerobeat/web-cv` and `@aerobeat/web-input` APIs, and releases tracks in `disconnectedCallback()`. Automated audit validation passed: `npm test` including Playwright console-noise validation at `http://127.0.0.1:39113/`, and `npm run build` with Vite building 21 modules. An independent Playwright/Vite probe at `http://127.0.0.1:35719/` confirmed initial replay state in both pose-flow panels, post-calibration live source in both panels, Camera panel live-running status, one `getUserMedia` request, granted track state `live`, stopped-track count `0` before teardown, teardown stopped the track exactly once and left it `ended`, and no console warnings/errors or page errors. Bead `oc-wks` closed as complete.
 
 ---
 
 ## Final Results
 
-**Status:** Pending  
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** The calibration path now keeps accepted camera permission backed by a retained live stream for the page lifetime, updates the Camera status panel to a running live-stream state, and switches the visible runtime and calibration pose-flow panels from replay source text to `aero.camera.live.permission-stream`. Replay remains the deterministic initial/fallback checkpoint, and docs now explain that full MoveNet live landmark inference is a later slice.
 
-**Reference Check:** Pending.
+**Reference Check:** Satisfied `REF-01` by addressing the Android Chrome symptom: after permission grant, the stream is not stopped immediately and the visible UI no longer remains replay-only/dummy-looking. Satisfied `REF-02` and `REF-03` through implementation and Playwright validation of live status, both pose-flow panel source transitions, non-stopped granted track, teardown cleanup, and no console/page errors. Satisfied `REF-04` by updating `README.md` and `docs/secure-context.md` to distinguish live checkpoint behavior from replay fallback.
 
 **Commits:**
 - `272cff6` - Keep calibration camera stream live
+- `70473d2` - Record live camera calibration plan result
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** Keeping camera permission truthful at the assembly layer needs both stream lifecycle evidence and visible source-state evidence; otherwise a permission prompt alone can still leave mobile testers seeing replay-only behavior.
