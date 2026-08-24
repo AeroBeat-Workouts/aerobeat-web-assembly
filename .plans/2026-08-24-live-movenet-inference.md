@@ -1,9 +1,9 @@
 # AeroBeat Live MoveNet Inference
 
 **Date:** 2026-08-24
-**Status:** Blocked
-**Last Updated:** 2026-08-24 13:23 EDT
-**Blocked Reason:** Physical Android Chrome confirmation is required to prove the real phone camera feed produces nonzero human MoveNet landmarks and visible WebGL2 skeleton overlay; automated fake-camera QA passed but cannot supply human-body landmarks.
+**Status:** In Progress
+**Last Updated:** 2026-08-24 14:26 EDT
+**Blocked Reason:** None; `oc-hmt` is the next unblocked slice for the physical Android Chrome overlay fidelity issues.
 **Agent:** cookie
 
 ---
@@ -241,7 +241,63 @@ The first acceptable result is a phone-visible checkpoint where tapping `Begin c
 
 **Status:** ❌ Blocked
 
-**Results:** QA completed on 2026-08-24 13:22 EDT against `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` using Chromium mobile viewport and a canvas `captureStream` fake camera. Validation passed: `npm test`, `npm run build`, and `npm run test:browser`. The live route returned HTTP/2 200 with release-proof meta `0.0.4`; visible build proof showed `Version 0.0.4 / Built 2026-08-24T17:12:13.736Z / Cache mt7huf1l-j1rt01`. Calibration requested `getUserMedia` once with `{ audio: false, video: { facingMode: "user" } }`; the fake camera track stayed live; counters advanced over 2s from inference `7 -> 43`, pose `7 -> 43`, and rendered `6 -> 42`. Source reporting was truthful: `aero.movenet.live`, with no `aero.camera.live.frame-sampler` or replay source after calibration. Preview evidence showed `aero-media-pose-preview` using `sourceKind live-camera`, `sourceId aero.movenet.live`, `fitMode cover`, `mirrored true`, `video 320x240`, and renderer draw count `18 -> 90`. Console/page logs had no unexpected warnings/errors, with only the known Chromium WebGL `ReadPixels` warning filtered. Screenshot evidence is at `/tmp/aerobeat-live-mobile-qa-final.png`. QA blocked bead `oc-1j1` because the fake camera produced no human-body landmarks (`Landmarks 0`), so physical Android Chrome confirmation is still required for phone camera indicator persistence plus nonzero human landmark/skeleton overlay on the real feed.
+**Results:** QA completed on 2026-08-24 13:22 EDT against `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` using Chromium mobile viewport and a canvas `captureStream` fake camera. Validation passed: `npm test`, `npm run build`, and `npm run test:browser`. The live route returned HTTP/2 200 with release-proof meta `0.0.4`; visible build proof showed `Version 0.0.4 / Built 2026-08-24T17:12:13.736Z / Cache mt7huf1l-j1rt01`. Calibration requested `getUserMedia` once with `{ audio: false, video: { facingMode: "user" } }`; the fake camera track stayed live; counters advanced over 2s from inference `7 -> 43`, pose `7 -> 43`, and rendered `6 -> 42`. Source reporting was truthful: `aero.movenet.live`, with no `aero.camera.live.frame-sampler` or replay source after calibration. Preview evidence showed `aero-media-pose-preview` using `sourceKind live-camera`, `sourceId aero.movenet.live`, `fitMode cover`, `mirrored true`, `video 320x240`, and renderer draw count `18 -> 90`. Console/page logs had no unexpected warnings/errors, with only the known Chromium WebGL `ReadPixels` warning filtered. Screenshot evidence is at `/tmp/aerobeat-live-mobile-qa-final.png`.
+
+Derrick then tested on physical Android Chrome on 2026-08-24 14:16 EDT. The camera started and the live preview was visible, so the route is no longer blocked on proving real phone feed startup. The physical test exposed visual correctness issues: landmarks appeared above the video feed with vertical Y-axis misalignment, landmarks lagged behind the video, landmarks jittered, and extra landmarks were visible beyond the architecture-requested set of `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist`. QA remains failed/blocked for overlay geometry, latency, smoothing, and landmark filtering. A separate immediate usability bead `oc-cx5` was created because the `Begin calibration` control sits below the mobile fold.
+
+---
+
+### Task 10: Move Calibration Control Above Fold
+
+**Bead ID:** `oc-cx5`
+**SubAgent:** `primary`
+**Role:** `coder`
+**References:** `REF-01`, `REF-02`
+**Prompt:** Run as the `coder` role on `primary`. Read the AeroBeat root README plus the READMEs for `aerobeat-web-assembly` and `aerobeat-web-ui` before editing. Claim bead `oc-cx5` on start with `bd update oc-cx5 --status in_progress --json`. Move the `Begin calibration` control for the phone testing scene into the top-right/first-viewport area so Android Chrome can start the camera without scrolling below the fold. Preserve the existing `aero-calibration-screen` event contract and visible calibration status behavior. Prefer a small assembly composition change if this is only a route/test-scene placement issue; update `aerobeat-web-ui` only if the reusable component itself needs a placement affordance. Run relevant validation (`npm test`, `npm run build`, `npm run test:browser` in assembly; UI validation if UI changed), bump the patch version for phone verification, restart the `:8443` test route, commit/push, and report the exact version/cache served.
+
+**Folders Created/Deleted/Modified:**
+- `src/`
+- `.plans/`
+- `../aerobeat-web-ui/` only if needed
+
+**Files Created/Deleted/Modified:**
+- `src/index.js`
+- `README.md` if checkpoint instructions change
+- `package.json`
+- `package-lock.json`
+- `.plans/2026-08-24-live-movenet-inference.md`
+- `../aerobeat-web-ui/src/screens/aero-calibration-screen/aero-calibration-screen.js` only if needed
+
+**Status:** ✅ Complete
+
+**Results:** Coder handoff completed on 2026-08-24 14:26 EDT. `aerobeat-web-assembly` now has a top-right first-viewport `Begin calibration` `aero-button` in the assembly topbar. The new button forwards activation through the existing reusable `aero-calibration-screen` control, preserving the `aero:calibration:start`, `aero:calibration:state-change`, and status behavior sourced from the component. The reusable UI component API was not changed.
+
+Validation passed in `aerobeat-web-assembly`: `npm test`, `npm run build`, and `npm run test:browser`. Browser validation now uses a 390x844 mobile viewport, asserts the topbar calibration button is visible in the first viewport/right side without scrolling, verifies native button semantics, clicks it, and confirms the reusable calibration screen reports `Calibration running` plus live camera/CV state. Version/cache proof was bumped to `0.0.5` in `package.json`, `package-lock.json`, and `index.html` release-proof meta. The phone route was restarted with local Vite on `127.0.0.1:5174`; Tailscale `:8443` still proxies to that server; `curl https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` confirms `aerobeat-release-proof` content `0.0.5`. Commit: `991cda8` (`Move calibration control above mobile fold`) pushed to `main`. Bead `oc-cx5` remains locally `in_progress` for QA/auditor closure; `bd dolt push` remains blocked by the known no-common-ancestor divergence.
+
+---
+
+### Task 11: Tune Mobile Landmark Overlay Fidelity
+
+**Bead ID:** `oc-hmt`
+**SubAgent:** `primary`
+**Role:** `coder`
+**References:** `REF-03`, `REF-04`, `REF-07`, `REF-08`
+**Prompt:** Run as the `coder` role on `primary` after Task 10. Read the AeroBeat root README plus the READMEs for `aerobeat-web-assembly`, `aerobeat-web-ui`, `aerobeat-web-renderer`, `aerobeat-web-cv`, and `aerobeat-web-vendor-movenet` before editing. Claim bead `oc-hmt` on start with `bd update oc-hmt --status in_progress --json`. Use Derrick's physical Android Chrome observations as required evidence: live preview appears, but landmarks are vertically misaligned above the video feed, overlay lags behind video, landmarks jitter, and extra landmarks are visible beyond the architecture-requested subset of `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist`. Fix or instrument the WebGL2 preview pipeline so the overlay is mapped to the same live video content rect, latency is reduced or truthfully measured, jitter is smoothed enough for calibration readability, and only the requested landmark set is visible in the testing scene. Run relevant validation, bump version proof for phone verification, commit/push, and report physical-test instructions.
+
+**Folders Created/Deleted/Modified:**
+- `src/`
+- `../aerobeat-web-ui/`
+- `../aerobeat-web-renderer/`
+- `../aerobeat-web-cv/` if needed
+- `../aerobeat-web-vendor-movenet/` if needed
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- Pending investigation.
+
+**Status:** ⏳ In Progress
+
+**Results:** Started after `oc-cx5` coder handoff. This is now the active coder slice for the physical Android Chrome visual correctness issues: vertical Y-axis overlay misalignment, overlay delay, landmark jitter, and extra landmarks beyond the architecture-requested `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist` set.
 
 ---
 
@@ -261,7 +317,7 @@ The first acceptable result is a phone-visible checkpoint where tapping `Begin c
 
 **Status:** ⏸️ Blocked
 
-**Results:** Blocked behind `oc-1j1` physical Android Chrome confirmation. Auditor should not close the live inference checkpoint until the real phone feed proves nonzero human landmark/skeleton overlay or Derrick explicitly grants a narrower acceptance exception.
+**Results:** Blocked behind `oc-hmt` overlay fidelity and the downstream QA pass. Auditor should not close the live inference checkpoint until the real phone feed proves aligned, low-lag, readable landmark overlay behavior limited to the requested landmark set, or Derrick explicitly grants a narrower acceptance exception.
 
 ---
 
