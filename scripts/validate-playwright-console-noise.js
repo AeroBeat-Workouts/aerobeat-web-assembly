@@ -34,6 +34,19 @@ const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
   await page.addInitScript(() => {
+    const grantedTrack = {
+      kind: "video",
+      readyState: "live",
+      stop() {
+        this.readyState = "ended";
+        window.__aeroStoppedCameraTracks = (window.__aeroStoppedCameraTracks ?? 0) + 1;
+      }
+    };
+    const grantedStream = {
+      getTracks() {
+        return [grantedTrack];
+      }
+    };
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
       value: {
@@ -42,7 +55,8 @@ try {
             ...(Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests : []),
             constraints
           ];
-          return new MediaStream();
+          window.__aeroGrantedCameraTrack = grantedTrack;
+          return grantedStream;
         }
       }
     });
@@ -98,20 +112,51 @@ try {
   await page.waitForFunction(() => {
     const app = document.querySelector("aerobeat-app");
     const root = app?.shadowRoot;
+    const runtimePanel = root?.querySelector("aero-pose-flow-panel");
     const screen = root?.querySelector("aero-calibration-screen");
+    const screenPosePanel = screen?.shadowRoot?.querySelector("aero-pose-flow-panel");
     const screenStatus = screen?.shadowRoot?.querySelector("aero-status-panel");
     const screenButton = screen?.shadowRoot?.querySelector("aero-button");
+    const runtimePanelText = runtimePanel?.shadowRoot?.textContent ?? "";
+    const screenPosePanelText = screenPosePanel?.shadowRoot?.textContent ?? "";
     const screenStatusText = screenStatus?.shadowRoot?.textContent ?? "";
     const screenButtonText = screenButton?.shadowRoot?.textContent ?? "";
     const assemblyText = root?.querySelector(".calibration-state")?.shadowRoot?.textContent ?? "";
     const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
     const cameraRequests = Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests.length : 0;
+    const stoppedTracks = window.__aeroStoppedCameraTracks ?? 0;
+    const trackState = window.__aeroGrantedCameraTrack?.readyState ?? "";
     return screenStatusText.includes("Calibration active")
       && screenButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
-      && cameraText.includes("Camera permission: granted")
-      && cameraRequests === 1;
+      && cameraText.includes("Camera permission: granted - live stream running")
+      && runtimePanelText.includes("aero.camera.live.permission-stream")
+      && screenPosePanelText.includes("aero.camera.live.permission-stream")
+      && !runtimePanelText.includes("aero.movenet.replay.basic-upper-body")
+      && !screenPosePanelText.includes("aero.movenet.replay.basic-upper-body")
+      && cameraRequests === 1
+      && stoppedTracks === 0
+      && trackState === "live";
   });
+
+  const liveStreamState = await page.evaluate(() => ({
+    stoppedTracks: window.__aeroStoppedCameraTracks ?? 0,
+    trackState: window.__aeroGrantedCameraTrack?.readyState ?? ""
+  }));
+  if (liveStreamState.stoppedTracks !== 0 || liveStreamState.trackState !== "live") {
+    throw new Error("Granted camera stream was stopped before page teardown.");
+  }
+
+  const teardownState = await page.evaluate(() => {
+    document.querySelector("aerobeat-app")?.remove();
+    return {
+      stoppedTracks: window.__aeroStoppedCameraTracks ?? 0,
+      trackState: window.__aeroGrantedCameraTrack?.readyState ?? ""
+    };
+  });
+  if (teardownState.stoppedTracks !== 1 || teardownState.trackState !== "ended") {
+    throw new Error("Granted camera stream was not released when the app left the page.");
+  }
 } finally {
   await browser.close();
   await server.close();

@@ -10,11 +10,21 @@ import { appMetadata } from "./release-metadata.js";
 defineAeroUiElements();
 
 /**
+ * @typedef {Object} PoseFlowDraftEventView
+ * @property {string} mode Gameplay mode.
+ * @property {string} eventName Browser event name.
+ * @property {string} summary Short event summary.
+ */
+
+/**
  * Root product shell for the AeroBeat browser app.
  */
 class AeroBeatApp extends HTMLElement {
   /** @type {Promise<void> | undefined} */
   #cameraPermissionRequest;
+
+  /** @type {MediaStream | undefined} */
+  #liveCameraStream;
 
   /**
    * Creates the app shadow DOM.
@@ -162,7 +172,7 @@ class AeroBeatApp extends HTMLElement {
           <div class="runtime">
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
             <aero-pose-flow-panel></aero-pose-flow-panel>
-            <p class="checkpoint-note">Runtime checkpoint uses replay CV frames for secure phone loading checks; calibration requests the live camera permission path.</p>
+            <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches the visible source to the retained live camera stream after permission is granted.</p>
             <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
             <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
             <aero-calibration-screen></aero-calibration-screen>
@@ -178,6 +188,13 @@ class AeroBeatApp extends HTMLElement {
       this.#handleCalibrationStateChange(event);
     });
     this.#runRuntimeCheckpoint();
+  }
+
+  /**
+   * Releases live camera tracks when the app leaves the page.
+   */
+  disconnectedCallback() {
+    this.#stopLiveCameraStream();
   }
 
   /**
@@ -237,10 +254,9 @@ class AeroBeatApp extends HTMLElement {
   async #requestLiveCameraPermission() {
     const result = await requestLiveCameraPermission();
     if (result.status === "granted") {
-      this.#setCameraPermissionStatus("Camera permission: granted");
-      for (const track of result.stream?.getTracks() ?? []) {
-        track.stop();
-      }
+      this.#liveCameraStream = result.stream;
+      this.#setCameraPermissionStatus(this.#liveCameraStatus());
+      await this.#runLiveCameraCheckpoint();
       return;
     }
     if (result.status === "unsupported") {
@@ -261,6 +277,51 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
+   * @returns {string}
+   */
+  #liveCameraStatus() {
+    const tracks = this.#liveCameraStream?.getTracks() ?? [];
+    const runningTracks = tracks.filter((track) => track.readyState !== "ended");
+    const trackLabel = runningTracks.length === 1 ? "track" : "tracks";
+    return `Camera permission: granted - live stream running (${runningTracks.length} ${trackLabel})`;
+  }
+
+  /**
+   * Stops the retained live stream during page teardown.
+   *
+   * @returns {void}
+   */
+  #stopLiveCameraStream() {
+    for (const track of this.#liveCameraStream?.getTracks() ?? []) {
+      track.stop();
+    }
+    this.#liveCameraStream = undefined;
+  }
+
+  /**
+   * Drives visible proving panels with the retained live-camera source.
+   *
+   * @returns {Promise<void>}
+   */
+  async #runLiveCameraCheckpoint() {
+    const replayFrame = await createReplayPoseFrame({ sourceKind: "live-camera" });
+    const poseFrame = {
+      ...replayFrame,
+      sourceId: "aero.camera.live.permission-stream",
+      timestampMs: Math.round(performance.now())
+    };
+    const inputEvents = this.#createInputEventViews(poseFrame);
+
+    this.#setPoseFlowPanelState(this.shadowRoot?.querySelector("aero-pose-flow-panel"), poseFrame, inputEvents);
+    const calibrationScreen = this.shadowRoot?.querySelector("aero-calibration-screen");
+    this.#setPoseFlowPanelState(
+      calibrationScreen?.shadowRoot?.querySelector("aero-pose-flow-panel"),
+      poseFrame,
+      inputEvents
+    );
+  }
+
+  /**
    * Drives the first replay-based integration checkpoint through public package APIs.
    *
    * @returns {Promise<void>}
@@ -272,7 +333,17 @@ class AeroBeatApp extends HTMLElement {
     }
 
     const poseFrame = await createReplayPoseFrame();
-    const inputEvents = [
+    const inputEvents = this.#createInputEventViews(poseFrame);
+
+    this.#setPoseFlowPanelState(panel, poseFrame, inputEvents);
+  }
+
+  /**
+   * @param {import("@aerobeat/web-contracts").NormalizedPoseFrame} poseFrame
+   * @returns {readonly PoseFlowDraftEventView[]}
+   */
+  #createInputEventViews(poseFrame) {
+    return [
       ...createPoseInputDraftEvents(poseFrame, "boxing"),
       ...createPoseInputDraftEvents(poseFrame, "flow")
     ].map((event) => ({
@@ -280,6 +351,18 @@ class AeroBeatApp extends HTMLElement {
       eventName: event.eventName,
       summary: event.detail.kind ?? event.detail.name
     }));
+  }
+
+  /**
+   * @param {Element | null | undefined} panel
+   * @param {import("@aerobeat/web-contracts").NormalizedPoseFrame} poseFrame
+   * @param {readonly PoseFlowDraftEventView[]} inputEvents
+   * @returns {void}
+   */
+  #setPoseFlowPanelState(panel, poseFrame, inputEvents) {
+    if (!panel || !("setProvingState" in panel)) {
+      return;
+    }
 
     panel.setProvingState({
       poseFrame,

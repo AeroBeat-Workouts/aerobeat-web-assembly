@@ -30,7 +30,9 @@ tailscale serve --bg --https=8443 --yes http://127.0.0.1:5173
 
 Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` on the phone. That origin should satisfy secure-context requirements for camera validation while keeping traffic on the tailnet. Preserve the existing `https://derrick-alienware-aurora-r13.tail613fcb.ts.net/` handler for OpenClaw.
 
-For the first mobile integration checkpoint, confirm the phone page loads over the Tailscale HTTPS URL, shows `Secure context: ready`, and shows the runtime pose flow source `aero.movenet.replay.basic-upper-body` with six draft input events. This checkpoint intentionally uses replay data; live `getUserMedia` and MoveNet debugging should be tracked as the next device-specific slice if the secure page loads but camera behavior needs more work.
+For the current mobile integration checkpoint, confirm the phone page loads over the Tailscale HTTPS URL, shows `Secure context: ready`, and initially shows the runtime pose flow source `aero.movenet.replay.basic-upper-body` with six draft input events. That initial replay state is the deterministic fallback for secure-loading checks and for blocked or unsupported camera access.
+
+After pressing `Begin calibration` and accepting the browser camera prompt, the Camera panel should report `Camera permission: granted - live stream running`, the device camera indicator should remain active while the page is open, and both visible pose-flow panels should switch to the live checkpoint source `aero.camera.live.permission-stream`. This checkpoint retains the granted stream until the app/page tears down; full MoveNet live landmark inference is still a later device-specific slice.
 
 To stop the route:
 

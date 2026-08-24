@@ -41,7 +41,7 @@ Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/`.
 
 The app renders the raw proof version `0.0.1`, a build stamp, and a cache-bust token in the first viewport so browser/device refresh state is visible.
 
-The first mobile integration checkpoint also renders `aero-pose-flow-panel` in the app shell and drives it with one deterministic replay frame through the public `@aerobeat/web-cv` and `@aerobeat/web-input` exports. Pressing `Begin calibration` requests live camera permission through the public CV boundary and mirrors the request result in the Camera status panel.
+The mobile integration checkpoint renders `aero-pose-flow-panel` in the app shell and starts with one deterministic replay frame through the public `@aerobeat/web-cv` and `@aerobeat/web-input` exports so non-camera secure-loading checks remain deterministic. Pressing `Begin calibration` requests live camera permission through the public CV boundary. When permission is granted, the app keeps the granted stream active for the page lifetime, updates the Camera status panel to a running live stream state, and refreshes the visible pose-flow panels with a `aero.camera.live.permission-stream` source through the same public CV/input route. If camera APIs are unavailable or blocked, the replay checkpoint remains the fallback proof state.
 
 ## Secure Context
 
