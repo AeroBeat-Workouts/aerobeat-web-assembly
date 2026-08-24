@@ -35,7 +35,12 @@ const pageErrors = [];
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage();
+  const page = await browser.newPage({
+    viewport: {
+      width: 390,
+      height: 844
+    }
+  });
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
@@ -138,7 +143,43 @@ try {
     throw new Error("Begin calibration command label was not visible before activation.");
   }
 
-  await page.locator("aerobeat-app aero-calibration-screen aero-button button").click();
+  const topbarButtonSemantics = await page.locator("aerobeat-app").evaluate((element) => {
+    const command = element.shadowRoot?.querySelector("aero-button.calibration-entrypoint");
+    const nativeButton = command?.shadowRoot?.querySelector("button");
+    const bounds = nativeButton?.getBoundingClientRect();
+    return {
+      tagName: nativeButton?.tagName ?? "",
+      type: nativeButton?.getAttribute("type") ?? "",
+      label: nativeButton?.textContent ?? "",
+      bounds: bounds
+        ? {
+            top: bounds.top,
+            right: bounds.right,
+            bottom: bounds.bottom,
+            left: bounds.left
+          }
+        : undefined,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight
+    };
+  });
+  if (topbarButtonSemantics.tagName !== "BUTTON" || topbarButtonSemantics.type !== "button") {
+    throw new Error("Topbar Begin calibration does not render with native button semantics.");
+  }
+  if (!topbarButtonSemantics.label.includes("Begin calibration")) {
+    throw new Error("Topbar Begin calibration command label was not visible before activation.");
+  }
+  const topbarBounds = topbarButtonSemantics.bounds;
+  if (
+    !topbarBounds
+    || topbarBounds.top < 0
+    || topbarBounds.bottom > topbarButtonSemantics.viewportHeight
+    || topbarBounds.left < topbarButtonSemantics.viewportWidth * 0.42
+  ) {
+    throw new Error("Topbar Begin calibration was not visible in the mobile first viewport.");
+  }
+
+  await page.locator("aerobeat-app aero-button.calibration-entrypoint button").click();
   await page.waitForFunction(() => {
     const app = document.querySelector("aerobeat-app");
     const root = app?.shadowRoot;
@@ -154,6 +195,10 @@ try {
     const screenPosePanelText = screenPosePanel?.shadowRoot?.textContent ?? "";
     const screenStatusText = screenStatus?.shadowRoot?.textContent ?? "";
     const screenButtonText = screenButton?.shadowRoot?.textContent ?? "";
+    const topbarButtonText = root
+      ?.querySelector("aero-button.calibration-entrypoint")
+      ?.shadowRoot
+      ?.textContent ?? "";
     const assemblyText = root?.querySelector(".calibration-state")?.shadowRoot?.textContent ?? "";
     const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
     const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
@@ -163,6 +208,7 @@ try {
     const trackState = window.__aeroGrantedCameraTrack?.readyState ?? "";
     return screenStatusText.includes("Calibration active")
       && screenButtonText.includes("Calibration running")
+      && topbarButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
       && inferenceText.includes("CV running")

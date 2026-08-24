@@ -9,7 +9,7 @@ import {
 } from "@aerobeat/web-cv";
 import { createPoseInputRouter } from "@aerobeat/web-input";
 import { createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
-import { aeroCalibrationEventNames, defineAeroUiElements } from "@aerobeat/web-ui";
+import { aeroButtonActivateEventName, aeroCalibrationEventNames, defineAeroUiElements } from "@aerobeat/web-ui";
 import { createBrowserVideoMediaFacade, createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import {
   createMoveNetMockPoseAdapter,
@@ -120,6 +120,13 @@ class AeroBeatApp extends HTMLElement {
           font-weight: 650;
         }
 
+        .topbar-actions {
+          align-items: flex-end;
+          display: grid;
+          gap: 10px;
+          justify-items: end;
+        }
+
         .stage {
           align-items: stretch;
           display: grid;
@@ -168,6 +175,16 @@ class AeroBeatApp extends HTMLElement {
         }
 
         @media (max-width: 780px) {
+          .topbar {
+            align-items: start;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+          }
+
+          .topbar-actions {
+            max-inline-size: min(48vw, 220px);
+          }
+
           .stage {
             grid-template-columns: 1fr;
           }
@@ -183,7 +200,10 @@ class AeroBeatApp extends HTMLElement {
             <span class="title">AeroBeat</span>
             <span class="subtitle">Browser assembly runtime</span>
           </div>
-          <aero-status-panel heading="Build" status="Version ${appMetadata.displayVersion} / Built ${appMetadata.buildStamp} / Cache ${appMetadata.cacheBust}"></aero-status-panel>
+          <div class="topbar-actions">
+            <aero-button class="calibration-entrypoint" label="Begin calibration"></aero-button>
+            <aero-status-panel heading="Build" status="Version ${appMetadata.displayVersion} / Built ${appMetadata.buildStamp} / Cache ${appMetadata.cacheBust}"></aero-status-panel>
+          </div>
         </header>
         <section class="stage" aria-label="AeroBeat app shell">
           <div class="hero">
@@ -208,6 +228,9 @@ class AeroBeatApp extends HTMLElement {
     `;
     root.addEventListener(aeroCalibrationEventNames.stateChange, (event) => {
       this.#handleCalibrationStateChange(event);
+    });
+    root.addEventListener(aeroButtonActivateEventName, (event) => {
+      this.#handleTopbarCalibrationStart(event);
     });
     window.requestAnimationFrame(() => {
       this.#configurePreviewServices();
@@ -258,8 +281,31 @@ class AeroBeatApp extends HTMLElement {
       panel?.setAttribute("status", status);
     }
     if (event.detail?.state === "active") {
+      this.shadowRoot
+        ?.querySelector(".calibration-entrypoint")
+        ?.setAttribute("label", "Calibration running");
       this.#startLiveCameraPermissionRequest();
     }
+  }
+
+  /**
+   * Routes the first-viewport command through the reusable calibration screen.
+   *
+   * @param {Event} event
+   * @returns {void}
+   */
+  #handleTopbarCalibrationStart(event) {
+    if (!event.composedPath().includes(this.shadowRoot?.querySelector(".calibration-entrypoint") ?? this)) {
+      return;
+    }
+    event.stopPropagation();
+    this.shadowRoot
+      ?.querySelector("aero-calibration-screen")
+      ?.shadowRoot
+      ?.querySelector("aero-button")
+      ?.shadowRoot
+      ?.querySelector("button")
+      ?.click();
   }
 
   /**
