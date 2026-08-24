@@ -47,6 +47,8 @@ The live phone route now reports WebGL2 preview fidelity and CV latency diagnost
 
 Faster CV presets reduce camera constraints where the browser honors them and downscale the MoveNet inference input before it reaches the adapter. Worker-backed MoveNet receives the smaller `ImageBitmap` when module workers and transferable frame support are available; otherwise the app visibly reports main-thread fallback and keeps the live path running.
 
+When Android screenshots fail while the live camera is active, use the runtime Telemetry controls beside the status panels. `Copy telemetry` captures the current version/build/cache, route URL, secure-context state, selected camera, tracking profile, CV preset, Camera/Media/Inference/Calibration panel strings, and service summary into the clipboard when browser policy allows it. The same snapshot is always rendered in a selectable text block for mobile share/copy fallback, and `Download telemetry` saves a text file from the current snapshot.
+
 ## Secure Context
 
 Camera APIs require a secure context outside `localhost`. See [docs/secure-context.md](docs/secure-context.md) for HTTPS and Tailscale iteration options.

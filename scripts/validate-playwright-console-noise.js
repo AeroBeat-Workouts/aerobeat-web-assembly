@@ -87,6 +87,14 @@ try {
         }
       }
     });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        async writeText(text) {
+          window.__aeroClipboardText = text;
+        }
+      }
+    });
   });
   page.on("console", (message) => {
     if ((message.type() === "warning" || message.type() === "error") && !isExpectedConsoleWarning(message.text())) {
@@ -353,6 +361,65 @@ try {
     throw new Error("Restarted camera stream was not live before page teardown.");
   }
 
+  await page.locator("aerobeat-app aero-button.telemetry-copy button").click();
+  await page.waitForFunction((version) => {
+    const app = document.querySelector("aerobeat-app");
+    const root = app?.shadowRoot;
+    const output = root?.querySelector(".telemetry-output");
+    const status = root?.querySelector(".telemetry-capture-state")?.shadowRoot?.textContent ?? "";
+    const snapshot = window.__aeroClipboardText ?? "";
+    return output?.textContent === snapshot
+      && status.includes("Copied telemetry snapshot")
+      && snapshot.includes("AeroBeat telemetry snapshot")
+      && snapshot.includes(`App version: ${version}`)
+      && snapshot.includes("Build stamp:")
+      && snapshot.includes("Cache token:")
+      && snapshot.includes("Selected camera: Front camera (camera-front)")
+      && snapshot.includes("Selected tracking profile: fast")
+      && snapshot.includes("Selected CV preset: Low-end rescue")
+      && snapshot.includes("Build panel: Version ")
+      && snapshot.includes("Camera panel: Camera permission: granted / live inference running / source live-camera")
+      && snapshot.includes("Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480")
+      && snapshot.includes("Inference panel: CV running / preset Low-end rescue (360p camera / 160px downscale)")
+      && snapshot.includes("Calibration panel: Calibration active - align your shoulders in the rhythm field")
+      && snapshot.includes("Secure context: ready")
+      && snapshot.includes("Timestamp:")
+      && snapshot.includes("Route URL:");
+  }, expectedVersion);
+
+  const snapshotText = await page.evaluate(() => window.__aeroClipboardText ?? "");
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.locator("aerobeat-app aero-button.telemetry-download button").click()
+  ]);
+  const downloadStream = await download.createReadStream();
+  if (!downloadStream) {
+    throw new Error("Telemetry download stream was not available.");
+  }
+  const downloadText = await streamToString(downloadStream);
+  if (!snapshotText.includes("AeroBeat telemetry snapshot") || !downloadText.includes("AeroBeat telemetry snapshot")) {
+    throw new Error("Telemetry copy/download did not produce snapshot text.");
+  }
+  for (const requiredLine of [
+    `App version: ${expectedVersion}`,
+    "Selected camera: Front camera (camera-front)",
+    "Selected tracking profile: fast",
+    "Selected CV preset: Low-end rescue",
+    "Camera panel: Camera permission: granted / live inference running / source live-camera",
+    "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
+    "Inference panel: CV running / preset Low-end rescue (360p camera / 160px downscale)",
+    "Calibration panel: Calibration active - align your shoulders in the rhythm field",
+    "Secure context: ready",
+    "Route URL:"
+  ]) {
+    if (!downloadText.includes(requiredLine)) {
+      throw new Error(`Downloaded telemetry snapshot omitted required line: ${requiredLine}`);
+    }
+  }
+  if (!download.suggestedFilename().startsWith("aerobeat-telemetry-")) {
+    throw new Error("Telemetry download filename did not use the expected prefix.");
+  }
+
   const teardownState = await page.evaluate(() => {
     document.querySelector("aerobeat-app")?.remove();
     return {
@@ -374,6 +441,24 @@ if (pageErrors.length > 0 || consoleNoise.length > 0) {
 }
 
 console.log(`Playwright console-noise check passed at ${url}`);
+
+/**
+ * @param {import("node:stream").Readable} stream
+ * @returns {Promise<string>}
+ */
+function streamToString(stream) {
+  return new Promise((resolve, reject) => {
+    /** @type {Buffer[]} */
+    const chunks = [];
+    stream.on("data", (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    stream.on("error", reject);
+    stream.on("end", () => {
+      resolve(Buffer.concat(chunks).toString("utf8"));
+    });
+  });
+}
 
 /**
  * @param {import("playwright").Page} page

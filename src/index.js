@@ -188,6 +188,34 @@ class AeroBeatApp extends HTMLElement {
           gap: 12px;
         }
 
+        .telemetry-capture {
+          display: grid;
+          gap: 8px;
+        }
+
+        .telemetry-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .telemetry-output {
+          background: rgba(255, 255, 255, 0.78);
+          border: 1px solid rgba(53, 141, 175, 0.32);
+          border-radius: 8px;
+          box-sizing: border-box;
+          color: inherit;
+          display: block;
+          font: 600 0.78rem/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+          inline-size: 100%;
+          min-block-size: 108px;
+          margin: 0;
+          overflow: auto;
+          padding: 10px;
+          user-select: text;
+          white-space: pre-wrap;
+        }
+
         .checkpoint-note {
           font-size: 0.86rem;
           font-weight: 650;
@@ -257,6 +285,14 @@ class AeroBeatApp extends HTMLElement {
             <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches the visible source to retained live MoveNet inference when camera and model setup succeed.</p>
             <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
             <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
+            <div class="telemetry-capture">
+              <div class="telemetry-actions" aria-label="Telemetry capture controls">
+                <aero-button class="telemetry-copy" label="Copy telemetry"></aero-button>
+                <aero-button class="telemetry-download" label="Download telemetry"></aero-button>
+              </div>
+              <aero-status-panel class="telemetry-capture-state" heading="Telemetry" status="Capture ready"></aero-status-panel>
+              <pre class="telemetry-output" tabindex="0" aria-label="Captured telemetry snapshot">Captured telemetry snapshot will appear here for selection and sharing.</pre>
+            </div>
             <aero-calibration-screen></aero-calibration-screen>
           </div>
         </section>
@@ -271,6 +307,7 @@ class AeroBeatApp extends HTMLElement {
     });
     root.addEventListener(aeroButtonActivateEventName, (event) => {
       this.#handleTopbarCalibrationStart(event);
+      this.#handleTelemetryCaptureAction(event);
     });
     root.addEventListener(aeroSelectChangeEventName, (event) => {
       this.#handlePhoneControlChange(event);
@@ -426,6 +463,163 @@ class AeroBeatApp extends HTMLElement {
     this.shadowRoot
       ?.querySelector(".camera-permission-state")
       ?.setAttribute("status", status);
+  }
+
+  /**
+   * Captures copy/download actions from the phone-friendly telemetry controls.
+   *
+   * @param {Event} event
+   * @returns {void}
+   */
+  #handleTelemetryCaptureAction(event) {
+    if (!(event instanceof CustomEvent)) {
+      return;
+    }
+    const path = event.composedPath();
+    if (path.includes(this.shadowRoot?.querySelector(".telemetry-copy") ?? this)) {
+      event.stopPropagation();
+      this.#copyTelemetrySnapshot();
+      return;
+    }
+    if (path.includes(this.shadowRoot?.querySelector(".telemetry-download") ?? this)) {
+      event.stopPropagation();
+      this.#downloadTelemetrySnapshot();
+    }
+  }
+
+  /**
+   * Copies the current runtime diagnostic snapshot when the browser allows it.
+   *
+   * @returns {void}
+   */
+  #copyTelemetrySnapshot() {
+    const snapshot = this.#captureTelemetrySnapshotText();
+    const clipboard = navigator.clipboard;
+    if (window.isSecureContext && clipboard && typeof clipboard.writeText === "function") {
+      clipboard.writeText(snapshot)
+        .then(() => {
+          this.#setTelemetryCaptureStatus("Copied telemetry snapshot to clipboard");
+        })
+        .catch(() => {
+          this.#selectTelemetrySnapshot();
+          this.#setTelemetryCaptureStatus("Clipboard blocked - snapshot selected below");
+        });
+      return;
+    }
+    this.#selectTelemetrySnapshot();
+    this.#setTelemetryCaptureStatus("Clipboard unavailable - snapshot selected below");
+  }
+
+  /**
+   * Downloads the current runtime diagnostic snapshot as a text file.
+   *
+   * @returns {void}
+   */
+  #downloadTelemetrySnapshot() {
+    const snapshot = this.#captureTelemetrySnapshotText();
+    const blob = new Blob([snapshot], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `aerobeat-telemetry-${new Date().toISOString().replace(/[:.]/gu, "-")}.txt`;
+    anchor.rel = "noopener";
+    this.shadowRoot?.append(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 0);
+    this.#setTelemetryCaptureStatus("Downloaded telemetry snapshot");
+  }
+
+  /**
+   * Builds a selectable diagnostic snapshot from the same strings rendered in the app.
+   *
+   * @returns {string}
+   */
+  #captureTelemetrySnapshotText() {
+    const snapshot = [
+      "AeroBeat telemetry snapshot",
+      `Timestamp: ${new Date().toISOString()}`,
+      `Route URL: ${window.location.href}`,
+      `Secure context: ${this.#secureContextLabel()}`,
+      `App version: ${appMetadata.displayVersion}`,
+      `Build stamp: ${appMetadata.buildStamp}`,
+      `Cache token: ${appMetadata.cacheBust}`,
+      `Selected camera: ${this.#selectedCameraLabel()}`,
+      `Selected tracking profile: ${this.#trackingProfile}`,
+      `Selected CV preset: ${this.#cvPerformancePreset().label}`,
+      `Build panel: ${this.#statusPanelText('aero-status-panel[heading="Build"]')}`,
+      `Camera panel: ${this.#statusPanelText(".camera-permission-state")}`,
+      `Media panel: ${this.#statusPanelText(".media-state")}`,
+      `Inference panel: ${this.#statusPanelText(".inference-state")}`,
+      `Calibration panel: ${this.#statusPanelText(".calibration-state")}`,
+      `Services panel: ${this.#statusPanelText('aero-status-panel[heading="Services"]')}`
+    ].join("\n");
+    const output = this.#telemetryOutput();
+    if (output) {
+      output.textContent = snapshot;
+    }
+    this.#setTelemetryCaptureStatus("Captured telemetry snapshot");
+    return snapshot;
+  }
+
+  /**
+   * @returns {void}
+   */
+  #selectTelemetrySnapshot() {
+    const output = this.#telemetryOutput();
+    if (!output) {
+      return;
+    }
+    output.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(output);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  /**
+   * @param {string} status
+   * @returns {void}
+   */
+  #setTelemetryCaptureStatus(status) {
+    this.shadowRoot
+      ?.querySelector(".telemetry-capture-state")
+      ?.setAttribute("status", status);
+  }
+
+  /**
+   * @returns {HTMLElement | undefined}
+   */
+  #telemetryOutput() {
+    const output = this.shadowRoot?.querySelector(".telemetry-output");
+    return output instanceof HTMLElement ? output : undefined;
+  }
+
+  /**
+   * @param {string} selector
+   * @returns {string}
+   */
+  #statusPanelText(selector) {
+    const panel = this.shadowRoot?.querySelector(selector);
+    return panel?.getAttribute("status") ?? panel?.shadowRoot?.textContent?.trim() ?? "Unavailable";
+  }
+
+  /**
+   * @returns {string}
+   */
+  #selectedCameraLabel() {
+    const select = this.shadowRoot
+      ?.querySelector(".camera-device-select")
+      ?.shadowRoot
+      ?.querySelector("select");
+    if (!(select instanceof HTMLSelectElement)) {
+      return this.#selectedCameraDeviceId || "Default camera";
+    }
+    const label = select.selectedOptions[0]?.textContent?.trim();
+    return label ? `${label} (${select.value || "default"})` : (select.value || "Default camera");
   }
 
   /**
