@@ -1,15 +1,11 @@
 // @ts-check
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { build } from "vite";
 
-/**
- * Raw proof release version for the first assembly artifact pass.
- *
- * @type {"0.0.1"}
- */
-const proofVersion = "0.0.1";
+const packageJson = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
+const proofVersion = packageJson.version;
 
 const releaseRoot = resolve("release", "raw", proofVersion);
 rmSync(releaseRoot, { force: true, recursive: true });

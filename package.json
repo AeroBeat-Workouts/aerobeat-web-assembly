@@ -1,6 +1,6 @@
 {
   "name": "@aerobeat/web-assembly",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "dev:tailscale": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "build-release": "node scripts/build-release.js",
+    "version:patch": "node scripts/bump-patch-version.js",
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
   },
   "dependencies": {

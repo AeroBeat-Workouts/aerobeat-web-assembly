@@ -1,10 +1,13 @@
 // @ts-check
 
 import { chromium } from "playwright";
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { createServer } from "vite";
 
 rmSync("node_modules/.vite", { recursive: true, force: true });
+
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+const expectedVersion = packageJson.version;
 
 const server = await createServer({
   appType: "spa",
@@ -77,8 +80,8 @@ try {
     return root?.textContent ?? "";
   });
 
-  if (!visibleMetadata.includes("0.0.1")) {
-    throw new Error("Visible release proof version 0.0.1 was not rendered.");
+  if (!visibleMetadata.includes(expectedVersion)) {
+    throw new Error(`Visible release proof version ${expectedVersion} was not rendered.`);
   }
   if (!visibleMetadata.includes("Cache")) {
     throw new Error("Visible cache-bust metadata was not rendered.");
