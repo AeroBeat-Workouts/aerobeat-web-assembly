@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-24
 **Status:** In Progress
-**Last Updated:** 2026-08-24 16:58 EDT
-**Blocked Reason:** Physical Android Chrome verified `0.0.6` has correct seven landmarks accurately tracking the body, but visible tracking delay remains too high. Coder slice `oc-4g8` now serves `0.0.7` with camera and tracking-speed selectors; next QA should physically retest camera switching plus fast versus smoother latency/readability.
+**Last Updated:** 2026-08-24 16:43 EDT
+**Blocked Reason:** Physical Android Chrome verified `0.0.6` has correct seven landmarks accurately tracking the body, but visible tracking delay remains too high. Automated QA passed for `oc-4g8` on `0.0.7`; remaining acceptance needs Derrick's physical Android Chrome comparison of camera switching plus `Smoother` versus `Fast` latency/readability.
 **Agent:** cookie
 
 ---
@@ -380,6 +380,12 @@ Remaining caveat for QA: this coder pass cannot physically inspect Derrick's And
 Validation passed after the `0.0.7` bump: in `../aerobeat-web-ui`, `npm test` and `npm run test:browser`; in `../aerobeat-web-video`, `npm test` and `npm run test:browser`; in `aerobeat-web-assembly`, `npm test`, `npm run build`, and `npm run test:browser`. Assembly browser validation now verifies camera options render, selecting `camera-rear` reaches the initial `getUserMedia` request as `deviceId.exact`, selecting `camera-front` during live inference stops the old track and requests a new stream, and `tracking fast` is visible while live inference continues.
 
 Remaining caveat for QA: this coder pass still uses Playwright fake camera evidence. Derrick should retest physical Android Chrome on `0.0.7`, choose cameras from the Camera dropdown when labels are available, compare `Smoother` versus `Fast`, and verify the nose connects visually to both shoulders.
+
+Parent review completed on 2026-08-24 16:39 EDT. The parent confirmed `aerobeat-web-assembly`, `aerobeat-web-ui`, and `aerobeat-web-video` are clean/up to date at commit `1c945e1`; the live Tailscale `:8443` route serves `aerobeat-release-proof` content `0.0.7`; the code includes `aero-select`, `listCameraDevices()`, selected-camera `deviceId.exact` constraints, `Smoother`/`Fast` tracking profiles, `fast` alpha `1`, `smoother` alpha `0.42`, and both nose-to-shoulder skeleton connections. Parent re-ran `npm run test:browser` in `aerobeat-web-assembly` successfully. QA was spawned for independent automated route verification before the next Derrick phone retest.
+
+QA pass completed on 2026-08-24 16:43 EDT. Required context reads were completed for the AeroBeat root README, `aerobeat-web-assembly`, `aerobeat-web-ui`, `aerobeat-web-video`, `aerobeat-web-cv`, and `aerobeat-web-vendor-movenet`, and bead `oc-4g8` was claimed for QA. Live route check passed: `curl -k -D - https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` returned HTTP/2 200 and `aerobeat-release-proof` content `0.0.7`. Source inspection confirmed the first-viewport `Camera` and `Tracking` selects, `Smoother`/`Fast` options, selected-camera `deviceId.exact` constraints, live-camera restart path that stops the retained stream before requesting the next stream, preview tracking-profile reporting, seven-landmark filtering, and skeleton connections from nose to both shoulders.
+
+QA validation passed in `aerobeat-web-assembly`: `npm test`, `npm run build`, and `npm run test:browser`. The browser validator uses a Chromium mobile viewport with fake `videoinput` devices and confirms camera options render, selected `camera-rear` reaches initial `getUserMedia` as `video.deviceId.exact`, live inference starts with `tracking fast`, changing to `camera-front` during live inference issues a second exact-device request, the old track is stopped once, the restarted track remains live until teardown, the Inference panel reports `overlay landmarks 7`, `tracking fast`, and continuing live counters, and no unexpected page errors or console warnings are emitted. Automation cannot compare real Android Chrome latency/readability; Derrick still needs to physically retest `0.0.7`, select cameras when available, compare `Smoother` versus `Fast`, and visually confirm the nose connects to both shoulders.
 
 ---
 
