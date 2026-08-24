@@ -157,16 +157,12 @@ class AeroBeatApp extends HTMLElement {
             <span class="title">AeroBeat</span>
             <span class="subtitle">Browser assembly runtime</span>
           </div>
-          <aero-status-panel heading="Build" status="${appMetadata.displayVersion} / ${appMetadata.buildStamp}"></aero-status-panel>
+          <aero-status-panel heading="Build" status="Version ${appMetadata.displayVersion} / Built ${appMetadata.buildStamp} / Cache ${appMetadata.cacheBust}"></aero-status-panel>
         </header>
         <section class="stage" aria-label="AeroBeat app shell">
           <div class="hero">
             <div class="pulse-field" aria-label="AeroBeat rhythm field">
               <div class="beat-ring"></div>
-            </div>
-            <div class="metadata">
-              <span>Version <code>${appMetadata.displayVersion}</code></span>
-              <span>Cache <code>${appMetadata.cacheBust}</code></span>
             </div>
           </div>
           <div class="runtime">

@@ -80,11 +80,22 @@ try {
     return root?.textContent ?? "";
   });
 
-  if (!visibleMetadata.includes(expectedVersion)) {
+  const buildPanel = await page.locator("aerobeat-app").evaluate((element) => {
+    const panel = element.shadowRoot?.querySelector('aero-status-panel[heading="Build"]');
+    return panel?.shadowRoot?.textContent ?? "";
+  });
+
+  if (!buildPanel.includes(expectedVersion)) {
     throw new Error(`Visible release proof version ${expectedVersion} was not rendered.`);
   }
-  if (!visibleMetadata.includes("Cache")) {
+  if (!buildPanel.includes("Build")) {
+    throw new Error("Visible build proof panel was not rendered.");
+  }
+  if (!buildPanel.includes("/")) {
     throw new Error("Visible cache-bust metadata was not rendered.");
+  }
+  if (visibleMetadata.includes("Version ") || visibleMetadata.includes("Cache ")) {
+    throw new Error("Duplicate lower version/cache metadata was rendered outside the top Build panel.");
   }
 
   await page.waitForFunction(() => {
