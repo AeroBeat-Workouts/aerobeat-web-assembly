@@ -25,11 +25,19 @@ Then start Vite with a host binding when another device needs to reach this mach
 npx vite --host 0.0.0.0 --port 5173
 ```
 
-For the Tailscale `/aerobeat` HTTPS checkpoint, use the subpath-aware dev script:
+For the Tailscale HTTPS phone checkpoint, use the Tailscale-ready dev script:
 
 ```bash
 npm run dev:tailscale
 ```
+
+Then expose it on AeroBeat's separate Tailscale HTTPS port:
+
+```bash
+tailscale serve --bg --https=8443 --yes http://127.0.0.1:5173
+```
+
+Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/`.
 
 The app renders the raw proof version `0.0.1`, a build stamp, and a cache-bust token in the first viewport so browser/device refresh state is visible.
 

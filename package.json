@@ -14,7 +14,7 @@
     "dev": "vite --host 127.0.0.1",
     "dev:host": "node scripts/print-host-urls.js",
     "dev:secure": "vite --host 0.0.0.0 --port 5173",
-    "dev:tailscale": "AEROBEAT_BASE_PATH=/aerobeat/ vite --host 0.0.0.0 --port 5173",
+    "dev:tailscale": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "build-release": "node scripts/build-release.js",
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
