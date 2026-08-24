@@ -1,0 +1,30 @@
+{
+  "name": "@aerobeat/web-assembly",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "npm run check:jsdoc && npm run check:imports && npm run check:components && npm run check:console",
+    "check:jsdoc": "node scripts/validate-jsdoc-no-any.js",
+    "check:imports": "node scripts/validate-public-imports.js",
+    "check:components": "node scripts/validate-component-rules.js",
+    "check:console": "node scripts/validate-playwright-console-noise.js",
+    "test": "npm run check",
+    "test:browser": "npm run check:console",
+    "dev": "vite --host 127.0.0.1",
+    "dev:host": "node scripts/print-host-urls.js",
+    "dev:secure": "vite --host 0.0.0.0 --https",
+    "build": "vite build",
+    "build-release": "node scripts/build-release.js",
+    "submit-release-to-github": "node scripts/submit-release-to-github.js"
+  },
+  "dependencies": {
+    "@aerobeat/web-contracts": "file:../aerobeat-web-contracts",
+    "@aerobeat/web-style": "file:../aerobeat-web-style",
+    "@aerobeat/web-ui": "file:../aerobeat-web-ui"
+  },
+  "devDependencies": {
+    "playwright": "^1.46.1",
+    "vite": "^8.2.2"
+  }
+}
