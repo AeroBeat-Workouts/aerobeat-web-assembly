@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-24
 **Status:** In Progress
-**Last Updated:** 2026-08-24 14:40 EDT
+**Last Updated:** 2026-08-24 14:42 EDT
 **Blocked Reason:** None; `oc-hmt` is the next unblocked slice for the physical Android Chrome overlay fidelity issues.
 **Agent:** cookie
 
@@ -299,11 +299,30 @@ Audit passed on 2026-08-24 14:40 EDT. The auditor checked Task 10, bead notes, Q
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- Pending investigation.
+- `src/index.js`
+- `README.md`
+- `index.html`
+- `package.json`
+- `package-lock.json`
+- `scripts/validate-playwright-console-noise.js`
+- `../aerobeat-web-ui/src/elements/aero-media-pose-preview/aero-media-pose-preview.js`
+- `../aerobeat-web-ui/src/elements/aero-media-pose-preview/README.md`
+- `../aerobeat-web-ui/.testbed/debug-data/aero-media-pose-preview.debug-data.js`
+- `../aerobeat-web-ui/.testbed/demo/media-pose-preview-validation.html`
+- `../aerobeat-web-ui/scripts/validate-media-pose-preview-browser.js`
+- `../aerobeat-web-vendor-movenet/src/movenet-adapter.js`
+- `../aerobeat-web-vendor-movenet/scripts/validate-movenet-adapter.js`
+- `../aerobeat-web-vendor-movenet/README.md`
 
-**Status:** ⏳ In Progress
+**Status:** ✅ Complete
 
-**Results:** Started after `oc-cx5` coder handoff. This is now the active coder slice for the physical Android Chrome visual correctness issues: vertical Y-axis overlay misalignment, overlay delay, landmark jitter, and extra landmarks beyond the architecture-requested `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist` set.
+**Results:** Coder handoff completed on 2026-08-24 14:42 EDT. Derrick's physical Android Chrome observations were treated as required evidence: live preview appears, landmarks were vertically high relative to the feed, overlay lag was visible, landmarks jittered, and extra landmarks rendered beyond the architecture-requested upper-body subset.
+
+Implemented changes preserve the package split. `aerobeat-web-ui` now limits the visible `aero-media-pose-preview` WebGL2 overlay to `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist`; maps those names to stable MoveNet IDs for the skeleton; applies light exponential smoothing; resets smoothing when the source changes so replay does not bleed into live camera; measures the actual DOM video content rect and passes it explicitly to `aerobeat-web-renderer`; and exposes comparable media-time minus pose-frame timestamp delta for latency proof. `aerobeat-web-vendor-movenet` no longer flips detector coordinates by default when output `mirrored` metadata is true, avoiding a detector/UI double-mirror path. `aerobeat-web-assembly` surfaces `overlay landmarks 7` and `media-pose delta ...` in the phone-visible Inference panel and bumped release proof to `0.0.6`.
+
+Validation passed: in `../aerobeat-web-ui`, `npm test` and `npm run test:browser`; in `../aerobeat-web-vendor-movenet`, `npm test` and `npm run test:browser`; in `aerobeat-web-assembly`, `npm test`, `npm run build`, and `npm run test:browser`. One assembly `npm run test:browser` attempt timed out during fake-camera/model startup after the version bump; the immediate rerun passed, so this is recorded as a Playwright/fake-camera startup flake rather than an accepted product caveat. Tailscale `:8443` still proxies to local Vite on `127.0.0.1:5174`, and `curl https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` confirms `aerobeat-release-proof` content `0.0.6`.
+
+Remaining caveat for QA: this coder pass cannot physically inspect Derrick's Android Chrome camera view. QA should reload `0.0.6`, press the first-viewport `Begin calibration`, and verify the overlay sits on the same live video rect, displays only the seven requested landmarks, is readable with smoothing, and reports the phone-visible `media-pose delta` value while inference counters advance.
 
 ---
 

@@ -216,6 +216,8 @@ try {
       && inferenceText.includes("source live-camera aero.movenet.live")
       && inferenceText.includes("inference frames ")
       && inferenceText.includes("pose frames ")
+      && inferenceText.includes("overlay landmarks 7")
+      && inferenceText.includes("media-pose delta ")
       && mediaText.includes("Source live-camera aero.movenet.live")
       && mediaText.includes("playback playing")
       && runtimePanelText.includes("aero.movenet.live")
@@ -229,6 +231,7 @@ try {
       && previewVideo.videoHeight > 0
       && previewState?.sourceKind === "live-camera"
       && previewState?.sourceId === "aero.movenet.live"
+      && previewState?.landmarkCount === 7
       && previewState?.rendererDrawCount > 0
       && cameraRequests === 1
       && stoppedTracks === 0

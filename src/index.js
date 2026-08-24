@@ -425,6 +425,7 @@ class AeroBeatApp extends HTMLElement {
         poseFrame,
         inputEvents
       );
+      this.#updateInferenceStatus(this.#cvService.getStatus());
     }
 
     if (this.#cvService.running) {
@@ -441,6 +442,11 @@ class AeroBeatApp extends HTMLElement {
     const source = status.fallbackActive
       ? `fallback ${status.fallbackSourceId ?? "unknown"}`
       : `${status.sourceKind ?? "none"} ${status.sourceId ?? "none"}`;
+    const preview = this.shadowRoot?.querySelector("aero-media-pose-preview");
+    const previewState = preview && "describePreview" in preview ? preview.describePreview() : undefined;
+    const mediaPoseDelta = typeof previewState?.mediaPoseDeltaMs === "number"
+      ? `${previewState.mediaPoseDeltaMs}ms`
+      : "n/a";
     const error = status.lastError ? ` / error ${status.lastError}` : "";
     this.shadowRoot
       ?.querySelector(".inference-state")
@@ -450,7 +456,9 @@ class AeroBeatApp extends HTMLElement {
         `source ${source}`,
         `inference frames ${status.inferenceCount}`,
         `pose frames ${status.poseFrameCount}`,
-        `rendered pose frames ${this.#renderedPoseFrameCount}`
+        `rendered pose frames ${this.#renderedPoseFrameCount}`,
+        `overlay landmarks ${previewState?.landmarkCount ?? 0}`,
+        `media-pose delta ${mediaPoseDelta}`
       ].join(" / ") + error);
   }
 
