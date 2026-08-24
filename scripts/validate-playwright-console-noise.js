@@ -59,6 +59,38 @@ try {
     const panelText = panel?.shadowRoot?.textContent ?? "";
     return panelText.includes("aero.movenet.replay.basic-upper-body") && panelText.includes("6");
   });
+
+  const buttonSemantics = await page.locator("aerobeat-app").evaluate((element) => {
+    const screen = element.shadowRoot?.querySelector("aero-calibration-screen");
+    const command = screen?.shadowRoot?.querySelector("aero-button");
+    const nativeButton = command?.shadowRoot?.querySelector("button");
+    return {
+      tagName: nativeButton?.tagName ?? "",
+      type: nativeButton?.getAttribute("type") ?? "",
+      label: nativeButton?.textContent ?? ""
+    };
+  });
+  if (buttonSemantics.tagName !== "BUTTON" || buttonSemantics.type !== "button") {
+    throw new Error("Begin calibration does not render with native button semantics.");
+  }
+  if (!buttonSemantics.label.includes("Begin calibration")) {
+    throw new Error("Begin calibration command label was not visible before activation.");
+  }
+
+  await page.locator("aerobeat-app aero-calibration-screen aero-button button").click();
+  await page.waitForFunction(() => {
+    const app = document.querySelector("aerobeat-app");
+    const root = app?.shadowRoot;
+    const screen = root?.querySelector("aero-calibration-screen");
+    const screenStatus = screen?.shadowRoot?.querySelector("aero-status-panel");
+    const screenButton = screen?.shadowRoot?.querySelector("aero-button");
+    const screenStatusText = screenStatus?.shadowRoot?.textContent ?? "";
+    const screenButtonText = screenButton?.shadowRoot?.textContent ?? "";
+    const assemblyText = root?.querySelector(".calibration-state")?.shadowRoot?.textContent ?? "";
+    return screenStatusText.includes("Calibration active")
+      && screenButtonText.includes("Calibration running")
+      && assemblyText.includes("Calibration active");
+  });
 } finally {
   await browser.close();
   await server.close();

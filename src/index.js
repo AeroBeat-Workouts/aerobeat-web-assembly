@@ -4,7 +4,7 @@ import "@aerobeat/web-style/aero-theme.css";
 import { elementNames, serviceIds } from "@aerobeat/web-contracts";
 import { createReplayPoseFrame } from "@aerobeat/web-cv";
 import { createPoseInputDraftEvents } from "@aerobeat/web-input";
-import { defineAeroUiElements } from "@aerobeat/web-ui";
+import { aeroCalibrationEventNames, defineAeroUiElements } from "@aerobeat/web-ui";
 import { appMetadata } from "./release-metadata.js";
 
 defineAeroUiElements();
@@ -160,6 +160,7 @@ class AeroBeatApp extends HTMLElement {
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
             <aero-pose-flow-panel></aero-pose-flow-panel>
             <p class="checkpoint-note">Runtime checkpoint uses replay CV frames for secure phone loading checks; live camera starts after device-specific permission debugging.</p>
+            <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
             <aero-calibration-screen></aero-calibration-screen>
           </div>
         </section>
@@ -169,6 +170,9 @@ class AeroBeatApp extends HTMLElement {
         </footer>
       </main>
     `;
+    root.addEventListener(aeroCalibrationEventNames.stateChange, (event) => {
+      this.#handleCalibrationStateChange(event);
+    });
     this.#runRuntimeCheckpoint();
   }
 
@@ -188,6 +192,23 @@ class AeroBeatApp extends HTMLElement {
       serviceIds.inputRouter,
       serviceIds.uiRouter
     ].join(" / ");
+  }
+
+  /**
+   * Reflects public calibration state events in the assembly shell.
+   *
+   * @param {Event} event
+   * @returns {void}
+   */
+  #handleCalibrationStateChange(event) {
+    if (!(event instanceof CustomEvent)) {
+      return;
+    }
+    const status = event.detail?.status;
+    const panel = this.shadowRoot?.querySelector(".calibration-state");
+    if (typeof status === "string") {
+      panel?.setAttribute("status", status);
+    }
   }
 
   /**
