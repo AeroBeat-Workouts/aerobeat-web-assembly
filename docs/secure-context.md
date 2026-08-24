@@ -32,7 +32,7 @@ Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` on the phone
 
 For the current mobile integration checkpoint, confirm the phone page loads over the Tailscale HTTPS URL, shows `Secure context: ready`, and initially shows the runtime pose flow source `aero.movenet.replay.basic-upper-body` with six draft input events. That initial replay state is the deterministic fallback for secure-loading checks and for blocked or unsupported camera access.
 
-After pressing `Begin calibration` and accepting the browser camera prompt, the Camera panel should report `Camera permission: granted - live stream running`, the device camera indicator should remain active while the page is open, and both visible pose-flow panels should switch to the live checkpoint source `aero.camera.live.permission-stream`. This checkpoint retains the granted stream until the app/page tears down; full MoveNet live landmark inference is still a later device-specific slice.
+After pressing `Begin calibration` and accepting the browser camera prompt, the Camera panel should report `Camera permission: granted - live camera frame sampler running` with frame and sample counters that keep changing, the device camera indicator should remain active while the page is open, and both visible pose-flow panels should switch to the live checkpoint source `aero.camera.live.frame-sampler`. This checkpoint derives normalized pose/input proof values from sampled live video frames and retains the granted stream until the app/page tears down; full MoveNet live landmark inference is still a later device-specific slice.
 
 To stop the route:
 

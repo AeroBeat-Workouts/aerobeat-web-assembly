@@ -37,23 +37,35 @@ const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
   await page.addInitScript(() => {
-    const grantedTrack = {
-      kind: "video",
-      readyState: "live",
-      stop() {
-        this.readyState = "ended";
-        window.__aeroStoppedCameraTracks = (window.__aeroStoppedCameraTracks ?? 0) + 1;
-      }
-    };
-    const grantedStream = {
-      getTracks() {
-        return [grantedTrack];
-      }
-    };
     Object.defineProperty(navigator, "mediaDevices", {
       configurable: true,
       value: {
         async getUserMedia(constraints) {
+          const canvas = document.createElement("canvas");
+          canvas.width = 96;
+          canvas.height = 72;
+          const context = canvas.getContext("2d");
+          if (!context) {
+            throw new Error("Fake camera canvas context unavailable.");
+          }
+          let fakeFrameCount = 0;
+          const drawFrame = () => {
+            fakeFrameCount += 1;
+            window.__aeroFakeCameraFrames = fakeFrameCount;
+            context.fillStyle = `rgb(${(fakeFrameCount * 17) % 255}, ${(fakeFrameCount * 29) % 255}, 180)`;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = `rgb(240, ${(fakeFrameCount * 41) % 255}, ${(fakeFrameCount * 7) % 255})`;
+            context.fillRect((fakeFrameCount * 3) % canvas.width, 20, 22, 22);
+            window.requestAnimationFrame(drawFrame);
+          };
+          drawFrame();
+          const grantedStream = canvas.captureStream(30);
+          const grantedTrack = grantedStream.getVideoTracks()[0];
+          const stopTrack = grantedTrack.stop.bind(grantedTrack);
+          grantedTrack.stop = () => {
+            window.__aeroStoppedCameraTracks = (window.__aeroStoppedCameraTracks ?? 0) + 1;
+            stopTrack();
+          };
           window.__aeroCameraRequests = [
             ...(Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests : []),
             constraints
@@ -143,15 +155,38 @@ try {
     return screenStatusText.includes("Calibration active")
       && screenButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
-      && cameraText.includes("Camera permission: granted - live stream running")
-      && runtimePanelText.includes("aero.camera.live.permission-stream")
-      && screenPosePanelText.includes("aero.camera.live.permission-stream")
+      && cameraText.includes("Camera permission: granted - live camera frame sampler running")
+      && cameraText.includes("frames ")
+      && cameraText.includes("samples ")
+      && runtimePanelText.includes("aero.camera.live.frame-sampler")
+      && screenPosePanelText.includes("aero.camera.live.frame-sampler")
       && !runtimePanelText.includes("aero.movenet.replay.basic-upper-body")
       && !screenPosePanelText.includes("aero.movenet.replay.basic-upper-body")
       && cameraRequests === 1
       && stoppedTracks === 0
       && trackState === "live";
   });
+
+  const firstLiveSample = await readLiveSample(page);
+  await page.waitForFunction((previousTimestamp) => {
+    const app = document.querySelector("aerobeat-app");
+    const panel = app?.shadowRoot?.querySelector("aero-pose-flow-panel");
+    const cameraText = app?.shadowRoot?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const timestampMs = panel?.state?.poseFrame?.timestampMs ?? 0;
+    const sampleMatch = /samples (?<samples>\d+)/u.exec(cameraText);
+    const samples = Number.parseInt(sampleMatch?.groups?.samples ?? "0", 10);
+    return samples >= 2 && timestampMs > previousTimestamp;
+  }, firstLiveSample.timestampMs);
+  const secondLiveSample = await readLiveSample(page);
+  if (secondLiveSample.sampleCount <= firstLiveSample.sampleCount) {
+    throw new Error("Live camera frame sampler did not emit multiple samples.");
+  }
+  if (secondLiveSample.timestampMs <= firstLiveSample.timestampMs) {
+    throw new Error("Live camera frame sampler timestamps did not advance.");
+  }
+  if (secondLiveSample.landmarkSignature === firstLiveSample.landmarkSignature) {
+    throw new Error("Live camera-derived normalized pose values did not change over time.");
+  }
 
   const liveStreamState = await page.evaluate(() => ({
     stoppedTracks: window.__aeroStoppedCameraTracks ?? 0,
@@ -182,3 +217,27 @@ if (pageErrors.length > 0 || consoleNoise.length > 0) {
 }
 
 console.log(`Playwright console-noise check passed at ${url}`);
+
+/**
+ * @param {import("playwright").Page} page
+ * @returns {Promise<{
+ *   sampleCount: number,
+ *   timestampMs: number,
+ *   landmarkSignature: string
+ * }>}
+ */
+async function readLiveSample(page) {
+  return page.evaluate(() => {
+    const app = document.querySelector("aerobeat-app");
+    const root = app?.shadowRoot;
+    const panel = root?.querySelector("aero-pose-flow-panel");
+    const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const sampleMatch = /samples (?<samples>\d+)/u.exec(cameraText);
+    const poseFrame = panel?.state?.poseFrame;
+    return {
+      sampleCount: Number.parseInt(sampleMatch?.groups?.samples ?? "0", 10),
+      timestampMs: poseFrame?.timestampMs ?? 0,
+      landmarkSignature: JSON.stringify(poseFrame?.landmarks ?? [])
+    };
+  });
+}
