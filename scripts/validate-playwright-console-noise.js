@@ -204,6 +204,33 @@ try {
       && speedSelect?.options.length === 2
       && performanceSelect?.options.length === 4;
   });
+  const defaultPhoneControls = await page.locator("aerobeat-app").evaluate((element) => {
+    const root = element.shadowRoot;
+    const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
+    const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    return {
+      tracking: speedSelect?.value ?? "",
+      cvPreset: performanceSelect?.value ?? "",
+      cvLabel: performanceSelect?.selectedOptions[0]?.textContent ?? "",
+      inferenceText
+    };
+  });
+  if (defaultPhoneControls.tracking !== "fast") {
+    throw new Error("Phone tracking did not default to the measured Fast profile.");
+  }
+  if (defaultPhoneControls.cvPreset !== "full") {
+    throw new Error("CV performance did not default to the measured direct full path.");
+  }
+  if (!defaultPhoneControls.cvLabel.includes("Direct full (recommended)")) {
+    throw new Error("Default CV option did not expose the recommended direct full label.");
+  }
+  if (!defaultPhoneControls.cvLabel.includes("measured fastest")) {
+    throw new Error("Default CV option did not expose measured-path detail.");
+  }
+  if (!defaultPhoneControls.inferenceText.includes("preset Direct full (recommended)")) {
+    throw new Error("Inference status did not default to the recommended direct full preset.");
+  }
   await page.locator("aerobeat-app").evaluate((element) => {
     const root = element.shadowRoot;
     const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
@@ -252,9 +279,9 @@ try {
       && topbarButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
-      && cameraText.includes("CV preset Low-end rescue")
+      && cameraText.includes("CV preset Worker downscale 160")
       && inferenceText.includes("CV running")
-      && inferenceText.includes("preset Low-end rescue (360p camera / 160px downscale)")
+      && inferenceText.includes("preset Worker downscale 160 (360p camera / 160px downscale / worker transfer test)")
       && (inferenceText.includes("execution worker") || inferenceText.includes("execution main-thread"))
       && inferenceText.includes("model ready")
       && inferenceText.includes("source live-camera aero.movenet.live")
@@ -342,7 +369,7 @@ try {
     return cameraRequests === 2
       && (window.__aeroStoppedCameraTracks ?? 0) === 1
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
-      && cameraText.includes("CV preset Low-end rescue")
+      && cameraText.includes("CV preset Worker downscale 160")
       && inferenceText.includes("tracking fast");
   }, undefined, { timeout: 90000 });
   const restartCameraRequest = await page.evaluate(() => window.__aeroCameraRequests?.[1]);
@@ -376,11 +403,11 @@ try {
       && snapshot.includes("Cache token:")
       && snapshot.includes("Selected camera: Front camera (camera-front)")
       && snapshot.includes("Selected tracking profile: fast")
-      && snapshot.includes("Selected CV preset: Low-end rescue")
+      && snapshot.includes("Selected CV preset: Worker downscale 160")
       && snapshot.includes("Build panel: Version ")
       && snapshot.includes("Camera panel: Camera permission: granted / live inference running / source live-camera")
       && snapshot.includes("Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480")
-      && snapshot.includes("Inference panel: CV running / preset Low-end rescue (360p camera / 160px downscale)")
+      && snapshot.includes("Inference panel: CV running / preset Worker downscale 160 (360p camera / 160px downscale / worker transfer test)")
       && snapshot.includes("Calibration panel: Calibration active - align your shoulders in the rhythm field")
       && snapshot.includes("Secure context: ready")
       && snapshot.includes("Timestamp:")
@@ -404,10 +431,10 @@ try {
     `App version: ${expectedVersion}`,
     "Selected camera: Front camera (camera-front)",
     "Selected tracking profile: fast",
-    "Selected CV preset: Low-end rescue",
+    "Selected CV preset: Worker downscale 160",
     "Camera panel: Camera permission: granted / live inference running / source live-camera",
     "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
-    "Inference panel: CV running / preset Low-end rescue (360p camera / 160px downscale)",
+    "Inference panel: CV running / preset Worker downscale 160 (360p camera / 160px downscale / worker transfer test)",
     "Calibration panel: Calibration active - align your shoulders in the rhythm field",
     "Secure context: ready",
     "Route URL:"

@@ -53,7 +53,7 @@ class AeroBeatApp extends HTMLElement {
   #videoMediaFacade = createBrowserVideoMediaFacade();
 
   /** @type {import("@aerobeat/web-cv").AeroCvPerformancePresetId} */
-  #cvPerformancePresetId = "fast";
+  #cvPerformancePresetId = "full";
 
   /** @type {AeroCameraCvService} */
   #cvService = this.#createCvService();
@@ -89,7 +89,7 @@ class AeroBeatApp extends HTMLElement {
   #selectedCameraDeviceId = "";
 
   /** @type {"smoother" | "fast"} */
-  #trackingProfile = "smoother";
+  #trackingProfile = "fast";
 
   /**
    * Creates the app shadow DOM.
@@ -266,7 +266,7 @@ class AeroBeatApp extends HTMLElement {
           <div class="topbar-actions">
             <div class="test-controls" aria-label="Phone test controls">
               <aero-select class="camera-device-select" label="Camera" value=""></aero-select>
-              <aero-select class="tracking-speed-select" label="Tracking" value="smoother"></aero-select>
+              <aero-select class="tracking-speed-select" label="Tracking" value="${this.#trackingProfile}"></aero-select>
               <aero-select class="cv-performance-select" label="CV performance" value="${this.#cvPerformancePresetId}"></aero-select>
             </div>
             <aero-button class="calibration-entrypoint" label="Begin calibration"></aero-button>
@@ -279,7 +279,7 @@ class AeroBeatApp extends HTMLElement {
           </div>
           <div class="runtime">
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
-            <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} / worker pending / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
+            <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / worker pending / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
             <aero-status-panel class="media-state" heading="Media" status="Source none / playback idle"></aero-status-panel>
             <aero-pose-flow-panel></aero-pose-flow-panel>
             <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches the visible source to retained live MoveNet inference when camera and model setup succeed.</p>
@@ -948,7 +948,7 @@ class AeroBeatApp extends HTMLElement {
     if (value === "full" || value === "balanced" || value === "fast" || value === "rescue") {
       return value;
     }
-    return "fast";
+    return "full";
   }
 
   /**
