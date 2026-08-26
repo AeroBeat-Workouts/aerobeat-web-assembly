@@ -4,11 +4,14 @@ import assert from "node:assert/strict";
 import { getAeroCvPerformancePreset } from "@aerobeat/web-cv";
 import {
   createPoseBackendComposition,
+  getMediaPipeTuningDefinition,
   getPoseProviderOptions,
   getPoseSourceId,
+  mediaPipeTuningOptions,
   poseBackendOptions,
   resolvePoseSelection,
   supportsWorkerPerformancePresets,
+  updateMediaPipeTuningSearch,
   updatePoseSelectionSearch
 } from "../src/pose-backend-registry.js";
 import { createSerializedPoseSwitch } from "../src/serialized-pose-switch.js";
@@ -24,8 +27,19 @@ assert.deepEqual(
   ["movenet", "movenet", "webgl", "webgl"]
 );
 assert.equal(defaults.warning, undefined);
+assert.equal(defaults.requestedMediaPipeTuningId, "standard");
+assert.equal(defaults.selectedMediaPipeTuningId, "standard");
+assert.equal(defaults.mediaPipeTuningApplicable, false);
 assert.equal(defaults.onnxModelAssetUrl, "https://aerobeat.example/checkpoint/models/rtmpose-t/end2end.onnx");
 assert.deepEqual(poseBackendOptions.map((option) => option.value), ["movenet", "mediapipe", "onnxruntime"]);
+assert.deepEqual(mediaPipeTuningOptions.map((option) => option.value), ["standard", "responsive"]);
+assert.deepEqual(getMediaPipeTuningDefinition("standard"), {
+  id: "standard",
+  label: "Standard",
+  minPoseDetectionConfidence: 0.5,
+  minPosePresenceConfidence: 0.5,
+  minTrackingConfidence: 0.5
+});
 
 for (const [backend, provider, source] of [
   ["movenet", "webgl", "aero.movenet.live"],
@@ -42,6 +56,9 @@ for (const [backend, provider, source] of [
   assert.equal(composition.sourceId, source);
   assert.equal(composition.poseAdapter.vendorId, backend === "onnxruntime" ? "onnxruntime" : backend);
   assert.equal(composition.fallbackPoseAdapter.vendorId, "movenet");
+  if (backend === "mediapipe") {
+    assert.match(composition.poseAdapter.getExecutionTelemetry?.().detail ?? "", /detection 0\.5.*presence 0\.5.*tracking 0\.5/u);
+  }
   await composition.poseAdapter.dispose?.();
   await composition.fallbackPoseAdapter.dispose?.();
 }
@@ -57,6 +74,35 @@ assert.match(invalid.warning ?? "", /unsupported provider webgpu/u);
 const wrongProvider = resolvePoseSelection({ ...base, search: "?poseBackend=mediapipe&poseProvider=webgpu" });
 assert.equal(wrongProvider.selectedProviderId, "cpu-wasm");
 assert.match(wrongProvider.warning ?? "", /unsupported provider webgpu/u);
+
+const responsive = resolvePoseSelection({
+  ...base,
+  search: "?poseBackend=mediapipe&poseProvider=gpu-webgl&mediaPipeTuning=responsive"
+});
+assert.equal(responsive.requestedMediaPipeTuningId, "responsive");
+assert.equal(responsive.selectedMediaPipeTuningId, "responsive");
+assert.equal(responsive.mediaPipeTuningApplicable, true);
+const responsiveComposition = createPoseBackendComposition(responsive, getAeroCvPerformancePreset("full"));
+assert.match(responsiveComposition.poseAdapter.getExecutionTelemetry?.().detail ?? "", /detection 0\.5.*presence 0\.4.*tracking 0\.3/u);
+await responsiveComposition.poseAdapter.dispose?.();
+await responsiveComposition.fallbackPoseAdapter.dispose?.();
+
+const invalidTuning = resolvePoseSelection({
+  ...base,
+  search: "?poseBackend=mediapipe&poseProvider=gpu-webgl&mediaPipeTuning=reckless"
+});
+assert.equal(invalidTuning.requestedMediaPipeTuningId, "reckless");
+assert.equal(invalidTuning.selectedMediaPipeTuningId, "standard");
+assert.equal(invalidTuning.mediaPipeTuningApplicable, true);
+assert.match(invalidTuning.warning ?? "", /unsupported MediaPipe tuning reckless; using standard/u);
+
+const retainedNonMediaPipeTuning = resolvePoseSelection({
+  ...base,
+  search: "?poseBackend=movenet&poseProvider=webgl&mediaPipeTuning=responsive"
+});
+assert.equal(retainedNonMediaPipeTuning.selectedMediaPipeTuningId, "responsive");
+assert.equal(retainedNonMediaPipeTuning.mediaPipeTuningApplicable, false);
+assert.equal(retainedNonMediaPipeTuning.warning, undefined);
 
 const sameOriginModel = resolvePoseSelection({
   ...base,
@@ -79,6 +125,14 @@ assert.equal(updatedParams.get("keep"), "yes");
 assert.equal(updatedParams.get("onnxModelUrl"), "/model.onnx");
 assert.equal(updatedParams.get("poseBackend"), "onnxruntime");
 assert.equal(updatedParams.get("poseProvider"), "webgpu");
+
+const tuningSearch = updateMediaPipeTuningSearch(updatedSearch, "responsive");
+const tuningParams = new URLSearchParams(tuningSearch);
+assert.equal(tuningParams.get("keep"), "yes");
+assert.equal(tuningParams.get("onnxModelUrl"), "/model.onnx");
+assert.equal(tuningParams.get("poseBackend"), "onnxruntime");
+assert.equal(tuningParams.get("poseProvider"), "webgpu");
+assert.equal(tuningParams.get("mediaPipeTuning"), "responsive");
 
 assert.deepEqual(getPoseProviderOptions("movenet").map((option) => option.value), ["webgl"]);
 assert.deepEqual(getPoseProviderOptions("mediapipe").map((option) => option.value), ["cpu-wasm", "gpu-webgl"]);

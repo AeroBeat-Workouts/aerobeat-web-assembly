@@ -23,12 +23,16 @@ import { createAeroCadenceLoop } from "./runtime-cadence.js";
 import { createSerializedPoseSwitch } from "./serialized-pose-switch.js";
 import {
   createPoseBackendComposition,
+  getMediaPipeTuningDefinition,
   getPoseProviderOptions,
   getPoseSourceId,
+  isMediaPipeTuningId,
   isPoseBackendId,
+  mediaPipeTuningOptions,
   poseBackendOptions,
   resolvePoseSelection,
   supportsWorkerPerformancePresets,
+  updateMediaPipeTuningSearch,
   updatePoseSelectionSearch
 } from "./pose-backend-registry.js";
 
@@ -293,6 +297,7 @@ class AeroBeatApp extends HTMLElement {
             <div class="test-controls" aria-label="Phone test controls">
               <aero-select class="pose-backend-select" label="Pose backend" value="${this.#poseSelection.selectedBackendId}"></aero-select>
               <aero-select class="pose-provider-select" label="Pose provider" value="${this.#poseSelection.selectedProviderId}"></aero-select>
+              <aero-select class="mediapipe-tuning-select" label="MediaPipe tuning" value="${this.#poseSelection.selectedMediaPipeTuningId}"></aero-select>
               <aero-select class="camera-device-select" label="Camera" value=""></aero-select>
               <aero-select class="tracking-speed-select" label="Tracking" value="${this.#trackingProfile}"></aero-select>
               <aero-select class="cv-performance-select" label="CV performance" value="${this.#cvPerformancePresetId}"></aero-select>
@@ -449,6 +454,11 @@ class AeroBeatApp extends HTMLElement {
         this.#poseSelection.selectedBackendId,
         /** @type {import("./pose-backend-registry.js").PoseProviderId} */ (selectedProvider)
       );
+      return;
+    }
+    if (path.includes(this.shadowRoot?.querySelector(".mediapipe-tuning-select") ?? this)) {
+      const tuningId = isMediaPipeTuningId(event.detail?.value) ? event.detail.value : "standard";
+      this.#applyMediaPipeTuning(tuningId);
       return;
     }
     if (path.includes(this.shadowRoot?.querySelector(".tracking-speed-select") ?? this)) {
@@ -644,6 +654,8 @@ class AeroBeatApp extends HTMLElement {
     const previewState = this.#getPosePreview().describePreview();
     const overlayCadence = this.#overlayCadence?.getStatus();
     const statusCadence = this.#statusCadence?.getStatus();
+    const tuning = getMediaPipeTuningDefinition(this.#poseSelection.selectedMediaPipeTuningId);
+    const tuningApplicability = this.#poseSelection.mediaPipeTuningApplicable ? "applicable" : "not applicable";
     const snapshot = [
       "AeroBeat telemetry snapshot",
       `Timestamp: ${new Date().toISOString()}`,
@@ -670,9 +682,13 @@ class AeroBeatApp extends HTMLElement {
       `Selected model: ${this.#formatPoseModel(cvStatus.selectedModel)}`,
       `Effective model: ${this.#formatPoseModel(cvStatus.effectiveModel)}`,
       `Requested/selected/actual provider: ${this.#poseSelection.requestedProviderId} / ${this.#poseSelection.selectedProviderId} / ${cvStatus.adapterExecutionProvider ?? "unknown"}`,
+      `Requested/selected MediaPipe tuning: ${this.#poseSelection.requestedMediaPipeTuningId} / ${this.#poseSelection.selectedMediaPipeTuningId} (${tuningApplicability})`,
+      `MediaPipe thresholds detection/presence/tracking: ${tuning.minPoseDetectionConfidence} / ${tuning.minPosePresenceConfidence} / ${tuning.minTrackingConfidence} (${tuningApplicability})`,
       `Selection fallback: ${this.#poseSelection.warning ?? "none"}`,
       `Adapter fallback: ${cvStatus.adapterExecutionFallback}`,
       `Adapter load: ${this.#formatCvMs(cvStatus.adapterLoadDurationMs)}`,
+      `Adapter runtime inference: ${this.#formatCvMs(cvStatus.adapterRuntimeInferenceDurationMs)}`,
+      `Adapter postprocess: ${this.#formatCvMs(cvStatus.adapterPostprocessDurationMs)}`,
       `Selected CV preset: ${this.#cvPerformancePreset().label}`,
       `Execution location: ${cvStatus.adapterExecutionLocation}`,
       `Execution detail: ${cvStatus.adapterExecutionDetail}`,
@@ -681,6 +697,10 @@ class AeroBeatApp extends HTMLElement {
       `Prep cost: ${this.#formatCvMs(cvStatus.framePrepMs)} (avg ${this.#formatCvMs(cvStatus.averageFramePrepMs)})`,
       `Adapter cost: ${this.#formatCvMs(cvStatus.adapterInferenceMs)} (avg ${this.#formatCvMs(cvStatus.averageAdapterInferenceMs)})`,
       `Total CV cost: ${this.#formatCvMs(cvStatus.totalCvMs)} (avg ${this.#formatCvMs(cvStatus.averageTotalCvMs)})`,
+      `Timing window: ${cvStatus.timingWindowSampleCount}/${cvStatus.timingWindowCapacity} / budget ${this.#formatCvMs(cvStatus.timingBudgetMs)} / over budget ${cvStatus.timingWindowOverBudgetCount}`,
+      `Adapter rolling p50/p95/max: ${this.#formatCvMs(cvStatus.rollingAdapterInferenceP50Ms)} / ${this.#formatCvMs(cvStatus.rollingAdapterInferenceP95Ms)} / ${this.#formatCvMs(cvStatus.rollingAdapterInferenceMaxMs)}`,
+      `Total CV rolling p50/p95/max: ${this.#formatCvMs(cvStatus.rollingTotalCvP50Ms)} / ${this.#formatCvMs(cvStatus.rollingTotalCvP95Ms)} / ${this.#formatCvMs(cvStatus.rollingTotalCvMaxMs)}`,
+      `Incomplete seven-point frames: ${cvStatus.timingWindowIncompletePoseCount}`,
       `Sampling mode: ${cvStatus.samplingMode}`,
       `Sample/submission rate: ${this.#formatFps(cvStatus.effectiveSubmissionRateFps)} (target max ${this.#formatFps(cvStatus.submissionCadenceTargetFps)})`,
       `Pose-output rate: ${this.#formatFps(cvStatus.effectivePoseOutputRateFps)}`,
@@ -940,6 +960,10 @@ class AeroBeatApp extends HTMLElement {
       : "n/a";
     const overlayCadence = this.#overlayCadence?.getStatus();
     const statusCadence = this.#statusCadence?.getStatus();
+    const tuning = getMediaPipeTuningDefinition(this.#poseSelection.selectedMediaPipeTuningId);
+    const tuningState = this.#poseSelection.mediaPipeTuningApplicable
+      ? `${tuning.id} detection ${tuning.minPoseDetectionConfidence} presence ${tuning.minPosePresenceConfidence} tracking ${tuning.minTrackingConfidence}`
+      : `${tuning.id} not applicable`;
     const error = status.lastError ? ` / error ${status.lastError}` : "";
     this.shadowRoot
       ?.querySelector(".inference-state")
@@ -949,10 +973,11 @@ class AeroBeatApp extends HTMLElement {
         `vendor selected ${status.selectedVendorId} effective ${status.effectiveVendorId}`,
         `model selected ${this.#formatPoseModel(status.selectedModel)} effective ${this.#formatPoseModel(status.effectiveModel)}`,
         `provider requested ${this.#poseSelection.requestedProviderId} selected ${this.#poseSelection.selectedProviderId} actual ${status.adapterExecutionProvider ?? "unknown"}`,
+        `MediaPipe tuning requested ${this.#poseSelection.requestedMediaPipeTuningId} selected ${tuningState}`,
         `selection ${this.#poseSelection.warning ?? "accepted"}`,
         `preset ${status.performancePresetLabel} (${status.performancePresetSummary})`,
         `execution ${status.adapterExecutionLocation} ${status.adapterExecutionDetail} fallback ${status.adapterExecutionFallback}`,
-        `load ${this.#formatCvMs(status.adapterLoadDurationMs)} estimate ${this.#formatCvMs(status.adapterEstimateDurationMs)}`,
+        `load ${this.#formatCvMs(status.adapterLoadDurationMs)} estimate ${this.#formatCvMs(status.adapterEstimateDurationMs)} runtime ${this.#formatCvMs(status.adapterRuntimeInferenceDurationMs)} postprocess ${this.#formatCvMs(status.adapterPostprocessDurationMs)}`,
         `resize ${status.resizePath}`,
         `model ${status.modelStatus ?? "idle"}`,
         `source ${source}`,
@@ -967,6 +992,10 @@ class AeroBeatApp extends HTMLElement {
         `prep ${this.#formatCvMs(status.framePrepMs)} avg ${this.#formatCvMs(status.averageFramePrepMs)}`,
         `adapter ${this.#formatCvMs(status.adapterInferenceMs)} avg ${this.#formatCvMs(status.averageAdapterInferenceMs)}`,
         `total ${this.#formatCvMs(status.totalCvMs)} avg ${this.#formatCvMs(status.averageTotalCvMs)}`,
+        `timing window ${status.timingWindowSampleCount}/${status.timingWindowCapacity} budget ${this.#formatCvMs(status.timingBudgetMs)} over ${status.timingWindowOverBudgetCount}`,
+        `adapter p50 ${this.#formatCvMs(status.rollingAdapterInferenceP50Ms)} p95 ${this.#formatCvMs(status.rollingAdapterInferenceP95Ms)} max ${this.#formatCvMs(status.rollingAdapterInferenceMaxMs)}`,
+        `total p50 ${this.#formatCvMs(status.rollingTotalCvP50Ms)} p95 ${this.#formatCvMs(status.rollingTotalCvP95Ms)} max ${this.#formatCvMs(status.rollingTotalCvMaxMs)}`,
+        `incomplete seven-point frames ${status.timingWindowIncompletePoseCount}`,
         `inference frames ${status.inferenceCount}`,
         `pose frames ${status.poseFrameCount}`,
         `dropped frames ${status.droppedFrameCount}`,
@@ -1126,6 +1155,20 @@ class AeroBeatApp extends HTMLElement {
       providerSelect.setOptions(getPoseProviderOptions(this.#poseSelection.selectedBackendId));
       providerSelect.setAttribute("value", this.#poseSelection.selectedProviderId);
     }
+    const tuningSelect = this.shadowRoot?.querySelector(".mediapipe-tuning-select");
+    if (tuningSelect && "setOptions" in tuningSelect) {
+      tuningSelect.setOptions(mediaPipeTuningOptions);
+      tuningSelect.setAttribute("value", this.#poseSelection.selectedMediaPipeTuningId);
+      tuningSelect.setAttribute(
+        "label",
+        this.#poseSelection.mediaPipeTuningApplicable ? "MediaPipe tuning" : "MediaPipe tuning (not applicable)"
+      );
+      if (this.#poseSelection.mediaPipeTuningApplicable) {
+        tuningSelect.removeAttribute("disabled");
+      } else {
+        tuningSelect.setAttribute("disabled", "");
+      }
+    }
     const speedSelect = this.shadowRoot?.querySelector(".tracking-speed-select");
     if (speedSelect && "setOptions" in speedSelect) {
       speedSelect.setOptions([
@@ -1251,6 +1294,23 @@ class AeroBeatApp extends HTMLElement {
     this.#configurePhoneTestControls();
     this.#getPosePreview().setAttribute("source-id", this.#poseSourceId());
     this.#queueCvServiceReplacement(`${backendId} / ${providerId}`);
+  }
+
+  /**
+   * @param {import("./pose-backend-registry.js").MediaPipeTuningId} tuningId
+   * @returns {void}
+   */
+  #applyMediaPipeTuning(tuningId) {
+    const search = updateMediaPipeTuningSearch(window.location.search, tuningId);
+    const nextUrl = `${window.location.pathname}${search}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+    this.#poseSelection = resolvePoseSelection({
+      search,
+      origin: window.location.origin,
+      baseUrl: document.baseURI
+    });
+    this.#configurePhoneTestControls();
+    this.#queueCvServiceReplacement(`MediaPipe tuning ${tuningId}`);
   }
 
   /**

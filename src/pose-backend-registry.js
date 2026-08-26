@@ -18,8 +18,32 @@ import {
 
 /** @typedef {"movenet" | "mediapipe" | "onnxruntime"} PoseBackendId */
 /** @typedef {"webgl" | "cpu-wasm" | "gpu-webgl" | "wasm" | "webgpu"} PoseProviderId */
+/** @typedef {"standard" | "responsive"} MediaPipeTuningId */
 
 export const defaultPoseBackendId = "movenet";
+export const defaultMediaPipeTuningId = "standard";
+
+export const mediaPipeTuningOptions = Object.freeze([
+  Object.freeze({ value: "standard", label: "Standard (0.5 / 0.5 / 0.5)" }),
+  Object.freeze({ value: "responsive", label: "Responsive A/B (0.5 / 0.4 / 0.3)" })
+]);
+
+const mediaPipeTuningDefinitions = Object.freeze({
+  standard: Object.freeze({
+    id: "standard",
+    label: "Standard",
+    minPoseDetectionConfidence: 0.5,
+    minPosePresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  }),
+  responsive: Object.freeze({
+    id: "responsive",
+    label: "Responsive A/B",
+    minPoseDetectionConfidence: 0.5,
+    minPosePresenceConfidence: 0.4,
+    minTrackingConfidence: 0.3
+  })
+});
 
 export const poseBackendOptions = Object.freeze([
   Object.freeze({ value: "movenet", label: "MoveNet Lightning" }),
@@ -59,6 +83,9 @@ const backendDefinitions = Object.freeze({
  * @property {PoseBackendId} selectedBackendId Supported selected backend.
  * @property {string} requestedProviderId Raw requested provider or the backend default when absent.
  * @property {PoseProviderId} selectedProviderId Supported selected provider.
+ * @property {string} requestedMediaPipeTuningId Raw requested tuning or the standard default when absent.
+ * @property {MediaPipeTuningId} selectedMediaPipeTuningId Supported MediaPipe tuning selection.
+ * @property {boolean} mediaPipeTuningApplicable Whether the selected backend consumes MediaPipe tuning.
  * @property {string | undefined} onnxModelAssetUrl Same-origin ONNX model URL.
  * @property {string | undefined} rejectedOnnxModelUrl Rejected cross-origin or malformed model URL.
  * @property {string | undefined} warning Visible fallback explanation.
@@ -89,6 +116,13 @@ export function resolvePoseSelection(options = {}) {
   if (rawProvider !== selectedProviderId) {
     warnings.push(`unsupported provider ${rawProvider} for ${selectedBackendId}; using ${selectedProviderId}`);
   }
+  const rawMediaPipeTuning = params.get("mediaPipeTuning") ?? defaultMediaPipeTuningId;
+  const selectedMediaPipeTuningId = isMediaPipeTuningId(rawMediaPipeTuning)
+    ? rawMediaPipeTuning
+    : defaultMediaPipeTuningId;
+  if (rawMediaPipeTuning !== selectedMediaPipeTuningId) {
+    warnings.push(`unsupported MediaPipe tuning ${rawMediaPipeTuning}; using ${selectedMediaPipeTuningId}`);
+  }
 
   const rawOnnxModelUrl = params.get("onnxModelUrl");
   let onnxModelAssetUrl;
@@ -114,6 +148,9 @@ export function resolvePoseSelection(options = {}) {
     selectedBackendId,
     requestedProviderId: rawProvider,
     selectedProviderId,
+    requestedMediaPipeTuningId: rawMediaPipeTuning,
+    selectedMediaPipeTuningId,
+    mediaPipeTuningApplicable: selectedBackendId === "mediapipe",
     onnxModelAssetUrl,
     rejectedOnnxModelUrl,
     warning: warnings.length > 0 ? warnings.join("; ") : undefined
@@ -126,6 +163,14 @@ export function resolvePoseSelection(options = {}) {
  */
 export function getPoseProviderOptions(backendId) {
   return backendDefinitions[backendId].providers;
+}
+
+/**
+ * @param {MediaPipeTuningId} tuningId
+ * @returns {{ id: MediaPipeTuningId, label: string, minPoseDetectionConfidence: number, minPosePresenceConfidence: number, minTrackingConfidence: number }}
+ */
+export function getMediaPipeTuningDefinition(tuningId) {
+  return mediaPipeTuningDefinitions[tuningId];
 }
 
 /**
@@ -158,11 +203,15 @@ export function createPoseBackendComposition(selection, performancePreset) {
       ? createMoveNetWorkerPoseAdapter(commonOptions)
       : createMoveNetPoseAdapter(commonOptions);
   } else if (selection.selectedBackendId === "mediapipe") {
+    const tuning = getMediaPipeTuningDefinition(selection.selectedMediaPipeTuningId);
     poseAdapter = createMediaPipePoseAdapter({
       ...commonOptions,
       delegate: selection.selectedProviderId === "gpu-webgl"
         ? mediaPipeDelegates.gpuWebgl
-        : mediaPipeDelegates.cpuWasm
+        : mediaPipeDelegates.cpuWasm,
+      minPoseDetectionConfidence: tuning.minPoseDetectionConfidence,
+      minPosePresenceConfidence: tuning.minPosePresenceConfidence,
+      minTrackingConfidence: tuning.minTrackingConfidence
     });
   } else {
     poseAdapter = createOnnxRuntimePoseAdapter({
@@ -193,6 +242,28 @@ export function updatePoseSelectionSearch(search, backendId, providerId) {
   params.set("poseBackend", backendId);
   params.set("poseProvider", providerId);
   return `?${params.toString()}`;
+}
+
+/**
+ * Returns a URL search string synchronized with a MediaPipe tuning selection.
+ * Unknown unrelated parameters, including backend/provider, are retained.
+ *
+ * @param {string} search
+ * @param {MediaPipeTuningId} tuningId
+ * @returns {string}
+ */
+export function updateMediaPipeTuningSearch(search, tuningId) {
+  const params = new URLSearchParams(search);
+  params.set("mediaPipeTuning", tuningId);
+  return `?${params.toString()}`;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is MediaPipeTuningId}
+ */
+export function isMediaPipeTuningId(value) {
+  return value === "standard" || value === "responsive";
 }
 
 /**

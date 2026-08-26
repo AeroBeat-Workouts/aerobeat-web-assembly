@@ -216,6 +216,7 @@ try {
     const root = app?.shadowRoot;
     const backendSelect = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
     const providerSelect = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const tuningSelect = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select");
     const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
     const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
     const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
@@ -223,16 +224,24 @@ try {
       && backendSelect.value === "movenet"
       && providerSelect?.options.length === 1
       && providerSelect.value === "webgl"
+      && tuningSelect?.options.length === 2
+      && tuningSelect.value === "standard"
+      && tuningSelect.disabled
       && cameraSelect?.options.length === 3
       && speedSelect?.options.length === 2
       && performanceSelect?.options.length === 7;
   });
   const defaultPhoneControls = await page.locator("aerobeat-app").evaluate((element) => {
     const root = element.shadowRoot;
+    const tuningElement = root?.querySelector(".mediapipe-tuning-select");
+    const tuningSelect = tuningElement?.shadowRoot?.querySelector("select");
     const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
     const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
     const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
     return {
+      tuning: tuningSelect?.value ?? "",
+      tuningDisabled: tuningSelect?.disabled ?? false,
+      tuningLabel: tuningElement?.getAttribute("label") ?? "",
       tracking: speedSelect?.value ?? "",
       cvPreset: performanceSelect?.value ?? "",
       cvLabel: performanceSelect?.selectedOptions[0]?.textContent ?? "",
@@ -240,6 +249,13 @@ try {
       inferenceText
     };
   });
+  if (
+    defaultPhoneControls.tuning !== "standard"
+    || !defaultPhoneControls.tuningDisabled
+    || !defaultPhoneControls.tuningLabel.includes("not applicable")
+  ) {
+    throw new Error("MediaPipe tuning did not default to disabled standard/not-applicable on MoveNet.");
+  }
   if (defaultPhoneControls.tracking !== "fast") {
     throw new Error("Phone tracking did not default to the measured Fast profile.");
   }
@@ -432,14 +448,20 @@ try {
     const root = element.shadowRoot;
     const backendSelect = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
     const providerSelect = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const tuningElement = root?.querySelector(".mediapipe-tuning-select");
+    const tuningSelect = tuningElement?.shadowRoot?.querySelector("select");
     const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
-    if (!backendSelect || !providerSelect || !performanceSelect) {
-      throw new Error("Pose backend/provider controls were unavailable for rapid-switch validation.");
+    if (!backendSelect || !providerSelect || !tuningSelect || !performanceSelect) {
+      throw new Error("Pose backend/provider/tuning controls were unavailable for rapid-switch validation.");
     }
     backendSelect.value = "mediapipe";
     backendSelect.dispatchEvent(new Event("change", { bubbles: true }));
     const mediaPipeProviders = Array.from(providerSelect.options).map((option) => option.value);
     const mediaPipePresetCount = performanceSelect.options.length;
+    const mediaPipeTuningEnabled = !tuningSelect.disabled;
+    const mediaPipeTuningLabel = tuningElement?.getAttribute("label") ?? "";
+    tuningSelect.value = "responsive";
+    tuningSelect.dispatchEvent(new Event("change", { bubbles: true }));
     providerSelect.value = "gpu-webgl";
     providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
     backendSelect.value = "onnxruntime";
@@ -448,11 +470,13 @@ try {
     providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
     backendSelect.value = "movenet";
     backendSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    return { mediaPipeProviders, mediaPipePresetCount };
+    return { mediaPipeProviders, mediaPipePresetCount, mediaPipeTuningEnabled, mediaPipeTuningLabel };
   });
   if (
     rapidSwitchControlState.mediaPipePresetCount !== 4
     || rapidSwitchControlState.mediaPipeProviders.join(",") !== "cpu-wasm,gpu-webgl"
+    || !rapidSwitchControlState.mediaPipeTuningEnabled
+    || rapidSwitchControlState.mediaPipeTuningLabel !== "MediaPipe tuning"
   ) {
     throw new Error("Non-MoveNet backend controls did not expose providers while filtering unsupported worker presets.");
   }
@@ -461,17 +485,26 @@ try {
     const root = app?.shadowRoot;
     const backendValue = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select")?.value;
     const providerValue = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select")?.value;
+    const tuningValue = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select")?.value;
+    const tuningDisabled = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select")?.disabled;
     const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
     const url = new URL(window.location.href);
     return (window.__aeroCameraRequests?.length ?? 0) === 3
       && (window.__aeroStoppedCameraTracks ?? 0) === 2
       && backendValue === "movenet"
       && providerValue === "webgl"
+      && tuningValue === "responsive"
+      && tuningDisabled
       && url.searchParams.get("poseBackend") === "movenet"
       && url.searchParams.get("poseProvider") === "webgl"
+      && url.searchParams.get("mediaPipeTuning") === "responsive"
       && inferenceText.includes("CV running")
       && inferenceText.includes("backend requested movenet selected movenet effective movenet")
       && inferenceText.includes("provider requested webgl selected webgl actual webgl")
+      && inferenceText.includes("MediaPipe tuning requested responsive selected responsive not applicable")
+      && /timing window \d+\/120 budget 67ms over \d+/u.test(inferenceText)
+      && /adapter p50 \d+ms p95 \d+ms max \d+ms/u.test(inferenceText)
+      && /total p50 \d+ms p95 \d+ms max \d+ms/u.test(inferenceText)
       && /status updates \d+fps target 4fps/u.test(inferenceText)
       && /output age \d+ms/u.test(inferenceText);
   }, undefined, { timeout: 90000 });
@@ -504,9 +537,13 @@ try {
       && snapshot.includes("Effective pose backend: movenet")
       && snapshot.includes("Selected/effective vendor: movenet / movenet")
       && snapshot.includes("Requested/selected/actual provider: webgl / webgl / webgl")
+      && snapshot.includes("Requested/selected MediaPipe tuning: responsive / responsive (not applicable)")
+      && snapshot.includes("MediaPipe thresholds detection/presence/tracking: 0.5 / 0.4 / 0.3 (not applicable)")
       && snapshot.includes("Selection fallback: none")
       && snapshot.includes("Adapter fallback: false")
       && /Adapter load: \d+ms/u.test(snapshot)
+      && snapshot.includes("Adapter runtime inference: n/a")
+      && snapshot.includes("Adapter postprocess: n/a")
       && snapshot.includes("Selected CV preset: Direct downscale 160")
       && snapshot.includes("Execution location: main-thread")
       && snapshot.includes("Execution detail: webgl direct adapter")
@@ -515,6 +552,10 @@ try {
       && /Prep cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
       && /Adapter cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
       && /Total CV cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
+      && /Timing window: \d+\/120 \/ budget 67ms \/ over budget \d+/u.test(snapshot)
+      && /Adapter rolling p50\/p95\/max: \d+ms \/ \d+ms \/ \d+ms/u.test(snapshot)
+      && /Total CV rolling p50\/p95\/max: \d+ms \/ \d+ms \/ \d+ms/u.test(snapshot)
+      && /Incomplete seven-point frames: \d+/u.test(snapshot)
       && snapshot.includes("Sampling mode: video-frame-callback")
       && /Sample\/submission rate: \d+fps \(target max 15fps\)/u.test(snapshot)
       && /Pose-output rate: \d+fps/u.test(snapshot)
@@ -559,9 +600,13 @@ try {
     "Selected model: movenet/",
     "Effective model: movenet/",
     "Requested/selected/actual provider: webgl / webgl / webgl",
+    "Requested/selected MediaPipe tuning: responsive / responsive (not applicable)",
+    "MediaPipe thresholds detection/presence/tracking: 0.5 / 0.4 / 0.3 (not applicable)",
     "Selection fallback: none",
     "Adapter fallback: false",
     "Adapter load:",
+    "Adapter runtime inference:",
+    "Adapter postprocess:",
     "Selected CV preset: Direct downscale 160",
     "Execution location: main-thread",
     "Execution detail: webgl direct adapter",
@@ -570,6 +615,10 @@ try {
     "Prep cost:",
     "Adapter cost:",
     "Total CV cost:",
+    "Timing window:",
+    "Adapter rolling p50/p95/max:",
+    "Total CV rolling p50/p95/max:",
+    "Incomplete seven-point frames:",
     "Sampling mode: video-frame-callback",
     "Sample/submission rate:",
     "Pose-output rate:",
@@ -699,19 +748,51 @@ try {
     throw new Error("Fallback telemetry contradicted effective replay identity.");
   }
 
-  await page.goto(`${url}?poseBackend=invalid&poseProvider=webgpu&onnxModelUrl=https%3A%2F%2Fdownload.openmmlab.com%2Fmodel.onnx`, { waitUntil: "networkidle" });
+  await page.goto(`${url}?poseBackend=mediapipe&poseProvider=gpu-webgl&mediaPipeTuning=responsive`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const tuning = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select");
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    return tuning?.value === "responsive"
+      && !tuning.disabled
+      && inferenceText.includes("provider requested gpu-webgl selected gpu-webgl actual unknown")
+      && inferenceText.includes("MediaPipe tuning requested responsive selected responsive detection 0.5 presence 0.4 tracking 0.3")
+      && inferenceText.includes("thresholds detection 0.5 presence 0.4 tracking 0.3");
+  });
+  await page.locator("aerobeat-app aero-button.telemetry-copy button").click();
+  const responsiveSnapshot = await page.evaluate(() => window.__aeroClipboardText ?? "");
+  for (const requiredLine of [
+    "Requested/selected MediaPipe tuning: responsive / responsive (applicable)",
+    "MediaPipe thresholds detection/presence/tracking: 0.5 / 0.4 / 0.3 (applicable)",
+    "Execution detail: MediaPipe Tasks Vision GPU delegate via synchronous WebGL / thresholds detection 0.5 presence 0.4 tracking 0.3",
+    "Adapter runtime inference: n/a",
+    "Adapter postprocess: n/a",
+    "Timing window: 0/120 / budget 67ms / over budget 0",
+    "Incomplete seven-point frames: 0"
+  ]) {
+    if (!responsiveSnapshot.includes(requiredLine)) {
+      throw new Error(`Responsive MediaPipe telemetry omitted ${requiredLine}`);
+    }
+  }
+
+  await page.goto(`${url}?poseBackend=invalid&poseProvider=webgpu&mediaPipeTuning=reckless&onnxModelUrl=https%3A%2F%2Fdownload.openmmlab.com%2Fmodel.onnx`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => {
     const root = document.querySelector("aerobeat-app")?.shadowRoot;
     const backend = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
     const provider = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const tuning = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select");
     const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
     const route = new URL(window.location.href);
     return backend?.value === "movenet"
       && provider?.value === "webgl"
+      && tuning?.value === "standard"
+      && tuning.disabled
       && route.searchParams.get("poseBackend") === "invalid"
       && inferenceText.includes("backend requested invalid selected movenet effective movenet")
       && inferenceText.includes("provider requested webgpu selected webgl actual webgl")
+      && inferenceText.includes("MediaPipe tuning requested reckless selected standard not applicable")
       && inferenceText.includes("unsupported backend invalid; using movenet")
+      && inferenceText.includes("unsupported MediaPipe tuning reckless; using standard")
       && inferenceText.includes("cross-origin onnxModelUrl rejected; using same-origin default");
   });
 } finally {
