@@ -145,8 +145,10 @@ await assert.rejects(
   () => recoveringCoordinator.request("fails", false),
   /intentional switch failure/u
 );
+assert.equal(recoveringCoordinator.currentGeneration(), 1);
 assert.equal(await recoveringCoordinator.settled(), undefined);
 await recoveringCoordinator.request("recovers", false);
+assert.equal(recoveringCoordinator.currentGeneration(), 2);
 assert.deepEqual(recoveryEvents, ["fails", "recovers"]);
 
 console.log("Pose backend registry validation passed.");

@@ -15,7 +15,7 @@
  * older generation already tore down the live route before becoming stale.
  *
  * @param {(context: PoseSwitchContext) => Promise<void>} executeSwitch
- * @returns {{ request: (reason: string, restartRequested: boolean) => Promise<void>, settled: () => Promise<void> }}
+ * @returns {{ request: (reason: string, restartRequested: boolean) => Promise<void>, settled: () => Promise<void>, currentGeneration: () => number }}
  */
 export function createSerializedPoseSwitch(executeSwitch) {
   let generation = 0;
@@ -62,6 +62,9 @@ export function createSerializedPoseSwitch(executeSwitch) {
     },
     settled() {
       return queue.catch(() => undefined);
+    },
+    currentGeneration() {
+      return generation;
     }
   };
 }

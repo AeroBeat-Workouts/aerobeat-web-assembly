@@ -66,9 +66,6 @@ class AeroBeatApp extends HTMLElement {
   /** @type {ReturnType<typeof resolvePoseSelection>} */
   #poseSelection = resolvePoseSelection();
 
-  /** @type {number} */
-  #cvSwitchGeneration = 0;
-
   /** @type {AeroCameraCvService} */
   #cvService = this.#createCvService();
 
@@ -490,7 +487,7 @@ class AeroBeatApp extends HTMLElement {
    * @returns {Promise<void>}
    */
   async #requestLiveCameraPermission() {
-    const generation = this.#cvSwitchGeneration;
+    const generation = this.#cvSwitchCoordinator.currentGeneration();
     const source = createLiveCameraSourceDescriptor({
       sourceId: this.#poseSourceId(),
       constraints: this.#liveCameraConstraints(),
@@ -498,7 +495,7 @@ class AeroBeatApp extends HTMLElement {
       mirrored: true
     });
     const result = await this.#videoMediaFacade.requestCamera(source);
-    if (generation !== this.#cvSwitchGeneration) {
+    if (generation !== this.#cvSwitchCoordinator.currentGeneration()) {
       if (result.status === "granted") {
         for (const track of result.stream?.getTracks?.() ?? []) {
           track.stop();
@@ -1263,7 +1260,6 @@ class AeroBeatApp extends HTMLElement {
    * @returns {void}
    */
   #queueCvServiceReplacement(reason) {
-    this.#cvSwitchGeneration += 1;
     const restartRequested = Boolean(this.#videoMediaFacade.getRetainedCameraStream())
       || this.#cvService.running
       || Boolean(this.#cameraPermissionRequest);
