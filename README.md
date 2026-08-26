@@ -41,9 +41,29 @@ Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/`.
 
 The app renders the package patch version, a build stamp, and a cache-bust token in the first viewport so browser/device refresh state is visible.
 
-The mobile integration checkpoint renders `aero-pose-flow-panel` in the app shell and starts with one deterministic replay frame through the public `@aerobeat/web-cv` and `@aerobeat/web-input` exports so non-camera secure-loading checks remain deterministic. Pressing `Begin calibration` requests live camera permission through the public video/CV boundaries. When permission is granted, the app keeps the granted stream attached to a live video consumer for the page lifetime, runs latest-frame-wins MoveNet inference through `@aerobeat/web-cv` and `@aerobeat/web-vendor-movenet`, updates the Camera and Inference status panels with live counters, and refreshes the visible pose-flow panels with a truthful `aero.movenet.live` source through the same input route. If camera APIs are unavailable or blocked, the replay checkpoint remains the fallback proof state.
+The mobile integration checkpoint renders `aero-pose-flow-panel` in the app shell and starts with one deterministic replay frame through the public `@aerobeat/web-cv` and `@aerobeat/web-input` exports so non-camera secure-loading checks remain deterministic. Pressing `Begin calibration` requests live camera permission through the public video/CV boundaries. When permission is granted, the app keeps the granted stream attached to a live video consumer for the page lifetime and runs latest-frame-wins inference through the assembly-selected MoveNet, MediaPipe, or ONNX Runtime adapter. The Camera and Inference panels expose the selected and effective backend/model/provider plus fallback and timing truth. If camera or a selected runtime/model is unavailable, the deterministic MoveNet replay adapter remains the explicit fallback proof state.
 
-The live phone route independently paces three runtime lanes: CV owns video-frame-aware sampling/inference submission at a 15fps ceiling, the assembly refreshes status/telemetry DOM at up to 4fps, and the WebGL pose overlay renders the latest raw measured pose at up to 30fps. Sampling prefers `HTMLVideoElement.requestVideoFrameCallback()` and uses a tested `requestAnimationFrame()` fallback. Slow MoveNet inference therefore cannot queue stale work or directly set the native camera preview cadence; latest-frame-wins keeps at most one pending sample. The overlay does not predict or extrapolate between poses, and gameplay/input routing continues to consume raw measured frames.
+The live phone route independently paces three runtime lanes: CV owns video-frame-aware sampling/inference submission at a 15fps ceiling, the assembly refreshes status/telemetry DOM at up to 4fps, and the WebGL pose overlay renders the latest raw measured pose at up to 30fps. Sampling prefers `HTMLVideoElement.requestVideoFrameCallback()` and uses a tested `requestAnimationFrame()` fallback. Slow inference therefore cannot queue stale work or directly set the native camera preview cadence; latest-frame-wins keeps at most one pending sample. The overlay does not predict or extrapolate between poses, and gameplay/input routing continues to consume raw measured frames.
+
+## Pose Backend Selection
+
+MoveNet remains the default. The visible `Pose backend` and `Pose provider` controls and stable query parameters select an exact comparison path:
+
+- `?poseBackend=movenet&poseProvider=webgl`
+- `?poseBackend=mediapipe&poseProvider=cpu-wasm`
+- `?poseBackend=mediapipe&poseProvider=gpu-webgl`
+- `?poseBackend=onnxruntime&poseProvider=wasm`
+- `?poseBackend=onnxruntime&poseProvider=webgpu`
+
+Backend/provider changes synchronize the URL with `history.replaceState`, terminally dispose the old CV service, retain latest-selection-wins behavior during rapid switches, and restart an active camera route. Invalid backend/provider values remain visible as requested values in telemetry while selection falls back to MoveNet or that backend's supported default. MoveNet-only worker performance presets are removed from the performance control while MediaPipe or ONNX Runtime is selected; direct presets remain orthogonal.
+
+The ONNX model defaults to the same-origin path `${BASE_URL}models/rtmpose-t/end2end.onnx`. A custom `onnxModelUrl` query is accepted only when it resolves to the current origin; cross-origin OpenMMLab URLs are rejected. Prepare the ignored local asset before a real ONNX run:
+
+```bash
+npm run model:prepare:onnx
+```
+
+That command runs the ONNX vendor package's checksum-verifying acquisition workflow, verifies the extracted model again, and copies the ignored model/provenance into `public/models/rtmpose-t/`. Model weights are never committed or included by default. Run it before `dev`, `dev:tailscale`, or `build:release` when ONNX real-runtime proof is required.
 
 The Inference panel reports selected preset, actual execution location and detail, actual resize path, inference input dimensions, granted camera size, measured video FPS where available, prep cost, adapter cost, total CV cost, running averages, actual sampling primitive, effective sample/submission rate, effective pose-output rate, effective status-update rate, effective overlay-render rate, submitted/output/render/status ages, dropped frames, rendered pose frames, the seven-landmark calibration subset count, selected tracking profile, and media-time minus pose-frame timestamp delta. The visible overlay remains limited to `nose`, `left_wrist`, `left_elbow`, `left_shoulder`, `right_shoulder`, `right_elbow`, and `right_wrist`, with the nose connected to both shoulders. Camera switching and the default `Fast` tracking profile remain available.
 
@@ -63,7 +83,7 @@ npm run build-release
 npm run submit-release-to-github
 ```
 
-Run `npm run version:patch` before each phone-testable slice. `build-release` creates a raw, unminified browser artifact under `release/raw/<package-version>/`. `submit-release-to-github` writes a dry-run GitHub release submission manifest beside that artifact; it does not contact GitHub yet.
+Run `npm run version:patch` before each phone-testable slice. `build-release` creates a raw, unminified browser artifact under `release/raw/<package-version>/`, requires emitted ONNX Runtime WASM assets and all three backend registry markers, and records the configured base path, runtime JS/WASM files, and ONNX model-presence policy in `aerobeat-release-proof.json`. A build without the ignored model is valid for MoveNet/MediaPipe and selector proof but not a real ONNX inference checkpoint. `submit-release-to-github` writes a dry-run GitHub release submission manifest beside that artifact; it does not contact GitHub yet.
 
 On the phone, reload `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` and confirm the visible `Version`, `Build`, and `Cache` values changed. If they do not change, the device is still seeing an older build.
 

@@ -214,10 +214,16 @@ try {
   await page.waitForFunction(() => {
     const app = document.querySelector("aerobeat-app");
     const root = app?.shadowRoot;
+    const backendSelect = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
+    const providerSelect = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
     const cameraSelect = root?.querySelector(".camera-device-select")?.shadowRoot?.querySelector("select");
     const speedSelect = root?.querySelector(".tracking-speed-select")?.shadowRoot?.querySelector("select");
     const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
-    return cameraSelect?.options.length === 3
+    return backendSelect?.options.length === 3
+      && backendSelect.value === "movenet"
+      && providerSelect?.options.length === 1
+      && providerSelect.value === "webgl"
+      && cameraSelect?.options.length === 3
       && speedSelect?.options.length === 2
       && performanceSelect?.options.length === 7;
   });
@@ -308,11 +314,11 @@ try {
       && screenButtonText.includes("Calibration running")
       && topbarButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
-      && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
+      && cameraText.includes("Camera permission: granted / live inference movenet/webgl / source live-camera")
       && cameraText.includes("CV preset Direct downscale 160")
       && inferenceText.includes("CV running")
       && inferenceText.includes("preset Direct downscale 160 (main thread / camera default / 160px canvas resize / no worker transfer)")
-      && inferenceText.includes("execution main-thread direct adapter")
+      && inferenceText.includes("execution main-thread webgl direct adapter fallback false")
       && inferenceText.includes("resize main-thread canvas")
       && inferenceText.includes("model ready")
       && inferenceText.includes("source live-camera aero.movenet.live")
@@ -406,7 +412,7 @@ try {
     const cameraRequests = Array.isArray(window.__aeroCameraRequests) ? window.__aeroCameraRequests.length : 0;
     return cameraRequests === 2
       && (window.__aeroStoppedCameraTracks ?? 0) === 1
-      && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
+      && cameraText.includes("Camera permission: granted / live inference movenet/webgl / source live-camera")
       && cameraText.includes("CV preset Direct downscale 160")
       && inferenceText.includes("tracking fast")
       && /sample target 15fps effective \d+fps/u.test(inferenceText)
@@ -422,11 +428,59 @@ try {
     throw new Error("Direct downscale preset changed restarted camera constraints instead of isolating inference resize.");
   }
 
+  const rapidSwitchControlState = await page.locator("aerobeat-app").evaluate((element) => {
+    const root = element.shadowRoot;
+    const backendSelect = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
+    const providerSelect = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    if (!backendSelect || !providerSelect || !performanceSelect) {
+      throw new Error("Pose backend/provider controls were unavailable for rapid-switch validation.");
+    }
+    backendSelect.value = "mediapipe";
+    backendSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    const mediaPipeProviders = Array.from(providerSelect.options).map((option) => option.value);
+    const mediaPipePresetCount = performanceSelect.options.length;
+    providerSelect.value = "gpu-webgl";
+    providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    backendSelect.value = "onnxruntime";
+    backendSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    providerSelect.value = "webgpu";
+    providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    backendSelect.value = "movenet";
+    backendSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    return { mediaPipeProviders, mediaPipePresetCount };
+  });
+  if (
+    rapidSwitchControlState.mediaPipePresetCount !== 4
+    || rapidSwitchControlState.mediaPipeProviders.join(",") !== "cpu-wasm,gpu-webgl"
+  ) {
+    throw new Error("Non-MoveNet backend controls did not expose providers while filtering unsupported worker presets.");
+  }
+  await page.waitForFunction(() => {
+    const app = document.querySelector("aerobeat-app");
+    const root = app?.shadowRoot;
+    const backendValue = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select")?.value;
+    const providerValue = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select")?.value;
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    const url = new URL(window.location.href);
+    return (window.__aeroCameraRequests?.length ?? 0) === 3
+      && (window.__aeroStoppedCameraTracks ?? 0) === 2
+      && backendValue === "movenet"
+      && providerValue === "webgl"
+      && url.searchParams.get("poseBackend") === "movenet"
+      && url.searchParams.get("poseProvider") === "webgl"
+      && inferenceText.includes("CV running")
+      && inferenceText.includes("backend requested movenet selected movenet effective movenet")
+      && inferenceText.includes("provider requested webgl selected webgl actual webgl")
+      && /status updates \d+fps target 4fps/u.test(inferenceText)
+      && /output age \d+ms/u.test(inferenceText);
+  }, undefined, { timeout: 90000 });
+
   const liveStreamState = await page.evaluate(() => ({
     stoppedTracks: window.__aeroStoppedCameraTracks ?? 0,
     trackState: window.__aeroGrantedCameraTrack?.readyState ?? ""
   }));
-  if (liveStreamState.stoppedTracks !== 1 || liveStreamState.trackState !== "live") {
+  if (liveStreamState.stoppedTracks !== 2 || liveStreamState.trackState !== "live") {
     throw new Error("Restarted camera stream was not live before page teardown.");
   }
 
@@ -445,9 +499,17 @@ try {
       && snapshot.includes("Cache token:")
       && snapshot.includes("Selected camera: Front camera (camera-front)")
       && snapshot.includes("Selected tracking profile: fast")
+      && snapshot.includes("Requested pose backend: movenet")
+      && snapshot.includes("Selected pose backend: movenet")
+      && snapshot.includes("Effective pose backend: movenet")
+      && snapshot.includes("Selected/effective vendor: movenet / movenet")
+      && snapshot.includes("Requested/selected/actual provider: webgl / webgl / webgl")
+      && snapshot.includes("Selection fallback: none")
+      && snapshot.includes("Adapter fallback: false")
+      && /Adapter load: \d+ms/u.test(snapshot)
       && snapshot.includes("Selected CV preset: Direct downscale 160")
       && snapshot.includes("Execution location: main-thread")
-      && snapshot.includes("Execution detail: direct adapter")
+      && snapshot.includes("Execution detail: webgl direct adapter")
       && snapshot.includes("Resize path: main-thread canvas")
       && snapshot.includes("Inference input: 160x120")
       && /Prep cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
@@ -464,9 +526,9 @@ try {
       && /Status update age: \d+ms/u.test(snapshot)
       && snapshot.includes("Media-pose delta:")
       && snapshot.includes("Build panel: Version ")
-      && snapshot.includes("Camera panel: Camera permission: granted / live inference running / source live-camera")
+      && snapshot.includes("Camera panel: Camera permission: granted / live inference movenet/webgl / source live-camera")
       && snapshot.includes("Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480")
-      && snapshot.includes("Inference panel: CV running / preset Direct downscale 160 (main thread / camera default / 160px canvas resize / no worker transfer)")
+      && snapshot.includes("Inference panel: CV running / backend requested movenet selected movenet effective movenet")
       && snapshot.includes("Calibration panel: Calibration active - align your shoulders in the rhythm field")
       && snapshot.includes("Secure context: ready")
       && snapshot.includes("Timestamp:")
@@ -490,9 +552,19 @@ try {
     `App version: ${expectedVersion}`,
     "Selected camera: Front camera (camera-front)",
     "Selected tracking profile: fast",
+    "Requested pose backend: movenet",
+    "Selected pose backend: movenet",
+    "Effective pose backend: movenet",
+    "Selected/effective vendor: movenet / movenet",
+    "Selected model: movenet/",
+    "Effective model: movenet/",
+    "Requested/selected/actual provider: webgl / webgl / webgl",
+    "Selection fallback: none",
+    "Adapter fallback: false",
+    "Adapter load:",
     "Selected CV preset: Direct downscale 160",
     "Execution location: main-thread",
-    "Execution detail: direct adapter",
+    "Execution detail: webgl direct adapter",
     "Resize path: main-thread canvas",
     "Inference input: 160x120",
     "Prep cost:",
@@ -508,9 +580,9 @@ try {
     "Overlay render age:",
     "Status update age:",
     "Media-pose delta:",
-    "Camera panel: Camera permission: granted / live inference running / source live-camera",
+    "Camera panel: Camera permission: granted / live inference movenet/webgl / source live-camera",
     "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
-    "Inference panel: CV running / preset Direct downscale 160 (main thread / camera default / 160px canvas resize / no worker transfer)",
+    "Inference panel: CV running / backend requested movenet selected movenet effective movenet",
     "Calibration panel: Calibration active - align your shoulders in the rhythm field",
     "Secure context: ready",
     "Route URL:"
@@ -543,12 +615,56 @@ try {
       revokedObjectUrls: window.__aeroRevokedObjectUrls ?? []
     };
   });
-  if (teardownState.stoppedTracks !== 2 || teardownState.trackState !== "ended") {
+  if (teardownState.stoppedTracks !== 3 || teardownState.trackState !== "ended") {
     throw new Error("Granted camera stream was not released when the app left the page.");
   }
   if (teardownState.createdObjectUrls.length !== 1 || teardownState.revokedObjectUrls.length !== 1) {
     throw new Error("Retained telemetry object URL was not cleaned up during app teardown.");
   }
+
+  await page.goto(`${url}?poseBackend=mediapipe&poseProvider=gpu-webgl`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const backend = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
+    const provider = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const performance = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    return backend?.value === "mediapipe"
+      && provider?.value === "gpu-webgl"
+      && provider.options.length === 2
+      && performance?.options.length === 4
+      && inferenceText.includes("backend requested mediapipe selected mediapipe effective mediapipe")
+      && inferenceText.includes("provider requested gpu-webgl selected gpu-webgl actual unknown")
+      && inferenceText.includes("selection accepted");
+  });
+
+  await page.goto(`${url}?poseBackend=onnxruntime&poseProvider=webgpu&onnxModelUrl=%2Fmodels%2Fprivate.onnx`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const backend = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
+    const provider = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    return backend?.value === "onnxruntime"
+      && provider?.value === "webgpu"
+      && inferenceText.includes("backend requested onnxruntime selected onnxruntime effective onnxruntime")
+      && inferenceText.includes("provider requested webgpu selected webgpu actual unknown");
+  });
+
+  await page.goto(`${url}?poseBackend=invalid&poseProvider=webgpu&onnxModelUrl=https%3A%2F%2Fdownload.openmmlab.com%2Fmodel.onnx`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const backend = root?.querySelector(".pose-backend-select")?.shadowRoot?.querySelector("select");
+    const provider = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select");
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    const route = new URL(window.location.href);
+    return backend?.value === "movenet"
+      && provider?.value === "webgl"
+      && route.searchParams.get("poseBackend") === "invalid"
+      && inferenceText.includes("backend requested invalid selected movenet effective movenet")
+      && inferenceText.includes("provider requested webgpu selected webgl actual webgl")
+      && inferenceText.includes("unsupported backend invalid; using movenet")
+      && inferenceText.includes("cross-origin onnxModelUrl rejected; using same-origin default");
+  });
 } finally {
   await browser.close();
   await server.close();

@@ -10,7 +10,7 @@
     "check:components": "node scripts/validate-component-rules.js",
     "check:console": "node scripts/validate-playwright-console-noise.js",
     "test": "npm run check && npm run test:unit",
-    "test:unit": "node scripts/validate-runtime-cadence.js",
+    "test:unit": "node scripts/validate-runtime-cadence.js && node scripts/validate-pose-backend-registry.js",
     "test:browser": "npm run check:console",
     "dev": "vite --host 127.0.0.1",
     "dev:host": "node scripts/print-host-urls.js",
@@ -18,6 +18,8 @@
     "dev:tailscale": "vite --host 127.0.0.1 --port 5173",
     "build": "vite build",
     "build-release": "node scripts/build-release.js",
+    "build:release": "npm run build-release",
+    "model:prepare:onnx": "node scripts/prepare-onnx-model.js",
     "version:patch": "node scripts/bump-patch-version.js",
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
   },
@@ -28,7 +30,9 @@
     "@aerobeat/web-renderer": "file:../aerobeat-web-renderer",
     "@aerobeat/web-style": "file:../aerobeat-web-style",
     "@aerobeat/web-ui": "file:../aerobeat-web-ui",
+    "@aerobeat/web-vendor-mediapipe": "file:../aerobeat-web-vendor-mediapipe",
     "@aerobeat/web-vendor-movenet": "file:../aerobeat-web-vendor-movenet",
+    "@aerobeat/web-vendor-onnxruntime": "file:../aerobeat-web-vendor-onnxruntime",
     "@aerobeat/web-video": "file:../aerobeat-web-video",
     "long": "^4.0.0",
     "seedrandom": "^3.0.5"

@@ -18,14 +18,19 @@ import {
   defineAeroUiElements
 } from "@aerobeat/web-ui";
 import { createBrowserVideoMediaFacade, createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
-import {
-  createMoveNetMockPoseAdapter,
-  createMoveNetPoseAdapter,
-  createMoveNetWorkerPoseAdapter,
-  moveNetLiveSourceId
-} from "@aerobeat/web-vendor-movenet";
 import { appMetadata } from "./release-metadata.js";
 import { createAeroCadenceLoop } from "./runtime-cadence.js";
+import { createSerializedPoseSwitch } from "./serialized-pose-switch.js";
+import {
+  createPoseBackendComposition,
+  getPoseProviderOptions,
+  getPoseSourceId,
+  isPoseBackendId,
+  poseBackendOptions,
+  resolvePoseSelection,
+  supportsWorkerPerformancePresets,
+  updatePoseSelectionSearch
+} from "./pose-backend-registry.js";
 
 defineAeroUiElements();
 
@@ -58,8 +63,17 @@ class AeroBeatApp extends HTMLElement {
   /** @type {import("@aerobeat/web-cv").AeroCvPerformancePresetId} */
   #cvPerformancePresetId = "full";
 
+  /** @type {ReturnType<typeof resolvePoseSelection>} */
+  #poseSelection = resolvePoseSelection();
+
+  /** @type {number} */
+  #cvSwitchGeneration = 0;
+
   /** @type {AeroCameraCvService} */
   #cvService = this.#createCvService();
+
+  /** @type {ReturnType<typeof createSerializedPoseSwitch>} */
+  #cvSwitchCoordinator = createSerializedPoseSwitch((context) => this.#executeCvServiceReplacement(context));
 
   /** @type {ReturnType<typeof createPoseInputRouter>} */
   #inputRouter = createPoseInputRouter();
@@ -169,8 +183,8 @@ class AeroBeatApp extends HTMLElement {
         .test-controls {
           display: grid;
           gap: 8px;
-          grid-template-columns: minmax(132px, 180px) minmax(128px, 168px) minmax(142px, 190px);
-          inline-size: min(100%, 548px);
+          grid-template-columns: repeat(5, minmax(128px, 1fr));
+          inline-size: min(100%, 920px);
         }
 
         .stage {
@@ -280,6 +294,8 @@ class AeroBeatApp extends HTMLElement {
           </div>
           <div class="topbar-actions">
             <div class="test-controls" aria-label="Phone test controls">
+              <aero-select class="pose-backend-select" label="Pose backend" value="${this.#poseSelection.selectedBackendId}"></aero-select>
+              <aero-select class="pose-provider-select" label="Pose provider" value="${this.#poseSelection.selectedProviderId}"></aero-select>
               <aero-select class="camera-device-select" label="Camera" value=""></aero-select>
               <aero-select class="tracking-speed-select" label="Tracking" value="${this.#trackingProfile}"></aero-select>
               <aero-select class="cv-performance-select" label="CV performance" value="${this.#cvPerformancePresetId}"></aero-select>
@@ -290,14 +306,14 @@ class AeroBeatApp extends HTMLElement {
         </header>
         <section class="stage" aria-label="AeroBeat app shell">
           <div class="hero">
-            <aero-media-pose-preview source-kind="live-camera" source-id="${moveNetLiveSourceId}" fit-mode="cover" mirrored="true"></aero-media-pose-preview>
+            <aero-media-pose-preview source-kind="live-camera" source-id="${this.#poseSourceId()}" fit-mode="cover" mirrored="true"></aero-media-pose-preview>
           </div>
           <div class="runtime">
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
             <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / execution main-thread direct adapter / resize none / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
             <aero-status-panel class="media-state" heading="Media" status="Source none / playback idle"></aero-status-panel>
             <aero-pose-flow-panel></aero-pose-flow-panel>
-            <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches the visible source to retained live MoveNet inference when camera and model setup succeed.</p>
+            <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches to the selected MoveNet, MediaPipe, or ONNX Runtime backend when camera, runtime, and model setup succeed.</p>
             <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
             <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
             <div class="telemetry-capture">
@@ -330,6 +346,7 @@ class AeroBeatApp extends HTMLElement {
     window.requestAnimationFrame(() => {
       this.#configurePhoneTestControls();
       this.#configurePreviewServices();
+      this.#updateInferenceStatus();
       this.#runRuntimeCheckpoint();
     });
   }
@@ -338,7 +355,8 @@ class AeroBeatApp extends HTMLElement {
    * Releases live camera tracks when the app leaves the page.
    */
   disconnectedCallback() {
-    this.#stopLiveInferenceRoute();
+    this.#stopLiveInferenceRoute(false);
+    void this.#cvService.dispose();
     this.#revokeTelemetryDownloadUrls();
   }
 
@@ -416,6 +434,26 @@ class AeroBeatApp extends HTMLElement {
       return;
     }
     const path = event.composedPath();
+    if (path.includes(this.shadowRoot?.querySelector(".pose-backend-select") ?? this)) {
+      const backendId = isPoseBackendId(event.detail?.value) ? event.detail.value : "movenet";
+      const providerId = /** @type {import("./pose-backend-registry.js").PoseProviderId} */ (
+        getPoseProviderOptions(backendId)[0]?.value ?? "webgl"
+      );
+      this.#applyPoseSelection(backendId, providerId);
+      return;
+    }
+    if (path.includes(this.shadowRoot?.querySelector(".pose-provider-select") ?? this)) {
+      const requestedProvider = typeof event.detail?.value === "string" ? event.detail.value : "";
+      const providerOptions = getPoseProviderOptions(this.#poseSelection.selectedBackendId);
+      const selectedProvider = providerOptions.some((option) => option.value === requestedProvider)
+        ? requestedProvider
+        : providerOptions[0]?.value ?? "webgl";
+      this.#applyPoseSelection(
+        this.#poseSelection.selectedBackendId,
+        /** @type {import("./pose-backend-registry.js").PoseProviderId} */ (selectedProvider)
+      );
+      return;
+    }
     if (path.includes(this.shadowRoot?.querySelector(".tracking-speed-select") ?? this)) {
       this.#trackingProfile = event.detail?.value === "fast" ? "fast" : "smoother";
       this.#getPosePreview().setTrackingProfile(this.#trackingProfile);
@@ -423,10 +461,10 @@ class AeroBeatApp extends HTMLElement {
       return;
     }
     if (path.includes(this.shadowRoot?.querySelector(".cv-performance-select") ?? this)) {
-      this.#cvPerformancePresetId = this.#normalizeCvPresetId(event.detail?.value);
-      this.#replaceCvServiceForPresetChange();
-      this.#updateInferenceStatus();
-      this.#restartLiveCameraIfRunning();
+      const requestedPreset = this.#normalizeCvPresetId(event.detail?.value);
+      this.#cvPerformancePresetId = this.#isCvPresetSupported(requestedPreset) ? requestedPreset : "full";
+      this.#configurePhoneTestControls();
+      this.#queueCvServiceReplacement(`CV preset ${this.#cvPerformancePreset().label}`);
       return;
     }
     if (path.includes(this.shadowRoot?.querySelector(".camera-device-select") ?? this)) {
@@ -444,21 +482,30 @@ class AeroBeatApp extends HTMLElement {
     if (this.#cameraPermissionRequest) {
       return;
     }
-    this.#setCameraPermissionStatus(`Camera permission: requesting / CV preset ${this.#cvPerformancePreset().label}`);
-    this.#cameraPermissionRequest = this.#requestLiveCameraPermission();
+    this.#setCameraPermissionStatus(`Camera permission: requesting / pose ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} / CV preset ${this.#cvPerformancePreset().label}`);
+    this.#cameraPermissionRequest = this.#cvSwitchCoordinator.settled().then(() => this.#requestLiveCameraPermission());
   }
 
   /**
    * @returns {Promise<void>}
    */
   async #requestLiveCameraPermission() {
+    const generation = this.#cvSwitchGeneration;
     const source = createLiveCameraSourceDescriptor({
-      sourceId: moveNetLiveSourceId,
+      sourceId: this.#poseSourceId(),
       constraints: this.#liveCameraConstraints(),
       fitMode: "cover",
       mirrored: true
     });
     const result = await this.#videoMediaFacade.requestCamera(source);
+    if (generation !== this.#cvSwitchGeneration) {
+      if (result.status === "granted") {
+        for (const track of result.stream?.getTracks?.() ?? []) {
+          track.stop();
+        }
+      }
+      return;
+    }
     if (result.status === "granted") {
       await this.#refreshCameraDeviceOptions();
       await this.#startLiveInferenceRoute(result.stream, result.source);
@@ -610,8 +657,18 @@ class AeroBeatApp extends HTMLElement {
       `Cache token: ${appMetadata.cacheBust}`,
       `Selected camera: ${this.#selectedCameraLabel()}`,
       `Selected tracking profile: ${this.#trackingProfile}`,
+      `Requested pose backend: ${cvStatus.requestedBackendId}`,
+      `Selected pose backend: ${cvStatus.selectedBackendId}`,
+      `Effective pose backend: ${cvStatus.effectiveBackendId}`,
+      `Selected/effective vendor: ${cvStatus.selectedVendorId} / ${cvStatus.effectiveVendorId}`,
+      `Selected model: ${this.#formatPoseModel(cvStatus.selectedModel)}`,
+      `Effective model: ${this.#formatPoseModel(cvStatus.effectiveModel)}`,
+      `Requested/selected/actual provider: ${this.#poseSelection.requestedProviderId} / ${this.#poseSelection.selectedProviderId} / ${cvStatus.adapterExecutionProvider ?? "unknown"}`,
+      `Selection fallback: ${this.#poseSelection.warning ?? "none"}`,
+      `Adapter fallback: ${cvStatus.adapterExecutionFallback}`,
+      `Adapter load: ${this.#formatCvMs(cvStatus.adapterLoadDurationMs)}`,
       `Selected CV preset: ${this.#cvPerformancePreset().label}`,
-      `Execution location: ${cvStatus.adapterExecution}`,
+      `Execution location: ${cvStatus.adapterExecutionLocation}`,
       `Execution detail: ${cvStatus.adapterExecutionDetail}`,
       `Resize path: ${cvStatus.resizePath}`,
       `Inference input: ${cvStatus.inferenceInputWidth ?? "full"}x${cvStatus.inferenceInputHeight ?? "full"}`,
@@ -702,11 +759,13 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
-   * Stops live media and CV services during page teardown.
+   * Stops live media and optionally the restartable CV service. Terminal backend
+   * replacement skips stop so dispose owns the single serialized cleanup path.
    *
+   * @param {boolean} [stopCvService]
    * @returns {void}
    */
-  #stopLiveInferenceRoute() {
+  #stopLiveInferenceRoute(stopCvService = true) {
     this.#overlayCadence?.stop();
     this.#statusCadence?.stop();
     this.#overlayCadence = undefined;
@@ -716,7 +775,9 @@ class AeroBeatApp extends HTMLElement {
     this.#renderedPoseFrameCount = 0;
     this.#lastOverlayLandmarkCount = 0;
     this.#videoMediaFacade.teardownCameraStream();
-    this.#cvService.stop();
+    if (stopCvService) {
+      void this.#cvService.stop();
+    }
     this.#cameraPermissionRequest = undefined;
     this.#mediaFrameRateFps = undefined;
     this.#lastMeasuredVideoFrameCount = undefined;
@@ -751,7 +812,7 @@ class AeroBeatApp extends HTMLElement {
     this.#activeSurface = preview.attachCameraStream(stream, source);
     this.#updateMediaStatus(this.#activeSurface);
     this.#updateInferenceStatus();
-    this.#setCameraPermissionStatus(`Camera permission: granted / loading model / source live-camera / CV preset ${this.#cvPerformancePreset().label}`);
+    this.#setCameraPermissionStatus(`Camera permission: granted / loading ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} / source live-camera / CV preset ${this.#cvPerformancePreset().label}`);
 
     try {
       const video = this.#getPreviewVideo();
@@ -759,16 +820,16 @@ class AeroBeatApp extends HTMLElement {
       preview.setSurfaceDescriptor(this.#activeSurface);
       this.#updateMediaStatus(this.#activeSurface);
       const cvSource = createAeroCvFrameSourceFromVideoSurface(video, this.#activeSurface);
-      cvSource.sourceId = moveNetLiveSourceId;
+      cvSource.sourceId = this.#poseSourceId();
       cvSource.getFrameSource = () => video;
       cvSource.getTimestampMs = () => video.currentTime * 1000;
       cvSource.isFrameAvailable = () => video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
       await this.#cvService.start(cvSource);
-      this.#setCameraPermissionStatus(`Camera permission: granted / live inference running / source live-camera / CV preset ${this.#cvPerformancePreset().label}`);
+      this.#setCameraPermissionStatus(`Camera permission: granted / live inference ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} / source live-camera / CV preset ${this.#cvPerformancePreset().label}`);
       this.#updateInferenceStatus();
       this.#startLiveRuntimeCadences();
     } catch (error) {
-      this.#setCameraPermissionStatus(`Camera permission: granted / inference error (${this.#errorName(error)}) / CV preset ${this.#cvPerformancePreset().label}`);
+      this.#setCameraPermissionStatus(`Camera permission: granted / ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} inference error (${this.#errorName(error)}) / CV preset ${this.#cvPerformancePreset().label}`);
       this.#updateInferenceStatus();
     }
   }
@@ -874,8 +935,14 @@ class AeroBeatApp extends HTMLElement {
       ?.querySelector(".inference-state")
       ?.setAttribute("status", [
         `CV ${status.lifecycleState}`,
+        `backend requested ${status.requestedBackendId} selected ${status.selectedBackendId} effective ${status.effectiveBackendId}`,
+        `vendor selected ${status.selectedVendorId} effective ${status.effectiveVendorId}`,
+        `model selected ${this.#formatPoseModel(status.selectedModel)} effective ${this.#formatPoseModel(status.effectiveModel)}`,
+        `provider requested ${this.#poseSelection.requestedProviderId} selected ${this.#poseSelection.selectedProviderId} actual ${status.adapterExecutionProvider ?? "unknown"}`,
+        `selection ${this.#poseSelection.warning ?? "accepted"}`,
         `preset ${status.performancePresetLabel} (${status.performancePresetSummary})`,
-        `execution ${status.adapterExecution} ${status.adapterExecutionDetail}`,
+        `execution ${status.adapterExecutionLocation} ${status.adapterExecutionDetail} fallback ${status.adapterExecutionFallback}`,
+        `load ${this.#formatCvMs(status.adapterLoadDurationMs)} estimate ${this.#formatCvMs(status.adapterEstimateDurationMs)}`,
         `resize ${status.resizePath}`,
         `model ${status.modelStatus ?? "idle"}`,
         `source ${source}`,
@@ -902,6 +969,19 @@ class AeroBeatApp extends HTMLElement {
         `tracking ${previewState?.trackingProfile ?? this.#trackingProfile}`,
         `media-pose delta ${mediaPoseDelta}`
       ].join(" / ") + error);
+  }
+
+  /**
+   * @param {import("@aerobeat/web-contracts/pose-adapter").AeroPoseModelIdentity | undefined} model
+   * @returns {string}
+   */
+  #formatPoseModel(model) {
+    if (!model) {
+      return "unknown";
+    }
+    const version = model.modelVersion ? `@${model.modelVersion}` : "";
+    const runtime = model.runtimeId ? ` via ${model.runtimeId}${model.runtimeVersion ? `@${model.runtimeVersion}` : ""}` : "";
+    return `${model.vendorId}/${model.modelId}${version}${runtime}`;
   }
 
   /**
@@ -957,6 +1037,7 @@ class AeroBeatApp extends HTMLElement {
         `playback ${surface?.playbackState ?? "idle"}`,
         `size ${surface?.intrinsicWidth ?? 0}x${surface?.intrinsicHeight ?? 0}`,
         `video fps ${this.#formatFps(this.#mediaFrameRateFps)}`,
+        `pose ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId}`,
         `CV preset ${this.#cvPerformancePreset().label}`
       ].join(" / "));
   }
@@ -977,6 +1058,16 @@ class AeroBeatApp extends HTMLElement {
    * @returns {void}
    */
   #configurePhoneTestControls() {
+    const backendSelect = this.shadowRoot?.querySelector(".pose-backend-select");
+    if (backendSelect && "setOptions" in backendSelect) {
+      backendSelect.setOptions(poseBackendOptions);
+      backendSelect.setAttribute("value", this.#poseSelection.selectedBackendId);
+    }
+    const providerSelect = this.shadowRoot?.querySelector(".pose-provider-select");
+    if (providerSelect && "setOptions" in providerSelect) {
+      providerSelect.setOptions(getPoseProviderOptions(this.#poseSelection.selectedBackendId));
+      providerSelect.setAttribute("value", this.#poseSelection.selectedProviderId);
+    }
     const speedSelect = this.shadowRoot?.querySelector(".tracking-speed-select");
     if (speedSelect && "setOptions" in speedSelect) {
       speedSelect.setOptions([
@@ -987,15 +1078,18 @@ class AeroBeatApp extends HTMLElement {
     }
     const performanceSelect = this.shadowRoot?.querySelector(".cv-performance-select");
     if (performanceSelect && "setOptions" in performanceSelect) {
-      performanceSelect.setOptions([
-        { value: "full", label: `${aeroCvPerformancePresets.full.label} - ${aeroCvPerformancePresets.full.summary}` },
-        { value: "direct-256", label: `${aeroCvPerformancePresets["direct-256"].label} - ${aeroCvPerformancePresets["direct-256"].summary}` },
-        { value: "direct-192", label: `${aeroCvPerformancePresets["direct-192"].label} - ${aeroCvPerformancePresets["direct-192"].summary}` },
-        { value: "direct-160", label: `${aeroCvPerformancePresets["direct-160"].label} - ${aeroCvPerformancePresets["direct-160"].summary}` },
-        { value: "balanced", label: `${aeroCvPerformancePresets.balanced.label} - ${aeroCvPerformancePresets.balanced.summary}` },
-        { value: "fast", label: `${aeroCvPerformancePresets.fast.label} - ${aeroCvPerformancePresets.fast.summary}` },
-        { value: "rescue", label: `${aeroCvPerformancePresets.rescue.label} - ${aeroCvPerformancePresets.rescue.summary}` }
-      ]);
+      const directOptions = ["full", "direct-256", "direct-192", "direct-160"]
+        .map((id) => {
+          const preset = getAeroCvPerformancePreset(id);
+          return { value: id, label: `${preset.label} - ${preset.summary}` };
+        });
+      const workerOptions = supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
+        ? ["balanced", "fast", "rescue"].map((id) => {
+          const preset = getAeroCvPerformancePreset(id);
+          return { value: id, label: `${preset.label} - ${preset.summary}` };
+        })
+        : [];
+      performanceSelect.setOptions([...directOptions, ...workerOptions]);
       performanceSelect.setAttribute("value", this.#cvPerformancePresetId);
     }
     this.#refreshCameraDeviceOptions();
@@ -1054,12 +1148,12 @@ class AeroBeatApp extends HTMLElement {
    */
   #createCvService() {
     const preset = this.#cvPerformancePreset();
-    const adapterOptions = { sourceId: moveNetLiveSourceId, mirrored: true };
+    const composition = createPoseBackendComposition(this.#poseSelection, preset);
     return createAeroCameraCvService({
-      poseAdapter: preset.executionPolicy === "worker-experimental"
-        ? createMoveNetWorkerPoseAdapter(adapterOptions)
-        : createMoveNetPoseAdapter(adapterOptions),
-      fallbackPoseAdapter: createMoveNetMockPoseAdapter(),
+      poseAdapter: composition.poseAdapter,
+      fallbackPoseAdapter: composition.fallbackPoseAdapter,
+      requestedBackendId: this.#poseSelection.requestedBackendId,
+      selectedBackendId: this.#poseSelection.selectedBackendId,
       performancePreset: preset,
       useFallbackOnError: true
     });
@@ -1073,16 +1167,77 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
+   * @returns {string}
+   */
+  #poseSourceId() {
+    return getPoseSourceId(this.#poseSelection.selectedBackendId);
+  }
+
+  /**
+   * @param {import("./pose-backend-registry.js").PoseBackendId} backendId
+   * @param {import("./pose-backend-registry.js").PoseProviderId} providerId
    * @returns {void}
    */
-  #replaceCvServiceForPresetChange() {
-    const wasRunning = this.#cvService.running;
-    this.#cvService.stop();
-    this.#cvService = this.#createCvService();
-    if (!wasRunning) {
+  #applyPoseSelection(backendId, providerId) {
+    const search = updatePoseSelectionSearch(window.location.search, backendId, providerId);
+    const nextUrl = `${window.location.pathname}${search}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+    this.#poseSelection = resolvePoseSelection({
+      search,
+      origin: window.location.origin,
+      baseUrl: document.baseURI
+    });
+    if (!supportsWorkerPerformancePresets(backendId) && !this.#isCvPresetSupported(this.#cvPerformancePresetId)) {
+      this.#cvPerformancePresetId = "full";
+    }
+    this.#configurePhoneTestControls();
+    this.#getPosePreview().setAttribute("source-id", this.#poseSourceId());
+    this.#queueCvServiceReplacement(`${backendId} / ${providerId}`);
+  }
+
+  /**
+   * Serializes destructive backend/preset replacement and drops stale rapid selections.
+   *
+   * @param {string} reason
+   * @returns {void}
+   */
+  #queueCvServiceReplacement(reason) {
+    this.#cvSwitchGeneration += 1;
+    const restartRequested = Boolean(this.#videoMediaFacade.getRetainedCameraStream())
+      || this.#cvService.running
+      || Boolean(this.#cameraPermissionRequest);
+    void this.#cvSwitchCoordinator.request(reason, restartRequested).catch((error) => {
+      this.#setCameraPermissionStatus(`Camera permission: backend switch failed (${this.#errorName(error)})`);
+    });
+  }
+
+  /**
+   * @param {{ reason: string, isCurrent: () => boolean, consumeRestartRequest: () => boolean }} context
+   * @returns {Promise<void>}
+   */
+  async #executeCvServiceReplacement(context) {
+    const oldService = this.#cvService;
+    this.#stopLiveInferenceRoute(false);
+    await oldService.dispose();
+    if (!context.isCurrent()) {
       return;
     }
-    this.#setCameraPermissionStatus(`Camera permission: restarting ${this.#cvPerformancePreset().label} preset...`);
+    this.#cvService = this.#createCvService();
+    this.#updateInferenceStatus();
+    this.#configurePreviewServices();
+    if (context.consumeRestartRequest()) {
+      this.#setCameraPermissionStatus(`Camera permission: restarting ${context.reason}...`);
+      this.#cameraPermissionRequest = this.#requestLiveCameraPermission();
+    }
+  }
+
+  /**
+   * @param {import("@aerobeat/web-cv").AeroCvPerformancePresetId} presetId
+   * @returns {boolean}
+   */
+  #isCvPresetSupported(presetId) {
+    return supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
+      || getAeroCvPerformancePreset(presetId).executionPolicy === "main-thread";
   }
 
   /**

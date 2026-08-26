@@ -19,6 +19,7 @@ traces/
 tmp/
 *.tgz
 release/
+public/models/
 
 # Beads / Dolt files (added by bd init)
 .dolt/
