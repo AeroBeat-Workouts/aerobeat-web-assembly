@@ -20,6 +20,7 @@ import {
 import { createBrowserVideoMediaFacade, createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import {
   createMoveNetMockPoseAdapter,
+  createMoveNetPoseAdapter,
   createMoveNetWorkerPoseAdapter,
   moveNetLiveSourceId
 } from "@aerobeat/web-vendor-movenet";
@@ -279,7 +280,7 @@ class AeroBeatApp extends HTMLElement {
           </div>
           <div class="runtime">
             <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
-            <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / worker pending / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
+            <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / execution main-thread direct adapter / resize none / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
             <aero-status-panel class="media-state" heading="Media" status="Source none / playback idle"></aero-status-panel>
             <aero-pose-flow-panel></aero-pose-flow-panel>
             <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches the visible source to retained live MoveNet inference when camera and model setup succeed.</p>
@@ -538,6 +539,8 @@ class AeroBeatApp extends HTMLElement {
    * @returns {string}
    */
   #captureTelemetrySnapshotText() {
+    const cvStatus = this.#cvService.getStatus();
+    const previewState = this.#getPosePreview().describePreview();
     const snapshot = [
       "AeroBeat telemetry snapshot",
       `Timestamp: ${new Date().toISOString()}`,
@@ -549,6 +552,15 @@ class AeroBeatApp extends HTMLElement {
       `Selected camera: ${this.#selectedCameraLabel()}`,
       `Selected tracking profile: ${this.#trackingProfile}`,
       `Selected CV preset: ${this.#cvPerformancePreset().label}`,
+      `Execution location: ${cvStatus.adapterExecution}`,
+      `Execution detail: ${cvStatus.adapterExecutionDetail}`,
+      `Resize path: ${cvStatus.resizePath}`,
+      `Inference input: ${cvStatus.inferenceInputWidth ?? "full"}x${cvStatus.inferenceInputHeight ?? "full"}`,
+      `Prep cost: ${this.#formatCvMs(cvStatus.framePrepMs)} (avg ${this.#formatCvMs(cvStatus.averageFramePrepMs)})`,
+      `Adapter cost: ${this.#formatCvMs(cvStatus.adapterInferenceMs)} (avg ${this.#formatCvMs(cvStatus.averageAdapterInferenceMs)})`,
+      `Total CV cost: ${this.#formatCvMs(cvStatus.totalCvMs)} (avg ${this.#formatCvMs(cvStatus.averageTotalCvMs)})`,
+      `Output age: ${this.#formatCvMs(cvStatus.latestOutputAgeMs)}`,
+      `Media-pose delta: ${this.#formatCvMs(previewState.mediaPoseDeltaMs)}`,
       `Build panel: ${this.#statusPanelText('aero-status-panel[heading="Build"]')}`,
       `Camera panel: ${this.#statusPanelText(".camera-permission-state")}`,
       `Media panel: ${this.#statusPanelText(".media-state")}`,
@@ -745,7 +757,8 @@ class AeroBeatApp extends HTMLElement {
       ?.setAttribute("status", [
         `CV ${status.lifecycleState}`,
         `preset ${status.performancePresetLabel} (${status.performancePresetSummary})`,
-        `execution ${status.adapterExecution ?? "main-thread"} ${status.adapterExecutionDetail ?? "direct adapter"}`,
+        `execution ${status.adapterExecution} ${status.adapterExecutionDetail}`,
+        `resize ${status.resizePath}`,
         `model ${status.modelStatus ?? "idle"}`,
         `source ${source}`,
         `input ${status.inferenceInputWidth ?? "full"}x${status.inferenceInputHeight ?? "full"}`,
@@ -851,6 +864,9 @@ class AeroBeatApp extends HTMLElement {
     if (performanceSelect && "setOptions" in performanceSelect) {
       performanceSelect.setOptions([
         { value: "full", label: `${aeroCvPerformancePresets.full.label} - ${aeroCvPerformancePresets.full.summary}` },
+        { value: "direct-256", label: `${aeroCvPerformancePresets["direct-256"].label} - ${aeroCvPerformancePresets["direct-256"].summary}` },
+        { value: "direct-192", label: `${aeroCvPerformancePresets["direct-192"].label} - ${aeroCvPerformancePresets["direct-192"].summary}` },
+        { value: "direct-160", label: `${aeroCvPerformancePresets["direct-160"].label} - ${aeroCvPerformancePresets["direct-160"].summary}` },
         { value: "balanced", label: `${aeroCvPerformancePresets.balanced.label} - ${aeroCvPerformancePresets.balanced.summary}` },
         { value: "fast", label: `${aeroCvPerformancePresets.fast.label} - ${aeroCvPerformancePresets.fast.summary}` },
         { value: "rescue", label: `${aeroCvPerformancePresets.rescue.label} - ${aeroCvPerformancePresets.rescue.summary}` }
@@ -912,10 +928,14 @@ class AeroBeatApp extends HTMLElement {
    * @returns {AeroCameraCvService}
    */
   #createCvService() {
+    const preset = this.#cvPerformancePreset();
+    const adapterOptions = { sourceId: moveNetLiveSourceId, mirrored: true };
     return createAeroCameraCvService({
-      poseAdapter: createMoveNetWorkerPoseAdapter({ sourceId: moveNetLiveSourceId, mirrored: true }),
+      poseAdapter: preset.executionPolicy === "worker-experimental"
+        ? createMoveNetWorkerPoseAdapter(adapterOptions)
+        : createMoveNetPoseAdapter(adapterOptions),
       fallbackPoseAdapter: createMoveNetMockPoseAdapter(),
-      performancePreset: this.#cvPerformancePreset(),
+      performancePreset: preset,
       useFallbackOnError: true
     });
   }
@@ -945,7 +965,15 @@ class AeroBeatApp extends HTMLElement {
    * @returns {import("@aerobeat/web-cv").AeroCvPerformancePresetId}
    */
   #normalizeCvPresetId(value) {
-    if (value === "full" || value === "balanced" || value === "fast" || value === "rescue") {
+    if (
+      value === "full"
+      || value === "direct-256"
+      || value === "direct-192"
+      || value === "direct-160"
+      || value === "balanced"
+      || value === "fast"
+      || value === "rescue"
+    ) {
       return value;
     }
     return "full";

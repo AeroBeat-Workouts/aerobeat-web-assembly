@@ -202,7 +202,7 @@ try {
     const performanceSelect = root?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
     return cameraSelect?.options.length === 3
       && speedSelect?.options.length === 2
-      && performanceSelect?.options.length === 4;
+      && performanceSelect?.options.length === 7;
   });
   const defaultPhoneControls = await page.locator("aerobeat-app").evaluate((element) => {
     const root = element.shadowRoot;
@@ -213,6 +213,7 @@ try {
       tracking: speedSelect?.value ?? "",
       cvPreset: performanceSelect?.value ?? "",
       cvLabel: performanceSelect?.selectedOptions[0]?.textContent ?? "",
+      cvLabels: Array.from(performanceSelect?.options ?? []).map((option) => option.textContent ?? ""),
       inferenceText
     };
   });
@@ -225,8 +226,20 @@ try {
   if (!defaultPhoneControls.cvLabel.includes("Direct full (recommended)")) {
     throw new Error("Default CV option did not expose the recommended direct full label.");
   }
-  if (!defaultPhoneControls.cvLabel.includes("measured fastest")) {
-    throw new Error("Default CV option did not expose measured-path detail.");
+  if (!defaultPhoneControls.cvLabel.includes("main thread") || !defaultPhoneControls.cvLabel.includes("no resize")) {
+    throw new Error("Default CV option did not expose execution and resize-path detail.");
+  }
+  for (const requiredLabel of [
+    "Direct downscale 256",
+    "Direct downscale 192",
+    "Direct downscale 160",
+    "Experimental worker downscale 256",
+    "Experimental worker downscale 192",
+    "Experimental worker downscale 160"
+  ]) {
+    if (!defaultPhoneControls.cvLabels.some((label) => label.includes(requiredLabel))) {
+      throw new Error(`CV options omitted ${requiredLabel}.`);
+    }
   }
   if (!defaultPhoneControls.inferenceText.includes("preset Direct full (recommended)")) {
     throw new Error("Inference status did not default to the recommended direct full preset.");
@@ -243,7 +256,7 @@ try {
     cameraSelect.dispatchEvent(new Event("change", { bubbles: true }));
     speedSelect.value = "fast";
     speedSelect.dispatchEvent(new Event("change", { bubbles: true }));
-    performanceSelect.value = "rescue";
+    performanceSelect.value = "direct-160";
     performanceSelect.dispatchEvent(new Event("change", { bubbles: true }));
   });
 
@@ -279,10 +292,11 @@ try {
       && topbarButtonText.includes("Calibration running")
       && assemblyText.includes("Calibration active")
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
-      && cameraText.includes("CV preset Worker downscale 160")
+      && cameraText.includes("CV preset Direct downscale 160")
       && inferenceText.includes("CV running")
-      && inferenceText.includes("preset Worker downscale 160 (360p camera / 160px downscale / worker transfer test)")
-      && (inferenceText.includes("execution worker") || inferenceText.includes("execution main-thread"))
+      && inferenceText.includes("preset Direct downscale 160 (main thread / camera default / 160px canvas resize / no worker transfer)")
+      && inferenceText.includes("execution main-thread direct adapter")
+      && inferenceText.includes("resize main-thread canvas")
       && inferenceText.includes("model ready")
       && inferenceText.includes("source live-camera aero.movenet.live")
       && inferenceText.includes("input 160x120")
@@ -349,8 +363,8 @@ try {
   if (initialCameraRequest?.video?.deviceId?.exact !== "camera-rear") {
     throw new Error("Selected camera deviceId did not reach the initial getUserMedia request.");
   }
-  if (initialCameraRequest?.video?.width?.ideal !== 480 || initialCameraRequest?.video?.height?.ideal !== 360) {
-    throw new Error("Selected CV performance preset did not reduce initial camera constraints.");
+  if (initialCameraRequest?.video?.width !== undefined || initialCameraRequest?.video?.height !== undefined) {
+    throw new Error("Direct downscale preset changed camera constraints instead of isolating inference resize.");
   }
 
   await page.locator("aerobeat-app").evaluate((element) => {
@@ -369,15 +383,15 @@ try {
     return cameraRequests === 2
       && (window.__aeroStoppedCameraTracks ?? 0) === 1
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
-      && cameraText.includes("CV preset Worker downscale 160")
+      && cameraText.includes("CV preset Direct downscale 160")
       && inferenceText.includes("tracking fast");
   }, undefined, { timeout: 90000 });
   const restartCameraRequest = await page.evaluate(() => window.__aeroCameraRequests?.[1]);
   if (restartCameraRequest?.video?.deviceId?.exact !== "camera-front") {
     throw new Error("Selected camera deviceId did not reach the restarted getUserMedia request.");
   }
-  if (restartCameraRequest?.video?.width?.ideal !== 480 || restartCameraRequest?.video?.height?.ideal !== 360) {
-    throw new Error("Selected CV performance preset did not reduce restarted camera constraints.");
+  if (restartCameraRequest?.video?.width !== undefined || restartCameraRequest?.video?.height !== undefined) {
+    throw new Error("Direct downscale preset changed restarted camera constraints instead of isolating inference resize.");
   }
 
   const liveStreamState = await page.evaluate(() => ({
@@ -403,11 +417,20 @@ try {
       && snapshot.includes("Cache token:")
       && snapshot.includes("Selected camera: Front camera (camera-front)")
       && snapshot.includes("Selected tracking profile: fast")
-      && snapshot.includes("Selected CV preset: Worker downscale 160")
+      && snapshot.includes("Selected CV preset: Direct downscale 160")
+      && snapshot.includes("Execution location: main-thread")
+      && snapshot.includes("Execution detail: direct adapter")
+      && snapshot.includes("Resize path: main-thread canvas")
+      && snapshot.includes("Inference input: 160x120")
+      && /Prep cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
+      && /Adapter cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
+      && /Total CV cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
+      && /Output age: \d+ms/u.test(snapshot)
+      && snapshot.includes("Media-pose delta:")
       && snapshot.includes("Build panel: Version ")
       && snapshot.includes("Camera panel: Camera permission: granted / live inference running / source live-camera")
       && snapshot.includes("Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480")
-      && snapshot.includes("Inference panel: CV running / preset Worker downscale 160 (360p camera / 160px downscale / worker transfer test)")
+      && snapshot.includes("Inference panel: CV running / preset Direct downscale 160 (main thread / camera default / 160px canvas resize / no worker transfer)")
       && snapshot.includes("Calibration panel: Calibration active - align your shoulders in the rhythm field")
       && snapshot.includes("Secure context: ready")
       && snapshot.includes("Timestamp:")
@@ -431,10 +454,19 @@ try {
     `App version: ${expectedVersion}`,
     "Selected camera: Front camera (camera-front)",
     "Selected tracking profile: fast",
-    "Selected CV preset: Worker downscale 160",
+    "Selected CV preset: Direct downscale 160",
+    "Execution location: main-thread",
+    "Execution detail: direct adapter",
+    "Resize path: main-thread canvas",
+    "Inference input: 160x120",
+    "Prep cost:",
+    "Adapter cost:",
+    "Total CV cost:",
+    "Output age:",
+    "Media-pose delta:",
     "Camera panel: Camera permission: granted / live inference running / source live-camera",
     "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
-    "Inference panel: CV running / preset Worker downscale 160 (360p camera / 160px downscale / worker transfer test)",
+    "Inference panel: CV running / preset Direct downscale 160 (main thread / camera default / 160px canvas resize / no worker transfer)",
     "Calibration panel: Calibration active - align your shoulders in the rhythm field",
     "Secure context: ready",
     "Route URL:"
