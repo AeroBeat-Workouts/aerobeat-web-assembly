@@ -1,6 +1,6 @@
 {
   "name": "@aerobeat/web-assembly",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "check:imports": "node scripts/validate-public-imports.js",
     "check:components": "node scripts/validate-component-rules.js",
     "check:console": "node scripts/validate-playwright-console-noise.js",
-    "test": "npm run check",
+    "test": "npm run check && npm run test:unit",
+    "test:unit": "node scripts/validate-runtime-cadence.js",
     "test:browser": "npm run check:console",
     "dev": "vite --host 127.0.0.1",
     "dev:host": "node scripts/print-host-urls.js",

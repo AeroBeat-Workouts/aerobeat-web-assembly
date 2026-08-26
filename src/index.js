@@ -25,6 +25,7 @@ import {
   moveNetLiveSourceId
 } from "@aerobeat/web-vendor-movenet";
 import { appMetadata } from "./release-metadata.js";
+import { createAeroCadenceLoop } from "./runtime-cadence.js";
 
 defineAeroUiElements();
 
@@ -41,6 +42,7 @@ defineAeroUiElements();
  * @typedef {import("@aerobeat/web-video").BrowserVideoMediaFacade} BrowserVideoMediaFacade
  * @typedef {import("@aerobeat/web-video").AeroVideoSurfaceDescriptor} AeroVideoSurfaceDescriptor
  * @typedef {import("@aerobeat/web-renderer").AeroWebGl2Renderer} AeroWebGl2Renderer
+ * @typedef {import("./runtime-cadence.js").AeroCadenceLoop} AeroCadenceLoop
  */
 
 /**
@@ -65,11 +67,20 @@ class AeroBeatApp extends HTMLElement {
   /** @type {AeroWebGl2Renderer} */
   #renderer = createAeroWebGl2Renderer();
 
-  /** @type {number | undefined} */
-  #runtimeAnimationFrame;
+  /** @type {AeroCadenceLoop | undefined} */
+  #overlayCadence;
+
+  /** @type {AeroCadenceLoop | undefined} */
+  #statusCadence;
 
   /** @type {number} */
   #renderedPoseFrameCount = 0;
+
+  /** @type {string} */
+  #lastRoutedPoseFrameKey = "";
+
+  /** @type {readonly PoseFlowDraftEventView[]} */
+  #latestInputEvents = [];
 
   /** @type {number} */
   #lastOverlayLandmarkCount = 0;
@@ -541,6 +552,8 @@ class AeroBeatApp extends HTMLElement {
   #captureTelemetrySnapshotText() {
     const cvStatus = this.#cvService.getStatus();
     const previewState = this.#getPosePreview().describePreview();
+    const overlayCadence = this.#overlayCadence?.getStatus();
+    const statusCadence = this.#statusCadence?.getStatus();
     const snapshot = [
       "AeroBeat telemetry snapshot",
       `Timestamp: ${new Date().toISOString()}`,
@@ -559,7 +572,15 @@ class AeroBeatApp extends HTMLElement {
       `Prep cost: ${this.#formatCvMs(cvStatus.framePrepMs)} (avg ${this.#formatCvMs(cvStatus.averageFramePrepMs)})`,
       `Adapter cost: ${this.#formatCvMs(cvStatus.adapterInferenceMs)} (avg ${this.#formatCvMs(cvStatus.averageAdapterInferenceMs)})`,
       `Total CV cost: ${this.#formatCvMs(cvStatus.totalCvMs)} (avg ${this.#formatCvMs(cvStatus.averageTotalCvMs)})`,
+      `Sampling mode: ${cvStatus.samplingMode}`,
+      `Sample/submission rate: ${this.#formatFps(cvStatus.effectiveSubmissionRateFps)} (target max ${this.#formatFps(cvStatus.submissionCadenceTargetFps)})`,
+      `Pose-output rate: ${this.#formatFps(cvStatus.effectivePoseOutputRateFps)}`,
+      `Status-update rate: ${this.#formatFps(statusCadence?.effectiveRateFps)} (target max ${this.#formatFps(statusCadence?.targetRateFps)})`,
+      `Overlay-render rate: ${this.#formatFps(overlayCadence?.effectiveRateFps)} (target max ${this.#formatFps(overlayCadence?.targetRateFps)})`,
+      `Submitted sample age: ${this.#formatCvMs(cvStatus.lastSubmittedFrameAgeMs)}`,
       `Output age: ${this.#formatCvMs(cvStatus.latestOutputAgeMs)}`,
+      `Overlay render age: ${this.#formatCvMs(overlayCadence?.latestTickAgeMs)}`,
+      `Status update age: ${this.#formatCvMs(statusCadence?.latestTickAgeMs)}`,
       `Media-pose delta: ${this.#formatCvMs(previewState.mediaPoseDeltaMs)}`,
       `Build panel: ${this.#statusPanelText('aero-status-panel[heading="Build"]')}`,
       `Camera panel: ${this.#statusPanelText(".camera-permission-state")}`,
@@ -640,10 +661,14 @@ class AeroBeatApp extends HTMLElement {
    * @returns {void}
    */
   #stopLiveInferenceRoute() {
-    if (this.#runtimeAnimationFrame !== undefined) {
-      window.cancelAnimationFrame(this.#runtimeAnimationFrame);
-      this.#runtimeAnimationFrame = undefined;
-    }
+    this.#overlayCadence?.stop();
+    this.#statusCadence?.stop();
+    this.#overlayCadence = undefined;
+    this.#statusCadence = undefined;
+    this.#lastRoutedPoseFrameKey = "";
+    this.#latestInputEvents = [];
+    this.#renderedPoseFrameCount = 0;
+    this.#lastOverlayLandmarkCount = 0;
     this.#videoMediaFacade.teardownCameraStream();
     this.#cvService.stop();
     this.#cameraPermissionRequest = undefined;
@@ -695,7 +720,7 @@ class AeroBeatApp extends HTMLElement {
       await this.#cvService.start(cvSource);
       this.#setCameraPermissionStatus(`Camera permission: granted / live inference running / source live-camera / CV preset ${this.#cvPerformancePreset().label}`);
       this.#updateInferenceStatus();
-      this.#pumpLiveInferenceRoute();
+      this.#startLiveRuntimeCadences();
     } catch (error) {
       this.#setCameraPermissionStatus(`Camera permission: granted / inference error (${this.#errorName(error)}) / CV preset ${this.#cvPerformancePreset().label}`);
       this.#updateInferenceStatus();
@@ -703,37 +728,82 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
+   * Starts independently paced overlay and status lanes. Video sampling remains
+   * owned by the CV service's video-frame-aware latest-frame-wins scheduler.
+   *
    * @returns {void}
    */
-  #pumpLiveInferenceRoute() {
-    const status = this.#cvService.getStatus();
+  #startLiveRuntimeCadences() {
+    this.#overlayCadence?.stop();
+    this.#statusCadence?.stop();
+    this.#overlayCadence = createAeroCadenceLoop({
+      targetRateFps: 30,
+      callback: () => this.#renderLatestPoseOverlay(),
+      scheduler: undefined,
+      now: undefined
+    });
+    this.#statusCadence = createAeroCadenceLoop({
+      targetRateFps: 4,
+      callback: () => this.#refreshRuntimeStatus(),
+      scheduler: undefined,
+      now: undefined
+    });
+    this.#overlayCadence.start();
+    this.#statusCadence.start();
+  }
+
+  /**
+   * Draws only the latest raw measured pose. Repeated draws do not synthesize
+   * intermediate poses and are reported separately from pose-output cadence.
+   *
+   * @returns {void}
+   */
+  #renderLatestPoseOverlay() {
+    if (!this.#cvService.running) {
+      return;
+    }
     const preview = this.#getPosePreview();
     const video = this.#getPreviewVideo();
     this.#activeSurface = this.#videoMediaFacade.describeSurface(video);
-    this.#updateMediaFrameRate(video);
-    preview.setSurfaceDescriptor(this.#activeSurface);
-    this.#updateMediaStatus(this.#activeSurface);
-    this.#updateInferenceStatus(status);
-
+    preview.setSurfaceDescriptor(this.#activeSurface, { render: false });
     const poseFrame = this.#cvService.getLatestPoseFrame();
     if (poseFrame) {
-      this.#renderedPoseFrameCount += 1;
-      const inputEvents = this.#createInputEventViews(poseFrame);
-      preview.setPoseFrame(poseFrame);
-      this.#lastOverlayLandmarkCount = preview.describePreview().landmarkCount;
-      this.#setPoseFlowPanelState(this.shadowRoot?.querySelector("aero-pose-flow-panel"), poseFrame, inputEvents);
+      const frameKey = `${poseFrame.sourceId}:${poseFrame.timestampMs}`;
+      preview.setPoseFrame(poseFrame, { render: false });
+      if (frameKey !== this.#lastRoutedPoseFrameKey) {
+        this.#lastRoutedPoseFrameKey = frameKey;
+        this.#latestInputEvents = this.#createInputEventViews(poseFrame);
+      }
+    }
+    const previewState = preview.renderPreview();
+    this.#renderedPoseFrameCount += 1;
+    this.#lastOverlayLandmarkCount = previewState.landmarkCount;
+  }
+
+  /**
+   * Updates visible DOM diagnostics independently from video sampling and WebGL.
+   *
+   * @returns {void}
+   */
+  #refreshRuntimeStatus() {
+    if (!this.#cvService.running) {
+      return;
+    }
+    const video = this.#getPreviewVideo();
+    this.#activeSurface = this.#videoMediaFacade.describeSurface(video);
+    this.#updateMediaFrameRate(video);
+    this.#updateMediaStatus(this.#activeSurface);
+    const poseFrame = this.#cvService.getLatestPoseFrame();
+    if (poseFrame) {
+      this.#setPoseFlowPanelState(this.shadowRoot?.querySelector("aero-pose-flow-panel"), poseFrame, this.#latestInputEvents);
       const calibrationScreen = this.shadowRoot?.querySelector("aero-calibration-screen");
       this.#setPoseFlowPanelState(
         calibrationScreen?.shadowRoot?.querySelector("aero-pose-flow-panel"),
         poseFrame,
-        inputEvents
+        this.#latestInputEvents
       );
-      this.#updateInferenceStatus(this.#cvService.getStatus());
     }
-
-    if (this.#cvService.running) {
-      this.#runtimeAnimationFrame = window.requestAnimationFrame(() => this.#pumpLiveInferenceRoute());
-    }
+    this.#updateInferenceStatus(this.#cvService.getStatus());
   }
 
   /**
@@ -751,6 +821,8 @@ class AeroBeatApp extends HTMLElement {
     const mediaPoseDelta = typeof previewState?.mediaPoseDeltaMs === "number"
       ? `${previewState.mediaPoseDeltaMs}ms`
       : "n/a";
+    const overlayCadence = this.#overlayCadence?.getStatus();
+    const statusCadence = this.#statusCadence?.getStatus();
     const error = status.lastError ? ` / error ${status.lastError}` : "";
     this.shadowRoot
       ?.querySelector(".inference-state")
@@ -764,6 +836,11 @@ class AeroBeatApp extends HTMLElement {
         `input ${status.inferenceInputWidth ?? "full"}x${status.inferenceInputHeight ?? "full"}`,
         `camera ${this.#activeSurface?.intrinsicWidth ?? 0}x${this.#activeSurface?.intrinsicHeight ?? 0}`,
         `video fps ${this.#formatFps(this.#mediaFrameRateFps)}`,
+        `sampling ${status.samplingMode}`,
+        `sample target ${this.#formatFps(status.submissionCadenceTargetFps)} effective ${this.#formatFps(status.effectiveSubmissionRateFps)}`,
+        `pose output ${this.#formatFps(status.effectivePoseOutputRateFps)}`,
+        `status updates ${this.#formatFps(statusCadence?.effectiveRateFps)} target ${this.#formatFps(statusCadence?.targetRateFps)}`,
+        `overlay renders ${this.#formatFps(overlayCadence?.effectiveRateFps)} target ${this.#formatFps(overlayCadence?.targetRateFps)}`,
         `prep ${this.#formatCvMs(status.framePrepMs)} avg ${this.#formatCvMs(status.averageFramePrepMs)}`,
         `adapter ${this.#formatCvMs(status.adapterInferenceMs)} avg ${this.#formatCvMs(status.averageAdapterInferenceMs)}`,
         `total ${this.#formatCvMs(status.totalCvMs)} avg ${this.#formatCvMs(status.averageTotalCvMs)}`,
@@ -772,6 +849,8 @@ class AeroBeatApp extends HTMLElement {
         `dropped frames ${status.droppedFrameCount}`,
         `submitted age ${this.#formatCvMs(status.lastSubmittedFrameAgeMs)}`,
         `output age ${this.#formatCvMs(status.latestOutputAgeMs)}`,
+        `render age ${this.#formatCvMs(overlayCadence?.latestTickAgeMs)}`,
+        `status age ${this.#formatCvMs(statusCadence?.latestTickAgeMs)}`,
         `rendered pose frames ${this.#renderedPoseFrameCount}`,
         `overlay landmarks ${overlayLandmarkCount}`,
         `tracking ${previewState?.trackingProfile ?? this.#trackingProfile}`,

@@ -302,6 +302,11 @@ try {
       && inferenceText.includes("input 160x120")
       && inferenceText.includes("camera 640x480")
       && inferenceText.includes("video fps ")
+      && inferenceText.includes("sampling video-frame-callback")
+      && /sample target 15fps effective \d+fps/u.test(inferenceText)
+      && /pose output \d+fps/u.test(inferenceText)
+      && /status updates \d+fps target 4fps/u.test(inferenceText)
+      && /overlay renders \d+fps target 30fps/u.test(inferenceText)
       && /prep \d+ms avg \d+ms/u.test(inferenceText)
       && /adapter \d+ms avg \d+ms/u.test(inferenceText)
       && /total \d+ms avg \d+ms/u.test(inferenceText)
@@ -310,6 +315,8 @@ try {
       && inferenceText.includes("dropped frames ")
       && /submitted age \d+ms/u.test(inferenceText)
       && /output age \d+ms/u.test(inferenceText)
+      && /render age \d+ms/u.test(inferenceText)
+      && /status age \d+ms/u.test(inferenceText)
       && inferenceText.includes("overlay landmarks ")
       && inferenceText.includes("tracking fast")
       && inferenceText.includes("media-pose delta ")
@@ -384,7 +391,11 @@ try {
       && (window.__aeroStoppedCameraTracks ?? 0) === 1
       && cameraText.includes("Camera permission: granted / live inference running / source live-camera")
       && cameraText.includes("CV preset Direct downscale 160")
-      && inferenceText.includes("tracking fast");
+      && inferenceText.includes("tracking fast")
+      && /sample target 15fps effective \d+fps/u.test(inferenceText)
+      && /pose output \d+fps/u.test(inferenceText)
+      && /status updates \d+fps target 4fps/u.test(inferenceText)
+      && /overlay renders \d+fps target 30fps/u.test(inferenceText);
   }, undefined, { timeout: 90000 });
   const restartCameraRequest = await page.evaluate(() => window.__aeroCameraRequests?.[1]);
   if (restartCameraRequest?.video?.deviceId?.exact !== "camera-front") {
@@ -425,7 +436,15 @@ try {
       && /Prep cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
       && /Adapter cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
       && /Total CV cost: \d+ms \(avg \d+ms\)/u.test(snapshot)
+      && snapshot.includes("Sampling mode: video-frame-callback")
+      && /Sample\/submission rate: \d+fps \(target max 15fps\)/u.test(snapshot)
+      && /Pose-output rate: \d+fps/u.test(snapshot)
+      && /Status-update rate: \d+fps \(target max 4fps\)/u.test(snapshot)
+      && /Overlay-render rate: \d+fps \(target max 30fps\)/u.test(snapshot)
+      && /Submitted sample age: \d+ms/u.test(snapshot)
       && /Output age: \d+ms/u.test(snapshot)
+      && /Overlay render age: \d+ms/u.test(snapshot)
+      && /Status update age: \d+ms/u.test(snapshot)
       && snapshot.includes("Media-pose delta:")
       && snapshot.includes("Build panel: Version ")
       && snapshot.includes("Camera panel: Camera permission: granted / live inference running / source live-camera")
@@ -462,7 +481,15 @@ try {
     "Prep cost:",
     "Adapter cost:",
     "Total CV cost:",
+    "Sampling mode: video-frame-callback",
+    "Sample/submission rate:",
+    "Pose-output rate:",
+    "Status-update rate:",
+    "Overlay-render rate:",
+    "Submitted sample age:",
     "Output age:",
+    "Overlay render age:",
+    "Status update age:",
     "Media-pose delta:",
     "Camera panel: Camera permission: granted / live inference running / source live-camera",
     "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
