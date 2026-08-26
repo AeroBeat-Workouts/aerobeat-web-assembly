@@ -103,6 +103,9 @@ class AeroBeatApp extends HTMLElement {
   /** @type {"smoother" | "fast"} */
   #trackingProfile = "fast";
 
+  /** @type {Set<string>} */
+  #telemetryDownloadUrls = new Set();
+
   /**
    * Creates the app shadow DOM.
    */
@@ -336,6 +339,7 @@ class AeroBeatApp extends HTMLElement {
    */
   disconnectedCallback() {
     this.#stopLiveInferenceRoute();
+    this.#revokeTelemetryDownloadUrls();
   }
 
   /**
@@ -529,19 +533,61 @@ class AeroBeatApp extends HTMLElement {
    */
   #downloadTelemetrySnapshot() {
     const snapshot = this.#captureTelemetrySnapshotText();
-    const blob = new Blob([snapshot], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `aerobeat-telemetry-${new Date().toISOString().replace(/[:.]/gu, "-")}.txt`;
-    anchor.rel = "noopener";
-    this.shadowRoot?.append(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => {
+    if (typeof URL.createObjectURL !== "function") {
+      this.#selectTelemetrySnapshot();
+      this.#setTelemetryCaptureStatus("Download unavailable - snapshot selected below");
+      return;
+    }
+
+    let url = "";
+    try {
+      const blob = new Blob([snapshot], { type: "text/plain;charset=utf-8" });
+      url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `aerobeat-telemetry-${new Date().toISOString().replace(/[:.]/gu, "-")}.txt`;
+      anchor.rel = "noopener";
+      anchor.hidden = true;
+      document.body.append(anchor);
+      anchor.click();
+      anchor.remove();
+      this.#telemetryDownloadUrls.add(url);
+      window.setTimeout(() => {
+        this.#revokeTelemetryDownloadUrl(url);
+      }, 60_000);
+      this.#setTelemetryCaptureStatus("Telemetry download started - snapshot available below");
+    } catch {
+      if (url) {
+        URL.revokeObjectURL(url);
+      }
+      this.#selectTelemetrySnapshot();
+      this.#setTelemetryCaptureStatus("Download failed - snapshot selected below");
+    }
+  }
+
+  /**
+   * Revokes one retained telemetry object URL after the mobile download manager has time to consume it.
+   *
+   * @param {string} url
+   * @returns {void}
+   */
+  #revokeTelemetryDownloadUrl(url) {
+    if (!this.#telemetryDownloadUrls.delete(url)) {
+      return;
+    }
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Revokes retained telemetry object URLs when the app leaves the page.
+   *
+   * @returns {void}
+   */
+  #revokeTelemetryDownloadUrls() {
+    for (const url of this.#telemetryDownloadUrls) {
       URL.revokeObjectURL(url);
-    }, 0);
-    this.#setTelemetryCaptureStatus("Downloaded telemetry snapshot");
+    }
+    this.#telemetryDownloadUrls.clear();
   }
 
   /**

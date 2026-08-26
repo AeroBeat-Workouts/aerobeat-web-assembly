@@ -95,6 +95,23 @@ try {
         }
       }
     });
+    const createObjectUrl = URL.createObjectURL.bind(URL);
+    const revokeObjectUrl = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      const objectUrl = createObjectUrl(blob);
+      window.__aeroCreatedObjectUrls = [
+        ...(Array.isArray(window.__aeroCreatedObjectUrls) ? window.__aeroCreatedObjectUrls : []),
+        objectUrl
+      ];
+      return objectUrl;
+    };
+    URL.revokeObjectURL = (objectUrl) => {
+      window.__aeroRevokedObjectUrls = [
+        ...(Array.isArray(window.__aeroRevokedObjectUrls) ? window.__aeroRevokedObjectUrls : []),
+        objectUrl
+      ];
+      revokeObjectUrl(objectUrl);
+    };
   });
   page.on("console", (message) => {
     if ((message.type() === "warning" || message.type() === "error") && !isExpectedConsoleWarning(message.text())) {
@@ -506,15 +523,31 @@ try {
     throw new Error("Telemetry download filename did not use the expected prefix.");
   }
 
+  const immediateObjectUrlState = await page.evaluate(async () => {
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    return {
+      created: window.__aeroCreatedObjectUrls ?? [],
+      revoked: window.__aeroRevokedObjectUrls ?? []
+    };
+  });
+  if (immediateObjectUrlState.created.length !== 1 || immediateObjectUrlState.revoked.length !== 0) {
+    throw new Error("Telemetry object URL was not retained beyond the immediate task for mobile download handoff.");
+  }
+
   const teardownState = await page.evaluate(() => {
     document.querySelector("aerobeat-app")?.remove();
     return {
       stoppedTracks: window.__aeroStoppedCameraTracks ?? 0,
-      trackState: window.__aeroGrantedCameraTrack?.readyState ?? ""
+      trackState: window.__aeroGrantedCameraTrack?.readyState ?? "",
+      createdObjectUrls: window.__aeroCreatedObjectUrls ?? [],
+      revokedObjectUrls: window.__aeroRevokedObjectUrls ?? []
     };
   });
   if (teardownState.stoppedTracks !== 2 || teardownState.trackState !== "ended") {
     throw new Error("Granted camera stream was not released when the app left the page.");
+  }
+  if (teardownState.createdObjectUrls.length !== 1 || teardownState.revokedObjectUrls.length !== 1) {
+    throw new Error("Retained telemetry object URL was not cleaned up during app teardown.");
   }
 } finally {
   await browser.close();
