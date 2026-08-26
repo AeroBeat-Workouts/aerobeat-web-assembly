@@ -652,6 +652,15 @@ class AeroBeatApp extends HTMLElement {
       `Timestamp: ${new Date().toISOString()}`,
       `Route URL: ${window.location.href}`,
       `Secure context: ${this.#secureContextLabel()}`,
+      `Browser user agent: ${navigator.userAgent}`,
+      `Navigator platform: ${navigator.platform || "unavailable"}`,
+      `Navigator language: ${navigator.language || "unavailable"}`,
+      `Hardware concurrency: ${navigator.hardwareConcurrency || "unavailable"}`,
+      `Device memory: ${this.#deviceMemoryLabel()}`,
+      `Viewport: ${window.innerWidth}x${window.innerHeight}`,
+      `Screen: ${window.screen.width}x${window.screen.height}`,
+      `Device pixel ratio: ${window.devicePixelRatio}`,
+      `Screen orientation: ${window.screen.orientation?.type ?? "unavailable"}`,
       `App version: ${appMetadata.displayVersion}`,
       `Build stamp: ${appMetadata.buildStamp}`,
       `Cache token: ${appMetadata.cacheBust}`,
@@ -825,8 +834,10 @@ class AeroBeatApp extends HTMLElement {
       cvSource.getTimestampMs = () => video.currentTime * 1000;
       cvSource.isFrameAvailable = () => video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
       await this.#cvService.start(cvSource);
-      this.#setCameraPermissionStatus(`Camera permission: granted / live inference ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} / source live-camera / CV preset ${this.#cvPerformancePreset().label}`);
-      this.#updateInferenceStatus();
+      const status = this.#cvService.getStatus();
+      this.#updateCameraRuntimeStatus(status);
+      this.#updateMediaStatus(this.#activeSurface, status);
+      this.#updateInferenceStatus(status);
       this.#startLiveRuntimeCadences();
     } catch (error) {
       this.#setCameraPermissionStatus(`Camera permission: granted / ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} inference error (${this.#errorName(error)}) / CV preset ${this.#cvPerformancePreset().label}`);
@@ -899,7 +910,9 @@ class AeroBeatApp extends HTMLElement {
     const video = this.#getPreviewVideo();
     this.#activeSurface = this.#videoMediaFacade.describeSurface(video);
     this.#updateMediaFrameRate(video);
-    this.#updateMediaStatus(this.#activeSurface);
+    const status = this.#cvService.getStatus();
+    this.#updateMediaStatus(this.#activeSurface, status);
+    this.#updateCameraRuntimeStatus(status);
     const poseFrame = this.#cvService.getLatestPoseFrame();
     if (poseFrame) {
       this.#setPoseFlowPanelState(this.shadowRoot?.querySelector("aero-pose-flow-panel"), poseFrame, this.#latestInputEvents);
@@ -910,7 +923,7 @@ class AeroBeatApp extends HTMLElement {
         this.#latestInputEvents
       );
     }
-    this.#updateInferenceStatus(this.#cvService.getStatus());
+    this.#updateInferenceStatus(status);
   }
 
   /**
@@ -985,6 +998,16 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
+   * @returns {string}
+   */
+  #deviceMemoryLabel() {
+    const deviceMemory = /** @type {Navigator & { deviceMemory?: number }} */ (navigator).deviceMemory;
+    return typeof deviceMemory === "number" && Number.isFinite(deviceMemory)
+      ? `${deviceMemory} GiB`
+      : "unavailable";
+  }
+
+  /**
    * @param {number | undefined} value
    * @returns {string}
    */
@@ -1027,9 +1050,17 @@ class AeroBeatApp extends HTMLElement {
 
   /**
    * @param {AeroVideoSurfaceDescriptor | undefined} surface
+   * @param {AeroCvServiceStatus} [status]
    * @returns {void}
    */
-  #updateMediaStatus(surface) {
+  #updateMediaStatus(surface, status = this.#cvService.getStatus()) {
+    const effectiveRoute = `${status.effectiveBackendId}/${status.adapterExecutionProvider ?? "unknown"}`;
+    const poseSource = status.fallbackActive
+      ? `fallback ${status.fallbackSourceId ?? "unknown"}`
+      : `${status.sourceKind ?? "none"} ${status.sourceId ?? "none"}`;
+    const poseStatus = status.fallbackActive
+      ? `pose selected ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId} effective ${effectiveRoute} source ${poseSource} fallback true`
+      : `pose ${effectiveRoute} source ${poseSource} fallback false`;
     this.shadowRoot
       ?.querySelector(".media-state")
       ?.setAttribute("status", [
@@ -1037,9 +1068,39 @@ class AeroBeatApp extends HTMLElement {
         `playback ${surface?.playbackState ?? "idle"}`,
         `size ${surface?.intrinsicWidth ?? 0}x${surface?.intrinsicHeight ?? 0}`,
         `video fps ${this.#formatFps(this.#mediaFrameRateFps)}`,
-        `pose ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId}`,
+        poseStatus,
         `CV preset ${this.#cvPerformancePreset().label}`
       ].join(" / "));
+  }
+
+  /**
+   * Reports selected and effective pose routes without calling replay fallback live inference.
+   *
+   * @param {AeroCvServiceStatus} status
+   * @returns {void}
+   */
+  #updateCameraRuntimeStatus(status) {
+    const effectiveRoute = `${status.effectiveBackendId}/${status.adapterExecutionProvider ?? "unknown"}`;
+    const poseSource = status.fallbackActive
+      ? `fallback ${status.fallbackSourceId ?? "unknown"}`
+      : `${status.sourceKind ?? "none"} ${status.sourceId ?? "none"}`;
+    if (status.fallbackActive) {
+      this.#setCameraPermissionStatus([
+        "Camera permission: granted",
+        `selected ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId}`,
+        `effective fallback ${effectiveRoute}`,
+        `pose source ${poseSource}`,
+        `CV preset ${this.#cvPerformancePreset().label}`
+      ].join(" / "));
+      return;
+    }
+    this.#setCameraPermissionStatus([
+      "Camera permission: granted",
+      `live inference ${effectiveRoute}`,
+      `source ${poseSource}`,
+      `selected ${this.#poseSelection.selectedBackendId}/${this.#poseSelection.selectedProviderId}`,
+      `CV preset ${this.#cvPerformancePreset().label}`
+    ].join(" / "));
   }
 
   /**

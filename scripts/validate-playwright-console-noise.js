@@ -650,6 +650,55 @@ try {
       && inferenceText.includes("provider requested webgpu selected webgpu actual unknown");
   });
 
+  await page.locator("aerobeat-app aero-button.calibration-entrypoint button").click();
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const cameraText = root?.querySelector(".camera-permission-state")?.shadowRoot?.textContent ?? "";
+    const mediaText = root?.querySelector(".media-state")?.shadowRoot?.textContent ?? "";
+    const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+    return cameraText.includes("selected onnxruntime/webgpu")
+      && cameraText.includes("effective fallback movenet/replay")
+      && cameraText.includes("pose source fallback aero.movenet.replay.basic-upper-body")
+      && !cameraText.includes("live inference onnxruntime/webgpu")
+      && mediaText.includes("pose selected onnxruntime/webgpu effective movenet/replay")
+      && mediaText.includes("source fallback aero.movenet.replay.basic-upper-body fallback true")
+      && !mediaText.includes("pose onnxruntime/webgpu / CV preset")
+      && inferenceText.includes("backend requested onnxruntime selected onnxruntime effective movenet")
+      && inferenceText.includes("provider requested webgpu selected webgpu actual replay")
+      && inferenceText.includes("fallback true");
+  }, undefined, { timeout: 90000 });
+  await page.locator("aerobeat-app aero-button.telemetry-copy button").click();
+  const fallbackSnapshot = await page.evaluate(() => window.__aeroClipboardText ?? "");
+  for (const requiredLine of [
+    "Requested pose backend: onnxruntime",
+    "Selected pose backend: onnxruntime",
+    "Effective pose backend: movenet",
+    "Requested/selected/actual provider: webgpu / webgpu / replay",
+    "Adapter fallback: true",
+    "Browser user agent:",
+    "Navigator platform:",
+    "Navigator language:",
+    "Hardware concurrency:",
+    "Device memory:",
+    "Viewport:",
+    "Screen:",
+    "Device pixel ratio:",
+    "Screen orientation:",
+    "Selected camera:",
+    "Selected tracking profile:",
+    "Selected CV preset:"
+  ]) {
+    if (!fallbackSnapshot.includes(requiredLine)) {
+      throw new Error(`Fallback telemetry omitted ${requiredLine}`);
+    }
+  }
+  if (
+    fallbackSnapshot.includes("Camera panel: Camera permission: granted / live inference onnxruntime/webgpu")
+    || fallbackSnapshot.includes("Media panel: Source live-camera aero.onnxruntime.live / playback playing / size 640x480 / video fps n/a / pose onnxruntime/webgpu / CV preset")
+  ) {
+    throw new Error("Fallback telemetry contradicted effective replay identity.");
+  }
+
   await page.goto(`${url}?poseBackend=invalid&poseProvider=webgpu&onnxModelUrl=https%3A%2F%2Fdownload.openmmlab.com%2Fmodel.onnx`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => {
     const root = document.querySelector("aerobeat-app")?.shadowRoot;
@@ -726,6 +775,7 @@ async function readLiveInferenceSnapshot(page) {
  * @returns {boolean}
  */
 function isExpectedConsoleWarning(text) {
-  return text.includes("GL Driver Message")
-    && text.includes("GPU stall due to ReadPixels");
+  return text === "No available adapters."
+    || (text.includes("GL Driver Message")
+      && text.includes("GPU stall due to ReadPixels"));
 }
