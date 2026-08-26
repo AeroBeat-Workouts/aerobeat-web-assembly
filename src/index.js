@@ -1273,13 +1273,15 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
-   * @param {{ reason: string, isCurrent: () => boolean, consumeRestartRequest: () => boolean }} context
+   * @param {{ reason: string, isCurrent: () => boolean, consumeRestartRequest: () => boolean, retireOnce: (resource: object, dispose: () => Promise<void>) => Promise<boolean> }} context
    * @returns {Promise<void>}
    */
   async #executeCvServiceReplacement(context) {
     const oldService = this.#cvService;
-    this.#stopLiveInferenceRoute(false);
-    await oldService.dispose();
+    await context.retireOnce(oldService, async () => {
+      this.#stopLiveInferenceRoute(false);
+      await oldService.dispose();
+    });
     if (!context.isCurrent()) {
       return;
     }

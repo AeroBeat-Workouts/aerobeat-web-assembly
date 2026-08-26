@@ -6,6 +6,7 @@
  * @property {string} reason Latest requested reason.
  * @property {() => boolean} isCurrent Whether this generation is still the latest.
  * @property {() => boolean} consumeRestartRequest Consumes a live-route restart latched across stale generations.
+ * @property {(resource: object, dispose: () => Promise<void>) => Promise<boolean>} retireOnce Terminally retires a shared resource at most once across stale generations.
  */
 
 /**
@@ -20,6 +21,7 @@ export function createSerializedPoseSwitch(executeSwitch) {
   let generation = 0;
   let restartLatched = false;
   let queue = Promise.resolve();
+  const retiredResources = new WeakSet();
 
   return {
     request(reason, restartRequested) {
@@ -40,6 +42,19 @@ export function createSerializedPoseSwitch(executeSwitch) {
             const shouldRestart = restartLatched;
             restartLatched = false;
             return shouldRestart;
+          },
+          retireOnce: async (resource, dispose) => {
+            if (retiredResources.has(resource)) {
+              return false;
+            }
+            retiredResources.add(resource);
+            try {
+              await dispose();
+              return true;
+            } catch (error) {
+              retiredResources.delete(resource);
+              throw error;
+            }
           }
         });
       });

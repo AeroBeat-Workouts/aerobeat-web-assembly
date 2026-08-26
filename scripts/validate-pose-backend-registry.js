@@ -88,31 +88,50 @@ assert.equal(supportsWorkerPerformancePresets("mediapipe"), false);
 assert.equal(supportsWorkerPerformancePresets("onnxruntime"), false);
 
 let releaseFirstDispose = () => {};
+let signalFirstDisposeStarted = () => {};
 const firstDisposeGate = new Promise((resolve) => {
   releaseFirstDispose = resolve;
 });
-/** @type {{ reason: string, current: boolean, restart: boolean | undefined }[]} */
+const firstDisposeStarted = new Promise((resolve) => {
+  signalFirstDisposeStarted = resolve;
+});
+const originalService = {
+  disposeCount: 0,
+  async dispose() {
+    this.disposeCount += 1;
+    signalFirstDisposeStarted();
+    await firstDisposeGate;
+  }
+};
+let activeService = originalService;
+let selectedBackend = "movenet";
+let liveCameraRestartCount = 0;
+/** @type {{ reason: string, current: boolean, retired: boolean }[]} */
 const switchEvents = [];
 const coordinator = createSerializedPoseSwitch(async (context) => {
-  const event = { reason: context.reason, current: context.isCurrent(), restart: undefined };
-  switchEvents.push(event);
-  if (context.reason === "first") {
-    await firstDisposeGate;
-    event.current = context.isCurrent();
+  const retired = await context.retireOnce(activeService, () => activeService.dispose());
+  switchEvents.push({ reason: context.reason, current: context.isCurrent(), retired });
+  if (!context.isCurrent()) {
+    return;
   }
-  if (context.isCurrent()) {
-    event.restart = context.consumeRestartRequest();
+  selectedBackend = context.reason;
+  activeService = { disposeCount: 0, async dispose() { this.disposeCount += 1; } };
+  if (context.consumeRestartRequest()) {
+    liveCameraRestartCount += 1;
   }
 });
-const firstSwitch = coordinator.request("first", true);
-await new Promise((resolve) => setImmediate(resolve));
-const winningSwitch = coordinator.request("second", false);
+const firstSwitch = coordinator.request("mediapipe", true);
+await firstDisposeStarted;
+const winningSwitch = coordinator.request("onnxruntime", false);
 releaseFirstDispose();
 await Promise.all([firstSwitch, winningSwitch]);
 assert.deepEqual(switchEvents, [
-  { reason: "first", current: false, restart: undefined },
-  { reason: "second", current: true, restart: true }
+  { reason: "mediapipe", current: false, retired: true },
+  { reason: "onnxruntime", current: true, retired: false }
 ]);
+assert.equal(originalService.disposeCount, 1);
+assert.equal(selectedBackend, "onnxruntime");
+assert.equal(liveCameraRestartCount, 1);
 assert.equal(await coordinator.settled(), undefined);
 
 const recoveryEvents = [];
