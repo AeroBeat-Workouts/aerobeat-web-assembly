@@ -1,5 +1,35 @@
 // @ts-check
 
+const oracleLandmarkNames = Object.freeze([
+  "nose",
+  "left_wrist",
+  "left_elbow",
+  "left_shoulder",
+  "right_shoulder",
+  "right_elbow",
+  "right_wrist"
+]);
+
+/**
+ * Constant-velocity trace whose held-out positions and grid transitions are
+ * predictable. It is the positive control proving prediction can beat hold.
+ *
+ * @returns {readonly import("@aerobeat/web-contracts").NormalizedPoseFrame[]}
+ */
+export function createPredictivePoseLinearOracleTrace() {
+  return Object.freeze(Array.from({ length: 21 }, (_, index) => Object.freeze({
+    sourceId: "aero.predictive.oracle.linear",
+    timestampMs: index * 25,
+    mirrored: true,
+    landmarks: Object.freeze(oracleLandmarkNames.map((name, landmarkIndex) => Object.freeze({
+      name,
+      x: 0.2 + index * 0.005 + landmarkIndex * 0.001,
+      y: 0.4 + landmarkIndex * 0.001,
+      confidence: 0.9
+    })))
+  })));
+}
+
 /**
  * Timestamped measured replay trace kept separate from live predictor state. It
  * covers linear movement, a completed direction reversal, then a later
@@ -9,15 +39,6 @@
  * @returns {readonly import("@aerobeat/web-contracts").NormalizedPoseFrame[]}
  */
 export function createPredictivePoseOracleTrace() {
-  const names = [
-    "nose",
-    "left_wrist",
-    "left_elbow",
-    "left_shoulder",
-    "right_shoulder",
-    "right_elbow",
-    "right_wrist"
-  ];
   return Object.freeze(Array.from({ length: 61 }, (_, index) => {
     const timestampMs = index * 25;
     const phase = index <= 20
@@ -30,7 +51,7 @@ export function createPredictivePoseOracleTrace() {
       sourceId: "aero.predictive.oracle.measured",
       timestampMs,
       mirrored: true,
-      landmarks: Object.freeze(names.map((name, landmarkIndex) => Object.freeze({
+      landmarks: Object.freeze(oracleLandmarkNames.map((name, landmarkIndex) => Object.freeze({
         name,
         x: Math.min(0.95, 0.18 + phase * 0.018 + landmarkIndex * 0.003),
         y: Math.min(0.95, 0.28 + phase * 0.009 + landmarkIndex * 0.004),

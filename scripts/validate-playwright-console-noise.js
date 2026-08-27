@@ -660,7 +660,12 @@ try {
       && snapshot.includes("Presentation-target delta:")
       && snapshot.includes("Requested/selected/effective pose gameplay source: measured / measured / measured")
       && snapshot.includes("Gameplay route lifecycle epoch/generation/resets:")
-      && snapshot.includes("Oracle draft-intent precision/recall/timing/false repeats (no point-parity claim):")
+      && snapshot.includes("Oracle control joint error p50/p95/max/mean:")
+      && snapshot.includes("Oracle treatment joint error p50/p95/max/mean:")
+      && snapshot.includes("Oracle treatment-minus-control intent precision/recall/F1/timing/events/matched/FP/FN/false repeats:")
+      && snapshot.includes("Oracle decision thresholds:")
+      && snapshot.includes("Oracle prediction improves measured-8 control: false")
+      && snapshot.includes("Oracle bounded recommendation (gameplay-input readiness only; no point-parity claim): prediction-does-not-improve-control")
       && snapshot.includes("Build panel: Version ")
       && snapshot.includes("Camera panel: Camera permission: granted / live inference movenet/webgl / source live-camera")
       && snapshot.includes("Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480")
@@ -735,7 +740,12 @@ try {
     "Requested/selected/effective pose gameplay source: measured / measured / measured",
     "Gameplay route lifecycle epoch/generation/resets:",
     "Routing suppressions duplicate measurement/superseded measurement/target/stale lifecycle/frozen:",
-    "Oracle draft-intent precision/recall/timing/false repeats (no point-parity claim):",
+    "Oracle control draft-intent precision/recall/F1/timing/events/matched/FP/FN/false repeats:",
+    "Oracle treatment draft-intent precision/recall/F1/timing/events/matched/FP/FN/false repeats:",
+    "Oracle treatment-minus-control intent precision/recall/F1/timing/events/matched/FP/FN/false repeats:",
+    "Oracle decision thresholds:",
+    "Oracle prediction improves measured-8 control:",
+    "Oracle bounded recommendation (gameplay-input readiness only; no point-parity claim):",
     "Camera panel: Camera permission: granted / live inference movenet/webgl / source live-camera",
     "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
     "Inference panel: CV running / backend requested movenet selected movenet effective movenet",
