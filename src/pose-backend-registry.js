@@ -214,7 +214,7 @@ export function createPoseBackendComposition(selection, performancePreset) {
       minPosePresenceConfidence: tuning.minPosePresenceConfidence,
       minTrackingConfidence: tuning.minTrackingConfidence
     };
-    poseAdapter = performancePreset.executionPolicy === "worker-experimental"
+    poseAdapter = performancePreset.executionPolicy !== "main-thread"
       ? createMediaPipeWorkerPoseAdapter(mediaPipeOptions)
       : createMediaPipePoseAdapter(mediaPipeOptions);
   } else {

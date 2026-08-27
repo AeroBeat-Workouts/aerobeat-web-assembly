@@ -157,6 +157,15 @@ assert.match(workerMediaPipeComposition.poseAdapter.getExecutionStatus?.().detai
 await workerMediaPipeComposition.poseAdapter.dispose?.();
 await workerMediaPipeComposition.fallbackPoseAdapter.dispose?.();
 
+const videoFrameMediaPipeComposition = createPoseBackendComposition(
+  workerMediaPipeSelection,
+  getAeroCvPerformancePreset("experimental-worker-videoframe")
+);
+assert.equal(videoFrameMediaPipeComposition.poseAdapter.capabilities.supportsWorker, true);
+assert.deepEqual(videoFrameMediaPipeComposition.poseAdapter.capabilities.transferableFrameTypes, ["ImageBitmap", "VideoFrame"]);
+await videoFrameMediaPipeComposition.poseAdapter.dispose?.();
+await videoFrameMediaPipeComposition.fallbackPoseAdapter.dispose?.();
+
 let releaseFirstDispose = () => {};
 let signalFirstDisposeStarted = () => {};
 const firstDisposeGate = new Promise((resolve) => {

@@ -743,6 +743,7 @@ class AeroBeatApp extends HTMLElement {
       `Execution location: ${cvStatus.adapterExecutionLocation}`,
       `Execution detail: ${cvStatus.adapterExecutionDetail}`,
       `Resize path: ${cvStatus.resizePath}`,
+      `Transfer frame type: ${cvStatus.adapterTransferFrameType ?? "n/a"}`,
       `Inference input: ${cvStatus.inferenceInputWidth ?? "full"}x${cvStatus.inferenceInputHeight ?? "full"}`,
       `Prep cost: ${this.#formatCvMs(cvStatus.framePrepMs)} (avg ${this.#formatCvMs(cvStatus.averageFramePrepMs)})`,
       `Adapter cost: ${this.#formatCvMs(cvStatus.adapterInferenceMs)} (avg ${this.#formatCvMs(cvStatus.averageAdapterInferenceMs)})`,
@@ -1037,7 +1038,7 @@ class AeroBeatApp extends HTMLElement {
         `preset ${status.performancePresetLabel} (${status.performancePresetSummary})`,
         `execution ${status.adapterExecutionLocation} ${status.adapterExecutionDetail} fallback ${status.adapterExecutionFallback}`,
         `load ${this.#formatCvMs(status.adapterLoadDurationMs)} estimate ${this.#formatCvMs(status.adapterEstimateDurationMs)} runtime ${this.#formatCvMs(status.adapterRuntimeInferenceDurationMs)} postprocess ${this.#formatCvMs(status.adapterPostprocessDurationMs)} worker roundtrip ${this.#formatCvMs(status.adapterTelemetry.workerRoundTripDurationMs)}`,
-        `resize ${status.resizePath}`,
+        `resize ${status.resizePath} transfer ${status.adapterTransferFrameType ?? "n/a"}`,
         `model ${status.modelStatus ?? "idle"}`,
         `source ${source}`,
         `input ${status.inferenceInputWidth ?? "full"}x${status.inferenceInputHeight ?? "full"}`,
@@ -1248,12 +1249,16 @@ class AeroBeatApp extends HTMLElement {
           const preset = getAeroCvPerformancePreset(id);
           return { value: id, label: `${preset.label} - ${preset.summary}` };
         });
-      const workerOptions = supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
-        ? ["balanced", "fast", "rescue"].map((id) => {
-          const preset = getAeroCvPerformancePreset(id);
-          return { value: id, label: `${preset.label} - ${preset.summary}` };
-        })
+      const workerPresetIds = supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
+        ? ["balanced", "fast", "rescue"]
         : [];
+      if (this.#poseSelection.selectedBackendId === "mediapipe") {
+        workerPresetIds.push("experimental-worker-videoframe");
+      }
+      const workerOptions = workerPresetIds.map((id) => {
+        const preset = getAeroCvPerformancePreset(id);
+        return { value: id, label: `${preset.label} - ${preset.summary}` };
+      });
       performanceSelect.setOptions([...directOptions, ...workerOptions]);
       performanceSelect.setAttribute("value", this.#cvPerformancePresetId);
     }
@@ -1352,7 +1357,7 @@ class AeroBeatApp extends HTMLElement {
       origin: window.location.origin,
       baseUrl: document.baseURI
     });
-    if (!supportsWorkerPerformancePresets(backendId) && !this.#isCvPresetSupported(this.#cvPerformancePresetId)) {
+    if (!this.#isCvPresetSupported(this.#cvPerformancePresetId)) {
       this.#cvPerformancePresetId = "full";
     }
     this.#configurePhoneTestControls();
@@ -1419,6 +1424,9 @@ class AeroBeatApp extends HTMLElement {
    * @returns {boolean}
    */
   #isCvPresetSupported(presetId) {
+    if (presetId === "experimental-worker-videoframe") {
+      return this.#poseSelection.selectedBackendId === "mediapipe";
+    }
     return supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
       || getAeroCvPerformancePreset(presetId).executionPolicy === "main-thread";
   }
@@ -1436,6 +1444,7 @@ class AeroBeatApp extends HTMLElement {
       || value === "balanced"
       || value === "fast"
       || value === "rescue"
+      || value === "experimental-worker-videoframe"
     ) {
       return value;
     }

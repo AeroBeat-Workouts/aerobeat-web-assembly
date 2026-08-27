@@ -544,7 +544,7 @@ try {
     return { mediaPipeProviders, mediaPipePresetCount, mediaPipeTuningEnabled, mediaPipeTuningLabel };
   });
   if (
-    rapidSwitchControlState.mediaPipePresetCount !== 7
+    rapidSwitchControlState.mediaPipePresetCount !== 8
     || rapidSwitchControlState.mediaPipeProviders.join(",") !== "cpu-wasm,gpu-webgl"
     || !rapidSwitchControlState.mediaPipeTuningEnabled
     || rapidSwitchControlState.mediaPipeTuningLabel !== "MediaPipe tuning"
@@ -688,6 +688,7 @@ try {
     "Execution location: main-thread",
     "Execution detail: webgl direct adapter",
     "Resize path: main-thread canvas",
+    "Transfer frame type: n/a",
     "Inference input: 160x120",
     "Prep cost:",
     "Adapter cost:",
@@ -763,7 +764,7 @@ try {
     return backend?.value === "mediapipe"
       && provider?.value === "gpu-webgl"
       && provider.options.length === 2
-      && performance?.options.length === 7
+      && performance?.options.length === 8
       && inferenceText.includes("backend requested mediapipe selected mediapipe effective mediapipe")
       && inferenceText.includes("provider requested gpu-webgl selected gpu-webgl actual unknown")
       && inferenceText.includes("selection accepted");
