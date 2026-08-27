@@ -12,6 +12,7 @@
     "test": "npm run check && npm run test:unit",
     "test:unit": "node scripts/validate-runtime-cadence.js && node scripts/validate-pose-backend-registry.js",
     "test:browser": "npm run check:console",
+    "test:mediapipe-videoframe-smoke": "node scripts/validate-real-mediapipe-videoframe-smoke.mjs",
     "dev": "vite --host 127.0.0.1",
     "dev:host": "node scripts/print-host-urls.js",
     "dev:secure": "vite --host 0.0.0.0 --port 5173",
