@@ -219,10 +219,12 @@ try {
     const options = root?.querySelector("details.calibration-options");
     const summary = options?.querySelector("summary");
     const progress = root?.querySelector(".timing-window-progress");
-    const controlRects = Array.from(root?.querySelectorAll(".test-controls aero-select") ?? []).map((control) => {
+    const controls = Array.from(root?.querySelectorAll(".test-controls aero-select") ?? []);
+    const controlRects = controls.map((control) => {
       const rect = control.getBoundingClientRect();
       return { top: rect.top, left: rect.left, right: rect.right };
     });
+    const controlOrder = controls.map((control) => Array.from(control.classList).find((name) => name.endsWith("-select")) ?? "");
     const hiddenDiagnostics = [
       'aero-status-panel[heading="Services"]',
       ".inference-state",
@@ -255,11 +257,23 @@ try {
       reopened,
       progress: progress?.textContent ?? "",
       controlRects,
+      controlOrder,
+      gameplaySource: root?.querySelector(".pose-gameplay-source-select")?.shadowRoot?.querySelector("select")?.value ?? "",
       hiddenDiagnostics,
       visibleCalibrationButtons
     };
   });
-  const controlsAreOneColumn = compactUi.controlRects.length === 6
+  const expectedControlOrder = [
+    "pose-backend-select",
+    "pose-provider-select",
+    "mediapipe-tuning-select",
+    "camera-device-select",
+    "tracking-speed-select",
+    "pose-gameplay-source-select",
+    "cv-performance-select"
+  ];
+  const controlsAreOneColumn = compactUi.controlRects.length === expectedControlOrder.length
+    && compactUi.controlOrder.join(",") === expectedControlOrder.join(",")
     && compactUi.controlRects.every((rect, index, rects) => (
       Math.abs(rect.left - rects[0].left) < 2
       && Math.abs(rect.right - rects[0].right) < 2
@@ -272,6 +286,7 @@ try {
     || !compactUi.collapsed
     || !compactUi.reopened
     || compactUi.progress !== "Timing window 0/120"
+    || compactUi.gameplaySource !== "measured"
     || !controlsAreOneColumn
     || compactUi.hiddenDiagnostics.some((rectCount) => rectCount !== 0)
     || compactUi.visibleCalibrationButtons !== 1
@@ -641,7 +656,11 @@ try {
       && /Output age: \d+ms/u.test(snapshot)
       && /Overlay render age: \d+ms/u.test(snapshot)
       && /Status update age: \d+ms/u.test(snapshot)
-      && snapshot.includes("Media-pose delta:")
+      && snapshot.includes("Media-pose delta (measured freshness):")
+      && snapshot.includes("Presentation-target delta:")
+      && snapshot.includes("Requested/selected/effective pose gameplay source: measured / measured / measured")
+      && snapshot.includes("Gameplay route lifecycle epoch/generation/resets:")
+      && snapshot.includes("Oracle draft-intent precision/recall/timing/false repeats (no point-parity claim):")
       && snapshot.includes("Build panel: Version ")
       && snapshot.includes("Camera panel: Camera permission: granted / live inference movenet/webgl / source live-camera")
       && snapshot.includes("Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480")
@@ -711,7 +730,12 @@ try {
     "Output age:",
     "Overlay render age:",
     "Status update age:",
-    "Media-pose delta:",
+    "Media-pose delta (measured freshness):",
+    "Presentation-target delta:",
+    "Requested/selected/effective pose gameplay source: measured / measured / measured",
+    "Gameplay route lifecycle epoch/generation/resets:",
+    "Routing suppressions duplicate measurement/superseded measurement/target/stale lifecycle/frozen:",
+    "Oracle draft-intent precision/recall/timing/false repeats (no point-parity claim):",
     "Camera panel: Camera permission: granted / live inference movenet/webgl / source live-camera",
     "Media panel: Source live-camera aero.movenet.live / playback playing / size 640x480",
     "Inference panel: CV running / backend requested movenet selected movenet effective movenet",
@@ -857,6 +881,33 @@ try {
       throw new Error(`Responsive MediaPipe telemetry omitted ${requiredLine}`);
     }
   }
+
+  await page.goto(`${url}?poseBackend=mediapipe&poseProvider=gpu-webgl&poseGameplaySource=predicted-8`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const select = root?.querySelector(".pose-gameplay-source-select")?.shadowRoot?.querySelector("select");
+    const route = new URL(window.location.href);
+    return select?.value === "predicted-8"
+      && Array.from(select.options).map((option) => option.value).join(",") === "measured,measured-8,predicted-8"
+      && route.searchParams.get("poseGameplaySource") === "predicted-8";
+  });
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const select = document.querySelector("aerobeat-app")?.shadowRoot
+      ?.querySelector(".pose-gameplay-source-select")?.shadowRoot?.querySelector("select");
+    return select?.value === "predicted-8"
+      && new URL(window.location.href).searchParams.get("poseGameplaySource") === "predicted-8";
+  });
+
+  await page.goto(`${url}?poseBackend=movenet&poseProvider=webgl&poseGameplaySource=predicted-8`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => {
+    const root = document.querySelector("aerobeat-app")?.shadowRoot;
+    const select = root?.querySelector(".pose-gameplay-source-select")?.shadowRoot?.querySelector("select");
+    const route = new URL(window.location.href);
+    return select?.value === "measured"
+      && select.options.length === 1
+      && route.searchParams.get("poseGameplaySource") === "measured";
+  });
 
   await page.goto(`${url}?poseBackend=invalid&poseProvider=webgpu&mediaPipeTuning=reckless&onnxModelUrl=https%3A%2F%2Fdownload.openmmlab.com%2Fmodel.onnx`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => {

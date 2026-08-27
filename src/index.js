@@ -9,7 +9,11 @@ import {
   createReplayPoseFrame,
   getAeroCvPerformancePreset
 } from "@aerobeat/web-cv";
-import { createPoseInputRouter } from "@aerobeat/web-input";
+import {
+  createMeasuredPoseRoutingSample,
+  createPoseInputRouter,
+  evaluateHeldOutPoseTrace
+} from "@aerobeat/web-input";
 import { createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
 import {
   aeroButtonActivateEventName,
@@ -19,6 +23,16 @@ import {
 } from "@aerobeat/web-ui";
 import { createBrowserVideoMediaFacade, createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
+import {
+  isPoseGameplaySourceId,
+  measuredSubmissionCadenceFps,
+  poseGameplaySourceOptions,
+  resolvePoseGameplaySource,
+  supportsExperimentalPoseGameplaySource,
+  updatePoseGameplaySourceSearch
+} from "./pose-gameplay-source.js";
+import { createPredictivePoseOracleTrace } from "./predictive-pose-oracle-fixture.js";
+import { createPredictivePoseRoutingCoordinator } from "./predictive-pose-routing-coordinator.js";
 import { createAeroCadenceLoop } from "./runtime-cadence.js";
 import { createSerializedPoseSwitch } from "./serialized-pose-switch.js";
 import {
@@ -44,6 +58,9 @@ defineAeroUiElements();
  * @property {string} mode Gameplay mode.
  * @property {string} eventName Browser event name.
  * @property {string} summary Short event summary.
+ * @property {import("@aerobeat/web-contracts").AeroPoseSampleProvenance} provenance Measured or predicted source.
+ * @property {number} measurementTimestampMs Latest real measurement timestamp.
+ * @property {number} predictionHorizonMs Prediction horizon.
  */
 
 /**
@@ -71,6 +88,12 @@ class AeroBeatApp extends HTMLElement {
   /** @type {ReturnType<typeof resolvePoseSelection>} */
   #poseSelection = resolvePoseSelection();
 
+  /** @type {ReturnType<typeof resolvePoseGameplaySource>} */
+  #poseGameplaySelection = resolvePoseGameplaySource({
+    backendId: this.#poseSelection.selectedBackendId,
+    performancePresetId: this.#cvPerformancePresetId
+  });
+
   /** @type {AeroCameraCvService} */
   #cvService = this.#createCvService();
 
@@ -79,6 +102,18 @@ class AeroBeatApp extends HTMLElement {
 
   /** @type {ReturnType<typeof createPoseInputRouter>} */
   #inputRouter = createPoseInputRouter();
+
+  /** @type {ReturnType<typeof createPredictivePoseRoutingCoordinator>} */
+  #predictiveRouting = createPredictivePoseRoutingCoordinator();
+
+  /** @type {ReturnType<typeof evaluateHeldOutPoseTrace>} */
+  #poseOracle = evaluateHeldOutPoseTrace(createPredictivePoseOracleTrace());
+
+  /** @type {import("@aerobeat/web-contracts").AeroPoseRoutingSample | undefined} */
+  #latestGameplayPoseSample;
+
+  /** @type {number | undefined} */
+  #gameplayRoutingStartedAtMs;
 
   /** @type {AeroWebGl2Renderer} */
   #renderer = createAeroWebGl2Renderer();
@@ -97,6 +132,15 @@ class AeroBeatApp extends HTMLElement {
 
   /** @type {readonly PoseFlowDraftEventView[]} */
   #latestInputEvents = [];
+
+  /** @type {number} */
+  #legacyMeasuredSampleCount = 0;
+
+  /** @type {number} */
+  #legacyMeasuredEventCount = 0;
+
+  /** @type {Record<string, number>} */
+  #legacyEventCountByIntent = {};
 
   /** @type {number} */
   #lastOverlayLandmarkCount = 0;
@@ -348,6 +392,7 @@ class AeroBeatApp extends HTMLElement {
               <aero-select class="mediapipe-tuning-select" label="MediaPipe tuning" value="${this.#poseSelection.selectedMediaPipeTuningId}"></aero-select>
               <aero-select class="camera-device-select" label="Camera" value=""></aero-select>
               <aero-select class="tracking-speed-select" label="Tracking" value="${this.#trackingProfile}"></aero-select>
+              <aero-select class="pose-gameplay-source-select" label="Pose gameplay source" value="${this.#poseGameplaySelection.selectedId}"></aero-select>
               <aero-select class="cv-performance-select" label="CV performance" value="${this.#cvPerformancePresetId}"></aero-select>
             </div>
             <aero-button class="calibration-entrypoint" label="Begin calibration"></aero-button>
@@ -396,6 +441,7 @@ class AeroBeatApp extends HTMLElement {
       this.#handlePhoneControlChange(event);
     });
     window.requestAnimationFrame(() => {
+      this.#normalizePoseGameplaySelection(true);
       this.#configurePhoneTestControls();
       this.#configurePreviewServices();
       this.#updateInferenceStatus();
@@ -513,19 +559,27 @@ class AeroBeatApp extends HTMLElement {
     }
     if (path.includes(this.shadowRoot?.querySelector(".tracking-speed-select") ?? this)) {
       this.#trackingProfile = event.detail?.value === "fast" ? "fast" : "smoother";
+      this.#resetGameplayRouting("tracking-profile");
       this.#getPosePreview().setTrackingProfile(this.#trackingProfile);
       this.#updateInferenceStatus();
+      return;
+    }
+    if (path.includes(this.shadowRoot?.querySelector(".pose-gameplay-source-select") ?? this)) {
+      const requestedSource = isPoseGameplaySourceId(event.detail?.value) ? event.detail.value : "measured";
+      this.#applyPoseGameplaySource(requestedSource);
       return;
     }
     if (path.includes(this.shadowRoot?.querySelector(".cv-performance-select") ?? this)) {
       const requestedPreset = this.#normalizeCvPresetId(event.detail?.value);
       this.#cvPerformancePresetId = this.#isCvPresetSupported(requestedPreset) ? requestedPreset : "full";
+      this.#normalizePoseGameplaySelection(true);
       this.#configurePhoneTestControls();
       this.#queueCvServiceReplacement(`CV preset ${this.#cvPerformancePreset().label}`);
       return;
     }
     if (path.includes(this.shadowRoot?.querySelector(".camera-device-select") ?? this)) {
       this.#selectedCameraDeviceId = typeof event.detail?.value === "string" ? event.detail.value : "";
+      this.#resetGameplayRouting("camera");
       this.#restartLiveCameraIfRunning();
     }
   }
@@ -706,6 +760,31 @@ class AeroBeatApp extends HTMLElement {
     const statusCadence = this.#statusCadence?.getStatus();
     const tuning = getMediaPipeTuningDefinition(this.#poseSelection.selectedMediaPipeTuningId);
     const tuningApplicability = this.#poseSelection.mediaPipeTuningApplicable ? "applicable" : "not applicable";
+    const routingStatus = this.#predictiveRouting.getStatus();
+    const predictorStatus = routingStatus.predictor;
+    const predictedTreatmentActive = this.#poseGameplaySelection.effectiveId === "predicted-8";
+    const activeInputStatus = predictedTreatmentActive
+      ? routingStatus.input
+      : {
+        measuredEventCount: this.#legacyMeasuredEventCount,
+        predictedEventCount: 0,
+        emittedEventCount: this.#legacyMeasuredEventCount,
+        suppressedRepeatedEventCount: 0,
+        eventCountByIntent: this.#legacyEventCountByIntent
+      };
+    const routingElapsedSeconds = this.#gameplayRoutingStartedAtMs === undefined
+      ? undefined
+      : Math.max(0.001, (performance.now() - this.#gameplayRoutingStartedAtMs) / 1000);
+    const measuredRoutingCount = predictedTreatmentActive
+      ? routingStatus.measuredRoutedSampleCount
+      : this.#legacyMeasuredSampleCount;
+    const predictedRoutingCount = predictedTreatmentActive ? routingStatus.predictedRoutedSampleCount : 0;
+    const measuredRoutingRate = routingElapsedSeconds === undefined ? undefined : measuredRoutingCount / routingElapsedSeconds;
+    const predictedRoutingRate = routingElapsedSeconds === undefined ? undefined : predictedRoutingCount / routingElapsedSeconds;
+    const estimatedInferenceOccupancyMsPerSecond = cvStatus.averageAdapterInferenceMs === undefined
+      || cvStatus.effectiveSubmissionRateFps === undefined
+      ? undefined
+      : cvStatus.averageAdapterInferenceMs * cvStatus.effectiveSubmissionRateFps;
     const snapshot = [
       "AeroBeat telemetry snapshot",
       `Timestamp: ${new Date().toISOString()}`,
@@ -725,6 +804,32 @@ class AeroBeatApp extends HTMLElement {
       `Cache token: ${appMetadata.cacheBust}`,
       `Selected camera: ${this.#selectedCameraLabel()}`,
       `Selected tracking profile: ${this.#trackingProfile}`,
+      `Requested/selected/effective pose gameplay source: ${this.#poseGameplaySelection.requestedId} / ${this.#poseGameplaySelection.selectedId} / ${this.#poseGameplaySelection.effectiveId}`,
+      `Pose gameplay source fallback: ${this.#poseGameplaySelection.warning ?? "none"}`,
+      `Latest gameplay provenance: ${this.#latestGameplayPoseSample?.provenance ?? "none"}`,
+      `Latest measurement/target/horizon: ${this.#formatCvMs(this.#latestGameplayPoseSample?.measurementTimestampMs)} / ${this.#formatCvMs(this.#latestGameplayPoseSample?.targetTimestampMs)} / ${this.#formatCvMs(this.#latestGameplayPoseSample?.predictionHorizonMs)}`,
+      `Measured/predicted gameplay rates: ${this.#formatFps(measuredRoutingRate)} / ${this.#formatFps(predictedRoutingRate)}`,
+      `Gameplay route lifecycle epoch/generation/resets: ${routingStatus.lifecycleEpoch} / ${routingStatus.lifecycleGeneration} / ${routingStatus.lifecycleResetCount}`,
+      `Gameplay route reset reasons: ${JSON.stringify(routingStatus.lifecycleResetCountByReason)}`,
+      `Measured/predicted gameplay samples: ${measuredRoutingCount} / ${predictedRoutingCount}`,
+      `Gameplay events measured/predicted/total: ${activeInputStatus.measuredEventCount} / ${activeInputStatus.predictedEventCount} / ${activeInputStatus.emittedEventCount}`,
+      `Gameplay events deduplicated: ${activeInputStatus.suppressedRepeatedEventCount}`,
+      `Gameplay event counts by intent: ${JSON.stringify(activeInputStatus.eventCountByIntent)}`,
+      `Measured gameplay events by intent: ${JSON.stringify(predictedTreatmentActive ? routingStatus.measuredEventCountByIntent : this.#legacyEventCountByIntent)}`,
+      `Predicted gameplay events by intent: ${JSON.stringify(predictedTreatmentActive ? routingStatus.predictedEventCountByIntent : {})}`,
+      `Routing suppressions duplicate measurement/superseded measurement/target/stale lifecycle/frozen: ${routingStatus.duplicateMeasurementSuppressionCount} / ${routingStatus.supersededMeasurementUpdateCount} / ${routingStatus.duplicateTargetSuppressionCount} / ${routingStatus.staleLifecycleSuppressionCount} / ${routingStatus.frozenPredictionCount}`,
+      `Prediction horizon p50/p95/max: ${this.#formatCvMs(predictorStatus.predictionHorizonP50Ms)} / ${this.#formatCvMs(predictorStatus.predictionHorizonP95Ms)} / ${this.#formatCvMs(predictorStatus.predictionHorizonMaxMs)}`,
+      `Prediction correction mean/p95/max: ${this.#formatRatio(predictorStatus.correctionMeanError)} / ${this.#formatRatio(predictorStatus.correctionP95Error)} / ${this.#formatRatio(predictorStatus.correctionMaxError)}`,
+      `Prediction route epoch/generation/resets: ${predictorStatus.routeEpoch} / ${predictorStatus.routeGeneration} / ${predictorStatus.resetCount}`,
+      `Prediction measured/predicted samples: ${predictorStatus.measuredSampleCount} / ${predictorStatus.predictedSampleCount}`,
+      `Prediction resets source/discontinuity/reversal/incomplete: ${predictorStatus.sourceResetCount} / ${predictorStatus.discontinuityCount} / ${predictorStatus.reversalResetCount} / ${predictorStatus.incompleteMeasurementCount}`,
+      `Prediction suppressions insufficient/invalid horizon/visibility/stale: ${predictorStatus.insufficientHistorySuppressionCount} / ${predictorStatus.invalidHorizonSuppressionCount} / ${predictorStatus.lowVisibilitySuppressionCount} / ${predictorStatus.staleSuppressionCount}`,
+      `Prediction clamps coordinate/displacement: ${predictorStatus.coordinateClampCount} / ${predictorStatus.displacementClampCount}`,
+      `Estimated inference occupancy: ${this.#formatCvMs(estimatedInferenceOccupancyMsPerSecond)} per second`,
+      `Oracle trace measured/held-out/suppressed: ${this.#poseOracle.measuredFrameCount} / ${this.#poseOracle.heldOutPredictionCount} / ${this.#poseOracle.suppressedPredictionCount}`,
+      `Oracle joint error mean/p95/max: ${this.#formatRatio(this.#poseOracle.normalizedMeanJointError)} / ${this.#formatRatio(this.#poseOracle.normalizedP95JointError)} / ${this.#formatRatio(this.#poseOracle.normalizedMaxJointError)}`,
+      `Oracle grid agreement wrist+nose/all: ${this.#formatRatio(this.#poseOracle.wristNoseCellAgreement)} / ${this.#formatRatio(this.#poseOracle.bodyGridCellAgreement)}`,
+      `Oracle draft-intent precision/recall/timing/false repeats (no point-parity claim): ${this.#formatRatio(this.#poseOracle.intentPrecision)} / ${this.#formatRatio(this.#poseOracle.intentRecall)} / ${this.#formatCvMs(this.#poseOracle.transitionTimingMeanErrorMs)} / ${this.#poseOracle.falseRepeatedEventCount}`,
       `Requested pose backend: ${cvStatus.requestedBackendId}`,
       `Selected pose backend: ${cvStatus.selectedBackendId}`,
       `Effective pose backend: ${cvStatus.effectiveBackendId}`,
@@ -767,7 +872,8 @@ class AeroBeatApp extends HTMLElement {
       `Output age: ${this.#formatCvMs(cvStatus.latestOutputAgeMs)}`,
       `Overlay render age: ${this.#formatCvMs(overlayCadence?.latestTickAgeMs)}`,
       `Status update age: ${this.#formatCvMs(statusCadence?.latestTickAgeMs)}`,
-      `Media-pose delta: ${this.#formatCvMs(previewState.mediaPoseDeltaMs)}`,
+      `Media-pose delta (measured freshness): ${this.#formatCvMs(previewState.mediaPoseDeltaMs)}`,
+      `Presentation-target delta: ${this.#formatCvMs(previewState.presentationTargetDeltaMs)}`,
       `Build panel: ${this.#statusPanelText('aero-status-panel[heading="Build"]')}`,
       `Camera panel: ${this.#statusPanelText(".camera-permission-state")}`,
       `Media panel: ${this.#statusPanelText(".media-state")}`,
@@ -857,6 +963,7 @@ class AeroBeatApp extends HTMLElement {
     this.#latestInputEvents = [];
     this.#renderedPoseFrameCount = 0;
     this.#lastOverlayLandmarkCount = 0;
+    this.#resetGameplayRouting("stop");
     this.#videoMediaFacade.teardownCameraStream();
     if (stopCvService) {
       void this.#cvService.stop();
@@ -889,6 +996,7 @@ class AeroBeatApp extends HTMLElement {
    * @returns {Promise<void>}
    */
   async #startLiveInferenceRoute(stream, source) {
+    this.#resetGameplayRouting("restart");
     this.#configurePreviewServices();
     const preview = this.#getPosePreview();
     preview.setTrackingProfile(this.#trackingProfile);
@@ -928,15 +1036,16 @@ class AeroBeatApp extends HTMLElement {
   #startLiveRuntimeCadences() {
     this.#overlayCadence?.stop();
     this.#statusCadence?.stop();
+    const lifecycleEpoch = this.#predictiveRouting.getLifecycleEpoch();
     this.#overlayCadence = createAeroCadenceLoop({
       targetRateFps: 30,
-      callback: () => this.#renderLatestPoseOverlay(),
+      callback: () => this.#renderLatestPoseOverlay(lifecycleEpoch),
       scheduler: undefined,
       now: undefined
     });
     this.#statusCadence = createAeroCadenceLoop({
       targetRateFps: 4,
-      callback: () => this.#refreshRuntimeStatus(),
+      callback: () => this.#refreshRuntimeStatus(lifecycleEpoch),
       scheduler: undefined,
       now: undefined
     });
@@ -945,13 +1054,20 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
-   * Draws only the latest raw measured pose. Repeated draws do not synthesize
-   * intermediate poses and are reported separately from pose-output cadence.
+   * Draws and routes the explicitly selected gameplay source. Both measured
+   * modes retain the legacy frame router; measured-8 differs only in CV
+   * submission cadence. Predicted mode routes each real frame once and routes
+   * only successful predictions between measurements. Failed prediction ticks
+   * leave the latest overlay frozen without replaying gameplay input.
    *
+   * @param {string} lifecycleEpoch
    * @returns {void}
    */
-  #renderLatestPoseOverlay() {
-    if (!this.#cvService.running) {
+  #renderLatestPoseOverlay(lifecycleEpoch) {
+    if (
+      !this.#cvService.running
+      || lifecycleEpoch !== this.#predictiveRouting.getLifecycleEpoch()
+    ) {
       return;
     }
     const preview = this.#getPosePreview();
@@ -961,10 +1077,27 @@ class AeroBeatApp extends HTMLElement {
     const poseFrame = this.#cvService.getLatestPoseFrame();
     if (poseFrame) {
       const frameKey = `${poseFrame.sourceId}:${poseFrame.timestampMs}`;
-      preview.setPoseFrame(poseFrame, { render: false });
-      if (frameKey !== this.#lastRoutedPoseFrameKey) {
-        this.#lastRoutedPoseFrameKey = frameKey;
-        this.#latestInputEvents = this.#createInputEventViews(poseFrame);
+      if (this.#poseGameplaySelection.effectiveId === "predicted-8") {
+        const measuredResult = this.#predictiveRouting.routeMeasuredFrame(poseFrame);
+        if (measuredResult.sample) {
+          this.#acceptPredictedRoutingResult(measuredResult, preview);
+          this.#gameplayRoutingStartedAtMs ??= performance.now();
+        } else {
+          const predictedResult = this.#predictiveRouting.routePrediction(video.currentTime * 1000, lifecycleEpoch);
+          if (predictedResult.sample) {
+            this.#acceptPredictedRoutingResult(predictedResult, preview);
+          }
+        }
+      } else {
+        preview.setPoseFrame(poseFrame, { render: false });
+        if (frameKey !== this.#lastRoutedPoseFrameKey) {
+          this.#lastRoutedPoseFrameKey = frameKey;
+          this.#gameplayRoutingStartedAtMs ??= performance.now();
+          this.#latestGameplayPoseSample = createMeasuredPoseRoutingSample(poseFrame, {
+            routeEpoch: this.#predictiveRouting.getLifecycleEpoch()
+          });
+          this.#latestInputEvents = this.#routeLegacyGameplayFrame(poseFrame);
+        }
       }
     }
     const previewState = preview.renderPreview();
@@ -973,12 +1106,44 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
-   * Updates visible DOM diagnostics independently from video sampling and WebGL.
-   *
+   * @param {{ sample: import("@aerobeat/web-contracts").AeroPoseRoutingSample | undefined, events: readonly import("@aerobeat/web-input").PoseInputDraftEvent[] }} result
+   * @param {import("@aerobeat/web-ui").AeroMediaPosePreview} preview
    * @returns {void}
    */
-  #refreshRuntimeStatus() {
-    if (!this.#cvService.running) {
+  #acceptPredictedRoutingResult(result, preview) {
+    if (!result.sample) {
+      return;
+    }
+    this.#latestGameplayPoseSample = result.sample;
+    this.#latestInputEvents = this.#inputEventViews(result.events);
+    preview.setPoseRoutingSample(result.sample, { render: false });
+  }
+
+  /**
+   * @param {import("@aerobeat/web-contracts").NormalizedPoseFrame} poseFrame
+   * @returns {readonly PoseFlowDraftEventView[]}
+   */
+  #routeLegacyGameplayFrame(poseFrame) {
+    const views = this.#createInputEventViews(poseFrame, this.#inputRouter);
+    this.#legacyMeasuredSampleCount += 1;
+    this.#legacyMeasuredEventCount += views.length;
+    for (const event of views) {
+      this.#legacyEventCountByIntent[event.summary] = (this.#legacyEventCountByIntent[event.summary] ?? 0) + 1;
+    }
+    return views;
+  }
+
+  /**
+   * Updates visible DOM diagnostics independently from video sampling and WebGL.
+   *
+   * @param {string} lifecycleEpoch
+   * @returns {void}
+   */
+  #refreshRuntimeStatus(lifecycleEpoch) {
+    if (
+      !this.#cvService.running
+      || lifecycleEpoch !== this.#predictiveRouting.getLifecycleEpoch()
+    ) {
       return;
     }
     const video = this.#getPreviewVideo();
@@ -989,11 +1154,19 @@ class AeroBeatApp extends HTMLElement {
     this.#updateCameraRuntimeStatus(status);
     const poseFrame = this.#cvService.getLatestPoseFrame();
     if (poseFrame) {
-      this.#setPoseFlowPanelState(this.shadowRoot?.querySelector("aero-pose-flow-panel"), poseFrame, this.#latestInputEvents);
+      const presentedFrame = this.#poseGameplaySelection.effectiveId === "predicted-8" && this.#latestGameplayPoseSample
+        ? {
+          sourceId: this.#latestGameplayPoseSample.sourceId,
+          timestampMs: this.#latestGameplayPoseSample.targetTimestampMs,
+          landmarks: this.#latestGameplayPoseSample.landmarks,
+          mirrored: this.#latestGameplayPoseSample.mirrored
+        }
+        : poseFrame;
+      this.#setPoseFlowPanelState(this.shadowRoot?.querySelector("aero-pose-flow-panel"), presentedFrame, this.#latestInputEvents);
       const calibrationScreen = this.shadowRoot?.querySelector("aero-calibration-screen");
       this.#setPoseFlowPanelState(
         calibrationScreen?.shadowRoot?.querySelector("aero-pose-flow-panel"),
-        poseFrame,
+        presentedFrame,
         this.#latestInputEvents
       );
     }
@@ -1015,6 +1188,10 @@ class AeroBeatApp extends HTMLElement {
     const mediaPoseDelta = typeof previewState?.mediaPoseDeltaMs === "number"
       ? `${previewState.mediaPoseDeltaMs}ms`
       : "n/a";
+    const presentationTargetDelta = typeof previewState?.presentationTargetDeltaMs === "number"
+      ? `${previewState.presentationTargetDeltaMs}ms`
+      : "n/a";
+    const routingStatus = this.#predictiveRouting.getStatus();
     const overlayCadence = this.#overlayCadence?.getStatus();
     const statusCadence = this.#statusCadence?.getStatus();
     const tuning = getMediaPipeTuningDefinition(this.#poseSelection.selectedMediaPipeTuningId);
@@ -1036,6 +1213,12 @@ class AeroBeatApp extends HTMLElement {
         `provider requested ${this.#poseSelection.requestedProviderId} selected ${this.#poseSelection.selectedProviderId} actual ${status.adapterExecutionProvider ?? "unknown"}`,
         `MediaPipe tuning requested ${this.#poseSelection.requestedMediaPipeTuningId} selected ${tuningState}`,
         `selection ${this.#poseSelection.warning ?? "accepted"}`,
+        `gameplay source requested ${this.#poseGameplaySelection.requestedId} selected ${this.#poseGameplaySelection.selectedId} effective ${this.#poseGameplaySelection.effectiveId} fallback ${this.#poseGameplaySelection.warning ?? "none"}`,
+        `gameplay provenance ${this.#latestGameplayPoseSample?.provenance ?? "none"} measurement ${this.#formatCvMs(this.#latestGameplayPoseSample?.measurementTimestampMs)} target ${this.#formatCvMs(this.#latestGameplayPoseSample?.targetTimestampMs)} horizon ${this.#formatCvMs(this.#latestGameplayPoseSample?.predictionHorizonMs)}`,
+        `gameplay lifecycle ${routingStatus.lifecycleEpoch} resets ${routingStatus.lifecycleResetCount} duplicate measurement ${routingStatus.duplicateMeasurementSuppressionCount} superseded measurement ${routingStatus.supersededMeasurementUpdateCount} duplicate target ${routingStatus.duplicateTargetSuppressionCount} stale callback ${routingStatus.staleLifecycleSuppressionCount} frozen ${routingStatus.frozenPredictionCount}`,
+        `gameplay routed measured ${this.#poseGameplaySelection.effectiveId === "predicted-8" ? routingStatus.measuredRoutedSampleCount : this.#legacyMeasuredSampleCount} predicted ${routingStatus.predictedRoutedSampleCount} deduplicated events ${routingStatus.input.suppressedRepeatedEventCount}`,
+        `gameplay event intents measured ${JSON.stringify(routingStatus.measuredEventCountByIntent)} predicted ${JSON.stringify(routingStatus.predictedEventCountByIntent)}`,
+        `predictor epoch ${routingStatus.predictor.routeEpoch} generation ${routingStatus.predictor.routeGeneration} resets ${routingStatus.predictor.resetCount} history ${routingStatus.predictor.insufficientHistorySuppressionCount} invalid horizon ${routingStatus.predictor.invalidHorizonSuppressionCount} visibility ${routingStatus.predictor.lowVisibilitySuppressionCount} stale ${routingStatus.predictor.staleSuppressionCount}`,
         `preset ${status.performancePresetLabel} (${status.performancePresetSummary})`,
         `execution ${status.adapterExecutionLocation} ${status.adapterExecutionDetail} fallback ${status.adapterExecutionFallback}`,
         `load ${this.#formatCvMs(status.adapterLoadDurationMs)} estimate ${this.#formatCvMs(status.adapterEstimateDurationMs)} runtime ${this.#formatCvMs(status.adapterRuntimeInferenceDurationMs)} postprocess ${this.#formatCvMs(status.adapterPostprocessDurationMs)} worker roundtrip ${this.#formatCvMs(status.adapterTelemetry.workerRoundTripDurationMs)}`,
@@ -1072,7 +1255,8 @@ class AeroBeatApp extends HTMLElement {
         `rendered pose frames ${this.#renderedPoseFrameCount}`,
         `overlay landmarks ${overlayLandmarkCount}`,
         `tracking ${previewState?.trackingProfile ?? this.#trackingProfile}`,
-        `media-pose delta ${mediaPoseDelta}`
+        `media-pose delta ${mediaPoseDelta}`,
+        `presentation-target delta ${presentationTargetDelta}`
       ].join(" / ") + error);
   }
 
@@ -1113,6 +1297,14 @@ class AeroBeatApp extends HTMLElement {
    */
   #formatFps(value) {
     return typeof value === "number" && Number.isFinite(value) ? `${Math.round(value)}fps` : "n/a";
+  }
+
+  /**
+   * @param {number | undefined} value
+   * @returns {string}
+   */
+  #formatRatio(value) {
+    return typeof value === "number" && Number.isFinite(value) ? value.toFixed(4) : "n/a";
   }
 
   /**
@@ -1243,6 +1435,21 @@ class AeroBeatApp extends HTMLElement {
       ]);
       speedSelect.setAttribute("value", this.#trackingProfile);
     }
+    const gameplaySourceSelect = this.shadowRoot?.querySelector(".pose-gameplay-source-select");
+    if (gameplaySourceSelect && "setOptions" in gameplaySourceSelect) {
+      const experimentalSupported = supportsExperimentalPoseGameplaySource(
+        this.#poseSelection.selectedBackendId,
+        this.#cvPerformancePresetId
+      );
+      gameplaySourceSelect.setOptions(experimentalSupported
+        ? poseGameplaySourceOptions
+        : poseGameplaySourceOptions.filter((option) => option.value === "measured"));
+      gameplaySourceSelect.setAttribute("value", this.#poseGameplaySelection.selectedId);
+      gameplaySourceSelect.setAttribute(
+        "label",
+        experimentalSupported ? "Pose gameplay source" : "Pose gameplay source (measured only)"
+      );
+    }
     const performanceSelect = this.shadowRoot?.querySelector(".cv-performance-select");
     if (performanceSelect && "setOptions" in performanceSelect) {
       const directOptions = ["full", "direct-256", "direct-192", "direct-160"]
@@ -1329,6 +1536,7 @@ class AeroBeatApp extends HTMLElement {
       requestedBackendId: this.#poseSelection.requestedBackendId,
       selectedBackendId: this.#poseSelection.selectedBackendId,
       performancePreset: preset,
+      submissionCadenceTargetFps: measuredSubmissionCadenceFps(this.#poseGameplaySelection.effectiveId),
       useFallbackOnError: true
     });
   }
@@ -1364,6 +1572,7 @@ class AeroBeatApp extends HTMLElement {
     if (!this.#isCvPresetSupported(this.#cvPerformancePresetId)) {
       this.#cvPerformancePresetId = "full";
     }
+    this.#normalizePoseGameplaySelection(true);
     this.#configurePhoneTestControls();
     this.#getPosePreview().setAttribute("source-id", this.#poseSourceId());
     this.#queueCvServiceReplacement(`${backendId} / ${providerId}`);
@@ -1384,6 +1593,69 @@ class AeroBeatApp extends HTMLElement {
     });
     this.#configurePhoneTestControls();
     this.#queueCvServiceReplacement(`MediaPipe tuning ${tuningId}`);
+  }
+
+  /**
+   * @param {"measured" | "measured-8" | "predicted-8"} sourceId
+   * @returns {void}
+   */
+  #applyPoseGameplaySource(sourceId) {
+    const search = updatePoseGameplaySourceSearch(window.location.search, sourceId);
+    const nextUrl = `${window.location.pathname}${search}${window.location.hash}`;
+    window.history.replaceState(window.history.state, "", nextUrl);
+    this.#poseGameplaySelection = resolvePoseGameplaySource({
+      search,
+      backendId: this.#poseSelection.selectedBackendId,
+      performancePresetId: this.#cvPerformancePresetId
+    });
+    this.#resetGameplayRouting("mode");
+    this.#configurePhoneTestControls();
+    this.#queueCvServiceReplacement(`Pose gameplay source ${this.#poseGameplaySelection.selectedId}`);
+  }
+
+  /**
+   * Resets an incompatible experimental route to the truthful measured default.
+   *
+   * @param {boolean} rewriteRoute
+   * @returns {void}
+   */
+  #normalizePoseGameplaySelection(rewriteRoute) {
+    const resolved = resolvePoseGameplaySource({
+      search: window.location.search,
+      backendId: this.#poseSelection.selectedBackendId,
+      performancePresetId: this.#cvPerformancePresetId
+    });
+    this.#poseGameplaySelection = resolved;
+    if (resolved.selectedId === "measured" && resolved.requestedId !== "measured" && rewriteRoute) {
+      const search = updatePoseGameplaySourceSearch(window.location.search, "measured");
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${search}${window.location.hash}`);
+      this.#poseGameplaySelection = resolvePoseGameplaySource({
+        search,
+        backendId: this.#poseSelection.selectedBackendId,
+        performancePresetId: this.#cvPerformancePresetId
+      });
+    }
+    this.#resetGameplayRouting("selection");
+  }
+
+  /**
+   * @param {string} reason
+   * @returns {void}
+   */
+  #resetGameplayRouting(reason) {
+    this.#predictiveRouting.reset(reason);
+    this.#inputRouter = createPoseInputRouter();
+    this.#latestGameplayPoseSample = undefined;
+    this.#lastRoutedPoseFrameKey = "";
+    this.#latestInputEvents = [];
+    this.#legacyMeasuredSampleCount = 0;
+    this.#legacyMeasuredEventCount = 0;
+    this.#legacyEventCountByIntent = {};
+    this.#gameplayRoutingStartedAtMs = undefined;
+    const preview = this.shadowRoot?.querySelector("aero-media-pose-preview");
+    if (preview && "setPoseRoutingSample" in preview) {
+      preview.setPoseRoutingSample(undefined, { render: false });
+    }
   }
 
   /**
@@ -1505,21 +1777,33 @@ class AeroBeatApp extends HTMLElement {
   }
 
   /**
-   * @param {import("@aerobeat/web-contracts").NormalizedPoseFrame} poseFrame
+   * @param {import("@aerobeat/web-contracts").NormalizedPoseFrame | import("@aerobeat/web-contracts").AeroPoseRoutingSample} pose
+   * @param {ReturnType<typeof createPoseInputRouter>} [router]
    * @returns {readonly PoseFlowDraftEventView[]}
    */
-  #createInputEventViews(poseFrame) {
-    this.#inputRouter.setMode("boxing");
-    const boxingEvents = this.#inputRouter.routePoseFrame(poseFrame);
-    this.#inputRouter.setMode("flow");
-    const flowEvents = this.#inputRouter.routePoseFrame(poseFrame);
-    return [
-      ...boxingEvents,
-      ...flowEvents
-    ].map((event) => ({
+  #createInputEventViews(pose, router = this.#inputRouter) {
+    if ("schema" in pose && pose.schema === "aerobeat/pose_routing_sample") {
+      return this.#inputEventViews(router.routePoseSampleBatch(pose));
+    }
+    router.setMode("boxing");
+    const boxingEvents = router.routePoseFrame(pose);
+    router.setMode("flow");
+    const flowEvents = router.routePoseFrame(pose);
+    return this.#inputEventViews([...boxingEvents, ...flowEvents]);
+  }
+
+  /**
+   * @param {readonly import("@aerobeat/web-input").PoseInputDraftEvent[]} events
+   * @returns {readonly PoseFlowDraftEventView[]}
+   */
+  #inputEventViews(events) {
+    return events.map((event) => ({
       mode: event.mode,
       eventName: event.eventName,
-      summary: event.detail.kind ?? event.detail.name
+      summary: event.detail.kind ?? event.detail.name,
+      provenance: event.detail.provenance ?? "measured",
+      measurementTimestampMs: event.detail.measurementTimestampMs ?? event.detail.timestampMs,
+      predictionHorizonMs: event.detail.predictionHorizonMs ?? 0
     }));
   }
 
