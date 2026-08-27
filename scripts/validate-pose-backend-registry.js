@@ -138,8 +138,24 @@ assert.deepEqual(getPoseProviderOptions("movenet").map((option) => option.value)
 assert.deepEqual(getPoseProviderOptions("mediapipe").map((option) => option.value), ["cpu-wasm", "gpu-webgl"]);
 assert.deepEqual(getPoseProviderOptions("onnxruntime").map((option) => option.value), ["wasm", "webgpu"]);
 assert.equal(supportsWorkerPerformancePresets("movenet"), true);
-assert.equal(supportsWorkerPerformancePresets("mediapipe"), false);
+assert.equal(supportsWorkerPerformancePresets("mediapipe"), true);
 assert.equal(supportsWorkerPerformancePresets("onnxruntime"), false);
+
+const workerMediaPipeSelection = resolvePoseSelection({
+  ...base,
+  search: "?poseBackend=mediapipe&poseProvider=cpu-wasm"
+});
+const workerMediaPipeComposition = createPoseBackendComposition(
+  workerMediaPipeSelection,
+  getAeroCvPerformancePreset("fast")
+);
+assert.equal(workerMediaPipeComposition.poseAdapter.capabilities.supportsWorker, true);
+assert.equal(workerMediaPipeComposition.poseAdapter.capabilities.workerInference, true);
+assert.equal(workerMediaPipeComposition.poseAdapter.getExecutionTelemetry?.().location, "worker");
+assert.equal(workerMediaPipeComposition.poseAdapter.getExecutionTelemetry?.().provider, undefined);
+assert.match(workerMediaPipeComposition.poseAdapter.getExecutionStatus?.().detail ?? "", /classic worker/u);
+await workerMediaPipeComposition.poseAdapter.dispose?.();
+await workerMediaPipeComposition.fallbackPoseAdapter.dispose?.();
 
 let releaseFirstDispose = () => {};
 let signalFirstDisposeStarted = () => {};

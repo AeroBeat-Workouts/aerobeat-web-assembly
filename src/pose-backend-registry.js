@@ -8,6 +8,7 @@ import {
 } from "@aerobeat/web-vendor-movenet";
 import {
   createMediaPipePoseAdapter,
+  createMediaPipeWorkerPoseAdapter,
   mediaPipeDelegates,
   mediaPipeLiveSourceId
 } from "@aerobeat/web-vendor-mediapipe";
@@ -186,7 +187,7 @@ export function getPoseSourceId(backendId) {
  * @returns {boolean}
  */
 export function supportsWorkerPerformancePresets(backendId) {
-  return backendId === "movenet";
+  return backendId === "movenet" || backendId === "mediapipe";
 }
 
 /**
@@ -204,7 +205,7 @@ export function createPoseBackendComposition(selection, performancePreset) {
       : createMoveNetPoseAdapter(commonOptions);
   } else if (selection.selectedBackendId === "mediapipe") {
     const tuning = getMediaPipeTuningDefinition(selection.selectedMediaPipeTuningId);
-    poseAdapter = createMediaPipePoseAdapter({
+    const mediaPipeOptions = {
       ...commonOptions,
       delegate: selection.selectedProviderId === "gpu-webgl"
         ? mediaPipeDelegates.gpuWebgl
@@ -212,7 +213,10 @@ export function createPoseBackendComposition(selection, performancePreset) {
       minPoseDetectionConfidence: tuning.minPoseDetectionConfidence,
       minPosePresenceConfidence: tuning.minPosePresenceConfidence,
       minTrackingConfidence: tuning.minTrackingConfidence
-    });
+    };
+    poseAdapter = performancePreset.executionPolicy === "worker-experimental"
+      ? createMediaPipeWorkerPoseAdapter(mediaPipeOptions)
+      : createMediaPipePoseAdapter(mediaPipeOptions);
   } else {
     poseAdapter = createOnnxRuntimePoseAdapter({
       ...commonOptions,

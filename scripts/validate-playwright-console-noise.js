@@ -541,12 +541,12 @@ try {
     return { mediaPipeProviders, mediaPipePresetCount, mediaPipeTuningEnabled, mediaPipeTuningLabel };
   });
   if (
-    rapidSwitchControlState.mediaPipePresetCount !== 4
+    rapidSwitchControlState.mediaPipePresetCount !== 7
     || rapidSwitchControlState.mediaPipeProviders.join(",") !== "cpu-wasm,gpu-webgl"
     || !rapidSwitchControlState.mediaPipeTuningEnabled
     || rapidSwitchControlState.mediaPipeTuningLabel !== "MediaPipe tuning"
   ) {
-    throw new Error("Non-MoveNet backend controls did not expose providers while filtering unsupported worker presets.");
+    throw new Error("MediaPipe controls did not expose providers, tuning, and actual worker presets.");
   }
   await page.waitForFunction(() => {
     const app = document.querySelector("aerobeat-app");
@@ -751,7 +751,7 @@ try {
     return backend?.value === "mediapipe"
       && provider?.value === "gpu-webgl"
       && provider.options.length === 2
-      && performance?.options.length === 4
+      && performance?.options.length === 7
       && inferenceText.includes("backend requested mediapipe selected mediapipe effective mediapipe")
       && inferenceText.includes("provider requested gpu-webgl selected gpu-webgl actual unknown")
       && inferenceText.includes("selection accepted");
