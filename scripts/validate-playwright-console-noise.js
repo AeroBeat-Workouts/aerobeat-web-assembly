@@ -878,6 +878,32 @@ try {
       && inferenceText.includes("unsupported MediaPipe tuning reckless; using standard")
       && inferenceText.includes("cross-origin onnxModelUrl rejected; using same-origin default");
   });
+
+  const noRvfcPage = await browser.newPage();
+  await noRvfcPage.addInitScript(() => {
+    Object.defineProperty(HTMLVideoElement.prototype, "requestVideoFrameCallback", {
+      configurable: true,
+      value: undefined
+    });
+    Object.defineProperty(HTMLVideoElement.prototype, "cancelVideoFrameCallback", {
+      configurable: true,
+      value: undefined
+    });
+  });
+  await noRvfcPage.goto(`${url}?poseBackend=mediapipe&poseProvider=cpu-wasm`, { waitUntil: "networkidle" });
+  await noRvfcPage.waitForFunction(() => {
+    const select = document.querySelector("aerobeat-app")?.shadowRoot
+      ?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    return Boolean(select && select.options.length > 0);
+  });
+  const noRvfcOptions = await noRvfcPage.locator("aerobeat-app").evaluate((element) => {
+    const select = element.shadowRoot?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+    return Array.from(select?.options ?? []).map((option) => option.value);
+  });
+  if (noRvfcOptions.includes("experimental-worker-videoframe")) {
+    throw new Error("VideoFrame worker preset remained selectable without rVFC support.");
+  }
+  await noRvfcPage.close();
 } finally {
   await browser.close();
   await server.close();

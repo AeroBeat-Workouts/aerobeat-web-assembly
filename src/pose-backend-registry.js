@@ -191,6 +191,26 @@ export function supportsWorkerPerformancePresets(backendId) {
 }
 
 /**
+ * Requires every primitive used by the exact-presentation-time VideoFrame lane.
+ * The normal scheduler can fall back without rVFC, but this preset deliberately
+ * cannot because a fallback callback has no mediaTime paired with its pixels.
+ *
+ * @param {object} [environment]
+ * @returns {boolean}
+ */
+export function supportsMediaPipeVideoFrameWorkerPreset(environment = globalThis) {
+  const VideoFrameConstructor = Reflect.get(environment, "VideoFrame");
+  const HtmlVideoElementConstructor = Reflect.get(environment, "HTMLVideoElement");
+  if (typeof VideoFrameConstructor !== "function" || typeof HtmlVideoElementConstructor !== "function") {
+    return false;
+  }
+  const prototype = Reflect.get(HtmlVideoElementConstructor, "prototype");
+  return Boolean(prototype)
+    && typeof Reflect.get(prototype, "requestVideoFrameCallback") === "function"
+    && typeof Reflect.get(prototype, "cancelVideoFrameCallback") === "function";
+}
+
+/**
  * @param {PoseSelection} selection
  * @param {import("@aerobeat/web-cv").AeroCvPerformancePreset} performancePreset
  * @returns {{ poseAdapter: import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter, fallbackPoseAdapter: import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter, sourceId: string }}

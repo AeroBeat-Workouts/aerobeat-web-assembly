@@ -31,6 +31,7 @@ import {
   mediaPipeTuningOptions,
   poseBackendOptions,
   resolvePoseSelection,
+  supportsMediaPipeVideoFrameWorkerPreset,
   supportsWorkerPerformancePresets,
   updateMediaPipeTuningSearch,
   updatePoseSelectionSearch
@@ -1252,7 +1253,10 @@ class AeroBeatApp extends HTMLElement {
       const workerPresetIds = supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
         ? ["balanced", "fast", "rescue"]
         : [];
-      if (this.#poseSelection.selectedBackendId === "mediapipe") {
+      if (
+        this.#poseSelection.selectedBackendId === "mediapipe"
+        && supportsMediaPipeVideoFrameWorkerPreset()
+      ) {
         workerPresetIds.push("experimental-worker-videoframe");
       }
       const workerOptions = workerPresetIds.map((id) => {
@@ -1425,7 +1429,8 @@ class AeroBeatApp extends HTMLElement {
    */
   #isCvPresetSupported(presetId) {
     if (presetId === "experimental-worker-videoframe") {
-      return this.#poseSelection.selectedBackendId === "mediapipe";
+      return this.#poseSelection.selectedBackendId === "mediapipe"
+        && supportsMediaPipeVideoFrameWorkerPreset();
     }
     return supportsWorkerPerformancePresets(this.#poseSelection.selectedBackendId)
       || getAeroCvPerformancePreset(presetId).executionPolicy === "main-thread";

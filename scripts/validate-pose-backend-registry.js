@@ -10,6 +10,7 @@ import {
   mediaPipeTuningOptions,
   poseBackendOptions,
   resolvePoseSelection,
+  supportsMediaPipeVideoFrameWorkerPreset,
   supportsWorkerPerformancePresets,
   updateMediaPipeTuningSearch,
   updatePoseSelectionSearch
@@ -140,6 +141,23 @@ assert.deepEqual(getPoseProviderOptions("onnxruntime").map((option) => option.va
 assert.equal(supportsWorkerPerformancePresets("movenet"), true);
 assert.equal(supportsWorkerPerformancePresets("mediapipe"), true);
 assert.equal(supportsWorkerPerformancePresets("onnxruntime"), false);
+class FakeVideoFrame {}
+class FakeVideoElementWithRvfc {
+  requestVideoFrameCallback() { return 1; }
+  cancelVideoFrameCallback() {}
+}
+class FakeVideoElementWithoutRvfc {}
+assert.equal(supportsMediaPipeVideoFrameWorkerPreset({
+  VideoFrame: FakeVideoFrame,
+  HTMLVideoElement: FakeVideoElementWithRvfc
+}), true);
+assert.equal(supportsMediaPipeVideoFrameWorkerPreset({
+  VideoFrame: FakeVideoFrame,
+  HTMLVideoElement: FakeVideoElementWithoutRvfc
+}), false);
+assert.equal(supportsMediaPipeVideoFrameWorkerPreset({
+  HTMLVideoElement: FakeVideoElementWithRvfc
+}), false);
 
 const workerMediaPipeSelection = resolvePoseSelection({
   ...base,

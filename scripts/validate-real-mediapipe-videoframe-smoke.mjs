@@ -47,6 +47,13 @@ try {
       timeout: 120_000
     });
     await page.waitForFunction(() => typeof VideoFrame === "function");
+    await page.waitForFunction(() => {
+      const select = document.querySelector("aerobeat-app")?.shadowRoot
+        ?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
+      return Boolean(select && Array.from(select.options).some(
+        (option) => option.value === "experimental-worker-videoframe"
+      ));
+    }, undefined, { timeout: 30_000 });
     await page.locator("aerobeat-app").evaluate((element) => {
       const select = element.shadowRoot?.querySelector(".cv-performance-select")?.shadowRoot?.querySelector("select");
       if (!select || !Array.from(select.options).some((option) => option.value === "experimental-worker-videoframe")) {
