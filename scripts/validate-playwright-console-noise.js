@@ -576,7 +576,10 @@ try {
       && inferenceText.includes("provider requested webgl selected webgl actual webgl")
       && inferenceText.includes("MediaPipe tuning requested responsive selected responsive not applicable")
       && /timing window \d+\/120 budget 67ms over \d+/u.test(inferenceText)
+      && /prep p50 \d+ms p95 \d+ms max \d+ms/u.test(inferenceText)
       && /adapter p50 \d+ms p95 \d+ms max \d+ms/u.test(inferenceText)
+      && inferenceText.includes("runtime p50 ")
+      && inferenceText.includes("worker roundtrip p50 n/a p95 n/a max n/a")
       && /total p50 \d+ms p95 \d+ms max \d+ms/u.test(inferenceText)
       && /status updates \d+fps target 4fps/u.test(inferenceText)
       && /output age \d+ms/u.test(inferenceText);
@@ -690,7 +693,10 @@ try {
     "Adapter cost:",
     "Total CV cost:",
     "Timing window:",
+    "Prep rolling p50/p95/max:",
     "Adapter rolling p50/p95/max:",
+    "Runtime rolling p50/p95/max:",
+    "Worker round-trip rolling p50/p95/max:",
     "Total CV rolling p50/p95/max:",
     "Incomplete seven-point frames:",
     "Worker capture replacements / retired transferables:",
