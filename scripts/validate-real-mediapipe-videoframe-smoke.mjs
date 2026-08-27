@@ -55,6 +55,11 @@ try {
       select.value = "experimental-worker-videoframe";
       select.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    await page.waitForFunction(() => {
+      const root = document.querySelector("aerobeat-app")?.shadowRoot;
+      const text = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
+      return text.includes("preset Experimental worker transferable VideoFrame");
+    }, undefined, { timeout: 30_000 });
     await page.locator("aerobeat-app aero-button.calibration-entrypoint button").click();
     await page.waitForFunction((selectedProvider) => {
       const root = document.querySelector("aerobeat-app")?.shadowRoot;
