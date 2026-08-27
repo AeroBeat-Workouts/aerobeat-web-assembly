@@ -142,13 +142,14 @@ class AeroBeatApp extends HTMLElement {
         .shell {
           box-sizing: border-box;
           display: grid;
-          gap: 18px;
-          grid-template-rows: auto 1fr auto;
+          gap: 14px;
+          grid-template-rows: auto auto auto 1fr auto;
           min-height: 100vh;
-          padding: clamp(16px, 4vw, 40px);
+          padding: clamp(12px, 3vw, 32px);
         }
 
-        .topbar,
+        .title-row,
+        .build-row,
         .metadata {
           align-items: center;
           display: flex;
@@ -157,9 +158,8 @@ class AeroBeatApp extends HTMLElement {
           justify-content: space-between;
         }
 
-        .brand {
-          display: grid;
-          gap: 2px;
+        .build-row aero-status-panel {
+          inline-size: 100%;
         }
 
         .title {
@@ -168,31 +168,73 @@ class AeroBeatApp extends HTMLElement {
           line-height: 1;
         }
 
-        .subtitle,
         .metadata {
           font-size: 0.86rem;
           font-weight: 650;
         }
 
-        .topbar-actions {
-          align-items: flex-end;
+        .calibration-options {
+          background: rgba(255, 255, 255, 0.72);
+          border: 1px solid rgba(53, 141, 175, 0.38);
+          border-radius: 14px;
+          box-shadow: 0 10px 28px rgba(16, 52, 71, 0.12);
+          box-sizing: border-box;
+          inline-size: 100%;
+          overflow: clip;
+        }
+
+        .calibration-options summary {
+          cursor: pointer;
+          font-size: 1rem;
+          font-weight: 800;
+          list-style: none;
+          padding: 14px 44px 14px 16px;
+          position: relative;
+          user-select: none;
+        }
+
+        .calibration-options summary::-webkit-details-marker {
+          display: none;
+        }
+
+        .calibration-options summary::after {
+          content: "⌄";
+          font-size: 1.3rem;
+          inset-block-start: 50%;
+          inset-inline-end: 16px;
+          line-height: 1;
+          position: absolute;
+          transform: translateY(-50%);
+          transition: transform 120ms ease;
+        }
+
+        .calibration-options[open] summary::after {
+          transform: translateY(-50%) rotate(180deg);
+        }
+
+        .calibration-options-content {
+          border-block-start: 1px solid rgba(53, 141, 175, 0.24);
           display: grid;
-          gap: 10px;
-          justify-items: end;
+          gap: 12px;
+          padding: 14px 16px 16px;
         }
 
         .test-controls {
           display: grid;
-          gap: 8px;
-          grid-template-columns: repeat(5, minmax(128px, 1fr));
-          inline-size: min(100%, 920px);
+          gap: 10px;
+          grid-template-columns: minmax(0, 1fr);
+          inline-size: 100%;
+        }
+
+        .calibration-entrypoint {
+          justify-self: stretch;
         }
 
         .stage {
           align-items: stretch;
           display: grid;
-          gap: 18px;
-          grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+          gap: 14px;
+          grid-template-columns: minmax(0, 2fr) minmax(280px, 0.55fr);
         }
 
         .status-grid {
@@ -214,8 +256,24 @@ class AeroBeatApp extends HTMLElement {
         }
 
         .runtime {
+          align-content: start;
           display: grid;
           gap: 12px;
+        }
+
+        .diagnostics-hidden {
+          display: none !important;
+        }
+
+        .timing-window-progress {
+          background: rgba(255, 255, 255, 0.82);
+          border: 1px solid rgba(53, 141, 175, 0.38);
+          border-radius: 999px;
+          font-size: 0.95rem;
+          font-weight: 800;
+          margin: 0;
+          padding: 10px 14px;
+          text-align: center;
         }
 
         .telemetry-capture {
@@ -264,20 +322,6 @@ class AeroBeatApp extends HTMLElement {
         }
 
         @media (max-width: 780px) {
-          .topbar {
-            align-items: start;
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-          }
-
-          .topbar-actions {
-            max-inline-size: min(48vw, 220px);
-          }
-
-          .test-controls {
-            grid-template-columns: 1fr;
-          }
-
           .stage {
             grid-template-columns: 1fr;
           }
@@ -288,12 +332,15 @@ class AeroBeatApp extends HTMLElement {
         }
       </style>
       <main class="shell">
-        <header class="topbar">
-          <div class="brand">
-            <span class="title">AeroBeat</span>
-            <span class="subtitle">Browser assembly runtime</span>
-          </div>
-          <div class="topbar-actions">
+        <header class="title-row">
+          <span class="title">AeroBeat</span>
+        </header>
+        <div class="build-row">
+          <aero-status-panel heading="Build" status="Version ${appMetadata.displayVersion} / Built ${appMetadata.buildStamp} / Cache ${appMetadata.cacheBust}"></aero-status-panel>
+        </div>
+        <details class="calibration-options" open>
+          <summary>Calibration options</summary>
+          <div class="calibration-options-content">
             <div class="test-controls" aria-label="Phone test controls">
               <aero-select class="pose-backend-select" label="Pose backend" value="${this.#poseSelection.selectedBackendId}"></aero-select>
               <aero-select class="pose-provider-select" label="Pose provider" value="${this.#poseSelection.selectedProviderId}"></aero-select>
@@ -303,30 +350,32 @@ class AeroBeatApp extends HTMLElement {
               <aero-select class="cv-performance-select" label="CV performance" value="${this.#cvPerformancePresetId}"></aero-select>
             </div>
             <aero-button class="calibration-entrypoint" label="Begin calibration"></aero-button>
-            <aero-status-panel heading="Build" status="Version ${appMetadata.displayVersion} / Built ${appMetadata.buildStamp} / Cache ${appMetadata.cacheBust}"></aero-status-panel>
           </div>
-        </header>
+        </details>
         <section class="stage" aria-label="AeroBeat app shell">
           <div class="hero">
             <aero-media-pose-preview source-kind="live-camera" source-id="${this.#poseSourceId()}" fit-mode="cover" mirrored="true"></aero-media-pose-preview>
           </div>
           <div class="runtime">
-            <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
-            <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / execution main-thread direct adapter / resize none / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
-            <aero-status-panel class="media-state" heading="Media" status="Source none / playback idle"></aero-status-panel>
-            <aero-pose-flow-panel></aero-pose-flow-panel>
-            <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches to the selected MoveNet, MediaPipe, or ONNX Runtime backend when camera, runtime, and model setup succeed.</p>
-            <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
-            <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
+            <p class="timing-window-progress" role="status" aria-live="polite">Timing window 0/120</p>
             <div class="telemetry-capture">
               <div class="telemetry-actions" aria-label="Telemetry capture controls">
                 <aero-button class="telemetry-copy" label="Copy telemetry"></aero-button>
                 <aero-button class="telemetry-download" label="Download telemetry"></aero-button>
               </div>
-              <aero-status-panel class="telemetry-capture-state" heading="Telemetry" status="Capture ready"></aero-status-panel>
+              <aero-status-panel class="telemetry-capture-state diagnostics-hidden" heading="Telemetry" status="Capture ready"></aero-status-panel>
               <pre class="telemetry-output" tabindex="0" aria-label="Captured telemetry snapshot">Captured telemetry snapshot will appear here for selection and sharing.</pre>
             </div>
-            <aero-calibration-screen></aero-calibration-screen>
+            <div class="diagnostics-hidden" aria-hidden="true">
+              <aero-status-panel heading="Services" status="${this.#serviceSummary()}"></aero-status-panel>
+              <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / execution main-thread direct adapter / resize none / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
+              <aero-status-panel class="media-state" heading="Media" status="Source none / playback idle"></aero-status-panel>
+              <aero-pose-flow-panel></aero-pose-flow-panel>
+              <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches to the selected MoveNet, MediaPipe, or ONNX Runtime backend when camera, runtime, and model setup succeed.</p>
+              <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
+              <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
+              <aero-calibration-screen></aero-calibration-screen>
+            </div>
           </div>
         </section>
         <footer class="metadata">
@@ -964,6 +1013,10 @@ class AeroBeatApp extends HTMLElement {
     const tuningState = this.#poseSelection.mediaPipeTuningApplicable
       ? `${tuning.id} detection ${tuning.minPoseDetectionConfidence} presence ${tuning.minPosePresenceConfidence} tracking ${tuning.minTrackingConfidence}`
       : `${tuning.id} not applicable`;
+    const timingProgress = this.shadowRoot?.querySelector(".timing-window-progress");
+    if (timingProgress) {
+      timingProgress.textContent = `Timing window ${status.timingWindowSampleCount}/${status.timingWindowCapacity}`;
+    }
     const error = status.lastError ? ` / error ${status.lastError}` : "";
     this.shadowRoot
       ?.querySelector(".inference-state")

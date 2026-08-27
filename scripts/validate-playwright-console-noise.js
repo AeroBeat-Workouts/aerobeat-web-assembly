@@ -206,9 +206,77 @@ try {
     !topbarBounds
     || topbarBounds.top < 0
     || topbarBounds.bottom > topbarButtonSemantics.viewportHeight
-    || topbarBounds.left < topbarButtonSemantics.viewportWidth * 0.42
+    || topbarBounds.left < 0
+    || topbarBounds.right > topbarButtonSemantics.viewportWidth
   ) {
-    throw new Error("Topbar Begin calibration was not visible in the mobile first viewport.");
+    throw new Error("Primary Begin calibration was not visible in the mobile first viewport.");
+  }
+
+  const compactUi = await page.locator("aerobeat-app").evaluate((element) => {
+    const root = element.shadowRoot;
+    const title = root?.querySelector(".title");
+    const build = root?.querySelector(".build-row");
+    const options = root?.querySelector("details.calibration-options");
+    const summary = options?.querySelector("summary");
+    const progress = root?.querySelector(".timing-window-progress");
+    const controlRects = Array.from(root?.querySelectorAll(".test-controls aero-select") ?? []).map((control) => {
+      const rect = control.getBoundingClientRect();
+      return { top: rect.top, left: rect.left, right: rect.right };
+    });
+    const hiddenDiagnostics = [
+      'aero-status-panel[heading="Services"]',
+      ".inference-state",
+      ".media-state",
+      "aero-pose-flow-panel",
+      ".checkpoint-note",
+      ".calibration-state",
+      ".camera-permission-state",
+      ".telemetry-capture-state",
+      "aero-calibration-screen"
+    ].map((selector) => root?.querySelector(selector)?.getClientRects().length ?? -1);
+    const primaryButton = root?.querySelector("aero-button.calibration-entrypoint")?.shadowRoot?.querySelector("button");
+    const duplicateButton = root?.querySelector("aero-calibration-screen")?.shadowRoot?.querySelector("aero-button")?.shadowRoot?.querySelector("button");
+    const visibleCalibrationButtons = [primaryButton, duplicateButton]
+      .filter((button) => button && button.getClientRects().length > 0)
+      .length;
+    const titleRect = title?.getBoundingClientRect();
+    const buildRect = build?.getBoundingClientRect();
+    const optionsRect = options?.getBoundingClientRect();
+    const chevronContent = summary ? getComputedStyle(summary, "::after").content : "none";
+    summary?.click();
+    const collapsed = options instanceof HTMLDetailsElement && !options.open;
+    summary?.click();
+    const reopened = options instanceof HTMLDetailsElement && options.open;
+    return {
+      subtitleAbsent: !root?.querySelector(".subtitle"),
+      rowOrder: Boolean(titleRect && buildRect && optionsRect && titleRect.bottom <= buildRect.top && buildRect.bottom <= optionsRect.top),
+      chevronContent,
+      collapsed,
+      reopened,
+      progress: progress?.textContent ?? "",
+      controlRects,
+      hiddenDiagnostics,
+      visibleCalibrationButtons
+    };
+  });
+  const controlsAreOneColumn = compactUi.controlRects.length === 6
+    && compactUi.controlRects.every((rect, index, rects) => (
+      Math.abs(rect.left - rects[0].left) < 2
+      && Math.abs(rect.right - rects[0].right) < 2
+      && (index === 0 || rect.top > rects[index - 1].top)
+    ));
+  if (
+    !compactUi.subtitleAbsent
+    || !compactUi.rowOrder
+    || compactUi.chevronContent === "none"
+    || !compactUi.collapsed
+    || !compactUi.reopened
+    || compactUi.progress !== "Timing window 0/120"
+    || !controlsAreOneColumn
+    || compactUi.hiddenDiagnostics.some((rectCount) => rectCount !== 0)
+    || compactUi.visibleCalibrationButtons !== 1
+  ) {
+    throw new Error(`Compact phone benchmark UI contract failed: ${JSON.stringify(compactUi)}`);
   }
 
   await page.waitForFunction(() => {
@@ -487,6 +555,7 @@ try {
     const providerValue = root?.querySelector(".pose-provider-select")?.shadowRoot?.querySelector("select")?.value;
     const tuningValue = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select")?.value;
     const tuningDisabled = root?.querySelector(".mediapipe-tuning-select")?.shadowRoot?.querySelector("select")?.disabled;
+    const timingProgress = root?.querySelector(".timing-window-progress")?.textContent ?? "";
     const inferenceText = root?.querySelector(".inference-state")?.shadowRoot?.textContent ?? "";
     const url = new URL(window.location.href);
     return (window.__aeroCameraRequests?.length ?? 0) === 3
@@ -495,6 +564,7 @@ try {
       && providerValue === "webgl"
       && tuningValue === "responsive"
       && tuningDisabled
+      && /Timing window [1-9]\d*\/120/u.test(timingProgress)
       && url.searchParams.get("poseBackend") === "movenet"
       && url.searchParams.get("poseProvider") === "webgl"
       && url.searchParams.get("mediaPipeTuning") === "responsive"
