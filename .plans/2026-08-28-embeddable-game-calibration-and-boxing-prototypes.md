@@ -589,11 +589,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder child failed during reporting but left clean pushed commit `f96ab57`; parent reran check/test/browser successfully. Adversarial QA then found incomplete cross-kind/element cleanup and pending-play invalidation: Blob-to-camera leaked its owned URL, owned-camera-to-video retained tracks, old elements retained `srcObject`, and late `play()` could override pause/visibility/lease/source replacement. QA is centralizing transition cleanup/invalidation and adding the full ownership/race matrix before closure.
+**Results:** Coder commit `f96ab57` added the reconnectable facade; adversarial QA commit `0883ec9` fixed cross-kind/element cleanup and pending-play races. Blob-to-camera revokes owned URLs, owned-camera-to-video stops exactly once, host-owned tracks are never stopped, old elements clear sources/listeners, and pause/hidden/lease/source replacement defeat late play. Direct fake-device Chromium getUserMedia and captureStream paths pass with zero console noise. Parent reran check/test/browser/pack; closure commit `bc9fd59`.
 
-**Acceptance:** Unit/browser tests cover request/injection, transfer, disconnect/reconnect, late permission resolution, track stopping, hidden visibility, external CORS capabilities, fallback behavior, and no retained streams after destroy.
+**Acceptance:** Satisfied; request/injection/transfer/reconnect, late async work, visibility/lease, CORS/readability, source identity and deterministic teardown are covered., track stopping, hidden visibility, external CORS capabilities, fallback behavior, and no retained streams after destroy.
 
 ---
 
@@ -624,7 +624,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 8: Build the Shared Full-Container Gameplay Renderer and Tuning Surface
 
 **Bead ID:** `aerobeat-web-renderer-mm2`
-**SubAgent:** DSH coder subagent, then visual QA
+**SubAgent:** Coder child `55a84241-26e6-48c1-8226-0665899d2163`; visual QA pending
 **Role:** `coder`
 **References:** `REF-03`, `REF-10`, `REF-11`
 **Prompt:** In `aerobeat-web-renderer` and `aerobeat-web-style`, implement per-instance full-container/DPR-aware render surfaces, shared 4x3 playfield primitives, Flow and Spatial Boxing targets, connected/crossed guards, obstacle regions, Track Boxing lanes, role icons/patterns, approach scale/color/ring animation, hit/miss feedback, exact normalized layout, theme-token ingestion, and live visual tuning presets. Keep gameplay judgement outside the renderer and keep theme defaults/overrides versioned.
@@ -639,7 +639,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Browser tests cover arbitrary container aspect/size, DPR caps, resize/fullscreen redraw, exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
 
