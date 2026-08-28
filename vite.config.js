@@ -1,7 +1,6 @@
 // @ts-check
 
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
 const buildStamp = new Date().toISOString();
 const cacheBust = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -22,13 +21,7 @@ export default {
     __AEROBEAT_PACKAGE_VERSION__: JSON.stringify(packageJson.version)
   },
   resolve: {
-    alias: {
-      "@mediapipe/pose": fileURLToPath(new URL("./src/mediapipe-pose-shim.js", import.meta.url))
-    },
     preserveSymlinks: true
-  },
-  optimizeDeps: {
-    include: ["long", "seedrandom"]
   },
   server: {
     allowedHosts: [tailscaleHost],

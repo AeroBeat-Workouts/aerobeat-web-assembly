@@ -1,6 +1,6 @@
 // @ts-check
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { build } from "vite";
 
@@ -29,22 +29,34 @@ await build({
   mode: "release"
 });
 
-const artifactFiles = walkFiles(releaseRoot).map((filePath) => relative(releaseRoot, filePath));
+const absoluteArtifactFiles = walkFiles(releaseRoot);
+const artifactFiles = absoluteArtifactFiles.map((filePath) => relative(releaseRoot, filePath));
 const runtimeWasmAssets = artifactFiles.filter((filePath) => filePath.endsWith(".wasm"));
 const runtimeJavaScriptAssets = artifactFiles.filter((filePath) => filePath.endsWith(".js"));
-if (runtimeWasmAssets.length === 0) {
-  throw new Error("Release omitted ONNX Runtime WASM assets.");
+const totalArtifactBytesBeforeManifest = absoluteArtifactFiles
+  .reduce((total, filePath) => total + statSync(filePath).size, 0);
+const forbiddenRuntimeAsset = artifactFiles.find((filePath) => /(?:movenet|onnx|ort-wasm|pose-detection|tensorflow)/iu.test(filePath));
+if (forbiddenRuntimeAsset) {
+  throw new Error(`Release contains forbidden non-MediaPipe runtime asset ${forbiddenRuntimeAsset}.`);
 }
 const assembledJavaScript = runtimeJavaScriptAssets
   .map((filePath) => readFileSync(resolve(releaseRoot, filePath), "utf8"))
   .join("\n");
-for (const requiredMarker of ["poseBackend", "mediapipe", "onnxruntime", "movenet"]) {
+for (const requiredMarker of ["poseBackend", "mediapipe", "gpu-webgl", "standard"]) {
   if (!assembledJavaScript.includes(requiredMarker)) {
-    throw new Error(`Release omitted selected-backend marker ${requiredMarker}.`);
+    throw new Error(`Release omitted locked MediaPipe marker ${requiredMarker}.`);
   }
 }
-const onnxModelAssetPath = "models/rtmpose-t/end2end.onnx";
-const onnxModelIncluded = existsSync(resolve(releaseRoot, onnxModelAssetPath));
+for (const forbiddenRuntimeMarker of [
+  "@tensorflow-models/pose-detection",
+  "onnxruntime-web",
+  "createMoveNetPoseAdapter",
+  "createOnnxRuntimePoseAdapter"
+]) {
+  if (assembledJavaScript.includes(forbiddenRuntimeMarker)) {
+    throw new Error(`Release contains forbidden non-MediaPipe runtime marker ${forbiddenRuntimeMarker}.`);
+  }
+}
 const basePath = process.env.AEROBEAT_BASE_PATH ?? "/";
 
 const manifestPath = resolve(releaseRoot, "aerobeat-release-proof.json");
@@ -58,23 +70,33 @@ writeFileSync(
       createdAt: new Date().toISOString(),
       minified: false,
       basePath,
-      poseBackends: ["movenet", "mediapipe", "onnxruntime"],
+      productionPoseConfiguration: {
+        backend: "mediapipe",
+        provider: "gpu-webgl",
+        model: "pose-landmarker-lite",
+        modelVariant: "float16/1",
+        tasksVisionVersion: "1.0.1",
+        tuning: "standard",
+        thresholds: [0.5, 0.5, 0.5],
+        tracking: "fast",
+        performancePreset: "full",
+        gameplaySource: "measured",
+        submissionCadenceTargetFps: 15
+      },
+      concretePoseVendors: ["@aerobeat/web-vendor-mediapipe"],
+      poseBackends: ["mediapipe"],
       runtimeJavaScriptAssets,
       runtimeWasmAssets,
-      onnxModelPolicy: {
-        bundledByDefault: false,
-        expectedSameOriginPath: `${basePath.replace(/\/$/u, "")}/${onnxModelAssetPath}`,
-        includedInThisArtifact: onnxModelIncluded,
-        prepareCommand: "npm run model:prepare:onnx"
-      }
+      totalArtifactBytesBeforeManifest,
+      forbiddenRuntimeAssetPatternsChecked: ["movenet", "onnx", "ort-wasm", "pose-detection", "tensorflow"]
     },
     null,
     2
   )}\n`
 );
 
-console.log(`Raw ${proofVersion} release proof created at ${releaseRoot}`);
-console.log(`ONNX model included: ${onnxModelIncluded ? "yes" : "no - run npm run model:prepare:onnx for real ONNX runtime proof"}`);
+console.log(`Raw ${proofVersion} MediaPipe-only release proof created at ${releaseRoot}`);
+console.log(`Artifact bytes before manifest: ${totalArtifactBytesBeforeManifest}`);
 
 /**
  * @param {string} root

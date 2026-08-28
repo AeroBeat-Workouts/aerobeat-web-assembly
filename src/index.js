@@ -417,7 +417,7 @@ class AeroBeatApp extends HTMLElement {
               <aero-status-panel class="inference-state" heading="Inference" status="CV idle / preset ${this.#cvPerformancePreset().label} (${this.#cvPerformancePreset().summary}) / execution main-thread direct adapter / resize none / model idle / source none / inference frames 0 / pose frames 0"></aero-status-panel>
               <aero-status-panel class="media-state" heading="Media" status="Source none / playback idle"></aero-status-panel>
               <aero-pose-flow-panel></aero-pose-flow-panel>
-              <p class="checkpoint-note">Runtime checkpoint starts with replay CV frames for secure loading checks; calibration switches to the selected MoveNet, MediaPipe, or ONNX Runtime backend when camera, runtime, and model setup succeed.</p>
+              <p class="checkpoint-note">Runtime checkpoint starts with CV-owned replay frames for secure loading checks; calibration switches to the locked MediaPipe Pose Landmarker Lite backend when camera and runtime setup succeed.</p>
               <aero-status-panel class="calibration-state" heading="Calibration" status="Idle - press Begin calibration"></aero-status-panel>
               <aero-status-panel class="camera-permission-state" heading="Camera" status="Permission idle"></aero-status-panel>
               <aero-calibration-screen></aero-calibration-screen>
@@ -533,9 +533,9 @@ class AeroBeatApp extends HTMLElement {
     }
     const path = event.composedPath();
     if (path.includes(this.shadowRoot?.querySelector(".pose-backend-select") ?? this)) {
-      const backendId = isPoseBackendId(event.detail?.value) ? event.detail.value : "movenet";
+      const backendId = isPoseBackendId(event.detail?.value) ? event.detail.value : "mediapipe";
       const providerId = /** @type {import("./pose-backend-registry.js").PoseProviderId} */ (
-        getPoseProviderOptions(backendId)[0]?.value ?? "webgl"
+        getPoseProviderOptions(backendId)[0]?.value ?? "gpu-webgl"
       );
       this.#applyPoseSelection(backendId, providerId);
       return;
@@ -545,7 +545,7 @@ class AeroBeatApp extends HTMLElement {
       const providerOptions = getPoseProviderOptions(this.#poseSelection.selectedBackendId);
       const selectedProvider = providerOptions.some((option) => option.value === requestedProvider)
         ? requestedProvider
-        : providerOptions[0]?.value ?? "webgl";
+        : providerOptions[0]?.value ?? "gpu-webgl";
       this.#applyPoseSelection(
         this.#poseSelection.selectedBackendId,
         /** @type {import("./pose-backend-registry.js").PoseProviderId} */ (selectedProvider)

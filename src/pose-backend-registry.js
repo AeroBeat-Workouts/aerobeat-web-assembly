@@ -1,27 +1,19 @@
 // @ts-check
 
-import {
-  createMoveNetMockPoseAdapter,
-  createMoveNetPoseAdapter,
-  createMoveNetWorkerPoseAdapter,
-  moveNetLiveSourceId
-} from "@aerobeat/web-vendor-movenet";
+import { createAeroCvMockPoseAdapter } from "@aerobeat/web-cv";
 import {
   createMediaPipePoseAdapter,
   createMediaPipeWorkerPoseAdapter,
   mediaPipeDelegates,
   mediaPipeLiveSourceId
 } from "@aerobeat/web-vendor-mediapipe";
-import {
-  createOnnxRuntimePoseAdapter,
-  onnxRuntimeLiveSourceId
-} from "@aerobeat/web-vendor-onnxruntime";
 
-/** @typedef {"movenet" | "mediapipe" | "onnxruntime"} PoseBackendId */
-/** @typedef {"webgl" | "cpu-wasm" | "gpu-webgl" | "wasm" | "webgpu"} PoseProviderId */
+/** @typedef {"mediapipe"} PoseBackendId */
+/** @typedef {"gpu-webgl" | "cpu-wasm"} PoseProviderId */
 /** @typedef {"standard" | "responsive"} MediaPipeTuningId */
 
-export const defaultPoseBackendId = "movenet";
+export const defaultPoseBackendId = "mediapipe";
+export const defaultPoseProviderId = "gpu-webgl";
 export const defaultMediaPipeTuningId = "standard";
 
 export const mediaPipeTuningOptions = Object.freeze([
@@ -47,69 +39,43 @@ const mediaPipeTuningDefinitions = Object.freeze({
 });
 
 export const poseBackendOptions = Object.freeze([
-  Object.freeze({ value: "movenet", label: "MoveNet Lightning" }),
-  Object.freeze({ value: "mediapipe", label: "MediaPipe Pose Landmarker Lite" }),
-  Object.freeze({ value: "onnxruntime", label: "ONNX Runtime RTMPose-t" })
+  Object.freeze({ value: "mediapipe", label: "MediaPipe Pose Landmarker Lite" })
 ]);
 
-const backendDefinitions = Object.freeze({
-  movenet: Object.freeze({
-    defaultProviderId: "webgl",
-    providers: Object.freeze([
-      Object.freeze({ value: "webgl", label: "TensorFlow.js WebGL" })
-    ]),
-    sourceId: moveNetLiveSourceId
-  }),
-  mediapipe: Object.freeze({
-    defaultProviderId: "cpu-wasm",
-    providers: Object.freeze([
-      Object.freeze({ value: "cpu-wasm", label: "MediaPipe CPU / WASM" }),
-      Object.freeze({ value: "gpu-webgl", label: "MediaPipe GPU / WebGL" })
-    ]),
-    sourceId: mediaPipeLiveSourceId
-  }),
-  onnxruntime: Object.freeze({
-    defaultProviderId: "wasm",
-    providers: Object.freeze([
-      Object.freeze({ value: "wasm", label: "ONNX Runtime WASM" }),
-      Object.freeze({ value: "webgpu", label: "ONNX Runtime WebGPU" })
-    ]),
-    sourceId: onnxRuntimeLiveSourceId
-  })
-});
+const mediaPipeProviderOptions = Object.freeze([
+  Object.freeze({ value: "gpu-webgl", label: "MediaPipe GPU / WebGL" }),
+  Object.freeze({ value: "cpu-wasm", label: "MediaPipe CPU / WASM (diagnostic)" })
+]);
 
 /**
  * @typedef {Object} PoseSelection
- * @property {string} requestedBackendId Raw requested backend or the default when absent.
- * @property {PoseBackendId} selectedBackendId Supported selected backend.
- * @property {string} requestedProviderId Raw requested provider or the backend default when absent.
- * @property {PoseProviderId} selectedProviderId Supported selected provider.
- * @property {string} requestedMediaPipeTuningId Raw requested tuning or the standard default when absent.
+ * @property {string} requestedBackendId Raw requested backend or the locked default when absent.
+ * @property {PoseBackendId} selectedBackendId Locked supported backend.
+ * @property {string} requestedProviderId Raw requested provider or the locked default when absent.
+ * @property {PoseProviderId} selectedProviderId Supported same-vendor provider.
+ * @property {string} requestedMediaPipeTuningId Raw requested tuning or standard when absent.
  * @property {MediaPipeTuningId} selectedMediaPipeTuningId Supported MediaPipe tuning selection.
- * @property {boolean} mediaPipeTuningApplicable Whether the selected backend consumes MediaPipe tuning.
- * @property {string | undefined} onnxModelAssetUrl Same-origin ONNX model URL.
- * @property {string | undefined} rejectedOnnxModelUrl Rejected cross-origin or malformed model URL.
- * @property {string | undefined} warning Visible fallback explanation.
+ * @property {true} mediaPipeTuningApplicable MediaPipe tuning is always applicable.
+ * @property {string | undefined} warning Visible normalization explanation.
  */
 
 /**
- * Resolves stable query policy without loading or exposing a vendor runtime.
+ * Resolves the locked MediaPipe-only query policy. Historical backend/provider
+ * values remain visible in requested telemetry while selection normalizes to
+ * MediaPipe GPU-WebGL.
  *
- * @param {{ search?: string, origin?: string, baseUrl?: string }} [options]
+ * @param {{ search?: string }} [options]
  * @returns {PoseSelection}
  */
 export function resolvePoseSelection(options = {}) {
   const search = options.search ?? globalThis.location?.search ?? "";
-  const origin = options.origin ?? globalThis.location?.origin ?? "http://127.0.0.1";
-  const baseUrl = options.baseUrl ?? globalThis.document?.baseURI ?? `${origin}/`;
   const params = new URLSearchParams(search);
   const rawBackend = params.get("poseBackend") ?? defaultPoseBackendId;
-  const selectedBackendId = isPoseBackendId(rawBackend) ? rawBackend : defaultPoseBackendId;
-  const definition = backendDefinitions[selectedBackendId];
-  const rawProvider = params.get("poseProvider") ?? definition.defaultProviderId;
-  const selectedProviderId = definition.providers.some((option) => option.value === rawProvider)
+  const selectedBackendId = defaultPoseBackendId;
+  const rawProvider = params.get("poseProvider") ?? defaultPoseProviderId;
+  const selectedProviderId = mediaPipeProviderOptions.some((option) => option.value === rawProvider)
     ? /** @type {PoseProviderId} */ (rawProvider)
-    : /** @type {PoseProviderId} */ (definition.defaultProviderId);
+    : defaultPoseProviderId;
   const warnings = [];
   if (rawBackend !== selectedBackendId) {
     warnings.push(`unsupported backend ${rawBackend}; using ${selectedBackendId}`);
@@ -125,25 +91,6 @@ export function resolvePoseSelection(options = {}) {
     warnings.push(`unsupported MediaPipe tuning ${rawMediaPipeTuning}; using ${selectedMediaPipeTuningId}`);
   }
 
-  const rawOnnxModelUrl = params.get("onnxModelUrl");
-  let onnxModelAssetUrl;
-  let rejectedOnnxModelUrl;
-  if (rawOnnxModelUrl) {
-    try {
-      const candidate = new URL(rawOnnxModelUrl, baseUrl);
-      if (candidate.origin === origin) {
-        onnxModelAssetUrl = candidate.href;
-      } else {
-        rejectedOnnxModelUrl = rawOnnxModelUrl;
-        warnings.push("cross-origin onnxModelUrl rejected; using same-origin default");
-      }
-    } catch {
-      rejectedOnnxModelUrl = rawOnnxModelUrl;
-      warnings.push("malformed onnxModelUrl rejected; using same-origin default");
-    }
-  }
-  onnxModelAssetUrl ??= new URL("models/rtmpose-t/end2end.onnx", baseUrl).href;
-
   return {
     requestedBackendId: rawBackend,
     selectedBackendId,
@@ -151,19 +98,17 @@ export function resolvePoseSelection(options = {}) {
     selectedProviderId,
     requestedMediaPipeTuningId: rawMediaPipeTuning,
     selectedMediaPipeTuningId,
-    mediaPipeTuningApplicable: selectedBackendId === "mediapipe",
-    onnxModelAssetUrl,
-    rejectedOnnxModelUrl,
+    mediaPipeTuningApplicable: true,
     warning: warnings.length > 0 ? warnings.join("; ") : undefined
   };
 }
 
 /**
- * @param {PoseBackendId} backendId
+ * @param {PoseBackendId} _backendId
  * @returns {readonly { value: string, label: string }[]}
  */
-export function getPoseProviderOptions(backendId) {
-  return backendDefinitions[backendId].providers;
+export function getPoseProviderOptions(_backendId) {
+  return mediaPipeProviderOptions;
 }
 
 /**
@@ -175,11 +120,11 @@ export function getMediaPipeTuningDefinition(tuningId) {
 }
 
 /**
- * @param {PoseBackendId} backendId
+ * @param {PoseBackendId} _backendId
  * @returns {string}
  */
-export function getPoseSourceId(backendId) {
-  return backendDefinitions[backendId].sourceId;
+export function getPoseSourceId(_backendId) {
+  return mediaPipeLiveSourceId;
 }
 
 /**
@@ -187,13 +132,11 @@ export function getPoseSourceId(backendId) {
  * @returns {boolean}
  */
 export function supportsWorkerPerformancePresets(backendId) {
-  return backendId === "movenet" || backendId === "mediapipe";
+  return backendId === "mediapipe";
 }
 
 /**
  * Requires every primitive used by the exact-presentation-time VideoFrame lane.
- * The normal scheduler can fall back without rVFC, but this preset deliberately
- * cannot because a fallback callback has no mediaTime paired with its pixels.
  *
  * @param {object} [environment]
  * @returns {boolean}
@@ -216,46 +159,29 @@ export function supportsMediaPipeVideoFrameWorkerPreset(environment = globalThis
  * @returns {{ poseAdapter: import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter, fallbackPoseAdapter: import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter, sourceId: string }}
  */
 export function createPoseBackendComposition(selection, performancePreset) {
-  const sourceId = getPoseSourceId(selection.selectedBackendId);
-  const commonOptions = { sourceId, mirrored: true };
-  let poseAdapter;
-  if (selection.selectedBackendId === "movenet") {
-    poseAdapter = performancePreset.executionPolicy === "worker-experimental"
-      ? createMoveNetWorkerPoseAdapter(commonOptions)
-      : createMoveNetPoseAdapter(commonOptions);
-  } else if (selection.selectedBackendId === "mediapipe") {
-    const tuning = getMediaPipeTuningDefinition(selection.selectedMediaPipeTuningId);
-    const mediaPipeOptions = {
-      ...commonOptions,
-      delegate: selection.selectedProviderId === "gpu-webgl"
-        ? mediaPipeDelegates.gpuWebgl
-        : mediaPipeDelegates.cpuWasm,
-      minPoseDetectionConfidence: tuning.minPoseDetectionConfidence,
-      minPosePresenceConfidence: tuning.minPosePresenceConfidence,
-      minTrackingConfidence: tuning.minTrackingConfidence
-    };
-    poseAdapter = performancePreset.executionPolicy !== "main-thread"
-      ? createMediaPipeWorkerPoseAdapter(mediaPipeOptions)
-      : createMediaPipePoseAdapter(mediaPipeOptions);
-  } else {
-    poseAdapter = createOnnxRuntimePoseAdapter({
-      ...commonOptions,
-      executionProvider: selection.selectedProviderId === "webgpu" ? "webgpu" : "wasm",
-      fallbackExecutionProvider: null,
-      modelAssetUrl: selection.onnxModelAssetUrl
-    });
-  }
+  const sourceId = mediaPipeLiveSourceId;
+  const tuning = getMediaPipeTuningDefinition(selection.selectedMediaPipeTuningId);
+  const mediaPipeOptions = {
+    sourceId,
+    mirrored: true,
+    delegate: selection.selectedProviderId === "gpu-webgl"
+      ? mediaPipeDelegates.gpuWebgl
+      : mediaPipeDelegates.cpuWasm,
+    minPoseDetectionConfidence: tuning.minPoseDetectionConfidence,
+    minPosePresenceConfidence: tuning.minPosePresenceConfidence,
+    minTrackingConfidence: tuning.minTrackingConfidence
+  };
+  const poseAdapter = performancePreset.executionPolicy !== "main-thread"
+    ? createMediaPipeWorkerPoseAdapter(mediaPipeOptions)
+    : createMediaPipePoseAdapter(mediaPipeOptions);
   return {
     poseAdapter,
-    fallbackPoseAdapter: createMoveNetMockPoseAdapter(),
+    fallbackPoseAdapter: createAeroCvMockPoseAdapter(),
     sourceId
   };
 }
 
 /**
- * Returns a URL search string synchronized with a selected backend/provider.
- * Unknown unrelated parameters are retained.
- *
  * @param {string} search
  * @param {PoseBackendId} backendId
  * @param {PoseProviderId} providerId
@@ -269,9 +195,6 @@ export function updatePoseSelectionSearch(search, backendId, providerId) {
 }
 
 /**
- * Returns a URL search string synchronized with a MediaPipe tuning selection.
- * Unknown unrelated parameters, including backend/provider, are retained.
- *
  * @param {string} search
  * @param {MediaPipeTuningId} tuningId
  * @returns {string}
@@ -295,5 +218,5 @@ export function isMediaPipeTuningId(value) {
  * @returns {value is PoseBackendId}
  */
 export function isPoseBackendId(value) {
-  return value === "movenet" || value === "mediapipe" || value === "onnxruntime";
+  return value === "mediapipe";
 }

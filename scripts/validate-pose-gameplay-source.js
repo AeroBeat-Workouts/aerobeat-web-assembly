@@ -19,15 +19,15 @@ assert.deepEqual(poseGameplaySourceOptions.map((option) => option.value), ["meas
 assert.equal(isPoseGameplaySourceId("predicted-8"), true);
 assert.equal(isPoseGameplaySourceId("invalid"), false);
 assert.equal(supportsExperimentalPoseGameplaySource("mediapipe", "full"), true);
-assert.equal(supportsExperimentalPoseGameplaySource("movenet", "full"), false);
+assert.equal(supportsExperimentalPoseGameplaySource("unsupported", "full"), false);
 assert.equal(supportsExperimentalPoseGameplaySource("mediapipe", "direct-192"), false);
 assert.equal(measuredSubmissionCadenceFps("measured"), 15);
 assert.equal(measuredSubmissionCadenceFps("measured-8"), 8);
 assert.equal(measuredSubmissionCadenceFps("predicted-8"), 8);
 
 const defaults = resolvePoseGameplaySource({
-  search: "?poseBackend=movenet",
-  backendId: "movenet",
+  search: "",
+  backendId: "mediapipe",
   performancePresetId: "full"
 });
 assert.deepEqual([defaults.requestedId, defaults.selectedId, defaults.effectiveId], ["measured", "measured", "measured"]);
@@ -43,7 +43,7 @@ assert.deepEqual([predicted.requestedId, predicted.selectedId, predicted.effecti
 
 const incompatible = resolvePoseGameplaySource({
   search: "?poseGameplaySource=predicted-8",
-  backendId: "movenet",
+  backendId: "unsupported",
   performancePresetId: "full"
 });
 assert.equal(incompatible.requestedId, "predicted-8");
