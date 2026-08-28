@@ -432,7 +432,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 3: Implement the Calibrated Athlete-Input and Tracking-Safety Service
 
 **Bead ID:** `aerobeat-web-input-esm`
-**SubAgent:** DSH coder subagent, then QA
+**SubAgent:** Coder child `95cb3414-ce5b-4692-918f-314ad03dd6cc`; QA pending
 **Role:** `coder`
 **References:** `REF-01`, `REF-02`, `REF-06`
 **Prompt:** In `aerobeat-web-input`, replace viewport bucketing with one `AeroBodyGridService` app-singleton boundary. Consume measured frames; implement approved T-pose qualification/averaging/hold/cooldown/release, calibrated geometry, camera-to-athlete conversion, 4x3 and 8x6 mapping, out-of-grid invalidity, hysteresis, four-cardinal entries, semantic and spatial Boxing evidence, checkpoint freshness, straight qualification continuity, transition history, calibration IDs, subscriptions/snapshots, and 500ms tracking-safety state. Preserve separate predicted sample truth and do not let predictions calibrate or satisfy measured prototype evidence.
@@ -446,7 +446,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Unit/replay tests cover T-pose gates, averaging, release/refire, aspect/padding, mirror/facing transforms, exact corner IDs, out-of-grid behavior, cell/subcell transitions, straight 100ms continuity, guard same-sample evidence, stale samples, tracking-loss pause events, reset/source invalidation, and no bootstrap.
 
@@ -600,7 +600,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 7B: Harden Audio Lifecycle and Lease Participation
 
 **Bead ID:** `aerobeat-web-audio-4ao`
-**SubAgent:** Coder child `f2285ded-dbb7-46f9-aa6a-e8a03fbb6fde`; browser QA pending
+**SubAgent:** Coder child `f2285ded-dbb7-46f9-aa6a-e8a03fbb6fde`; QA/auditor `0147be7c-46a8-404b-937a-59cfffdb47e0`
 **Role:** `coder`
 **References:** `REF-12`, `REF-16`, `REF-17`
 **Prompt:** In `aerobeat-web-audio`, provide reconnectable per-game Web Audio lifecycle, external audio fetch/decode failure truth, hash/CORS handoff support, hidden-page pause/resume without clock drift, lease pause/transfer/release hooks, deterministic gameplay-clock continuity, autoplay capability/error snapshots, and complete teardown. Audio owns browser audio resources; assembly owns cross-instance arbitration and gameplay owns judgement.
@@ -614,6 +614,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** In Progress
+
+**Results:** Coder commit `bcf39ef` implements a per-game `aero.audio.clock` service with URL/Blob/ArrayBuffer/object-URL/silence sources, hash and decode truth, generation-safe fetch/decode/play, deterministic AudioContext clock continuity, visibility/lease hooks and ownership-aware teardown. Coder check, 15 unit tests, Chromium tests and package dry-run pass; independent lifecycle QA is in progress.
 
 **Acceptance:** Unit/browser tests cover load/play/pause/seek, visibility pause/resume, lease transfer, autoplay rejection, CORS/decode/hash-related load failures, deterministic clock snapshots, disconnect/reconnect and no retained AudioContext/source nodes after destroy.
 
