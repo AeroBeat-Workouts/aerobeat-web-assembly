@@ -475,7 +475,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Complete
 
-**Results:** Coder content-core `f670242` and authoring `3954782` added the optional canonical prototype contract, machine definitions, deterministic four-Boxing-plus-Flow converter, traces and sanitized golden. Audit content-core `476da22` and authoring `96159f1` added external audio/difficulty hash verification, removed zero-time reach allowance, reserved full guard windows before punch optimization, and expanded modifier/composition/provenance parity. Parent reran both full Godot suites successfully; Bead closed. The authoring CLI still reports the exact pre-existing ten retained resources/ObjectDB warning at exit 0; detached pre-Task4 evidence confirms Task 4 did not introduce it.
+**Results:** Coder content-core `f670242` and authoring `3954782` added the optional canonical prototype contract, machine definitions, deterministic four-Boxing-plus-Flow converter, traces and sanitized golden. Audit content-core `476da22` and authoring `96159f1` added external audio/difficulty hash verification, removed zero-time reach allowance, reserved full guard windows before punch optimization, and expanded modifier/composition/provenance parity. Parent reran both full Godot suites successfully; Bead closed. Authoring follow-up `e593b16` documents the synchronous serialized conversion/save transaction boundary that prevented test workspace overlap. The CLI still reports the exact pre-existing ten retained resources/ObjectDB warning at exit 0; detached pre-Task4 evidence confirms Task 4 did not introduce it.
 
 **Acceptance:** Satisfied; identical source/recipe yields stable charts/hashes/traces, all four candidates plus Flow validate per difficulty, Flow regressions pass and environment semantics remain optional suggestions. traces record every emitted/dropped/relocated event and normalization; all four candidates validate; Flow regressions pass; source environment semantics are reconciled explicitly.
 
@@ -693,11 +693,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder `694e145` adds 15 reconnect-safe named presenters and one scalar-only composed intent event for BeatSaver, conversion/library, calibration, renderer surface, Flow/Track/Spatial HUDs, tracking/countdown, environment, fullscreen, capabilities/errors and five profile choices. Parent baseline gates pass. Accessibility QA found missing roving radio keys, incorrect active-fullscreen/delete/import intents, absent tracking-dialog focus management, calibration rerenders severing preview/render attachments, landscape overflow, low Track contrast and unbounded storage telemetry. QA is implementing stateful accessibility/lifecycle fixes, deep safe snapshot narrowing and multi-viewport regressions.
+**Results:** Coder `694e145` added 15 named reconnect-safe presenters and scalar-only intents. Accessibility/browser audit `63e4f6b` added roving profile radio keys, confirmed deletion, enter/exit fullscreen and exact import IDs, tracking dialog focus restore, stable preview/render nodes, deep bounded snapshot narrowing, safe storage telemetry, AA Track colors and portrait/landscape wrapping. Parent check/test/browser/pack pass; closure `e4b3571`.
 
-**Acceptance:** Named-component rules pass; desktop/390px states cover BeatSaver loading/results/empty/detail/version/import/converting/cancel/error/library/quota/delete, calibration waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
+**Acceptance:** Satisfied; named component, desktop/390px/landscape, accessibility, all authoring/calibration/game/profile states and no shadow-root integration dependency are covered./results/empty/detail/version/import/converting/cancel/error/library/quota/delete, calibration waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
 
 ---
 
