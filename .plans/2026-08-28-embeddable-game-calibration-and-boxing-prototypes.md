@@ -471,6 +471,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
+**Results:** Debug checkpoint: converter now emits the intended four Boxing variants plus Flow and content-core validation passes, but six legacy tests still assert the retired single-Boxing/two-chart shape. Coder is replacing those assertions with matrix/determinism coverage and correcting chart-derived set IDs plus actual BPM/recipe propagation for guards; no compatibility chart will be retained.
+
 **Acceptance:** Godot contract/tool suites pass; identical source+recipe produces byte-identical charts and hashes; traces record every emitted/dropped/relocated event and normalization; all four candidates validate; Flow regressions pass; source environment semantics are reconciled explicitly.
 
 ---
