@@ -576,7 +576,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 7: Harden Media Lifecycle, External Sources, and Instance Leasing
 
 **Bead ID:** `aerobeat-web-video-335`
-**SubAgent:** Coder child `7c04d987-0449-467f-b39f-c7d8b32287d0`; browser QA pending
+**SubAgent:** Coder child `7c04d987-0449-467f-b39f-c7d8b32287d0` failed after pushing `f96ab57`; QA/recovery `2b165325-ec53-47e1-ad65-96f101e911be`
 **Role:** `coder`
 **References:** `REF-09`, `REF-16`, `REF-17`
 **Prompt:** In `aerobeat-web-video`, provide reconnectable per-instance media lifecycle, injected-stream support for direct embeds, late-permission generation/abort cleanup, CORS-aware external media descriptors, background-only versus sampled-media capability truth, synchronous teardown, hidden-page pause support, and the public media-lease seam needed for one active camera/audio owner. Do not move CV or assembly policy into video.
@@ -590,6 +590,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** In Progress
+
+**Results:** Coder child failed during reporting but left clean pushed commit `f96ab57`; parent reran check/test/browser successfully and confirmed the reconnectable facade, ownership, visibility, lease, CORS/readability and teardown surfaces. Independent lifecycle QA is auditing the commit before closure.
 
 **Acceptance:** Unit/browser tests cover request/injection, transfer, disconnect/reconnect, late permission resolution, track stopping, hidden visibility, external CORS capabilities, fallback behavior, and no retained streams after destroy.
 
