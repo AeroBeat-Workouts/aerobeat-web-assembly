@@ -591,7 +591,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Coder child failed during reporting but left clean pushed commit `f96ab57`; parent reran check/test/browser successfully and confirmed the reconnectable facade, ownership, visibility, lease, CORS/readability and teardown surfaces. Independent lifecycle QA is auditing the commit before closure.
+**Results:** Coder child failed during reporting but left clean pushed commit `f96ab57`; parent reran check/test/browser successfully. Adversarial QA then found incomplete cross-kind/element cleanup and pending-play invalidation: Blob-to-camera leaked its owned URL, owned-camera-to-video retained tracks, old elements retained `srcObject`, and late `play()` could override pause/visibility/lease/source replacement. QA is centralizing transition cleanup/invalidation and adding the full ownership/race matrix before closure.
 
 **Acceptance:** Unit/browser tests cover request/injection, transfer, disconnect/reconnect, late permission resolution, track stopping, hidden visibility, external CORS capabilities, fallback behavior, and no retained streams after destroy.
 
