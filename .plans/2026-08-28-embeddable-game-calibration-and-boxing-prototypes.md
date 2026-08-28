@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28
 **Status:** Draft
-**Last Updated:** 2026-08-28 17:07 EDT
+**Last Updated:** 2026-08-28 17:26 EDT
 **Blocked Reason:** None
 **Agent:** cookie
 
@@ -163,6 +163,10 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 | `REF-16` | Camera secure-context and iframe behavior | `https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia` |
 | `REF-17` | Permissions Policy behavior | `https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Permissions_Policy` |
 | `REF-18` | Cross-origin iframe messaging | `https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage` |
+| `REF-19` | Canonical candidate gameplay silhouettes | `/home/derrick/.dsh/projects/aerobeat/aerobeat-branding/icons/` |
+| `REF-20` | Prior playable runner decisions and physical-playtest gate | `/home/derrick/.dsh/projects/aerobeat/aerobeat-gameplay-runner/.plans/2026-08-02-playable-flow-boxing-testbeds.md` |
+| `REF-21` | Approved BeatSaver regression pool | `/home/derrick/.dsh/projects/aerobeat/aerobeat-content-core/fixtures/beatsaver_regression_pool/README.md` |
+| `REF-22` | Prior runner-curated BeatSaver subset and limitations | `/home/derrick/.dsh/projects/aerobeat/aerobeat-gameplay-runner/.plans/archive/2026-08-10-testbed-song-environment-assets.md` |
 
 ---
 
@@ -178,19 +182,130 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 ## Execution and Approval Boundaries
 
 - This plan is not approved for implementation until Derrick reviews it.
-- Creating/publishing the currently missing `aerobeat-web-content` and `aerobeat-web-gameplay` repositories is an external GitHub action. Execution must confirm explicit authorization and destination ownership before creating remotes.
+- Derrick authorized creation/publication of `aerobeat-web-content` and `aerobeat-web-gameplay` under the existing `AeroBeat-Workouts` GitHub organization on 2026-08-28. This authorization does not by itself approve the implementation plan.
 - Every repository stays on its current branch unless Derrick directs otherwise.
 - Every coder task gets independent QA and final audit evidence. Browser-visible tasks require desktop Chromium and Android secure-context proof where applicable.
 - Any discovered change to an approved contract returns to Derrick before implementation silently widens scope.
 
 ---
 
+## Repository Inventory
+
+### Repositories created
+
+| Repository | Purpose |
+| --- | --- |
+| `aerobeat-web-content` | Browser song-package loading, hashes, asset/CORS policy, immutable variants, modifiers, lineage, and paused future-target swaps. |
+| `aerobeat-web-gameplay` | Browser gameplay-session coordination, Flow/Boxing judgement, scoring diagnostics, calibration/pause/countdown safety, and local prototype score identity. |
+
+### Existing repositories modified
+
+| Repository | Planned changes |
+| --- | --- |
+| `aerobeat-web-assembly` | Replace SPA root with `aero-game`; compose services; direct/iframe APIs; fullscreen; lease coordination; prototype integration and release proof. |
+| `aerobeat-web-contracts` | Coordinate/calibration/session/content/theme/embed/message shapes, IDs, names, validators, and decision records. |
+| `aerobeat-web-input` | `AeroBodyGridService`, calibrated 4x3/8x6 input, semantic/spatial evidence, tracking-loss safety. |
+| `aerobeat-web-video` | Reconnectable media lifecycle, stream injection, visibility behavior, CORS capability truth, teardown and lease participation. |
+| `aerobeat-web-audio` | Per-game Web Audio lifecycle, lease participation, external audio failure truth, visibility pause/resume, deterministic clock continuity and teardown. |
+| `aerobeat-web-renderer` | Per-game WebGL renderer, shared playfield, Track lanes, role visuals, exact-container/DPR behavior, animation and disposal. |
+| `aerobeat-web-style` | Serializable theme defaults and CSS custom properties for playfield, roles, environments and feedback. |
+| `aerobeat-web-ui` | Named `aero-*` calibration/gameplay/pause/countdown/selector/fullscreen/status components. |
+| `aerobeat-content-core` | Durable Boxing spatial target, variant, recipe, modifier, suggestion, lineage and hash contracts. |
+| `aerobeat-tool-content-authoring` | Both BeatSaver recipe implementations, optimizer/reach/relocation, traces and four candidate emissions through `AeroContentAuthoring`. |
+| `aerobeat-branding` | After rights confirmation, gameplay icon provenance plus normalized web-ready SVG masters, including connected standard/crossed guards. |
+
+### Reference or fixture sources; no planned production edits
+
+- `aerobeat-input-core`
+- `aerobeat-input-camera-tracking`
+- `aerobeat-gameplay-runner`
+- `aerobeat-web-cv`
+- `aerobeat-web-vendor-mediapipe`
+- `aerobeat-vendor-beatsaver`
+- `aerobeat-environment-community`
+- `aerobeat-environment-loader`
+
+If implementation proves that one of these owners lacks a required public contract, the orchestrator must add a plan amendment and Bead rather than make an unrecorded cross-repo edit.
+
+---
+
+## Service and Singleton Inventory
+
+### One process-wide singleton
+
+- **New `AeroGameMediaLeaseCoordinator` in `aerobeat-web-assembly`:** arbitrates the single active camera/audio owner across multiple `aero-game` instances. It owns policy only; video/audio services still own their browser resources. Lease transfer pauses the prior owner before activating the next.
+
+### One instance of each service per connected `aero-game`
+
+- **New `AeroBodyGridService`** (`aerobeat-web-input`): calibration, athlete-grid geometry/evidence, tracking safety and immutable snapshots.
+- **New `AeroContentRuntime`** (`aerobeat-web-content`): loaded package/variant/asset state and immutable content snapshots.
+- **New `AeroGameplaySessionCoordinator`** (`aerobeat-web-gameplay`): clocked session state, pause/recalibration/countdown, judgement and local prototype telemetry.
+- **New `AeroPrototypeProfileRegistry`** (`aerobeat-web-gameplay`): named/versioned ruleset profiles, import/export/reset and regeneration-required metadata; it does not own visual token implementation or converter execution.
+- **Existing browser video facade**, instantiated per game and extended by Task 7.
+- **Existing CV service/locked MediaPipe adapter**, instantiated per game without changing provider/model defaults.
+- **Existing pose input router**, instantiated per game and connected to the new body-grid service.
+- **Existing Web Audio service**, instantiated per game and extended by Task 7B.
+- **Existing WebGL renderer factory**, instantiated per game and extended by Task 8. The process-global `getAeroWebGl2RendererSingleton()` path is removed rather than used by embeddable games.
+- **New per-instance iframe bridge adapter** in assembly only when framed; it is not global and binds to the immediate parent window/origin.
+- **New per-instance theme/environment resolver** in assembly; it applies default < playlist < song suggestion < athlete override precedence and delegates drawing/loading to owners.
+
+### Existing Godot singleton modified
+
+- **`AeroContentAuthoring`** remains the single public Godot authoring authority and gains versioned recipe selection/provenance entrypoints that delegate to conversion services. No second converter singleton is introduced.
+
+`aero-game` itself is a reconnectable custom element class with many legal instances, not a singleton. UI components remain presenters, not services.
+
+---
+
+## Prototype Assets and Inputs
+
+### Required BeatSaver sources
+
+- Use the prior gameplay-runner regression pool rather than synthetic-only web charts.
+- Fetch/stage full BeatSaver map sources through `aerobeat-vendor-beatsaver`; do not commit raw downloaded audio/map archives unless their license and repository policy explicitly allow it.
+- **Primary real playable comparison track:** `4858`, Papercut by Linkin Park, approved Expert baseline. A full local BeatSaver ZIP/manifest, source DATs, audio, cover, conversion report, and prior Boxing/Flow outputs already exist under `aerobeat-vendor-beatsaver/.testbed/.artifacts/`. Reconvert the Expert source through both recipes and both adapters; use ExpertPlus only as an incidental dense-note stress case.
+- **Secondary real playable comparison track:** `3d44b` / manifest key `3D44B`, Game Grumps - Forklift Simulator (Sbassbear Remix). A full local ZIP/manifest/source/audio/cover also exists. The archived source does not contain the approved Normal difficulty, so use its Hard source for physical comparison and retain the tiny Normal YAML fixture only for deterministic guard unit tests.
+- **Additional acquisition targets from the prior runner subset:** `29be2` ExpertPlus for upper-end Flow/converter stress and `47fb6` Normal for simple/mobile correctness. Their committed fixtures are three-event synthetic slices without audio; fetch full sources before claiming playable proof.
+- Keep `226e` Expert as the previous runner-curated mid-level semantic fixture and acquisition fallback, but do not treat its YAML-only copy as playable.
+- Preserve the broader approved regression pool for contract/regression coverage: `349f2`, `2b4e6`, `304ea`, `48727`, `48088`, `48792`, `472d3`, `2f3d7`, and `19e5e` in addition to the keys above.
+- Minimum physical handoff requires two real audio-backed BeatSaver tracks (`4858` Expert and `3d44b` Hard), with all four Semantic/Spatial x Row/Cut combinations generated from the same source events. YAML-only regression fixtures are accepted for unit/visual determinism only.
+- If a source key is removed/unavailable and no approved local archive exists, record the failed acquisition and ask Derrick before substituting a different song.
+
+### Gameplay icon set
+
+The web prototype can begin by normalizing AeroBeat's existing Godot testbed silhouettes if Derrick confirms they are AeroBeat-owned/licensed for reuse. Desired source format is monochrome SVG with `viewBox="0 0 64 64"`, no embedded raster/font, no fixed pixel size, and paths using `currentColor` (or cleanly convertible fills). Left/right forms are mirrored at runtime when the silhouette remains readable.
+
+Needed semantic silhouettes:
+
+1. straight punch;
+2. hook;
+3. uppercut;
+4. standard two-hand guard;
+5. crossed guard (distinct from standard guard);
+6. squat;
+7. weave (mirrored for left/right);
+8. T-pose calibration;
+9. optional neutral glove/receptor mark.
+
+Canonical candidate references cover straight/hook/uppercut/guard/squat/weave/T-pose/glove under `aerobeat-branding/icons/`; `aerobeat-input-camera-tracking/.testbed/assets/icons/` contains proving copies only. Crossed guard is the known missing custom silhouette. The canonical SVGs contain hard-coded fills, editor/generated metadata, inconsistent viewBoxes, and no asset-specific provenance. Derrick must either confirm those files are AeroBeat-owned/licensed for web redistribution or provide replacement masters before they can ship. Internal comparison may use normalized temporary derivatives marked non-production.
+
+For production-ready masters, keep explicit left/right punch files for optical QA even where geometry begins as a mirror. Connected guards use `viewBox="0 0 48 24"`; other semantic silhouettes use `viewBox="0 0 64 64"`. Add source/author/license fields to a branding asset provenance ledger. Do not promote files from `inspiration/`, `.temp/`, installed dependencies, or testbed copies.
+
+### Assets not required from Derrick for prototype execution
+
+- Flow arrows/direction chevrons, approach rings, receptors, cells, guard connectors, obstacle hatching, hit/miss particles, countdown numerals, pause/fullscreen glyphs, and debug grid geometry are generated as CSS/WebGL/inline-component primitives.
+- The legally safest default prototype environment is the current CSS gradient. Existing Perfect Hue and environment-community media may be used only for internal/noncommercial proving until per-asset rights are confirmed; `aerobeat-environment-community` is CC BY-NC 4.0 and is not a commercial-release source by default.
+- System fonts are sufficient for the prototype; do not fetch a web font. A later bundled font must include its license/attribution.
+- Hit/miss/countdown SFX are optional polish; the prototype does not block on them. The current runner `hit_sfx.wav` is explicitly a dummy with undocumented source. If supplied later, prefer original/cleared mono 48kHz WAV masters, 60-120ms for hit transients, plus source/license metadata; package browser derivatives only after approval.
+
+---
+
 ## Dependency and Parallelism Order
 
 1. **Contract/root setup:** Task 1 establishes public shapes; Task 2 establishes the two missing package owners after external-action authorization.
-2. **Parallel domain foundations:** Tasks 3, 4, 7, 8, and 9 may proceed in parallel after the relevant Task 1 exports are accepted, with Task 9 consuming accepted style/renderer seams rather than sibling internals.
+2. **Parallel domain foundations:** Tasks 3, 4, 7, 7B, 8, 8B, and 9 may proceed in parallel after the relevant Task 1 exports are accepted; Task 8B additionally waits for Derrick's asset-rights/source decision, and Task 9 consumes accepted branding/style/renderer seams rather than sibling internals.
 3. **New runtime domains:** Tasks 5 and 6 follow Task 2 and consume the accepted contract/content/input/audio boundaries.
-4. **Assembly integration:** Task 10 begins only after Tasks 3, 5, 6, 7, 8, and 9 have public validated surfaces.
+4. **Assembly integration:** Task 10 begins only after Tasks 3, 5, 6, 7, 7B, 8, 8B, and 9 have public validated surfaces.
 5. **Prototype proof:** Task 11 follows integrated assembly; Task 12 independently verifies; Task 13 audits and hands off.
 6. Any cross-repo contract mismatch discovered downstream returns to the owning contract Bead rather than being patched locally.
 
@@ -357,6 +472,28 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 
 ---
 
+### Task 7B: Harden Audio Lifecycle and Lease Participation
+
+**Bead ID:** `aerobeat-web-audio-4ao`
+**SubAgent:** DSH coder subagent, then browser QA
+**Role:** `coder`
+**References:** `REF-12`, `REF-16`, `REF-17`
+**Prompt:** In `aerobeat-web-audio`, provide reconnectable per-game Web Audio lifecycle, external audio fetch/decode failure truth, hash/CORS handoff support, hidden-page pause/resume without clock drift, lease pause/transfer/release hooks, deterministic gameplay-clock continuity, autoplay capability/error snapshots, and complete teardown. Audio owns browser audio resources; assembly owns cross-instance arbitration and gameplay owns judgement.
+
+**Folders Created/Deleted/Modified:**
+- `aerobeat-web-audio/src/`
+- `aerobeat-web-audio/scripts/`
+- `aerobeat-web-audio/docs/decisions/`
+
+**Files Created/Deleted/Modified:**
+- Exact files determined during implementation.
+
+**Status:** Pending
+
+**Acceptance:** Unit/browser tests cover load/play/pause/seek, visibility pause/resume, lease transfer, autoplay rejection, CORS/decode/hash-related load failures, deterministic clock snapshots, disconnect/reconnect and no retained AudioContext/source nodes after destroy.
+
+---
+
 ### Task 8: Build the Shared Full-Container Gameplay Renderer and Tuning Surface
 
 **Bead ID:** `aerobeat-web-renderer-mm2`
@@ -378,6 +515,28 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 **Status:** Pending
 
 **Acceptance:** Browser tests cover arbitrary container aspect/size, DPR caps, resize/fullscreen redraw, exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
+
+---
+
+### Task 8B: Normalize and Document Gameplay Icon Masters
+
+**Bead ID:** `aerobeat-branding-0qw`
+**SubAgent:** DSH coder subagent, then visual/licensing audit
+**Role:** `coder`
+**References:** `REF-19`
+**Prompt:** Only after Derrick confirms ownership/redistribution rights or supplies replacement sources, update `aerobeat-branding` with an asset provenance ledger and normalized web masters. Produce explicit left/right straight, hook and uppercut SVGs at `0 0 64 64`; T-pose/squat/weave/optional glove masters at `0 0 64 64`; and connected standard/crossed guards at `0 0 48 24`. Use `currentColor`, optical safe areas, no raster/font/external refs/editor namespaces/generated IDs, and deterministic validation/export. Do not promote inspiration, testbed, generated or third-party dependency art.
+
+**Folders Created/Deleted/Modified:**
+- `aerobeat-branding/icons/`
+- `aerobeat-branding/docs/`
+- `aerobeat-branding/scripts/`
+
+**Files Created/Deleted/Modified:**
+- Exact files determined after the rights/source decision.
+
+**Status:** Pending
+
+**Acceptance:** Every shipped icon has recorded source/author/license/derivation, normalized dimensions and currentColor behavior; monochrome QA distinguishes family/hand/standard-vs-crossed guard; deterministic SVG validation passes; web packages consume approved exports rather than testbed copies.
 
 ---
 
@@ -499,6 +658,8 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 | Content | Package/hash/CORS/variant/lineage tests |
 | Gameplay | Deterministic clock/scoring/pause/countdown/ruleset tests |
 | Video | Browser media lifecycle, stream injection/teardown, CORS capability tests |
+| Audio | Web Audio lifecycle, autoplay/CORS/decode failure, clock continuity, visibility, lease and teardown tests |
+| Branding | SVG normalization/currentColor, semantic/monochrome visual distinction, provenance/license audit |
 | Renderer/Style | Browser visual geometry, DPR/resize, animation clock, theme/token tests |
 | UI | Named-component, accessibility, narrow-layout, representative-state browser tests |
 | Assembly | Unit, Playwright direct embed, Playwright cross-origin iframe, release proof |
