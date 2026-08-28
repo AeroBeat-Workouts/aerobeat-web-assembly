@@ -643,11 +643,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Renderer `51af7e2` removes the global singleton and adds per-game WebGL2 instances, exact-container/DPR layout, deterministic Flow/Track/Spatial plans, alpha-mask branding atlas, theme/tuning telemetry, context recovery and teardown. Style `5688b35` adds generic visual-role tokens only. Parent baseline gates pass. Visual QA found vertically inverted atlas rows (including missing crossed guard), non-aspect-fitted 4x3 grids in portrait/wide layouts, ignored easing tokens, silently accepted invalid theme/atlas data, and tuning mutation after destroy without regeneration truth. QA is correcting these in renderer with multi-size Chromium regressions; style tokens remain generic and pass.
+**Results:** Renderer `51af7e2` removed the singleton and added per-game Flow/Track/Spatial WebGL2 plans, exact-container/DPR, branding atlas, theme/tuning, recovery and teardown; style `5688b35` added generic role tokens. Visual audit `ca32a95` fixed atlas inversion, physical 4:3/square-cell fitting, Track icon aspect, easing, strict theme/atlas/tuning validation, regeneration/live truth, terminal guards and abortable rasterization. Parent check/test/browser/pack pass and inspected desktop, 390px, landscape and Flow evidence. Closure `42e79fa`.
 
-**Acceptance:** Browser tests cover arbitrary container aspect/size, DPR caps, resize/fullscreen redraw, exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
+**Acceptance:** Satisfied; arbitrary containers/DPR, placement/distinction/animation/theme/tuning, no camera coupling and clean WebGL disposal are covered., exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
 
 ---
 
