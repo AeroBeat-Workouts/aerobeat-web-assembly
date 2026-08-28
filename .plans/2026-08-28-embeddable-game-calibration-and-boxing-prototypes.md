@@ -628,7 +628,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 8: Build the Shared Full-Container Gameplay Renderer and Tuning Surface
 
 **Bead ID:** `aerobeat-web-renderer-mm2`
-**SubAgent:** Coder child `55a84241-26e6-48c1-8226-0665899d2163`; visual QA pending
+**SubAgent:** Coder child `55a84241-26e6-48c1-8226-0665899d2163`; visual QA/auditor `584e80e5-8fc4-4341-a6cf-2a821b5e3d0a`
 **Role:** `coder`
 **References:** `REF-03`, `REF-10`, `REF-11`
 **Prompt:** In `aerobeat-web-renderer` and `aerobeat-web-style`, implement per-instance full-container/DPR-aware render surfaces, shared 4x3 playfield primitives, Flow and Spatial Boxing targets, connected/crossed guards, obstacle regions, Track Boxing lanes, role icons/patterns, approach scale/color/ring animation, hit/miss feedback, exact normalized layout, theme-token ingestion, and live visual tuning presets. Keep gameplay judgement outside the renderer and keep theme defaults/overrides versioned.
@@ -644,6 +644,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** In Progress
+
+**Results:** Renderer `51af7e2` removes the global singleton and adds per-game WebGL2 instances, exact-container/DPR layout, deterministic Flow/Track/Spatial plans, alpha-mask branding atlas, theme/tuning telemetry, context recovery and teardown. Style `5688b35` adds generic visual-role tokens only. Parent checks/tests/browser/pack pass and inspected Chromium evidence; independent multi-size visual/lifecycle QA is in progress.
 
 **Acceptance:** Browser tests cover arbitrary container aspect/size, DPR caps, resize/fullscreen redraw, exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
 
