@@ -572,7 +572,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 7: Harden Media Lifecycle, External Sources, and Instance Leasing
 
 **Bead ID:** `aerobeat-web-video-335`
-**SubAgent:** DSH coder subagent, then browser QA
+**SubAgent:** Coder child `7c04d987-0449-467f-b39f-c7d8b32287d0`; browser QA pending
 **Role:** `coder`
 **References:** `REF-09`, `REF-16`, `REF-17`
 **Prompt:** In `aerobeat-web-video`, provide reconnectable per-instance media lifecycle, injected-stream support for direct embeds, late-permission generation/abort cleanup, CORS-aware external media descriptors, background-only versus sampled-media capability truth, synchronous teardown, hidden-page pause support, and the public media-lease seam needed for one active camera/audio owner. Do not move CV or assembly policy into video.
@@ -585,7 +585,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Unit/browser tests cover request/injection, transfer, disconnect/reconnect, late permission resolution, track stopping, hidden visibility, external CORS capabilities, fallback behavior, and no retained streams after destroy.
 
@@ -594,7 +594,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 7B: Harden Audio Lifecycle and Lease Participation
 
 **Bead ID:** `aerobeat-web-audio-4ao`
-**SubAgent:** DSH coder subagent, then browser QA
+**SubAgent:** Coder child `f2285ded-dbb7-46f9-aa6a-e8a03fbb6fde`; browser QA pending
 **Role:** `coder`
 **References:** `REF-12`, `REF-16`, `REF-17`
 **Prompt:** In `aerobeat-web-audio`, provide reconnectable per-game Web Audio lifecycle, external audio fetch/decode failure truth, hash/CORS handoff support, hidden-page pause/resume without clock drift, lease pause/transfer/release hooks, deterministic gameplay-clock continuity, autoplay capability/error snapshots, and complete teardown. Audio owns browser audio resources; assembly owns cross-instance arbitration and gameplay owns judgement.
@@ -607,7 +607,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Unit/browser tests cover load/play/pause/seek, visibility pause/resume, lease transfer, autoplay rejection, CORS/decode/hash-related load failures, deterministic clock snapshots, disconnect/reconnect and no retained AudioContext/source nodes after destroy.
 
