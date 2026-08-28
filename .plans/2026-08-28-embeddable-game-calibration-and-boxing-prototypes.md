@@ -384,7 +384,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 2: Establish Missing Web Content and Gameplay Package Owners
 
 **Bead ID:** `aerobeat-web-assembly-48w.1`
-**SubAgent:** Coder children `bf60639b-4e1b-4c2b-b276-802d8052585b`, `0c8adc01-4b36-44ca-b3ed-ef7207903b1b`; auditor pending
+**SubAgent:** Coder children `bf60639b-4e1b-4c2b-b276-802d8052585b`, `0c8adc01-4b36-44ca-b3ed-ef7207903b1b`; auditor `369e88c5-57c6-40db-a2b7-7ea36567a9c7`
 **Role:** `coder`
 **References:** `REF-05`, `REF-08`, `REF-12`, `REF-13`
 **Prompt:** After explicit external-action authorization, establish canonical `aerobeat-web-content` and `aerobeat-web-gameplay` package repositories using existing AeroBeat web package conventions. Give each strict JSDoc/public-import/component/console validation posture, README ownership boundaries, testbed shape, package exports, Beads, and remote/push verification. Do not put content loading or gameplay session logic in assembly as a shortcut.
@@ -396,18 +396,18 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - New repository scaffolds and validation files.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Authorized public GitHub repositories were created and cloned over SSH on 2026-08-28. Independent coder children are establishing package boundaries, validation and repo-local Beads.
+**Results:** Created public SSH-tracked `aerobeat-web-content` and `aerobeat-web-gameplay` repositories with package boundaries, public exports, strict validation, deterministic testbeds, docs and repo-local Beads. Independent audit ran check/test/browser/pack in both, repaired package allowlists, aligned content to canonical `aero.content.library`, and verified clean pushed `main`. Key commits: content `131eab1`, `2849e5d`, `ad4a73a`, `08430ef`; gameplay `468ff43`, `8309219`. Future implementation Beads are `aerobeat-web-content-gzp` and `aerobeat-web-gameplay-acv`.
 
-**Acceptance:** Both repos exist locally and remotely with clean `main...origin/main`, public package exports, passing scaffold validation, and accepted ownership docs.
+**Acceptance:** Satisfied; both repos exist locally/remotely with clean `main...origin/main`, narrow public package exports, passing validation and accepted ownership docs.
 
 ---
 
 ### Task 2B: Establish Web BeatSaver Vendor and Content-Authoring Package Owners
 
 **Bead ID:** `aerobeat-web-assembly-48w.8`
-**SubAgent:** Coder children `6f1ec822-4043-4ecb-8ce5-2057863df357`, `4d5a4171-6b93-4875-a84b-8cd1dc99b7f7`; auditor pending
+**SubAgent:** Coder children `6f1ec822-4043-4ecb-8ce5-2057863df357`, recovery `06baa3ca-2019-40f4-9019-85a29d2e7cdc`; auditor `369e88c5-57c6-40db-a2b7-7ea36567a9c7`
 **Role:** `coder`
 **References:** `REF-05`, `REF-13`, `REF-14`, `REF-23`, `REF-24`
 **Prompt:** Create and publish `aerobeat-web-vendor-beatsaver` and `aerobeat-web-content-authoring` under the authorized `AeroBeat-Workouts` organization using existing AeroBeat web package conventions. Give each strict JSDoc/public-import/console validation, README ownership boundaries, fixtures/testbed shape, package exports, Beads, decision docs and clean remote tracking. Vendor owns provider acquisition/inspection only; content-authoring owns provider-neutral conversion/persistence/export only.
@@ -419,11 +419,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - New repository scaffolds and validation files.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Authorized public GitHub repositories were created and cloned over SSH on 2026-08-28. Independent coder children are establishing package boundaries, validation and repo-local Beads.
+**Results:** Created public SSH-tracked `aerobeat-web-vendor-beatsaver` and `aerobeat-web-content-authoring` repositories with explicit provider-versus-conversion boundaries, exports, strict validation, deterministic metadata-only fixtures/testbeds, docs and repo-local Beads. Independent audit ran check/test/browser/pack, repaired authoring package allowlist, verified no community media/provider-native implementation in foundations, and verified pushed foundation snapshots. Key commits: vendor `9eff0ea`; authoring `16277cd`, `a353818`. Successor implementation Beads are `aerobeat-web-vendor-beatsaver-4wk` and `aerobeat-web-content-authoring-pbk`; active Task 4B intentionally owns the vendor worktree after foundation completion.
 
-**Acceptance:** Both repos exist locally and remotely with clean `main...origin/main`, correct public boundaries, Beads, passing scaffold validation and no copied Godot/vendor-native runtime implementation.
+**Acceptance:** Satisfied against pushed foundation snapshots; both repos exist locally/remotely with correct boundaries, Beads, narrow packages and passing validation. Current vendor dirt belongs to successor Task 4B, not foundation drift.
 
 ---
 
