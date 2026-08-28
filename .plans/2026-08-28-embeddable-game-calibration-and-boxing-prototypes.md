@@ -482,7 +482,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 4B: Implement Browser BeatSaver Vendor Acquisition
 
 **Bead ID:** `aerobeat-web-assembly-48w.9`; repo Bead `aerobeat-web-vendor-beatsaver-4wk`
-**SubAgent:** Coder child `22b38c9c-65b8-4e65-b500-ae250056c323`; browser/security QA pending
+**SubAgent:** Coder child `22b38c9c-65b8-4e65-b500-ae250056c323`; security auditor `d0aefeb8-87d6-4bde-9888-4f462e7a258a`
 **Role:** `coder`
 **References:** `REF-05`, `REF-23`, `REF-24`
 **Prompt:** In `aerobeat-web-vendor-beatsaver`, implement an injected-transport facade for search/latest/detail-by-id/detail-by-hash, explicit version/difficulty discovery, selected-version download, local `File`/ZIP intake, SHA-1 verification, safe archive inspection and normalized source-material manifests. Support direct CORS, configured proxy transport and fake fixtures; AbortSignal, progress, bounded retries, 429/Retry-After, timeouts and truthful errors. Defend against traversal, duplicates, symlinks, encrypted entries and archive bombs. Keep provider DTOs/raw bytes private and do not own conversion, persistence policy, UI or gameplay.
@@ -497,9 +497,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Acceptance:** Unit/browser tests cover current API fixtures, search/detail/hash/version selection, CORS download and local ZIP paths, provider-hash verification, cancellation/progress, 404/429/timeout/offline/CORS errors, malicious archives and normalized v2/v3/v4 manifests without leaking raw provider objects.
+**Results:** Coder `938c6f5` implemented search/latest/detail-by-ID/hash, explicit version/difficulty selection, direct/injected/proxy transport, local intake, BeatSaver content SHA-1, normalized v2/v3/v4 bundles and initial ZIP defenses. Security audit `05afbb4` added package-owned timeout races, credential-free HTTPS/final-redirect validation, strict runtime narrowing, central/local ZIP equivalence, descriptor/range/CRC checks, Unicode/control/backslash aliases, special-mode rejection and bounded per-entry streaming inflate before exposure. Parent check/test/browser/pack pass. Real uncommitted `4858` and `3d44b` archives match provider hashes/difficulties and live API/CDN CORS remains `*`. Closure commits: vendor `68de60b`, assembly `23bc56d`.
+
+**Acceptance:** Satisfied; arbitrary compatible maps are supported without an allowlist and provider DTOs, raw ZIPs and unbounded archive objects do not escape the vendor seam.
 
 ---
 
