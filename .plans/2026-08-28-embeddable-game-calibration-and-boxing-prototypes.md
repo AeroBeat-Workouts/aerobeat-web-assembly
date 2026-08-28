@@ -446,11 +446,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder `2aae8f7` implements per-game measured-only T-pose calibration, session geometry, exact athlete 4x3/8x6 mapping, source invalidation, dim retention, hysteretic entries, semantic/spatial evidence, straight continuity and 500ms tracking safety. Parent baseline gates pass. Adversarial QA found that sparse two-frame holds bypassed the 500ms no-frame threshold, rollback timestamps could publish stale evidence, malformed/duplicate landmarks escaped validation, invalidation retained valid anchors/history, and throwing subscribers aborted publication. QA is adding measured-sample/gap/duplicate validation, inferred loss before late samples, complete invalidation cleanup, isolated listeners and boundary regressions.
+**Results:** Coder `2aae8f7` implemented measured-only calibration, exact athlete grids, source invalidation, dim retention, entries, Boxing evidence and tracking safety. Adversarial QA `ff5e094` fixed sparse-gap calibration, rollback/duplicate frames, malformed/duplicate landmarks, invalidation cleanup, listener isolation and cardinal ties; `b1acd7c` covered independent semantic/spatial straight continuity and `5218647` covered multi-instance isolation. Parent check/test/browser/pack pass; closure `9ddeb15`.
 
-**Acceptance:** Unit/replay tests cover T-pose gates, averaging, release/refire, aspect/padding, mirror/facing transforms, exact corner IDs, out-of-grid behavior, cell/subcell transitions, straight 100ms continuity, guard same-sample evidence, stale samples, tracking-loss pause events, reset/source invalidation, and no bootstrap.
+**Acceptance:** Satisfied; replay/browser tests cover all calibration gates, geometry/coordinate edges, source changes, prediction isolation, evidence freshness/continuity, 500ms loss, lifecycle and no bootstrap., aspect/padding, mirror/facing transforms, exact corner IDs, out-of-grid behavior, cell/subcell transitions, straight 100ms continuity, guard same-sample evidence, stale samples, tracking-loss pause events, reset/source invalidation, and no bootstrap.
 
 ---
 
