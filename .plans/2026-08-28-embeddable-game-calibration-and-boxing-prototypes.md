@@ -536,7 +536,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 5: Implement Web Content Loading, Asset Policy, and Variant Resolution
 
 **Bead ID:** `aerobeat-web-assembly-48w.2`
-**SubAgent:** DSH coder subagent, then QA
+**SubAgent:** Coder child `6137d37d-e34e-411a-9230-bd82a718d80a`; QA pending
 **Role:** `coder`
 **References:** `REF-05`, `REF-09`, `REF-12`, `REF-13`, `REF-23`
 **Prompt:** In the new `aerobeat-web-content`, validate/load packaged, externally hosted and locally authored song packages; resolve IndexedDB package handles without importing authoring internals; enforce chart/audio hashes, recipe/ruleset capabilities, theme suggestions, external asset descriptors, CORS/readability policy, fallback backgrounds, map lineage, modifier combinations, and pause-time future-target variant swaps. Preserve past/judged event truth and expose immutable snapshots. Do not own acquisition, conversion, persistence implementation, playback, scoring, rendering, or camera logic.
@@ -550,7 +550,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Tests cover hashes, arbitrary URLs, external-audio CORS rejection, cosmetic fallback, packaged and locally authored handles, persistence reload/delete invalidation, modifier composition, stable lineage, immediate paused-position future swaps, active-event preservation, and unranked composite provenance.
 
