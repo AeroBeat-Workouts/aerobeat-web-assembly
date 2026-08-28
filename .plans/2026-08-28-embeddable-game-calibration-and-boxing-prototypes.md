@@ -473,11 +473,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder commits content-core `f670242` and authoring `3954782` add the optional canonical prototype contract, machine-readable recipes/rulesets, deterministic matrix converter, traces and sanitized golden. Default conversion emits exactly four Boxing variants plus Flow per difficulty with chart-derived set IDs, actual BPM spacing, bottom-to-top mapping and no compatibility chart/dead converter. Parent reran both baseline Godot suites successfully. Audit added missing external audio-hash verification coverage, then found test-only shared-workspace ordering interference and a combined-modifier expectation omitting emitted `crossed_guard`; those assertions are being corrected with explicit union semantics before final rerun. Known authoring shutdown ObjectDB/resource diagnostics remain with exit 0 and are being checked for attribution.
+**Results:** Coder content-core `f670242` and authoring `3954782` added the optional canonical prototype contract, machine definitions, deterministic four-Boxing-plus-Flow converter, traces and sanitized golden. Audit content-core `476da22` and authoring `96159f1` added external audio/difficulty hash verification, removed zero-time reach allowance, reserved full guard windows before punch optimization, and expanded modifier/composition/provenance parity. Parent reran both full Godot suites successfully; Bead closed. The authoring CLI still reports the exact pre-existing ten retained resources/ObjectDB warning at exit 0; detached pre-Task4 evidence confirms Task 4 did not introduce it.
 
-**Acceptance:** Godot contract/tool suites pass; identical source+recipe produces byte-identical charts and hashes; traces record every emitted/dropped/relocated event and normalization; all four candidates validate; Flow regressions pass; source environment semantics are reconciled explicitly.
+**Acceptance:** Satisfied; identical source/recipe yields stable charts/hashes/traces, all four candidates plus Flow validate per difficulty, Flow regressions pass and environment semantics remain optional suggestions. traces record every emitted/dropped/relocated event and normalization; all four candidates validate; Flow regressions pass; source environment semantics are reconciled explicitly.
 
 ---
 
