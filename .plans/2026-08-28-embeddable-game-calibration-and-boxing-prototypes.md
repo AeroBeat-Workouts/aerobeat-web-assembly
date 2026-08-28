@@ -1,8 +1,8 @@
 # AeroBeat Embeddable Game, Calibration, and Boxing Prototypes
 
 **Date:** 2026-08-28
-**Status:** Draft
-**Last Updated:** 2026-08-28 17:39 EDT
+**Status:** In Progress
+**Last Updated:** 2026-08-28 17:53 EDT
 **Blocked Reason:** None
 **Agent:** cookie
 
@@ -10,7 +10,7 @@
 
 ## Goal
 
-Build and prove a container-responsive `aero-game` Web Component with calibrated athlete-space input, shared 4x3 Flow/Spatial-Boxing presentation, semantic Track Boxing, deterministic prototype map recipes, direct and iframe embedding, and four selectable Boxing prototype combinations without promoting a production winner before Derrick's physical playtesting.
+Build and prove a container-responsive `aero-game` Web Component with calibrated athlete-space input, shared 4x3 Flow/Spatial-Boxing presentation, semantic Track Boxing, direct and iframe embedding, browser-native BeatSaver discovery/acquisition/content authoring, and four selectable Boxing prototype combinations generated from arbitrary compatible BeatSaver maps without promoting a production winner before Derrick's physical playtesting.
 
 ---
 
@@ -21,6 +21,8 @@ This is a cross-repository prototype program coordinated from `aerobeat-web-asse
 The plan ports the Godot camera-space/athlete-space contract but deliberately does not copy the Godot proving-scene visuals or ambiguous calibration quirks. The web system uses automatic measured-frame T-pose calibration, a hidden athlete-input grid, a separate full-container screen-space playfield, tracking-loss pause/recalibration, and an assembly-owned `aero-game` root suitable for direct controlled-host embedding and public HTTPS iframe embedding.
 
 Boxing remains experimental through this plan. It produces a 2x2 matrix of playable candidates: Semantic Track versus Spatial Grid, each generated from Row-Family/Balanced-Height versus Cut-Family/Source-Height recipes. Prototype scores remain local/test-only. Production promotion, rejected-branch deletion, and public leaderboard policy require a later plan after Derrick reports physical playtest results.
+
+The same converter is also a product foundation rather than a fixed demo playlist. New `aerobeat-web-vendor-beatsaver` and `aerobeat-web-content-authoring` packages let an athlete search/browse BeatSaver, select a map version and difficulty, download or locally import its ZIP, verify and inspect it safely, convert it to current AeroBeat content and all supported prototype variants, persist generated packages locally, and play them through the same runtime. The approved regression pool remains QA coverage, not a product allowlist.
 
 ---
 
@@ -126,6 +128,22 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 - Shadow results are diagnostic only and never user-facing scores.
 - Prototype leaderboard state remains local/test-only.
 
+### Browser BeatSaver acquisition and content authoring
+
+- `aerobeat-web-vendor-beatsaver` owns only BeatSaver-specific search/latest/detail/hash request building, transport, normalized provider DTOs, selected-version download, local ZIP intake, archive inspection and source-manifest emission.
+- `aerobeat-web-content-authoring` owns browser conversion from inspected source material into canonical AeroBeat packages, recipe/variant generation, provenance, validation, export and local persistence.
+- The approved 14-map pool is regression coverage, never an allowlist. Any structurally supported BeatSaver map/version/difficulty may be selected.
+- Direct browser access is the default. On 2026-08-28 both `api.beatsaver.com` map detail and the selected `r2cdn.beatsaver.com` ZIP response returned `Access-Control-Allow-Origin: *`; implementation must still expose an injected transport/proxy adapter and local ZIP import because third-party CORS/availability can change.
+- Browse/search/detail operations are abortable, bounded, cache-aware and 429/`Retry-After` aware. No BeatSaver credential or private API is required.
+- Version selection is explicit and bound to the provider version hash. Downloaded ZIP bytes are hashed and compared with provider metadata before conversion.
+- Archive intake rejects absolute/parent paths, duplicate normalized paths, symlinks, unsupported encryption, excessive entry count, excessive per-entry/expanded/compression-ratio sizes, malformed metadata and unsupported map versions with specific diagnostics.
+- Parse supported Beat Saber v2/v3/v4 metadata and difficulty data into a provider-neutral source manifest before recipes run. Provider DTOs and raw archive objects never become gameplay contracts.
+- Conversion runs in a Worker where available, is abortable, reports bounded progress, and does not require SharedArrayBuffer or cross-origin isolation.
+- Generated packages, source/version/recipe/ruleset hashes and optional original ZIP cache are stored locally in IndexedDB behind an AeroBeat-owned persistence facade with quota reporting, eviction/delete and schema migration. Raw downloaded community content is not committed or uploaded by default.
+- Audio is decoded from bytes/Object URLs through `aerobeat-web-audio`; `.egg` filename extension does not become a public media contract. Unsupported codecs produce actionable import errors.
+- Direct and iframe hosts get commands/events for browse, import, conversion progress, cancellation, package selection and deletion, but raw ZIP/audio bytes do not cross the iframe messaging boundary.
+- Godot and web converter implementations consume the same versioned recipe definitions and golden fixtures. Cross-language parity tests require identical event IDs/order, drop/relocation reasons and semantic outputs; package serialization may differ only where canonicalization explicitly permits.
+
 ---
 
 ## Non-Goals
@@ -137,6 +155,8 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 - Safari/Firefox production certification; initial browser target is current Chromium desktop and Android.
 - A dedicated reduced-motion gameplay mode.
 - Raw camera-frame sharing across iframe boundaries.
+- Operating a server-side BeatSaver mirror/proxy in this slice; the vendor transport accepts an injected proxy adapter if deployment later requires one.
+- Uploading or redistributing downloaded BeatSaver archives/audio by default.
 - Final tuning values for reach rates, animation curves, row-balance weights, or other intentionally swappable prototype parameters.
 
 ---
@@ -167,22 +187,24 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 | `REF-20` | Prior playable runner decisions and physical-playtest gate | `/home/derrick/.dsh/projects/aerobeat/aerobeat-gameplay-runner/.plans/2026-08-02-playable-flow-boxing-testbeds.md` |
 | `REF-21` | Approved BeatSaver regression pool | `/home/derrick/.dsh/projects/aerobeat/aerobeat-content-core/fixtures/beatsaver_regression_pool/README.md` |
 | `REF-22` | Prior runner-curated BeatSaver subset and limitations | `/home/derrick/.dsh/projects/aerobeat/aerobeat-gameplay-runner/.plans/archive/2026-08-10-testbed-song-environment-assets.md` |
+| `REF-23` | Existing Godot BeatSaver vendor boundary and fixtures | `/home/derrick/.dsh/projects/aerobeat/aerobeat-vendor-beatsaver/README.md` |
+| `REF-24` | Official BeatSaver API documentation | `https://api.beatsaver.com/docs/` |
 
 ---
 
 ## DSH Goal
 
-**Goal ID:** None until Derrick approves execution
-**Objective:** After approval, execute this plan from `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly` until linked Beads are implemented, independently verified, committed, pushed, and the four prototype combinations are ready for Derrick's physical playtesting; stop before production promotion.
+**Goal ID:** `goal-073d9a11-4179-4d60-84af-cf21ec62f551`
+**Objective:** Execute this plan from `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly` until linked Beads are implemented, independently verified, committed, pushed, arbitrary compatible BeatSaver maps can be acquired/authored locally, and the four prototype combinations are ready for Derrick's physical playtesting; stop before production promotion.
 **Max Goal Rounds:** 50
-**Continuation Status:** Not Started
+**Continuation Status:** Active
 
 ---
 
 ## Execution and Approval Boundaries
 
-- This plan is not approved for implementation until Derrick reviews it.
-- Derrick authorized creation/publication of `aerobeat-web-content` and `aerobeat-web-gameplay` under the existing `AeroBeat-Workouts` GitHub organization on 2026-08-28. This authorization does not by itself approve the implementation plan.
+- Derrick approved implementation on 2026-08-28 contingent on adding browser-native BeatSaver vendor/content-authoring product foundations; this amendment satisfies that condition.
+- Derrick authorized creation/publication of `aerobeat-web-content`, `aerobeat-web-gameplay`, `aerobeat-web-vendor-beatsaver`, and `aerobeat-web-content-authoring` under the existing `AeroBeat-Workouts` GitHub organization on 2026-08-28.
 - Derrick confirmed AeroBeat has rights to the existing `aerobeat-branding/icons/` silhouettes and authorized their normalization, adaptation, mirroring, prototype use, and generation of missing SVGs on 2026-08-28. Replacement white SVG masters may arrive incrementally and must remain hot-swappable assets rather than requiring gameplay code changes.
 - Every repository stays on its current branch unless Derrick directs otherwise.
 - Every coder task gets independent QA and final audit evidence. Browser-visible tasks require desktop Chromium and Android secure-context proof where applicable.
@@ -196,8 +218,10 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 
 | Repository | Purpose |
 | --- | --- |
-| `aerobeat-web-content` | Browser song-package loading, hashes, asset/CORS policy, immutable variants, modifiers, lineage, and paused future-target swaps. |
+| `aerobeat-web-content` | Browser song-package loading, hashes, asset/CORS policy, immutable variants, modifiers, lineage, persistence consumption, and paused future-target swaps. |
 | `aerobeat-web-gameplay` | Browser gameplay-session coordination, Flow/Boxing judgement, scoring diagnostics, calibration/pause/countdown safety, and local prototype score identity. |
+| `aerobeat-web-vendor-beatsaver` | Replaceable browser BeatSaver API/search/detail/version/download/local-ZIP/archive-inspection seam with normalized provider DTOs and source manifests. |
+| `aerobeat-web-content-authoring` | Browser Worker-based BeatSaver-to-AeroBeat conversion, recipe variants, validation, provenance, local IndexedDB persistence and package export. |
 
 ### Existing repositories modified
 
@@ -239,8 +263,8 @@ The web architecture intentionally does not create a one-for-one browser reposit
 | `aerobeat-gameplay-runner` | New `aerobeat-web-gameplay` for session lifecycle, clock consumption, dispatch, judgement and results | Yes; included in Task 2. |
 | `aerobeat-mode-flow` and `aerobeat-mode-boxing` | Mode modules/rulesets inside `aerobeat-web-gameplay`, sharing one session coordinator and evidence-consumption contract | No separate repos for v1. Split later only if modes need independent publication/version cadence. |
 | `aerobeat-content-core` | Remains canonical durable authored-content semantics; `aerobeat-web-contracts` mirrors browser-facing shapes and new `aerobeat-web-content` validates/loads runtime packages | Yes, only `aerobeat-web-content`; do not duplicate the canonical content model into another independent schema owner. |
-| `aerobeat-tool-content-authoring` | Remains the offline/runtime authoring and BeatSaver-conversion owner; browser consumes generated immutable packages | No browser authoring repo in this prototype. |
-| `aerobeat-vendor-beatsaver` | Stages source archives for the authoring converter; web runtime does not call BeatSaver directly | No browser vendor repo unless direct in-browser importing becomes a separate approved feature. |
+| `aerobeat-tool-content-authoring` | Remains the Godot/offline authoring implementation; new `aerobeat-web-content-authoring` provides browser conversion using the same recipes/golden fixtures and emits immutable packages for `aerobeat-web-content` | Yes; included in Task 2B. |
+| `aerobeat-vendor-beatsaver` | Remains the Godot/staging vendor implementation and donor boundary; new `aerobeat-web-vendor-beatsaver` provides direct browser browse/download/local-ZIP acquisition | Yes; included in Task 2B. |
 | `aerobeat-tool-audio-player` | Existing `aerobeat-web-audio` | No; it already exists. |
 | `aerobeat-environment-core` / loader / community | `aerobeat-web-content` owns background descriptors and hashes, `aerobeat-web-video` owns video media, `aerobeat-web-renderer` owns drawn layers, and assembly resolves precedence | No `aerobeat-web-environment` for the current 2D image/video/background requirement. Create one later only for independently versioned 3D/GLB/splat/plugin environment lifecycles. |
 | Godot runner/testbed UI | `aerobeat-web-ui` named components plus `aerobeat-web-assembly` composition | No; both exist. |
@@ -258,7 +282,9 @@ This avoids placeholder repositories and duplicate authorities while retaining a
 ### One instance of each service per connected `aero-game`
 
 - **New `AeroBodyGridService`** (`aerobeat-web-input`): calibration, athlete-grid geometry/evidence, tracking safety and immutable snapshots.
-- **New `AeroContentRuntime`** (`aerobeat-web-content`): loaded package/variant/asset state and immutable content snapshots.
+- **New `AeroBeatSaverVendorService`** (`aerobeat-web-vendor-beatsaver`): abortable provider browse/detail/version acquisition, archive inspection and normalized source manifests.
+- **New `AeroWebContentAuthoringService`** (`aerobeat-web-content-authoring`): Worker conversion jobs, progress/cancellation, recipe/variant generation, validation, local persistence and export.
+- **New `AeroContentRuntime`** (`aerobeat-web-content`): loaded package/variant/asset state and immutable content snapshots, including locally authored packages.
 - **New `AeroGameplaySessionCoordinator`** (`aerobeat-web-gameplay`): clocked session state, pause/recalibration/countdown, judgement and local prototype telemetry.
 - **New `AeroPrototypeProfileRegistry`** (`aerobeat-web-gameplay`): named/versioned ruleset profiles, import/export/reset and regeneration-required metadata; it does not own visual token implementation or converter execution.
 - **Existing browser video facade**, instantiated per game and extended by Task 7.
@@ -322,10 +348,10 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ## Dependency and Parallelism Order
 
-1. **Contract/root setup:** Task 1 establishes public shapes; Task 2 establishes the two missing package owners after external-action authorization.
-2. **Parallel domain foundations:** Tasks 3, 4, 7, 7B, 8, 8B, and 9 may proceed in parallel after the relevant Task 1 exports are accepted; Derrick has cleared Task 8B's asset-rights/source gate, and Task 9 consumes accepted branding/style/renderer seams rather than sibling internals.
-3. **New runtime domains:** Tasks 5 and 6 follow Task 2 and consume the accepted contract/content/input/audio boundaries.
-4. **Assembly integration:** Task 10 begins only after Tasks 3, 5, 6, 7, 7B, 8, 8B, and 9 have public validated surfaces.
+1. **Contract/root setup:** Task 1 establishes public shapes; Tasks 2 and 2B establish the four authorized missing package owners.
+2. **Parallel domain foundations:** Tasks 3, 4, 4B, 7, 7B, 8, 8B, and 9 may proceed after the relevant Task 1 exports and package scaffolds are accepted; Derrick has cleared Task 8B's asset-rights/source gate, and Task 9 consumes accepted vendor/authoring/branding/style/renderer seams rather than sibling internals.
+3. **Browser authoring/runtime domains:** Task 4C follows Tasks 4 and 4B for recipe/vendor contracts; Task 5 follows Tasks 2, 2B and 4C; Task 6 follows Task 2 and consumes accepted contract/content/input/audio boundaries.
+4. **Assembly integration:** Task 10 begins only after Tasks 3, 4B, 4C, 5, 6, 7, 7B, 8, 8B, and 9 have public validated surfaces.
 5. **Prototype proof:** Task 11 follows integrated assembly; Task 12 independently verifies; Task 13 audits and hands off.
 6. Any cross-repo contract mismatch discovered downstream returns to the owning contract Bead rather than being patched locally.
 
@@ -373,6 +399,27 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Status:** Pending
 
 **Acceptance:** Both repos exist locally and remotely with clean `main...origin/main`, public package exports, passing scaffold validation, and accepted ownership docs.
+
+---
+
+### Task 2B: Establish Web BeatSaver Vendor and Content-Authoring Package Owners
+
+**Bead ID:** `aerobeat-web-assembly-48w.8`
+**SubAgent:** DSH coder subagent, then auditor
+**Role:** `coder`
+**References:** `REF-05`, `REF-13`, `REF-14`, `REF-23`, `REF-24`
+**Prompt:** Create and publish `aerobeat-web-vendor-beatsaver` and `aerobeat-web-content-authoring` under the authorized `AeroBeat-Workouts` organization using existing AeroBeat web package conventions. Give each strict JSDoc/public-import/console validation, README ownership boundaries, fixtures/testbed shape, package exports, Beads, decision docs and clean remote tracking. Vendor owns provider acquisition/inspection only; content-authoring owns provider-neutral conversion/persistence/export only.
+
+**Folders Created/Deleted/Modified:**
+- `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-vendor-beatsaver/`
+- `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-content-authoring/`
+
+**Files Created/Deleted/Modified:**
+- New repository scaffolds and validation files.
+
+**Status:** Pending
+
+**Acceptance:** Both repos exist locally and remotely with clean `main...origin/main`, correct public boundaries, Beads, passing scaffold validation and no copied Godot/vendor-native runtime implementation.
 
 ---
 
@@ -424,13 +471,61 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ---
 
+### Task 4B: Implement Browser BeatSaver Vendor Acquisition
+
+**Bead ID:** `aerobeat-web-assembly-48w.9`
+**SubAgent:** DSH coder subagent, then browser/security QA
+**Role:** `coder`
+**References:** `REF-05`, `REF-23`, `REF-24`
+**Prompt:** In `aerobeat-web-vendor-beatsaver`, implement an injected-transport facade for search/latest/detail-by-id/detail-by-hash, explicit version/difficulty discovery, selected-version download, local `File`/ZIP intake, SHA-1 verification, safe archive inspection and normalized source-material manifests. Support direct CORS, configured proxy transport and fake fixtures; AbortSignal, progress, bounded retries, 429/Retry-After, timeouts and truthful errors. Defend against traversal, duplicates, symlinks, encrypted entries and archive bombs. Keep provider DTOs/raw bytes private and do not own conversion, persistence policy, UI or gameplay.
+
+**Folders Created/Deleted/Modified:**
+- `aerobeat-web-vendor-beatsaver/src/`
+- `aerobeat-web-vendor-beatsaver/fixtures/`
+- `aerobeat-web-vendor-beatsaver/scripts/`
+- `aerobeat-web-vendor-beatsaver/docs/decisions/`
+- `aerobeat-web-vendor-beatsaver/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- Exact files determined during implementation.
+
+**Status:** Pending
+
+**Acceptance:** Unit/browser tests cover current API fixtures, search/detail/hash/version selection, CORS download and local ZIP paths, provider-hash verification, cancellation/progress, 404/429/timeout/offline/CORS errors, malicious archives and normalized v2/v3/v4 manifests without leaking raw provider objects.
+
+---
+
+### Task 4C: Implement Browser BeatSaver Content Authoring and Persistence
+
+**Bead ID:** `aerobeat-web-assembly-48w.10`
+**SubAgent:** DSH coder subagent, then parity/browser QA
+**Role:** `coder`
+**References:** `REF-05`, `REF-13`, `REF-14`, `REF-21`, `REF-23`
+**Prompt:** In `aerobeat-web-content-authoring`, consume normalized source manifests/entries and implement Worker-based, abortable conversion into canonical Flow plus four Boxing prototype variants. Parse supported Beat Saber v2/v3/v4 difficulty data; run the same versioned recipes, optimizer, reach, guard relocation, obstacle policy, modifiers and provenance as the Godot implementation; validate before persistence/export; generate stable IDs/hashes/traces; decode-support diagnostics; and store/list/load/delete/migrate packages in IndexedDB with quota and optional source-cache controls. Add golden cross-language parity fixtures. Do not own BeatSaver transport, product UI, playback, scoring or runtime package selection.
+
+**Folders Created/Deleted/Modified:**
+- `aerobeat-web-content-authoring/src/`
+- `aerobeat-web-content-authoring/fixtures/`
+- `aerobeat-web-content-authoring/scripts/`
+- `aerobeat-web-content-authoring/docs/decisions/`
+- `aerobeat-web-content-authoring/.testbed/`
+
+**Files Created/Deleted/Modified:**
+- Exact files determined during implementation.
+
+**Status:** Pending
+
+**Acceptance:** Browser/worker tests convert full real `4858` Expert and `3d44b` Hard sources plus synthetic v2/v3/v4 fixtures; all four variants validate; repeated conversion is deterministic; golden semantic outputs match Godot; cancellation leaves no partial package; IndexedDB migration/quota/delete/export works; arbitrary compatible map IDs are not gated by a playlist.
+
+---
+
 ### Task 5: Implement Web Content Loading, Asset Policy, and Variant Resolution
 
 **Bead ID:** `aerobeat-web-assembly-48w.2`
 **SubAgent:** DSH coder subagent, then QA
 **Role:** `coder`
-**References:** `REF-05`, `REF-09`, `REF-12`, `REF-13`
-**Prompt:** In the new `aerobeat-web-content`, validate/load song packages, chart hashes, recipe/ruleset capabilities, theme suggestions, external asset descriptors, CORS/readability policy, fallback backgrounds, map lineage, modifier combinations, and pause-time future-target variant swaps. Preserve past/judged event truth and expose immutable snapshots. Do not own playback, scoring, rendering, or camera logic.
+**References:** `REF-05`, `REF-09`, `REF-12`, `REF-13`, `REF-23`
+**Prompt:** In the new `aerobeat-web-content`, validate/load packaged, externally hosted and locally authored song packages; resolve IndexedDB package handles without importing authoring internals; enforce chart/audio hashes, recipe/ruleset capabilities, theme suggestions, external asset descriptors, CORS/readability policy, fallback backgrounds, map lineage, modifier combinations, and pause-time future-target variant swaps. Preserve past/judged event truth and expose immutable snapshots. Do not own acquisition, conversion, persistence implementation, playback, scoring, rendering, or camera logic.
 
 **Folders Created/Deleted/Modified:**
 - `aerobeat-web-content/src/`
@@ -443,7 +538,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
-**Acceptance:** Tests cover hashes, arbitrary URLs, external-audio CORS rejection, cosmetic fallback, modifier composition, stable lineage, immediate paused-position future swaps, active-event preservation, and unranked composite provenance.
+**Acceptance:** Tests cover hashes, arbitrary URLs, external-audio CORS rejection, cosmetic fallback, packaged and locally authored handles, persistence reload/delete invalidation, modifier composition, stable lineage, immediate paused-position future swaps, active-event preservation, and unranked composite provenance.
 
 ---
 
@@ -566,7 +661,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **SubAgent:** DSH coder subagent, then accessibility/browser QA
 **Role:** `coder`
 **References:** `REF-04`, `REF-07`, `REF-11`
-**Prompt:** In `aerobeat-web-ui`, build named `aero-*` presenters for the T-pose badge, calibration composition, shared grid playfield host, semantic Track HUD, Spatial Grid HUD, tracking pause overlay, resume countdown, background environment, fullscreen control, errors/capabilities, and four-way prototype/tuning selector. Components accept public snapshots and emit intent only. Add accessible state announcements, keyboard/touch behavior, narrow layouts, selected `::part` surfaces, and standalone testbed states. Do not put camera, calibration math, scoring, or assembly traversal in UI.
+**Prompt:** In `aerobeat-web-ui`, build named `aero-*` presenters for BeatSaver search/browse/map detail/version+difficulty selection, local ZIP import, conversion progress/cancel, locally authored library/storage management, import errors, the T-pose badge, calibration composition, shared grid playfield host, semantic Track HUD, Spatial Grid HUD, tracking pause overlay, resume countdown, background environment, fullscreen control, errors/capabilities, and four-way prototype/tuning selector. Components accept public snapshots and emit intent only. Add accessible state announcements, keyboard/touch behavior, narrow layouts, selected `::part` surfaces, virtualized/bounded result rendering, and standalone testbed states. Do not put transport, archive parsing, conversion, persistence, camera, calibration math, scoring, or assembly traversal in UI.
 
 **Folders Created/Deleted/Modified:**
 - `aerobeat-web-ui/src/elements/`
@@ -580,7 +675,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
-**Acceptance:** Named-component rules pass; desktop/390px states cover waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
+**Acceptance:** Named-component rules pass; desktop/390px states cover BeatSaver loading/results/empty/detail/version/import/converting/cancel/error/library/quota/delete, calibration waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
 
 ---
 
@@ -590,7 +685,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **SubAgent:** DSH coder subagent, then integration QA
 **Role:** `coder`
 **References:** `REF-05`, `REF-08`, `REF-15`, `REF-16`, `REF-17`, `REF-18`
-**Prompt:** In `aerobeat-web-assembly`, replace `aerobeat-app` with `aero-game`; remove `100vh`, history/location ownership, constructor startup, shadow-root traversal, and terminal reconnect bugs. Compose one service graph per instance, exact-container ResizeObserver/DPR coordination, media lease, measured CV/input/gameplay/content/audio/renderer/UI flow, environment priority, public configure/commands/snapshots/events, child-owned fullscreen, strict iframe wrapper/handshake, public capability diagnostics, hidden-page policy, and complete teardown. Preserve the locked MediaPipe Lite production route and do not reintroduce removed backend selectors or predictive production routing.
+**Prompt:** In `aerobeat-web-assembly`, replace `aerobeat-app` with `aero-game`; remove `100vh`, history/location ownership, constructor startup, shadow-root traversal, and terminal reconnect bugs. Compose one service graph per instance, including BeatSaver vendor, content-authoring Worker/persistence, content runtime, exact-container ResizeObserver/DPR coordination, media lease, measured CV/input/gameplay/audio/renderer/UI flow, environment priority, public browse/import/convert/library/game commands/snapshots/events, child-owned fullscreen, strict iframe wrapper/handshake, public capability/storage diagnostics, hidden-page policy, cancellation and complete teardown. Preserve the locked MediaPipe Lite production route and do not reintroduce removed backend selectors or predictive production routing. Raw ZIP/audio bytes stay child-local in iframe mode.
 
 **Folders Created/Deleted/Modified:**
 - `aerobeat-web-assembly/src/`
@@ -604,7 +699,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
-**Acceptance:** Direct and cross-origin iframe modes pass; parent container controls dimensions; camera permissions and injected stream work where applicable; raw frames never cross bridge; landmarks do; fullscreen is user-gesture safe; multiple instances transfer lease; reconnect works; hidden pauses; all four prototypes and Flow run through public APIs.
+**Acceptance:** Direct and cross-origin iframe modes pass; arbitrary compatible BeatSaver search/import/convert/library selection runs through public APIs; parent container controls dimensions; camera permissions and injected stream work where applicable; raw frames/ZIP/audio never cross bridge; normalized landmarks and bounded import/game telemetry do; fullscreen is user-gesture safe; multiple instances transfer lease; reconnect works; hidden pauses and cancels/retains work according to documented lifecycle; all four prototypes and Flow run through public APIs.
 
 ---
 
@@ -614,7 +709,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **SubAgent:** DSH coder subagent, then QA
 **Role:** `coder`
 **References:** `REF-06`, `REF-08`, `REF-12`, `REF-14`
-**Prompt:** Build small deterministic paired fixtures and replay traces that exercise all four Boxing candidates, Flow grid behavior, guards, Crossed Guard, straight tolerance, hook/uppercut directions, obstacle coexistence, modifiers, tracking loss, recalibration, theme/background fallback, and iframe commands. Expose manual selectors before gameplay and in pause. Include named visual/scoring/converter tuning presets with import/export/reset and active version/hash telemetry. Do not build a survey or durable notes feature.
+**Prompt:** Build small deterministic paired fixtures, malicious/archive-limit fixtures, and replay traces that exercise arbitrary BeatSaver ID browse/import, local ZIP import, v2/v3/v4 conversion, persistence/reload/delete, all four Boxing candidates, Flow grid behavior, guards, Crossed Guard, straight tolerance, hook/uppercut directions, obstacle coexistence, modifiers, tracking loss, recalibration, theme/background fallback, and iframe commands. Include full local-source regression for `4858` Expert and `3d44b` Hard without committing third-party audio/archive bytes. Expose manual selectors before gameplay and in pause. Include named visual/scoring/converter tuning presets with import/export/reset and active version/hash telemetry. Do not build a survey or durable notes feature.
 
 **Folders Created/Deleted/Modified:**
 - Owning repos' `fixtures/`, `.testbed/`, and validation scripts.
@@ -624,7 +719,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
-**Acceptance:** Fixtures are deterministic and content-hashed; selectors identify adapter+recipe clearly; all tuning classes distinguish live, between-run, and regeneration-required changes; shadow metrics are hidden from user score and available in diagnostics.
+**Acceptance:** Fixtures are deterministic and content-hashed; arbitrary compatible maps are not allowlisted; online and local-ZIP acquisition converge on the same source manifest; real local `4858`/`3d44b` conversions prove audio-backed package generation without committed third-party payloads; selectors identify adapter+recipe clearly; all tuning classes distinguish live, between-run, and regeneration-required changes; shadow metrics are hidden from user score and available in diagnostics.
 
 ---
 
@@ -634,7 +729,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **SubAgent:** DSH QA subagents
 **Role:** `qa`
 **References:** `REF-01` through `REF-18`
-**Prompt:** Independently run every repo-local check/test/browser suite, then verify the highest-fidelity direct and iframe game on current Chromium desktop and Android secure context. Validate camera permission, calibration geometry, facing/mirroring, exact container sizing, background switching/fallback, theme precedence, Flow, four Boxing candidates, pause/recalibration/countdown, modifier switching, media lease transfer, fullscreen, reconnect, hidden-page behavior, CORS failures, teardown, telemetry privacy, console noise, and release proof vendor lock. Capture exact evidence and file follow-up Beads for every failure.
+**Prompt:** Independently run every repo-local check/test/browser suite, then verify the highest-fidelity direct and iframe game on current Chromium desktop and Android secure context. Validate arbitrary BeatSaver search/detail/version selection, direct download, local ZIP fallback, hash/archive defenses, conversion progress/cancel, v2/v3/v4 support, IndexedDB persistence/quota/delete, camera permission, calibration geometry, facing/mirroring, exact container sizing, background switching/fallback, theme precedence, Flow, four Boxing candidates, pause/recalibration/countdown, modifier switching, media lease transfer, fullscreen, reconnect, hidden-page behavior, offline/404/429/CORS/codec failures, teardown, telemetry privacy, console noise, and release proof vendor lock. Capture exact evidence and file follow-up Beads for every failure.
 
 **Folders Created/Deleted/Modified:**
 - QA artifacts only in approved testbed/release-proof locations.
@@ -644,7 +739,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
-**Acceptance:** All required suites pass; desktop and Android evidence is recorded; no unexpected console warnings/errors; no raw-frame bridge payload; release proof still ships only locked MediaPipe vendor/runtime assets.
+**Acceptance:** All required suites pass; desktop and Android evidence covers at least two non-prebundled BeatSaver selections and local ZIP recovery; no allowlist gate exists; no unexpected console warnings/errors; no raw-frame/ZIP/audio bridge payload; release proof still ships only locked MediaPipe CV vendor/runtime assets and declared web BeatSaver/content-authoring dependencies.
 
 ---
 
@@ -674,6 +769,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 | --- | --- |
 | Contracts | Strict JSDoc/no-any, runtime narrowing/validators, schema/version snapshots, import boundaries |
 | Content Core/Authoring | Godot headless contract/tool suites, deterministic regeneration/hash comparison, conversion trace snapshots |
+| Web BeatSaver Vendor | API fixture/browser CORS, hash/version selection, local ZIP, cancellation/retry and malicious-archive tests |
+| Web Content Authoring | Worker v2/v3/v4 conversion, Godot golden parity, deterministic hashes/traces, IndexedDB migration/quota/delete/export tests |
 | Input | Unit/replay tests for calibration, coordinate transforms, anchor/cell/subcell evidence, tracking lifecycle |
 | Content | Package/hash/CORS/variant/lineage tests |
 | Gameplay | Deterministic clock/scoring/pause/countdown/ruleset tests |
