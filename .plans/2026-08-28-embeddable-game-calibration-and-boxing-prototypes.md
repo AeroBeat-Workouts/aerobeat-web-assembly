@@ -615,7 +615,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Coder commit `bcf39ef` implements a per-game `aero.audio.clock` service with URL/Blob/ArrayBuffer/object-URL/silence sources, hash and decode truth, generation-safe fetch/decode/play, deterministic AudioContext clock continuity, visibility/lease hooks and ownership-aware teardown. Coder check, 15 unit tests, Chromium tests and package dry-run pass; independent lifecycle QA is in progress.
+**Results:** Coder commit `bcf39ef` implements a per-game `aero.audio.clock` service with URL/Blob/ArrayBuffer/object-URL/silence sources, hash/decode truth, AudioContext clock continuity, visibility/lease hooks and ownership-aware teardown. Baseline suites pass, but adversarial QA found three gaps: playback could start without a decoded buffer after load failure, natural end did not disconnect its node, and stale async suspend completion could override a newer play while clock/context diverged. QA is enforcing playable readiness, exact-once node retirement and operation-aware suspend/resume across visibility/lease races.
 
 **Acceptance:** Unit/browser tests cover load/play/pause/seek, visibility pause/resume, lease transfer, autoplay rejection, CORS/decode/hash-related load failures, deterministic clock snapshots, disconnect/reconnect and no retained AudioContext/source nodes after destroy.
 
