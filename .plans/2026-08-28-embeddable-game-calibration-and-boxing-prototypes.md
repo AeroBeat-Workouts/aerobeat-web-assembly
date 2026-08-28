@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28
 **Status:** Draft
-**Last Updated:** 2026-08-28 17:26 EDT
+**Last Updated:** 2026-08-28 17:39 EDT
 **Blocked Reason:** None
 **Agent:** cookie
 
@@ -183,6 +183,7 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 
 - This plan is not approved for implementation until Derrick reviews it.
 - Derrick authorized creation/publication of `aerobeat-web-content` and `aerobeat-web-gameplay` under the existing `AeroBeat-Workouts` GitHub organization on 2026-08-28. This authorization does not by itself approve the implementation plan.
+- Derrick confirmed AeroBeat has rights to the existing `aerobeat-branding/icons/` silhouettes and authorized their normalization, adaptation, mirroring, prototype use, and generation of missing SVGs on 2026-08-28. Replacement white SVG masters may arrive incrementally and must remain hot-swappable assets rather than requiring gameplay code changes.
 - Every repository stays on its current branch unless Derrick directs otherwise.
 - Every coder task gets independent QA and final audit evidence. Browser-visible tasks require desktop Chromium and Android secure-context proof where applicable.
 - Any discovered change to an approved contract returns to Derrick before implementation silently widens scope.
@@ -226,6 +227,25 @@ Boxing remains experimental through this plan. It produces a 2x2 matrix of playa
 - `aerobeat-environment-loader`
 
 If implementation proves that one of these owners lacks a required public contract, the orchestrator must add a plan amendment and Bead rather than make an unrecorded cross-repo edit.
+
+### Godot-to-web ownership mapping
+
+The web architecture intentionally does not create a one-for-one browser repository for every Godot repository. It preserves responsibilities while consolidating boundaries that are smaller in the browser runtime:
+
+| Godot source/reference | Web owner | New web repo required? |
+| --- | --- | --- |
+| `aerobeat-input-core` | `aerobeat-web-contracts` for shared shapes/names; `aerobeat-web-input` for routing and body-grid interpretation | No; both exist. |
+| `aerobeat-input-camera-tracking` | `aerobeat-web-video` for media, `aerobeat-web-cv` for measured pose production, `aerobeat-web-input` for calibration/gesture/grid interpretation | No; these existing browser boundaries already replace the combined Godot lane. |
+| `aerobeat-gameplay-runner` | New `aerobeat-web-gameplay` for session lifecycle, clock consumption, dispatch, judgement and results | Yes; included in Task 2. |
+| `aerobeat-mode-flow` and `aerobeat-mode-boxing` | Mode modules/rulesets inside `aerobeat-web-gameplay`, sharing one session coordinator and evidence-consumption contract | No separate repos for v1. Split later only if modes need independent publication/version cadence. |
+| `aerobeat-content-core` | Remains canonical durable authored-content semantics; `aerobeat-web-contracts` mirrors browser-facing shapes and new `aerobeat-web-content` validates/loads runtime packages | Yes, only `aerobeat-web-content`; do not duplicate the canonical content model into another independent schema owner. |
+| `aerobeat-tool-content-authoring` | Remains the offline/runtime authoring and BeatSaver-conversion owner; browser consumes generated immutable packages | No browser authoring repo in this prototype. |
+| `aerobeat-vendor-beatsaver` | Stages source archives for the authoring converter; web runtime does not call BeatSaver directly | No browser vendor repo unless direct in-browser importing becomes a separate approved feature. |
+| `aerobeat-tool-audio-player` | Existing `aerobeat-web-audio` | No; it already exists. |
+| `aerobeat-environment-core` / loader / community | `aerobeat-web-content` owns background descriptors and hashes, `aerobeat-web-video` owns video media, `aerobeat-web-renderer` owns drawn layers, and assembly resolves precedence | No `aerobeat-web-environment` for the current 2D image/video/background requirement. Create one later only for independently versioned 3D/GLB/splat/plugin environment lifecycles. |
+| Godot runner/testbed UI | `aerobeat-web-ui` named components plus `aerobeat-web-assembly` composition | No; both exist. |
+
+This avoids placeholder repositories and duplicate authorities while retaining a clean extraction point if a domain becomes independently reusable.
 
 ---
 
@@ -273,7 +293,7 @@ If implementation proves that one of these owners lacks a required public contra
 
 ### Gameplay icon set
 
-The web prototype can begin by normalizing AeroBeat's existing Godot testbed silhouettes if Derrick confirms they are AeroBeat-owned/licensed for reuse. Desired source format is monochrome SVG with `viewBox="0 0 64 64"`, no embedded raster/font, no fixed pixel size, and paths using `currentColor` (or cleanly convertible fills). Left/right forms are mirrored at runtime when the silhouette remains readable.
+The web prototype begins by normalizing AeroBeat's existing authorized branding silhouettes. Derrick confirmed reuse/adaptation rights and authorized generation of missing SVGs. Desired source format is monochrome white or `currentColor` SVG with `viewBox="0 0 64 64"`, no embedded raster/font, no fixed pixel size, and cleanly convertible paths. Replacement white SVGs can be dropped into the same semantic asset IDs later without gameplay/ruleset changes. Left/right forms may be generated by mirroring when the silhouette remains readable, with explicit outputs retained for visual QA.
 
 Needed semantic silhouettes:
 
@@ -287,9 +307,9 @@ Needed semantic silhouettes:
 8. T-pose calibration;
 9. optional neutral glove/receptor mark.
 
-Canonical candidate references cover straight/hook/uppercut/guard/squat/weave/T-pose/glove under `aerobeat-branding/icons/`; `aerobeat-input-camera-tracking/.testbed/assets/icons/` contains proving copies only. Crossed guard is the known missing custom silhouette. The canonical SVGs contain hard-coded fills, editor/generated metadata, inconsistent viewBoxes, and no asset-specific provenance. Derrick must either confirm those files are AeroBeat-owned/licensed for web redistribution or provide replacement masters before they can ship. Internal comparison may use normalized temporary derivatives marked non-production.
+Canonical authorized references cover straight/hook/uppercut/guard/squat/weave/T-pose/glove under `aerobeat-branding/icons/`; `aerobeat-input-camera-tracking/.testbed/assets/icons/` contains proving copies only. Crossed guard is the known missing custom silhouette and may be generated for the prototype. The canonical SVGs contain hard-coded white fills, editor/generated metadata and inconsistent viewBoxes, so Task 8B normalizes them and records Derrick's rights confirmation in the asset provenance ledger.
 
-For production-ready masters, keep explicit left/right punch files for optical QA even where geometry begins as a mirror. Connected guards use `viewBox="0 0 48 24"`; other semantic silhouettes use `viewBox="0 0 64 64"`. Add source/author/license fields to a branding asset provenance ledger. Do not promote files from `inspiration/`, `.temp/`, installed dependencies, or testbed copies.
+For production-ready masters, keep explicit left/right punch files for optical QA even where geometry begins as a mirror. Connected guards use `viewBox="0 0 48 24"`; other semantic silhouettes use `viewBox="0 0 64 64"`. DOM components color inline SVGs through `currentColor`/CSS custom properties. WebGL targets consume the same white silhouettes as alpha-mask atlas entries and apply semantic colors in the fragment shader, so replacing a master changes geometry without changing gameplay or color logic. Do not promote files from `inspiration/`, `.temp/`, installed dependencies, or testbed copies.
 
 ### Assets not required from Derrick for prototype execution
 
@@ -303,7 +323,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ## Dependency and Parallelism Order
 
 1. **Contract/root setup:** Task 1 establishes public shapes; Task 2 establishes the two missing package owners after external-action authorization.
-2. **Parallel domain foundations:** Tasks 3, 4, 7, 7B, 8, 8B, and 9 may proceed in parallel after the relevant Task 1 exports are accepted; Task 8B additionally waits for Derrick's asset-rights/source decision, and Task 9 consumes accepted branding/style/renderer seams rather than sibling internals.
+2. **Parallel domain foundations:** Tasks 3, 4, 7, 7B, 8, 8B, and 9 may proceed in parallel after the relevant Task 1 exports are accepted; Derrick has cleared Task 8B's asset-rights/source gate, and Task 9 consumes accepted branding/style/renderer seams rather than sibling internals.
 3. **New runtime domains:** Tasks 5 and 6 follow Task 2 and consume the accepted contract/content/input/audio boundaries.
 4. **Assembly integration:** Task 10 begins only after Tasks 3, 5, 6, 7, 7B, 8, 8B, and 9 have public validated surfaces.
 5. **Prototype proof:** Task 11 follows integrated assembly; Task 12 independently verifies; Task 13 audits and hands off.
@@ -524,7 +544,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **SubAgent:** DSH coder subagent, then visual/licensing audit
 **Role:** `coder`
 **References:** `REF-19`
-**Prompt:** Only after Derrick confirms ownership/redistribution rights or supplies replacement sources, update `aerobeat-branding` with an asset provenance ledger and normalized web masters. Produce explicit left/right straight, hook and uppercut SVGs at `0 0 64 64`; T-pose/squat/weave/optional glove masters at `0 0 64 64`; and connected standard/crossed guards at `0 0 48 24`. Use `currentColor`, optical safe areas, no raster/font/external refs/editor namespaces/generated IDs, and deterministic validation/export. Do not promote inspiration, testbed, generated or third-party dependency art.
+**Prompt:** Derrick has confirmed ownership/reuse rights and authorized generated prototype SVGs. Update `aerobeat-branding` with an asset provenance ledger and normalized web masters. Produce explicit left/right straight, hook and uppercut SVGs at `0 0 64 64`; T-pose/squat/weave/optional glove masters at `0 0 64 64`; and connected standard/crossed guards at `0 0 48 24`. Accept white source silhouettes, normalize DOM exports to `currentColor`, and produce deterministic alpha-mask atlas inputs for WebGL shader coloring. Preserve stable semantic asset IDs so Derrick can replace masters without gameplay changes. Use optical safe areas and no raster/font/external refs/editor namespaces/generated IDs. Do not promote inspiration, testbed, generated-cache or third-party dependency art.
 
 **Folders Created/Deleted/Modified:**
 - `aerobeat-branding/icons/`
