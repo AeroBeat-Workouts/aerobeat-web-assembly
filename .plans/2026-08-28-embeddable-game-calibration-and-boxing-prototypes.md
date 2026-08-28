@@ -674,7 +674,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 9: Build Named Calibration, Grid, Gameplay, Pause, Countdown, and Prototype UI Components
 
 **Bead ID:** `aerobeat-web-ui-dpu`
-**SubAgent:** DSH coder subagent, then accessibility/browser QA
+**SubAgent:** Coder child `3ffc875c-2096-4730-b693-4c79a3fe0211`; accessibility/browser QA pending
 **Role:** `coder`
 **References:** `REF-04`, `REF-07`, `REF-11`
 **Prompt:** In `aerobeat-web-ui`, build named `aero-*` presenters for BeatSaver search/browse/map detail/version+difficulty selection, local ZIP import, conversion progress/cancel, locally authored library/storage management, import errors, the T-pose badge, calibration composition, shared grid playfield host, semantic Track HUD, Spatial Grid HUD, tracking pause overlay, resume countdown, background environment, fullscreen control, errors/capabilities, and four-way prototype/tuning selector. Components accept public snapshots and emit intent only. Add accessible state announcements, keyboard/touch behavior, narrow layouts, selected `::part` surfaces, virtualized/bounded result rendering, and standalone testbed states. Do not put transport, archive parsing, conversion, persistence, camera, calibration math, scoring, or assembly traversal in UI.
@@ -689,7 +689,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Named-component rules pass; desktop/390px states cover BeatSaver loading/results/empty/detail/version/import/converting/cancel/error/library/quota/delete, calibration waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
 
