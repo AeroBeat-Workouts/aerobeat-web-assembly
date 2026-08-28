@@ -457,7 +457,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 4: Extend Canonical Content and Build Deterministic BeatSaver Prototype Recipes
 
 **Bead ID:** `oc-4up`
-**SubAgent:** Coder child `01a89f5d-0509-45bd-9dcc-bafe051705a6`; Godot QA pending
+**SubAgent:** Coder child `01a89f5d-0509-45bd-9dcc-bafe051705a6`; Godot QA/auditor `c4afeb2e-1b3f-4450-845b-530874ba75f2`
 **Role:** `coder`
 **References:** `REF-13`, `REF-14`
 **Prompt:** In `aerobeat-content-core` and `aerobeat-tool-content-authoring`, add durable chart/variant/event lineage, recipe/ruleset/hash/provenance, instantaneous Boxing guard/avoidance checkpoint, spatial strike/guard/blocked-cell contracts, modifier metadata, theme/environment suggestion metadata that does not reintroduce mandatory package-owned environments, and deterministic conversion traces. Implement Recipe A and Recipe B, paired Semantic/Spatial projections, 360ms optimizer, guard relocation, obstacle priority/coexistence, 8x6 reach graph, safe-cell nose history, map modifiers, external chart/audio hash validation, and all four prototype outputs. Preserve Flow contracts and source artifacts.
@@ -475,7 +475,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Debug checkpoint: converter now emits the intended four Boxing variants plus Flow and content-core validation passes, but six legacy tests still assert the retired single-Boxing/two-chart shape. Coder is replacing those assertions with matrix/determinism coverage and correcting chart-derived set IDs plus actual BPM/recipe propagation for guards; no compatibility chart will be retained.
+**Results:** Coder commits content-core `f670242` and authoring `3954782` add the optional canonical prototype contract, machine-readable recipes/rulesets, deterministic matrix converter, traces and sanitized golden. Default conversion emits exactly four Boxing variants plus Flow per difficulty with chart-derived set IDs, actual BPM spacing, bottom-to-top mapping and no compatibility chart/dead converter. Parent reran both full Godot suites successfully; independent Godot contract/parity audit is in progress. Known authoring shutdown ObjectDB/resource diagnostics remain with exit 0 and are being checked for attribution.
 
 **Acceptance:** Godot contract/tool suites pass; identical source+recipe produces byte-identical charts and hashes; traces record every emitted/dropped/relocated event and normalization; all four candidates validate; Flow regressions pass; source environment semantics are reconciled explicitly.
 
@@ -510,7 +510,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 4C: Implement Browser BeatSaver Content Authoring and Persistence
 
 **Bead ID:** `aerobeat-web-assembly-48w.10`
-**SubAgent:** DSH coder subagent, then parity/browser QA
+**SubAgent:** Coder child `bb9852c4-5402-4365-90e9-4af076d910f0`; parity/browser QA pending
 **Role:** `coder`
 **References:** `REF-05`, `REF-13`, `REF-14`, `REF-21`, `REF-23`
 **Prompt:** In `aerobeat-web-content-authoring`, consume normalized source manifests/entries and implement Worker-based, abortable conversion into canonical Flow plus four Boxing prototype variants. Parse supported Beat Saber v2/v3/v4 difficulty data; run the same versioned recipes, optimizer, reach, guard relocation, obstacle policy, modifiers and provenance as the Godot implementation; validate before persistence/export; generate stable IDs/hashes/traces; decode-support diagnostics; and store/list/load/delete/migrate packages in IndexedDB with quota and optional source-cache controls. Add golden cross-language parity fixtures. Do not own BeatSaver transport, product UI, playback, scoring or runtime package selection.
@@ -525,7 +525,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Browser/worker tests convert full real `4858` Expert and `3d44b` Hard sources plus synthetic v2/v3/v4 fixtures; all four variants validate; repeated conversion is deterministic; golden semantic outputs match Godot; cancellation leaves no partial package; IndexedDB migration/quota/delete/export works; arbitrary compatible map IDs are not gated by a playlist.
 
@@ -645,7 +645,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Renderer `51af7e2` removes the global singleton and adds per-game WebGL2 instances, exact-container/DPR layout, deterministic Flow/Track/Spatial plans, alpha-mask branding atlas, theme/tuning telemetry, context recovery and teardown. Style `5688b35` adds generic visual-role tokens only. Parent checks/tests/browser/pack pass and inspected Chromium evidence; independent multi-size visual/lifecycle QA is in progress.
+**Results:** Renderer `51af7e2` removes the global singleton and adds per-game WebGL2 instances, exact-container/DPR layout, deterministic Flow/Track/Spatial plans, alpha-mask branding atlas, theme/tuning telemetry, context recovery and teardown. Style `5688b35` adds generic visual-role tokens only. Parent baseline gates pass. Visual QA found vertically inverted atlas rows (including missing crossed guard), non-aspect-fitted 4x3 grids in portrait/wide layouts, ignored easing tokens, silently accepted invalid theme/atlas data, and tuning mutation after destroy without regeneration truth. QA is correcting these in renderer with multi-size Chromium regressions; style tokens remain generic and pass.
 
 **Acceptance:** Browser tests cover arbitrary container aspect/size, DPR caps, resize/fullscreen redraw, exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
 
