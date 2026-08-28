@@ -362,7 +362,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 1: Freeze Cross-Repo Web Contracts and Decision Records
 
 **Bead ID:** `aerobeat-web-contracts-db9`
-**SubAgent:** DSH coder subagent, then QA
+**SubAgent:** Coder child `26dd25d2-d862-4624-9de7-5aecd9b53e01`; QA pending
 **Role:** `coder`
 **References:** `REF-01`, `REF-02`, `REF-05`, `REF-15`, `REF-16`, `REF-17`, `REF-18`
 **Prompt:** In `aerobeat-web-contracts`, define versioned public camelCase contracts and validators for coordinate spaces, calibration/readiness/session/lifecycle, body-grid descriptors/anchors/cell entries, tracking safety, game/session/countdown, content variants, themes, container capabilities, fullscreen, media/asset policy, direct-host events, and iframe messages. Rename the public root element contract to `aero-game` without keeping `aerobeat-app`. Record accepted decisions under `docs/decisions/`. Preserve measured-versus-predicted truth and do not expose vendor-native objects or raw camera frames.
@@ -375,7 +375,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation after repo inspection.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Contract checks and browser tests pass; downstream tasks can depend only on public exports; coordinate-space tests lock camera/preview, gameplay-camera, and athlete-space transformations.
 
@@ -453,7 +453,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 4: Extend Canonical Content and Build Deterministic BeatSaver Prototype Recipes
 
 **Bead ID:** `oc-4up`
-**SubAgent:** DSH coder subagent, then Godot QA
+**SubAgent:** Coder child `01a89f5d-0509-45bd-9dcc-bafe051705a6`; Godot QA pending
 **Role:** `coder`
 **References:** `REF-13`, `REF-14`
 **Prompt:** In `aerobeat-content-core` and `aerobeat-tool-content-authoring`, add durable chart/variant/event lineage, recipe/ruleset/hash/provenance, instantaneous Boxing guard/avoidance checkpoint, spatial strike/guard/blocked-cell contracts, modifier metadata, theme/environment suggestion metadata that does not reintroduce mandatory package-owned environments, and deterministic conversion traces. Implement Recipe A and Recipe B, paired Semantic/Spatial projections, 360ms optimizer, guard relocation, obstacle priority/coexistence, 8x6 reach graph, safe-cell nose history, map modifiers, external chart/audio hash validation, and all four prototype outputs. Preserve Flow contracts and source artifacts.
@@ -469,7 +469,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Godot contract/tool suites pass; identical source+recipe produces byte-identical charts and hashes; traces record every emitted/dropped/relocated event and normalization; all four candidates validate; Flow regressions pass; source environment semantics are reconciled explicitly.
 
@@ -477,8 +477,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ### Task 4B: Implement Browser BeatSaver Vendor Acquisition
 
-**Bead ID:** `aerobeat-web-assembly-48w.9`
-**SubAgent:** DSH coder subagent, then browser/security QA
+**Bead ID:** `aerobeat-web-assembly-48w.9`; repo Bead `aerobeat-web-vendor-beatsaver-4wk`
+**SubAgent:** Coder child `22b38c9c-65b8-4e65-b500-ae250056c323`; browser/security QA pending
 **Role:** `coder`
 **References:** `REF-05`, `REF-23`, `REF-24`
 **Prompt:** In `aerobeat-web-vendor-beatsaver`, implement an injected-transport facade for search/latest/detail-by-id/detail-by-hash, explicit version/difficulty discovery, selected-version download, local `File`/ZIP intake, SHA-1 verification, safe archive inspection and normalized source-material manifests. Support direct CORS, configured proxy transport and fake fixtures; AbortSignal, progress, bounded retries, 429/Retry-After, timeouts and truthful errors. Defend against traversal, duplicates, symlinks, encrypted entries and archive bombs. Keep provider DTOs/raw bytes private and do not own conversion, persistence policy, UI or gameplay.
@@ -493,7 +493,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Unit/browser tests cover current API fixtures, search/detail/hash/version selection, CORS download and local ZIP paths, provider-hash verification, cancellation/progress, 404/429/timeout/offline/CORS errors, malicious archives and normalized v2/v3/v4 manifests without leaking raw provider objects.
 
@@ -640,7 +640,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 8B: Normalize and Document Gameplay Icon Masters
 
 **Bead ID:** `aerobeat-branding-0qw`
-**SubAgent:** DSH coder subagent, then visual/licensing audit
+**SubAgent:** Coder child `0f660234-bfe2-4f36-a0ed-31f988f2a0bb`; visual/licensing audit pending
 **Role:** `coder`
 **References:** `REF-19`
 **Prompt:** Derrick has confirmed ownership/reuse rights and authorized generated prototype SVGs. Update `aerobeat-branding` with an asset provenance ledger and normalized web masters. Produce explicit left/right straight, hook and uppercut SVGs at `0 0 64 64`; T-pose/squat/weave/optional glove masters at `0 0 64 64`; and connected standard/crossed guards at `0 0 48 24`. Accept white source silhouettes, normalize DOM exports to `currentColor`, and produce deterministic alpha-mask atlas inputs for WebGL shader coloring. Preserve stable semantic asset IDs so Derrick can replace masters without gameplay changes. Use optical safe areas and no raster/font/external refs/editor namespaces/generated IDs. Do not promote inspiration, testbed, generated-cache or third-party dependency art.
@@ -653,7 +653,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined after the rights/source decision.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Every shipped icon has recorded source/author/license/derivation, normalized dimensions and currentColor behavior; monochrome QA distinguishes family/hand/standard-vs-crossed guard; deterministic SVG validation passes; web packages consume approved exports rather than testbed copies.
 
