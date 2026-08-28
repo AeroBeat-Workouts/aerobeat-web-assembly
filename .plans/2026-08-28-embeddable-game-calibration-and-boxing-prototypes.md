@@ -362,7 +362,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 1: Freeze Cross-Repo Web Contracts and Decision Records
 
 **Bead ID:** `aerobeat-web-contracts-db9`
-**SubAgent:** Coder child `26dd25d2-d862-4624-9de7-5aecd9b53e01`; QA pending
+**SubAgent:** Coder child `26dd25d2-d862-4624-9de7-5aecd9b53e01`; QA/auditor `9298cc52-0446-44dc-8f8b-b17b072d595b`
 **Role:** `coder`
 **References:** `REF-01`, `REF-02`, `REF-05`, `REF-15`, `REF-16`, `REF-17`, `REF-18`
 **Prompt:** In `aerobeat-web-contracts`, define versioned public camelCase contracts and validators for coordinate spaces, calibration/readiness/session/lifecycle, body-grid descriptors/anchors/cell entries, tracking safety, game/session/countdown, content variants, themes, container capabilities, fullscreen, media/asset policy, direct-host events, and iframe messages. Rename the public root element contract to `aero-game` without keeping `aerobeat-app`. Record accepted decisions under `docs/decisions/`. Preserve measured-versus-predicted truth and do not expose vendor-native objects or raw camera frames.
@@ -376,6 +376,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation after repo inspection.
 
 **Status:** In Progress
+
+**Results:** Coder commit `f302b70` implements the contract surface and passes baseline suites. Adversarial QA found that case/separator aliases of forbidden iframe media/archive/audio keys, unknown top-level command/event fields, and signed-zero grid corners were accepted. QA is adding canonical forbidden-key matching, exact-record narrowing, zero canonicalization, fullscreen snapshot coverage and regressions before contract closure.
 
 **Acceptance:** Contract checks and browser tests pass; downstream tasks can depend only on public exports; coordinate-space tests lock camera/preview, gameplay-camera, and athlete-space transformations.
 
