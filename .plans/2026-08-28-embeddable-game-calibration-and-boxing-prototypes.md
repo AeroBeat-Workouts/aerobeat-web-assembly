@@ -615,11 +615,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder commit `bcf39ef` implements a per-game `aero.audio.clock` service with URL/Blob/ArrayBuffer/object-URL/silence sources, hash/decode truth, AudioContext clock continuity, visibility/lease hooks and ownership-aware teardown. Baseline suites pass, but adversarial QA found three gaps: playback could start without a decoded buffer after load failure, natural end did not disconnect its node, and stale async suspend completion could override a newer play while clock/context diverged. QA is enforcing playable readiness, exact-once node retirement and operation-aware suspend/resume across visibility/lease races. A further probe found playback-operation tokens incorrectly superseded pending decode on pause/hidden/lease; load supersession is being split to generation plus AbortSignal so pausing cannot strand the current source.
+**Results:** Coder `bcf39ef` implemented per-game `aero.audio.clock` sources, clock, visibility/lease and teardown. Adversarial QA `302b595` separated load generation/AbortSignal from playback-operation ordering, enforced decoded readiness, exact-once node retirement and stale suspend recovery. Follow-up `8fb5410` completed create/connect/start failure cleanup and late resume/hash/decode/source-replacement races. Parent check, 25 unit tests, Chromium and pack pass; public snapshots contain metadata only. Closure commit `6a6be43`.
 
-**Acceptance:** Unit/browser tests cover load/play/pause/seek, visibility pause/resume, lease transfer, autoplay rejection, CORS/decode/hash-related load failures, deterministic clock snapshots, disconnect/reconnect and no retained AudioContext/source nodes after destroy.
+**Acceptance:** Satisfied; load/play/pause/seek, clock continuity, visibility/lease, autoplay/CORS/hash/decode failure, reconnect and zero retained owned context/nodes after destroy are covered., lease transfer, autoplay rejection, CORS/decode/hash-related load failures, deterministic clock snapshots, disconnect/reconnect and no retained AudioContext/source nodes after destroy.
 
 ---
 
