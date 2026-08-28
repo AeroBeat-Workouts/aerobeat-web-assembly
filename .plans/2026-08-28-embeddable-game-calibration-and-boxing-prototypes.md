@@ -695,7 +695,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Coder `694e145` adds 15 reconnect-safe named presenters and one scalar-only composed intent event for BeatSaver, conversion/library, calibration, renderer surface, Flow/Track/Spatial HUDs, tracking/countdown, environment, fullscreen, capabilities/errors and five profile choices. Parent check/test/browser/pack pass; independent accessibility, intent-safety and multi-layout QA is in progress.
+**Results:** Coder `694e145` adds 15 reconnect-safe named presenters and one scalar-only composed intent event for BeatSaver, conversion/library, calibration, renderer surface, Flow/Track/Spatial HUDs, tracking/countdown, environment, fullscreen, capabilities/errors and five profile choices. Parent baseline gates pass. Accessibility QA found missing roving radio keys, incorrect active-fullscreen/delete/import intents, absent tracking-dialog focus management, calibration rerenders severing preview/render attachments, landscape overflow, low Track contrast and unbounded storage telemetry. QA is implementing stateful accessibility/lifecycle fixes, deep safe snapshot narrowing and multi-viewport regressions.
 
 **Acceptance:** Named-component rules pass; desktop/390px states cover BeatSaver loading/results/empty/detail/version/import/converting/cancel/error/library/quota/delete, calibration waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
 
