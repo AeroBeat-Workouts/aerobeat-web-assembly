@@ -375,11 +375,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation after repo inspection.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder commit `f302b70` implements the contract surface and passes baseline suites. Adversarial QA found that case/separator aliases of forbidden iframe media/archive/audio keys, unknown top-level command/event fields, and signed-zero grid corners were accepted. QA is adding canonical forbidden-key matching, exact-record narrowing, zero canonicalization, fullscreen snapshot coverage and regressions before contract closure.
+**Results:** Coder commit `f302b70` implemented coordinate, calibrated-grid, session, gameplay, content, BeatSaver, theme, host/fullscreen and iframe contracts. Adversarial QA commit `2862a45` added case/separator-aware forbidden media/archive/audio bridge keys, exact plain-data narrowing without executing accessors, command/event exactness, signed-zero/corner coverage, canonical grid descriptors, fullscreen snapshots and a narrow package allowlist. Follow-up `20c5d5e` preserves legitimate generic `stream`/`track` telemetry keys while rejecting media-specific aliases and object types. Parent reran check/test/browser/pack; all pass. Bead closure commit: `c6e0da4`.
 
-**Acceptance:** Contract checks and browser tests pass; downstream tasks can depend only on public exports; coordinate-space tests lock camera/preview, gameplay-camera, and athlete-space transformations.
+**Acceptance:** Satisfied; downstream tasks can depend only on public exports and coordinate tests lock preview, gameplay-camera and athlete transformations.
 
 ---
 
