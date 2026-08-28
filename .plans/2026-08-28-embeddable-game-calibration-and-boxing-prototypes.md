@@ -640,7 +640,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 8B: Normalize and Document Gameplay Icon Masters
 
 **Bead ID:** `aerobeat-branding-0qw`
-**SubAgent:** Coder child `0f660234-bfe2-4f36-a0ed-31f988f2a0bb`; visual/licensing audit pending
+**SubAgent:** Coder child `0f660234-bfe2-4f36-a0ed-31f988f2a0bb`; auditor `c8ba67f3-7df4-4977-b724-2b59952b72e8`
 **Role:** `coder`
 **References:** `REF-19`
 **Prompt:** Derrick has confirmed ownership/reuse rights and authorized generated prototype SVGs. Update `aerobeat-branding` with an asset provenance ledger and normalized web masters. Produce explicit left/right straight, hook and uppercut SVGs at `0 0 64 64`; T-pose/squat/weave/optional glove masters at `0 0 64 64`; and connected standard/crossed guards at `0 0 48 24`. Accept white source silhouettes, normalize DOM exports to `currentColor`, and produce deterministic alpha-mask atlas inputs for WebGL shader coloring. Preserve stable semantic asset IDs so Derrick can replace masters without gameplay changes. Use optical safe areas and no raster/font/external refs/editor namespaces/generated IDs. Do not promote inspiration, testbed, generated-cache or third-party dependency art.
@@ -653,9 +653,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined after the rights/source decision.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Acceptance:** Every shipped icon has recorded source/author/license/derivation, normalized dimensions and currentColor behavior; monochrome QA distinguishes family/hand/standard-vs-crossed guard; deterministic SVG validation passes; web packages consume approved exports rather than testbed copies.
+**Results:** Added 13 authorized normalized masters under `aerobeat-branding/icons/web-gameplay/` with stable semantic manifest, `currentColor` DOM and alpha-mask-atlas WebGL contracts, explicit left/right punch families, squat/weaves/T-pose/glove, and connected standard/crossed guards. Provenance records Derrick's authorization, sources, derivative author and license. Independent Chromium contact-sheet audit found and fixed uppercut/hook distinction and provenance requirements in `a659ec6`; validator and npm check/test pass. Commits: `6b881fc`, `a659ec6`, Bead closure `95b3852`.
+
+**Acceptance:** Satisfied; all assets validate, remain distinct in monochrome, original sources are untouched, and stable IDs support later white-SVG replacement.
 
 ---
 
