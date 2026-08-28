@@ -448,7 +448,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Coder `2aae8f7` implements per-game measured-only T-pose calibration, session geometry, exact athlete 4x3/8x6 mapping, source invalidation, dim retention, hysteretic entries, semantic/spatial evidence, straight continuity and 500ms tracking safety. Parent check/test/browser/pack pass; adversarial calibration/edge/evidence/lifecycle QA is in progress.
+**Results:** Coder `2aae8f7` implements per-game measured-only T-pose calibration, session geometry, exact athlete 4x3/8x6 mapping, source invalidation, dim retention, hysteretic entries, semantic/spatial evidence, straight continuity and 500ms tracking safety. Parent baseline gates pass. Adversarial QA found that sparse two-frame holds bypassed the 500ms no-frame threshold, rollback timestamps could publish stale evidence, malformed/duplicate landmarks escaped validation, invalidation retained valid anchors/history, and throwing subscribers aborted publication. QA is adding measured-sample/gap/duplicate validation, inferred loss before late samples, complete invalidation cleanup, isolated listeners and boundary regressions.
 
 **Acceptance:** Unit/replay tests cover T-pose gates, averaging, release/refire, aspect/padding, mirror/facing transforms, exact corner IDs, out-of-grid behavior, cell/subcell transitions, straight 100ms continuity, guard same-sample evidence, stale samples, tracking-loss pause events, reset/source invalidation, and no bootstrap.
 
