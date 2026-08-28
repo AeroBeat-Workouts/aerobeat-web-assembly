@@ -432,7 +432,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 3: Implement the Calibrated Athlete-Input and Tracking-Safety Service
 
 **Bead ID:** `aerobeat-web-input-esm`
-**SubAgent:** Coder child `95cb3414-ce5b-4692-918f-314ad03dd6cc`; QA pending
+**SubAgent:** Coder child `95cb3414-ce5b-4692-918f-314ad03dd6cc`; QA/auditor `ace00d37-17f4-41a8-a3eb-b675e117698a`
 **Role:** `coder`
 **References:** `REF-01`, `REF-02`, `REF-06`
 **Prompt:** In `aerobeat-web-input`, replace viewport bucketing with one `AeroBodyGridService` app-singleton boundary. Consume measured frames; implement approved T-pose qualification/averaging/hold/cooldown/release, calibrated geometry, camera-to-athlete conversion, 4x3 and 8x6 mapping, out-of-grid invalidity, hysteresis, four-cardinal entries, semantic and spatial Boxing evidence, checkpoint freshness, straight qualification continuity, transition history, calibration IDs, subscriptions/snapshots, and 500ms tracking-safety state. Preserve separate predicted sample truth and do not let predictions calibrate or satisfy measured prototype evidence.
@@ -447,6 +447,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** In Progress
+
+**Results:** Coder `2aae8f7` implements per-game measured-only T-pose calibration, session geometry, exact athlete 4x3/8x6 mapping, source invalidation, dim retention, hysteretic entries, semantic/spatial evidence, straight continuity and 500ms tracking safety. Parent check/test/browser/pack pass; adversarial calibration/edge/evidence/lifecycle QA is in progress.
 
 **Acceptance:** Unit/replay tests cover T-pose gates, averaging, release/refire, aspect/padding, mirror/facing transforms, exact corner IDs, out-of-grid behavior, cell/subcell transitions, straight 100ms continuity, guard same-sample evidence, stale samples, tracking-loss pause events, reset/source invalidation, and no bootstrap.
 
