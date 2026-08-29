@@ -769,6 +769,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
+**Preflight:** Tailscale is healthy with HTTPS capability and certificate domain `derrick-alienware-aurora-r13.tail613fcb.ts.net`, suitable for Android secure-context delivery. No `adb` or system Chromium executable is currently visible in PATH; Playwright Chromium remains available. Physical-device access must be confirmed at execution time. A parent cross-repo run passes unit and browser suites for contracts, BeatSaver vendor, content-authoring (including real `4858`/`3D44B`), content, gameplay public integration, input, video, audio, renderer and UI; assembly remains under Task 10 repair.
+
 **Acceptance:** All required suites pass; desktop and Android evidence covers at least two non-prebundled BeatSaver selections and local ZIP recovery; no allowlist gate exists; no unexpected console warnings/errors; no raw-frame/ZIP/audio bridge payload; release proof still ships only locked MediaPipe CV vendor/runtime assets and declared web BeatSaver/content-authoring dependencies.
 
 ---
