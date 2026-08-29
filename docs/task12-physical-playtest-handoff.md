@@ -16,6 +16,14 @@ Task 12 cannot close yet. Required external/operator evidence is still missing:
 3. physical direct-download and local-ZIP-recovery playthroughs for two current, nonprebundled compatible BeatSaver maps;
 4. operator observations for reach, guard comfort, target clarity, timing, and motion comfort. These observations are experimental notes only and must not choose a winner.
 
+## Four-section/start repair ready for retest
+
+The physical drawer now exposes exactly **Gameplay**, **Visuals**, **Music**, and **Info** in that order. Gameplay and Visuals use explicit scoped native radios with Flow and Default selected; Music owns BeatSaver search/latest/local, selected version/difficulty/import, progress, and the local library; Info contains concise runtime/actionable error or limitation text and fullscreen only. Development scoring/converter/profile-bundle controls remain available through existing APIs and registry contracts but are absent from this drawer.
+
+On a fresh profile, pressing `Calibrate / Start` before playable imported content shows one short Music prerequisite, focuses Music, and makes zero camera requests. The first search result is selected without being represented as playable until import succeeds. A valid current playable package remains selected; otherwise the first local library package is selected deterministically. With playable package+variant selected, Calibrate configures it before camera start and preserves the existing drawer-close → fresh T-pose → cooldown/release → 3-2-1 → play path and menu-pause recalibration policy.
+
+Automated evidence passes two complete test/browser/build-release rounds, dry-run package/diff comparison, recursive deterministic release comparison, exact four-heading/forbidden-text/radio-default assertions, fresh zero-camera gating, valid-current and first-result/library selection, selected-content camera/T-pose/countdown/play, menu pause, direct/iframe privacy, release lock, and no-winner checks. UI scoped selector dependency is `b075797`. Assembly P0 `aerobeat-web-assembly-c36` intentionally remains open for independent QA and physical confirmation.
+
 ## Host inventory
 
 - Session: active X11 desktop, `DISPLAY=:1`.

@@ -59,6 +59,8 @@ export class AeroGame extends HTMLElement {
     this.menuPauseArmed = false;
     this.menuStarting = false;
     this.sessionStartRequested = false;
+    this.musicPrerequisite = "";
+    this.pendingLibrarySelection = null;
     this.menuFocusRestore = null;
     this.boundVisibility = () => { void this.applyVisibility(); };
     this.boundFullscreen = () => { this.fullscreenPending = false; this.fullscreenError = null; this.measureContainer(); this.publish("fullscreen_changed"); };
@@ -77,7 +79,7 @@ export class AeroGame extends HTMLElement {
     this.connectedGeneration += 1;
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.menuFocusRestore = null;
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null;
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ packages: Object.freeze([]), selectedPackageId: null, storage: null });
     try {
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
@@ -274,10 +276,13 @@ export class AeroGame extends HTMLElement {
     try {
       const results = latest ? await graph.vendor.listLatestMaps(vendorQuery, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(vendorQuery, { signal: this.activeAbort.signal });
       if (!this.isCurrent(generation, graph)) return results;
+      const previousMapId = this.beatSaverView.selectedMap?.mapId;
       this.browsedMaps.clear(); for (const map of results.maps.slice(0, 20)) this.browsedMaps.set(map.mapId.toUpperCase(), map);
       const summaries = Object.freeze(results.maps.slice(0, 20).map(mapSummary));
       this.beatSaverView = Object.freeze({ ...emptyBeatSaverView(), state: summaries.length ? "ready" : "empty", query: boundedString(dataValue(normalized, "text"), ""), results: summaries });
-      this.renderPresenters(); this.emitGameEvent("beatsaver_results", { resultCount: summaries.length, maps: summaries });
+      const deterministicSelection = summaries.find((summary) => summary.mapId === previousMapId) ?? summaries[0];
+      if (deterministicSelection) this.selectBrowsedMap(deterministicSelection.mapId); else this.renderPresenters();
+      this.emitGameEvent("beatsaver_results", { resultCount: summaries.length, maps: summaries });
       return results;
     } catch (error) {
       if (!this.isCurrent(generation, graph)) return null;
@@ -637,16 +642,26 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-calibration-badge", input.calibration);
     setPresenter(this, "aero-tracking-pause", { active: session.state === "paused_tracking", reason: session.pauseReason, calibration: input.calibration });
     setPresenter(this, "aero-resume-countdown", gameplay.countdown ?? {});
-    setPresenter(this, "aero-prototype-selector", profilePresenterSnapshot(this.graph.profiles.getSnapshot(), content.selectedVariant, session.state));
+    const selectorSnapshot = profilePresenterSnapshot(this.graph.profiles.getSnapshot(), content.selectedVariant, session.state);
+    setPresenter(this, "aero-prototype-selector[scope='gameplay']", selectorSnapshot);
+    setPresenter(this, "aero-prototype-selector[scope='visuals']", selectorSnapshot);
     setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
     setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: content.packageId });
     setPresenter(this, "aero-beatsaver-browser", this.beatSaverView);
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
     setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
-    setPresenter(this, "aero-capabilities-panel", { ...this.capabilities(), storage: this.libraryView.storage });
-    setPresenter(this, "aero-error-panel", this.lastError ? { active: true, ...this.lastError } : { active: false });
+    const runtimeMessage = runtimeStatus(content, session, input);
     const status = this.shadowRoot?.querySelector("[data-role='status']");
-    if (status) status.textContent = `${content.state} · ${session.state} · ${Math.round(this.container.widthCssPx)}×${Math.round(this.container.heightCssPx)}`;
+    if (status) status.textContent = runtimeMessage;
+    const infoStatus = this.shadowRoot?.querySelector("[data-role='info-status']");
+    if (infoStatus instanceof HTMLElement) infoStatus.textContent = runtimeMessage;
+    const infoAction = this.shadowRoot?.querySelector("[data-role='info-action']");
+    if (infoAction instanceof HTMLElement) {
+      const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
+      infoAction.textContent = action; infoAction.hidden = action === "";
+    }
+    const prerequisite = this.shadowRoot?.querySelector("[data-role='music-prerequisite']");
+    if (prerequisite instanceof HTMLElement) { prerequisite.textContent = this.musicPrerequisite; prerequisite.hidden = this.musicPrerequisite === ""; }
   }
 
   renderInteractionShell() {
@@ -688,7 +703,15 @@ export class AeroGame extends HTMLElement {
     const graph = this.graph; if (!graph) return;
     const [packages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
     if (!this.isCurrent(generation, graph)) return;
-    this.libraryView = Object.freeze({ packages, selectedPackageId: graph.content.getSnapshot().packageId, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
+    const current = graph.content.getSnapshot();
+    const first = packages[0] ?? null;
+    this.libraryView = Object.freeze({ packages, selectedPackageId: playableContent(current) ? current.packageId : first?.packageId ?? null, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
+    if (playableContent(current) || !first) return;
+    const selection = this.selectLibraryPackage(first);
+    this.pendingLibrarySelection = selection;
+    try { await selection; }
+    catch (error) { if (this.isCurrent(generation, graph)) this.handleError(error); }
+    finally { if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null; }
   }
 
   async handleLocalZip(event) {
@@ -743,8 +766,14 @@ export class AeroGame extends HTMLElement {
 
   async startFromMenu() {
     if (!this.graph || this.menuStarting) return;
-    this.menuStarting = true; this.lastError = null; this.renderPresenters();
+    this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
     try {
+      if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
+      if (!await this.ensurePlayableMusicSelection()) {
+        this.musicPrerequisite = this.beatSaverView.selectedMap ? "Import selected song to start." : "Choose or import a song to start.";
+        this.menuOpen = true; this.renderPresenters(); this.focusMusicSection();
+        return;
+      }
       await this.start();
       if (!this.graph) return;
       this.menuPauseArmed = true;
@@ -752,6 +781,26 @@ export class AeroGame extends HTMLElement {
       this.renderPresenters();
     } catch (error) { this.handleError(error); }
     finally { this.menuStarting = false; this.renderPresenters(); }
+  }
+
+  async ensurePlayableMusicSelection() {
+    if (!this.graph) return false;
+    let content = this.graph.content.getSnapshot();
+    if (playableContent(content)) { this.configureGameplayFromContent(false); return true; }
+    const firstVariant = content.state === "ready" && content.packageId ? content.variants?.[0] : null;
+    if (firstVariant?.variantId) {
+      await this.selectVariant(firstVariant.variantId);
+      content = this.graph?.content.getSnapshot();
+      if (playableContent(content)) { this.configureGameplayFromContent(false); return true; }
+    }
+    return false;
+  }
+
+  focusMusicSection() {
+    queueMicrotask(() => requestAnimationFrame(() => {
+      const section = this.shadowRoot?.querySelector("[data-section='music']");
+      if (section instanceof HTMLElement) section.focus();
+    }));
   }
 
   drawerElement() { const value = this.shadowRoot?.querySelector("[data-role='drawer']"); return value instanceof HTMLElement ? value : null; }
@@ -867,7 +916,8 @@ defineAeroGame();
 function template() { return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
 *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:.58}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.drawer-close,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;font-size:24px}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:rgba(4,17,29,.97);border-inline-start:1px solid rgba(255,255,255,.18);box-shadow:-12px 0 32px rgba(0,0,0,.42);padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-bar{position:absolute;inset-block-start:max(8px,env(safe-area-inset-top));inset-inline:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}.drawer-title{font:800 18px system-ui}.drawer-close{inline-size:48px;font-size:22px}.start-action{inline-size:100%;margin-block-end:10px;background:#0d6f86}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge></aero-calibration-badge><aero-tracking-pause></aero-tracking-pause><aero-resume-countdown></aero-resume-countdown></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false">☰</button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div class="drawer-bar"><span class="drawer-title">AeroBeat</span><button data-action="menu-close" class="drawer-close" type="button" aria-label="Close configuration menu">×</button></div><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><aero-prototype-selector></aero-prototype-selector><aero-beatsaver-browser></aero-beatsaver-browser><aero-content-import-progress></aero-content-import-progress><aero-content-library></aero-content-library><aero-capabilities-panel></aero-capabilities-panel><aero-error-panel></aero-error-panel><aero-fullscreen-button></aero-fullscreen-button></div></section></div>`; }
+.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(255,255,255,.16);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-status,.drawer-action{margin:0;padding:9px 11px;border-radius:10px}.drawer-status{background:rgba(255,255,255,.07)}.drawer-action{background:rgba(255,178,67,.18);color:#ffe0a6;font-weight:700}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge></aero-calibration-badge><aero-tracking-pause></aero-tracking-pause><aero-resume-countdown></aero-resume-countdown></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false">☰</button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div class="drawer-bar"><span class="drawer-title">AeroBeat</span><button data-action="menu-close" class="drawer-close" type="button" aria-label="Close configuration menu">×</button></div><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-status" class="drawer-status" aria-live="polite"></p><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }
@@ -885,6 +935,23 @@ function ownDataValue(record, key) { if (!record || typeof record !== "object") 
 function contentTelemetry(snapshot) { const result = {}; for (const key of Object.keys(snapshot)) if (key !== "resolvedEvents") result[key] = snapshot[key]; result.resolvedEventCount = Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0; return Object.freeze(result); }
 function gameplayTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: snapshot.session, countdown: snapshot.countdown, safety: snapshot.safety, lease: snapshot.lease, selectedVariant: snapshot.selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventIds: snapshot.activeEventIds.slice(0, 128), judgedEventCount: snapshot.judgedEventIds.length, latestJudgement: snapshot.judgements.at(-1) ?? null, latestShadowJudgement: snapshot.shadowJudgements.at(-1) ?? null, scorePartitions: snapshot.scorePartitions, error: snapshot.error }); }
 function emptyBeatSaverView() { return Object.freeze({ state: "idle", query: "", results: Object.freeze([]), selectedMap: null, versions: Object.freeze([]), difficulties: Object.freeze([]), selectedVersionHash: "", selectedDifficulty: "", errorMessage: "" }); }
+function playableContent(content) { return content?.state === "ready" && typeof content.packageId === "string" && content.packageId.length > 0 && typeof content.selectedVariant?.variantId === "string" && content.selectedVariant.variantId.length > 0; }
+function runtimeStatus(content, session, input) {
+  if (!playableContent(content)) return "Choose a song in Music.";
+  if (session.state === "playing") return "Workout in progress.";
+  if (session.state === "countdown") return "Get ready.";
+  if (session.state === "paused_tracking") return "Recalibrate to continue.";
+  if (input.calibration?.state === "holding") return "Hold the T-pose.";
+  if (session.state === "calibrating") return "T-pose calibration ready.";
+  return "Ready to calibrate.";
+}
+function actionableRuntimeMessage(error, limitations) {
+  if (error?.message) return boundedString(error.message, "AeroBeat needs attention.");
+  if (limitations.includes("camera_unavailable")) return "Camera access is unavailable in this browser.";
+  if (limitations.includes("webgl2_unavailable")) return "WebGL2 is unavailable; try a current browser.";
+  if (limitations.includes("fullscreen_unavailable")) return "Fullscreen is unavailable here.";
+  return "";
+}
 function mapSummary(map) { return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: map.versions.length, versions: Object.freeze(map.versions.slice(0, 8).map((version) => Object.freeze({ versionHash: version.hash, label: version.key || version.hash.slice(0, 8) }))) }); }
 function standardDifficulties(version) { return Object.freeze((version?.difficulties ?? []).filter((entry) => entry.characteristic === "Standard").map((entry) => entry.difficulty).filter((entry, index, all) => all.indexOf(entry) === index)); }
 function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1; }

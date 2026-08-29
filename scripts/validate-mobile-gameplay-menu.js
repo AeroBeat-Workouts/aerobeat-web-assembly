@@ -24,7 +24,14 @@ try {
     element.remove();
     element.serviceGraphFactory = (options) => {
       const original = originalFactory(options);
-      const state = globalThis.__mobileState = { pose: undefined, audioState: "paused", audioPlayCalls: 0, audioPauseCalls: 0, cvStartCalls: 0, cvStopCalls: 0, videoPauseCalls: 0, retained: null };
+      const hash = "a".repeat(64);
+      const variant = (packageId) => ({ variantId: `${packageId}-flow`, chartId: `${packageId}-chart`, mode: "flow", rulesetId: "flow_grid_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: `${packageId}-flow` } });
+      const idleContent = () => ({ state: "idle", packageId: null, selectedVariant: null, variants: [], resolvedEvents: [], song: null, background: null, lineage: null });
+      const readyContent = (packageId) => { const selectedVariant = variant(packageId); return { state: "ready", packageId, selectedVariant, variants: [selectedVariant], resolvedEvents: [], song: { name: packageId }, background: null, lineage: null }; };
+      const state = globalThis.__mobileState = { pose: undefined, audioState: "paused", audioPlayCalls: 0, audioPauseCalls: 0, cvStartCalls: 0, cvStopCalls: 0, videoPauseCalls: 0, retained: null, library: [], packageLoadCalls: [], maps: [], contentSnapshot: idleContent() };
+      const content = { getSnapshot: () => state.contentSnapshot, async loadPersistenceHandle(handle) { state.packageLoadCalls.push(handle.packageId); state.contentSnapshot = readyContent(handle.packageId); }, async selectVariant(variantId) { state.contentSnapshot = { ...state.contentSnapshot, selectedVariant: state.contentSnapshot.variants.find((item) => item.variantId === variantId) ?? null }; }, async swapFutureVariant(variantId) { await this.selectVariant(variantId); }, subscribe() { return () => {}; }, setPlaybackState() {}, readAsset() { return new Uint8Array(); }, destroy() {} };
+      const authoring = { getSnapshot: () => ({ state: "idle", progress: 0 }), subscribe() { return () => {}; }, async listPackages() { return state.library; }, async estimateStorage() { return { usageBytes: 0, quotaBytes: 1024 }; }, async loadPackage(handle) { return { handle, package: {} }; }, async deletePackage() { return false; }, cancel() {}, destroy() {} };
+      const vendor = { snapshot: () => original.vendor.snapshot(), async searchMaps() { return { maps: state.maps }; }, async listLatestMaps() { return { maps: state.maps }; } };
       const video = {
         getRetainedCameraStream: () => state.retained,
         async requestCamera() { state.retained = await navigator.mediaDevices.getUserMedia({ video: true }); return { status: "granted", message: "ok" }; },
@@ -40,7 +47,7 @@ try {
         async setDocumentHidden(hidden) { if (hidden) state.audioState = "paused"; }, async destroy() {},
         getStatus: () => ({ state: state.audioState, autoplayState: "allowed" }), getClockSnapshot: () => ({ contextTimeSeconds: performance.now() / 1000, positionSeconds: 0, playing: state.audioState === "playing" })
       };
-      return Object.freeze({ ...original, video, cv, audio });
+      return Object.freeze({ ...original, vendor, authoring, content, video, cv, audio });
     };
     document.querySelector("main")?.append(element);
   });
@@ -48,9 +55,50 @@ try {
   const initial = await shellSnapshot(game);
   assert(initial.menuOpen && initial.drawerVisible, "first-run drawer must open");
   assert(initial.buttonWidth >= 44 && initial.buttonHeight >= 44 && initial.buttonTop <= 12, "hamburger must be accessible at top right");
-  assert(initial.compactCount === initial.presenterCount && initial.presenterCount === 7, "all drawer presenters must consume [compact]");
+  assert(initial.compactCount === initial.presenterCount && initial.presenterCount === 6, "all six drawer presenters must consume [compact]");
   assert(initial.videoStable && initial.canvasStable && initial.surfaceFill, "stable video/canvas must fill portrait viewport");
   assert(initial.ariaExpanded === "true" && initial.ariaControls === "aero-game-drawer" && initial.drawerFocused, "first-run drawer must expose controls state and receive focus");
+  const taxonomy = await game.evaluate((element) => {
+    const root = element.shadowRoot; const drawer = root.querySelector("[data-role='drawer']");
+    const sections = [...drawer.querySelectorAll(":scope > .drawer-content > .drawer-section")];
+    const gameplay = drawer.querySelector("aero-prototype-selector[scope='gameplay']"); const visuals = drawer.querySelector("aero-prototype-selector[scope='visuals']");
+    const gameplayChecked = gameplay.shadowRoot.querySelector("input[type='radio']:checked"); const visualsChecked = visuals.shadowRoot.querySelector("input[type='radio']:checked");
+    const forbidden = [...sections].map((section) => section.innerText).join(" ").match(/schema|profile bundle|converter|scoring|ruleset|recipe|content hash|development telemetry/giu) ?? [];
+    return { headings: sections.map((section) => section.querySelector(":scope > h2")?.textContent), sectionCount: sections.length, selectorCount: drawer.querySelectorAll("aero-prototype-selector[compact]").length, gameplayChecked: gameplayChecked?.value, visualsChecked: visualsChecked?.value, forbidden };
+  });
+  assert(JSON.stringify(taxonomy.headings) === JSON.stringify(["Gameplay", "Visuals", "Music", "Info"]) && taxonomy.sectionCount === 4, `drawer must have exactly four ordered product headings: ${JSON.stringify(taxonomy)}`);
+  assert(taxonomy.selectorCount === 2 && taxonomy.gameplayChecked === "flow" && taxonomy.visualsChecked === "aero.visual.default", `scoped radio defaults must select Flow and Default: ${JSON.stringify(taxonomy)}`);
+  assert(taxonomy.forbidden.length === 0, `drawer must omit development controls/text: ${taxonomy.forbidden.join(",")}`);
+
+  await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='calibrate-start']").click());
+  await page.waitForTimeout(100);
+  const freshGate = await game.evaluate((element) => ({ cameraRequests: globalThis.__cameraRequests, prerequisite: element.shadowRoot.querySelector("[data-role='music-prerequisite']").textContent, musicFocused: element.shadowRoot.activeElement === element.shadowRoot.querySelector("[data-section='music']"), sessionState: element.graph.gameplay.getSnapshot().session.state }));
+  assert(freshGate.cameraRequests === 0 && /song/u.test(freshGate.prerequisite) && freshGate.musicFocused, `fresh Calibrate must focus one Music prerequisite without camera: ${JSON.stringify(freshGate)}`);
+
+  const selection = await game.evaluate(async (element) => {
+    const makeVersion = (hash) => ({ hash, key: hash.slice(0, 6), difficulties: [{ characteristic: "Standard", difficulty: "Expert" }] });
+    globalThis.__mobileState.maps = [
+      { mapId: "FIRST", mapName: "First result", songName: "First result", songAuthorName: "Artist A", levelAuthorName: "Mapper A", versions: [makeVersion("1".repeat(40))] },
+      { mapId: "SECOND", mapName: "Second result", songName: "Second result", songAuthorName: "Artist B", levelAuthorName: "Mapper B", versions: [makeVersion("2".repeat(40))] }
+    ];
+    await element.browseBeatSaver({ text: "result" });
+    const selectedSearch = element.beatSaverView.selectedMap?.mapId;
+    element.shadowRoot.querySelector("[data-action='calibrate-start']").click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const searchCameraRequests = globalThis.__cameraRequests; const searchPrerequisite = element.shadowRoot.querySelector("[data-role='music-prerequisite']").textContent;
+    const packageSummary = (packageId, name) => ({ packageId, name, variantCount: 1 });
+    globalThis.__mobileState.library = [packageSummary("package-first", "First library song"), packageSummary("package-current", "Current library song")];
+    globalThis.__mobileState.contentSnapshot = { ...globalThis.__mobileState.contentSnapshot, ...{ state: "ready", packageId: "package-current", selectedVariant: { variantId: "package-current-flow", chartId: "package-current-chart", mode: "flow", rulesetId: "flow_grid_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: "a".repeat(64) }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: "a".repeat(64) }, provenance: { baseVariantId: "package-current-flow" } }, variants: [], resolvedEvents: [], song: { name: "Current" }, background: null, lineage: null } };
+    await element.refreshLibrary(); const preserved = element.graph.content.getSnapshot().packageId; const preservedLoads = globalThis.__mobileState.packageLoadCalls.length;
+    globalThis.__mobileState.contentSnapshot = { state: "idle", packageId: null, selectedVariant: null, variants: [], resolvedEvents: [], song: null, background: null, lineage: null };
+    await element.refreshLibrary();
+    return { selectedSearch, searchCameraRequests, searchPrerequisite, preserved, preservedLoads, autoSelected: element.graph.content.getSnapshot().packageId, loadCalls: [...globalThis.__mobileState.packageLoadCalls] };
+  });
+  assert(selection.selectedSearch === "FIRST", `first search result must be selected deterministically: ${JSON.stringify(selection)}`);
+  assert(selection.searchCameraRequests === 0 && /Import selected song/u.test(selection.searchPrerequisite), `unimported result must never be claimed playable: ${JSON.stringify(selection)}`);
+  assert(selection.preserved === "package-current" && selection.preservedLoads === 0, `valid current library package must be preserved: ${JSON.stringify(selection)}`);
+  assert(selection.autoSelected === "package-first" && JSON.stringify(selection.loadCalls) === JSON.stringify(["package-first"]), `first library package must auto-select deterministically: ${JSON.stringify(selection)}`);
+
   const focusCycle = await game.evaluate((element) => {
     const drawer = element.shadowRoot.querySelector("[data-role='drawer']");
     const collect = (root) => [...root.querySelectorAll("*")].flatMap((item) => item instanceof HTMLElement && !item.hidden ? [...(item.matches("button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex='-1'])") ? [item] : []), ...(item.shadowRoot ? collect(item.shadowRoot) : [])] : []);
@@ -64,11 +112,7 @@ try {
   const backdropClosed = await shellSnapshot(game); assert(!backdropClosed.menuOpen && backdropClosed.buttonFocused, "backdrop close must restore hamburger focus");
   await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-toggle']").click()); await page.waitForTimeout(50);
 
-  await game.evaluate((element) => {
-    const hash = "a".repeat(64);
-    element.graph.gameplay.configureContent({ packageId: "mobile-package", selectedVariant: { variantId: "mobile-flow", chartId: "mobile-chart", mode: "flow", rulesetId: "flow_grid_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: "mobile-flow" } }, resolvedEvents: [], profileIdentity: { schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: "mobile", profileVersion: "1", contentHash: hash, class: "between_run_ruleset", regenerationRequired: false }, shadowVariants: [] });
-    element.shadowRoot.querySelector("[data-action='calibrate-start']").click();
-  });
+  await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='calibrate-start']").click());
   await waitFor(page, async () => await page.evaluate(() => globalThis.__cameraRequests === 1 && globalThis.__mobileState.cvStartCalls >= 1));
   await pushPose(game, 1000, true); await pushPose(game, 5500, true);
   const obscured = await game.evaluate((element) => ({ menuOpen: element.getSnapshot().interaction.menuOpen, calibrationId: element.graph.input.getSnapshot().calibration.calibrationId }));
