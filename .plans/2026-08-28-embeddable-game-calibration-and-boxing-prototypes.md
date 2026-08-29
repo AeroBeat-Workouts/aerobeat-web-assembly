@@ -710,7 +710,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 10: Replace the SPA Shell with Reconnectable `aero-game` and Iframe Delivery
 
 **Bead ID:** `aerobeat-web-assembly-48w.4`
-**SubAgent:** Coder child `a091b4d7-dfa6-458e-b2fa-a18a5f2f3bf4`; integration QA pending
+**SubAgent:** Coder child `a091b4d7-dfa6-458e-b2fa-a18a5f2f3bf4`; integration/security QA `e959854b-b954-472e-9429-5cd60ae88b70`
 **Role:** `coder`
 **References:** `REF-05`, `REF-08`, `REF-15`, `REF-16`, `REF-17`, `REF-18`
 **Prompt:** In `aerobeat-web-assembly`, replace `aerobeat-app` with `aero-game`; remove `100vh`, history/location ownership, constructor startup, shadow-root traversal, and terminal reconnect bugs. Compose one service graph per instance, including BeatSaver vendor, content-authoring Worker/persistence, content runtime, exact-container ResizeObserver/DPR coordination, media lease, measured CV/input/gameplay/audio/renderer/UI flow, environment priority, public browse/import/convert/library/game commands/snapshots/events, child-owned fullscreen, strict iframe wrapper/handshake, public capability/storage diagnostics, hidden-page policy, cancellation and complete teardown. Preserve the locked MediaPipe Lite production route and do not reintroduce removed backend selectors or predictive production routing. Raw ZIP/audio bytes stay child-local in iframe mode.
@@ -726,6 +726,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** In Progress
+
+**Results:** Coder `29696c5` implements the reconnectable full-parent `aero-game`, per-connection service graph, process-wide lease coordinator, direct/iframe APIs, locked MediaPipe route, stable surfaces, lifecycle teardown and tracked 0.0.24 release proof. Parent check/test/browser/build/build-release/pack pass; the release rebuild changes tracked timestamps/cache-bust bytes and leaves the tree dirty, so independent integration/security QA is fixing reproducibility alongside adversarial real-service/iframe/lease/lifecycle validation.
 
 **Acceptance:** Direct and cross-origin iframe modes pass; arbitrary compatible BeatSaver search/import/convert/library selection runs through public APIs; parent container controls dimensions; camera permissions and injected stream work where applicable; raw frames/ZIP/audio never cross bridge; normalized landmarks and bounded import/game telemetry do; fullscreen is user-gesture safe; multiple instances transfer lease; reconnect works; hidden pauses and cancels/retains work according to documented lifecycle; all four prototypes and Flow run through public APIs.
 
