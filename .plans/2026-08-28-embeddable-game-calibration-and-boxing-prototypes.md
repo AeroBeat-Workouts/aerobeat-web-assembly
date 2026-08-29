@@ -653,7 +653,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Results:** Renderer `51af7e2` removed the singleton and added per-game Flow/Track/Spatial WebGL2 plans, exact-container/DPR, branding atlas, theme/tuning, recovery and teardown; style `5688b35` added generic role tokens. Visual audit `ca32a95` fixed atlas inversion, physical 4:3/square-cell fitting, Track icon aspect, easing, strict theme/atlas/tuning validation, regeneration/live truth, terminal guards and abortable rasterization. Parent check/test/browser/pack pass and inspected desktop, 390px, landscape and Flow evidence. Closure `42e79fa`.
 
-**Acceptance:** Satisfied; arbitrary containers/DPR, placement/distinction/animation/theme/tuning, no camera coupling and clean WebGL disposal are covered., exact 4x3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal.
+**Acceptance:** Satisfied; arbitrary containers/DPR, exact 4×3 placement, role/icon/pattern distinction, beat-center animation convergence, theme precedence/defaults, live tuning swaps, no camera-space coupling, and clean WebGL disposal are covered.
 
 ---
 
@@ -703,7 +703,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Results:** Coder `694e145` added 15 named reconnect-safe presenters and scalar-only intents. Accessibility/browser audit `63e4f6b` added roving profile radio keys, confirmed deletion, enter/exit fullscreen and exact import IDs, tracking dialog focus restore, stable preview/render nodes, deep bounded snapshot narrowing, safe storage telemetry, AA Track colors and portrait/landscape wrapping. Parent check/test/browser/pack pass; closure `e4b3571`.
 
-**Acceptance:** Satisfied; named component, desktop/390px/landscape, accessibility, all authoring/calibration/game/profile states and no shadow-root integration dependency are covered./results/empty/detail/version/import/converting/cancel/error/library/quota/delete, calibration waiting/holding/cooldown/success/error, dim lost grid, pause/recalibration/countdown, Flow, all four Boxing selectors, fullscreen availability, theme overrides, and no shadow-root integration dependency.
+**Acceptance:** Satisfied; named components, desktop/390px/landscape layouts, accessibility, browse/detail/version/import/conversion/library/quota states, calibration/loss/pause/countdown, Flow, all four Boxing selectors, fullscreen, theme overrides, and no shadow-root integration dependency are covered.
 
 ---
 
@@ -769,7 +769,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Pending
 
-**Preflight:** Tailscale is healthy with HTTPS capability and certificate domain `derrick-alienware-aurora-r13.tail613fcb.ts.net`, suitable for Android secure-context delivery. No `adb` or system Chromium executable is currently visible in PATH; Playwright Chromium remains available. Physical-device access must be confirmed at execution time. A parent cross-repo run passes unit and browser suites for contracts, BeatSaver vendor, content-authoring (including real `4858`/`3D44B`), content, gameplay public integration, input, video, audio, renderer and UI; assembly remains under Task 10 repair.
+**Preflight:** Tailscale is healthy with HTTPS capability and certificate domain `derrick-alienware-aurora-r13.tail613fcb.ts.net`, suitable for Android secure-context delivery. No `adb` or system Chromium executable is currently visible in PATH; Playwright Chromium remains available. Physical-device access must be confirmed at execution time. A parent cross-repo run passes unit and browser suites for contracts, BeatSaver vendor, content-authoring (including real `4858`/`3D44B`), content, gameplay public integration, input, video, audio, renderer and UI. Canonical Godot content-core and authoring suites also pass; authoring retains the documented pre-existing 10-resource exit warning with exit code 0. Assembly remains under Task 10 repair.
 
 **Acceptance:** All required suites pass; desktop and Android evidence covers at least two non-prebundled BeatSaver selections and local ZIP recovery; no allowlist gate exists; no unexpected console warnings/errors; no raw-frame/ZIP/audio bridge payload; release proof still ships only locked MediaPipe CV vendor/runtime assets and declared web BeatSaver/content-authoring dependencies.
 
