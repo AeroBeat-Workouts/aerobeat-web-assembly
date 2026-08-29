@@ -577,7 +577,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Complete
 
-**Results:** Recovery `b937435` implemented the coordinator and locked timing/safety/five-candidate matrix. Independent QA `68da7d5` fixed current audio/input envelope compatibility, transactional configure/advance/swap state, unsafe timeline freezing, overlap-aware guard/punch evidence, strict identity/duplicate/qualification checks, immediate lease/lifecycle gates, complete score partition identity and per-event old/new variant truth across paused swaps. Actual public audio/content/input integration and parent check/unit/integration/browser/pack pass; Beads closed.
+**Results:** Recovery `b937435` implemented the coordinator and locked timing/safety/five-candidate matrix. Independent QA `68da7d5` fixed current audio/input envelope compatibility, transactional configure/advance/swap state, unsafe timeline freezing, overlap-aware guard/punch evidence, strict identity/duplicate/qualification checks, immediate lease/lifecycle gates, complete score partition identity and per-event old/new variant truth across paused swaps. Follow-up `dac3098` makes ordinary manual-pause frames timeline-immutable and adds a transactional stopped-clock-only `synchronizePausedClock` seek seam. Actual public audio/content/input integration and parent check/unit/integration/browser/pack pass; Beads closed.
 
 **Acceptance:** Satisfied; deterministic and public-integration tests cover all four Boxing candidates plus Flow, ±180ms, 150ms, 100ms straight qualification, cardinal entries, checkpoints, overlap exclusivity, disjoint concurrency, consumption, tracking/countdown, swaps, local scoring and isolated shadows.
 
