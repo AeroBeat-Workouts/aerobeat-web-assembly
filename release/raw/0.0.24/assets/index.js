@@ -7864,13 +7864,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:fdb493e4b0c947b9af3e75b8dd742a5928f090bc4d92ea96b2fe9b3b339c2bde";
+var buildStamp = "source:01b535c6eab264203e88c343e6f46e1093c628559924838da07553864ba4de0e";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-fdb493e4b0c947b9";
+var cacheBust = "0.0.24-01b535c6eab26420";
 /**
 * Vite-injected package version from package.json.
 *
@@ -18040,6 +18040,16 @@ function createAeroGameServiceGraph(options = {}) {
 //#endregion
 //#region src/index.js
 var GAME_EVENT_NAME = "aero-game-event";
+var AERO_BACKGROUND_PROJECTION = Object.freeze({
+	kind: "linear-gradient",
+	colors: Object.freeze(["#071426", "#153b5d"]),
+	angleDeg: 180
+});
+var CAMERA_BACKGROUND_PROJECTION = Object.freeze({
+	kind: "solid",
+	colors: Object.freeze(["#00000000"]),
+	angleDeg: 180
+});
 var instanceSequence = 0;
 defineAeroUiElements();
 /** Full-container, reconnectable AeroBeat game root. */
@@ -18081,6 +18091,8 @@ var AeroGame = class extends HTMLElement {
 		this.menuPauseArmed = false;
 		this.menuStarting = false;
 		this.sessionStartRequested = false;
+		this.environmentMode = "aero";
+		this.cameraCompositeMode = null;
 		this.musicPrerequisite = "";
 		this.pendingLibrarySelection = null;
 		this.menuFocusRestore = null;
@@ -18120,6 +18132,8 @@ var AeroGame = class extends HTMLElement {
 		this.menuPauseArmed = false;
 		this.menuStarting = false;
 		this.sessionStartRequested = false;
+		this.environmentMode = "aero";
+		this.cameraCompositeMode = null;
 		this.musicPrerequisite = "";
 		this.pendingLibrarySelection = null;
 		this.menuFocusRestore = null;
@@ -18193,6 +18207,8 @@ var AeroGame = class extends HTMLElement {
 			if (result.status !== "granted") throw new Error(result.message);
 		}
 		this.attachRetainedCamera();
+		await graph.video.play(this.videoElement());
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		await this.startCv();
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
@@ -18230,6 +18246,11 @@ var AeroGame = class extends HTMLElement {
 		await aeroGameMediaLeaseCoordinator.request(participant);
 		if (!this.isCurrent(generation, graph) || document.hidden) return this.getSnapshot();
 		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+		if (graph.video.getRetainedCameraStream()) {
+			this.attachRetainedCamera();
+			await graph.video.play(this.videoElement());
+		}
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		await this.startCv();
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		try {
@@ -18781,6 +18802,31 @@ var AeroGame = class extends HTMLElement {
 			settings: visual.settings
 		});
 	}
+	setEnvironmentMode(mode) {
+		if (mode !== "aero" && mode !== "camera") throw new TypeError("Environment choice is invalid");
+		this.environmentMode = mode;
+		this.renderInteractionShell();
+		this.syncCameraPresentation();
+	}
+	cameraPreviewForced() {
+		if (!this.graph || !this.sessionStartRequested || this.menuOpen) return false;
+		const gameplay = this.graph.gameplay.getSnapshot();
+		const state = gameplay.session.state;
+		return state === "calibrating" && !gameplay.safety.ready || state === "paused_tracking" || gameplay.safety.freshCalibrationRequired === true;
+	}
+	syncCameraPresentation() {
+		if (!this.graph) return;
+		const retained = Boolean(this.graph.video.getRetainedCameraStream());
+		const visible = !document.hidden && retained && (this.environmentMode === "camera" || this.cameraPreviewForced());
+		const video = this.videoElement();
+		video.dataset.previewVisible = visible ? "true" : "false";
+		video.setAttribute("aria-hidden", "true");
+		const compositeMode = visible ? "camera" : "aero";
+		if (this.cameraCompositeMode !== compositeMode) {
+			this.graph.renderer.setBackgroundProjection(visible ? CAMERA_BACKGROUND_PROJECTION : AERO_BACKGROUND_PROJECTION);
+			this.cameraCompositeMode = compositeMode;
+		}
+	}
 	applyActiveScoringProfile() {
 		if (!this.graph) return;
 		const content = this.graph.content.getSnapshot();
@@ -18893,6 +18939,7 @@ var AeroGame = class extends HTMLElement {
 					this.syncAudioForGameplay();
 					this.syncContentPlayback();
 				} catch {}
+				this.syncCameraPresentation();
 				graph.renderer.renderGameplayFrame(this.rendererFrame());
 				if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
 				this.renderPresenters();
@@ -18924,6 +18971,11 @@ var AeroGame = class extends HTMLElement {
 			} catch {}
 		} else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
 			graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+			if (graph.video.getRetainedCameraStream()) {
+				this.attachRetainedCamera();
+				await graph.video.play(this.videoElement());
+			}
+			if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
 			await this.startCv();
 			if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
 			try {
@@ -18970,6 +19022,7 @@ var AeroGame = class extends HTMLElement {
 	renderPresenters() {
 		if (!this.graph) return;
 		this.renderInteractionShell();
+		this.syncCameraPresentation();
 		const content = this.graph.content.getSnapshot();
 		const gameplay = this.graph.gameplay.getSnapshot();
 		const input = this.graph.input.getSnapshot();
@@ -19016,8 +19069,9 @@ var AeroGame = class extends HTMLElement {
 		if (button) {
 			button.setAttribute("aria-expanded", this.menuOpen ? "true" : "false");
 			button.setAttribute("aria-label", this.menuOpen ? "Close configuration menu" : "Open configuration menu");
-			button.textContent = this.menuOpen ? "×" : "☰";
+			button.dataset.menuState = this.menuOpen ? "open" : "closed";
 		}
+		for (const input of this.shadowRoot?.querySelectorAll("input[data-action='environment-select']") ?? []) if (input instanceof HTMLInputElement) input.checked = input.value === this.environmentMode;
 		if (drawer) {
 			drawer.hidden = !this.menuOpen;
 			drawer.setAttribute("aria-hidden", this.menuOpen ? "false" : "true");
@@ -19154,10 +19208,15 @@ var AeroGame = class extends HTMLElement {
 		}
 	}
 	async handleInteractionClick(event) {
-		const action = (typeof event.composedPath === "function" ? event.composedPath() : []).find((entry) => entry instanceof HTMLElement && entry.dataset?.action)?.dataset?.action;
+		const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+		const action = path.find((entry) => entry instanceof HTMLElement && entry.dataset?.action)?.dataset?.action;
 		if (action === "menu-toggle") this.setMenuOpen(!this.menuOpen);
 		else if (action === "menu-close" || action === "menu-backdrop") this.setMenuOpen(false);
 		else if (action === "calibrate-start") await this.startFromMenu();
+		else if (action === "environment-select") {
+			const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select");
+			if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value);
+		}
 	}
 	handleInteractionKeydown(event) {
 		if (!(event instanceof KeyboardEvent)) return;
@@ -19513,6 +19572,8 @@ var AeroGame = class extends HTMLElement {
 		this.activeCvSource = null;
 		this.lastCameraIdentity = "";
 		this.leaseParticipant = null;
+		this.cameraCompositeMode = null;
+		this.videoElement().dataset.previewVisible = "false";
 	}
 	assertConnected() {
 		if (this.lifecycle !== "connected" || !this.graph) throw new Error("aero-game is not connected");
@@ -19542,9 +19603,9 @@ defineAeroGame();
 function template() {
 	return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
-*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:.58}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;font-size:24px}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
-.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false">☰</button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`;
+*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
+.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`;
 }
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) {

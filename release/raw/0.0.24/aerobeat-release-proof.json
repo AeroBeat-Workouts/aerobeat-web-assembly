@@ -2,7 +2,7 @@
   "artifactKind": "raw-unminified-browser-proof",
   "packageName": "@aerobeat/web-assembly",
   "proofVersion": "0.0.24",
-  "sourceFingerprint": "fdb493e4b0c947b9af3e75b8dd742a5928f090bc4d92ea96b2fe9b3b339c2bde",
+  "sourceFingerprint": "01b535c6eab264203e88c343e6f46e1093c628559924838da07553864ba4de0e",
   "minified": false,
   "basePath": "/",
   "productionPoseConfiguration": {
@@ -35,7 +35,7 @@
     "assets/vision_bundle-CPgxPL03.js"
   ],
   "runtimeWasmAssets": [],
-  "totalArtifactBytesBeforeManifest": 3274849,
+  "totalArtifactBytesBeforeManifest": 3286234,
   "forbiddenRuntimeAssetPatternsChecked": [
     "movenet",
     "onnx",

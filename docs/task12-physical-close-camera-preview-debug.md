@@ -208,3 +208,16 @@ Verification test: Existing phone route plus fresh four-context DPR1/3 glyph sam
 Related files/components: assembly src/index.js renderInteractionShell/template/start/startFrameLoop/renderPresenters; renderer renderer-facade.js/visual-profiles.js; input body-grid-service.js; gameplay session-coordinator.js; video browser-video-facade.js; mobile/shell browser matrices.
 Remaining uncertainty: Exact Android rasterizer/DPR, whether Derrick completed physical calibration, Android paused-MediaStream paint behavior, environment label, and preference persistence duration.
 ```
+
+## Implemented Repair — Independent QA and Physical Retest Pending
+
+P0 `aerobeat-web-assembly-p4p` implements the diagnosed assembly boundary without changing gameplay `live_visual`, content background contracts, or iframe commands:
+
+- the sole button contains no visible text glyph; one CSS icon renders three explicit 24×4 white bars while closed and exactly two rotated 24×4 white bars while open, with explicit `#fff` paint over opaque `#03131f`;
+- Visuals now contains a separate native `Environment` radio group with 42px `Aero` and `Camera` choices; Aero is the reconnect/default choice and selection remains child-local rather than entering snapshots, profile settings, or iframe messages;
+- video is hidden/opaque-Aero by default, explicitly played after retained-stream attachment and on resume/document restoration, and never reacquired for environment switching;
+- initial `calibrating` while safety is not ready, `paused_tracking`, and fresh-calibration-required recovery force an opacity-one mirrored preview with renderer background projection `#00000000`; the alpha-capable WebGL canvas still renders guides/targets above it;
+- fresh safe calibration transitions to countdown and immediately restores `#071426`/Aero with video hidden unless Camera is selected; Camera keeps the retained playing preview and transparent renderer during calibrated countdown/play;
+- menu opening does not expose Aero camera; Camera remains the explicitly selected environment; pause/lease/document-hidden paths pause and resume/replay the same retained stream; teardown hides the stable video surface and reconnect resets Aero.
+
+New browser acceptance includes a moving child-local red/green then blue/yellow stream. Composed samples prove mirrored green/red then yellow/blue updates beneath transparent WebGL, default countdown hides it, Camera reveals the same retained stream, Aero restores opacity without reacquisition, and pause/resume/document hidden restore live playback. Direct and real iframe close-button framebuffer checks run at 390×844 and 844×390 with DPR 1 and 3. Every context measures explicit 24×4 white pseudo-element paint and an interior connected X mask: 150 high-luminance pixels at DPR 1 and 1,500 at DPR 3, with center fill, all four quadrants, and >=3 CSS px center stroke. The actual unchanged Tailscale process serves the same eight results. Full unit/browser/live/build gates pass. Two release rounds match at source fingerprint `01b535c6eab264203e88c343e6f46e1093c628559924838da07553864ba4de0e`, proof SHA-256 `9d1801b4c5fe2bc805b58b10ffc6f7e7e8b7f0330dc4cffccc3755cb2eaccb8c`, and pre-manifest bytes `3286234`; two dry packs match. Independent QA `9y6` and Derrick's physical camera/play retest remain required.
