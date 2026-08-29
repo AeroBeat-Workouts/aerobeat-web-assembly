@@ -32,6 +32,12 @@ With the drawer closed in steady play, the only visible UI above the camera/vide
 
 The drawer has no AeroBeat brand/title or nonactionable Info runtime copy. Compact UI contract `641fd0a` hides authors, mapper/ID details, storage/quota, variant counts, redundant selected details, schemas/hashes/development/explanatory copy while retaining option/action labels, concise error/progress/cancel/blocking-limitation text, and accessible names. Exact composed-tree tests cover idle, calibration, hold, countdown, playing, tracking pause, open-menu pause, Escape recovery, resumed play, and a whole-drawer allowlist at 390×844, plus 844×390 responsiveness. Two stable full release rounds are byte-identical (`2c9f1985…`, proof `0cac9d59…`, `3969716` pre-manifest bytes). Bead `aerobeat-web-assembly-3h7` intentionally remains open for independent QA and physical confirmation.
 
+### Independent QA failure at `dbbbd11`
+
+Do not begin the next physical retest from this target. Independent QA confirmed that countdown currently renders twice: once through the existing WebGL renderer countdown and once through the new DOM transient cue. The DOM-only shell counter cannot see canvas pixels, so the passing mobile validator masks this violation. The required exact state matrix is also incomplete: detailed states run only direct at 390×844; landscape receives partial final checks; the real cross-origin iframe is fixed at 640×480 and protocol/privacy-only; Release, exact 48px size, stable aria-hidden legacy-node identity, clipped aria-live semantics, recursively exact composed-tree visibility/text, and explicit no-winner rejection are not all asserted.
+
+P0 `aerobeat-web-assembly-9s6` owns the duplicate-cue repair and direct/iframe × portrait/landscape proof. QA Bead `aerobeat-web-assembly-0n6` remains open. Physical Bead `aerobeat-web-assembly-3h7` remains in progress and must not close from automated evidence.
+
 ## Host inventory
 
 - Session: active X11 desktop, `DISPLAY=:1`.

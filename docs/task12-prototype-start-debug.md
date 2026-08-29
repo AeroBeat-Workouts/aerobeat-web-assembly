@@ -164,3 +164,69 @@ Required behavior:
 - In compact product presenters, show option labels and true action labels only. Preserve concise errors, import progress/cancel, device limitations that block play, and the Music prerequisite because these are actionable; hide schema names, IDs, hashes, author/mapping/development notes, storage/quota copy, variant-count copy, and redundant selected-item text.
 - Add a closed-playing exact-visibility test and a composed-tree drawer text allowlist for Gameplay, Visuals, Music, and Info.
 
+## Independent QA Failure: Required Embed/Viewport State Matrix Is Not Proven
+
+### Exact Observed Failure
+
+At assembly `dbbbd11`, the suites pass, but one actual transient violation exists and the requested acceptance matrix is absent. During countdown, `AeroGame.rendererFrame()` still returns `gameplay.countdown.value` to the renderer, whose `drawCountdown()` paints the number into the canvas, while the new DOM transient cue renders the same numeric value. Two countdown cues can therefore coexist. `scripts/validate-mobile-gameplay-menu.js` cannot detect the canvas cue because it counts selected DOM overlays only. The script creates one direct page at 390×844, runs the detailed state flow there, then changes that same direct page to 844×390 only for surface/radio checks. It does not create an iframe. `scripts/validate-playwright-console-noise.js` creates a cross-origin iframe at fixed 640×480 and validates protocol/lifecycle/privacy, but does not inspect minimal-shell visibility or text. The mobile visual helper checks a selected list of known overlay nodes rather than recursively enumerating all composed-tree visible elements/text. No assertion samples the `Release` cue, and no assertion proves the three legacy presenter node identities remain stable and explicitly aria-hidden across updates.
+
+### Expected Behavior
+
+One executable acceptance matrix must cover direct and real cross-origin iframe embeds at both 390×844 and 844×390 for configured idle, calibrating, hold, release, countdown, steady play, tracking pause, open-menu pause, close/recovery, and resumed play. It must recursively inspect composed-tree visibility/text and prove the exact steady/transient, legacy-node, clipped-live-status, drawer, Music, focus, lifecycle, privacy, and no-winner invariants.
+
+### Execution Path
+
+1. `npm run test:browser` runs the cross-origin protocol suite and then the direct mobile validator.
+2. The protocol suite uses an 1100×760 parent with a 640×480 child iframe and performs no shell DOM assertions.
+3. The mobile validator opens the Vite child directly at 390×844 and injects a mocked service graph.
+4. Detailed shell state assertions run only before the page is resized.
+5. After resize to 844×390, only surface, drawer width, and populated Music radio checks run.
+6. The visibility helper counts menu/backdrop/drawer/status/cue plus known `.hud-presenter` nodes, so the claimed exact composed-tree invariant is broader than what is measured.
+
+### Most Likely Root Cause
+
+The implementation added a DOM-owned transient cue without removing the renderer-owned numeric countdown, creating the confirmed duplicate. The minimal-shell checks were then added incrementally to the existing direct mobile validator while relying on the pre-existing iframe protocol test as indirect parity evidence. Because the helper observes DOM overlays but not canvas output, it masked the duplicate and never executed the required shell matrix inside the cross-origin child or in both orientations.
+
+### Alternative Hypotheses
+
+- The shared component implementation likely renders the same shell in direct and iframe contexts; source supports this, but source parity does not replace the required runtime proof.
+- Existing general iframe sizing/lifecycle/privacy coverage may catch some regressions, but it cannot detect shell visibility/text or transient-cue regressions because it never queries those nodes.
+
+### Why Previous Fixes Failed
+
+The implementation fix correctly suppresses known legacy DOM cards/status, but added a new DOM cue without disabling the renderer countdown. The validation fix checked selected DOM nodes in the direct portrait flow and therefore missed the canvas duplicate, then treated existing generic iframe coverage and one late landscape snapshot as if they covered the exact multi-state matrix. The result addressed the old DOM symptoms but did not enforce one presentation authority or the complete acceptance topology.
+
+### Unknowns
+
+- Whether every required state currently passes inside a real cross-origin iframe at both exact dimensions.
+- Whether a recursive composed-tree enumeration would reveal any visible nested presenter text omitted by the selected-node helper.
+- Whether the Release cue is observable for the required interval under the real state flow.
+
+### Minimal Reproduction
+
+1. Read `scripts/validate-mobile-gameplay-menu.js`: no iframe is created; detailed state assertions end before the 844×390 resize.
+2. Read `scripts/validate-playwright-console-noise.js`: iframe style is 640×480 and no minimal-shell selectors or composed-tree walk appear.
+3. Run `npm run test:browser`: it passes despite never executing the required cross-product.
+
+### Proposed Verification
+
+Build a table-driven Playwright matrix over embed mode (`direct`, real cross-origin `iframe`), viewport (`390×844`, `844×390`), and required state. At each state recursively walk open shadow roots, enumerate visible elements/text, and assert exact allowlists. Explicitly sample Release, retain references to the three legacy presenter nodes across transitions, verify `aria-hidden=true`, and verify the clipped status remains `aria-live=polite`.
+
+### Recommended Fix
+
+Refactor the mobile scenario into a reusable child-frame runner, create an ephemeral cross-origin parent using the existing supported browser-test pattern, and execute the full state sequence independently in all four embed/viewport combinations. Replace the selected-overlay counter with a recursive composed-tree visibility/text collector while retaining focused semantic assertions for menu size, drawer taxonomy, Music controls, focus, pause, privacy, and lifecycle.
+
+### Debugging Record
+
+```text
+Problem: Countdown has two visible cues and the required exact minimal-shell acceptance matrix is not implemented.
+Observed symptom: WebGL and DOM both render countdown; passing suites cover detailed shell states only in direct portrait; iframe is fixed 640×480 protocol-only; landscape is partial.
+Root cause: DOM transient cue was added without removing renderer countdown, and incremental direct-shell assertions were combined with generic iframe evidence instead of one cross-product runner.
+Evidence: src/index.js lines 624-632 and 656-657; renderer-facade.js lines 182-183 and 259; validate-mobile-gameplay-menu.js lines 13, 151-208, 216-225; validate-playwright-console-noise.js lines 13, 20, 99-125.
+Failed approaches: Selected-DOM overlay counting, no canvas presentation assertion, and prose inheritance of generic iframe/privacy coverage.
+Corrective action: Choose one countdown presenter and add a table-driven direct/iframe × portrait/landscape full state matrix with recursive composed-tree/canvas-aware inspection.
+Verification test: Exactly one countdown cue plus all required states and visibility/text invariants pass in four independent contexts, including Release and stable aria-hidden legacy nodes.
+Related files/components: scripts/validate-mobile-gameplay-menu.js; scripts/validate-playwright-console-noise.js; src/index.js.
+Remaining uncertainty: Runtime outcome of the missing iframe/landscape state combinations.
+```
+
