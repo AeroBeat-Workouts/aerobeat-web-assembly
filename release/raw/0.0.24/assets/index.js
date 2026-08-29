@@ -9498,13 +9498,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:ee2ae9ceab288c58f76d0415665fd432c68358cde739129f9474ed55e0c2eaf1";
+var buildStamp = "source:cce949c5a7452eac04b30cd81214dd6c6916771b60eecf6f53cd53fba4dca290";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-ee2ae9ceab288c58";
+var cacheBust = "0.0.24-cce949c5a7452eac";
 /**
 * Vite-injected package version from package.json.
 *
@@ -17912,6 +17912,7 @@ function createAeroBodyGridService(options = {}) {
 			});
 			const cutoff = atTimestampMs - directionHistoryWindowMs;
 			while (history.length > 0 && history[0].timestampMs < cutoff) history.shift();
+			if (history.length > 64) history.splice(0, history.length - 64);
 			wristMotionHistories.set(hand, history);
 		}
 	}

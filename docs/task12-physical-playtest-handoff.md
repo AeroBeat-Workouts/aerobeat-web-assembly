@@ -224,7 +224,7 @@ Vendor `l3h` implementation `7b14eec` and independent `u02` closure `b9d19a6` co
 
 This automation proves acquisition, integrity, conversion, persistence, selection, Music readiness, privacy, and no-winner posture. It does **not** prove camera calibration or physical play. Operator phone evidence for `kdf` remains pending.
 
-The refreshed frozen release fingerprint is `ee2ae9ceab288c58f76d0415665fd432c68358cde739129f9474ed55e0c2eaf1`; proof SHA-256 is `3594dd3a471e28d51b561722550de4dc7914ffc571bdd9374202eadac6b75207`; pre-manifest bytes are `3995977`. Proof, embedded build/cache stamps, two release rounds, two dry-run packs, and recursive manifests match. `bzw` remains open for independent QA.
+The refreshed frozen release fingerprint is `cce949c5a7452eac04b30cd81214dd6c6916771b60eecf6f53cd53fba4dca290`; proof SHA-256 is `a2258222c08f7eb4726a1a6463c90e01321d21fcb32a9d666face43828b23abc`; pre-manifest bytes are `3996173`. Proof, embedded build/cache stamps, two release rounds, two dry-run packs, and recursive manifests match. `bzw` remains open for independent QA.
 
 ## Automated evidence collected
 
