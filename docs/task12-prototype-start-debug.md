@@ -120,3 +120,22 @@ Verification test: Fresh no-content and selected-content mobile browser flows pl
 Related files/components: web-ui aero-product-presenters; assembly src/index.js and mobile validator; gameplay prototype-profile-registry; content/library presenters.
 Remaining uncertainty: Exact phone error/state and whether Music had been imported before Calibrate.
 ```
+
+## Post-QA Acceptance Gap: Music Choices
+
+The four-section repair correctly added native radios for Gameplay and Visuals, but final parent review found that Music’s mutually exclusive choices still render as ordinary buttons:
+
+- BeatSaver result selection is a `<button data-intent="beatsaver-select-map">` inside a list, even though `selectedMap` already defines exactly one current result.
+- Library package selection is a `Play` button, even though assembly now preserves or deterministically chooses exactly one current playable package.
+- Version and Difficulty are native `<select>` controls and already communicate mutually exclusive choice; Search, Latest, local ZIP, Import, Export, Delete, and Cancel are actions and must remain buttons.
+
+Therefore the implementation is not yet ready for physical handoff under Derrick’s explicit rule that buttons representing options must be radio controls. The earlier QA assertion of seven radios covered only the empty-Music fixture (five Gameplay plus two Visuals) and did not validate populated BeatSaver/library choice semantics.
+
+Required repair:
+
+1. Render populated BeatSaver map results as a native radio group checked from `selectedMap.mapId`, with first-result fallback.
+2. Render populated library package selection as a native radio group checked from a scalar `selectedPackageId`, with first-package fallback; preserve Export/Delete as actions.
+3. Keep Version/Difficulty as selects and all true actions as buttons.
+4. Extend assembly snapshots/tests so first/current Music choices are visibly checked and continue to drive the existing scalar select intents.
+5. Re-run UI/assembly QA and audit before asking for another phone test.
+
