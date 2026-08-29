@@ -1,0 +1,204 @@
+# Task 12 Desktop and Android Physical-Playtest Handoff
+
+**Evidence date:** 2026-08-29  
+**Assembly target:** `8edd028` (`main`, synchronized with `origin/main`)  
+**Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
+**Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
+
+## QA verdict
+
+Automated desktop, direct-embed, cross-origin iframe, cross-repo, package, privacy, and release-proof gates pass. A real Logitech BRIO was acquired by headed Playwright Chromium and injected into the direct `<aero-game>` public API at 640×480; the game reported `live-camera`, source `host-camera`, mirrored `true`, aspect ratio `4/3`, and connected lifecycle. This is automated device-path evidence, not a human calibration or physical playtest.
+
+Task 12 cannot close yet. Required external/operator evidence is still missing:
+
+1. a person in frame completing the four-second T-pose, cooldown/release, 3-2-1 countdown, Flow, and all four Boxing candidates on desktop;
+2. an Android device on the tailnet, with a camera-capable browser and an operator granting camera/autoplay/fullscreen gestures;
+3. physical direct-download and local-ZIP-recovery playthroughs for two current, nonprebundled compatible BeatSaver maps;
+4. operator observations for reach, guard comfort, target clarity, timing, and motion comfort. These observations are experimental notes only and must not choose a winner.
+
+## Host inventory
+
+- Session: active X11 desktop, `DISPLAY=:1`.
+- Camera: `/dev/video0` through `/dev/video3`, all Logitech BRIO nodes. V4L2 advertised YUYV and MJPEG from 160×120 through 1920×1080. No image or video was retained.
+- Browser: no system Chromium/Chrome command; Playwright Chromium is `/home/derrick/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`.
+- Android: `adb` is not installed; no Android USB/MTP device is connected.
+- Tailscale: online at `derrick-alienware-aurora-r13.tail613fcb.ts.net`; HTTPS `:8443` is configured to proxy `127.0.0.1:5173`.
+- At evidence time no Vite process was listening on 5173, so the configured HTTPS route truthfully returned HTTP 502. No replacement server was started by QA.
+
+## Launch commands and URLs
+
+From `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`:
+
+### Desktop direct embed
+
+```bash
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. Localhost is a secure context for camera access.
+
+### Android secure context
+
+The `:8443` Tailscale handler is already configured. Start only the existing Vite target:
+
+```bash
+npm run dev:tailscale
+```
+
+Open `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` from an Android browser on the same tailnet. If `tailscale serve status --json` no longer shows `:8443 -> http://127.0.0.1:5173`, stop and have the operator restore the documented route; do not reset other Tailscale handlers.
+
+### Cross-origin iframe
+
+Automated cross-origin acceptance is the supported no-operator path:
+
+```bash
+npm run test:browser
+```
+
+It creates an ephemeral parent origin, an independent Vite child origin, and `iframe#game` with `allow="camera; fullscreen; autoplay"`; it verifies exact source/origin/instance/version handshake, payload limits, profile identity parity, teardown, and zero unexpected product console errors. There is no persistent manual iframe server checked into this repo. Starting a separate manual parent server requires explicit operator approval.
+
+## Exact selectors
+
+Playwright pierces the open component shadow roots.
+
+- Direct root: `page.locator("aero-game")`
+- Direct BeatSaver presenter: `page.locator("aero-game").locator("aero-beatsaver-browser")`
+- Search field: `getByLabel("Search maps")`
+- Latest button: `getByRole("button", { name: "Latest" })`
+- Local fallback: `getByRole("button", { name: "Choose local ZIP" })`
+- Selected-map version/difficulty controls: `getByLabel("Version")`, `getByLabel("Difficulty")`
+- Import: `getByRole("button", { name: "Import selected map" })`
+- Prototype/profile presenter: `page.locator("aero-game").locator("aero-prototype-selector")`
+- Calibration status: `page.locator("aero-game").locator("aero-calibration-badge")`
+- Fullscreen: `page.locator("aero-game").locator("aero-fullscreen-button")`
+- Automated iframe: `page.locator("iframe#game")`
+- Iframe child root: `page.frameLocator("iframe#game").locator("aero-game")`
+
+Prototype labels:
+
+1. `Flow · Grid`
+2. `Semantic Track · Row Family`
+3. `Spatial Grid · Row Family`
+4. `Semantic Track · Cut Family`
+5. `Spatial Grid · Cut Family`
+
+Profile controls are grouped under `Live Visual`, `Between Run Ruleset`, and `Converter Regeneration`. Visual changes apply live. Scoring changes must be disabled while playing/counting down and enabled only between runs. Converter selection must remain regeneration-required until the newly authored package reports the selected hash through source provenance, the top conversion trace, all four Boxing traces, and all four Boxing charts.
+
+## Current nonprebundled BeatSaver candidates
+
+These IDs were queried from the live public BeatSaver API through `AeroBeatSaverVendorService` on 2026-08-29 and do not appear in tracked AeroBeat source. They are handoff candidates, not an allowlist; if either disappears, query two new compatible Standard maps.
+
+| Map ID | Name | Version SHA-1 | Standard difficulty |
+| --- | --- | --- | --- |
+| `53EFD` | New To This | `4b378ac94101d421c49b110564900365555f4bf6` | ExpertPlus |
+| `51D2F` | SANDS OF TIME (2020 version) | `9940edb4a5ef36895c4b797e229c8b38307139a1` | ExpertPlus |
+
+For each map, exercise both paths:
+
+1. normal provider selection and direct archive acquisition;
+2. a separately downloaded local ZIP selected with `Choose local ZIP` after simulating or observing a CORS/direct-download failure.
+
+Do not commit the ZIP, audio, cover, screenshots, or exported package.
+
+## Operator script
+
+Repeat on desktop direct embed and Android HTTPS. Run iframe behavior through the automated cross-origin command above; if a manual iframe host is separately approved, repeat the same game script there.
+
+### 1. Permissions and source truth
+
+1. Load the exact target and confirm there is one `<aero-game>` and no `<aerobeat-app>`.
+2. Grant camera permission. Audio and fullscreen must begin only after explicit gestures.
+3. Confirm the visible/source telemetry identifies MediaPipe Pose Landmarker Lite float16 `/1/`, tasks-vision `1.0.1`, GPU-WebGL, thresholds `0.5/0.5/0.5`, Fast tracking, direct full input, measured/current gameplay, and a 15fps submission ceiling.
+4. Confirm mirror/source/aspect changes invalidate calibration.
+5. Confirm the preview is top-left coordinates, gameplay camera is bottom-left, and the athlete public grid is horizontally opposed.
+
+### 2. Calibration
+
+1. Stand fully in frame with shoulders, elbows, wrists, hips, knees, and ankles visible at confidence at least 0.5.
+2. Hold a T-pose continuously for four seconds. Expected wrist/elbow Y ratio is 0.35 and minimum elbow angle is 130 degrees.
+3. Complete the four-second cooldown and release.
+4. Observe the frozen 3-2-1 countdown: gameplay and audio remain frozen until playing.
+5. Move through the calibrated 4×3 grid and verify no clamping; verify 8×6 subcell target placement for Boxing.
+6. Hide the page or cover/leave frame for at least 500ms. Gameplay, audio, and inference must pause immediately while camera retention follows policy; return requires a fresh calibration ID/countdown.
+
+### 3. Content acquisition and persistence
+
+For both map IDs:
+
+1. Search by ID, open details, select the exact version and Standard difficulty, and import.
+2. Observe progress, cancellation, and retry once; no partial package may become selectable.
+3. Verify the generated library entry survives a reload/reconnect, can be selected, and can be deleted.
+4. Exercise direct download, then local ZIP fallback. Confirm malformed/wrong-hash archives fail without partial persistence.
+5. Observe offline/404/429/CORS/codec messaging where safely reproducible; errors must be bounded and must not expose bytes or stack internals.
+
+### 4. Flow and four Boxing candidates
+
+Run the same compatible chart through all five labels. Do not rank them.
+
+- Flow: verify authored notes, bursts, bombs, obstacles, and arcs align with audio and the calibrated grid.
+- Semantic Track · Row Family
+- Spatial Grid · Row Family
+- Semantic Track · Cut Family
+- Spatial Grid · Cut Family
+
+For each Boxing run:
+
+1. Verify inclusive ±180ms hit windows, measured evidence freshness at most 150ms, straight qualification 100ms, and 360ms punch spacing.
+2. Confirm positive-only, one-action consumption.
+3. Verify guard/punch exclusivity only for overlapping windows and obstacle+punch concurrency when disjoint.
+4. Verify left/right direction and athlete-facing horizontal opposition.
+5. Pause and switch a scoring profile only between runs. Confirm preserved old events retain old generation truth and distinct future events with the same variant ID use the new profile.
+6. Switch visual profiles during a run and confirm stable canvas/video/UI nodes.
+7. Select a converter profile: it remains pending until regeneration; after regeneration and package reload it reports applied provenance.
+8. Confirm shadow results never change live judgement or score.
+
+### 5. Lifecycle, fullscreen, lease, and privacy
+
+1. Enter/exit fullscreen from the child control only.
+2. With two direct instances, transfer the media lease and verify exactly one camera/audio owner.
+3. Disconnect/reconnect the same element: stable surfaces remain, but a fresh graph/generation is created and late old work stays silent.
+4. In iframe automation, send wrong-origin/source, duplicate-ID, oversized, deep, accessor, hidden, symbol, cycle, and class payloads; all must reject without getter execution or state mutation.
+5. Inspect snapshots/events/network messages. They may contain bounded identities, hashes, normalized landmarks, progress, handles, and gameplay telemetry. They must never contain ZIP/audio bytes, Blob/File, MediaStream/tracks, VideoFrame, pixels, frames, or screenshots.
+
+## Expected telemetry checkpoints
+
+- `getSnapshot().lifecycle === "connected"` while attached.
+- Container CSS width/height equals the actual host content box and carries current DPR.
+- Five content variants are available after conversion.
+- Gameplay and content selected variant IDs agree.
+- Calibration/countdown audio state is not playing; playing state is either playing or truthfully autoplay-blocked.
+- Hidden/tracking-loss state is paused immediately.
+- Public profile telemetry contains identity/version/hash/class and regeneration state only, never settings or bundles in iframe mode.
+- Converter applied state is false only after regenerated package provenance matches the selected hash everywhere required.
+
+## Automated evidence collected
+
+- Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
+- Task 11 nine-path v2/v3/v4 × online/direct/local matrix reproduces all package hashes and loads Flow plus four Boxing variants.
+- Cross-origin Chromium verifies exact parent sizing, direct/iframe parity, fullscreen gesture path, reconnect/destructor silence, lease transfer, hidden/safety/audio policy, hostile payload limits, profile atomicity, and no raw-byte bridge leakage.
+- All web contracts/vendor/authoring/content/gameplay/input/video/audio/renderer/UI/style/CV/MediaPipe repos pass available check, test, browser, pack, and diff gates; all worktrees remain clean and synchronized.
+- Godot content-core contract suite passes.
+- Godot authoring suite passes with exit code 0 and retains the pre-existing shutdown diagnostics: `WARNING: ObjectDB instances leaked at exit` and `ERROR: 10 resources still in use at exit`.
+- Release proof ships only the locked MediaPipe concrete pose vendor/backend, no runtime WASM assets, and records forbidden MoveNet/ONNX/TensorFlow/predictive marker scans.
+
+## Physical evidence record
+
+Fill this section during operator play. Do not infer results from automation.
+
+| Check | Desktop direct | Android HTTPS | Notes |
+| --- | --- | --- | --- |
+| Camera prompt and live BRIO/phone camera | pending | pending | |
+| Four-second T-pose + cooldown/release | pending | pending | |
+| 4×3 grid and 8×6 subcells | pending | pending | |
+| Flow physical play | pending | pending | |
+| Semantic Row physical play | pending | pending | |
+| Spatial Row physical play | pending | pending | |
+| Semantic Cut physical play | pending | pending | |
+| Spatial Cut physical play | pending | pending | |
+| Two current maps direct acquisition | pending | pending | |
+| Two current maps local ZIP fallback | pending | pending | |
+| Fullscreen/autoplay gestures | pending | pending | |
+| Tracking loss/recalibration/hidden | pending | pending | |
+| Comfort/clarity observations | pending | pending | Experimental notes only; no winner. |
+
+Task 12 may close only after the required physical rows are truthfully completed and any failures have linked repair Beads.
