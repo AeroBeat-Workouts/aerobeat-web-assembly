@@ -575,11 +575,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** After two failed delegates, completion recovery `b937435` preserved and finished the coordinator, fixing post-loss different-ID calibration latching, exact frozen countdown position, clock rollback, real resolved-content envelopes, candidate/modifier identity, spatial rules, current measured shadow gates, exact local score identity and descriptor bounds. Parent baseline gates pass. Safety QA reproduced five integration defects: current audio snapshots with optional `undefined` were rejected, failed configure/advance mutated hidden state, unsafe clocks advanced the timeline before pausing, and guard/punch consumption blocked non-overlapping windows sharing a fresh frame. QA is making boundary normalization and state transitions transactional, committing timeline only after safety acceptance, and tracking consumed evidence by overlapping event windows.
+**Results:** Recovery `b937435` implemented the coordinator and locked timing/safety/five-candidate matrix. Independent QA `68da7d5` fixed current audio/input envelope compatibility, transactional configure/advance/swap state, unsafe timeline freezing, overlap-aware guard/punch evidence, strict identity/duplicate/qualification checks, immediate lease/lifecycle gates, complete score partition identity and per-event old/new variant truth across paused swaps. Actual public audio/content/input integration and parent check/unit/integration/browser/pack pass; Beads closed.
 
-**Acceptance:** Deterministic clock tests cover all four candidates, +/-180ms windows, 150ms freshness, no-input misses, 100ms straight qualification, cardinal entries, checkpoint states, guard/punch exclusivity, disjoint concurrency, action consumption, tracking pause/countdown cancellation, variant swaps, local-only score identity, and diagnostic-only shadows.
+**Acceptance:** Satisfied; deterministic and public-integration tests cover all four Boxing candidates plus Flow, ±180ms, 150ms, 100ms straight qualification, cardinal entries, checkpoints, overlap exclusivity, disjoint concurrency, consumption, tracking/countdown, swaps, local scoring and isolated shadows.
 
 ---
 
