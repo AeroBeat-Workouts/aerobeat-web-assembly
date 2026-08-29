@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly implementation target:** `f2858f9` (opaque menu and exhaustive direct/iframe shell acceptance on `main`)
+**Assembly implementation target:** `4eb94bf` (corrected live-v4 integration plus matching frozen raw release on `main`)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
