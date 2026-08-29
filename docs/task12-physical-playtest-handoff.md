@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly implementation target:** `24c8dfc` (populated Music radio integration on `main`)
+**Assembly implementation target:** `ae3097e` (minimal gameplay shell on `main`)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
