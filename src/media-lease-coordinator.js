@@ -19,6 +19,7 @@ export class AeroGameMediaLeaseCoordinator {
     /** @type {RegisteredParticipant|null} */ this.callbackParticipant = null;
     /** @type {AeroGameLeaseCallbackContext|null} */ this.callbackContext = null;
     /** @type {WeakSet<RegisteredParticipant>} */ this.releasedDuringTransfer = new WeakSet();
+    /** @type {WeakSet<RegisteredParticipant>} */ this.activatedParticipants = new WeakSet();
     /** @type {Promise<unknown>} */ this.operationQueue = Promise.resolve();
   }
 
@@ -43,24 +44,21 @@ export class AeroGameMediaLeaseCoordinator {
       try {
         if (previous && previous !== registered) { await this.invoke(previous, previous.pauseForLease); previousPaused = true; }
         if (this.participants.get(registered.instanceId) !== registered) {
-          const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
-          if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease);
+          const recoverable = previousPaused ? await this.reactivateIfRegistered(previous).catch(() => null) : null;
           this.owner = recoverable; this.candidate = null; this.transferring = false; return this.snapshot();
         }
-        activationAttempted = true; await this.invoke(registered, registered.activateLease);
+        activationAttempted = true; await this.invoke(registered, registered.activateLease); this.activatedParticipants.add(registered);
         if (this.participants.get(registered.instanceId) !== registered) {
-          try { await this.invoke(registered, registered.releaseLease); } catch { /* unregister still completes */ } finally { this.releasedDuringTransfer.add(registered); }
-          const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
-          if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease).catch(() => {});
+          try { await this.invoke(registered, registered.releaseLease); } catch { /* unregister still completes */ } finally { this.activatedParticipants.delete(registered); this.releasedDuringTransfer.add(registered); }
+          const recoverable = previousPaused ? await this.reactivateIfRegistered(previous).catch(() => null) : null;
           this.owner = recoverable; this.candidate = null; this.transferring = false; return this.snapshot();
         }
         this.owner = registered; this.candidate = null; this.transferring = false;
         return this.snapshot();
       } catch (error) {
         if (this.generation === token) {
-          if (activationAttempted) { try { await this.invoke(registered, registered.releaseLease); } catch { /* preserve activation failure */ } finally { if (this.participants.get(registered.instanceId) !== registered) this.releasedDuringTransfer.add(registered); } }
-          const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
-          if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease).catch(() => {});
+          if (activationAttempted) { try { await this.invoke(registered, registered.releaseLease); } catch { /* preserve activation failure */ } finally { this.activatedParticipants.delete(registered); if (this.participants.get(registered.instanceId) !== registered) this.releasedDuringTransfer.add(registered); } }
+          const recoverable = previousPaused ? await this.reactivateIfRegistered(previous).catch(() => null) : previous && this.participants.get(previous.instanceId) === previous ? previous : null;
           this.candidate = null; this.transferring = false; this.owner = recoverable;
         }
         throw error;
@@ -81,6 +79,7 @@ export class AeroGameMediaLeaseCoordinator {
         if (this.generation === token) { this.owner = wasOwner && this.participants.get(registered.instanceId) === registered ? registered : null; this.candidate = null; this.transferring = false; }
         throw error;
       }
+      this.activatedParticipants.delete(registered);
       if (this.generation === token) { this.candidate = null; this.transferring = false; }
       return this.snapshot();
     });
@@ -97,8 +96,8 @@ export class AeroGameMediaLeaseCoordinator {
       if (this.owner === registered) this.owner = null;
       if (!this.candidate || this.candidate === registered) this.candidate = registered;
       this.transferring = true;
-      try { if (this.releasedDuringTransfer.has(registered)) this.releasedDuringTransfer.delete(registered); else await this.invoke(registered, registered.releaseLease); }
-      finally { if (this.generation === token) { if (this.candidate === registered) this.candidate = null; this.transferring = false; } }
+      try { if (this.releasedDuringTransfer.has(registered)) this.releasedDuringTransfer.delete(registered); else if (this.activatedParticipants.has(registered)) await this.invoke(registered, registered.releaseLease); }
+      finally { this.activatedParticipants.delete(registered); if (this.generation === token) { if (this.candidate === registered) this.candidate = null; this.transferring = false; } }
       return this.snapshot();
     });
   }
@@ -116,6 +115,8 @@ export class AeroGameMediaLeaseCoordinator {
     return registered;
   }
 
+  /** @param {RegisteredParticipant|null} participant @returns {Promise<RegisteredParticipant|null>} */
+  async reactivateIfRegistered(participant) { if (!participant || this.participants.get(participant.instanceId) !== participant) return null; await this.invoke(participant, participant.activateLease); this.activatedParticipants.add(participant); return this.participants.get(participant.instanceId) === participant ? participant : null; }
   /** @param {AeroGameMediaLeaseParticipant} participant @param {AeroGameLeaseCallbackContext} [callbackContext] */
   assertNotReentrant(_participant, callbackContext) { if (callbackContext && this.callbackContext === callbackContext) throw new Error("Lease participant callbacks cannot reenter the coordinator"); }
   /** @template T @param {()=>Promise<T>} operation @returns {Promise<T>} */
