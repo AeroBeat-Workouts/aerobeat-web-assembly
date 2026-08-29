@@ -736,7 +736,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 11: Build Deterministic Prototype Fixtures and Integration Harnesses
 
 **Bead ID:** `aerobeat-web-assembly-48w.5`
-**SubAgent:** DSH coder subagent, then QA
+**SubAgent:** Research blueprint `4f1feb39-050f-4a4a-9705-a72d4aab06e3`; coders and QA pending Task 10 closure
 **Role:** `coder`
 **References:** `REF-06`, `REF-08`, `REF-12`, `REF-14`
 **Prompt:** Build small deterministic paired fixtures, malicious/archive-limit fixtures, and replay traces that exercise arbitrary BeatSaver ID browse/import, local ZIP import, v2/v3/v4 conversion, persistence/reload/delete, all four Boxing candidates, Flow grid behavior, guards, Crossed Guard, straight tolerance, hook/uppercut directions, obstacle coexistence, modifiers, tracking loss, recalibration, theme/background fallback, and iframe commands. Include full local-source regression for `4858` Expert and `3d44b` Hard without committing third-party audio/archive bytes. Expose manual selectors before gameplay and in pause. Include named visual/scoring/converter tuning presets with import/export/reset and active version/hash telemetry. Do not build a survey or durable notes feature.
@@ -748,6 +748,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** Pending
+
+**Blueprint:** Research found the named `AeroPrototypeProfileRegistry` is still missing: renderer has visual tuning round-trip, but gameplay has identity metadata only, authoring lacks converter-profile provenance, and assembly lacks profile UI adapters. After Task 10 closes, implement parallel profile-registry, provider-neutral v2/v3/v4 source-matrix and replay-fixture slices; then renderer/UI adapters and actual-service assembly harness. Use three content-hashed synthetic fixtures (source matrix, gameplay replay, profile bundle), programmatic malicious ZIPs, and local-only real `4858`/`3D44B` audio-backed gates. Converter profiles remain regeneration-required until regenerated package provenance carries the selected hash; no winner, survey or durable notes.
 
 **Acceptance:** Fixtures are deterministic and content-hashed; arbitrary compatible maps are not allowlisted; online and local-ZIP acquisition converge on the same source manifest; real local `4858`/`3d44b` conversions prove audio-backed package generation without committed third-party payloads; selectors identify adapter+recipe clearly; all tuning classes distinguish live, between-run, and regeneration-required changes; shadow metrics are hidden from user score and available in diagnostics.
 
