@@ -230,3 +230,23 @@ Related files/components: scripts/validate-mobile-gameplay-menu.js; scripts/vali
 Remaining uncertainty: Runtime outcome of the missing iframe/landscape state combinations.
 ```
 
+## Repair: Sole DOM Transient and Exact Four-Context Matrix
+
+Assembly now supplies `countdown: null`, `overlay: "none"`, and `calibrationDim: 0` to the WebGL gameplay frame in this product shell. Renderer countdown/overlay capability and its public frame contract remain intact for other consumers, but the assembly-owned DOM transient is the sole product-shell presenter. Calibration cooldown gives `Release` precedence, after which any remaining 3-2-1 value is presented once in DOM.
+
+`scripts/validate-product-shell-matrix.js` runs one state table in direct and real cross-origin iframe contexts at both 390×844 and 844×390. It recursively walks open shadow roots, records only geometrically/computed-visible overlay controls and direct text, and separately inspects renderer frame input. It covers configured idle, calibrating, hold, explicit release, countdown, steady play, tracking pause, menu-open pause, Escape close/recovery, and resumed play after a real start. It also proves stable hidden+aria-hidden legacy identities, clipped polite live status, exact 48×48 opaque menu control, drawer/Music/focus, reconnect, privacy, and explicit no-winner policy.
+
+The fixture initially failed to enter hold because its `Locator.evaluate` callback destructured the located `<aero-game>` first parameter instead of the supplied second payload parameter. Injected timestamps were therefore undefined; assembly correctly skipped the duplicate undefined frame. Increasing delay could not repair malformed input. Correcting the callback to `(_element, { timestampMs, tPose })` restored monotonic samples and the full four-context matrix passes.
+
+```text
+Problem: New acceptance matrix never entered calibration hold.
+Observed symptom: calibrationState=tracking_lost, cue=T-pose, injected/latest timestamps undefined while frame timer ran.
+Root cause: Locator.evaluate callback destructured the DOM element instead of its second payload argument.
+Evidence: Playwright callback contract and undefined timestamps despite active frameTimer.
+Failed approaches: Increased sample delay; it treated scheduling rather than malformed fixture input.
+Corrective action: Accept `(element, payload)` and destructure payload.
+Verification test: Exact four-context state matrix twice plus full browser suite.
+Related files/components: scripts/validate-product-shell-matrix.js; pushPose; AeroGame.startFrameLoop().
+Remaining uncertainty: Physical operator confirmation only; automated direct/iframe portrait/landscape combinations now pass.
+```
+

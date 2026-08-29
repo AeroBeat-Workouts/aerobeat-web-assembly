@@ -9411,13 +9411,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:2c9f1985ef2c3b8b5a3578ceb7d8216484c188ea8a55f8eb3ca0c4ff74d25a0e";
+var buildStamp = "source:2c3a5060740777919ab329e653374e0c3056f2c878322f30b549ff1518baf95e";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-2c9f1985ef2c3b8b";
+var cacheBust = "0.0.24-2c3a506074077791";
 /**
 * Vite-injected package version from package.json.
 *
@@ -23182,22 +23182,17 @@ var AeroGame = class extends HTMLElement {
 	}
 	rendererFrame() {
 		const content = this.graph.content.getSnapshot();
-		const gameplay = this.graph.gameplay.getSnapshot();
-		const session = gameplay.session;
+		const session = this.graph.gameplay.getSnapshot().session;
 		const selected = content.selectedVariant;
 		const nowMs = Number(session.timelinePositionMs ?? 0);
 		const ruleset = String(selected?.rulesetId ?? "");
-		const presentation = selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid";
-		const targets = (content.resolvedEvents ?? []).filter((event) => event.centerTimestampMs >= nowMs - 500 && event.centerTimestampMs <= nowMs + 2500).slice(0, 128).map(renderTarget);
-		const state = String(session.state ?? "idle");
-		const overlay = state === "paused_tracking" ? "tracking_lost" : state === "calibrating" ? "calibrating" : state.startsWith("paused") ? "paused" : "none";
 		return {
-			presentation,
+			presentation: selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid",
 			nowMs,
-			targets,
-			countdown: gameplay.countdown?.value ?? null,
-			overlay,
-			calibrationDim: this.graph.input.getSnapshot().retainedGeometryDimmed ? .5 : 0
+			targets: (content.resolvedEvents ?? []).filter((event) => event.centerTimestampMs >= nowMs - 500 && event.centerTimestampMs <= nowMs + 2500).slice(0, 128).map(renderTarget),
+			countdown: null,
+			overlay: "none",
+			calibrationDim: 0
 		};
 	}
 	renderPresenters() {
@@ -23858,11 +23853,11 @@ function runtimeStatus(content, session, input) {
 }
 function transientCue(menuOpen, sessionStartRequested, session, gameplay, input) {
 	if (menuOpen || !sessionStartRequested) return "";
-	if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
 	if (session.state === "paused_tracking") return "Tracking lost";
+	if (input.calibration?.state === "cooldown") return "Release";
+	if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
 	if (session.state !== "calibrating") return "";
 	if (input.calibration?.state === "holding") return "Hold T-pose";
-	if (input.calibration?.state === "cooldown") return "Release";
 	return "T-pose";
 }
 function actionableRuntimeMessage(error, limitations) {

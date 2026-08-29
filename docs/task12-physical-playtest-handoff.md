@@ -32,11 +32,13 @@ With the drawer closed in steady play, the only visible UI above the camera/vide
 
 The drawer has no AeroBeat brand/title or nonactionable Info runtime copy. Compact UI contract `641fd0a` hides authors, mapper/ID details, storage/quota, variant counts, redundant selected details, schemas/hashes/development/explanatory copy while retaining option/action labels, concise error/progress/cancel/blocking-limitation text, and accessible names. Exact composed-tree tests cover idle, calibration, hold, countdown, playing, tracking pause, open-menu pause, Escape recovery, resumed play, and a whole-drawer allowlist at 390×844, plus 844×390 responsiveness. Two stable full release rounds are byte-identical (`2c9f1985…`, proof `0cac9d59…`, `3969716` pre-manifest bytes). Bead `aerobeat-web-assembly-3h7` intentionally remains open for independent QA and physical confirmation.
 
-### Independent QA failure at `dbbbd11`
+### Duplicate countdown repaired; exact matrix ready for QA
 
-Do not begin the next physical retest from this target. Independent QA confirmed that countdown currently renders twice: once through the existing WebGL renderer countdown and once through the new DOM transient cue. The DOM-only shell counter cannot see canvas pixels, so the passing mobile validator masks this violation. The required exact state matrix is also incomplete: detailed states run only direct at 390×844; landscape receives partial final checks; the real cross-origin iframe is fixed at 640×480 and protocol/privacy-only; Release, exact 48px size, stable aria-hidden legacy-node identity, clipped aria-live semantics, recursively exact composed-tree visibility/text, and explicit no-winner rejection are not all asserted.
+The product shell now passes no countdown or other overlay into the WebGL renderer. Renderer capability remains available to other consumers, but this assembly's single DOM transient is the sole visual cue. `Release` is explicitly sampled during calibration cooldown before any remaining numeric 3-2-1 cue.
 
-P0 `aerobeat-web-assembly-9s6` owns the duplicate-cue repair and direct/iframe × portrait/landscape proof. QA Bead `aerobeat-web-assembly-0n6` remains open. Physical Bead `aerobeat-web-assembly-3h7` remains in progress and must not close from automated evidence.
+One automated matrix now runs the full real-start state flow in four independent contexts: direct 390×844, direct 844×390, real cross-origin iframe 390×844, and real cross-origin iframe 844×390. Recursive open-shadow inspection proves exact visible UI/text; renderer-frame inspection proves zero canvas countdown/overlay; every closed state proves an exact 48×48 opaque corner control, either one allowed transient or none, stable hidden+aria-hidden legacy nodes, and a 1×1 clipped polite live status. The matrix retains drawer/Music/focus, zero-camera gate, reconnect/lifecycle, privacy, and explicit no-production-winner rejection. It passed twice independently, full test/browser/build passed, and two release/pack recursive rounds are byte-identical (`2c3a5060…`, proof `a001f212…`, `3968857` pre-manifest bytes).
+
+P0 `aerobeat-web-assembly-9s6`, QA Bead `aerobeat-web-assembly-0n6`, and physical Bead `aerobeat-web-assembly-3h7` remain in progress for independent QA/physical confirmation.
 
 ## Host inventory
 
@@ -45,7 +47,7 @@ P0 `aerobeat-web-assembly-9s6` owns the duplicate-cue repair and direct/iframe �
 - Browser: no system Chromium/Chrome command; Playwright Chromium is `/home/derrick/.cache/ms-playwright/chromium-1234/chrome-linux64/chrome`.
 - Android: `adb` is not installed; no Android USB/MTP device is connected.
 - Tailscale: online at `derrick-alienware-aurora-r13.tail613fcb.ts.net`; HTTPS `:8443` is configured to proxy `127.0.0.1:5173`.
-- At evidence time no Vite process was listening on 5173, so the configured HTTPS route truthfully returned HTTP 502. No replacement server was started by QA.
+- The approved existing `npm run dev:tailscale` Vite process remains running on `127.0.0.1:5173`; the local route returns HTTP 200. Do not stop or replace it without Derrick's instruction.
 
 ## Launch commands and URLs
 
@@ -206,6 +208,7 @@ For each Boxing run:
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
 - `scripts/validate-mobile-gameplay-menu.js` runs exact Chromium 390×844 portrait and 844×390 landscape coverage with mocked `getUserMedia` and injected measured pose frames. It proves composed-tree exact visibility/text for idle, calibration, hold, countdown, playing, tracking pause, open-menu pause, Escape recovery, and resumed play; one-control steady play; one-cue transient states; clipped aria-live status; hidden legacy HUD cards; drawer text allowlist; stable viewport-filling video/canvas; >=44px corner control; populated current/fallback Music radios and scalar intents; zero-camera missing-content gating; full permission/start/T-pose/countdown/play; retained camera/CV menu pause; audio gates; reconnect isolation; and zero unexpected console noise.
+- `scripts/validate-product-shell-matrix.js` is the strict product acceptance matrix. It repeats the full real-start flow in direct and real cross-origin iframe embeds at both 390×844 and 844×390, recursively enumerates visible overlay controls/direct text through every open shadow root, and inspects renderer frame input. It samples Release explicitly and proves exact 48×48 menu/background geometry, one DOM transient or none, zero canvas overlay/countdown, stable hidden+aria-hidden legacy identities, clipped polite status, drawer/Music/focus, lifecycle/privacy, and no production winner.
 - Task 11 nine-path v2/v3/v4 × online/direct/local matrix reproduces all package hashes and loads Flow plus four Boxing variants.
 - Cross-origin Chromium verifies exact parent sizing, direct/iframe parity, fullscreen gesture path, reconnect/destructor silence, lease transfer, hidden/safety/audio policy, hostile payload limits, profile atomicity, and no raw-byte bridge leakage.
 - All web contracts/vendor/authoring/content/gameplay/input/video/audio/renderer/UI/style/CV/MediaPipe repos pass available check, test, browser, pack, and diff gates; all worktrees remain clean and synchronized.

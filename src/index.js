@@ -627,9 +627,7 @@ export class AeroGame extends HTMLElement {
     const ruleset = String(selected?.rulesetId ?? "");
     const presentation = selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid";
     const targets = (content.resolvedEvents ?? []).filter((event) => event.centerTimestampMs >= nowMs - 500 && event.centerTimestampMs <= nowMs + 2500).slice(0, 128).map(renderTarget);
-    const state = String(session.state ?? "idle");
-    const overlay = state === "paused_tracking" ? "tracking_lost" : state === "calibrating" ? "calibrating" : state.startsWith("paused") ? "paused" : "none";
-    return { presentation, nowMs, targets, countdown: gameplay.countdown?.value ?? null, overlay, calibrationDim: this.graph.input.getSnapshot().retainedGeometryDimmed ? 0.5 : 0 };
+    return { presentation, nowMs, targets, countdown: null, overlay: "none", calibrationDim: 0 };
   }
 
   renderPresenters() {
@@ -947,11 +945,11 @@ function runtimeStatus(content, session, input) {
 }
 function transientCue(menuOpen, sessionStartRequested, session, gameplay, input) {
   if (menuOpen || !sessionStartRequested) return "";
-  if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
   if (session.state === "paused_tracking") return "Tracking lost";
+  if (input.calibration?.state === "cooldown") return "Release";
+  if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
   if (session.state !== "calibrating") return "";
   if (input.calibration?.state === "holding") return "Hold T-pose";
-  if (input.calibration?.state === "cooldown") return "Release";
   return "T-pose";
 }
 function actionableRuntimeMessage(error, limitations) {
