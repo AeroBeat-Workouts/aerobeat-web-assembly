@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly implementation target:** `4eb94bf` (corrected live-v4 integration plus matching frozen raw release on `main`)
+**Assembly implementation target:** `43bb423` (corrected live-v4 integration plus eight-way Flow and matching frozen raw release on `main`)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
@@ -220,7 +220,7 @@ For each Boxing run:
 
 ## Corrected live-v4 import ready for physical rerun
 
-Vendor `l3h` implementation `7b14eec` and independent `u02` closure `b9d19a6` correct the current v4 provider hash contract without an integrity bypass. Assembly `kdf` adds a network-independent actual-service golden that authors/selects through the Music UI, rejects tampered v4 bytes, and preserves v2/v3 local ZIP. Optional `npm run test:live-v4-import` fetched exact `53F26` version `addd9d6f8e7340ad6f5633947136d8475a7a99b5`, authored and persisted a package, selected Flow plus four Boxing variants, exposed no raw bytes, requested no camera, and removed the ephemeral package afterward. Live source also exposed valid diagonal cuts crossing gameplay's cardinal-only acceptance. The attempted authoring normalization was the wrong owner and is forward-reverted at `fa824fc`; gameplay P0 `aerobeat-web-gameplay-uau` owns eight-way Flow validation/matching while authoring preserves exact Beat Saber direction semantics and Boxing remains unchanged.
+Vendor `l3h` implementation `7b14eec` and independent `u02` closure `b9d19a6` correct the current v4 provider hash contract without an integrity bypass. Assembly `kdf` adds a network-independent actual-service golden that authors/selects through the Music UI, rejects tampered v4 bytes, and preserves v2/v3 local ZIP. Optional `npm run test:live-v4-import` fetched exact `53F26` version `addd9d6f8e7340ad6f5633947136d8475a7a99b5`, authored and persisted a package, selected Flow plus four Boxing variants, exposed no raw bytes, requested no camera, and removed the ephemeral package afterward. Live source also exposed valid diagonal cuts crossing gameplay's cardinal-only acceptance. The attempted authoring normalization was the wrong owner and is forward-reverted at `fa824fc`; gameplay P0 `aerobeat-web-gameplay-uau` at `2326ccb` owns eight-way Flow validation/matching while authoring preserves exact Beat Saber direction semantics and Boxing remains unchanged.
 
 This automation proves acquisition, integrity, conversion, persistence, selection, Music readiness, privacy, and no-winner posture. It does **not** prove camera calibration or physical play. Operator phone evidence for `kdf` remains pending.
 
