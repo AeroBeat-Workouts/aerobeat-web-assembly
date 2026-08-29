@@ -23,7 +23,7 @@ const contexts = [
   { kind: "direct", width: 390, height: 844 }, { kind: "direct", width: 844, height: 390 },
   { kind: "iframe", width: 390, height: 844 }, { kind: "iframe", width: 844, height: 390 }
 ];
-const baseDrawerText = Object.freeze(["Calibrate / Start", "Gameplay", "Flow", "Semantic Row", "Spatial Row", "Semantic Cut", "Spatial Cut", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Choose or import a song to start.", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Import selected map", "Idle · 0%", "Cancel import", "First library song · Expert", "Second library song · ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
+const baseDrawerText = Object.freeze(["Calibrate / Start", "Gameplay", "Flow", "Semantic Row", "Spatial Row", "Semantic Cut", "Spatial Cut", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Choose or import a song to start.", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "111111", "Difficulty", "Expert", "Import selected map", "Idle · 0%", "Cancel import", "First library song · Expert", "Second library song · ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [];
 try {
