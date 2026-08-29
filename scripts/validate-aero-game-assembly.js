@@ -15,6 +15,7 @@ assert.doesNotMatch(html + source, /<aerobeat-app\b|customElements\.define\(["']
 assert.doesNotMatch(source, /history\.|location\.(?:assign|replace)|100vh/u);
 assert.match(source, /connectedCallback\(\)/u);
 assert.match(source, /disconnectedCallback\(\)/u);
+assert.match(source, /beatSaberFlowDirections = Object\.freeze\(\["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"\]\)/u, "assembly must preserve all Beat Saber Flow directions for the renderer");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
   providerId: "gpu-webgl", minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
