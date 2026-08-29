@@ -552,7 +552,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Coder `1211827` implements per-game direct/external/authored package loading, AEROPKG1 verification, critical versus cosmetic asset policy, frozen five-variant catalog, modifier union/unranked provenance and paused future-only swaps preserving past/judged/active identity. Parent check/test/browser/pack pass and current authoring output loads with five variants; independent security/swap QA is in progress.
+**Results:** Coder `1211827` implements per-game direct/external/authored package loading, AEROPKG1 verification, critical versus cosmetic asset policy, frozen five-variant catalog, modifier union/unranked provenance and paused future-only swaps preserving past/judged/active identity. Parent baseline gates pass and current authoring output loads with five variants. Security QA found unsafe getter/coercion reads at wrapper/modifier/resolver/playback seams, unbounded fetch/path/event inputs, non-exact AEROPKG ranges/records, missing event-modifier identity enforcement and locale-dependent ordering. QA is adding boundary-first descriptor narrowing, transport/archive bounds and adversarial swap/export integration.
 
 **Acceptance:** Tests cover hashes, arbitrary URLs, external-audio CORS rejection, cosmetic fallback, packaged and locally authored handles, persistence reload/delete invalidation, modifier composition, stable lineage, immediate paused-position future swaps, active-event preservation, and unranked composite provenance.
 
@@ -561,7 +561,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 6: Implement Gameplay Session, Rulesets, Scoring, Pause, and Prototype Telemetry
 
 **Bead ID:** `aerobeat-web-assembly-48w.3`
-**SubAgent:** DSH coder subagent, then QA
+**SubAgent:** Coder child `023ead05-e71f-41f1-b465-06bc04d35bf2`; QA pending
 **Role:** `coder`
 **References:** `REF-01`, `REF-05`, `REF-06`, `REF-12`, `REF-13`
 **Prompt:** In the new `aerobeat-web-gameplay`, implement the minimal gameplay-session coordinator, audio-clock consumption, initial/pause recalibration gates, frozen 3..2..1 countdown, tracking-safety pause, media lease integration contract, positive-only evidence matching, one-action consumption, Flow cell/direction rules, Semantic Track Boxing, Spatial Grid Boxing, checkpoint sampling, straight qualification, binary diagnostics, simultaneous disjoint obstacle+punch handling, local prototype score partitions, recipe/ruleset provenance, and diagnostic shadow evaluation. No public leaderboards.
@@ -575,7 +575,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** Pending
+**Status:** In Progress
 
 **Acceptance:** Deterministic clock tests cover all four candidates, +/-180ms windows, 150ms freshness, no-input misses, 100ms straight qualification, cardinal entries, checkpoint states, guard/punch exclusivity, disjoint concurrency, action consumption, tracking pause/countdown cancellation, variant swaps, local-only score identity, and diagnostic-only shadows.
 
@@ -601,7 +601,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Results:** Coder commit `f96ab57` added the reconnectable facade; adversarial QA commit `0883ec9` fixed cross-kind/element cleanup and pending-play races. Blob-to-camera revokes owned URLs, owned-camera-to-video stops exactly once, host-owned tracks are never stopped, old elements clear sources/listeners, and pause/hidden/lease/source replacement defeat late play. Direct fake-device Chromium getUserMedia and captureStream paths pass with zero console noise. Parent reran check/test/browser/pack; closure commit `bc9fd59`.
 
-**Acceptance:** Satisfied; request/injection/transfer/reconnect, late async work, visibility/lease, CORS/readability, source identity and deterministic teardown are covered., track stopping, hidden visibility, external CORS capabilities, fallback behavior, and no retained streams after destroy.
+**Acceptance:** Satisfied; request/injection/transfer/reconnect, late async work, visibility/lease, CORS/readability, source identity, track stopping and deterministic teardown are covered with no retained streams after destroy.
 
 ---
 
