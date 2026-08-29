@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly implementation target:** `ae3097e` (minimal gameplay shell on `main`)
+**Assembly implementation target:** `ed56f70` (sole DOM transient and exact direct/iframe shell matrix on `main`)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
