@@ -42,7 +42,7 @@ The same converter is also a product foundation rather than a fixed demo playlis
 - Session-only calibration; invalidate on camera source, mirror, or source-aspect change.
 - Keep old geometry until automatic replacement is atomically ready; explicit badge reset invalidates and pauses.
 - Out-of-grid anchors retain diagnostics but emit no scoring cell.
-- Four cardinal directions only.
+- Flow direction evidence is **eight-way shoulder-relative** (`up`, `up-right`, `right`, `down-right`, `down`, `down-left`, `left`, `up-left`); the earlier cardinal-only assumption is superseded by `aerobeat-docs/docs/architecture/beatsaver-flow-v1-conversion.md` lines 165–185 and verified contracts P0s `vd2`/`fy7` at closure `c1e14f9`.
 - Tracking loss after 500ms invalidates gameplay, dims retained geometry, emits safety state, and requires recalibration.
 - Initial start and every pause exit require successful calibration followed by frozen-time `3..2..1..`; tracking loss cancels the countdown.
 
@@ -78,7 +78,7 @@ The same converter is also a product foundation rather than a fixed demo playlis
 
 ### Flow and Boxing rules
 
-- Flow uses exact 4x3 cells plus expected cardinal directions; Flow obstacles retain their own sustained semantics.
+- Flow uses exact 4x3 cells plus exact BeatSaver `0..7` arrow directions matched in rolling shoulder-relative eight-way athlete space; dot `8` requires a cell entry but no direction. Canonical Flow v1 lines 165–185 supersede the stale cardinal wording, while lines 285–291 preserve source head cut direction; Flow obstacles retain their own sustained semantics.
 - Semantic Track Boxing uses two bottom-to-top hand lanes, athlete-left on screen-left, semantic action plus timing, and a separate defensive layer.
 - Spatial Grid Boxing is grid-only and uses generated locations.
 - All Boxing observations are positive evidence; unrequested/false-positive gestures never penalize or suppress requested evidence.
@@ -762,7 +762,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ### Task 12: Cross-Repo Desktop, Android, Direct-Embed, and Iframe QA
 
-**Bead ID:** `aerobeat-web-assembly-48w.6`; Android gameplay-first repair `aerobeat-web-assembly-dvy` with QA `aerobeat-web-assembly-hd8`; compact drawer UI `aerobeat-web-ui-8px`, selected-state repair `aerobeat-web-ui-0gc`, with QA `aerobeat-web-ui-2kv`; four-section/start repair `aerobeat-web-assembly-c36` with QA `aerobeat-web-assembly-mwr` and audit `aerobeat-web-assembly-b9v`; scoped product radios `aerobeat-web-ui-rj5` with QA `aerobeat-web-ui-kp7`; populated Music radio semantics `aerobeat-web-ui-24a` with QA `aerobeat-web-ui-1u9`; assembly integration `aerobeat-web-assembly-3cw` with QA `aerobeat-web-assembly-v51` and audit `aerobeat-web-assembly-qbt`; minimal gameplay shell `aerobeat-web-assembly-3h7`; minimal compact copy `aerobeat-web-ui-an0`; duplicate countdown/matrix repair `aerobeat-web-assembly-9s6`; opaque/exhaustive shell repair `aerobeat-web-assembly-ctp`; corrected live-v4 integration `aerobeat-web-assembly-kdf`; stale release identity repair `aerobeat-web-assembly-bzw`; rolling eight-way input `aerobeat-web-input-lgc` with directionless entry `aerobeat-web-input-po7`; eight-way gameplay matching `aerobeat-web-gameplay-uau`; diagonal/visible renderer cues `aerobeat-web-renderer-1kb` and `aerobeat-web-renderer-wfk`
+**Bead ID:** `aerobeat-web-assembly-48w.6`; Android gameplay-first repair `aerobeat-web-assembly-dvy` with QA `aerobeat-web-assembly-hd8`; compact drawer UI `aerobeat-web-ui-8px`, selected-state repair `aerobeat-web-ui-0gc`, with QA `aerobeat-web-ui-2kv`; four-section/start repair `aerobeat-web-assembly-c36` with QA `aerobeat-web-assembly-mwr` and audit `aerobeat-web-assembly-b9v`; scoped product radios `aerobeat-web-ui-rj5` with QA `aerobeat-web-ui-kp7`; populated Music radio semantics `aerobeat-web-ui-24a` with QA `aerobeat-web-ui-1u9`; assembly integration `aerobeat-web-assembly-3cw` with QA `aerobeat-web-assembly-v51` and audit `aerobeat-web-assembly-qbt`; minimal gameplay shell `aerobeat-web-assembly-3h7`; minimal compact copy `aerobeat-web-ui-an0`; duplicate countdown/matrix repair `aerobeat-web-assembly-9s6`; opaque/exhaustive shell repair `aerobeat-web-assembly-ctp`; corrected live-v4 integration `aerobeat-web-assembly-kdf`; stale release identity repair `aerobeat-web-assembly-bzw`; eight-way direction contract `aerobeat-web-contracts-vd2` with QA `aerobeat-web-contracts-fy7`; rolling eight-way input `aerobeat-web-input-lgc` with directionless entry `aerobeat-web-input-po7`; eight-way gameplay matching `aerobeat-web-gameplay-uau`; diagonal/visible renderer cues `aerobeat-web-renderer-1kb` and `aerobeat-web-renderer-wfk`
 **SubAgent:** DSH QA subagents
 **Role:** `qa`
 **References:** `REF-01` through `REF-18`
