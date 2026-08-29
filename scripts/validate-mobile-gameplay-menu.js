@@ -58,6 +58,8 @@ try {
   assert(initial.compactCount === initial.presenterCount && initial.presenterCount === 6, "all six drawer presenters must consume [compact]");
   assert(initial.videoStable && initial.canvasStable && initial.surfaceFill, "stable video/canvas must fill portrait viewport");
   assert(initial.ariaExpanded === "true" && initial.ariaControls === "aero-game-drawer" && initial.drawerFocused, "first-run drawer must expose controls state and receive focus");
+  const initialVisual = await visualShellSnapshot(game);
+  assert(initialVisual.drawer && initialVisual.menu && !initialVisual.status && !initialVisual.cue && initialVisual.hudPresenters === 0 && !initialVisual.brand && !initialVisual.infoStatus, `open idle shell must hide HUD/status and omit drawer brand/runtime copy: ${JSON.stringify(initialVisual)}`);
   const taxonomy = await game.evaluate((element) => {
     const root = element.shadowRoot; const drawer = root.querySelector("[data-role='drawer']");
     const sections = [...drawer.querySelectorAll(":scope > .drawer-content > .drawer-section")];
@@ -120,6 +122,10 @@ try {
   assert(selection.autoSelected === "package-first" && selection.fallbackPackageRadios.count === 2 && JSON.stringify(selection.fallbackPackageRadios.checked) === JSON.stringify(["package-first"]) && JSON.stringify(selection.loadCalls) === JSON.stringify(["package-first"]), `first library radio must be checked as deterministic fallback: ${JSON.stringify(selection)}`);
   assert(selection.versionTag === "SELECT" && selection.difficultyTag === "SELECT", `Version and Difficulty must remain selects: ${JSON.stringify(selection)}`);
   assert(selection.optionButtonCount === 0 && selection.cancelTag === "BUTTON" && ["Search", "Latest", "Choose local ZIP", "Import selected map"].every((label) => selection.browserActions.includes(label)) && ["Export", "Delete"].every((label) => selection.libraryActions.includes(label)), `only Music actions may remain buttons: ${JSON.stringify(selection)}`);
+  const drawerCopy = await composedDrawerText(game);
+  const allowedDrawerText = new Set(["×", "Calibrate / Start", "Gameplay", "Flow", "Semantic Row", "Spatial Row", "Semantic Cut", "Spatial Cut", "Visuals", "Default", "Compact", "Music", "Import selected song to start.", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Version", "Difficulty", "Expert", "Import selected map", "Idle · 0%", "First library song", "Current library song", "Export", "Delete", "Cancel import", "Info", "Enter fullscreen", "Exit fullscreen"]);
+  const unexpectedDrawerText = drawerCopy.filter((text) => !allowedDrawerText.has(text));
+  assert(unexpectedDrawerText.length === 0 && !drawerCopy.includes("AeroBeat"), `compact drawer composed text must match the product allowlist: ${JSON.stringify({ drawerCopy, unexpectedDrawerText })}`);
 
   const focusCycle = await game.evaluate((element) => {
     const drawer = element.shadowRoot.querySelector("[data-role='drawer']");
@@ -132,6 +138,8 @@ try {
   assert(focusCycle.forward && focusCycle.backward && focusCycle.nested, "drawer focus trap must include nested presenter shadow controls");
   await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-backdrop']").click()); await page.waitForTimeout(50);
   const backdropClosed = await shellSnapshot(game); assert(!backdropClosed.menuOpen && backdropClosed.buttonFocused, "backdrop close must restore hamburger focus");
+  const idleClosedVisual = await visualShellSnapshot(game);
+  assert(idleClosedVisual.menu && !idleClosedVisual.drawer && !idleClosedVisual.status && !idleClosedVisual.cue && idleClosedVisual.hudPresenters === 0 && idleClosedVisual.visibleOverlayCount === 1, `closed idle shell must expose only the corner menu control: ${JSON.stringify(idleClosedVisual)}`);
   await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-toggle']").click()); await page.waitForTimeout(50);
 
   await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='calibrate-start']").click());
@@ -140,16 +148,29 @@ try {
   const obscured = await game.evaluate((element) => ({ menuOpen: element.getSnapshot().interaction.menuOpen, calibrationId: element.graph.input.getSnapshot().calibration.calibrationId }));
   assert(obscured.menuOpen && obscured.calibrationId === null, "configuration must suppress accidental pose calibration");
 
-  await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-close']").click());
-  await calibrateAndRelease(game, 6000);
+  await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-close']").click()); await page.waitForTimeout(100);
+  const calibratingVisual = await visualShellSnapshot(game);
+  assert(calibratingVisual.menu && !calibratingVisual.drawer && calibratingVisual.cue && calibratingVisual.cueText === "T-pose" && calibratingVisual.hudPresenters === 0 && calibratingVisual.visibleOverlayCount === 2, `calibration may expose only menu plus one minimal T-pose cue: ${JSON.stringify(calibratingVisual)}`);
+  for (let offset = 0; offset <= 2000; offset += 250) await pushPose(game, 6000 + offset, true);
+  const holdingVisual = await visualShellSnapshot(game);
+  assert(holdingVisual.cue && holdingVisual.cueText === "Hold T-pose" && holdingVisual.visibleOverlayCount === 2, `T-pose hold must remain one minimal cue: ${JSON.stringify(holdingVisual)}`);
+  for (let offset = 2250; offset <= 4000; offset += 250) await pushPose(game, 6000 + offset, true);
+  await releaseHold(game, 10250);
+  await waitFor(page, async () => Number.isFinite(await game.evaluate((element) => element.graph.gameplay.getSnapshot().countdown?.value)), 3000);
+  const countdownVisual = await visualShellSnapshot(game);
+  assert(countdownVisual.menu && countdownVisual.cue && /^[123]$/u.test(countdownVisual.cueText) && countdownVisual.hudPresenters === 0 && countdownVisual.visibleOverlayCount === 2, `countdown may expose only menu plus one numeric cue: ${JSON.stringify(countdownVisual)}`);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 6000);
   let state = await stateSnapshot(game);
   assert(state.audioState === "playing" && state.audioPlayCalls >= 1, "audio must start only after initial countdown enters play");
+  const playingVisual = await visualShellSnapshot(game);
+  assert(playingVisual.menu && !playingVisual.drawer && !playingVisual.status && !playingVisual.cue && playingVisual.hudPresenters === 0 && playingVisual.visibleOverlayCount === 1 && JSON.stringify(playingVisual.visibleOverlayText) === JSON.stringify(["☰"]), `steady gameplay must expose exactly the corner menu control above video/canvas: ${JSON.stringify(playingVisual)}`);
 
   await pushPose(game, 15000, true); await pushPose(game, 15250, true);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "paused_tracking");
   state = await stateSnapshot(game);
   assert(state.audioState === "paused", "sustained in-play T-pose must enter pose-aware pause");
+  const trackingVisual = await visualShellSnapshot(game);
+  assert(trackingVisual.menu && trackingVisual.cue && trackingVisual.cueText === "Tracking lost" && trackingVisual.hudPresenters === 0 && trackingVisual.visibleOverlayCount === 2, `tracking recovery may expose only menu plus one minimal cue: ${JSON.stringify(trackingVisual)}`);
   for (let offset = 500; offset <= 4000; offset += 250) await pushPose(game, 15000 + offset, true);
   await releaseHold(game, 19250);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 6000);
@@ -159,17 +180,22 @@ try {
   await waitFor(page, async () => ["paused_manual", "paused_tracking"].includes(await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)));
   const opened = await stateSnapshot(game);
   assert(opened.audioState === "paused" && opened.cvStopCalls === beforeMenu.cvStopCalls && opened.videoPauseCalls === beforeMenu.videoPauseCalls, "menu pause must pause audio/gameplay while retaining camera/CV/frame loop");
+  const menuPausedVisual = await visualShellSnapshot(game);
+  assert(menuPausedVisual.drawer && menuPausedVisual.menu && !menuPausedVisual.cue && !menuPausedVisual.status && menuPausedVisual.hudPresenters === 0, `open paused menu must suppress all gameplay cues/status: ${JSON.stringify(menuPausedVisual)}`);
   await game.evaluate((element) => element.shadowRoot.querySelector("[data-role='drawer']").focus());
   await page.keyboard.press("Escape");
   await page.waitForTimeout(250);
-  const escapedShell = await shellSnapshot(game); assert(escapedShell.ariaExpanded === "false" && (escapedShell.buttonFocused || escapedShell.activeRole === "AERO-TRACKING-PAUSE"), `Escape must close drawer and yield focus to the trigger or active tracking modal: ${JSON.stringify(escapedShell)}`);
+  const escapedShell = await shellSnapshot(game); assert(escapedShell.ariaExpanded === "false" && escapedShell.buttonFocused, `Escape must close drawer and return focus to the corner control: ${JSON.stringify(escapedShell)}`);
   const closed = await stateSnapshot(game);
   assert(closed.sessionState === "paused_tracking" && !closed.menuOpen, "closing menu must stay paused awaiting fresh calibration");
+  const closedPausedVisual = await visualShellSnapshot(game);
+  assert(closedPausedVisual.menu && closedPausedVisual.cue && closedPausedVisual.visibleOverlayCount === 2 && closedPausedVisual.hudPresenters === 0, `closed paused state must expose only menu plus one recovery cue: ${JSON.stringify(closedPausedVisual)}`);
   await calibrateAndRelease(game, 24000);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 6000);
 
   const closedShell = await shellSnapshot(game);
-  assert(!closedShell.drawerVisible && closedShell.closedVisiblePresenterCount === 0 && closedShell.surfaceFill, "closed phone view must expose only playfield overlays/status/hamburger");
+  const resumedPlayingVisual = await visualShellSnapshot(game);
+  assert(!closedShell.drawerVisible && closedShell.closedVisiblePresenterCount === 0 && closedShell.surfaceFill && resumedPlayingVisual.visibleOverlayCount === 1 && JSON.stringify(resumedPlayingVisual.visibleOverlayText) === JSON.stringify(["☰"]), `resumed closed play must expose only the corner control: ${JSON.stringify({ closedShell, resumedPlayingVisual })}`);
   await page.setViewportSize({ width: 844, height: 390 }); await page.waitForTimeout(100);
   const landscape = await shellSnapshot(game);
   assert(landscape.surfaceFill && landscape.buttonWidth >= 44 && landscape.buttonHeight >= 44, "landscape surfaces/menu must remain stable and accessible");
@@ -184,9 +210,19 @@ try {
   const reconnect = await game.evaluate(async (element) => { const video = element.shadowRoot.querySelector("video"); const canvas = element.shadowRoot.querySelector("canvas"); element.remove(); document.querySelector("main")?.append(element); await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); return { menuOpen: element.getSnapshot().interaction.menuOpen, fresh: element.graph.input.getSnapshot().calibration.calibrationId === null, newVideo: element.shadowRoot.querySelector("video") === video, newCanvas: element.shadowRoot.querySelector("canvas") === canvas }; });
   assert(reconnect.menuOpen && reconnect.fresh && reconnect.newVideo && reconnect.newCanvas, "reconnect must create fresh interaction/service state while preserving stable surfaces");
   assert(noise.length === 0, `unexpected console noise: ${noise.join(" | ")}`);
-  console.log("Mobile four-section drawer, populated Music radios/actions, camera start, T-pose/countdown, pose/menu pause, and responsive stable-surface validation passed.");
+  console.log("Mobile composed-tree shell, minimal transient cues, drawer allowlist, Music radios/actions, full start/menu pause, and responsive stable-surface validation passed.");
 } finally { await browser.close(); await vite.close(); }
 
+async function visualShellSnapshot(game) { return game.evaluate((element) => {
+  const root = element.shadowRoot; const visible = (item) => { if (!(item instanceof HTMLElement) || item.hidden || item.getAttribute("aria-hidden") === "true") return false; let current = item; while (current instanceof HTMLElement) { const style = getComputedStyle(current); if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false; current = current.parentElement ?? current.getRootNode()?.host; } const style = getComputedStyle(item); const rect = item.getBoundingClientRect(); return rect.width > 1 && rect.height > 1 && style.clipPath !== "inset(50%)" && style.clip === "auto"; };
+  const menu = root.querySelector("[data-role='menu-button']"); const drawer = root.querySelector("[data-role='drawer']"); const backdrop = root.querySelector("[data-role='menu-backdrop']"); const status = root.querySelector("[data-role='status']"); const cue = root.querySelector("[data-role='transient-cue']"); const hudPresenters = [...root.querySelectorAll(".hud-presenter")].filter(visible).length;
+  const gameplay = element.graph?.gameplay.getSnapshot(); const input = element.graph?.input.getSnapshot(); const overlays = [menu, backdrop, drawer, status, cue].filter(visible); return { menu: visible(menu), drawer: visible(drawer), backdrop: visible(backdrop), status: visible(status), cue: visible(cue), cueText: cue?.textContent?.trim() ?? "", hudPresenters, brand: Boolean(root.querySelector(".drawer-title")), infoStatus: Boolean(root.querySelector("[data-role='info-status']")), visibleOverlayCount: overlays.length + hudPresenters, visibleOverlayText: overlays.filter((item) => item !== drawer && item !== backdrop).map((item) => item.textContent?.trim() ?? "").filter(Boolean), sessionState: gameplay?.session?.state, countdown: gameplay?.countdown, calibrationState: input?.calibration?.state, sessionStartRequested: element.sessionStartRequested };
+}); }
+async function composedDrawerText(game) { return game.evaluate((element) => {
+  const drawer = element.shadowRoot.querySelector("[data-role='drawer']"); const result = []; const visible = (item) => { if (!(item instanceof HTMLElement) || item.hidden || item.getAttribute("aria-hidden") === "true") return false; let current = item; while (current instanceof HTMLElement) { const style = getComputedStyle(current); if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) return false; current = current.parentElement ?? current.getRootNode()?.host; } const style = getComputedStyle(item); const rect = item.getBoundingClientRect(); return rect.width > 1 && rect.height > 1 && style.clipPath !== "inset(50%)" && style.clip === "auto"; };
+  const walk = (node) => { if (node instanceof Text) { const text = node.data.replaceAll(/\s+/gu, " ").trim(); if (text && visible(node.parentElement)) result.push(text); return; } if (!(node instanceof HTMLElement || node instanceof ShadowRoot)) return; if (node instanceof HTMLElement && !visible(node)) return; if (node instanceof HTMLElement && node.shadowRoot) walk(node.shadowRoot); for (const child of node.childNodes) walk(child); };
+  walk(drawer); return [...new Set(result)];
+}); }
 async function shellSnapshot(game) { return game.evaluate((element) => { const root=element.shadowRoot,drawer=root.querySelector("[data-role='drawer']"),button=root.querySelector("[data-role='menu-button']"),video=root.querySelector("video"),canvas=root.querySelector("canvas"),gameRect=element.getBoundingClientRect(),videoRect=video.getBoundingClientRect(),canvasRect=canvas.getBoundingClientRect(),presenters=[...drawer.querySelectorAll("aero-prototype-selector,aero-beatsaver-browser,aero-content-import-progress,aero-content-library,aero-capabilities-panel,aero-error-panel,aero-fullscreen-button")],buttonRect=button.getBoundingClientRect(); return { menuOpen:element.getSnapshot().interaction.menuOpen,drawerVisible:!drawer.hidden,buttonWidth:buttonRect.width,buttonHeight:buttonRect.height,buttonTop:buttonRect.top-gameRect.top,presenterCount:presenters.length,compactCount:presenters.filter((item)=>item.hasAttribute("compact")).length,closedVisiblePresenterCount:presenters.filter((item)=>!drawer.hidden&&item.getClientRects().length>0).length,ariaExpanded:button.getAttribute("aria-expanded"),ariaControls:button.getAttribute("aria-controls"),drawerFocused:root.activeElement===drawer,buttonFocused:root.activeElement===button,activeRole:root.activeElement?.getAttribute?.("data-role")??root.activeElement?.tagName??null,videoStable:video===root.querySelector("video"),canvasStable:canvas===root.querySelector("canvas"),surfaceFill:Math.abs(videoRect.width-gameRect.width)<1&&Math.abs(videoRect.height-gameRect.height)<1&&Math.abs(canvasRect.width-gameRect.width)<1&&Math.abs(canvasRect.height-gameRect.height)<1}; }); }
 async function stateSnapshot(game) { return game.evaluate((element) => ({ sessionState:element.graph.gameplay.getSnapshot().session.state,menuOpen:element.getSnapshot().interaction.menuOpen,audioState:globalThis.__mobileState.audioState,audioPlayCalls:globalThis.__mobileState.audioPlayCalls,audioPauseCalls:globalThis.__mobileState.audioPauseCalls,cvStopCalls:globalThis.__mobileState.cvStopCalls,videoPauseCalls:globalThis.__mobileState.videoPauseCalls })); }
 async function pushPose(game, timestampMs, tPose) { await game.evaluate((element, payload) => { const base={nose:{x:.5,y:.3},left_shoulder:{x:.6,y:.4},right_shoulder:{x:.4,y:.4},left_elbow:{x:.7,y:.4},right_elbow:{x:.3,y:.4},left_wrist:payload.tPose?{x:.8,y:.4}:{x:.64,y:.62},right_wrist:payload.tPose?{x:.2,y:.4}:{x:.36,y:.62}}; globalThis.__mobileState.pose={sourceId:"mock-camera",timestampMs:payload.timestampMs,mirrored:true,landmarks:Object.entries(base).map(([name,value])=>({name,...value,confidence:.99}))}; }, { timestampMs, tPose }); await new Promise((resolve) => setTimeout(resolve, 80)); }
