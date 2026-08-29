@@ -9411,13 +9411,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:36cd13bd277b6c78210ba12ed63228ffadaf6ddd24f44417707ea897cd169cc6";
+var buildStamp = "source:fa6f4832947cb4c052e999ad462e4ad2953498c9fedde1ca831ecc34686c4843";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-36cd13bd277b6c78";
+var cacheBust = "0.0.24-fa6f4832947cb4c0";
 /**
 * Vite-injected package version from package.json.
 *
@@ -14735,7 +14735,7 @@ function convertFlowChart(summary, difficulty, songToken) {
 			type: "burst",
 			hand: String(burst.hand ?? "left"),
 			placement: Number(burst.cell ?? 0),
-			direction: Number(burst.direction ?? 8),
+			direction: flowDirection$1(burst.direction),
 			tailPlacement: Number(burst.tailCell ?? burst.cell ?? 0),
 			checkpointCount: Math.max(Number(burst.sliceCount ?? 1), 1)
 		};
@@ -14778,7 +14778,7 @@ function convertFlowChart(summary, difficulty, songToken) {
 }
 /** @param {Readonly<Record<string, unknown>>} note */
 function emitFlowNote(note) {
-	const direction = Number(note.direction ?? 8);
+	const direction = flowDirection$1(note.direction);
 	const beat = {
 		start: Number(note.start ?? 0),
 		type: "note",
@@ -14799,8 +14799,8 @@ function emitFlowArc(slider, lookup) {
 		hand: String(slider.hand ?? "left"),
 		startPlacement: Number(slider.cell ?? 0),
 		endPlacement: Number(slider.tailCell ?? slider.cell ?? 0),
-		startDirection: Number(slider.direction ?? 8),
-		endDirection: Number(slider.tailDirection ?? slider.direction ?? 8),
+		startDirection: flowDirection$1(slider.direction),
+		endDirection: flowDirection$1(slider.tailDirection ?? slider.direction),
 		headCurveMultiplier: Number(slider.headCurveMultiplier ?? 1),
 		tailCurveMultiplier: Number(slider.tailCurveMultiplier ?? 1),
 		midAnchorMode: Number(slider.midAnchorMode ?? 0)
@@ -14810,6 +14810,14 @@ function emitFlowArc(slider, lookup) {
 	if (start) Object.assign(arc, { startNoteRef: start });
 	if (end) Object.assign(arc, { endNoteRef: end });
 	return arc;
+}
+/** Beat Saber diagonals preserve their vertical component in cardinal-only Flow. @param {unknown} value */
+function flowDirection$1(value) {
+	const direction = Number(value ?? 8);
+	if (direction >= 0 && direction <= 3) return direction;
+	if (direction === 4 || direction === 5) return 0;
+	if (direction === 6 || direction === 7) return 1;
+	return 8;
 }
 /** @param {readonly Readonly<Record<string, unknown>>[]} notes */
 function buildFlowNoteLookup(notes) {
@@ -16104,7 +16112,7 @@ function createInlineAuthoringWorkerAdapter() {
 function createBrowserAuthoringWorkerAdapter(options = {}) {
 	const workerFactory = options.workerFactory ?? (() => new Worker(new URL(
 		/* @vite-ignore */
-		"/assets/conversion-worker-DPEmn8d7.js",
+		"/assets/conversion-worker-Dcnv7D0U.js",
 		"" + import.meta.url
 	), {
 		type: "module",

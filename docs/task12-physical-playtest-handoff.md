@@ -218,6 +218,14 @@ For each Boxing run:
 - Public profile telemetry contains identity/version/hash/class and regeneration state only, never settings or bundles in iframe mode.
 - Converter applied state is false only after regenerated package provenance matches the selected hash everywhere required.
 
+## Corrected live-v4 import ready for physical rerun
+
+Vendor `l3h` implementation `7b14eec` and independent `u02` closure `b9d19a6` correct the current v4 provider hash contract without an integrity bypass. Assembly `kdf` adds a network-independent actual-service golden that authors/selects through the Music UI, rejects tampered v4 bytes, and preserves v2/v3 local ZIP. Optional `npm run test:live-v4-import` fetched exact `53F26` version `addd9d6f8e7340ad6f5633947136d8475a7a99b5`, authored and persisted a package, selected Flow plus four Boxing variants, exposed no raw bytes, requested no camera, and removed the ephemeral package afterward. Live source also exposed valid diagonal cuts crossing a cardinal-only Flow contract; content-authoring `13cc663` fixes notes/arcs/bursts with strict gameplay unchanged and closure `4c14546`.
+
+This automation proves acquisition, integrity, conversion, persistence, selection, Music readiness, privacy, and no-winner posture. It does **not** prove camera calibration or physical play. Operator phone evidence for `kdf` remains pending.
+
+The refreshed frozen release fingerprint is `fa6f4832947cb4c052e999ad462e4ad2953498c9fedde1ca831ecc34686c4843`; proof SHA-256 is `f1d5c05fd27507057b2589f42fa4414a8470b8b24fa2e6757c40ade63ffd02ff`; pre-manifest bytes are `3972904`. Proof, embedded build/cache stamps, two release rounds, two dry-run packs, and recursive manifests match. `bzw` remains open for independent QA.
+
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
