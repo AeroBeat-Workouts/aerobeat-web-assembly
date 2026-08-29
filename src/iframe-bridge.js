@@ -13,19 +13,23 @@ export function createAeroGameIframeBridge(options) {
   let connected = false;
   let destroyed = false;
   let sequence = 0;
+  const seenMessageIds = new Set(); const seenCommandIds = new Set();
 
   const onMessage = (event) => {
-    if (destroyed || event.source !== parentWindow || event.origin !== expectedOrigin || !withinBridgeLimits(event.data) || encodedSize(event.data) > MAX_BRIDGE_BYTES || !isIframeMessage(event.data) || event.data.instanceId !== instanceId) return;
+    if (destroyed || event.source !== parentWindow || event.origin !== expectedOrigin || !isAeroGameIframeValueWithinLimits(event.data) || !isIframeMessage(event.data) || event.data.instanceId !== instanceId) return;
     const message = event.data;
     if (message.kind === "handshake_request") {
-      const firstConnection = !connected; connected = true;
+      const firstConnection = !connected; connected = true; if (firstConnection) { seenMessageIds.clear(); seenCommandIds.clear(); }
       post("handshake_ack", { protocolVersion: 1, accepted: true }, message.messageId);
       if (firstConnection) { try { options.onConnect?.(); } catch (error) { report(error); } }
       return;
     }
     if (!connected) return;
     if (message.kind === "command" && message.payload && "command" in message.payload) {
-      try { onCommand(message.payload.command); } catch (error) { report(error); }
+      const command = message.payload.command;
+      if (seenMessageIds.has(message.messageId) || seenCommandIds.has(command.commandId) || seenMessageIds.size >= 256 || seenCommandIds.size >= 256) return;
+      seenMessageIds.add(message.messageId); seenCommandIds.add(command.commandId);
+      try { onCommand(command); } catch (error) { report(error); }
     } else if (message.kind === "disconnect") {
       connected = false;
     }
@@ -35,9 +39,9 @@ export function createAeroGameIframeBridge(options) {
   function report(error) { try { options.onError?.(error); } catch { /* diagnostics are isolated */ } }
   /** @param {string} kind @param {Readonly<Record<string,unknown>>|null} payload @param {string} [messageId] */
   function post(kind, payload, messageId = `child-${++sequence}`) {
-    if (destroyed || !withinBridgeLimits(payload) || !isSafeIframePayload(payload)) return false;
+    if (destroyed || !isAeroGameIframeValueWithinLimits(payload) || !isSafeIframePayload(payload)) return false;
     const message = Object.freeze({ schema: "aerobeat/iframe_message", version: 1, kind, messageId, instanceId, payload });
-    if (!isIframeMessage(message) || encodedSize(message) > MAX_BRIDGE_BYTES) return false;
+    if (!isIframeMessage(message) || !isAeroGameIframeValueWithinLimits(message)) return false;
     parentWindow.postMessage(message, expectedOrigin);
     return true;
   }
@@ -55,6 +59,9 @@ export function createAeroGameIframeBridge(options) {
     }
   });
 }
+
+/** Descriptor-safe 64 KiB/depth/item/string preflight for either bridge direction. @param {unknown} value */
+export function isAeroGameIframeValueWithinLimits(value) { return withinBridgeLimits(value) && encodedSize(value) <= MAX_BRIDGE_BYTES; }
 
 /** Descriptor-safe preflight prevents hostile depth/item work before contract validation. @param {unknown} value */
 function withinBridgeLimits(value) {

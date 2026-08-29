@@ -40,6 +40,7 @@ export class AeroGame extends HTMLElement {
     this.resizeObserver = null;
     this.unsubscribe = [];
     this.frameTimer = 0;
+    this.visibilityGeneration = 0;
     this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1;
     this.activeCvSource = null;
@@ -181,12 +182,14 @@ export class AeroGame extends HTMLElement {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph;
     const normalized = contentSource(source); const kind = normalized.kind;
-    if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
-    else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
-    else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
-    else throw new TypeError("Unsupported content source kind");
+    try {
+      if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
+      else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
+      else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
+      else throw new TypeError("Unsupported content source kind");
+    } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-    await this.loadSelectedAudio();
+    try { await this.loadSelectedAudio(graph); } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
     this.configureGameplayFromContent(false); this.syncContentPlayback();
     this.publish("content_changed");
@@ -200,8 +203,10 @@ export class AeroGame extends HTMLElement {
     const gameplay = graph.gameplay.getSnapshot();
     const configured = gameplay.session?.packageId === graph.content.getSnapshot().packageId;
     const futureOnly = configured && ["calibrating", "paused_manual", "paused_tracking"].includes(gameplay.session.state);
-    if (futureOnly) await graph.content.swapFutureVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
-    else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+    try {
+      if (futureOnly) await graph.content.swapFutureVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+      else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+    } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
     this.configureGameplayFromContent(futureOnly); this.syncContentPlayback();
     this.publish("content_changed");
@@ -211,10 +216,10 @@ export class AeroGame extends HTMLElement {
   async browseBeatSaver(query = {}) {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph; const normalized = safeData(query, 0, 32);
-    const latest = dataValue(normalized, "latest") === true;
+    const latest = dataValue(normalized, "latest") === true; const vendorQuery = Object.freeze(Object.fromEntries(Object.entries(normalized).filter(([key]) => key !== "latest")));
     this.beatSaverView = Object.freeze({ ...this.beatSaverView, state: "loading", query: boundedString(dataValue(normalized, "text"), ""), errorMessage: "" }); this.renderPresenters();
     try {
-      const results = latest ? await graph.vendor.listLatestMaps(normalized, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(normalized, { signal: this.activeAbort.signal });
+      const results = latest ? await graph.vendor.listLatestMaps(vendorQuery, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(vendorQuery, { signal: this.activeAbort.signal });
       if (!this.isCurrent(generation, graph)) return results;
       this.browsedMaps.clear(); for (const map of results.maps.slice(0, 20)) this.browsedMaps.set(map.mapId.toUpperCase(), map);
       const summaries = Object.freeze(results.maps.slice(0, 20).map(mapSummary));
@@ -222,7 +227,8 @@ export class AeroGame extends HTMLElement {
       this.renderPresenters(); this.emitGameEvent("beatsaver_results", { resultCount: summaries.length, maps: summaries });
       return results;
     } catch (error) {
-      if (this.isCurrent(generation, graph)) { this.beatSaverView = Object.freeze({ ...this.beatSaverView, state: "error", errorMessage: errorMessage(error) }); this.renderPresenters(); }
+      if (!this.isCurrent(generation, graph)) return null;
+      this.beatSaverView = Object.freeze({ ...this.beatSaverView, state: "error", errorMessage: errorMessage(error) }); this.renderPresenters();
       throw error;
     }
   }
@@ -232,7 +238,9 @@ export class AeroGame extends HTMLElement {
   async importBeatSaver(map, versionIdentifier, authoringOptions) {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph;
-    const acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : undefined, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isCurrent(generation, graph)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } });
+    let acquired;
+    try { acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : undefined, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isCurrent(generation, graph)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } }); }
+    catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
     if (!this.isCurrent(generation, graph)) return null;
     return this.convertAcquired(acquired, authoringOptions);
   }
@@ -242,7 +250,7 @@ export class AeroGame extends HTMLElement {
     const generation = this.connectedGeneration; const graph = this.graph; const safeMapId = boundedIdentifier(mapId, "BeatSaver map ID");
     let map = this.browsedMaps.get(safeMapId.toUpperCase());
     if (!map && requireBrowsed) throw new Error("Iframe import must reference a child-browsed BeatSaver map");
-    if (!map) map = await graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal });
+    if (!map) { try { map = await graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal }); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; } }
     if (!this.isCurrent(generation, graph)) return null;
     return this.importBeatSaver(map, versionIdentifier, authoringOptions);
   }
@@ -251,7 +259,9 @@ export class AeroGame extends HTMLElement {
     this.assertConnected();
     if (!(input instanceof Blob || input instanceof ArrayBuffer || input instanceof Uint8Array)) throw new TypeError("Local import requires Blob, ArrayBuffer, or Uint8Array");
     const generation = this.connectedGeneration; const graph = this.graph;
-    const acquired = await graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal });
+    let acquired;
+    try { acquired = await graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal }); }
+    catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
     if (!this.isCurrent(generation, graph)) return null;
     return this.convertAcquired(acquired, authoringOptions);
   }
@@ -378,13 +388,14 @@ export class AeroGame extends HTMLElement {
   async convertAcquired(acquired, options) {
     const generation = this.connectedGeneration; const graph = this.graph;
     const raw = options === undefined ? Object.freeze({}) : safeData(options, 0, 32);
-    const result = await graph.authoring.convertAndPersist(acquired.source, {
+    let result;
+    try { result = await graph.authoring.convertAndPersist(acquired.source, {
       difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"), sourceProvider: "beatsaver",
       sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
       sourceVersionHash: acquired.sourceHash,
       modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: dataValue(raw, "includeAudio") !== false,
       signal: this.activeAbort.signal
-    });
+    }); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
     if (!this.isCurrent(generation, graph)) return null;
     this.emitGameEvent("import_changed", { snapshot: result.job });
     await this.refreshLibrary(generation);
@@ -401,13 +412,13 @@ export class AeroGame extends HTMLElement {
     };
   }
 
-  async loadSelectedAudio() {
-    const content = this.graph.content.getSnapshot();
+  async loadSelectedAudio(graph = this.graph) {
+    const content = graph.content.getSnapshot();
     const audio = content.song?.audio;
     if (!audio || typeof audio.filePath !== "string") return;
-    const bytes = this.graph.content.readAsset(audio.filePath);
+    const bytes = graph.content.readAsset(audio.filePath);
     const hash = typeof audio.contentHash === "string" ? audio.contentHash.replace(/^sha256:/u, "") : "";
-    await this.graph.audio.load({ id: `${content.packageId}:audio`, kind: "array-buffer", label: content.song?.name ?? "AeroBeat song", arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), contentType: "application/octet-stream", ...(hash ? { expectedHash: { algorithm: "SHA-256", value: hash } } : {}) }, { signal: this.activeAbort.signal });
+    await graph.audio.load({ id: `${content.packageId}:audio`, kind: "array-buffer", label: content.song?.name ?? "AeroBeat song", arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), contentType: "application/octet-stream", ...(hash ? { expectedHash: { algorithm: "SHA-256", value: hash } } : {}) }, { signal: this.activeAbort.signal });
   }
 
   configureGameplayFromContent(futureOnly) {
@@ -427,7 +438,7 @@ export class AeroGame extends HTMLElement {
 
   synchronizePausedClock(graph = this.graph) {
     if (!graph) return;
-    graph.gameplay.synchronizePausedClock({ timestampMs: performance.now(), clock: graph.audio.getClockSnapshot() });
+    graph.gameplay.synchronizePausedClock({ timestampMs: Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), clock: graph.audio.getClockSnapshot() });
   }
 
   syncAudioForGameplay() {
@@ -467,7 +478,7 @@ export class AeroGame extends HTMLElement {
           this.latestPoseTimestampMs = frame.timestampMs;
           graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity });
         } else graph.input.advanceTime(performance.now());
-        try { graph.gameplay.advance({ timestampMs: performance.now(), clock: graph.audio.getClockSnapshot(), input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() }); this.syncAudioForGameplay(); this.syncContentPlayback(); } catch { /* unconfigured session */ }
+        try { const awaitingAudioStart = graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing"; if (!awaitingAudioStart) graph.gameplay.advance({ timestampMs: performance.now(), clock: graph.audio.getClockSnapshot(), input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() }); this.syncAudioForGameplay(); this.syncContentPlayback(); } catch { /* unconfigured session */ }
         graph.renderer.renderGameplayFrame(this.rendererFrame());
         if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
         this.renderPresenters();
@@ -479,17 +490,17 @@ export class AeroGame extends HTMLElement {
 
   async applyVisibility() {
     if (!this.graph) return;
-    const generation = this.connectedGeneration; const graph = this.graph; const hidden = document.hidden;
+    const generation = this.connectedGeneration; const visibilityGeneration = ++this.visibilityGeneration; const graph = this.graph; const hidden = document.hidden;
     graph.video.setDocumentHidden(hidden);
     await graph.audio.setDocumentHidden(hidden);
-    if (!this.isCurrent(generation, graph)) return;
+    if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
     if (hidden) {
       this.stopFrameLoop(); await graph.cv.stop();
-      if (!this.isCurrent(generation, graph)) return;
-      try { graph.gameplay.pause(performance.now(), "document_hidden"); this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
+      if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
+      try { graph.gameplay.pause(Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), "document_hidden"); this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
     } else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
       graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-      await this.startCv(); if (!this.isCurrent(generation, graph)) return;
+      await this.startCv(); if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
       try { graph.gameplay.resume(performance.now()); } catch { /* content or calibration may still be pending */ }
       this.startFrameLoop(); this.syncAudioForGameplay();
     }
@@ -554,6 +565,13 @@ export class AeroGame extends HTMLElement {
     this.beatSaverView = Object.freeze({ ...this.beatSaverView, selectedVersionHash: version.hash, difficulties, selectedDifficulty: difficulties[0] ?? "" }); this.renderPresenters();
   }
 
+  async selectLibraryPackage(summary) {
+    this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph; let loaded;
+    try { loaded = await graph.authoring.loadPackage(summary); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
+    if (!this.isCurrent(generation, graph)) return null;
+    return this.selectContent({ kind: "persistence", handle: loaded.handle });
+  }
+
   async refreshLibrary(generation = this.connectedGeneration) {
     const graph = this.graph; if (!graph) return;
     const [packages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
@@ -582,7 +600,7 @@ export class AeroGame extends HTMLElement {
     else if (detail.type === "beatsaver-import") void this.importBeatSaverById(dataValue(detail.payload, "mapId"), dataValue(detail.payload, "versionHash"), { difficulty: dataValue(detail.payload, "difficultyId"), sourceId: dataValue(detail.payload, "mapId") }).catch((error) => this.handleError(error));
     else if (detail.type === "local-zip-request") this.localZipInput().click();
     else if (detail.type === "content-import-cancel") this.cancelImport();
-    else if (detail.type === "library-select") { const packageId = dataValue(detail.payload, "packageId"); const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (summary) void this.graph.authoring.loadPackage(summary).then((loaded) => this.selectContent({ kind: "persistence", handle: loaded.handle })).catch((error) => this.handleError(error)); }
+    else if (detail.type === "library-select") { const packageId = dataValue(detail.payload, "packageId"); const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (summary) void this.selectLibraryPackage(summary).catch((error) => this.handleError(error)); }
     else if (detail.type === "library-delete") { const packageId = dataValue(detail.payload, "packageId"); const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (handle) void this.deletePackage(handle).catch((error) => this.handleError(error)); }
     else if (detail.type === "prototype-select") void this.selectVariant(dataValue(detail.payload, "profileId") ?? "").catch((error) => this.handleError(error));
     else if (detail.type === "calibration-reset") this.reset();
@@ -628,7 +646,7 @@ export class AeroGame extends HTMLElement {
 
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
-    this.connectedGeneration += 1; this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.localZipInput().removeEventListener("change", this.boundLocalZip);
@@ -671,8 +689,9 @@ function contentSource(value) { if (!value || typeof value !== "object" || Objec
 function boundedString(value, fallback) { return typeof value === "string" && value.length > 0 && value.length <= 1024 ? value : fallback; }
 function boundedIdentifier(value, label) { if (typeof value !== "string" || !/^[0-9a-zA-Z_-]{1,256}$/u.test(value)) throw new TypeError(`${label} is invalid`); return value; }
 function stringList(value, maximum) { if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum) throw new TypeError("Expected bounded string array"); const keys = Reflect.ownKeys(value); if (keys.length !== value.length + 1 || keys.some((key) => key !== "length" && (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key) || Number(key) >= value.length))) throw new TypeError("String arrays cannot contain extra fields"); return Object.freeze(Array.from({ length: value.length }, (_, index) => { const descriptor = Object.getOwnPropertyDescriptor(value, String(index)); if (!descriptor || !("value" in descriptor) || !descriptor.enumerable || typeof descriptor.value !== "string" || descriptor.value.length > 256) throw new TypeError("Invalid string entry"); return descriptor.value; })); }
-function errorCode(error, fallback) { const code = dataValue(error, "code"); return typeof code === "string" && code.length <= 128 ? code : fallback; }
-function errorMessage(error) { const message = dataValue(error, "message"); return typeof message === "string" && message.length <= 2048 ? message : "AeroBeat operation failed"; }
+function errorCode(error, fallback) { const code = ownDataValue(error, "code"); return typeof code === "string" && code.length <= 128 ? code : fallback; }
+function errorMessage(error) { const message = ownDataValue(error, "message"); return typeof message === "string" ? message.slice(0, 2048) : "AeroBeat operation failed"; }
+function ownDataValue(record, key) { if (!record || typeof record !== "object") return undefined; const descriptor = Object.getOwnPropertyDescriptor(record, key); return descriptor && "value" in descriptor ? descriptor.value : undefined; }
 function contentTelemetry(snapshot) { const result = {}; for (const key of Object.keys(snapshot)) if (key !== "resolvedEvents") result[key] = snapshot[key]; result.resolvedEventCount = Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0; return Object.freeze(result); }
 function gameplayTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: snapshot.session, countdown: snapshot.countdown, safety: snapshot.safety, lease: snapshot.lease, selectedVariant: snapshot.selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventIds: snapshot.activeEventIds.slice(0, 128), judgedEventCount: snapshot.judgedEventIds.length, latestJudgement: snapshot.judgements.at(-1) ?? null, latestShadowJudgement: snapshot.shadowJudgements.at(-1) ?? null, scorePartitions: snapshot.scorePartitions, error: snapshot.error }); }
 function emptyBeatSaverView() { return Object.freeze({ state: "idle", query: "", results: Object.freeze([]), selectedMap: null, versions: Object.freeze([]), difficulties: Object.freeze([]), selectedVersionHash: "", selectedDifficulty: "", errorMessage: "" }); }

@@ -17,7 +17,12 @@ export function createLockedProductionCvService(options) {
   let generation = 0;
   let timer = 0;
   let activeSource = null;
+  /** @type {Promise<void>|null} */ let loading = null;
+  /** @type {Promise<unknown>} */ let adapterQueue = Promise.resolve();
   let latestPoseFrame;
+  let latestPoseGeneration = -1;
+  /** @type {Promise<unknown>|null} */ let nextFrameOperation = null;
+  /** @type {Promise<void>|null} */ let disposeOperation = null;
   let lastError = null;
   let submittedFrameCount = 0;
   let poseFrameCount = 0;
@@ -34,15 +39,37 @@ export function createLockedProductionCvService(options) {
       if (lifecycleState === "disposed") throw new Error("Production CV service is disposed");
       const normalized = normalizeSource(source);
       const token = ++generation;
-      stopTimer(); lifecycleState = "loading"; lastError = null;
-      await adapter.load();
+      stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "loading"; lastError = null;
+      const operation = enqueueAdapter(() => adapter.load()); loading = operation;
+      try { await operation; }
+      catch (error) { if (token !== generation || lifecycleState === "disposed") return; lastError = errorMessage(error); lifecycleState = "error"; throw new Error(lastError); }
+      finally { if (loading === operation) loading = null; }
       if (token !== generation || lifecycleState === "disposed") return;
       activeSource = normalized; lifecycleState = "running";
       timer = globalThis.setInterval(() => { void estimate(token); }, Math.ceil(1000 / targetFps));
     },
-    async stop() { if (lifecycleState === "disposed") return; ++generation; stopTimer(); activeSource = null; lifecycleState = "stopped"; },
-    async dispose() { if (lifecycleState === "disposed") return; ++generation; stopTimer(); activeSource = null; latestPoseFrame = undefined; lifecycleState = "disposed"; await inFlight?.catch(() => {}); await adapter.dispose?.(); },
-    async nextPoseFrame() { if (!activeSource) throw new Error("Production CV source is not running"); await estimate(generation, true); if (!latestPoseFrame) throw new Error("Production CV did not produce a pose frame"); return latestPoseFrame; },
+    async stop() { if (disposeOperation) { await disposeOperation; return; } if (lifecycleState === "disposed") return; ++generation; stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "stopped"; },
+    async dispose() {
+      if (disposeOperation) { await disposeOperation; return; }
+      if (lifecycleState === "disposed") return;
+      ++generation; stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "disposed";
+      const operation = (async () => { await loading?.catch(() => {}); await inFlight?.catch(() => {}); await enqueueAdapter(() => adapter.dispose?.()); })(); disposeOperation = operation; await operation;
+    },
+    async nextPoseFrame() {
+      if (!activeSource || lifecycleState !== "running") throw new Error("Production CV source is not running");
+      if (nextFrameOperation) return nextFrameOperation;
+      const token = generation;
+      const operation = (async () => {
+        if (inFlight) { const pending = inFlight; await pending; if (inFlight === pending) inFlight = null; }
+        if (token !== generation || lifecycleState !== "running" || !activeSource) throw new Error("Production CV source changed before a fresh frame completed");
+        const previousFrameCount = poseFrameCount;
+        await estimate(token);
+        if (token !== generation || lifecycleState !== "running" || latestPoseGeneration !== token || poseFrameCount === previousFrameCount || !latestPoseFrame) throw new Error(lastError ?? "Production CV did not produce a fresh pose frame");
+        return latestPoseFrame;
+      })();
+      nextFrameOperation = operation;
+      try { return await operation; } finally { if (nextFrameOperation === operation) nextFrameOperation = null; }
+    },
     submitFrame() { void estimate(generation); },
     getLatestPoseFrame() { return latestPoseFrame; },
     getStatus() {
@@ -58,9 +85,9 @@ export function createLockedProductionCvService(options) {
     }
   });
 
-  /** @param {number} token @param {boolean} [waitForExisting] */
-  async function estimate(token, waitForExisting = false) {
-    if (inFlight) { if (!waitForExisting) { droppedFrameCount += 1; return; } const pending = inFlight; await pending; if (inFlight === pending) inFlight = null; return estimate(token, false); }
+  /** @param {number} token */
+  async function estimate(token) {
+    if (inFlight) { droppedFrameCount += 1; return; }
     const source = activeSource;
     if (token !== generation || lifecycleState !== "running" || !source || !source.isFrameAvailable()) return;
     submittedFrameCount += 1;
@@ -73,14 +100,16 @@ export function createLockedProductionCvService(options) {
     try {
       const rawTimestamp = source.getTimestampMs();
       const timestampMs = Math.max(lastTimestampMs + 0.001, Number.isFinite(rawTimestamp) ? rawTimestamp : now());
-      const frame = await adapter.estimateNormalizedPoseFrame(source.frameSource, { sourceId: source.sourceId, timestampMs, mirrored: source.mirrored, flipHorizontal: false, frameWidth: source.frameWidth(), frameHeight: source.frameHeight() });
+      const frame = await enqueueAdapter(() => adapter.estimateNormalizedPoseFrame(source.frameSource, { sourceId: source.sourceId, timestampMs, mirrored: source.mirrored, flipHorizontal: false, frameWidth: source.frameWidth(), frameHeight: source.frameHeight() }));
       if (token !== generation || lifecycleState !== "running") return;
-      lastTimestampMs = timestampMs; latestPoseFrame = frame; poseFrameCount += 1; lastError = null;
+      lastTimestampMs = timestampMs; latestPoseFrame = frame; latestPoseGeneration = token; poseFrameCount += 1; lastError = null;
     } catch (error) {
-      if (token === generation) { lastError = errorMessage(error); lifecycleState = "error"; stopTimer(); }
+      if (token === generation) { latestPoseFrame = undefined; latestPoseGeneration = -1; lastError = errorMessage(error); lifecycleState = "error"; stopTimer(); }
     }
   }
 
+  /** @template T @param {()=>T|Promise<T>} operation @returns {Promise<T>} */
+  function enqueueAdapter(operation) { const queued = adapterQueue.then(operation, operation); adapterQueue = queued.catch(() => {}); return queued; }
   function stopTimer() { if (timer) globalThis.clearInterval(timer); timer = 0; }
 }
 
@@ -90,7 +119,7 @@ export function createLockedVideoFrameSource(video, surface) {
   return Object.freeze({
     kind: "live-camera", sourceId: typeof surface.sourceId === "string" && surface.sourceId ? surface.sourceId : "aero.mediapipe.live",
     mirrored: surface.mirrored === true, frameSource: video,
-    getTimestampMs: () => Number.isFinite(video.currentTime) ? video.currentTime * 1000 : performance.now(),
+    getTimestampMs: () => performance.now(),
     isFrameAvailable: () => video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0,
     frameWidth: () => video.videoWidth,
     frameHeight: () => video.videoHeight

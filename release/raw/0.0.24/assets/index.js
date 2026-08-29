@@ -111,7 +111,7 @@ var elementNames$4 = Object.freeze({
 * @param {unknown} value
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function isRecord$9(value) {
+function isRecord$10(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -124,8 +124,8 @@ function isRecord$9(value) {
 * @param {readonly string[]} expectedKeys
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function hasExactKeys$5(value, expectedKeys) {
-	if (!isRecord$9(value)) return false;
+function hasExactKeys$6(value, expectedKeys) {
+	if (!isRecord$10(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	return keys.length === expectedKeys.length && keys.every((key) => {
 		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
@@ -160,7 +160,7 @@ function isNonEmptyString$5(value) {
 * @param {readonly T[]} allowed
 * @returns {value is T}
 */
-function isOneOf$2(value, allowed) {
+function isOneOf$3(value, allowed) {
 	return typeof value === "string" && allowed.includes(value);
 }
 Object.freeze([
@@ -463,27 +463,27 @@ Object.freeze({
 * @returns {value is AeroGameCommand}
 */
 function isGameCommand(value) {
-	return hasExactKeys$5(value, [
+	return hasExactKeys$6(value, [
 		"schema",
 		"version",
 		"commandId",
 		"type",
 		"payload"
-	]) && value.schema === "aerobeat/game_command" && value.version === 1 && isNonEmptyString$5(value.commandId) && isOneOf$2(value.type, gameCommandTypes$4) && (value.payload === null || isRecord$9(value.payload));
+	]) && value.schema === "aerobeat/game_command" && value.version === 1 && isNonEmptyString$5(value.commandId) && isOneOf$3(value.type, gameCommandTypes$4) && (value.payload === null || isRecord$10(value.payload));
 }
 /**
 * @param {unknown} value
 * @returns {value is AeroGameEvent}
 */
 function isGameEvent(value) {
-	return hasExactKeys$5(value, [
+	return hasExactKeys$6(value, [
 		"schema",
 		"version",
 		"eventId",
 		"type",
 		"timestampMs",
 		"payload"
-	]) && value.schema === "aerobeat/game_event" && value.version === 1 && isNonEmptyString$5(value.eventId) && isOneOf$2(value.type, gameEventTypes$4) && isNonNegativeFiniteNumber$4(value.timestampMs) && (value.payload === null || isRecord$9(value.payload));
+	]) && value.schema === "aerobeat/game_event" && value.version === 1 && isNonEmptyString$5(value.eventId) && isOneOf$3(value.type, gameEventTypes$4) && isNonNegativeFiniteNumber$4(value.timestampMs) && (value.payload === null || isRecord$10(value.payload));
 }
 //#endregion
 //#region node_modules/@aerobeat/web-contracts/src/iframe-contracts.js
@@ -596,7 +596,7 @@ function isBridgeValue(value, seen) {
 		seen.delete(value);
 		return valid;
 	}
-	if (!isRecord$9(value)) return false;
+	if (!isRecord$10(value)) return false;
 	if (seen.has(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	if (keys.some((key) => {
@@ -623,14 +623,14 @@ function isBridgeValue(value, seen) {
 * @returns {boolean}
 */
 function isSafeIframePayload(value) {
-	return value === null || isRecord$9(value) && isBridgeValue(value, /* @__PURE__ */ new Set());
+	return value === null || isRecord$10(value) && isBridgeValue(value, /* @__PURE__ */ new Set());
 }
 /**
 * @param {unknown} value
 * @returns {value is AeroIframeMessage}
 */
 function isIframeMessage(value) {
-	if (!hasExactKeys$5(value, [
+	if (!hasExactKeys$6(value, [
 		"schema",
 		"version",
 		"kind",
@@ -638,11 +638,11 @@ function isIframeMessage(value) {
 		"instanceId",
 		"payload"
 	])) return false;
-	if (value.schema !== "aerobeat/iframe_message" || value.version !== 1 || !isOneOf$2(value.kind, iframeMessageKinds$4) || !isNonEmptyString$5(value.messageId) || !isNonEmptyString$5(value.instanceId) || !isSafeIframePayload(value.payload)) return false;
-	if (value.kind === "handshake_request") return hasExactKeys$5(value.payload, ["protocolVersion"]) && value.payload.protocolVersion === 1;
-	if (value.kind === "handshake_ack") return hasExactKeys$5(value.payload, ["protocolVersion", "accepted"]) && value.payload.protocolVersion === 1 && typeof value.payload.accepted === "boolean";
-	if (value.kind === "command") return hasExactKeys$5(value.payload, ["command"]) && isGameCommand(value.payload.command);
-	if (value.kind === "event") return hasExactKeys$5(value.payload, ["event"]) && isGameEvent(value.payload.event);
+	if (value.schema !== "aerobeat/iframe_message" || value.version !== 1 || !isOneOf$3(value.kind, iframeMessageKinds$4) || !isNonEmptyString$5(value.messageId) || !isNonEmptyString$5(value.instanceId) || !isSafeIframePayload(value.payload)) return false;
+	if (value.kind === "handshake_request") return hasExactKeys$6(value.payload, ["protocolVersion"]) && value.payload.protocolVersion === 1;
+	if (value.kind === "handshake_ack") return hasExactKeys$6(value.payload, ["protocolVersion", "accepted"]) && value.payload.protocolVersion === 1 && typeof value.payload.accepted === "boolean";
+	if (value.kind === "command") return hasExactKeys$6(value.payload, ["command"]) && isGameCommand(value.payload.command);
+	if (value.kind === "event") return hasExactKeys$6(value.payload, ["event"]) && isGameEvent(value.payload.event);
 	return true;
 }
 //#endregion
@@ -1587,7 +1587,7 @@ function readErrorField$1(value, field) {
 * @param {unknown} value
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function isRecord$8(value) {
+function isRecord$9(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -1600,8 +1600,8 @@ function isRecord$8(value) {
 * @param {readonly string[]} expectedKeys
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function hasExactKeys$4(value, expectedKeys) {
-	if (!isRecord$8(value)) return false;
+function hasExactKeys$5(value, expectedKeys) {
+	if (!isRecord$9(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	return keys.length === expectedKeys.length && keys.every((key) => {
 		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
@@ -1759,7 +1759,7 @@ Object.freeze([
 * @returns {value is AeroContentHash}
 */
 function isContentHash$3(value) {
-	if (!hasExactKeys$4(value, [
+	if (!hasExactKeys$5(value, [
 		"schema",
 		"version",
 		"algorithm",
@@ -1830,14 +1830,14 @@ Object.freeze([
 * @returns {value is AeroThemeDescriptor}
 */
 function isThemeDescriptor$2(value) {
-	if (!hasExactKeys$4(value, [
+	if (!hasExactKeys$5(value, [
 		"schema",
 		"version",
 		"id",
 		"themeVersion",
 		"tokens",
 		"contentHash"
-	]) || !isRecord$8(value.tokens)) return false;
+	]) || !isRecord$9(value.tokens)) return false;
 	const tokens = value.tokens;
 	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$5.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$5.includes(key));
 	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$4(value.id) && isNonEmptyString$4(value.themeVersion) && exactTokenKeys && isNonEmptyString$4(tokens.leftHandColor) && isNonEmptyString$4(tokens.rightHandColor) && isNonEmptyString$4(tokens.guardColor) && isNonEmptyString$4(tokens.obstacleColor) && isNonEmptyString$4(tokens.receptorColor) && isNonNegativeFiniteNumber$3(tokens.approachLeadMs) && isNonNegativeFiniteNumber$3(tokens.targetStartScale) && isNonNegativeFiniteNumber$3(tokens.targetHitScale) && isNonEmptyString$4(tokens.approachEasing) && isNonEmptyString$4(tokens.hitEasing) && isNonEmptyString$4(tokens.missEasing) && isContentHash$3(value.contentHash);
@@ -2186,7 +2186,7 @@ function lerp$2(start, end, progress) {
 * @returns {AeroIconAtlasData}
 */
 function normalizeIconAtlasData$1(value) {
-	if (!isRecord$7(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
+	if (!isRecord$8(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
 	const width = Number(value.width);
 	const height = Number(value.height);
 	if (value.pixels.length !== width * height * 4) throw new TypeError("Icon atlas pixel length is invalid");
@@ -2195,7 +2195,7 @@ function normalizeIconAtlasData$1(value) {
 	const entries = [];
 	const seen = /* @__PURE__ */ new Set();
 	for (const raw of value.entries) {
-		if (!isRecord$7(raw) || typeof raw.id !== "string" || !gameplayIconIds$1.includes(raw.id) || seen.has(raw.id) || ![
+		if (!isRecord$8(raw) || typeof raw.id !== "string" || !gameplayIconIds$1.includes(raw.id) || seen.has(raw.id) || ![
 			raw.u0,
 			raw.v0,
 			raw.u1,
@@ -2219,7 +2219,7 @@ function normalizeIconAtlasData$1(value) {
 	});
 }
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$7(value) {
+function isRecord$8(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 //#endregion
@@ -2455,7 +2455,7 @@ var compactRendererVisualProfile$1 = visualProfile$1("aero.visual.compact", COMP
 * @returns {AeroRendererThemeTokens}
 */
 function normalizeRendererTheme$1(value) {
-	if (!isThemeDescriptor$2(value) || !isRecord$6(value.tokens)) return defaultRendererThemeTokens$1;
+	if (!isThemeDescriptor$2(value) || !isRecord$7(value.tokens)) return defaultRendererThemeTokens$1;
 	const tokens = value.tokens;
 	if (![
 		"leftHandColor",
@@ -2490,7 +2490,7 @@ function normalizeRendererTheme$1(value) {
 * @returns {AeroRendererTuning}
 */
 function normalizeRendererTuning$1(value) {
-	if (!isRecord$6(value)) return defaultRendererTuning$1;
+	if (!isRecord$7(value)) return defaultRendererTuning$1;
 	const numberNames = [
 		"gridInset",
 		"gridGap",
@@ -2582,7 +2582,7 @@ function rendererTuningFromVisualProfile$1(profile) {
 * @returns {AeroRendererBackgroundProjection}
 */
 function normalizeBackgroundProjection$1(value) {
-	if (!isRecord$6(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken$1)) return Object.freeze({
+	if (!isRecord$7(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken$1)) return Object.freeze({
 		kind: "linear-gradient",
 		colors: Object.freeze(["#071426", "#153b5d"]),
 		angleDeg: 180
@@ -2641,7 +2641,7 @@ function isNamedEasing$1(value) {
 	return value === "linear" || value === "ease-in" || value === "ease-out" || value === "ease-in-out";
 }
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$6(value) {
+function isRecord$7(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 /** @param {number} value @param {number} minimum @param {number} maximum */
@@ -4333,6 +4333,43 @@ var elementNames$3 = Object.freeze({
 	contentLibrary: "aero-content-library",
 	fullscreenButton: "aero-fullscreen-button"
 });
+//#endregion
+//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-contracts/src/contract-guards.js
+/**
+* @param {unknown} value
+* @returns {value is Readonly<Record<string, unknown>>}
+*/
+function isRecord$6(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+/**
+* Require a plain record to contain exactly the declared own enumerable keys.
+* Payload records remain the versioned extension point; contract envelopes do not.
+*
+* @param {unknown} value
+* @param {readonly string[]} expectedKeys
+* @returns {value is Readonly<Record<string, unknown>>}
+*/
+function hasExactKeys$4(value, expectedKeys) {
+	if (!isRecord$6(value)) return false;
+	const keys = Reflect.ownKeys(value);
+	return keys.length === expectedKeys.length && keys.every((key) => {
+		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
+	});
+}
+/**
+* @template {string} T
+* @param {unknown} value
+* @param {readonly T[]} allowed
+* @returns {value is T}
+*/
+function isOneOf$2(value, allowed) {
+	return typeof value === "string" && allowed.includes(value);
+}
 Object.freeze([
 	"camera_preview_top_left",
 	"gameplay_camera_bottom_left",
@@ -4478,14 +4515,19 @@ Object.freeze(["camera", "audio"]);
 * @property {boolean} shadow Whether this judgement is diagnostic-only.
 */
 /**
-* @typedef {Object} AeroPrototypeTuningIdentity
+* @typedef {Object} AeroPrototypeTuningIdentityBase
 * @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
 * @property {1} version Schema version.
-* @property {string} profileId Stable profile ID.
-* @property {string} profileVersion Stable profile version.
-* @property {string} contentHash Lowercase hexadecimal content hash.
-* @property {"live_visual" | "between_run_ruleset" | "converter_regeneration"} class Tuning ownership class.
-* @property {boolean} regenerationRequired Whether changes require generated-map replacement.
+* @property {string} profileId Stable bounded profile ID.
+* @property {string} profileVersion Stable bounded profile version.
+* @property {string} contentHash Bare lowercase SHA-256 content hash.
+*/
+/**
+* A converter identity is pending when `regenerationRequired` is true and
+* applied when the owning registry has matched generated-package provenance
+* and emits false. Visual and scoring identities are always live/applied.
+*
+* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
 */
 /** @type {readonly AeroRulesetId[]} */
 var rulesetIds$4 = Object.freeze([
@@ -4529,6 +4571,29 @@ Object.freeze({
 	straightContinuityGapMs: 150,
 	minimumPunchSpacingMs: 360
 });
+/**
+* @param {unknown} value
+* @returns {value is AeroPrototypeTuningIdentity}
+*/
+function isPrototypeTuningIdentity$1(value) {
+	return hasExactKeys$4(value, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString$1(value.profileId, 256) && isBoundedNonEmptyString$1(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf$2(value.class, [
+		"live_visual",
+		"between_run_ruleset",
+		"converter_regeneration"
+	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
+}
+/** @param {unknown} value @param {number} maximum */
+function isBoundedNonEmptyString$1(value, maximum) {
+	return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
 Object.freeze([
 	"no_squats",
 	"no_weaves",
@@ -5076,13 +5141,44 @@ var prototypeOptions = Object.freeze([
 		recipeId: conversionRecipeIds$4[1]
 	})
 ]);
-/** Flow/four-Boxing profile and tuning identity presenter. */
+var profileClasses = Object.freeze([
+	"live_visual",
+	"between_run_ruleset",
+	"converter_regeneration"
+]);
+var scoringChangeStates = Object.freeze([
+	"idle",
+	"calibrating",
+	"paused_manual",
+	"paused_tracking",
+	"completed",
+	"stopped"
+]);
+/** Flow/four-Boxing prototype and three-class experimental profile presenter. */
 var AeroPrototypeSelector = class extends AeroPresenterElement {
+	/** Atomically accept an exact public profile snapshot; malformed input preserves prior state. @param {AeroPresenterSnapshot} snapshot */
+	setSnapshot(snapshot) {
+		if (!isPlainRecord$3(snapshot) || Object.hasOwn(snapshot, "profileClasses") && !isValidProfilePresenterSnapshot(snapshot)) return;
+		super.setSnapshot(snapshot);
+	}
+	/** Deterministic, immutable host-readable profile state; never a bundle. @returns {Readonly<{selectedProfileId:string,sessionState:string,profileClasses:readonly ProfileClassState[]}>} */
+	getProfilePresenterState() {
+		const selectedSnapshot = readString(this.presenterSnapshot, "selectedProfileId", "flow");
+		return Object.freeze({
+			selectedProfileId: prototypeOptions.some((option) => option.id === selectedSnapshot) ? selectedSnapshot : "flow",
+			sessionState: readString(this.presenterSnapshot, "sessionState", "idle"),
+			profileClasses: normalizeProfileClassStates(this.presenterSnapshot)
+		});
+	}
 	render() {
 		const selectedSnapshot = readString(this.presenterSnapshot, "selectedProfileId", "flow");
 		const selected = prototypeOptions.some((option) => option.id === selectedSnapshot) ? selectedSnapshot : "flow";
-		const identities = readRecordList(this.presenterSnapshot, "tuningIdentities");
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="profiles-heading"><h2 id="profiles-heading">Workout prototype</h2><div class="cards" part="profiles" role="radiogroup" aria-label="Prototype profile">${prototypeOptions.map((option) => `<button type="button" part="profile" role="radio" aria-checked="${selected === option.id}" tabindex="${selected === option.id ? "0" : "-1"}" data-intent="prototype-select" data-value="${option.id}"><strong>${escapeHtml(option.label)}</strong><span class="muted">${escapeHtml(option.rulesetId)}${option.recipeId ? ` · ${escapeHtml(option.recipeId)}` : ""}</span></button>`).join("")}</div><section class="stack" part="telemetry" aria-label="Active tuning identities">${identities.map(identityMarkup).join("") || `<p class="muted">No tuning identity loaded.</p>`}</section><div class="row"><button type="button" part="import-button" data-intent="tuning-import-request">Import profiles</button><button type="button" part="export-button" data-intent="tuning-export">Export profiles</button><button type="button" part="reset-button" data-intent="tuning-reset">Reset profiles</button></div></section>`);
+		const sessionState = readString(this.presenterSnapshot, "sessionState", "idle");
+		const scoringDisabled = !scoringChangeStates.includes(sessionState);
+		const scoringReason = scoringDisabled ? sessionState === "countdown" ? "Scoring profiles are locked during countdown." : "Pause or finish the run to change scoring profiles." : "Scoring profile changes apply between runs.";
+		const classStates = normalizeProfileClassStates(this.presenterSnapshot);
+		const statusText = classStates.length === 3 ? "Visual, scoring, and converter profile state loaded." : "Profile state is incomplete.";
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="profiles-heading"><h2 id="profiles-heading">Workout prototype</h2><div class="cards" part="profiles" role="radiogroup" aria-label="Prototype presentation">${prototypeOptions.map((option) => `<button type="button" part="profile" role="radio" aria-checked="${selected === option.id}" tabindex="${selected === option.id ? "0" : "-1"}" data-intent="prototype-select" data-value="${option.id}"><strong>${escapeHtml(option.label)}</strong><span class="muted">${escapeHtml(option.rulesetId)}${option.recipeId ? ` · ${escapeHtml(option.recipeId)}` : ""}</span></button>`).join("")}</div><p class="muted live" role="status" aria-live="polite">${escapeHtml(statusText)}</p><section class="stack" part="telemetry" aria-label="Experimental profile management">${classStates.map((state) => profileClassMarkup(state, scoringDisabled, scoringReason)).join("") || `<p class="muted">No valid experimental profile state loaded.</p>`}</section><div class="row" aria-label="Profile bundle actions"><button type="button" part="import-button" data-intent="tuning-import-request" aria-label="Import experimental profile bundle">Import profiles</button><button type="button" part="export-button" data-intent="tuning-export" aria-label="Export experimental profile bundle">Export profiles</button><button type="button" part="reset-button" data-intent="tuning-reset" aria-label="Reset experimental profiles">Reset profiles</button></div></section>`);
 	}
 	/** @param {string} type @param {HTMLElement} target */
 	onIntent(type, target) {
@@ -5093,7 +5189,13 @@ var AeroPrototypeSelector = class extends AeroPresenterElement {
 				radio.setAttribute("aria-checked", selected ? "true" : "false");
 			}
 			this.emitIntent(type, { profileId: target.dataset.value ?? "" });
-		} else this.emitIntent(type);
+		} else if (type === "prototype-profile-select") this.emitIntent(type, {
+			profileClass: target.dataset.profileClass ?? "",
+			profileId: target.dataset.value ?? "",
+			profileVersion: target.dataset.profileVersion ?? "",
+			contentHash: target.dataset.contentHash ?? ""
+		});
+		else this.emitIntent(type);
 	}
 	/** @param {KeyboardEvent} event */
 	handleDelegatedKeydown(event) {
@@ -5303,14 +5405,97 @@ function calibrationMessage(state) {
 		error: "Calibration could not complete."
 	}[state] ?? "Calibration required.";
 }
-/** @param {Readonly<Record<string, unknown>>} identity @returns {string} */
+/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:string,regenerationRequired:boolean}>} ProfileIdentity */
+/** @typedef {Readonly<{class:string,active:ProfileIdentity,profiles:readonly ProfileIdentity[],experimental:boolean,selectedContentHash:string,appliedContentHash:string,pendingContentHash:string|null,regenerationRequired:boolean}>} ProfileClassState */
+/** Validate one complete selector snapshot without invoking accessors. @param {unknown} value @returns {boolean} */
+function isValidProfilePresenterSnapshot(value) {
+	if (!hasExactKeys$4(value, [
+		"selectedProfileId",
+		"sessionState",
+		"profileClasses"
+	])) return false;
+	if (typeof value.selectedProfileId !== "string" || !prototypeOptions.some((option) => option.id === value.selectedProfileId) || typeof value.sessionState !== "string" || value.sessionState.length > 64 || !isExactDataArray(value.profileClasses, 3)) return false;
+	const seen = /* @__PURE__ */ new Set();
+	for (const state of value.profileClasses) {
+		const classDescriptor = typeof state === "object" && state !== null ? Object.getOwnPropertyDescriptor(state, "class") : void 0;
+		if (!classDescriptor?.enumerable || !("value" in classDescriptor) || typeof classDescriptor.value !== "string" || !profileClasses.includes(classDescriptor.value) || seen.has(classDescriptor.value)) return false;
+		const isConverter = classDescriptor.value === "converter_regeneration";
+		if (!hasExactKeys$4(state, isConverter ? [
+			"class",
+			"active",
+			"profiles",
+			"experimental",
+			"selectedContentHash",
+			"appliedContentHash",
+			"pendingContentHash",
+			"regenerationRequired"
+		] : [
+			"class",
+			"active",
+			"profiles",
+			"experimental"
+		]) || !isPrototypeTuningIdentity$1(state.active) || state.active.class !== state.class || typeof state.experimental !== "boolean" || !isExactDataArray(state.profiles, 64) || !state.profiles.every((identity) => isPrototypeTuningIdentity$1(identity) && identity.class === state.class)) return false;
+		if (isConverter) {
+			const selected = state.selectedContentHash;
+			const applied = state.appliedContentHash;
+			const pending = state.pendingContentHash;
+			if (!isBareHash(selected) || !isBareHash(applied) || pending !== null && !isBareHash(pending) || typeof state.regenerationRequired !== "boolean" || state.active.contentHash !== selected || state.active.regenerationRequired !== state.regenerationRequired) return false;
+			if (state.regenerationRequired ? pending !== selected || selected === applied : pending !== null || selected !== applied) return false;
+		}
+		seen.add(state.class);
+	}
+	return seen.size === 3;
+}
+/** @param {unknown} value @param {number} maximumLength @returns {value is readonly unknown[]} */
+function isExactDataArray(value, maximumLength) {
+	if (!Array.isArray(value) || value.length > maximumLength) return false;
+	const keys = Reflect.ownKeys(value);
+	if (keys.length !== value.length + 1 || keys.at(-1) !== "length") return false;
+	for (let index = 0; index < value.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+		if (!descriptor?.enumerable || !("value" in descriptor)) return false;
+	}
+	return true;
+}
+/** @param {unknown} value @returns {value is string} */
+function isBareHash(value) {
+	return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
+/** @param {Readonly<Record<string, unknown>>} snapshot @returns {readonly ProfileClassState[]} */
+function normalizeProfileClassStates(snapshot) {
+	const result = [];
+	for (const source of readRecordList(snapshot, "profileClasses")) {
+		const active = readRecord(source, "active");
+		const profiles = readRecordList(source, "profiles");
+		profiles.sort((left, right) => `${left.profileId}\u0000${left.profileVersion}\u0000${left.contentHash}`.localeCompare(`${right.profileId}\u0000${right.profileVersion}\u0000${right.contentHash}`));
+		const isConverter = active.class === "converter_regeneration";
+		result.push(Object.freeze({
+			class: active.class,
+			active,
+			profiles: Object.freeze(profiles),
+			experimental: readBoolean(source, "experimental", false),
+			selectedContentHash: isConverter ? readString(source, "selectedContentHash", "") : active.contentHash,
+			appliedContentHash: isConverter ? readString(source, "appliedContentHash", "") : active.contentHash,
+			pendingContentHash: isConverter ? source.pendingContentHash === null ? null : readString(source, "pendingContentHash", "") : null,
+			regenerationRequired: isConverter && readBoolean(source, "regenerationRequired", false)
+		}));
+	}
+	result.sort((left, right) => profileClasses.indexOf(left.class) - profileClasses.indexOf(right.class));
+	return Object.freeze(result);
+}
+/** @param {ProfileClassState} state @param {boolean} scoringDisabled @param {string} scoringReason @returns {string} */
+function profileClassMarkup(state, scoringDisabled, scoringReason) {
+	const isScoring = state.class === "between_run_ruleset";
+	const isConverter = state.class === "converter_regeneration";
+	const disabled = isScoring && scoringDisabled;
+	const policy = state.class === "live_visual" ? "Applies immediately." : isScoring ? scoringReason : state.regenerationRequired ? "Regenerate content to apply this converter profile." : "Selected converter profile matches generated content.";
+	const options = state.profiles.length ? `<div class="row" aria-label="${escapeAttribute(titleCase(state.class))} profile choices">${state.profiles.map((profile) => `<button type="button" data-intent="prototype-profile-select" data-profile-class="${escapeAttribute(profile.class)}" data-value="${escapeAttribute(profile.profileId)}" data-profile-version="${escapeAttribute(profile.profileVersion)}" data-content-hash="${escapeAttribute(profile.contentHash)}" ${disabled ? "disabled" : ""} aria-label="Select ${escapeAttribute(profile.profileId)} ${escapeAttribute(titleCase(profile.class))} profile">${escapeHtml(profile.profileId)}</button>`).join("")}</div>` : "";
+	const converterTruth = isConverter ? `<p class="muted">Selected ${escapeHtml(state.selectedContentHash)}<br>Applied ${escapeHtml(state.appliedContentHash)}<br>Pending ${escapeHtml(state.pendingContentHash ?? "none")}</p>` : "";
+	return `<article class="card" data-profile-class="${escapeAttribute(state.class)}"><div class="row"><h3>${escapeHtml(titleCase(state.class))}</h3>${state.experimental ? `<span class="pill">Experimental</span>` : ""}${state.regenerationRequired ? `<span class="pill error">Regeneration required</span>` : `<span class="pill">Applied</span>`}</div>${identityMarkup(state.active)}<p class="muted live" role="status" aria-live="polite">${escapeHtml(policy)}</p>${converterTruth}${options}</article>`;
+}
+/** @param {ProfileIdentity} identity @returns {string} */
 function identityMarkup(identity) {
-	const profileId = readString(identity, "profileId", "unknown");
-	const profileVersion = readString(identity, "profileVersion", "unknown");
-	const contentHash = readString(identity, "contentHash", "unavailable");
-	const identityClass = readString(identity, "class", "live_visual");
-	const regeneration = readBoolean(identity, "regenerationRequired", false);
-	return `<article class="card"><div class="row"><strong>${escapeHtml(profileId)}</strong><span class="pill">${escapeHtml(identityClass)}</span>${regeneration ? `<span class="pill error">Regeneration required</span>` : ""}</div><p class="muted">Version ${escapeHtml(profileVersion)} · hash ${escapeHtml(contentHash)}</p></article>`;
+	return `<div part="profile-identity"><strong>${escapeHtml(identity.profileId)}</strong><p class="muted">Version ${escapeHtml(identity.profileVersion)} · ${escapeHtml(identity.class)}<br>Hash ${escapeHtml(identity.contentHash)}</p></div>`;
 }
 /** @param {string} url @returns {boolean} */
 function isSafeVisualUrl(url) {
@@ -6531,13 +6716,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:9ab91a38430320b62b0b4ef6a71ccc7489a30208de490c137be8b88a3ac0adac";
+var buildStamp = "source:9f590554018bd4487c3bd72b57700bd9434a05afecb462a9f19a41224084f615";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-9ab91a38430320b6";
+var cacheBust = "0.0.24-9f590554018bd448";
 /**
 * Vite-injected package version from package.json.
 *
@@ -6573,12 +6758,18 @@ function createAeroGameIframeBridge(options) {
 	let connected = false;
 	let destroyed = false;
 	let sequence = 0;
+	const seenMessageIds = /* @__PURE__ */ new Set();
+	const seenCommandIds = /* @__PURE__ */ new Set();
 	const onMessage = (event) => {
-		if (destroyed || event.source !== parentWindow || event.origin !== expectedOrigin || !withinBridgeLimits(event.data) || encodedSize(event.data) > MAX_BRIDGE_BYTES || !isIframeMessage(event.data) || event.data.instanceId !== instanceId) return;
+		if (destroyed || event.source !== parentWindow || event.origin !== expectedOrigin || !isAeroGameIframeValueWithinLimits(event.data) || !isIframeMessage(event.data) || event.data.instanceId !== instanceId) return;
 		const message = event.data;
 		if (message.kind === "handshake_request") {
 			const firstConnection = !connected;
 			connected = true;
+			if (firstConnection) {
+				seenMessageIds.clear();
+				seenCommandIds.clear();
+			}
 			post("handshake_ack", {
 				protocolVersion: 1,
 				accepted: true
@@ -6591,12 +6782,17 @@ function createAeroGameIframeBridge(options) {
 			return;
 		}
 		if (!connected) return;
-		if (message.kind === "command" && message.payload && "command" in message.payload) try {
-			onCommand(message.payload.command);
-		} catch (error) {
-			report(error);
-		}
-		else if (message.kind === "disconnect") connected = false;
+		if (message.kind === "command" && message.payload && "command" in message.payload) {
+			const command = message.payload.command;
+			if (seenMessageIds.has(message.messageId) || seenCommandIds.has(command.commandId) || seenMessageIds.size >= 256 || seenCommandIds.size >= 256) return;
+			seenMessageIds.add(message.messageId);
+			seenCommandIds.add(command.commandId);
+			try {
+				onCommand(command);
+			} catch (error) {
+				report(error);
+			}
+		} else if (message.kind === "disconnect") connected = false;
 	};
 	globalThis.addEventListener("message", onMessage);
 	function report(error) {
@@ -6606,7 +6802,7 @@ function createAeroGameIframeBridge(options) {
 	}
 	/** @param {string} kind @param {Readonly<Record<string,unknown>>|null} payload @param {string} [messageId] */
 	function post(kind, payload, messageId = `child-${++sequence}`) {
-		if (destroyed || !withinBridgeLimits(payload) || !isSafeIframePayload(payload)) return false;
+		if (destroyed || !isAeroGameIframeValueWithinLimits(payload) || !isSafeIframePayload(payload)) return false;
 		const message = Object.freeze({
 			schema: "aerobeat/iframe_message",
 			version: 1,
@@ -6615,7 +6811,7 @@ function createAeroGameIframeBridge(options) {
 			instanceId,
 			payload
 		});
-		if (!isIframeMessage(message) || encodedSize(message) > MAX_BRIDGE_BYTES) return false;
+		if (!isIframeMessage(message) || !isAeroGameIframeValueWithinLimits(message)) return false;
 		parentWindow.postMessage(message, expectedOrigin);
 		return true;
 	}
@@ -6641,6 +6837,10 @@ function createAeroGameIframeBridge(options) {
 			globalThis.removeEventListener("message", onMessage);
 		}
 	});
+}
+/** Descriptor-safe 64 KiB/depth/item/string preflight for either bridge direction. @param {unknown} value */
+function isAeroGameIframeValueWithinLimits(value) {
+	return withinBridgeLimits(value) && encodedSize(value) <= MAX_BRIDGE_BYTES;
 }
 /** Descriptor-safe preflight prevents hostile depth/item work before contract validation. @param {unknown} value */
 function withinBridgeLimits(value) {
@@ -6922,7 +7122,12 @@ function createLockedProductionCvService(options) {
 	let generation = 0;
 	let timer = 0;
 	let activeSource = null;
+	/** @type {Promise<void>|null} */ let loading = null;
+	/** @type {Promise<unknown>} */ let adapterQueue = Promise.resolve();
 	let latestPoseFrame;
+	let latestPoseGeneration = -1;
+	/** @type {Promise<unknown>|null} */ let nextFrameOperation = null;
+	/** @type {Promise<void>|null} */ let disposeOperation = null;
 	let lastError = null;
 	let submittedFrameCount = 0;
 	let poseFrameCount = 0;
@@ -6943,9 +7148,24 @@ function createLockedProductionCvService(options) {
 			const normalized = normalizeSource(source);
 			const token = ++generation;
 			stopTimer();
+			activeSource = null;
+			latestPoseFrame = void 0;
+			latestPoseGeneration = -1;
+			nextFrameOperation = null;
 			lifecycleState = "loading";
 			lastError = null;
-			await adapter.load();
+			const operation = enqueueAdapter(() => adapter.load());
+			loading = operation;
+			try {
+				await operation;
+			} catch (error) {
+				if (token !== generation || lifecycleState === "disposed") return;
+				lastError = errorMessage$2(error);
+				lifecycleState = "error";
+				throw new Error(lastError);
+			} finally {
+				if (loading === operation) loading = null;
+			}
 			if (token !== generation || lifecycleState === "disposed") return;
 			activeSource = normalized;
 			lifecycleState = "running";
@@ -6954,27 +7174,62 @@ function createLockedProductionCvService(options) {
 			}, Math.ceil(1e3 / targetFps));
 		},
 		async stop() {
-			if (lifecycleState === "disposed") return;
-			++generation;
-			stopTimer();
-			activeSource = null;
-			lifecycleState = "stopped";
-		},
-		async dispose() {
+			if (disposeOperation) {
+				await disposeOperation;
+				return;
+			}
 			if (lifecycleState === "disposed") return;
 			++generation;
 			stopTimer();
 			activeSource = null;
 			latestPoseFrame = void 0;
+			latestPoseGeneration = -1;
+			nextFrameOperation = null;
+			lifecycleState = "stopped";
+		},
+		async dispose() {
+			if (disposeOperation) {
+				await disposeOperation;
+				return;
+			}
+			if (lifecycleState === "disposed") return;
+			++generation;
+			stopTimer();
+			activeSource = null;
+			latestPoseFrame = void 0;
+			latestPoseGeneration = -1;
+			nextFrameOperation = null;
 			lifecycleState = "disposed";
-			await inFlight?.catch(() => {});
-			await adapter.dispose?.();
+			const operation = (async () => {
+				await loading?.catch(() => {});
+				await inFlight?.catch(() => {});
+				await enqueueAdapter(() => adapter.dispose?.());
+			})();
+			disposeOperation = operation;
+			await operation;
 		},
 		async nextPoseFrame() {
-			if (!activeSource) throw new Error("Production CV source is not running");
-			await estimate(generation, true);
-			if (!latestPoseFrame) throw new Error("Production CV did not produce a pose frame");
-			return latestPoseFrame;
+			if (!activeSource || lifecycleState !== "running") throw new Error("Production CV source is not running");
+			if (nextFrameOperation) return nextFrameOperation;
+			const token = generation;
+			const operation = (async () => {
+				if (inFlight) {
+					const pending = inFlight;
+					await pending;
+					if (inFlight === pending) inFlight = null;
+				}
+				if (token !== generation || lifecycleState !== "running" || !activeSource) throw new Error("Production CV source changed before a fresh frame completed");
+				const previousFrameCount = poseFrameCount;
+				await estimate(token);
+				if (token !== generation || lifecycleState !== "running" || latestPoseGeneration !== token || poseFrameCount === previousFrameCount || !latestPoseFrame) throw new Error(lastError ?? "Production CV did not produce a fresh pose frame");
+				return latestPoseFrame;
+			})();
+			nextFrameOperation = operation;
+			try {
+				return await operation;
+			} finally {
+				if (nextFrameOperation === operation) nextFrameOperation = null;
+			}
 		},
 		submitFrame() {
 			estimate(generation);
@@ -7006,17 +7261,11 @@ function createLockedProductionCvService(options) {
 			});
 		}
 	});
-	/** @param {number} token @param {boolean} [waitForExisting] */
-	async function estimate(token, waitForExisting = false) {
+	/** @param {number} token */
+	async function estimate(token) {
 		if (inFlight) {
-			if (!waitForExisting) {
-				droppedFrameCount += 1;
-				return;
-			}
-			const pending = inFlight;
-			await pending;
-			if (inFlight === pending) inFlight = null;
-			return estimate(token, false);
+			droppedFrameCount += 1;
+			return;
 		}
 		const source = activeSource;
 		if (token !== generation || lifecycleState !== "running" || !source || !source.isFrameAvailable()) return;
@@ -7034,26 +7283,35 @@ function createLockedProductionCvService(options) {
 		try {
 			const rawTimestamp = source.getTimestampMs();
 			const timestampMs = Math.max(lastTimestampMs + .001, Number.isFinite(rawTimestamp) ? rawTimestamp : now());
-			const frame = await adapter.estimateNormalizedPoseFrame(source.frameSource, {
+			const frame = await enqueueAdapter(() => adapter.estimateNormalizedPoseFrame(source.frameSource, {
 				sourceId: source.sourceId,
 				timestampMs,
 				mirrored: source.mirrored,
 				flipHorizontal: false,
 				frameWidth: source.frameWidth(),
 				frameHeight: source.frameHeight()
-			});
+			}));
 			if (token !== generation || lifecycleState !== "running") return;
 			lastTimestampMs = timestampMs;
 			latestPoseFrame = frame;
+			latestPoseGeneration = token;
 			poseFrameCount += 1;
 			lastError = null;
 		} catch (error) {
 			if (token === generation) {
+				latestPoseFrame = void 0;
+				latestPoseGeneration = -1;
 				lastError = errorMessage$2(error);
 				lifecycleState = "error";
 				stopTimer();
 			}
 		}
+	}
+	/** @template T @param {()=>T|Promise<T>} operation @returns {Promise<T>} */
+	function enqueueAdapter(operation) {
+		const queued = adapterQueue.then(operation, operation);
+		adapterQueue = queued.catch(() => {});
+		return queued;
 	}
 	function stopTimer() {
 		if (timer) globalThis.clearInterval(timer);
@@ -7068,7 +7326,7 @@ function createLockedVideoFrameSource(video, surface) {
 		sourceId: typeof surface.sourceId === "string" && surface.sourceId ? surface.sourceId : "aero.mediapipe.live",
 		mirrored: surface.mirrored === true,
 		frameSource: video,
-		getTimestampMs: () => Number.isFinite(video.currentTime) ? video.currentTime * 1e3 : performance.now(),
+		getTimestampMs: () => performance.now(),
 		isFrameAvailable: () => video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0,
 		frameWidth: () => video.videoWidth,
 		frameHeight: () => video.videoHeight
@@ -8446,14 +8704,19 @@ Object.freeze(["camera", "audio"]);
 * @property {boolean} shadow Whether this judgement is diagnostic-only.
 */
 /**
-* @typedef {Object} AeroPrototypeTuningIdentity
+* @typedef {Object} AeroPrototypeTuningIdentityBase
 * @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
 * @property {1} version Schema version.
-* @property {string} profileId Stable profile ID.
-* @property {string} profileVersion Stable profile version.
-* @property {string} contentHash Lowercase hexadecimal content hash.
-* @property {"live_visual" | "between_run_ruleset" | "converter_regeneration"} class Tuning ownership class.
-* @property {boolean} regenerationRequired Whether changes require generated-map replacement.
+* @property {string} profileId Stable bounded profile ID.
+* @property {string} profileVersion Stable bounded profile version.
+* @property {string} contentHash Bare lowercase SHA-256 content hash.
+*/
+/**
+* A converter identity is pending when `regenerationRequired` is true and
+* applied when the owning registry has matched generated-package provenance
+* and emits false. Visual and scoring identities are always live/applied.
+*
+* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
 */
 /** @type {readonly AeroRulesetId[]} */
 var rulesetIds$3 = Object.freeze([
@@ -10938,7 +11201,7 @@ async function convertDifficulty(sourceSummary, options, onProgress = () => void
 		...converterProfile.settings,
 		profileApplied: true
 	} : {
-		guardRelocationRadius: 8,
+		guardRelocationRadius: 0,
 		reachAllowanceSubcells: 0,
 		profileApplied: false
 	};
@@ -11483,7 +11746,8 @@ function chooseGuardPair(sourcePair, crossed, blocked, start, wristSubcell, wris
 	const sourceSorted = [...sourcePair].sort((a, b) => a - b);
 	const candidates = [];
 	for (const pair of guardPairs) {
-		if (Math.max(cellDistance(sourceSorted[0], pair[0]), cellDistance(sourceSorted[1], pair[1])) > converterSettings.guardRelocationRadius) continue;
+		const generatedLeftCell = crossed ? pair[1] : pair[0], generatedRightCell = crossed ? pair[0] : pair[1];
+		if (converterSettings.profileApplied && Math.max(subcellManhattan(seedSubcell(sourcePair[0]), seedSubcell(generatedLeftCell)), subcellManhattan(seedSubcell(sourcePair[1]), seedSubcell(generatedRightCell))) > converterSettings.guardRelocationRadius) continue;
 		const subcells = [seedSubcell(pair[0]), seedSubcell(pair[1])];
 		if (blocked.has(subcells[0]) || blocked.has(subcells[1])) continue;
 		const leftTarget = crossed ? subcells[1] : subcells[0];
@@ -11820,8 +12084,8 @@ function seedSubcell(cell) {
 	return (row * 2 + 1) * 8 + column * 2 + 1;
 }
 /** @param {number} left @param {number} right */
-function cellDistance(left, right) {
-	return Math.abs(Math.floor(left / 4) - Math.floor(right / 4)) + Math.abs(left % 4 - right % 4);
+function subcellManhattan(left, right) {
+	return Math.abs(Math.floor(left / 8) - Math.floor(right / 8)) + Math.abs(left % 8 - right % 8);
 }
 /** @param {number} beat @param {number} bpm */
 function beatToMs(beat, bpm) {
@@ -12809,6 +13073,20 @@ async function validateAuthoredPackage(packageValue) {
 	} catch (cause) {
 		issue("converter_profile_invalid", "source.converterProfile", cause instanceof Error ? cause.message : "Converter profile is invalid");
 	}
+	const conversionTrace = isPlainRecord$2(packageValue.conversionTrace) ? packageValue.conversionTrace : null;
+	const boxingTraces = conversionTrace && Array.isArray(conversionTrace.boxing) ? conversionTrace.boxing : [];
+	const flowTraces = conversionTrace && Array.isArray(conversionTrace.flow) ? conversionTrace.flow : [];
+	for (let index = 0; index < boxingTraces.length; index += 1) {
+		const trace = boxingTraces[index];
+		const traceConverterProfile = isPlainRecord$2(trace) ? trace.converterProfile : void 0;
+		if (converterProfile) try {
+			if (canonicalJson(traceConverterProfile) !== canonicalJson(converterProfile)) issue("converter_profile_boxing_trace_mismatch", `conversionTrace.boxing[${index}].converterProfile`, "Every Boxing trace converter profile must exactly match package source provenance");
+		} catch {
+			issue("converter_profile_boxing_trace_mismatch", `conversionTrace.boxing[${index}].converterProfile`, "Every Boxing trace converter profile must exactly match package source provenance");
+		}
+		else if (traceConverterProfile !== void 0) issue("converter_profile_unbound", `conversionTrace.boxing[${index}].converterProfile`, "Boxing trace converter profile requires package source provenance");
+	}
+	for (let index = 0; index < flowTraces.length; index += 1) if (isPlainRecord$2(flowTraces[index]) && flowTraces[index].converterProfile !== void 0) issue("converter_profile_flow_trace_forbidden", `conversionTrace.flow[${index}].converterProfile`, "Flow traces must not carry Boxing converter profile provenance");
 	const charts = Array.isArray(packageValue.charts) ? packageValue.charts : [];
 	if (charts.length !== 5) issue("chart_count_invalid", "charts", "One difficulty must contain Flow plus four Boxing charts");
 	const chartIds = /* @__PURE__ */ new Set();
@@ -12999,7 +13277,7 @@ function createInlineAuthoringWorkerAdapter() {
 function createBrowserAuthoringWorkerAdapter(options = {}) {
 	const workerFactory = options.workerFactory ?? (() => new Worker(new URL(
 		/* @vite-ignore */
-		"/assets/conversion-worker-B1lWXdzq.js",
+		"/assets/conversion-worker-DPEmn8d7.js",
 		"" + import.meta.url
 	), {
 		type: "module",
@@ -13407,7 +13685,7 @@ function createAeroWebContentAuthoringService(options = {}) {
 				const resultSourceHash = dataProperty(result, "sourceHash");
 				if (!isPlainRecord$2(resultPackage) || typeof resultPackageHash !== "string" || typeof resultParityHash !== "string" || typeof resultSourceHash !== "string") throw authoringError("worker_result_invalid", "Worker did not return a validated package");
 				const trustedValidation = await validateAuthoredPackage(resultPackage);
-				if (!trustedValidation.valid || trustedValidation.packageHash !== resultPackageHash || !workerResultMatchesManifest(resultPackage, manifest, normalizedOptions.includeAudio !== false, converterProfile)) throw authoringError("worker_result_invalid", "Worker package failed main-thread validation, source/profile binding or hash verification");
+				if (!trustedValidation.valid || trustedValidation.packageHash !== resultPackageHash || !await workerResultMatchesManifest(resultPackage, manifest, normalizedOptions.includeAudio !== false, converterProfile, resultParityHash, resultSourceHash)) throw authoringError("worker_result_invalid", "Worker package failed main-thread validation, source/profile/projection binding or hash verification");
 				checkCurrent(generation, abort.signal);
 				publish(makeSnapshot(jobId, "persisting", .94, String(manifest.sourceId), String(manifest.sourceVersionHash), String(manifest.selectedDifficulty.difficulty), null, null, null));
 				const packageRecord = resultPackage;
@@ -13649,23 +13927,25 @@ function errorMessage$1(cause) {
 	}
 	return "Content authoring failed";
 }
-/** @param {Record<string,unknown>} packageValue @param {Record<string,unknown>} manifest @param {boolean} includeAudio @param {Readonly<Record<string,unknown>> | null} converterProfile */
-function workerResultMatchesManifest(packageValue, manifest, includeAudio, converterProfile) {
+/** @param {Record<string,unknown>} packageValue @param {Record<string,unknown>} manifest @param {boolean} includeAudio @param {Readonly<Record<string,unknown>> | null} converterProfile @param {string} workerParityHash @param {string} workerSourceHash */
+async function workerResultMatchesManifest(packageValue, manifest, includeAudio, converterProfile, workerParityHash, workerSourceHash) {
 	const source = dataProperty(packageValue, "source"), selected = dataProperty(manifest, "selectedDifficulty"), song = dataProperty(packageValue, "song");
 	if (!isPlainRecord$2(source) || !isPlainRecord$2(selected) || !isPlainRecord$2(song)) return false;
-	if (dataProperty(source, "provider") !== dataProperty(manifest, "sourceProvider") || dataProperty(source, "sourceId") !== dataProperty(manifest, "sourceId") || dataProperty(source, "sourceVersionHash") !== dataProperty(manifest, "sourceVersionHash") || dataProperty(source, "difficulty") !== dataProperty(selected, "difficulty") || dataProperty(source, "sourceDifficultyPath") !== dataProperty(selected, "path")) return false;
+	if (dataProperty(source, "provider") !== dataProperty(manifest, "sourceProvider") || dataProperty(source, "sourceId") !== dataProperty(manifest, "sourceId") || dataProperty(source, "sourceVersionHash") !== dataProperty(manifest, "sourceVersionHash") || dataProperty(source, "difficulty") !== dataProperty(selected, "difficulty") || dataProperty(source, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(source, "sourceHash") !== workerSourceHash) return false;
 	const charts = dataProperty(packageValue, "charts");
 	if (!Array.isArray(charts) || charts.some((chart) => !isPlainRecord$2(chart) || dataProperty(chart, "difficulty") !== dataProperty(selected, "difficulty"))) return false;
-	const conversionTrace = dataProperty(packageValue, "conversionTrace"), boxing = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "boxing") : null;
-	if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((trace) => !isPlainRecord$2(trace) || dataProperty(trace, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(trace, "sourceDifficultyHash") !== dataProperty(selected, "contentHash") || dataProperty(trace, "sourceBeatmapVersion") !== `v${String(dataProperty(manifest, "sourceFormatMajor"))}`)) return false;
+	const conversionTrace = dataProperty(packageValue, "conversionTrace"), boxing = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "boxing") : null, flow = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "flow") : null;
+	if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((trace) => !isPlainRecord$2(trace) || dataProperty(trace, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(trace, "sourceDifficultyHash") !== dataProperty(selected, "contentHash") || dataProperty(trace, "sourceBeatmapVersion") !== `v${String(dataProperty(manifest, "sourceFormatMajor"))}` || dataProperty(trace, "sourceHash") !== workerSourceHash) || !Array.isArray(flow) || flow.some((trace) => !isPlainRecord$2(trace) || dataProperty(trace, "converterProfile") !== void 0)) return false;
 	const expectedProfile = converterProfile ? canonicalJson(converterProfile) : null;
 	const sourceProfile = dataProperty(source, "converterProfile"), traceProfile = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "converterProfile") : void 0;
-	if (converterProfile) try {
-		if (canonicalJson(sourceProfile) !== expectedProfile || canonicalJson(traceProfile) !== expectedProfile) return false;
+	try {
+		if (converterProfile) {
+			if (canonicalJson(sourceProfile) !== expectedProfile || canonicalJson(traceProfile) !== expectedProfile || boxing.some((trace) => canonicalJson(dataProperty(trace, "converterProfile")) !== expectedProfile) || charts.some((chart) => dataProperty(chart, "mode") === "boxing" && (!isPlainRecord$2(dataProperty(chart, "prototype")) || canonicalJson(dataProperty(dataProperty(chart, "prototype"), "converterProfile")) !== expectedProfile))) return false;
+		} else if (sourceProfile !== void 0 || traceProfile !== void 0 || boxing.some((trace) => dataProperty(trace, "converterProfile") !== void 0) || charts.some((chart) => isPlainRecord$2(dataProperty(chart, "prototype")) && dataProperty(dataProperty(chart, "prototype"), "converterProfile") !== void 0)) return false;
+		if (await semanticParityHash(packageValue) !== workerParityHash) return false;
 	} catch {
 		return false;
 	}
-	else if (sourceProfile !== void 0 || traceProfile !== void 0) return false;
 	const audio = dataProperty(song, "audio"), audioPath = dataProperty(manifest, "audioPath"), audioHash = dataProperty(manifest, "audioContentHash");
 	if (includeAudio && typeof audioPath === "string" && audioPath && typeof audioHash === "string" && audioHash) return isPlainRecord$2(audio) && dataProperty(audio, "filePath") === audioPath && dataProperty(audio, "contentHash") === audioHash;
 	return audio === void 0;
@@ -14173,14 +14453,19 @@ function isMediaLeaseSnapshot(value) {
 * @property {boolean} shadow Whether this judgement is diagnostic-only.
 */
 /**
-* @typedef {Object} AeroPrototypeTuningIdentity
+* @typedef {Object} AeroPrototypeTuningIdentityBase
 * @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
 * @property {1} version Schema version.
-* @property {string} profileId Stable profile ID.
-* @property {string} profileVersion Stable profile version.
-* @property {string} contentHash Lowercase hexadecimal content hash.
-* @property {"live_visual" | "between_run_ruleset" | "converter_regeneration"} class Tuning ownership class.
-* @property {boolean} regenerationRequired Whether changes require generated-map replacement.
+* @property {string} profileId Stable bounded profile ID.
+* @property {string} profileVersion Stable bounded profile version.
+* @property {string} contentHash Bare lowercase SHA-256 content hash.
+*/
+/**
+* A converter identity is pending when `regenerationRequired` is true and
+* applied when the owning registry has matched generated-package provenance
+* and emits false. Visual and scoring identities are always live/applied.
+*
+* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
 */
 /** @type {readonly AeroRulesetId[]} */
 var rulesetIds$2 = Object.freeze([
@@ -14237,11 +14522,23 @@ function isGameplayEvidenceSnapshot(value) {
 * @returns {value is AeroPrototypeTuningIdentity}
 */
 function isPrototypeTuningIdentity(value) {
-	return isRecord$3(value) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isNonEmptyString$2(value.profileId) && isNonEmptyString$2(value.profileVersion) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf(value.class, [
+	return hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString(value.profileId, 256) && isBoundedNonEmptyString(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf(value.class, [
 		"live_visual",
 		"between_run_ruleset",
 		"converter_regeneration"
-	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" ? value.regenerationRequired : !value.regenerationRequired);
+	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
+}
+/** @param {unknown} value @param {number} maximum */
+function isBoundedNonEmptyString(value, maximum) {
+	return typeof value === "string" && value.length > 0 && value.length <= maximum;
 }
 Object.freeze([
 	"no_squats",
@@ -14561,9 +14858,8 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 	let profileIdentity = defaultProfileIdentity();
 	let scoringSettings = defaultScoringSettings();
 	let events = Object.freeze([]);
-	const variantCatalog = /* @__PURE__ */ new Map();
-	const profileCatalog = /* @__PURE__ */ new Map();
-	const scoringSettingsCatalog = /* @__PURE__ */ new Map();
+	let contentGeneration = 0;
+	let eventTruth = /* @__PURE__ */ new WeakMap();
 	let shadowVariants = Object.freeze([]);
 	let calibrationId = null;
 	let safetyReady = false;
@@ -14616,14 +14912,12 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const nextProfileIdentity = source.profileIdentity === void 0 ? defaultProfileIdentity() : normalizeProfile(source.profileIdentity);
 		const nextScoringSettings = source.scoringSettings === void 0 ? defaultScoringSettings() : normalizeScoringSettings(source.scoringSettings);
 		const nextShadowVariants = source.shadowVariants === void 0 ? Object.freeze([]) : normalizeShadowVariants(source.shadowVariants);
+		const nextContentGeneration = contentGeneration + 1;
+		const nextEventTruth = bindEventTruth(nextEvents, nextPackageId, nextContentGeneration, nextVariant, nextProfileIdentity, nextScoringSettings);
 		packageId = nextPackageId;
 		variant = nextVariant;
-		variantCatalog.clear();
-		profileCatalog.clear();
-		scoringSettingsCatalog.clear();
-		variantCatalog.set(String(nextVariant.variantId), nextVariant);
-		profileCatalog.set(String(nextVariant.variantId), nextProfileIdentity);
-		scoringSettingsCatalog.set(String(nextVariant.variantId), nextScoringSettings);
+		contentGeneration = nextContentGeneration;
+		eventTruth = nextEventTruth;
 		events = nextEvents;
 		profileIdentity = nextProfileIdentity;
 		scoringSettings = nextScoringSettings;
@@ -14776,7 +15070,8 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		assertConfigured();
 		if (state === "playing" || state === "countdown") throw gameplayError("variant_swap_requires_pause", "Future variant swaps require a paused session");
 		const source = requireRecord$1(configuration, "content_configuration_invalid", 15e5);
-		if (requireString(source.packageId, "content_package_invalid") !== packageId) throw gameplayError("variant_swap_package_mismatch", "Future variant swaps must remain in the loaded package");
+		const nextPackageId = requireString(source.packageId, "content_package_invalid");
+		if (nextPackageId !== packageId) throw gameplayError("variant_swap_package_mismatch", "Future variant swaps must remain in the loaded package");
 		const nextVariant = normalizeVariant(source.selectedVariant);
 		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
 		const nextProfileIdentity = source.profileIdentity === void 0 ? profileIdentity : normalizeProfile(source.profileIdentity);
@@ -14785,19 +15080,28 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const preserve = new Map(events.filter((event) => shouldPreserveEvent(event)).map((event) => [String(event.eventId), event]));
 		const lineage = new Set([...preserve.values()].flatMap((event) => lineageIds(event)));
 		const merged = [...preserve.values()];
+		const acceptedNextEvents = [];
 		for (const event of nextEvents) {
 			if (preserve.has(String(event.eventId))) continue;
 			if (Number(event.centerTimestampMs) <= timelinePositionMs) continue;
 			if (lineageIds(event).some((id) => lineage.has(id))) continue;
 			merged.push(event);
+			acceptedNextEvents.push(event);
 		}
 		if (merged.length > 1e5) throw gameplayError("content_events_invalid", "Future content merge exceeds the event limit");
 		merged.sort(eventOrder);
+		const nextContentGeneration = contentGeneration + 1;
+		const nextEventTruth = /* @__PURE__ */ new WeakMap();
+		for (const event of preserve.values()) {
+			const truth = eventTruth.get(event);
+			if (!truth) throw gameplayError("event_truth_missing", "Preserved events require immutable content-generation truth");
+			nextEventTruth.set(event, truth);
+		}
+		for (const event of acceptedNextEvents) nextEventTruth.set(event, makeEventTruth(nextPackageId, nextContentGeneration, nextVariant, nextProfileIdentity, nextScoringSettings));
 		events = Object.freeze(merged);
 		variant = nextVariant;
-		variantCatalog.set(String(nextVariant.variantId), nextVariant);
-		profileCatalog.set(String(nextVariant.variantId), nextProfileIdentity);
-		scoringSettingsCatalog.set(String(nextVariant.variantId), nextScoringSettings);
+		contentGeneration = nextContentGeneration;
+		eventTruth = nextEventTruth;
 		profileIdentity = nextProfileIdentity;
 		scoringSettings = nextScoringSettings;
 		shadowVariants = nextShadowVariants;
@@ -15071,6 +15375,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const next = { ...partitions.get(key) ?? {
 			partitionId: key,
 			variantId: scoreVariant.variantId,
+			chartId: scoreVariant.chartId,
 			rulesetId: scoreVariant.rulesetId,
 			recipeId: scoreVariant.recipeId,
 			modifierIds: scoreVariant.modifierIds,
@@ -15188,19 +15493,22 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		return Number(event.centerTimestampMs) <= timelinePositionMs || judgedIds.has(String(event.eventId)) || activeIds.has(String(event.eventId));
 	}
 	/** @param {DataRecord} event @returns {DataRecord} */
+	function truthForEvent(event) {
+		const truth = eventTruth.get(event);
+		if (!truth) throw gameplayError("event_truth_missing", "Gameplay events require immutable content-generation truth");
+		return truth;
+	}
+	/** @param {DataRecord} event @returns {DataRecord} */
 	function variantForEvent(event) {
-		const eventVariant = variantCatalog.get(String(event.variantId));
-		if (eventVariant) return eventVariant;
-		if (variant) return variant;
-		throw gameplayError("content_not_configured", "Gameplay content is not configured");
+		return truthForEvent(event).variant;
 	}
 	/** @param {DataRecord} event @returns {DataRecord} */
 	function profileForEvent(event) {
-		return profileCatalog.get(String(event.variantId)) ?? profileIdentity;
+		return truthForEvent(event).profileIdentity;
 	}
 	/** @param {DataRecord} event @returns {DataRecord} */
 	function scoringSettingsForEvent(event) {
-		return scoringSettingsCatalog.get(String(event.variantId)) ?? scoringSettings;
+		return truthForEvent(event).scoringSettings;
 	}
 	function assertOpen() {
 		if (destroyed) throw gameplayError("service_destroyed", "Gameplay coordinator is destroyed");
@@ -15215,6 +15523,23 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		if (next < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
 		timestampMs = next;
 	}
+}
+/** @param {readonly DataRecord[]} sourceEvents @param {string} contentPackageId @param {number} generation @param {DataRecord} sourceVariant @param {DataRecord} sourceProfile @param {DataRecord} sourceScoringSettings */
+function bindEventTruth(sourceEvents, contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings) {
+	const result = /* @__PURE__ */ new WeakMap();
+	const truth = makeEventTruth(contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings);
+	for (const event of sourceEvents) result.set(event, truth);
+	return result;
+}
+/** @param {string} contentPackageId @param {number} generation @param {DataRecord} sourceVariant @param {DataRecord} sourceProfile @param {DataRecord} sourceScoringSettings */
+function makeEventTruth(contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings) {
+	return Object.freeze({
+		contentPackageId,
+		contentGeneration: generation,
+		variant: sourceVariant,
+		profileIdentity: sourceProfile,
+		scoringSettings: sourceScoringSettings
+	});
 }
 /** @param {GameplayCoordinatorOptions} options */
 function normalizeOptions(options) {
@@ -15544,6 +15869,7 @@ function makeJudgement(event, selectedVariant, result, diagnostics, evidence, ev
 		diagnostics: Object.freeze([...diagnostics]),
 		shadow,
 		variantId: selectedVariant?.variantId ?? null,
+		chartId: selectedVariant?.chartId ?? null,
 		sourceEventIds: Object.freeze([...lineageIds(event)]),
 		mapHash: selectedVariant?.mapHash ?? null,
 		scoreIdentityHash: selectedVariant?.scoreIdentityHash ?? null,
@@ -21204,6 +21530,7 @@ var AeroGame = class extends HTMLElement {
 		this.resizeObserver = null;
 		this.unsubscribe = [];
 		this.frameTimer = 0;
+		this.visibilityGeneration = 0;
 		this.audioSyncPending = false;
 		this.latestPoseTimestampMs = -1;
 		this.activeCvSource = null;
@@ -21398,12 +21725,22 @@ var AeroGame = class extends HTMLElement {
 		const graph = this.graph;
 		const normalized = contentSource(source);
 		const kind = normalized.kind;
-		if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
-		else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
-		else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
-		else throw new TypeError("Unsupported content source kind");
+		try {
+			if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
+			else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
+			else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
+			else throw new TypeError("Unsupported content source kind");
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-		await this.loadSelectedAudio();
+		try {
+			await this.loadSelectedAudio(graph);
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		this.configureGameplayFromContent(false);
 		this.syncContentPlayback();
@@ -21421,8 +21758,13 @@ var AeroGame = class extends HTMLElement {
 			"paused_manual",
 			"paused_tracking"
 		].includes(gameplay.session.state);
-		if (futureOnly) await graph.content.swapFutureVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
-		else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+		try {
+			if (futureOnly) await graph.content.swapFutureVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+			else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		this.configureGameplayFromContent(futureOnly);
 		this.syncContentPlayback();
@@ -21435,6 +21777,7 @@ var AeroGame = class extends HTMLElement {
 		const graph = this.graph;
 		const normalized = safeData(query, 0, 32);
 		const latest = dataValue(normalized, "latest") === true;
+		const vendorQuery = Object.freeze(Object.fromEntries(Object.entries(normalized).filter(([key]) => key !== "latest")));
 		this.beatSaverView = Object.freeze({
 			...this.beatSaverView,
 			state: "loading",
@@ -21443,7 +21786,7 @@ var AeroGame = class extends HTMLElement {
 		});
 		this.renderPresenters();
 		try {
-			const results = latest ? await graph.vendor.listLatestMaps(normalized, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(normalized, { signal: this.activeAbort.signal });
+			const results = latest ? await graph.vendor.listLatestMaps(vendorQuery, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(vendorQuery, { signal: this.activeAbort.signal });
 			if (!this.isCurrent(generation, graph)) return results;
 			this.browsedMaps.clear();
 			for (const map of results.maps.slice(0, 20)) this.browsedMaps.set(map.mapId.toUpperCase(), map);
@@ -21461,14 +21804,13 @@ var AeroGame = class extends HTMLElement {
 			});
 			return results;
 		} catch (error) {
-			if (this.isCurrent(generation, graph)) {
-				this.beatSaverView = Object.freeze({
-					...this.beatSaverView,
-					state: "error",
-					errorMessage: errorMessage(error)
-				});
-				this.renderPresenters();
-			}
+			if (!this.isCurrent(generation, graph)) return null;
+			this.beatSaverView = Object.freeze({
+				...this.beatSaverView,
+				state: "error",
+				errorMessage: errorMessage(error)
+			});
+			this.renderPresenters();
 			throw error;
 		}
 	}
@@ -21482,16 +21824,22 @@ var AeroGame = class extends HTMLElement {
 		this.assertConnected();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
-		const acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : void 0, {
-			signal: this.activeAbort.signal,
-			onProgress: (progress) => {
-				if (this.isCurrent(generation, graph)) this.emitGameEvent("import_changed", {
-					phase: progress.phase,
-					loadedBytes: progress.loadedBytes,
-					totalBytes: progress.totalBytes ?? null
-				});
-			}
-		});
+		let acquired;
+		try {
+			acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : void 0, {
+				signal: this.activeAbort.signal,
+				onProgress: (progress) => {
+					if (this.isCurrent(generation, graph)) this.emitGameEvent("import_changed", {
+						phase: progress.phase,
+						loadedBytes: progress.loadedBytes,
+						totalBytes: progress.totalBytes ?? null
+					});
+				}
+			});
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return null;
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return null;
 		return this.convertAcquired(acquired, authoringOptions);
 	}
@@ -21502,7 +21850,12 @@ var AeroGame = class extends HTMLElement {
 		const safeMapId = boundedIdentifier(mapId, "BeatSaver map ID");
 		let map = this.browsedMaps.get(safeMapId.toUpperCase());
 		if (!map && requireBrowsed) throw new Error("Iframe import must reference a child-browsed BeatSaver map");
-		if (!map) map = await graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal });
+		if (!map) try {
+			map = await graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal });
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return null;
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return null;
 		return this.importBeatSaver(map, versionIdentifier, authoringOptions);
 	}
@@ -21511,7 +21864,13 @@ var AeroGame = class extends HTMLElement {
 		if (!(input instanceof Blob || input instanceof ArrayBuffer || input instanceof Uint8Array)) throw new TypeError("Local import requires Blob, ArrayBuffer, or Uint8Array");
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
-		const acquired = await graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal });
+		let acquired;
+		try {
+			acquired = await graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal });
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return null;
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return null;
 		return this.convertAcquired(acquired, authoringOptions);
 	}
@@ -21720,15 +22079,21 @@ var AeroGame = class extends HTMLElement {
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const raw = options === void 0 ? Object.freeze({}) : safeData(options, 0, 32);
-		const result = await graph.authoring.convertAndPersist(acquired.source, {
-			difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"),
-			sourceProvider: "beatsaver",
-			sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
-			sourceVersionHash: acquired.sourceHash,
-			modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5),
-			includeAudio: dataValue(raw, "includeAudio") !== false,
-			signal: this.activeAbort.signal
-		});
+		let result;
+		try {
+			result = await graph.authoring.convertAndPersist(acquired.source, {
+				difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"),
+				sourceProvider: "beatsaver",
+				sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
+				sourceVersionHash: acquired.sourceHash,
+				modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5),
+				includeAudio: dataValue(raw, "includeAudio") !== false,
+				signal: this.activeAbort.signal
+			});
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return null;
+			throw error;
+		}
 		if (!this.isCurrent(generation, graph)) return null;
 		this.emitGameEvent("import_changed", { snapshot: result.job });
 		await this.refreshLibrary(generation);
@@ -21750,13 +22115,13 @@ var AeroGame = class extends HTMLElement {
 			hostBackground: dataValue(this.configuration, "hostBackground")
 		};
 	}
-	async loadSelectedAudio() {
-		const content = this.graph.content.getSnapshot();
+	async loadSelectedAudio(graph = this.graph) {
+		const content = graph.content.getSnapshot();
 		const audio = content.song?.audio;
 		if (!audio || typeof audio.filePath !== "string") return;
-		const bytes = this.graph.content.readAsset(audio.filePath);
+		const bytes = graph.content.readAsset(audio.filePath);
 		const hash = typeof audio.contentHash === "string" ? audio.contentHash.replace(/^sha256:/u, "") : "";
-		await this.graph.audio.load({
+		await graph.audio.load({
 			id: `${content.packageId}:audio`,
 			kind: "array-buffer",
 			label: content.song?.name ?? "AeroBeat song",
@@ -21803,7 +22168,7 @@ var AeroGame = class extends HTMLElement {
 	synchronizePausedClock(graph = this.graph) {
 		if (!graph) return;
 		graph.gameplay.synchronizePausedClock({
-			timestampMs: performance.now(),
+			timestampMs: Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs),
 			clock: graph.audio.getClockSnapshot()
 		});
 	}
@@ -21855,7 +22220,7 @@ var AeroGame = class extends HTMLElement {
 					});
 				} else graph.input.advanceTime(performance.now());
 				try {
-					graph.gameplay.advance({
+					if (!(graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing")) graph.gameplay.advance({
 						timestampMs: performance.now(),
 						clock: graph.audio.getClockSnapshot(),
 						input: graph.input.getSnapshot(),
@@ -21879,23 +22244,24 @@ var AeroGame = class extends HTMLElement {
 	async applyVisibility() {
 		if (!this.graph) return;
 		const generation = this.connectedGeneration;
+		const visibilityGeneration = ++this.visibilityGeneration;
 		const graph = this.graph;
 		const hidden = document.hidden;
 		graph.video.setDocumentHidden(hidden);
 		await graph.audio.setDocumentHidden(hidden);
-		if (!this.isCurrent(generation, graph)) return;
+		if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
 		if (hidden) {
 			this.stopFrameLoop();
 			await graph.cv.stop();
-			if (!this.isCurrent(generation, graph)) return;
+			if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
 			try {
-				graph.gameplay.pause(performance.now(), "document_hidden");
+				graph.gameplay.pause(Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), "document_hidden");
 				this.synchronizePausedClock(graph);
 			} catch {}
 		} else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
 			graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
 			await this.startCv();
-			if (!this.isCurrent(generation, graph)) return;
+			if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
 			try {
 				graph.gameplay.resume(performance.now());
 			} catch {}
@@ -22011,6 +22377,23 @@ var AeroGame = class extends HTMLElement {
 		});
 		this.renderPresenters();
 	}
+	async selectLibraryPackage(summary) {
+		this.assertConnected();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		let loaded;
+		try {
+			loaded = await graph.authoring.loadPackage(summary);
+		} catch (error) {
+			if (!this.isCurrent(generation, graph)) return null;
+			throw error;
+		}
+		if (!this.isCurrent(generation, graph)) return null;
+		return this.selectContent({
+			kind: "persistence",
+			handle: loaded.handle
+		});
+	}
 	async refreshLibrary(generation = this.connectedGeneration) {
 		const graph = this.graph;
 		if (!graph) return;
@@ -22075,10 +22458,7 @@ var AeroGame = class extends HTMLElement {
 		else if (detail.type === "library-select") {
 			const packageId = dataValue(detail.payload, "packageId");
 			const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId);
-			if (summary) this.graph.authoring.loadPackage(summary).then((loaded) => this.selectContent({
-				kind: "persistence",
-				handle: loaded.handle
-			})).catch((error) => this.handleError(error));
+			if (summary) this.selectLibraryPackage(summary).catch((error) => this.handleError(error));
 		} else if (detail.type === "library-delete") {
 			const packageId = dataValue(detail.payload, "packageId");
 			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
@@ -22166,6 +22546,7 @@ var AeroGame = class extends HTMLElement {
 			return;
 		}
 		this.connectedGeneration += 1;
+		this.visibilityGeneration += 1;
 		this.lifecycle = finalState;
 		this.activeAbort.abort();
 		this.stopFrameLoop();
@@ -22312,12 +22693,17 @@ function stringList(value, maximum) {
 	}));
 }
 function errorCode(error, fallback) {
-	const code = dataValue(error, "code");
+	const code = ownDataValue(error, "code");
 	return typeof code === "string" && code.length <= 128 ? code : fallback;
 }
 function errorMessage(error) {
-	const message = dataValue(error, "message");
-	return typeof message === "string" && message.length <= 2048 ? message : "AeroBeat operation failed";
+	const message = ownDataValue(error, "message");
+	return typeof message === "string" ? message.slice(0, 2048) : "AeroBeat operation failed";
+}
+function ownDataValue(record, key) {
+	if (!record || typeof record !== "object") return void 0;
+	const descriptor = Object.getOwnPropertyDescriptor(record, key);
+	return descriptor && "value" in descriptor ? descriptor.value : void 0;
 }
 function contentTelemetry(snapshot) {
 	const result = {};

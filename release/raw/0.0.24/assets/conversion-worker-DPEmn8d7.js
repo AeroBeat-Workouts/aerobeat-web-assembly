@@ -606,7 +606,7 @@
 			...converterProfile.settings,
 			profileApplied: true
 		} : {
-			guardRelocationRadius: 8,
+			guardRelocationRadius: 0,
 			reachAllowanceSubcells: 0,
 			profileApplied: false
 		};
@@ -1151,7 +1151,8 @@
 		const sourceSorted = [...sourcePair].sort((a, b) => a - b);
 		const candidates = [];
 		for (const pair of guardPairs) {
-			if (Math.max(cellDistance(sourceSorted[0], pair[0]), cellDistance(sourceSorted[1], pair[1])) > converterSettings.guardRelocationRadius) continue;
+			const generatedLeftCell = crossed ? pair[1] : pair[0], generatedRightCell = crossed ? pair[0] : pair[1];
+			if (converterSettings.profileApplied && Math.max(subcellManhattan(seedSubcell(sourcePair[0]), seedSubcell(generatedLeftCell)), subcellManhattan(seedSubcell(sourcePair[1]), seedSubcell(generatedRightCell))) > converterSettings.guardRelocationRadius) continue;
 			const subcells = [seedSubcell(pair[0]), seedSubcell(pair[1])];
 			if (blocked.has(subcells[0]) || blocked.has(subcells[1])) continue;
 			const leftTarget = crossed ? subcells[1] : subcells[0];
@@ -1488,8 +1489,8 @@
 		return (row * 2 + 1) * 8 + column * 2 + 1;
 	}
 	/** @param {number} left @param {number} right */
-	function cellDistance(left, right) {
-		return Math.abs(Math.floor(left / 4) - Math.floor(right / 4)) + Math.abs(left % 4 - right % 4);
+	function subcellManhattan(left, right) {
+		return Math.abs(Math.floor(left / 8) - Math.floor(right / 8)) + Math.abs(left % 8 - right % 8);
 	}
 	/** @param {number} beat @param {number} bpm */
 	function beatToMs(beat, bpm) {
@@ -1737,6 +1738,20 @@
 		} catch (cause) {
 			issue("converter_profile_invalid", "source.converterProfile", cause instanceof Error ? cause.message : "Converter profile is invalid");
 		}
+		const conversionTrace = isPlainRecord(packageValue.conversionTrace) ? packageValue.conversionTrace : null;
+		const boxingTraces = conversionTrace && Array.isArray(conversionTrace.boxing) ? conversionTrace.boxing : [];
+		const flowTraces = conversionTrace && Array.isArray(conversionTrace.flow) ? conversionTrace.flow : [];
+		for (let index = 0; index < boxingTraces.length; index += 1) {
+			const trace = boxingTraces[index];
+			const traceConverterProfile = isPlainRecord(trace) ? trace.converterProfile : void 0;
+			if (converterProfile) try {
+				if (canonicalJson(traceConverterProfile) !== canonicalJson(converterProfile)) issue("converter_profile_boxing_trace_mismatch", `conversionTrace.boxing[${index}].converterProfile`, "Every Boxing trace converter profile must exactly match package source provenance");
+			} catch {
+				issue("converter_profile_boxing_trace_mismatch", `conversionTrace.boxing[${index}].converterProfile`, "Every Boxing trace converter profile must exactly match package source provenance");
+			}
+			else if (traceConverterProfile !== void 0) issue("converter_profile_unbound", `conversionTrace.boxing[${index}].converterProfile`, "Boxing trace converter profile requires package source provenance");
+		}
+		for (let index = 0; index < flowTraces.length; index += 1) if (isPlainRecord(flowTraces[index]) && flowTraces[index].converterProfile !== void 0) issue("converter_profile_flow_trace_forbidden", `conversionTrace.flow[${index}].converterProfile`, "Flow traces must not carry Boxing converter profile provenance");
 		const charts = Array.isArray(packageValue.charts) ? packageValue.charts : [];
 		if (charts.length !== 5) issue("chart_count_invalid", "charts", "One difficulty must contain Flow plus four Boxing charts");
 		const chartIds = /* @__PURE__ */ new Set();
@@ -2141,4 +2156,4 @@
 	//#endregion
 })();
 
-//# sourceMappingURL=conversion-worker-B1lWXdzq.js.map
+//# sourceMappingURL=conversion-worker-DPEmn8d7.js.map
