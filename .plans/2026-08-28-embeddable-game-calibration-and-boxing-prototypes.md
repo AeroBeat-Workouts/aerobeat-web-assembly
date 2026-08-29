@@ -762,7 +762,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ### Task 12: Cross-Repo Desktop, Android, Direct-Embed, and Iframe QA
 
-**Bead ID:** `aerobeat-web-assembly-48w.6`; Android gameplay-first repair `aerobeat-web-assembly-dvy`; compact drawer UI `aerobeat-web-ui-8px`
+**Bead ID:** `aerobeat-web-assembly-48w.6`; Android gameplay-first repair `aerobeat-web-assembly-dvy` with QA `aerobeat-web-assembly-hd8`; compact drawer UI `aerobeat-web-ui-8px` with QA `aerobeat-web-ui-2kv`
 **SubAgent:** DSH QA subagents
 **Role:** `qa`
 **References:** `REF-01` through `REF-18`
