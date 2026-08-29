@@ -412,6 +412,10 @@ Failed approaches: Fixing browse result shape and increasing async waits did not
 Corrective action: Force fresh disposable test optimization; preserve authoring; implement rolling shoulder-relative eight-way input (`lgc`/`po7`), Flow-only eight-way gameplay matching (`uau`), exact eight-way assembly mapping (`02a1671`), and visibly distinct renderer cues (`1kb`/`wfk`).
 Verification test: Each 0..7 arrow matches only the exact measured octant, dot 8 needs entry but no direction, ambiguous motion invents no direction, all eight cues are visible; hard-coded v4 golden/tamper/v2/v3 and exact live 53F26; full cross-repo and stable release/pack/manifest gates.
 Related files/components: canonical Flow v1 architecture; web-input lgc/po7; web-gameplay 2326ccb/uau; web-renderer 1kb/wfk; web-content-authoring fa824fc; assembly 02a1671/v4 validators; vendor 7b14eec.
-Remaining uncertainty: Independent `kdf`/`bzw` QA and physical Android camera/play remain operator-owned; automated import requested no camera.
+Remaining uncertainty: Physical Android camera/play under `kdf`/`3h7` remains operator-owned; automated import requested no camera.
 ```
+
+## Final Independent Automated QA Closure
+
+PASS at source/release target `3009910` and docs-only final HEAD `1c34f85`. The final docs diff only corrects canonical eight-way wording and does not enter the release fingerprint. Exact linked heads are clean/synchronized. Assembly normal/browser/live/build gates, cross-repo input/gameplay/renderer/authoring test/browser gates, two checked/fresh recursive releases, two packs, fingerprint/proof/embed identity, HTTP routes, privacy/no-winner, opaque shell, and actual renderer pixel contrast all pass. Automated Beads `bzw`, `ctp`, `9s6`, and `0n6` are closed. Physical `kdf` and `3h7` remain open.
 

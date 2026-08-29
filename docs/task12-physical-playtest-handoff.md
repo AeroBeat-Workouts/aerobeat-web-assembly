@@ -224,7 +224,13 @@ Vendor `l3h` implementation `7b14eec` and independent `u02` closure `b9d19a6` co
 
 The cross-repo automated boundary is now complete: contracts eight-way QA closure `c1e14f9` plus directionless entry closure `0c8fba8`, gameplay eight-way closure `e0f194f`, input rolling/directionless evidence `f23b372`, renderer visible cues `3cd09ce`/`a59d930`, and assembly mapping `02a1671` are clean and synchronized. Automation proves acquisition, integrity, conversion, persistence, selection, Music readiness, exact eight-way data flow, privacy, and no-winner posture. It does **not** prove camera calibration or physical play; operator phone evidence for `kdf` remains pending.
 
-The frozen release fingerprint is `6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97`; proof SHA-256 is `dfdae0d909ee47b48f9c886e8210a0b133d5711a552b083bb5b4867bca165e31`; pre-manifest bytes are `4004042`. Proof, embedded build/cache stamps, two release rounds, recursive manifests, and final dry-run packs match. `bzw` remains open for independent QA.
+The frozen release fingerprint is `6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97`; proof SHA-256 is `dfdae0d909ee47b48f9c886e8210a0b133d5711a552b083bb5b4867bca165e31`; pre-manifest bytes are `4004042`. Proof, embedded build/cache stamps, two release rounds, recursive manifests, and final dry-run packs match.
+
+### Final independent automated QA passed
+
+Source/release target `3009910` and docs-only canonical-truth HEAD `1c34f85` pass independent QA on the exact frozen linked graph. The docs-only diff corrects stale cardinal wording and changes no fingerprint input. Assembly test, direct/real-iframe browser matrix, exact live `53F26`, build, two recursive release rounds, and two packs pass. Input, gameplay, renderer, and authoring full test/browser gates independently pass; renderer browser evidence proves all eight cues have distinct pixel distributions and required luminance contrast.
+
+Automated Beads `bzw`, `ctp`, `9s6`, and `0n6` are closed. Do not close physical `kdf` or `3h7`: phone camera/calibration/play confirmation remains required.
 
 ## Automated evidence collected
 
