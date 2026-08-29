@@ -525,11 +525,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder `1833c6e` implements provider-neutral v2/v3/v4 Worker conversion, Flow plus four Boxing variants, validation, semantic parity hash, deterministic export, IndexedDB v2/memory persistence, migration/quota/delete and stale/cancel cleanup. Parent check/test/browser/pack and real uncommitted `4858` Expert/`3D44B` Hard pass. The first security auditor failed after leaving substantial uncommitted converter/Worker/persistence/export hardening and a security regression script. Recovery confirms the dirty audit coherently fixes final Godot reach/guard/hash/modifier deltas plus Worker settlement, conditional IDB cleanup, export verification and parity projection. Remaining fixes target descriptor-safe bounded source/options/Worker data, byte-free public request telemetry, locale-independent export ordering, exact inclusive guard boundary and final `59c93de` provenance before full rerun.
+**Results:** Coder `1833c6e` implemented provider-neutral v2/v3/v4 Worker conversion, five charts, validation, semantic parity, export and IndexedDB persistence. Recovery audit `d134255` preserved the failed auditor's work and completed final Godot reach/guard/hash/modifier parity, bounded descriptor-safe source/Worker/result seams, exact settlement/source binding, atomic token-aware persistence/migrations/quota, verified deterministic AEROPKG1 export and byte-free snapshots. Parent check/unit/security/real/browser/pack pass; real uncommitted `4858` Expert and `3D44B` Hard each produce five deterministic charts. Closures: authoring `9504f71`, assembly `532bc43`.
 
-**Acceptance:** Browser/worker tests convert full real `4858` Expert and `3d44b` Hard sources plus synthetic v2/v3/v4 fixtures; all four variants validate; repeated conversion is deterministic; golden semantic outputs match Godot; cancellation leaves no partial package; IndexedDB migration/quota/delete/export works; arbitrary compatible map IDs are not gated by a playlist.
+**Acceptance:** Satisfied; synthetic v2/v3/v4 plus real maps, deterministic five-variant conversion, final Godot semantic parity, cancellation, persistence/migration/quota/delete/export and no allowlist are covered. and `3d44b` Hard sources plus synthetic v2/v3/v4 fixtures; all four variants validate; repeated conversion is deterministic; golden semantic outputs match Godot; cancellation leaves no partial package; IndexedDB migration/quota/delete/export works; arbitrary compatible map IDs are not gated by a playlist.
 
 ---
 
@@ -552,7 +552,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** Complete
 
-**Results:** Coder `1211827` implemented per-game direct/external/authored loading, AEROPKG1 verification, critical/cosmetic policy, five variants, modifier provenance and paused future swaps. Security audit `995f52d` added descriptor-safe boundaries, canonical hashes, bounded timeout/CORS transport, exact safe AEROPKG1 parsing, emitted-modifier/lineage validation, code-point ordering and adversarial swap/lifecycle coverage. Parent check/test/browser/pack and actual current authoring export integration pass; repo closure `ed4a2d6`. Assembly Bead `.2` remains mechanically blocked on Task 4C `.10` and will close with that dependency.
+**Results:** Coder `1211827` implemented per-game direct/external/authored loading, AEROPKG1 verification, critical/cosmetic policy, five variants, modifier provenance and paused future swaps. Security audit `995f52d` added descriptor-safe boundaries, canonical hashes, bounded timeout/CORS transport, exact safe AEROPKG1 parsing, emitted-modifier/lineage validation, code-point ordering and adversarial swap/lifecycle coverage. Parent check/test/browser/pack and actual current authoring export integration pass; repo closure `ed4a2d6`, assembly closure `532bc43`.
 
 **Acceptance:** Satisfied; hashes, arbitrary URLs, CORS, fallback, authored handles, deletion, modifiers, lineage and identity-preserving paused future swaps are covered.
 
