@@ -40,6 +40,12 @@ One automated matrix now runs the full real-start state flow in four independent
 
 P0 `aerobeat-web-assembly-9s6`, QA Bead `aerobeat-web-assembly-0n6`, and physical Bead `aerobeat-web-assembly-3h7` remain in progress for independent QA/physical confirmation.
 
+### Independent re-QA failure at `d203193`
+
+Do not use this target for the next physical retest. The repaired DOM/canvas transient path and four-context state flow pass, but the required opaque 48×48 corner control remains translucent: computed/source/release background alpha is `0.92`. The matrix only rejects a fully transparent background, so it does not prove opacity. Its visibility collector is also scoped to known overlay roots, it does not assert returned `calibrationDim`, it authors rather than measures iframe bounds, and its drawer check is a forbidden-word filter rather than an exact allowlist.
+
+Linked P0 `aerobeat-web-assembly-ctp` owns the remaining product/test repair. `9s6` and `0n6` stay in progress. Physical Bead `3h7` remains open and unchanged.
+
 ## Host inventory
 
 - Session: active X11 desktop, `DISPLAY=:1`.

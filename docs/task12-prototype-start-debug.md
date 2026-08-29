@@ -250,3 +250,70 @@ Related files/components: scripts/validate-product-shell-matrix.js; pushPose; Ae
 Remaining uncertainty: Physical operator confirmation only; automated direct/iframe portrait/landscape combinations now pass.
 ```
 
+## Independent Re-QA Failure at `d203193`
+
+### Exact Observed Failure
+
+The sole-DOM transient repair and four-context state matrix pass, but the required exact 48×48 **opaque** corner control does not. Product CSS sets the shared menu/control background to `rgba(3,19,31,.92)`, so the menu remains translucent. The matrix labels this check exact/opaque but only rejects the fully transparent value `rgba(0, 0, 0, 0)`; alpha `0.92` passes.
+
+The matrix also remains narrower than its exactness claim: composed-tree collection records text/controls only after entering known overlay roots, renderer inspection omits `calibrationDim`, iframe dimensions are authored but not measured, and the drawer check is a forbidden-word filter rather than an exact allowed-text set.
+
+### Expected Behavior
+
+The computed menu background must have alpha exactly `1`, and the test must parse/assert that value. Exact shell validation must classify all visible composed-tree elements/text, assert every renderer overlay input including dimming, measure iframe/child bounds, and enforce the allowed drawer vocabulary while retaining start/menu/lifecycle/privacy/no-winner coverage.
+
+### Execution Path
+
+1. `template()` applies `background:rgba(3,19,31,.92)` to `.menu-button`.
+2. Chromium exposes that computed color as a partially transparent RGBA value.
+3. `shellSnapshot()` records the string as `menuBackground`.
+4. `assertSteady()` and `assertTransient()` compare only against fully transparent black.
+5. The matrix therefore passes all four contexts despite violating the requested opaque-control invariant.
+
+### Most Likely Root Cause
+
+The repair interpreted “opaque” as “has a visible background” rather than alpha exactly one, then used a nontransparent sentinel test. The broader exactness gaps similarly extend the earlier selected-overlay strategy instead of implementing a complete allowlisted composed-tree inventory.
+
+### Alternative Hypotheses
+
+- If “opaque” were intended only to mean visibly backed, alpha `0.92` would be acceptable; the direct re-QA instruction explicitly says opaque, so QA uses the strict CSS meaning.
+- The current source hard-codes zero renderer countdown/overlay/dim values, reducing immediate canvas risk, but acceptance still requires the matrix to lock all of them.
+
+### Why Previous Fixes Failed
+
+The repair correctly removed renderer-owned transient content and added the missing contexts/states. It did not change the existing translucent control token, and its assertion tested presence of background rather than opacity. Its recursive traversal still filters observations through known overlay ancestry, so the earlier exact composed-tree blind spot is reduced but not eliminated.
+
+### Unknowns
+
+- No runtime uncertainty exists about the opacity: source and release both use alpha `0.92`.
+- Physical operator confirmation remains separate under `3h7` and cannot cure this deterministic product/test failure.
+
+### Minimal Reproduction
+
+1. Load any direct or iframe matrix context.
+2. Read `getComputedStyle(menuButton).backgroundColor`.
+3. Observe `rgba(3, 19, 31, 0.92)`.
+4. Observe the current test accepts it because it differs from `rgba(0, 0, 0, 0)`.
+
+### Proposed Verification
+
+Set the product menu background to an alpha-one color. Parse computed RGB/RGBA and assert alpha exactly one in every context/state. Enumerate and classify all visible composed-tree elements/text, assert `countdown:null`, `overlay:"none"`, and `calibrationDim:0`, measure iframe and child bounds, and compare drawer text against the exact allowed vocabulary plus narrowly modeled actionable dynamic messages.
+
+### Recommended Fix
+
+Make only the corner menu control fully opaque without unnecessarily changing drawer-close/start styling, then harden the matrix assertions described by P0 `aerobeat-web-assembly-ctp`.
+
+### Debugging Record
+
+```text
+Problem: Repaired shell still has a translucent menu and incomplete exactness assertions.
+Observed symptom: computed menu background alpha is 0.92 while all matrices pass.
+Root cause: shared CSS retained translucent alpha and test checks only nonzero visibility, not opacity.
+Evidence: src/index.js template menu CSS; validate-product-shell-matrix.js menuBackground assertions; release bundle CSS.
+Failed approaches: Treating any nontransparent background as opaque and selector-scoping the composed-tree inventory.
+Corrective action: Set menu alpha to 1 and assert parsed opacity plus exhaustive allowlisted visibility/bounds/renderer inputs.
+Verification test: Four-context matrix twice, full gates, stable release/pack, and exact computed/style assertions.
+Related files/components: src/index.js; scripts/validate-product-shell-matrix.js; release/raw/0.0.24/.
+Remaining uncertainty: Physical play only; deterministic opacity/test failure is established.
+```
+
