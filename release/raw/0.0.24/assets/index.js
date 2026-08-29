@@ -218,9 +218,13 @@ Object.freeze([
 ]);
 Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -836,7 +840,13 @@ Object.freeze({
 * @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
 */
 /**
-* @typedef {"up" | "right" | "down" | "left"} AeroCardinalDirection
+* @typedef {"up" | "up-right" | "right" | "down-right" | "down" | "down-left" | "left" | "up-left"} AeroBodyGridDirection
+*/
+/**
+* Compatibility alias for consumers that previously named this cardinal-only contract.
+* The serialized direction field is now eight-way without changing its schema shape.
+* @deprecated Use AeroBodyGridDirection.
+* @typedef {AeroBodyGridDirection} AeroCardinalDirection
 */
 /**
 * @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
@@ -876,7 +886,7 @@ Object.freeze({
 * @property {number} measurementTimestampMs Real measurement timestamp.
 * @property {number} fromCell In-grid source cell.
 * @property {number} toCell In-grid destination cell.
-* @property {AeroCardinalDirection} direction Cardinal athlete-space entry direction.
+* @property {AeroBodyGridDirection} direction Eight-way athlete-space entry direction.
 * @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
 */
 /**
@@ -917,12 +927,16 @@ var upperBodyAnchorNames$5 = Object.freeze([
 	"left_wrist",
 	"right_wrist"
 ]);
-/** @type {readonly AeroCardinalDirection[]} */
-var cardinalDirections$5 = Object.freeze([
+/** @type {readonly AeroBodyGridDirection[]} */
+var bodyGridDirections$5 = Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -969,7 +983,7 @@ function isBodyGridAnchorSnapshot(value) {
 * @returns {value is AeroBodyGridCellEntry}
 */
 function isBodyGridCellEntry(value) {
-	return isRecord$9(value) && value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && isOneOf$2(value.direction, cardinalDirections$5) && value.provenance === "measured";
+	return isRecord$9(value) && value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && isOneOf$2(value.direction, bodyGridDirections$5) && value.provenance === "measured";
 }
 Object.freeze([
 	"idle",
@@ -1029,7 +1043,7 @@ function isMediaLeaseSnapshot(value) {
 * @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
 * @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
 * @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cardinal cell entries.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured eight-way cell entries.
 */
 /**
 * @typedef {Object} AeroGameplayJudgement
@@ -2269,7 +2283,7 @@ function validateEventForVariant(event, selectedVariant) {
 		if (type === "note") {
 			if (event.hand !== "left" && event.hand !== "right") throw gameplayError("event_hand_invalid", "Flow notes require a hand");
 			requireGridCell(event.placement, "event_placement_invalid");
-			if (event.direction !== void 0 && directionName(event.direction) === null) throw gameplayError("event_direction_invalid", "Flow note direction is unsupported");
+			if (event.direction !== void 0 && flowDirectionName(event.direction) === null) throw gameplayError("event_direction_invalid", "Flow note direction is unsupported");
 		}
 	} else {
 		const action = expectedAction(event);
@@ -2280,7 +2294,7 @@ function validateEventForVariant(event, selectedVariant) {
 				requireGridCell(target.targetCell, "spatial_target_invalid");
 				if (!Array.isArray(target.acceptedSubcells) || target.acceptedSubcells.length > 48 || target.acceptedSubcells.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 47)) throw gameplayError("spatial_target_invalid", "Spatial accepted subcells are invalid");
 				if (target.sourceCell !== void 0) requireGridCell(target.sourceCell, "spatial_target_invalid");
-				if (target.entryDirection !== void 0 && directionName(target.entryDirection) === null) throw gameplayError("spatial_target_invalid", "Spatial entry direction is invalid");
+				if (target.entryDirection !== void 0 && cardinalDirectionName(target.entryDirection) === null) throw gameplayError("spatial_target_invalid", "Spatial entry direction is invalid");
 			} else if (action === "guard" || action === "crossed_guard") {
 				const target = requireRecord$3(event.guardTarget, "guard_target_invalid");
 				requireGridCell(target.leftCell, "guard_target_invalid");
@@ -2399,9 +2413,11 @@ function matchFlow(event, evidence) {
 	const diagnostics = [];
 	const placement = requireGridCell(event.placement, "event_placement_invalid");
 	if (!anchor || anchor.cell !== placement) diagnostics.push("wrong_cell");
-	if (event.direction !== void 0) {
-		const direction = directionName(event.direction);
-		const entry = evidence.entries.find((candidate) => candidate.anchor === anchorName && candidate.toCell === placement);
+	const entry = evidence.entries.find((candidate) => candidate.anchor === anchorName && candidate.toCell === placement);
+	if (event.direction === void 0) {
+		if (!entry) diagnostics.push("no_input");
+	} else {
+		const direction = flowDirectionName(event.direction);
 		if (!entry || direction === null || entry.direction !== direction) diagnostics.push("wrong_direction");
 	}
 	return Object.freeze({
@@ -2425,7 +2441,7 @@ function matchSpatial(event, action, evidence, input, diagnostics) {
 		else if (anchor.cell !== targetCell) diagnostics.push("wrong_cell");
 		if (target.entryDirection !== void 0) {
 			const sourceCell = target.sourceCell === void 0 ? null : requireGridCell(target.sourceCell, "spatial_target_invalid");
-			const direction = directionName(target.entryDirection);
+			const direction = cardinalDirectionName(target.entryDirection);
 			if (!evidence.entries.some((entry) => entry.anchor === `${hand}_wrist` && entry.toCell === targetCell && (sourceCell === null || entry.fromCell === sourceCell) && entry.direction === direction)) diagnostics.push("wrong_direction");
 		}
 		if (action.startsWith("straight_")) {
@@ -2589,14 +2605,33 @@ function inactiveCountdown(timestampMs) {
 function boundedReason(value) {
 	return typeof value === "string" && value.length > 0 && value.length <= 128 ? value : "manual";
 }
-/** @param {unknown} value */
-function directionName(value) {
-	return value === 0 ? "up" : value === 1 ? "down" : value === 2 ? "left" : value === 3 ? "right" : typeof value === "string" && [
-		"up",
-		"down",
-		"left",
-		"right"
-	].includes(value) ? value : null;
+/** @type {readonly import("@aerobeat/web-contracts").AeroBodyGridDirection[]} */
+var BEAT_SABER_FLOW_DIRECTIONS = Object.freeze([
+	"up",
+	"down",
+	"left",
+	"right",
+	"up-left",
+	"up-right",
+	"down-left",
+	"down-right"
+]);
+/** @type {readonly ("up" | "down" | "left" | "right")[]} */
+var CARDINAL_DIRECTIONS = Object.freeze([
+	"up",
+	"down",
+	"left",
+	"right"
+]);
+/** @param {unknown} value @returns {import("@aerobeat/web-contracts").AeroBodyGridDirection | null} */
+function flowDirectionName(value) {
+	if (Number.isInteger(value) && Number(value) >= 0 && Number(value) < BEAT_SABER_FLOW_DIRECTIONS.length) return BEAT_SABER_FLOW_DIRECTIONS[Number(value)] ?? null;
+	return typeof value === "string" && bodyGridDirections$5.includes(value) ? value : null;
+}
+/** @param {unknown} value @returns {"up" | "down" | "left" | "right" | null} */
+function cardinalDirectionName(value) {
+	if (Number.isInteger(value) && Number(value) >= 0 && Number(value) < CARDINAL_DIRECTIONS.length) return CARDINAL_DIRECTIONS[Number(value)] ?? null;
+	return typeof value === "string" && CARDINAL_DIRECTIONS.includes(value) ? value : null;
 }
 /** @param {unknown} value @param {string} code */
 function requireGridCell(value, code) {
@@ -4261,9 +4296,13 @@ Object.freeze([
 ]);
 Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -4433,7 +4472,7 @@ function isThemeDescriptor$2(value) {
 /** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
 /** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
 /** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
-/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:"up"|"right"|"down"|"left"|null}} AeroRenderableTarget */
+/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
 /** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
 /** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
 /** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
@@ -4695,27 +4734,70 @@ function command$1(kind, role, rect, alpha, scale, iconId, hatch, layer, targetI
 		targetId
 	});
 }
-/** @param {AeroNormalizedRect} rect @param {"up"|"right"|"down"|"left"} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
+/** @param {AeroNormalizedRect} rect @param {import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
 function directionCueRects$1(rect, direction) {
+	if (![
+		"up",
+		"up-right",
+		"right",
+		"down-right",
+		"down",
+		"down-left",
+		"left",
+		"up-left"
+	].includes(direction)) throw new TypeError("Flow direction cue is unsupported");
 	const thickness = Math.min(rect.width, rect.height) * .09;
-	const shaft = direction === "left" || direction === "right" ? {
-		x: rect.x + rect.width * .25,
-		y: rect.y + rect.height * .5 - thickness / 2,
-		width: rect.width * .5,
-		height: thickness
-	} : {
-		x: rect.x + rect.width * .5 - thickness / 2,
-		y: rect.y + rect.height * .25,
-		width: thickness,
-		height: rect.height * .5
-	};
+	if (!direction.includes("-")) {
+		const shaft = direction === "left" || direction === "right" ? {
+			x: rect.x + rect.width * .25,
+			y: rect.y + rect.height * .5 - thickness / 2,
+			width: rect.width * .5,
+			height: thickness
+		} : {
+			x: rect.x + rect.width * .5 - thickness / 2,
+			y: rect.y + rect.height * .25,
+			width: thickness,
+			height: rect.height * .5
+		};
+		const size = thickness * 2.5;
+		const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
+		const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
+		return Object.freeze([{
+			kind: "line",
+			rect: Object.freeze(shaft)
+		}, {
+			kind: "circle",
+			rect: Object.freeze({
+				x: headX - size / 2,
+				y: headY - size / 2,
+				width: size,
+				height: size
+			})
+		}]);
+	}
+	const xSign = direction.endsWith("right") ? 1 : -1;
+	const ySign = direction.startsWith("down") ? 1 : -1;
+	const segments = 7;
+	/** @type {{kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
+	const cues = [];
+	for (let index = 0; index < segments; index += 1) {
+		const offset = -.2 + index * (.4 / 6);
+		const centerX = rect.x + rect.width * (.5 + xSign * offset);
+		const centerY = rect.y + rect.height * (.5 + ySign * offset);
+		cues.push({
+			kind: "line",
+			rect: Object.freeze({
+				x: centerX - thickness / 2,
+				y: centerY - thickness / 2,
+				width: thickness,
+				height: thickness
+			})
+		});
+	}
 	const size = thickness * 2.5;
-	const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
-	const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
-	return Object.freeze([{
-		kind: "line",
-		rect: Object.freeze(shaft)
-	}, {
+	const headX = rect.x + rect.width * (.5 + xSign * .3);
+	const headY = rect.y + rect.height * (.5 + ySign * .3);
+	cues.push({
 		kind: "circle",
 		rect: Object.freeze({
 			x: headX - size / 2,
@@ -4723,7 +4805,8 @@ function directionCueRects$1(rect, direction) {
 			width: size,
 			height: size
 		})
-	}]);
+	});
+	return Object.freeze(cues);
 }
 /** @param {AeroNormalizedRect} rect @param {number} scale @returns {AeroNormalizedRect} */
 function scaledRect$1(rect, scale) {
@@ -7009,9 +7092,13 @@ Object.freeze([
 ]);
 Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -7082,7 +7169,7 @@ Object.freeze(["camera", "audio"]);
 * @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
 * @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
 * @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cardinal cell entries.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured eight-way cell entries.
 */
 /**
 * @typedef {Object} AeroGameplayJudgement
@@ -9411,13 +9498,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:fa6f4832947cb4c052e999ad462e4ad2953498c9fedde1ca831ecc34686c4843";
+var buildStamp = "source:ee2ae9ceab288c58f76d0415665fd432c68358cde739129f9474ed55e0c2eaf1";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-fa6f4832947cb4c0";
+var cacheBust = "0.0.24-ee2ae9ceab288c58";
 /**
 * Vite-injected package version from package.json.
 *
@@ -11344,9 +11431,13 @@ Object.freeze([
 ]);
 Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -11417,7 +11508,7 @@ Object.freeze(["camera", "audio"]);
 * @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
 * @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
 * @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cardinal cell entries.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured eight-way cell entries.
 */
 /**
 * @typedef {Object} AeroGameplayJudgement
@@ -14735,7 +14826,7 @@ function convertFlowChart(summary, difficulty, songToken) {
 			type: "burst",
 			hand: String(burst.hand ?? "left"),
 			placement: Number(burst.cell ?? 0),
-			direction: flowDirection$1(burst.direction),
+			direction: Number(burst.direction ?? 8),
 			tailPlacement: Number(burst.tailCell ?? burst.cell ?? 0),
 			checkpointCount: Math.max(Number(burst.sliceCount ?? 1), 1)
 		};
@@ -14778,7 +14869,7 @@ function convertFlowChart(summary, difficulty, songToken) {
 }
 /** @param {Readonly<Record<string, unknown>>} note */
 function emitFlowNote(note) {
-	const direction = flowDirection$1(note.direction);
+	const direction = Number(note.direction ?? 8);
 	const beat = {
 		start: Number(note.start ?? 0),
 		type: "note",
@@ -14799,8 +14890,8 @@ function emitFlowArc(slider, lookup) {
 		hand: String(slider.hand ?? "left"),
 		startPlacement: Number(slider.cell ?? 0),
 		endPlacement: Number(slider.tailCell ?? slider.cell ?? 0),
-		startDirection: flowDirection$1(slider.direction),
-		endDirection: flowDirection$1(slider.tailDirection ?? slider.direction),
+		startDirection: Number(slider.direction ?? 8),
+		endDirection: Number(slider.tailDirection ?? slider.direction ?? 8),
 		headCurveMultiplier: Number(slider.headCurveMultiplier ?? 1),
 		tailCurveMultiplier: Number(slider.tailCurveMultiplier ?? 1),
 		midAnchorMode: Number(slider.midAnchorMode ?? 0)
@@ -14810,14 +14901,6 @@ function emitFlowArc(slider, lookup) {
 	if (start) Object.assign(arc, { startNoteRef: start });
 	if (end) Object.assign(arc, { endNoteRef: end });
 	return arc;
-}
-/** Beat Saber diagonals preserve their vertical component in cardinal-only Flow. @param {unknown} value */
-function flowDirection$1(value) {
-	const direction = Number(value ?? 8);
-	if (direction >= 0 && direction <= 3) return direction;
-	if (direction === 4 || direction === 5) return 0;
-	if (direction === 6 || direction === 7) return 1;
-	return 8;
 }
 /** @param {readonly Readonly<Record<string, unknown>>[]} notes */
 function buildFlowNoteLookup(notes) {
@@ -16112,7 +16195,7 @@ function createInlineAuthoringWorkerAdapter() {
 function createBrowserAuthoringWorkerAdapter(options = {}) {
 	const workerFactory = options.workerFactory ?? (() => new Worker(new URL(
 		/* @vite-ignore */
-		"/assets/conversion-worker-Dcnv7D0U.js",
+		"/assets/conversion-worker-DPEmn8d7.js",
 		"" + import.meta.url
 	), {
 		type: "module",
@@ -17032,7 +17115,13 @@ Object.freeze({
 * @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
 */
 /**
-* @typedef {"up" | "right" | "down" | "left"} AeroCardinalDirection
+* @typedef {"up" | "up-right" | "right" | "down-right" | "down" | "down-left" | "left" | "up-left"} AeroBodyGridDirection
+*/
+/**
+* Compatibility alias for consumers that previously named this cardinal-only contract.
+* The serialized direction field is now eight-way without changing its schema shape.
+* @deprecated Use AeroBodyGridDirection.
+* @typedef {AeroBodyGridDirection} AeroCardinalDirection
 */
 /**
 * @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
@@ -17072,7 +17161,7 @@ Object.freeze({
 * @property {number} measurementTimestampMs Real measurement timestamp.
 * @property {number} fromCell In-grid source cell.
 * @property {number} toCell In-grid destination cell.
-* @property {AeroCardinalDirection} direction Cardinal athlete-space entry direction.
+* @property {AeroBodyGridDirection} direction Eight-way athlete-space entry direction.
 * @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
 */
 /**
@@ -17115,9 +17204,13 @@ var upperBodyAnchorNames$1 = Object.freeze([
 ]);
 Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -17379,6 +17472,7 @@ var aeroBodyGridServiceId = "aero.input.body-grid";
 */
 /** @typedef {{semanticStart: number | null, semanticLast: number | null, spatialStart: number | null, spatialLast: number | null}} StraightState */
 /** @typedef {{point: {x: number, y: number} | null, cell: import("@aerobeat/web-contracts").AeroGridCellRef | null, subcell: import("@aerobeat/web-contracts").AeroGridCellRef | null}} AnchorHistory */
+/** @typedef {{timestampMs: number, x: number, y: number}} WristMotionPoint */
 var bodyGridInstanceSequence = 0;
 /**
 * Create one session-only calibrated body-grid service per game instance.
@@ -17388,6 +17482,8 @@ var bodyGridInstanceSequence = 0;
 *   padding?: Partial<AeroBodyGridPadding>,
 *   hysteresisRatio?: number,
 *   historyCapacity?: number,
+*   directionHistoryWindowMs?: number,
+*   directionMinimumMagnitude?: number,
 *   calibrationIdPrefix?: string,
 *   onListenerError?: (error: unknown) => void
 * }} [options] Service options.
@@ -17398,6 +17494,8 @@ function createAeroBodyGridService(options = {}) {
 	const padding = normalizePadding(options.padding);
 	const hysteresisRatio = bounded(options.hysteresisRatio, .025, 0, .2);
 	const historyCapacity = Math.max(8, Math.trunc(positive(options.historyCapacity, 120)));
+	const directionHistoryWindowMs = bounded(options.directionHistoryWindowMs, 180, 40, 500);
+	const directionMinimumMagnitude = bounded(options.directionMinimumMagnitude, .12, .01, 2);
 	const instanceId = options.calibrationIdPrefix ?? `body-grid-${++bodyGridInstanceSequence}`;
 	const onListenerError = typeof options.onListenerError === "function" ? options.onListenerError : null;
 	/** @type {Set<(snapshot: AeroBodyGridServiceSnapshot) => void>} */
@@ -17406,6 +17504,8 @@ function createAeroBodyGridService(options = {}) {
 	const evidenceHistory = [];
 	/** @type {Map<AeroUpperBodyAnchorName, AnchorHistory>} */
 	const anchorHistory = /* @__PURE__ */ new Map();
+	/** @type {Map<"left" | "right", WristMotionPoint[]>} */
+	const wristMotionHistories = /* @__PURE__ */ new Map([["left", []], ["right", []]]);
 	/** @type {Map<"left" | "right", StraightState>} */
 	const straightStates = /* @__PURE__ */ new Map([["left", emptyStraightState()], ["right", emptyStraightState()]]);
 	/** @type {NormalizedPoseLandmark[][]} */
@@ -17536,7 +17636,11 @@ function createAeroBodyGridService(options = {}) {
 			latestPredictedTimestamp = sample.targetTimestampMs;
 			return publish();
 		}
-		if (lastMeasuredAt !== null && sample.measurementTimestampMs <= lastMeasuredAt || `${sample.sourceId}\u0000${sample.measuredSourceFrameId}` === lastMeasuredSourceFrameKey) return latestSnapshot;
+		if (lastMeasuredAt !== null && sample.measurementTimestampMs < lastMeasuredAt) {
+			resetWristMotionHistories();
+			return latestSnapshot;
+		}
+		if (lastMeasuredAt !== null && sample.measurementTimestampMs === lastMeasuredAt || `${sample.sourceId}\u0000${sample.measuredSourceFrameId}` === lastMeasuredSourceFrameKey) return latestSnapshot;
 		if (lastMeasuredAt !== null && sample.measurementTimestampMs - lastMeasuredAt >= calibrationDefaults$1.trackingLossPauseMs) {
 			lossStartedAt = lastMeasuredAt;
 			lossDurationMs = sample.measurementTimestampMs - lastMeasuredAt;
@@ -17565,6 +17669,7 @@ function createAeroBodyGridService(options = {}) {
 			lossStartedAt ??= sample.measurementTimestampMs;
 			lossDurationMs = Math.max(0, sample.measurementTimestampMs - lossStartedAt);
 			latestEntries = [];
+			resetWristMotionHistories();
 			if (lossDurationMs >= calibrationDefaults$1.trackingLossPauseMs) triggerTrackingPause(sample.measurementTimestampMs);
 		}
 		updateCalibration(sample, landmarks);
@@ -17643,6 +17748,8 @@ function createAeroBodyGridService(options = {}) {
 		const entries = [];
 		/** @type {Map<AeroUpperBodyAnchorName, AeroBodyGridAnchorSnapshot>} */
 		const byName = /* @__PURE__ */ new Map();
+		if (scoringValid) recordWristMotionSamples(sample.measurementTimestampMs, landmarks, bounds);
+		else resetWristMotionHistories();
 		for (const name of upperBodyAnchorNames$1) {
 			const landmark = landmarks.get(name);
 			if (!landmark) continue;
@@ -17673,17 +17780,20 @@ function createAeroBodyGridService(options = {}) {
 			};
 			anchors.push(anchor);
 			byName.set(name, anchor);
-			if ((name === "nose" || name === "left_wrist" || name === "right_wrist") && inGrid && history.cell !== null && cell !== null && history.cell.id !== cell.id && history.point !== null) entries.push({
-				schema: "aerobeat/body_grid_cell_entry",
-				version: 1,
-				anchor: name,
-				calibrationId,
-				measurementTimestampMs: sample.measurementTimestampMs,
-				fromCell: history.cell.id,
-				toCell: cell.id,
-				direction: cardinalDirection(history.point, raw),
-				provenance: "measured"
-			});
+			if ((name === "nose" || name === "left_wrist" || name === "right_wrist") && inGrid && history.cell !== null && cell !== null && history.cell.id !== cell.id && history.point !== null) {
+				const direction = name === "nose" ? cardinalDirection(history.point, raw) : rollingWristDirection(name === "left_wrist" ? "left" : "right", sample.measurementTimestampMs);
+				if (direction !== null) entries.push({
+					schema: "aerobeat/body_grid_cell_entry",
+					version: 1,
+					anchor: name,
+					calibrationId,
+					measurementTimestampMs: sample.measurementTimestampMs,
+					fromCell: history.cell.id,
+					toCell: cell.id,
+					direction,
+					provenance: "measured"
+				});
+			}
 			anchorHistory.set(name, {
 				point: inGrid ? raw : null,
 				cell: inGrid ? cell : null,
@@ -17783,8 +17893,68 @@ function createAeroBodyGridService(options = {}) {
 		resetStraightHand("left");
 		resetStraightHand("right");
 	}
+	/** @param {number} atTimestampMs @param {Map<string, NormalizedPoseLandmark>} landmarks @param {AeroCalibratedBounds} calibratedBounds */
+	function recordWristMotionSamples(atTimestampMs, landmarks, calibratedBounds) {
+		for (const hand of ["left", "right"]) {
+			const wrist = landmarks.get(`${hand}_wrist`);
+			const shoulder = landmarks.get(`${hand}_shoulder`);
+			if (!wrist || !shoulder || wrist.confidence < calibrationDefaults$1.requiredConfidence || shoulder.confidence < calibrationDefaults$1.requiredConfidence) {
+				wristMotionHistories.set(hand, []);
+				continue;
+			}
+			const wristRaw = normalizeAgainstBounds(cameraPreviewToAthlete(wrist), calibratedBounds);
+			const shoulderRaw = normalizeAgainstBounds(cameraPreviewToAthlete(shoulder), calibratedBounds);
+			const history = wristMotionHistories.get(hand) ?? [];
+			history.push({
+				timestampMs: atTimestampMs,
+				x: (wristRaw.x - shoulderRaw.x) * athleteBodyGrid4x3$1.columns,
+				y: (wristRaw.y - shoulderRaw.y) * athleteBodyGrid4x3$1.rows
+			});
+			const cutoff = atTimestampMs - directionHistoryWindowMs;
+			while (history.length > 0 && history[0].timestampMs < cutoff) history.shift();
+			wristMotionHistories.set(hand, history);
+		}
+	}
+	/** @param {"left" | "right"} hand @param {number} atTimestampMs @returns {import("@aerobeat/web-contracts").AeroBodyGridDirection | null} */
+	function rollingWristDirection(hand, atTimestampMs) {
+		const history = (wristMotionHistories.get(hand) ?? []).filter((point) => point.timestampMs >= atTimestampMs - directionHistoryWindowMs && point.timestampMs <= atTimestampMs);
+		if (history.length < 2) return null;
+		const origin = history[0].timestampMs;
+		const elapsed = history.at(-1).timestampMs - origin;
+		if (elapsed <= 0) return null;
+		let meanTime = 0;
+		let meanX = 0;
+		let meanY = 0;
+		for (const point of history) {
+			meanTime += point.timestampMs - origin;
+			meanX += point.x;
+			meanY += point.y;
+		}
+		meanTime /= history.length;
+		meanX /= history.length;
+		meanY /= history.length;
+		let denominator = 0;
+		let numeratorX = 0;
+		let numeratorY = 0;
+		for (const point of history) {
+			const centeredTime = point.timestampMs - origin - meanTime;
+			denominator += centeredTime * centeredTime;
+			numeratorX += centeredTime * (point.x - meanX);
+			numeratorY += centeredTime * (point.y - meanY);
+		}
+		if (denominator <= Number.EPSILON) return null;
+		const dx = numeratorX / denominator * elapsed;
+		const dy = numeratorY / denominator * elapsed;
+		if (Math.hypot(dx, dy) < directionMinimumMagnitude) return null;
+		return eightWayDirection(dx, dy);
+	}
+	function resetWristMotionHistories() {
+		wristMotionHistories.set("left", []);
+		wristMotionHistories.set("right", []);
+	}
 	function resetMeasuredHistories() {
 		anchorHistory.clear();
+		resetWristMotionHistories();
 		resetStraightStates();
 		latestAnchors = [];
 		latestEntries = [];
@@ -17827,6 +17997,7 @@ function createAeroBodyGridService(options = {}) {
 		latestEntries = [];
 		holdFrames = [];
 		anchorHistory.clear();
+		resetWristMotionHistories();
 		evidenceHistory.length = 0;
 		publish();
 		listeners.clear();
@@ -17996,12 +18167,25 @@ function hystereticGridCell(point, descriptor, previous, margin) {
 	const bottom = (previous.row + 1) / descriptor.rows + margin;
 	return point.x >= left && point.x < right && point.y >= top && point.y < bottom ? previous : direct;
 }
-/** @param {{x: number, y: number}} from @param {{x: number, y: number}} to @returns {import("@aerobeat/web-contracts").AeroCardinalDirection} */
+/** @param {{x: number, y: number}} from @param {{x: number, y: number}} to @returns {import("@aerobeat/web-contracts").AeroBodyGridDirection} */
 function cardinalDirection(from, to) {
 	const dx = to.x - from.x;
 	const dy = to.y - from.y;
 	if (Math.abs(dx) + Number.EPSILON * 8 >= Math.abs(dy)) return dx >= 0 ? "right" : "left";
 	return dy >= 0 ? "down" : "up";
+}
+/** @param {number} dx @param {number} dy @returns {import("@aerobeat/web-contracts").AeroBodyGridDirection} */
+function eightWayDirection(dx, dy) {
+	return [
+		"right",
+		"down-right",
+		"down",
+		"down-left",
+		"left",
+		"up-left",
+		"up",
+		"up-right"
+	][Math.floor((Math.atan2(dy, dx) + Math.PI / 8 + Math.PI * 2) % (Math.PI * 2) / (Math.PI / 4))];
 }
 /** @param {StraightState} state @param {"semanticStart" | "spatialStart"} startKey @param {"semanticLast" | "spatialLast"} lastKey @param {number} now @param {boolean} active */
 function updateContinuity(state, startKey, lastKey, now, active) {
@@ -18229,9 +18413,13 @@ Object.freeze([
 ]);
 Object.freeze([
 	"up",
+	"up-right",
 	"right",
+	"down-right",
 	"down",
-	"left"
+	"down-left",
+	"left",
+	"up-left"
 ]);
 Object.freeze([
 	"uncalibrated",
@@ -18401,7 +18589,7 @@ function isThemeDescriptor(value) {
 /** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
 /** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
 /** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
-/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:"up"|"right"|"down"|"left"|null}} AeroRenderableTarget */
+/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
 /** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
 /** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
 /** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
@@ -18663,27 +18851,70 @@ function command(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId,
 		targetId
 	});
 }
-/** @param {AeroNormalizedRect} rect @param {"up"|"right"|"down"|"left"} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
+/** @param {AeroNormalizedRect} rect @param {import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
 function directionCueRects(rect, direction) {
+	if (![
+		"up",
+		"up-right",
+		"right",
+		"down-right",
+		"down",
+		"down-left",
+		"left",
+		"up-left"
+	].includes(direction)) throw new TypeError("Flow direction cue is unsupported");
 	const thickness = Math.min(rect.width, rect.height) * .09;
-	const shaft = direction === "left" || direction === "right" ? {
-		x: rect.x + rect.width * .25,
-		y: rect.y + rect.height * .5 - thickness / 2,
-		width: rect.width * .5,
-		height: thickness
-	} : {
-		x: rect.x + rect.width * .5 - thickness / 2,
-		y: rect.y + rect.height * .25,
-		width: thickness,
-		height: rect.height * .5
-	};
+	if (!direction.includes("-")) {
+		const shaft = direction === "left" || direction === "right" ? {
+			x: rect.x + rect.width * .25,
+			y: rect.y + rect.height * .5 - thickness / 2,
+			width: rect.width * .5,
+			height: thickness
+		} : {
+			x: rect.x + rect.width * .5 - thickness / 2,
+			y: rect.y + rect.height * .25,
+			width: thickness,
+			height: rect.height * .5
+		};
+		const size = thickness * 2.5;
+		const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
+		const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
+		return Object.freeze([{
+			kind: "line",
+			rect: Object.freeze(shaft)
+		}, {
+			kind: "circle",
+			rect: Object.freeze({
+				x: headX - size / 2,
+				y: headY - size / 2,
+				width: size,
+				height: size
+			})
+		}]);
+	}
+	const xSign = direction.endsWith("right") ? 1 : -1;
+	const ySign = direction.startsWith("down") ? 1 : -1;
+	const segments = 7;
+	/** @type {{kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
+	const cues = [];
+	for (let index = 0; index < segments; index += 1) {
+		const offset = -.2 + index * (.4 / 6);
+		const centerX = rect.x + rect.width * (.5 + xSign * offset);
+		const centerY = rect.y + rect.height * (.5 + ySign * offset);
+		cues.push({
+			kind: "line",
+			rect: Object.freeze({
+				x: centerX - thickness / 2,
+				y: centerY - thickness / 2,
+				width: thickness,
+				height: thickness
+			})
+		});
+	}
 	const size = thickness * 2.5;
-	const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
-	const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
-	return Object.freeze([{
-		kind: "line",
-		rect: Object.freeze(shaft)
-	}, {
+	const headX = rect.x + rect.width * (.5 + xSign * .3);
+	const headY = rect.y + rect.height * (.5 + ySign * .3);
+	cues.push({
 		kind: "circle",
 		rect: Object.freeze({
 			x: headX - size / 2,
@@ -18691,7 +18922,8 @@ function directionCueRects(rect, direction) {
 			width: size,
 			height: size
 		})
-	}]);
+	});
+	return Object.freeze(cues);
 }
 /** @param {AeroNormalizedRect} rect @param {number} scale @returns {AeroNormalizedRect} */
 function scaledRect(rect, scale) {

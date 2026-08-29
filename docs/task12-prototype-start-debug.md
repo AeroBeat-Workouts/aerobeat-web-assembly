@@ -393,23 +393,23 @@ Related files/components: scripts/release-fingerprint.js; scripts/build-release.
 Remaining uncertainty: Which historical linked input caused the aggregate hash delta.
 ```
 
-## Resolution: Corrected V4 Source, Cardinal Flow, and Frozen Release
+## Resolution: Corrected V4 Source, Eight-Way Flow, and Frozen Release
 
 Vendor implementation `7b14eec` for `l3h` adds v4 `AudioData.dat` and preserves repeated metadata-ordered lightshow references; independent `u02` closure `b9d19a6` verifies the hard-coded golden, tamper classes, unchanged v2/v3 hashes, and live `53F26`. Assembly's first deterministic browser attempt still produced the old hash because Vite reused a stale optimized dependency prebundle even though the installed linked source contained the correction. Setting `optimizeDeps.force: true` for the disposable acceptance server proved the current source rather than cached optimizer output.
 
-The exact live assembly path then found a second issue after successful acquisition and persistence: current `53F26` contains valid diagonal Beat Saber cuts `4..7`, while content authoring copied them into Flow and gameplay intentionally accepts only cardinal `0..3`. Content-authoring `13cc663` now applies one explicit policy to Flow notes/arcs/bursts: preserve `0..3`, map `4/5` to up (`0`), map `6/7` to down (`1`), and keep `8` direction-free. Gameplay validation remains strict. Its full check/unit/security/real/browser gates pass, and the exact live package now selects five variants without camera.
+The exact live assembly path then found a second issue after successful acquisition and persistence: current `53F26` contains valid diagonal Beat Saber cuts `4..7`, locked Flow authoring correctly preserves them, but gameplay accepted only cardinal `0..3`. A first authoring-side normalization at `13cc663` made the live map select but violated Flow preservation ownership. It was forward-reverted at `fa824fc`; authoring's full check/unit/security/real/browser gates pass with exact direction preservation restored. Gameplay P0 `aerobeat-web-gameplay-uau` instead extends only Flow validation/evidence matching to all eight Beat Saber directions while keeping dot `8` direction-free and Boxing cardinal semantics unchanged. The exact live package then selects five variants without camera.
 
-Assembly's normal gate now locks actual-service hard-coded v4 acquisition/UI authoring/persistence/selection, strict tamper rejection, v2/v3 local ZIP regression, bounded public data, and no winner. The optional network gate locks exact live `53F26` / `addd9d6f8e7340ad6f5633947136d8475a7a99b5`. Two releases, packs, and recursive manifests from the frozen graph match exactly; fingerprint/proof/build/cache identity is `fa6f4832947cb4c052e999ad462e4ad2953498c9fedde1ca831ecc34686c4843`, proof SHA-256 `f1d5c05fd27507057b2589f42fa4414a8470b8b24fa2e6757c40ade63ffd02ff`, and pre-manifest bytes `3972904`.
+Assembly's normal gate now locks actual-service hard-coded v4 acquisition/UI authoring/persistence/selection, strict tamper rejection, v2/v3 local ZIP regression, bounded public data, and no winner. The optional network gate locks exact live `53F26` / `addd9d6f8e7340ad6f5633947136d8475a7a99b5`. Two releases, packs, and recursive manifests from the frozen graph match exactly; fingerprint/proof/build/cache identity is `ee2ae9ceab288c58f76d0415665fd432c68358cde739129f9474ed55e0c2eaf1`, proof SHA-256 `3594dd3a471e28d51b561722550de4dc7914ffc571bdd9374202eadac6b75207`, and pre-manifest bytes `3995977`.
 
 ```text
 Problem: Corrected vendor source was hidden by stale Vite optimization, then live v4 Flow selection rejected valid diagonal source cuts.
 Observed symptom: Old hash-input sequence under the test server; after forcing fresh source, live select failed with “Flow note direction is unsupported”.
-Root cause: Reused dependency prebundle plus authoring's unnormalized Beat Saber 4..7 directions crossing a cardinal-only gameplay contract.
-Evidence: Hard-coded hash-input path dump omitted AudioData/duplicate before forced optimization; exact live stack ended in gameplay directionName; source converter copied non-8 values unchanged.
-Failed approaches: Fixing browse result shape and increasing async waits; neither addressed dependency cache/source semantics.
-Corrective action: Force fresh disposable test optimization, cardinalize valid source directions in authoring, and lock deterministic/live assembly paths.
-Verification test: Hard-coded v4 golden/tamper/v2/v3 normal gate; exact optional live 53F26; full authoring and assembly gates; stable release/pack/manifest rounds.
-Related files/components: assembly v4 validators/package scripts; web-vendor-beatsaver 7b14eec; web-content-authoring 13cc663; release proof.
+Root cause: Reused dependency prebundle plus gameplay Flow validation/evidence matching lagging the locked eight-way authored direction contract.
+Evidence: Hard-coded hash-input path dump omitted AudioData/duplicate before forced optimization; exact live stack ended in gameplay direction validation for a valid diagonal; contracts and authoring preserve eight directions.
+Failed approaches: Fixing browse result shape and increasing async waits did not address dependency cache; authoring-side cardinalization made selection pass but changed the wrong owner's semantics and was reverted.
+Corrective action: Force fresh disposable test optimization, extend gameplay Flow-only validation/matching to eight directions, preserve authoring output, and lock deterministic/live assembly paths.
+Verification test: Hard-coded v4 golden/tamper/v2/v3 normal gate; exact optional live 53F26; full gameplay, authoring, and assembly gates; stable release/pack/manifest rounds.
+Related files/components: assembly v4 validators/package scripts; web-vendor-beatsaver 7b14eec; web-gameplay uau; web-content-authoring fa824fc; release proof.
 Remaining uncertainty: Physical Android camera/play rerun remains operator-owned; automated import did not request camera.
 ```
 

@@ -1313,7 +1313,7 @@
 				type: "burst",
 				hand: String(burst.hand ?? "left"),
 				placement: Number(burst.cell ?? 0),
-				direction: flowDirection(burst.direction),
+				direction: Number(burst.direction ?? 8),
 				tailPlacement: Number(burst.tailCell ?? burst.cell ?? 0),
 				checkpointCount: Math.max(Number(burst.sliceCount ?? 1), 1)
 			};
@@ -1356,7 +1356,7 @@
 	}
 	/** @param {Readonly<Record<string, unknown>>} note */
 	function emitFlowNote(note) {
-		const direction = flowDirection(note.direction);
+		const direction = Number(note.direction ?? 8);
 		const beat = {
 			start: Number(note.start ?? 0),
 			type: "note",
@@ -1377,8 +1377,8 @@
 			hand: String(slider.hand ?? "left"),
 			startPlacement: Number(slider.cell ?? 0),
 			endPlacement: Number(slider.tailCell ?? slider.cell ?? 0),
-			startDirection: flowDirection(slider.direction),
-			endDirection: flowDirection(slider.tailDirection ?? slider.direction),
+			startDirection: Number(slider.direction ?? 8),
+			endDirection: Number(slider.tailDirection ?? slider.direction ?? 8),
 			headCurveMultiplier: Number(slider.headCurveMultiplier ?? 1),
 			tailCurveMultiplier: Number(slider.tailCurveMultiplier ?? 1),
 			midAnchorMode: Number(slider.midAnchorMode ?? 0)
@@ -1388,14 +1388,6 @@
 		if (start) Object.assign(arc, { startNoteRef: start });
 		if (end) Object.assign(arc, { endNoteRef: end });
 		return arc;
-	}
-	/** Beat Saber diagonals preserve their vertical component in cardinal-only Flow. @param {unknown} value */
-	function flowDirection(value) {
-		const direction = Number(value ?? 8);
-		if (direction >= 0 && direction <= 3) return direction;
-		if (direction === 4 || direction === 5) return 0;
-		if (direction === 6 || direction === 7) return 1;
-		return 8;
 	}
 	/** @param {readonly Readonly<Record<string, unknown>>[]} notes */
 	function buildFlowNoteLookup(notes) {
@@ -2164,4 +2156,4 @@
 	//#endregion
 })();
 
-//# sourceMappingURL=conversion-worker-Dcnv7D0U.js.map
+//# sourceMappingURL=conversion-worker-DPEmn8d7.js.map
