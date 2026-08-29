@@ -3,7 +3,7 @@
 import { createAeroWebAudioService } from "@aerobeat/web-audio";
 import { createAeroContentRuntime } from "@aerobeat/web-content";
 import { createAeroWebContentAuthoringService } from "@aerobeat/web-content-authoring";
-import { createAeroGameplaySessionCoordinator } from "@aerobeat/web-gameplay";
+import { createAeroGameplaySessionCoordinator, createAeroPrototypeProfileRegistry } from "@aerobeat/web-gameplay";
 import { createAeroBodyGridService } from "@aerobeat/web-input";
 import { createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
 import { createAeroBeatSaverVendorService } from "@aerobeat/web-vendor-beatsaver";
@@ -43,6 +43,7 @@ export function createAeroGameServiceGraph(options = {}) {
     cv,
     input: createAeroBodyGridService({ calibrationIdPrefix: `${instanceId}-calibration` }),
     audio,
+    profiles: createAeroPrototypeProfileRegistry(),
     gameplay: createAeroGameplaySessionCoordinator({ instanceId }),
     renderer: createAeroWebGl2Renderer()
   });

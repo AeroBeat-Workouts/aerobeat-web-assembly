@@ -25,6 +25,7 @@ Each connected game exposes serializable `getSnapshot()` state and these direct 
 - `browseBeatSaver(query)`, `importBeatSaver(map, version, options)`
 - `importLocalZip(blobOrBytes, options)`, `cancelImport()`, `deletePackage(handle)`
 - `setTheme(theme)`
+- `selectPrototypeProfile(profileId)`, `importPrototypeProfiles(bundle)`, `exportPrototypeProfiles()`, `resetPrototypeProfiles()`
 - `enterFullscreen()`, `exitFullscreen()`
 - `injectCameraStream(stream, options)` for direct embeds only
 - `executeCommand(command)` for the versioned host contract
@@ -54,6 +55,12 @@ Production startup has one route:
 - 15fps inference submission ceiling
 
 Assembly has no backend selector and does not route prediction into production gameplay. Release proof rejects MoveNet, TensorFlow pose, ONNX Runtime, and ONNX model assets.
+
+## Experimental prototype profiles
+
+Each connection owns an isolated public `AeroPrototypeProfileRegistry` with exact `live_visual`, `between_run_ruleset`, and `converter_regeneration` identities. Visual profiles apply live through the renderer. Scoring profiles are locked while playing/counting down and bind only newly configured/future content between runs. Converter selection remains regeneration-required until a newly authored package carries the selected hash in source provenance, the top conversion trace, all four Boxing traces, and all four Boxing chart prototype records.
+
+Profile bundles remain direct-host data. UI controls emit scalar identity intents which the game resolves against its local registry; snapshots and iframe events expose bounded identity/hash telemetry only, never profile bundles, ZIP/audio/media, settings objects, or generated package records. All profiles are experimental and no winner is selected.
 
 ## Iframe protocol
 

@@ -6,6 +6,7 @@ import {
   isGameCommand,
   isSafeIframePayload
 } from "@aerobeat/web-contracts";
+import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { aeroUiIntentEventName, defineAeroUiElements } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
@@ -182,8 +183,9 @@ export class AeroGame extends HTMLElement {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph;
     const normalized = contentSource(source); const kind = normalized.kind;
+    let profilePackage = kind === "direct" ? packageFromEnvelope(normalized.package) : null;
     try {
-      if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
+      if (kind === "persistence") { const loaded = await graph.authoring.loadPackage(normalized.handle); profilePackage = loaded.package; await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions()); }
       else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
       else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
       else throw new TypeError("Unsupported content source kind");
@@ -191,6 +193,7 @@ export class AeroGame extends HTMLElement {
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
     try { await this.loadSelectedAudio(graph); } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+    if (profilePackage) this.synchronizeConverterProvenance(profilePackage);
     this.configureGameplayFromContent(false); this.syncContentPlayback();
     this.publish("content_changed");
     return this.getSnapshot();
@@ -210,6 +213,45 @@ export class AeroGame extends HTMLElement {
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
     this.configureGameplayFromContent(futureOnly); this.syncContentPlayback();
     this.publish("content_changed");
+    return this.getSnapshot();
+  }
+
+  /** Select one registered experimental profile by bounded ID. */
+  selectPrototypeProfile(profileId) {
+    this.assertConnected();
+    const id = boundedProfileIdentifier(profileId);
+    const before = this.graph.profiles.getSnapshot();
+    const target = before.profiles.find((profile) => profile.profileId === id);
+    if (!target) throw new Error("Prototype profile is not registered");
+    const sessionState = profileSessionState(this.graph.gameplay.getSnapshot());
+    const selected = this.graph.profiles.select(id, { sessionState });
+    if (selected.identity.class === "between_run_ruleset") this.applyActiveScoringProfile();
+    this.publish("profiles_changed");
+    return this.getSnapshot();
+  }
+
+  /** Atomically import one direct-host profile bundle. Bundles never cross iframe messaging. */
+  importPrototypeProfiles(bundle) {
+    this.assertConnected();
+    const before = this.graph.profiles.getSnapshot();
+    this.graph.profiles.importProfiles(bundle, { sessionState: profileSessionState(this.graph.gameplay.getSnapshot()) });
+    const after = this.graph.profiles.getSnapshot();
+    if (before.active.scoring.identity.contentHash !== after.active.scoring.identity.contentHash) this.applyActiveScoringProfile();
+    this.publish("profiles_changed");
+    return this.getSnapshot();
+  }
+
+  /** Export an immutable direct-host bundle. Callers keep it outside snapshots and iframe traffic. */
+  exportPrototypeProfiles() { this.assertConnected(); return this.graph.profiles.exportProfiles(); }
+
+  resetPrototypeProfiles() {
+    this.assertConnected();
+    const state = profileSessionState(this.graph.gameplay.getSnapshot());
+    if (!["idle", "calibrating", "paused_manual", "paused_tracking", "completed", "stopped"].includes(state)) throw new Error("Profile reset requires an idle, paused, or between-run session");
+    const appliedHash = this.graph.profiles.getSnapshot().appliedConverterHash;
+    this.graph.profiles.reset();
+    this.restoreAppliedConverterSelection(appliedHash);
+    this.applyActiveScoringProfile(); this.publish("profiles_changed");
     return this.getSnapshot();
   }
 
@@ -335,7 +377,7 @@ export class AeroGame extends HTMLElement {
       services: graph ? {
         vendor: graph.vendor.snapshot(), authoring: graph.authoring.getSnapshot(), content: contentTelemetry(graph.content.getSnapshot()),
         video: graph.video.describeStatus(), cv: graph.cv.getStatus(), input: graph.input.getSnapshot(), audio: graph.audio.getStatus(),
-        gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()), renderer: graph.renderer.describe()
+        profiles: profileTelemetry(graph.profiles.getSnapshot()), gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()), renderer: rendererTelemetry(graph.renderer.describe())
       } : null,
       error: this.lastError
     }, 0, 2048);
@@ -354,6 +396,7 @@ export class AeroGame extends HTMLElement {
     for (const [service, type] of [[this.graph.input, "calibration_changed"], [this.graph.content, "content_changed"], [this.graph.authoring, "import_changed"]]) {
       if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => { this.renderPresenters(); this.emitGameEvent(type, { snapshot: this.snapshotForType(type) }); }));
     }
+    this.unsubscribe.push(this.graph.profiles.subscribe(() => { this.applyActiveVisualProfile(); this.renderPresenters(); this.emitGameEvent("profiles_changed", { snapshot: profileTelemetry(this.graph.profiles.getSnapshot()) }); }));
   }
 
   bindLease() {
@@ -388,15 +431,19 @@ export class AeroGame extends HTMLElement {
   async convertAcquired(acquired, options) {
     const generation = this.connectedGeneration; const graph = this.graph;
     const raw = options === undefined ? Object.freeze({}) : safeData(options, 0, 32);
+    const converter = graph.profiles.getActive("converter_regeneration");
     let result;
     try { result = await graph.authoring.convertAndPersist(acquired.source, {
       difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"), sourceProvider: "beatsaver",
       sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
       sourceVersionHash: acquired.sourceHash,
       modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: dataValue(raw, "includeAudio") !== false,
+      converterProfile: converter.profile,
       signal: this.activeAbort.signal
     }); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
     if (!this.isCurrent(generation, graph)) return null;
+    if (!packageCarriesConverterProfile(result.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
+    graph.profiles.select(converter.profile.profileId, { sessionState: profileSessionState(graph.gameplay.getSnapshot()), regeneratedPackageProfileHash: converter.profile.contentHash });
     this.emitGameEvent("import_changed", { snapshot: result.job });
     await this.refreshLibrary(generation);
     await this.selectContent({ kind: "persistence", handle: result.handle });
@@ -424,9 +471,48 @@ export class AeroGame extends HTMLElement {
   configureGameplayFromContent(futureOnly) {
     const content = this.graph.content.getSnapshot();
     if (content.state !== "ready" || !content.selectedVariant) return;
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: { schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: "assembly-default", profileVersion: "1", contentHash: "0000000000000000000000000000000000000000000000000000000000000000", class: "between_run_ruleset", regenerationRequired: false } };
+    const scoring = this.graph.profiles.getActive("between_run_ruleset");
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else this.graph.gameplay.configureContent(configuration);
+  }
+
+  applyActiveVisualProfile() {
+    if (!this.graph) return;
+    const visual = this.graph.profiles.getActive("live_visual");
+    this.graph.renderer.importTuning({ identity: visual.identity, settings: visual.settings });
+  }
+
+  applyActiveScoringProfile() {
+    if (!this.graph) return;
+    const content = this.graph.content.getSnapshot();
+    if (content.state !== "ready" || !content.selectedVariant) return;
+    const session = this.graph.gameplay.getSnapshot().session;
+    const configured = session.packageId === content.packageId;
+    const futureOnly = configured && ["calibrating", "paused_manual", "paused_tracking"].includes(session.state);
+    this.configureGameplayFromContent(futureOnly);
+  }
+
+  synchronizeConverterProvenance(packageValue) {
+    const profile = converterProfileFromPackage(packageValue);
+    if (!profile || !packageCarriesConverterProfile(packageValue, profile)) return;
+    const snapshot = this.graph.profiles.getSnapshot();
+    const applied = snapshot.profiles.find((entry) => entry.class === "converter_regeneration" && entry.contentHash === profile.contentHash);
+    if (!applied) return;
+    const desiredId = snapshot.active.converter.profile.profileId;
+    this.graph.profiles.select(applied.profileId, { regeneratedPackageProfileHash: applied.contentHash });
+    if (desiredId !== applied.profileId) this.graph.profiles.select(desiredId);
+  }
+
+  restoreAppliedConverterSelection(appliedHash) {
+    const content = this.graph.content.getSnapshot();
+    const profile = dataValue(content.lineage, "converterProfile");
+    if (!profile || dataValue(profile, "contentHash") !== appliedHash) return;
+    const snapshot = this.graph.profiles.getSnapshot(); const desiredId = snapshot.active.converter.profile.profileId;
+    const applied = snapshot.profiles.find((entry) => entry.class === "converter_regeneration" && entry.contentHash === appliedHash);
+    if (!applied) return;
+    this.graph.profiles.select(applied.profileId, { regeneratedPackageProfileHash: appliedHash });
+    if (desiredId !== applied.profileId) this.graph.profiles.select(desiredId);
   }
 
   syncContentPlayback() {
@@ -536,7 +622,7 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-calibration-badge", input.calibration);
     setPresenter(this, "aero-tracking-pause", { active: session.state === "paused_tracking", reason: session.pauseReason, calibration: input.calibration });
     setPresenter(this, "aero-resume-countdown", gameplay.countdown ?? {});
-    setPresenter(this, "aero-prototype-selector", { variants: content.variants, selectedVariantId: content.selectedVariant?.variantId ?? null, disabled: session.state === "playing" });
+    setPresenter(this, "aero-prototype-selector", profilePresenterSnapshot(this.graph.profiles.getSnapshot(), content.selectedVariant, session.state));
     setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
     setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: content.packageId });
     setPresenter(this, "aero-beatsaver-browser", this.beatSaverView);
@@ -602,8 +688,26 @@ export class AeroGame extends HTMLElement {
     else if (detail.type === "content-import-cancel") this.cancelImport();
     else if (detail.type === "library-select") { const packageId = dataValue(detail.payload, "packageId"); const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (summary) void this.selectLibraryPackage(summary).catch((error) => this.handleError(error)); }
     else if (detail.type === "library-delete") { const packageId = dataValue(detail.payload, "packageId"); const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (handle) void this.deletePackage(handle).catch((error) => this.handleError(error)); }
-    else if (detail.type === "prototype-select") void this.selectVariant(dataValue(detail.payload, "profileId") ?? "").catch((error) => this.handleError(error));
+    else if (detail.type === "prototype-select") { const target = this.variantForPresentation(dataValue(detail.payload, "profileId")); if (target) void this.selectVariant(target.variantId).catch((error) => this.handleError(error)); }
+    else if (detail.type === "prototype-profile-select") { try { this.selectProfileFromIntent(detail.payload); } catch (error) { this.handleError(error); } }
+    else if (detail.type === "tuning-import-request") this.emitGameEvent("profile_bundle_import_requested", {});
+    else if (detail.type === "tuning-export") { try { const bundle = this.exportPrototypeProfiles(); this.emitGameEvent("profile_bundle_exported", { bundleVersion: bundle.bundleVersion, bundleHash: bundle.bundleHash, profileCount: bundle.profiles.length }); } catch (error) { this.handleError(error); } }
+    else if (detail.type === "tuning-reset") { try { this.resetPrototypeProfiles(); } catch (error) { this.handleError(error); } }
     else if (detail.type === "calibration-reset") this.reset();
+  }
+
+  variantForPresentation(value) {
+    if (typeof value !== "string") return null;
+    const variants = this.graph.content.getSnapshot().variants;
+    return variants.find((variant) => profilePresentationId(variant) === value) ?? null;
+  }
+
+  selectProfileFromIntent(payload) {
+    const profileId = dataValue(payload, "profileId"); const profileVersion = dataValue(payload, "profileVersion"); const contentHash = dataValue(payload, "contentHash"); const profileClass = dataValue(payload, "profileClass");
+    if (![profileId, profileVersion, contentHash, profileClass].every((value) => typeof value === "string")) throw new TypeError("Profile selection intent is invalid");
+    const profile = this.graph.profiles.getSnapshot().profiles.find((entry) => entry.profileId === profileId);
+    if (!profile || profile.profileVersion !== profileVersion || profile.contentHash !== contentHash || profile.class !== profileClass) throw new TypeError("Profile selection intent does not match the host registry");
+    return this.selectPrototypeProfile(profileId);
   }
 
   publish(type) { this.renderPresenters(); this.emitGameEvent(type, { snapshot: this.snapshotForType(type) }); }
@@ -621,6 +725,7 @@ export class AeroGame extends HTMLElement {
     if (type === "import_changed") return snapshot.services?.authoring ?? null;
     if (type === "calibration_changed" || type === "tracking_changed") return snapshot.services?.input ?? null;
     if (type === "session_changed" || type === "score_changed") return snapshot.services?.gameplay ?? null;
+    if (type === "profiles_changed") return snapshot.services?.profiles ?? null;
     if (type === "fullscreen_changed") return snapshot.fullscreen;
     return snapshot;
   }
@@ -657,7 +762,7 @@ export class AeroGame extends HTMLElement {
     const graph = this.graph; this.graph = null;
     if (graph) {
       try { graph.content.destroy(); } catch { /* idempotent */ } try { graph.authoring.destroy(); } catch { /* idempotent */ }
-      try { graph.input.destroy(); } catch { /* idempotent */ } try { graph.gameplay.destroy(); } catch { /* idempotent */ }
+      try { graph.input.destroy(); } catch { /* idempotent */ } try { graph.profiles.destroy(); } catch { /* idempotent */ } try { graph.gameplay.destroy(); } catch { /* idempotent */ }
       try { graph.renderer.destroy(); } catch { /* idempotent */ } try { graph.video.destroy(); } catch { /* idempotent */ }
       void graph.cv.dispose().catch(() => {}); void graph.audio.destroy().catch(() => {});
     }
@@ -688,6 +793,7 @@ function dataValue(record, key) { if (!record || typeof record !== "object") ret
 function contentSource(value) { if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) throw new TypeError("Content source must be a plain record"); const keys = Reflect.ownKeys(value); if (keys.some((key) => typeof key !== "string" || !["kind", "package", "url", "handle"].includes(key))) throw new TypeError("Content source contains unknown fields"); const kind = dataValue(value, "kind"); if (kind === "direct") return Object.freeze({ kind, package: dataValue(value, "package") }); if (kind === "external") return Object.freeze({ kind, url: boundedString(dataValue(value, "url"), "") }); if (kind === "persistence") return Object.freeze({ kind, handle: safeData(dataValue(value, "handle"), 0, 32) }); throw new TypeError("Unsupported content source kind"); }
 function boundedString(value, fallback) { return typeof value === "string" && value.length > 0 && value.length <= 1024 ? value : fallback; }
 function boundedIdentifier(value, label) { if (typeof value !== "string" || !/^[0-9a-zA-Z_-]{1,256}$/u.test(value)) throw new TypeError(`${label} is invalid`); return value; }
+function boundedProfileIdentifier(value) { if (typeof value !== "string" || value.length < 1 || value.length > 256) throw new TypeError("Prototype profile ID is invalid"); return value; }
 function stringList(value, maximum) { if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum) throw new TypeError("Expected bounded string array"); const keys = Reflect.ownKeys(value); if (keys.length !== value.length + 1 || keys.some((key) => key !== "length" && (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key) || Number(key) >= value.length))) throw new TypeError("String arrays cannot contain extra fields"); return Object.freeze(Array.from({ length: value.length }, (_, index) => { const descriptor = Object.getOwnPropertyDescriptor(value, String(index)); if (!descriptor || !("value" in descriptor) || !descriptor.enumerable || typeof descriptor.value !== "string" || descriptor.value.length > 256) throw new TypeError("Invalid string entry"); return descriptor.value; })); }
 function errorCode(error, fallback) { const code = ownDataValue(error, "code"); return typeof code === "string" && code.length <= 128 ? code : fallback; }
 function errorMessage(error) { const message = ownDataValue(error, "message"); return typeof message === "string" ? message.slice(0, 2048) : "AeroBeat operation failed"; }
@@ -708,6 +814,34 @@ function renderTarget(event) {
   return { id: event.eventId, kind: "punch", hand, family, cell: Number.isInteger(beat.spatialTarget?.targetCell) ? beat.spatialTarget.targetCell : null, cells: [], lane: hand, beatCenterMs: event.centerTimestampMs, direction: beat.spatialTarget?.entryDirection ?? null };
 }
 function flowDirection(value) { return value === 0 || value === "up" ? "up" : value === 1 || value === "right" ? "right" : value === 2 || value === "down" ? "down" : value === 3 || value === "left" ? "left" : null; }
+function profileSessionState(gameplay) { const countdown = dataValue(gameplay, "countdown"); const session = dataValue(gameplay, "session"); if (dataValue(countdown, "value") !== null && dataValue(countdown, "value") !== undefined) return "countdown"; return typeof dataValue(session, "state") === "string" ? dataValue(session, "state") : "idle"; }
+function profilePresentationId(variant) { if (dataValue(variant, "mode") === "flow") return "flow"; const semantic = String(dataValue(variant, "rulesetId") ?? "").includes("semantic"); const row = String(dataValue(variant, "recipeId") ?? "").includes("row_family"); return `${semantic ? "semantic" : "spatial"}-${row ? "row" : "cut"}`; }
+function tuningIdentity(profile, regenerationRequired) { return Object.freeze({ schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: profile.profileId, profileVersion: profile.profileVersion, contentHash: profile.contentHash, class: profile.class, regenerationRequired }); }
+function profileTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, generation: snapshot.generation, destroyed: snapshot.destroyed, bundleVersion: snapshot.bundleVersion, profileCount: snapshot.profiles.length, active: Object.freeze({ visual: snapshot.active.visual.identity, scoring: snapshot.active.scoring.identity, converter: snapshot.active.converter.identity }), appliedConverterHash: snapshot.appliedConverterHash, pendingConverterHash: snapshot.pendingConverterHash, regenerationRequired: snapshot.regenerationRequired, experimental: true }); }
+function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
+function profilePresenterSnapshot(snapshot, selectedVariant, sessionState) {
+  const classes = ["live_visual", "between_run_ruleset", "converter_regeneration"].map((profileClass) => {
+    const key = profileClass === "live_visual" ? "visual" : profileClass === "between_run_ruleset" ? "scoring" : "converter";
+    const active = snapshot.active[key];
+    const profiles = Object.freeze(snapshot.profiles.filter((profile) => profile.class === profileClass).map((profile) => tuningIdentity(profile, profileClass === "converter_regeneration" && profile.contentHash !== snapshot.appliedConverterHash)));
+    if (profileClass !== "converter_regeneration") return Object.freeze({ class: profileClass, active: active.identity, profiles, experimental: true });
+    return Object.freeze({ class: profileClass, active: active.identity, profiles, experimental: true, selectedContentHash: active.identity.contentHash, appliedContentHash: snapshot.appliedConverterHash, pendingContentHash: snapshot.pendingConverterHash, regenerationRequired: snapshot.regenerationRequired });
+  });
+  return Object.freeze({ selectedProfileId: selectedVariant ? profilePresentationId(selectedVariant) : "flow", sessionState: String(sessionState ?? "idle"), profileClasses: Object.freeze(classes) });
+}
+function packageFromEnvelope(envelope) { const value = dataValue(envelope, "package"); return value && typeof value === "object" ? value : null; }
+function converterProfileFromPackage(packageValue) { const source = dataValue(packageValue, "source"); const profile = dataValue(source, "converterProfile"); return profile && typeof profile === "object" ? profile : null; }
+function packageCarriesConverterProfile(packageValue, profile) {
+  try {
+    const expected = canonicalPrototypeProfileJson(profile); const source = dataValue(packageValue, "source"); const trace = dataValue(packageValue, "conversionTrace");
+    if (canonicalPrototypeProfileJson(dataValue(source, "converterProfile")) !== expected || canonicalPrototypeProfileJson(dataValue(trace, "converterProfile")) !== expected) return false;
+    const boxing = dataValue(trace, "boxing"); const flow = dataValue(trace, "flow"); const charts = dataValue(packageValue, "charts");
+    if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((entry) => canonicalPrototypeProfileJson(dataValue(entry, "converterProfile")) !== expected)) return false;
+    if (!Array.isArray(flow) || flow.some((entry) => dataValue(entry, "converterProfile") !== undefined)) return false;
+    const boxingCharts = Array.isArray(charts) ? charts.filter((chart) => dataValue(chart, "mode") === "boxing") : [];
+    return boxingCharts.length === 4 && boxingCharts.every((chart) => canonicalPrototypeProfileJson(dataValue(dataValue(chart, "prototype"), "converterProfile")) === expected);
+  } catch { return false; }
+}
 /** Descriptor-safe bounded clone for public snapshots/commands. */
 function safeData(value, depth, maximumItems) {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;

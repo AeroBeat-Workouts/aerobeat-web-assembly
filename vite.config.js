@@ -25,6 +25,9 @@ export default {
   resolve: {
     preserveSymlinks: true
   },
+  optimizeDeps: {
+    exclude: ["@aerobeat/web-content-authoring", "@aerobeat/web-contracts", "@aerobeat/web-gameplay", "@aerobeat/web-renderer", "@aerobeat/web-ui"]
+  },
   server: {
     allowedHosts: [tailscaleHost],
     host: "127.0.0.1",

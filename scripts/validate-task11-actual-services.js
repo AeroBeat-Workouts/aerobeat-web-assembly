@@ -1,0 +1,61 @@
+// @ts-check
+
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createAeroContentRuntime } from "@aerobeat/web-content";
+import { canonicalJson, createAeroWebContentAuthoringService, createMemoryPersistenceAdapter, prefixedSha256, prototypeReachConverterProfile } from "@aerobeat/web-content-authoring";
+import { canonicalPrototypeProfileJson, createAeroGameplaySessionCoordinator, createAeroPrototypeProfileRegistry, sha256PrototypeProfileHex } from "@aerobeat/web-gameplay";
+import { compactRendererVisualProfile, createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
+
+const matrix = JSON.parse(await readFile(new URL("../../aerobeat-web-content-authoring/fixtures/task11-source-matrix-v1.json", import.meta.url), "utf8"));
+const matrixHash = matrix.fixtureHash; const matrixBody = structuredClone(matrix); delete matrixBody.fixtureHash;
+assert.equal(await prefixedSha256(canonicalJson(matrixBody)), matrixHash);
+const replay = JSON.parse(await readFile(new URL("../../aerobeat-web-gameplay/fixtures/task11-prototype-replay-v1.json", import.meta.url), "utf8"));
+const replayHash = replay.fixtureHash; const replayBody = structuredClone(replay); delete replayBody.fixtureHash;
+assert.equal(`sha256:${sha256PrototypeProfileHex(canonicalPrototypeProfileJson(replayBody))}`, replayHash);
+assert.equal(replay.candidateMatrix.length, 5);
+const policyRegistry=createAeroPrototypeProfileRegistry();const policyBefore=policyRegistry.getSnapshot();assert.throws(()=>policyRegistry.select("aero.scoring.prototype-wide",{sessionState:"playing"}),(error)=>error?.code==="profile_change_requires_pause");assert.deepEqual(policyRegistry.getSnapshot(),policyBefore);const exported=policyRegistry.exportProfiles();const hostile=structuredClone(exported);Object.defineProperty(hostile.profiles[0],"hidden",{value:true});assert.throws(()=>policyRegistry.importProfiles(hostile));assert.deepEqual(policyRegistry.getSnapshot(),policyBefore);policyRegistry.destroy();
+
+const pathways = ["online", "direct", "local"];
+const packageHashes = {};
+for (const [formatIndex, format] of ["v2", "v3", "v4"].entries()) for (const [pathwayIndex, pathway] of pathways.entries()) {
+  const profileRegistry = createAeroPrototypeProfileRegistry();
+  profileRegistry.select(prototypeReachConverterProfile.profileId);
+  assert.equal(profileRegistry.getSnapshot().regenerationRequired, true);
+  const sourceFixture = matrix.formats[format]; const difficultyBytes = new TextEncoder().encode(JSON.stringify(sourceFixture.beatmap)); const audioBytes = Uint8Array.from([65,69,82,79,66,69,65,84,formatIndex,pathwayIndex]);
+  const difficultyHash = await prefixedSha256(difficultyBytes); const audioHash = await prefixedSha256(audioBytes);
+  const persistence = createMemoryPersistenceAdapter({ quotaBytes: 64 * 1024 * 1024 });
+  const authoring = createAeroWebContentAuthoringService({ persistence, now: () => 11 });
+  const source = sourceBundle(format, sourceFixture.sourceBeatmapVersion, difficultyBytes, audioBytes);
+  const authored = await authoring.convertAndPersist({ providerId: pathway, sourceHash: sourceFixture.sourceVersionHash, source }, {
+    difficulty: "Hard", sourceProvider: pathway, sourceId: `assembly-${pathway}-${format}`, sourceVersionHash: sourceFixture.sourceVersionHash,
+    expectedAudioContentHash: audioHash, expectedDifficultyContentHashes: { "Hard.dat": difficultyHash }, converterProfile: profileRegistry.getActive("converter_regeneration").profile, includeAudio: true
+  });
+  assertPackageProfile(authored.package, prototypeReachConverterProfile);
+  profileRegistry.select(prototypeReachConverterProfile.profileId, { regeneratedPackageProfileHash: prototypeReachConverterProfile.contentHash });
+  assert.equal(profileRegistry.getSnapshot().regenerationRequired, false);
+  const audioPath=authored.package.song.audio.filePath;const persistedAudio=await authoring.readAsset(authored.handle,audioPath);const declaredHash=`sha256:${authored.handle.packageHash.value}`;
+  const content = pathway === "local" ? createAeroContentRuntime({ persistenceResolver: { loadPackage: (handle) => authoring.loadPackage(handle), readAsset: (handle, path) => authoring.readAsset(handle, path), exportPackage: (handle) => authoring.exportPackage(handle) } }) : pathway === "online" ? createAeroContentRuntime({ fetch: async (url) => String(url).endsWith("package.json") ? new Response(JSON.stringify({package:authored.package,packageHash:declaredHash,assets:[{path:audioPath,url:"https://assembly.invalid/song.ogg"}]}),{status:200,headers:{"content-type":"application/json"}}) : new Response(persistedAudio,{status:200}) }) : createAeroContentRuntime();
+  if(pathway==="local")await content.loadPersistenceHandle(authored.handle);else if(pathway==="online")await content.loadExternalPackage("https://assembly.invalid/package.json");else await content.loadPackage({package:authored.package,packageHash:declaredHash,assets:[{path:audioPath,bytes:persistedAudio}]});
+  assert.equal(content.getSnapshot().variants.length, 5);
+  for (const variant of content.getSnapshot().variants) { await content.selectVariant(variant.variantId); assert.equal(content.getSnapshot().selectedVariant.variantId, variant.variantId); }
+  const renderer = createAeroWebGl2Renderer(); renderer.importTuning(compactRendererVisualProfile); assert.equal(renderer.describe().visualProfileIdentity.profileId, "aero.visual.compact"); renderer.destroy();
+  packageHashes[`${pathway}:${format}`] = authored.handle.packageHash.value;
+  content.destroy(); authoring.destroy(); profileRegistry.destroy();
+}
+
+const semanticRow=replay.candidateMatrix.find((entry) => entry.id === "semantic-row");assertSameVariantGenerationScoring(semanticRow);assertShadowIsolation(semanticRow);
+assert.equal(Object.keys(packageHashes).length, 9);
+console.log(`Task 11 actual-service matrix passed: source=${matrixHash} replay=${replayHash} packages=${JSON.stringify(packageHashes)}`);
+
+function sourceBundle(format, version, difficultyBytes, audio) { const entries = new Map([["Hard.dat", Uint8Array.from(difficultyBytes)], ["song.ogg", Uint8Array.from(audio)]]); return Object.freeze({ manifest: Object.freeze({ schemaId:"aerobeat.beatsaver-source.v1",sourceFormatMajor:Number(format.slice(1)),infoPath:"Info.dat",songName:`Assembly ${format}`,songAuthorName:"AeroBeat",levelAuthorName:"AeroBeat",bpm:120,audioPath:"song.ogg",sourceBeatmapVersion:version,difficulties:Object.freeze([Object.freeze({characteristic:"Standard",difficulty:"Hard",path:"Hard.dat"})]) }), listEntryPaths(){return Object.freeze(["Hard.dat","song.ogg"])}, readEntry(path){const value=entries.get(path);if(!value)throw new Error("missing synthetic entry");return Uint8Array.from(value)} }); }
+function assertPackageProfile(packageValue, profile) { const expected=canonicalJson(profile); assert.equal(canonicalJson(packageValue.source.converterProfile),expected);assert.equal(canonicalJson(packageValue.conversionTrace.converterProfile),expected);assert.equal(packageValue.conversionTrace.boxing.length,4);assert.equal(packageValue.conversionTrace.boxing.every((entry)=>canonicalJson(entry.converterProfile)===expected),true);assert.equal(packageValue.conversionTrace.flow.every((entry)=>entry.converterProfile===undefined),true);const boxing=packageValue.charts.filter((entry)=>entry.mode==="boxing");assert.equal(boxing.length,4);assert.equal(boxing.every((entry)=>canonicalJson(entry.prototype.converterProfile)===expected),true); }
+function hash(){return{schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:"a".repeat(64)}}
+function variant(candidate,chartId=candidate.chartId??`chart-${candidate.id}`){return{variantId:candidate.id,chartId,mode:candidate.mode,rulesetId:candidate.rulesetId,recipeId:candidate.recipeId,modifierIds:[],ranked:false,mapHash:hash(),scoreIdentityHash:hash(),provenance:{baseVariantId:candidate.id}}}
+function event(candidate,eventId,time,type,chartId=candidate.chartId??`chart-${candidate.id}`){return{schema:"aerobeat/resolved_content_event",version:1,eventId,variantId:candidate.id,chartId,centerTimestampMs:time,sourceEventIds:[`source-${eventId}`],type,checkpoint:{kind:"instantaneous",noseSafeCells:[1]}}}
+function scoring(id){const registry=createAeroPrototypeProfileRegistry();registry.select(id,{sessionState:"idle"});return registry.getActive("between_run_ruleset")}
+function config(candidate,events,scoringId,chartId=candidate.chartId??`chart-${candidate.id}`){const selected=scoring(scoringId);return{packageId:"assembly-generation-package",selectedVariant:variant(candidate,chartId),resolvedEvents:events,profileIdentity:selected.identity,scoringSettings:selected.settings}}
+function input(measured,actions){return{calibration:{calibrationId:"cal-1",readiness:"countdown"},tracking:{gameplayPaused:false,freshCalibrationRequired:false},countdownFrozen:false,latestEvidence:{schema:"aerobeat/gameplay_evidence_snapshot",version:1,calibrationId:"cal-1",measuredSourceFrameId:`frame-${measured}`,measurementTimestampMs:measured,provenance:"measured",activeBoxingActions:actions,anchors:[],entries:[]},straightQualifications:[]}}
+function clock(positionMs,playing){return{contextTimeSeconds:positionMs/1000,durationSeconds:undefined,positionSeconds:positionMs/1000,playing}}
+function assertShadowIsolation(candidate){const coordinator=createAeroGameplaySessionCoordinator({sessionId:"assembly-shadow"});const shadow={...variant(candidate,"chart-shadow"),variantId:"shadow",chartId:"chart-shadow",resolvedEvents:[event({...candidate,id:"shadow"},"shadow-hit",1000,"hook_left","chart-shadow")]};const configuration={...config(candidate,[event(candidate,"live-miss",2000,"hook_right")],"aero.scoring.locked"),shadowVariants:[shadow]};coordinator.configureContent(configuration);coordinator.advance({timestampMs:0,clock:clock(0,false),input:{...input(0,[]),latestEvidence:null}});coordinator.requestStart(0);for(const timestampMs of [1000,2000,3000])coordinator.advance({timestampMs,clock:clock(0,false)});coordinator.advance({timestampMs:4000,clock:clock(1000,true),input:input(4000,["hook_left"])});assert.equal(coordinator.getSnapshot().shadowJudgements[0]?.result,"hit");assert.equal(coordinator.getScorePartitions().reduce((sum,entry)=>sum+entry.hits,0),0);coordinator.destroy();}
+function assertSameVariantGenerationScoring(candidate){const coordinator=createAeroGameplaySessionCoordinator({sessionId:"assembly-same-variant"});const oldChart=candidate.chartId??`chart-${candidate.id}`,newChart=`${oldChart}-revised`;coordinator.configureContent(config(candidate,[event(candidate,"old-active",3000,"squat",oldChart),event(candidate,"old-replaceable",4000,"weave_right",oldChart)],"aero.scoring.prototype-wide",oldChart));coordinator.advance({timestampMs:0,clock:clock(0,false),input:{...input(0,[]),latestEvidence:null}});coordinator.requestStart(0);for(const timestampMs of [1000,2000,3000])coordinator.advance({timestampMs,clock:clock(0,false)});coordinator.setActiveEventIds(["old-active"]);coordinator.pause(3200);coordinator.applyFutureContent(config(candidate,[event(candidate,"old-active",3000,"weave_right",newChart),event(candidate,"new-distinct",3000,"weave_left",newChart),event(candidate,"old-replaceable",3500,"weave_right",newChart)],"aero.scoring.locked",newChart));coordinator.resume(3300);for(const timestampMs of [4300,5300,6300])coordinator.advance({timestampMs,clock:clock(0,false)});coordinator.advance({timestampMs:8300,clock:clock(3000,true),input:input(8300,["squat","weave_left"])});coordinator.advance({timestampMs:8800,clock:clock(3500,true),input:input(8800,["weave_right"])});const oldPartition=coordinator.getScorePartitions().find((entry)=>entry.profileId==="aero.scoring.prototype-wide"),nextPartition=coordinator.getScorePartitions().find((entry)=>entry.profileId==="aero.scoring.locked");assert.equal(oldPartition?.score,1.25);assert.equal(nextPartition?.score,2);assert.equal(oldPartition?.chartId,oldChart);assert.equal(nextPartition?.chartId,newChart);assert.equal(coordinator.getJudgements().filter((entry)=>entry.eventId==="old-active").length,1);assert.equal(coordinator.getSnapshot().shadowJudgements.length,0);coordinator.destroy();}

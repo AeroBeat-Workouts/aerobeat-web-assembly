@@ -646,6 +646,2590 @@ function isIframeMessage(value) {
 	return true;
 }
 //#endregion
+//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/service-ids.js
+/**
+* Canonical AeroBeat web service IDs.
+*
+* @type {Readonly<{
+*   audioClock: "aero.audio.clock",
+*   videoMedia: "aero.video.media",
+*   cvPose: "aero.cv.pose",
+*   inputRouter: "aero.input.router",
+*   bodyGrid: "aero.input.body-grid",
+*   beatSaverVendor: "aero.vendor.beatsaver",
+*   contentAuthoring: "aero.content.authoring",
+*   contentLibrary: "aero.content.library",
+*   gameplaySession: "aero.gameplay.session",
+*   prototypeProfiles: "aero.gameplay.prototype-profiles",
+*   mediaLease: "aero.assembly.media-lease",
+*   rendererWebgl2: "aero.renderer.webgl2",
+*   uiRouter: "aero.ui.router",
+*   performancePolicy: "aero.performance.policy"
+* }>}
+*/
+var serviceIds$3 = Object.freeze({
+	audioClock: "aero.audio.clock",
+	videoMedia: "aero.video.media",
+	cvPose: "aero.cv.pose",
+	inputRouter: "aero.input.router",
+	bodyGrid: "aero.input.body-grid",
+	beatSaverVendor: "aero.vendor.beatsaver",
+	contentAuthoring: "aero.content.authoring",
+	contentLibrary: "aero.content.library",
+	gameplaySession: "aero.gameplay.session",
+	prototypeProfiles: "aero.gameplay.prototype-profiles",
+	mediaLease: "aero.assembly.media-lease",
+	rendererWebgl2: "aero.renderer.webgl2",
+	uiRouter: "aero.ui.router",
+	performancePolicy: "aero.performance.policy"
+});
+Object.freeze({
+	uiNavigate: "aero:ui:navigate",
+	cvPoseFrame: "aero:cv:pose-frame",
+	audioClockTick: "aero:audio:clock-tick",
+	inputBoxingIntent: "aero:input:boxing-intent",
+	inputFlowIntent: "aero:input:flow-intent",
+	bodyGridChanged: "aero:input:body-grid-changed",
+	calibrationChanged: "aero:input:calibration-changed",
+	trackingSafetyChanged: "aero:input:tracking-safety-changed",
+	beatSaverResults: "aero:beatsaver:results",
+	contentImportChanged: "aero:content:import-changed",
+	contentChartLoaded: "aero:content:chart-loaded",
+	contentVariantChanged: "aero:content:variant-changed",
+	gameplaySessionChanged: "aero:gameplay:session-changed",
+	gameplayScoreChange: "aero:gameplay:score-change",
+	gameplayJudgement: "aero:gameplay:judgement",
+	countdownChanged: "aero:gameplay:countdown-changed",
+	mediaLeaseChanged: "aero:assembly:media-lease-changed",
+	gameCommand: "aero:game:command",
+	gameEvent: "aero:game:event"
+});
+Object.freeze({
+	game: "aero-game",
+	iconButton: "aero-icon-button",
+	calibrationBadge: "aero-calibration-badge",
+	calibrationScreen: "aero-calibration-screen",
+	gridPlayfield: "aero-grid-playfield",
+	flowHud: "aero-flow-hud",
+	boxingTrackHud: "aero-boxing-track-hud",
+	boxingSpatialHud: "aero-boxing-spatial-hud",
+	trackingPause: "aero-tracking-pause",
+	countdown: "aero-resume-countdown",
+	prototypeSelector: "aero-prototype-selector",
+	beatSaverBrowser: "aero-beatsaver-browser",
+	contentImportProgress: "aero-content-import-progress",
+	contentLibrary: "aero-content-library",
+	fullscreenButton: "aero-fullscreen-button"
+});
+//#endregion
+//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/contract-guards.js
+/**
+* @param {unknown} value
+* @returns {value is Readonly<Record<string, unknown>>}
+*/
+function isRecord$9(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+/**
+* Require a plain record to contain exactly the declared own enumerable keys.
+* Payload records remain the versioned extension point; contract envelopes do not.
+*
+* @param {unknown} value
+* @param {readonly string[]} expectedKeys
+* @returns {value is Readonly<Record<string, unknown>>}
+*/
+function hasExactKeys$5(value, expectedKeys) {
+	if (!isRecord$9(value)) return false;
+	const keys = Reflect.ownKeys(value);
+	return keys.length === expectedKeys.length && keys.every((key) => {
+		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
+	});
+}
+/**
+* @param {unknown} value
+* @returns {value is number}
+*/
+function isFiniteNumber$4(value) {
+	return typeof value === "number" && Number.isFinite(value);
+}
+/**
+* @param {unknown} value
+* @returns {value is number}
+*/
+function isNonNegativeFiniteNumber$3(value) {
+	return isFiniteNumber$4(value) && value >= 0;
+}
+/**
+* @param {unknown} value
+* @returns {value is string}
+*/
+function isNonEmptyString$4(value) {
+	return typeof value === "string" && value.length > 0;
+}
+/**
+* @param {unknown} value
+* @returns {value is number}
+*/
+function isNormalizedNumber(value) {
+	return isFiniteNumber$4(value) && value >= 0 && value <= 1;
+}
+/**
+* @template {string} T
+* @param {unknown} value
+* @param {readonly T[]} allowed
+* @returns {value is T}
+*/
+function isOneOf$2(value, allowed) {
+	return typeof value === "string" && allowed.includes(value);
+}
+Object.freeze([
+	"camera_preview_top_left",
+	"gameplay_camera_bottom_left",
+	"athlete_top_left",
+	"playfield_top_left"
+]);
+Object.freeze({
+	schema: "aerobeat/grid_descriptor",
+	version: 1,
+	id: "athlete_body_4x3",
+	columns: 4,
+	rows: 3,
+	coordinateSpace: "athlete_top_left",
+	indexing: "top_left_row_major",
+	horizontallyOpposedToCamera: true
+});
+Object.freeze({
+	schema: "aerobeat/grid_descriptor",
+	version: 1,
+	id: "athlete_body_8x6",
+	columns: 8,
+	rows: 6,
+	coordinateSpace: "athlete_top_left",
+	indexing: "top_left_row_major",
+	horizontallyOpposedToCamera: true
+});
+Object.freeze({
+	schema: "aerobeat/grid_descriptor",
+	version: 1,
+	id: "gameplay_playfield_4x3",
+	columns: 4,
+	rows: 3,
+	coordinateSpace: "playfield_top_left",
+	indexing: "top_left_row_major",
+	horizontallyOpposedToCamera: false
+});
+Object.freeze(["measured", "predicted"]);
+Object.freeze({
+	idle: "idle",
+	loading: "loading",
+	ready: "ready",
+	failed: "failed",
+	disposed: "disposed"
+});
+//#endregion
+//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/body-grid-contracts.js
+/**
+* @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
+*/
+/**
+* @typedef {"up" | "right" | "down" | "left"} AeroCardinalDirection
+*/
+/**
+* @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
+*/
+/**
+* @typedef {"not_ready" | "calibration_required" | "countdown" | "ready" | "paused_tracking" | "paused_manual" | "destroyed"} AeroReadinessState
+*/
+/**
+* @typedef {Object} AeroCalibratedBounds
+* @property {number} left Athlete-space left edge.
+* @property {number} top Athlete-space top edge.
+* @property {number} right Athlete-space right edge.
+* @property {number} bottom Athlete-space bottom edge.
+*/
+/**
+* @typedef {Object} AeroBodyGridAnchorSnapshot
+* @property {"aerobeat/body_grid_anchor_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
+* @property {string} calibrationId Calibration generation identity.
+* @property {number} measurementTimestampMs Latest real measurement timestamp.
+* @property {boolean} valid Whether this measured anchor is gameplay-valid.
+* @property {number} confidence Normalized measured confidence.
+* @property {number} rawX Unclamped athlete-space X.
+* @property {number} rawY Unclamped athlete-space Y.
+* @property {number | null} x Normalized athlete-space X when valid.
+* @property {number | null} y Normalized athlete-space Y when valid.
+* @property {number | null} cell Top-left row-major 4x3 scoring cell, or null outside the grid.
+* @property {number | null} subcell Top-left row-major 8x6 diagnostic/scoring subcell, or null outside the grid.
+*/
+/**
+* @typedef {Object} AeroBodyGridCellEntry
+* @property {"aerobeat/body_grid_cell_entry"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
+* @property {string} calibrationId Calibration generation identity.
+* @property {number} measurementTimestampMs Real measurement timestamp.
+* @property {number} fromCell In-grid source cell.
+* @property {number} toCell In-grid destination cell.
+* @property {AeroCardinalDirection} direction Cardinal athlete-space entry direction.
+* @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
+*/
+/**
+* @typedef {Object} AeroCalibrationSnapshot
+* @property {"aerobeat/calibration_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {AeroCalibrationState} state Calibration lifecycle state.
+* @property {AeroReadinessState} readiness Gameplay readiness state.
+* @property {string | null} calibrationId Current calibration generation.
+* @property {number} timestampMs Snapshot timestamp.
+* @property {number} holdDurationMs Required qualified hold duration.
+* @property {number} holdProgressMs Current qualified hold progress.
+* @property {number} cooldownRemainingMs Cooldown remaining after completion.
+* @property {boolean} releaseRequired Whether T-pose release is required before refire.
+* @property {AeroCalibratedBounds | null} bounds Atomically published athlete-space bounds.
+* @property {import("./coordinate-spaces.js").AeroGridDescriptor} grid Public 4x3 athlete grid.
+* @property {import("./coordinate-spaces.js").AeroGridDescriptor} subgrid Public 8x6 athlete subgrid.
+* @property {string | null} invalidationReason Null or stable invalidation reason.
+*/
+/**
+* @typedef {Object} AeroTrackingSafetySnapshot
+* @property {"aerobeat/tracking_safety_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {number} timestampMs Snapshot timestamp.
+* @property {number} lossThresholdMs Sustained loss duration that pauses gameplay.
+* @property {number} lossDurationMs Current sustained loss duration.
+* @property {boolean} allRequiredAnchorsVisible Whether all seven required anchors pass confidence.
+* @property {boolean} gameplayPaused Whether tracking safety currently pauses gameplay.
+* @property {boolean} freshCalibrationRequired Whether pause exit requires new calibration.
+*/
+/** @type {readonly AeroUpperBodyAnchorName[]} */
+var upperBodyAnchorNames$5 = Object.freeze([
+	"nose",
+	"left_shoulder",
+	"right_shoulder",
+	"left_elbow",
+	"right_elbow",
+	"left_wrist",
+	"right_wrist"
+]);
+/** @type {readonly AeroCardinalDirection[]} */
+var cardinalDirections$5 = Object.freeze([
+	"up",
+	"right",
+	"down",
+	"left"
+]);
+Object.freeze([
+	"uncalibrated",
+	"holding",
+	"cooldown",
+	"calibrated",
+	"recalibrating",
+	"tracking_lost",
+	"invalidated"
+]);
+/** @type {readonly AeroReadinessState[]} */
+var readinessStates$5 = Object.freeze([
+	"not_ready",
+	"calibration_required",
+	"countdown",
+	"ready",
+	"paused_tracking",
+	"paused_manual",
+	"destroyed"
+]);
+Object.freeze({
+	requiredConfidence: .5,
+	holdDurationMs: 4e3,
+	cooldownDurationMs: 4e3,
+	trackingLossPauseMs: 500,
+	wristElbowVerticalRatio: .35,
+	minimumElbowAngleDeg: 130
+});
+/**
+* @param {unknown} value
+* @returns {value is AeroBodyGridAnchorSnapshot}
+*/
+function isBodyGridAnchorSnapshot(value) {
+	if (!isRecord$9(value)) return false;
+	const valid = typeof value.valid === "boolean" ? value.valid : false;
+	const normalizedPosition = valid ? isNormalizedNumber(value.rawX) && isNormalizedNumber(value.rawY) && isNormalizedNumber(value.x) && isNormalizedNumber(value.y) : (value.x === null || isNormalizedNumber(value.x)) && (value.y === null || isNormalizedNumber(value.y));
+	const nullableCell = value.cell === null || Number.isInteger(value.cell) && Number(value.cell) >= 0 && Number(value.cell) < 12;
+	const nullableSubcell = value.subcell === null || Number.isInteger(value.subcell) && Number(value.subcell) >= 0 && Number(value.subcell) < 48;
+	const invalidHasNoScoringCell = valid || value.cell === null && value.subcell === null;
+	return value.schema === "aerobeat/body_grid_anchor_snapshot" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && typeof value.valid === "boolean" && isNormalizedNumber(value.confidence) && isFiniteNumber$4(value.rawX) && isFiniteNumber$4(value.rawY) && normalizedPosition && nullableCell && nullableSubcell && invalidHasNoScoringCell && (!valid || value.x !== null && value.y !== null);
+}
+/**
+* @param {unknown} value
+* @returns {value is AeroBodyGridCellEntry}
+*/
+function isBodyGridCellEntry(value) {
+	return isRecord$9(value) && value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && isOneOf$2(value.direction, cardinalDirections$5) && value.provenance === "measured";
+}
+Object.freeze([
+	"idle",
+	"selecting_content",
+	"calibrating",
+	"countdown",
+	"playing",
+	"paused_manual",
+	"paused_tracking",
+	"completed",
+	"error",
+	"destroyed"
+]);
+Object.freeze([
+	"initial_start",
+	"manual_resume",
+	"tracking_resume",
+	"content_change"
+]);
+/** @type {readonly ("camera" | "audio")[]} */
+var mediaLeaseResources$3 = Object.freeze(["camera", "audio"]);
+/**
+* @param {unknown} value
+* @returns {value is AeroMediaLeaseSnapshot}
+*/
+function isMediaLeaseSnapshot(value) {
+	return hasExactKeys$5(value, [
+		"schema",
+		"version",
+		"ownerInstanceId",
+		"generation",
+		"state",
+		"resources"
+	]) && value.schema === "aerobeat/media_lease_snapshot" && value.version === 1 && (value.ownerInstanceId === null || isNonEmptyString$4(value.ownerInstanceId)) && Number.isInteger(value.generation) && Number(value.generation) >= 0 && (value.state === "idle" || value.state === "transferring" || value.state === "owned") && Array.isArray(value.resources) && value.resources.every((item) => mediaLeaseResources$3.includes(item)) && new Set(value.resources).size === value.resources.length;
+}
+//#endregion
+//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/gameplay-contracts.js
+/**
+* @typedef {"flow_grid_v1" | "boxing_semantic_track_v1" | "boxing_spatial_grid_v1"} AeroRulesetId
+*/
+/**
+* @typedef {"row_family_balanced_height_v1" | "cut_family_source_height_v1"} AeroConversionRecipeId
+*/
+/**
+* @typedef {"straight_left" | "straight_right" | "hook_left" | "hook_right" | "uppercut_left" | "uppercut_right" | "guard" | "crossed_guard" | "squat" | "weave_left" | "weave_right"} AeroBoxingAction
+*/
+/**
+* @typedef {"no_input" | "stale_input" | "wrong_cell" | "wrong_subcell" | "wrong_direction" | "qualification_too_short" | "tracking_invalid" | "calibration_mismatch" | "timing_miss" | "blocked_overlap" | "action_consumed"} AeroJudgementDiagnosticCode
+*/
+/**
+* @typedef {Object} AeroGameplayEvidenceSnapshot
+* @property {"aerobeat/gameplay_evidence_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} calibrationId Calibration generation.
+* @property {string} measuredSourceFrameId Real source-frame identity.
+* @property {number} measurementTimestampMs Real measurement timestamp.
+* @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
+* @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cardinal cell entries.
+*/
+/**
+* @typedef {Object} AeroGameplayJudgement
+* @property {"aerobeat/gameplay_judgement"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} eventId Authored event identity.
+* @property {AeroRulesetId} rulesetId Ruleset identity.
+* @property {AeroConversionRecipeId | null} recipeId Recipe identity when generated.
+* @property {"hit" | "miss" | "ignored"} result Binary prototype result or non-scoring ignored event.
+* @property {number} beatCenterTimestampMs Event center timestamp.
+* @property {number | null} evidenceTimestampMs Consumed evidence timestamp.
+* @property {number | null} timingOffsetMs Evidence minus beat center.
+* @property {readonly AeroJudgementDiagnosticCode[]} diagnostics Detailed diagnostics.
+* @property {boolean} shadow Whether this judgement is diagnostic-only.
+*/
+/**
+* @typedef {Object} AeroPrototypeTuningIdentityBase
+* @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} profileId Stable bounded profile ID.
+* @property {string} profileVersion Stable bounded profile version.
+* @property {string} contentHash Bare lowercase SHA-256 content hash.
+*/
+/**
+* A converter identity is pending when `regenerationRequired` is true and
+* applied when the owning registry has matched generated-package provenance
+* and emits false. Visual and scoring identities are always live/applied.
+*
+* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
+*/
+/** @type {readonly AeroRulesetId[]} */
+var rulesetIds$5 = Object.freeze([
+	"flow_grid_v1",
+	"boxing_semantic_track_v1",
+	"boxing_spatial_grid_v1"
+]);
+/** @type {readonly AeroConversionRecipeId[]} */
+var conversionRecipeIds$5 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
+/** @type {readonly AeroBoxingAction[]} */
+var boxingActions$5 = Object.freeze([
+	"straight_left",
+	"straight_right",
+	"hook_left",
+	"hook_right",
+	"uppercut_left",
+	"uppercut_right",
+	"guard",
+	"crossed_guard",
+	"squat",
+	"weave_left",
+	"weave_right"
+]);
+Object.freeze([
+	"no_input",
+	"stale_input",
+	"wrong_cell",
+	"wrong_subcell",
+	"wrong_direction",
+	"qualification_too_short",
+	"tracking_invalid",
+	"calibration_mismatch",
+	"timing_miss",
+	"blocked_overlap",
+	"action_consumed"
+]);
+var prototypeJudgementDefaults$5 = Object.freeze({
+	timingWindowBeforeMs: 180,
+	timingWindowAfterMs: 180,
+	checkpointFreshnessMs: 150,
+	straightQualificationMs: 100,
+	straightContinuityGapMs: 150,
+	minimumPunchSpacingMs: 360
+});
+/**
+* @param {unknown} value
+* @returns {value is AeroGameplayEvidenceSnapshot}
+*/
+function isGameplayEvidenceSnapshot(value) {
+	return isRecord$9(value) && value.schema === "aerobeat/gameplay_evidence_snapshot" && value.version === 1 && isNonEmptyString$4(value.calibrationId) && isNonEmptyString$4(value.measuredSourceFrameId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && value.provenance === "measured" && Array.isArray(value.activeBoxingActions) && value.activeBoxingActions.every((item) => isOneOf$2(item, boxingActions$5)) && Array.isArray(value.anchors) && value.anchors.every(isBodyGridAnchorSnapshot) && Array.isArray(value.entries) && value.entries.every(isBodyGridCellEntry);
+}
+/**
+* @param {unknown} value
+* @returns {value is AeroPrototypeTuningIdentity}
+*/
+function isPrototypeTuningIdentity$1(value) {
+	return hasExactKeys$5(value, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString$1(value.profileId, 256) && isBoundedNonEmptyString$1(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf$2(value.class, [
+		"live_visual",
+		"between_run_ruleset",
+		"converter_regeneration"
+	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
+}
+/** @param {unknown} value @param {number} maximum */
+function isBoundedNonEmptyString$1(value, maximum) {
+	return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+Object.freeze([
+	"no_squats",
+	"no_weaves",
+	"any_punch",
+	"crossed_guard",
+	"cross_body"
+]);
+/**
+* @param {unknown} value
+* @returns {value is AeroContentHash}
+*/
+function isContentHash$3(value) {
+	if (!hasExactKeys$5(value, [
+		"schema",
+		"version",
+		"algorithm",
+		"value"
+	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
+	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
+	if (typeof value.value !== "string") return false;
+	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
+	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
+}
+Object.freeze([
+	"queued",
+	"acquiring",
+	"inspecting",
+	"converting",
+	"validating",
+	"persisting",
+	"complete",
+	"cancelled",
+	"failed"
+]);
+Object.freeze([
+	"leftHandColor",
+	"rightHandColor",
+	"guardColor",
+	"obstacleColor",
+	"receptorColor",
+	"approachLeadMs",
+	"targetStartScale",
+	"targetHitScale",
+	"approachEasing",
+	"hitEasing",
+	"missEasing"
+]);
+Object.freeze([
+	"default",
+	"playlist",
+	"song",
+	"athlete"
+]);
+Object.freeze([
+	"configure",
+	"start",
+	"pause",
+	"resume",
+	"stop",
+	"reset_calibration",
+	"request_fullscreen",
+	"select_content",
+	"select_variant",
+	"browse_beatsaver",
+	"import_beatsaver",
+	"import_local_zip",
+	"cancel_import",
+	"delete_package",
+	"set_theme",
+	"destroy"
+]);
+Object.freeze([
+	"ready",
+	"capabilities_changed",
+	"calibration_changed",
+	"tracking_changed",
+	"session_changed",
+	"score_changed",
+	"content_changed",
+	"beatsaver_results",
+	"import_changed",
+	"fullscreen_changed",
+	"error",
+	"destroyed"
+]);
+Object.freeze({
+	schema: "aerobeat/asset_policy",
+	version: 1,
+	requireChartHash: true,
+	requireAudioHash: true,
+	requireExternalAudioCors: true,
+	requireSampledMediaCors: true,
+	cosmeticBackgroundFailure: "fallback",
+	criticalAssetFailure: "block_startup"
+});
+Object.freeze([
+	"handshake_request",
+	"handshake_ack",
+	"command",
+	"event",
+	"error",
+	"disconnect"
+]);
+Object.freeze({
+	schema: "aerobeat/iframe_message",
+	version: 1,
+	target: "immediate_parent",
+	rawMediaAllowed: false
+});
+Object.freeze([
+	"audioBytes",
+	"frame",
+	"frames",
+	"imageBitmap",
+	"mediaStream",
+	"mediaStreamTrack",
+	"pixels",
+	"rawAudio",
+	"rawFrame",
+	"rawFrames",
+	"screenshot",
+	"videoFrame",
+	"zipBytes"
+]);
+//#endregion
+//#region node_modules/@aerobeat/web-gameplay/src/data.js
+/** @typedef {Readonly<Record<string, unknown>>} DataRecord */
+var MAX_DEPTH = 12;
+var MAX_ITEMS = 4096;
+var MAX_KEYS = 256;
+var MAX_STRING = 8192;
+/**
+* Clone untrusted JSON-like data without invoking getters or coercion hooks.
+*
+* @param {unknown} value
+* @param {string} [code]
+* @param {number} [maximumItems]
+* @returns {unknown}
+*/
+function cloneGameplayData(value, code = "gameplay_data_invalid", maximumItems = MAX_ITEMS) {
+	if (!Number.isSafeInteger(maximumItems) || maximumItems <= 0 || maximumItems > 15e5) throw gameplayError(code, "Gameplay item limit is invalid");
+	let items = 0;
+	return clone(value, 0);
+	/** @param {unknown} entry @param {number} depth @returns {unknown} */
+	function clone(entry, depth) {
+		if (depth > MAX_DEPTH || items > maximumItems) throw gameplayError(code, "Gameplay data exceeds structural limits");
+		if (entry === null || typeof entry === "boolean") return entry;
+		if (typeof entry === "number") {
+			if (!Number.isFinite(entry)) throw gameplayError(code, "Gameplay numbers must be finite");
+			return Object.is(entry, -0) ? 0 : entry;
+		}
+		if (typeof entry === "string") {
+			if (entry.length > MAX_STRING) throw gameplayError(code, "Gameplay strings exceed the length limit");
+			return entry;
+		}
+		if (Array.isArray(entry)) {
+			if (Reflect.ownKeys(entry).some((key) => typeof key !== "string" || key !== "length" && !/^(0|[1-9][0-9]*)$/u.test(key))) throw gameplayError(code, "Gameplay arrays cannot contain symbolic or named properties");
+			const lengthDescriptor = Object.getOwnPropertyDescriptor(entry, "length");
+			if (!lengthDescriptor || !("value" in lengthDescriptor) || !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0 || lengthDescriptor.value > maximumItems) throw gameplayError(code, "Gameplay arrays exceed the item limit");
+			const length = lengthDescriptor.value;
+			items += length;
+			if (items > maximumItems) throw gameplayError(code, "Gameplay data exceeds structural limits");
+			const result = [];
+			for (let index = 0; index < length; index += 1) {
+				const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
+				if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError(code, "Gameplay arrays cannot contain accessors or holes");
+				result.push(clone(descriptor.value, depth + 1));
+			}
+			return Object.freeze(result);
+		}
+		if (!isPlainRecord$3(entry)) throw gameplayError(code, "Gameplay data must contain plain records only");
+		const keys = Reflect.ownKeys(entry);
+		if (keys.length > MAX_KEYS || keys.some((key) => typeof key !== "string")) throw gameplayError(code, "Gameplay records exceed key limits or contain symbols");
+		items += keys.length;
+		if (items > maximumItems) throw gameplayError(code, "Gameplay data exceeds structural limits");
+		/** @type {Record<string, unknown>} */
+		const result = {};
+		for (const keyValue of keys) {
+			const key = keyValue;
+			if (key.length > 256) throw gameplayError(code, "Gameplay record keys exceed the length limit");
+			const descriptor = Object.getOwnPropertyDescriptor(entry, key);
+			if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError(code, "Gameplay records cannot contain accessors or hidden properties");
+			result[key] = clone(descriptor.value, depth + 1);
+		}
+		return Object.freeze(result);
+	}
+}
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isPlainRecord$3(value) {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+/**
+* Read only an exact set of top-level own data fields without traversing values.
+* This is used for transport envelopes whose documented optional values may be undefined.
+*
+* @param {unknown} value
+* @param {string} code
+* @param {readonly string[]} allowedKeys
+* @returns {DataRecord}
+*/
+function requireDataRecordFields(value, code, allowedKeys) {
+	if (!isPlainRecord$3(value)) throw gameplayError(code, "Expected a plain record");
+	const allowed = new Set(allowedKeys);
+	const keys = Reflect.ownKeys(value);
+	if (keys.some((key) => typeof key !== "string" || !allowed.has(key))) throw gameplayError(code, "Record contains unknown or symbolic fields");
+	/** @type {Record<string, unknown>} */
+	const result = {};
+	for (const keyValue of keys) {
+		const key = keyValue;
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError(code, "Record cannot contain accessors or hidden fields");
+		result[key] = descriptor.value;
+	}
+	return Object.freeze(result);
+}
+/** @param {unknown} value @param {string} code @param {number} [maximumItems] @returns {DataRecord} */
+function requireRecord$3(value, code, maximumItems) {
+	if (!isPlainRecord$3(value)) throw gameplayError(code, "Expected a plain record");
+	return cloneGameplayData(value, code, maximumItems);
+}
+/** @param {unknown} value @param {string} code @returns {string} */
+function requireString$1(value, code) {
+	if (typeof value !== "string" || value.length === 0 || value.length > 256) throw gameplayError(code, "Expected a bounded non-empty string");
+	return value;
+}
+/** @param {unknown} value @param {string} code @returns {number} */
+function requireNonNegativeNumber(value, code) {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw gameplayError(code, "Expected a non-negative finite number");
+	return Object.is(value, -0) ? 0 : value;
+}
+/** @param {unknown} value @param {string} code @param {number} [limit] @returns {readonly string[]} */
+function requireStringArray(value, code, limit = 2048) {
+	const copy = cloneGameplayData(value, code, limit);
+	if (!Array.isArray(copy) || copy.length > limit) throw gameplayError(code, "Expected a bounded string array");
+	const result = [];
+	for (const entry of copy) result.push(requireString$1(entry, code));
+	return Object.freeze(result);
+}
+/** @param {string} code @param {string} message @returns {Error & {code: string}} */
+function gameplayError(code, message) {
+	return Object.assign(new Error(message), { code });
+}
+/** @param {string} left @param {string} right @returns {number} */
+function compareCodePoints$2(left, right) {
+	return left < right ? -1 : left > right ? 1 : 0;
+}
+//#endregion
+//#region node_modules/@aerobeat/web-gameplay/src/session-coordinator.js
+/** @typedef {Readonly<Record<string, unknown>>} DataRecord */
+/** @typedef {import("@aerobeat/web-contracts").AeroGameplayEvidenceSnapshot} AeroGameplayEvidenceSnapshot */
+/** @typedef {import("@aerobeat/web-contracts").AeroGameplayJudgement} AeroGameplayJudgement */
+/** @typedef {import("@aerobeat/web-contracts").AeroGameplaySessionState} AeroGameplaySessionState */
+/** @typedef {import("@aerobeat/web-contracts").AeroCountdownReason} AeroCountdownReason */
+/** @type {readonly string[]} */
+var CHECKPOINT_ACTIONS = Object.freeze([
+	"guard",
+	"crossed_guard",
+	"squat",
+	"weave_left",
+	"weave_right"
+]);
+/** @type {readonly string[]} */
+var PUNCH_ACTIONS = Object.freeze([
+	"straight_left",
+	"straight_right",
+	"hook_left",
+	"hook_right",
+	"uppercut_left",
+	"uppercut_right"
+]);
+/** @type {readonly string[]} */
+var SUPPORTED_MODIFIERS = Object.freeze([
+	"any_punch",
+	"cross_body",
+	"crossed_guard",
+	"no_squats",
+	"no_weaves"
+]);
+/**
+* @typedef {Object} GameplayCoordinatorOptions
+* @property {string} [sessionId]
+* @property {string} [instanceId]
+* @property {number} [countdownStepMs]
+* @property {(error: unknown) => void} [onListenerError]
+*/
+/**
+* @typedef {Object} GameplayContentConfiguration
+* @property {string} packageId
+* @property {DataRecord} selectedVariant
+* @property {readonly DataRecord[]} resolvedEvents
+* @property {DataRecord} [profileIdentity]
+* @property {DataRecord} [scoringSettings]
+* @property {readonly DataRecord[]} [shadowVariants]
+*/
+/**
+* Create a deterministic per-game session coordinator. Wall timestamps drive safety/countdown;
+* the injected audio clock is the sole gameplay timeline authority.
+*
+* @param {GameplayCoordinatorOptions} [options]
+*/
+function createAeroGameplaySessionCoordinator(options = {}) {
+	const normalizedOptions = normalizeOptions(options);
+	const sessionId = normalizedOptions.sessionId;
+	const instanceId = normalizedOptions.instanceId;
+	const countdownStepMs = normalizedOptions.countdownStepMs;
+	const listeners = /* @__PURE__ */ new Set();
+	let destroyed = false;
+	let generation = 0;
+	let state = "idle";
+	let timestampMs = 0;
+	let timelinePositionMs = 0;
+	let packageId = null;
+	let variant = null;
+	let profileIdentity = defaultProfileIdentity();
+	let scoringSettings = defaultScoringSettings();
+	let events = Object.freeze([]);
+	let contentGeneration = 0;
+	let eventTruth = /* @__PURE__ */ new WeakMap();
+	let shadowVariants = Object.freeze([]);
+	let calibrationId = null;
+	let safetyReady = false;
+	let freshCalibrationRequired = true;
+	let pauseReason = null;
+	let countdown = inactiveCountdown(0);
+	let countdownStartedAtMs = 0;
+	let countdownTimelinePositionMs = 0;
+	let countdownReason = null;
+	let invalidatedCalibrationId = null;
+	let lastInput = null;
+	let latestEvidence = null;
+	let latestEvidenceTimelineMs = 0;
+	let lastEvidenceFrameId = null;
+	let leaseSnapshot = null;
+	const judgedIds = /* @__PURE__ */ new Set();
+	let activeIds = /* @__PURE__ */ new Set();
+	const judgements = [];
+	const shadowJudgements = [];
+	const shadowConsumed = /* @__PURE__ */ new Set();
+	const consumedActions = /* @__PURE__ */ new Set();
+	const consumedGuardPunchWindows = /* @__PURE__ */ new Map();
+	const partitions = /* @__PURE__ */ new Map();
+	let snapshot = makeSnapshot(null);
+	return Object.freeze({
+		configureContent,
+		requestStart,
+		pause,
+		resume,
+		advance,
+		synchronizePausedClock,
+		applyFutureContent,
+		setActiveEventIds,
+		setLeaseSnapshot,
+		stop,
+		reset,
+		getSnapshot: () => snapshot,
+		getJudgements: () => Object.freeze([...judgements]),
+		getScorePartitions: () => Object.freeze([...partitions.values()].map((entry) => Object.freeze({ ...entry }))),
+		subscribe,
+		destroy
+	});
+	/** @param {GameplayContentConfiguration} configuration */
+	function configureContent(configuration) {
+		assertOpen();
+		const source = requireRecord$3(configuration, "content_configuration_invalid", 15e5);
+		const nextPackageId = requireString$1(source.packageId, "content_package_invalid");
+		const nextVariant = normalizeVariant(source.selectedVariant);
+		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
+		const nextProfileIdentity = source.profileIdentity === void 0 ? defaultProfileIdentity() : normalizeProfile$1(source.profileIdentity);
+		const nextScoringSettings = source.scoringSettings === void 0 ? defaultScoringSettings() : normalizeScoringSettings(source.scoringSettings);
+		const nextShadowVariants = source.shadowVariants === void 0 ? Object.freeze([]) : normalizeShadowVariants(source.shadowVariants);
+		const nextContentGeneration = contentGeneration + 1;
+		const nextEventTruth = bindEventTruth(nextEvents, nextPackageId, nextContentGeneration, nextVariant, nextProfileIdentity, nextScoringSettings);
+		packageId = nextPackageId;
+		variant = nextVariant;
+		contentGeneration = nextContentGeneration;
+		eventTruth = nextEventTruth;
+		events = nextEvents;
+		profileIdentity = nextProfileIdentity;
+		scoringSettings = nextScoringSettings;
+		shadowVariants = nextShadowVariants;
+		clearRunTruth();
+		state = "calibrating";
+		pauseReason = "calibration_required";
+		generation += 1;
+		publish(null);
+		return snapshot;
+	}
+	/** @param {number} atTimestampMs */
+	function requestStart(atTimestampMs) {
+		assertConfigured();
+		if (state !== "calibrating") throw gameplayError("session_state_invalid", "Initial start requires the calibrating state");
+		advanceTimestamp(atTimestampMs);
+		if (!hasRequiredLease()) {
+			state = "paused_manual";
+			pauseReason = "media_lease_unavailable";
+			publish(null);
+			return Object.freeze({
+				accepted: false,
+				reason: "media_lease_unavailable"
+			});
+		}
+		if (!safetyReady || freshCalibrationRequired || calibrationId === null) {
+			state = "calibrating";
+			pauseReason = "calibration_required";
+			publish(null);
+			return Object.freeze({
+				accepted: false,
+				reason: "calibration_required"
+			});
+		}
+		beginCountdown("initial_start");
+		return Object.freeze({
+			accepted: true,
+			reason: null
+		});
+	}
+	/** @param {number} atTimestampMs @param {string} [reason] */
+	function pause(atTimestampMs, reason = "manual") {
+		assertOpen();
+		advanceTimestamp(atTimestampMs);
+		if (state === "destroyed") return snapshot;
+		cancelCountdown();
+		state = "paused_manual";
+		pauseReason = boundedReason(reason);
+		publish(null);
+		return snapshot;
+	}
+	/** @param {number} atTimestampMs */
+	function resume(atTimestampMs) {
+		assertConfigured();
+		if (state !== "paused_manual" && state !== "paused_tracking") throw gameplayError("session_state_invalid", "Resume requires a paused session");
+		advanceTimestamp(atTimestampMs);
+		if (!hasRequiredLease()) {
+			state = "paused_manual";
+			pauseReason = "media_lease_unavailable";
+			publish(null);
+			return Object.freeze({
+				accepted: false,
+				reason: "media_lease_unavailable"
+			});
+		}
+		if (!safetyReady || freshCalibrationRequired || calibrationId === null) {
+			state = freshCalibrationRequired ? "paused_tracking" : "calibrating";
+			pauseReason = "calibration_required";
+			publish(null);
+			return Object.freeze({
+				accepted: false,
+				reason: "calibration_required"
+			});
+		}
+		beginCountdown(state === "paused_tracking" ? "tracking_resume" : "manual_resume");
+		return Object.freeze({
+			accepted: true,
+			reason: null
+		});
+	}
+	/**
+	* Advance deterministic state using one audio-clock and optional input sample.
+	*
+	* @param {{timestampMs: number, clock: unknown, input?: unknown, lease?: unknown}} frame
+	*/
+	function advance(frame) {
+		assertOpen();
+		const safeFrame = requireDataRecordFields(frame, "advance_frame_invalid", [
+			"timestampMs",
+			"clock",
+			"input",
+			"lease"
+		]);
+		const nextTimestampMs = requireNonNegativeNumber(safeFrame.timestampMs, "timestamp_invalid");
+		if (nextTimestampMs < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
+		const clock = normalizeClock(safeFrame.clock);
+		const nextLease = safeFrame.lease === void 0 ? null : normalizeLeaseSnapshot(safeFrame.lease);
+		const nextInput = safeFrame.input === void 0 ? null : normalizeInputSnapshot(safeFrame.input);
+		const enteredState = state;
+		const enteredAsCountdown = enteredState === "countdown";
+		const previousTimelinePositionMs = timelinePositionMs;
+		timestampMs = nextTimestampMs;
+		if (nextLease !== null) leaseSnapshot = nextLease;
+		if (nextInput !== null) commitInput(nextInput);
+		enforceLease();
+		enforceSafety();
+		if (enteredAsCountdown && state === "countdown") advanceCountdown(clock);
+		if (enteredState === "playing" && state === "playing") {
+			if (!clock.playing) {
+				state = "paused_manual";
+				pauseReason = "audio_clock_not_playing";
+			} else if (clock.positionMs < previousTimelinePositionMs) {
+				state = "paused_manual";
+				pauseReason = "audio_clock_rollback";
+			} else {
+				timelinePositionMs = clock.positionMs;
+				captureEvidenceForTimeline();
+				judgeLiveEvents();
+				judgeShadowEvents();
+				if (events.length > 0 && judgedIds.size >= events.length) {
+					state = "completed";
+					pauseReason = null;
+				}
+			}
+		} else if (enteredState !== "playing" && enteredState !== "countdown" && enteredState !== "paused_manual" && enteredState !== "paused_tracking" && state !== "paused_tracking") timelinePositionMs = clock.positionMs;
+		publish(null);
+		return snapshot;
+	}
+	/**
+	* Synchronize an explicit paused seek from the authoritative audio clock.
+	* Ordinary advance frames cannot move a manually paused timeline.
+	*
+	* @param {{timestampMs: number, clock: unknown}} frame
+	*/
+	function synchronizePausedClock(frame) {
+		assertConfigured();
+		if (state !== "paused_manual") throw gameplayError("session_state_invalid", "Paused clock synchronization requires a manual pause");
+		const safeFrame = requireDataRecordFields(frame, "paused_clock_frame_invalid", ["timestampMs", "clock"]);
+		const nextTimestampMs = requireNonNegativeNumber(safeFrame.timestampMs, "timestamp_invalid");
+		if (nextTimestampMs < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
+		const clock = normalizeClock(safeFrame.clock);
+		if (clock.playing) throw gameplayError("paused_clock_not_frozen", "Paused clock synchronization requires a stopped audio clock");
+		timestampMs = nextTimestampMs;
+		timelinePositionMs = clock.positionMs;
+		publish(null);
+		return snapshot;
+	}
+	/** @param {GameplayContentConfiguration} configuration */
+	function applyFutureContent(configuration) {
+		assertConfigured();
+		if (state === "playing" || state === "countdown") throw gameplayError("variant_swap_requires_pause", "Future variant swaps require a paused session");
+		const source = requireRecord$3(configuration, "content_configuration_invalid", 15e5);
+		const nextPackageId = requireString$1(source.packageId, "content_package_invalid");
+		if (nextPackageId !== packageId) throw gameplayError("variant_swap_package_mismatch", "Future variant swaps must remain in the loaded package");
+		const nextVariant = normalizeVariant(source.selectedVariant);
+		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
+		const nextProfileIdentity = source.profileIdentity === void 0 ? profileIdentity : normalizeProfile$1(source.profileIdentity);
+		const nextScoringSettings = source.scoringSettings === void 0 ? scoringSettings : normalizeScoringSettings(source.scoringSettings);
+		const nextShadowVariants = source.shadowVariants === void 0 ? shadowVariants : normalizeShadowVariants(source.shadowVariants);
+		const preserve = new Map(events.filter((event) => shouldPreserveEvent(event)).map((event) => [String(event.eventId), event]));
+		const lineage = new Set([...preserve.values()].flatMap((event) => lineageIds(event)));
+		const merged = [...preserve.values()];
+		const acceptedNextEvents = [];
+		for (const event of nextEvents) {
+			if (preserve.has(String(event.eventId))) continue;
+			if (Number(event.centerTimestampMs) <= timelinePositionMs) continue;
+			if (lineageIds(event).some((id) => lineage.has(id))) continue;
+			merged.push(event);
+			acceptedNextEvents.push(event);
+		}
+		if (merged.length > 1e5) throw gameplayError("content_events_invalid", "Future content merge exceeds the event limit");
+		merged.sort(eventOrder);
+		const nextContentGeneration = contentGeneration + 1;
+		const nextEventTruth = /* @__PURE__ */ new WeakMap();
+		for (const event of preserve.values()) {
+			const truth = eventTruth.get(event);
+			if (!truth) throw gameplayError("event_truth_missing", "Preserved events require immutable content-generation truth");
+			nextEventTruth.set(event, truth);
+		}
+		for (const event of acceptedNextEvents) nextEventTruth.set(event, makeEventTruth(nextPackageId, nextContentGeneration, nextVariant, nextProfileIdentity, nextScoringSettings));
+		events = Object.freeze(merged);
+		variant = nextVariant;
+		contentGeneration = nextContentGeneration;
+		eventTruth = nextEventTruth;
+		profileIdentity = nextProfileIdentity;
+		scoringSettings = nextScoringSettings;
+		shadowVariants = nextShadowVariants;
+		generation += 1;
+		publish(null);
+		return snapshot;
+	}
+	/** @param {readonly string[]} ids */
+	function setActiveEventIds(ids) {
+		assertConfigured();
+		const normalizedIds = requireStringArray(ids, "active_event_ids_invalid", 2048);
+		if (new Set(normalizedIds).size !== normalizedIds.length) throw gameplayError("active_event_ids_invalid", "Active event IDs must be unique");
+		const knownIds = new Set(events.map((event) => String(event.eventId)));
+		if (normalizedIds.some((id) => !knownIds.has(id))) throw gameplayError("active_event_ids_invalid", "Active event IDs must belong to current content");
+		activeIds = new Set(normalizedIds);
+		publish(null);
+		return snapshot;
+	}
+	/** @param {unknown} value */
+	function setLeaseSnapshot(value) {
+		assertOpen();
+		setLeaseSnapshotInternal(value);
+		enforceLease();
+		publish(null);
+		return snapshot;
+	}
+	/** @param {number} atTimestampMs */
+	function stop(atTimestampMs) {
+		assertOpen();
+		advanceTimestamp(atTimestampMs);
+		cancelCountdown();
+		state = "completed";
+		pauseReason = null;
+		publish(null);
+		return snapshot;
+	}
+	/** @param {number} [atTimestampMs] */
+	function reset(atTimestampMs = timestampMs) {
+		assertOpen();
+		advanceTimestamp(atTimestampMs);
+		generation += 1;
+		clearRunTruth();
+		state = packageId === null ? "idle" : "calibrating";
+		pauseReason = packageId === null ? null : "calibration_required";
+		calibrationId = null;
+		invalidatedCalibrationId = null;
+		safetyReady = false;
+		freshCalibrationRequired = true;
+		publish(null);
+		return snapshot;
+	}
+	/** @param {(value: DataRecord) => void} listener */
+	function subscribe(listener) {
+		assertOpen();
+		if (typeof listener !== "function") throw gameplayError("listener_invalid", "Gameplay listener must be a function");
+		listeners.add(listener);
+		notify(listener);
+		return () => listeners.delete(listener);
+	}
+	function destroy() {
+		if (destroyed) return;
+		generation += 1;
+		destroyed = true;
+		state = "destroyed";
+		cancelCountdown();
+		latestEvidence = null;
+		lastInput = null;
+		pauseReason = null;
+		publish(null);
+		listeners.clear();
+	}
+	/** @param {unknown} value @returns {DataRecord} */
+	function normalizeInputSnapshot(value) {
+		const input = requireRecord$3(value, "input_snapshot_invalid");
+		const calibration = requireRecord$3(input.calibration, "input_calibration_invalid");
+		const tracking = requireRecord$3(input.tracking, "input_tracking_invalid");
+		const nextCalibrationId = calibration.calibrationId === null ? null : requireString$1(calibration.calibrationId, "calibration_id_invalid");
+		const readiness = requireString$1(calibration.readiness, "input_calibration_invalid");
+		if (!readinessStates$5.includes(readiness)) throw gameplayError("input_calibration_invalid", "Input readiness state is unsupported");
+		if (typeof tracking.gameplayPaused !== "boolean" || typeof tracking.freshCalibrationRequired !== "boolean" || typeof input.countdownFrozen !== "boolean") throw gameplayError("input_tracking_invalid", "Input tracking safety fields must be boolean");
+		const qualifications = normalizeStraightQualifications(input.straightQualifications ?? []);
+		const candidate = input.latestEvidence;
+		if (candidate !== null && candidate !== void 0) {
+			if (!isGameplayEvidenceSnapshot(candidate)) throw gameplayError("input_evidence_invalid", "Input evidence does not satisfy the public contract");
+			validateEvidenceIdentity(candidate);
+			if (nextCalibrationId === null || candidate.calibrationId !== nextCalibrationId) throw gameplayError("input_evidence_invalid", "Input evidence must belong to the snapshot calibration");
+		}
+		return Object.freeze({
+			input: Object.freeze({
+				...input,
+				straightQualifications: qualifications
+			}),
+			nextCalibrationId,
+			readiness,
+			trackingPaused: tracking.gameplayPaused || input.countdownFrozen,
+			upstreamFreshRequired: tracking.freshCalibrationRequired,
+			candidate: candidate ?? null
+		});
+	}
+	/** @param {DataRecord} normalized */
+	function commitInput(normalized) {
+		const input = normalized.input;
+		const nextCalibrationId = normalized.nextCalibrationId;
+		const readiness = normalized.readiness;
+		const trackingPaused = normalized.trackingPaused === true;
+		lastInput = input;
+		const recoveryIdMatches = invalidatedCalibrationId !== null && nextCalibrationId === invalidatedCalibrationId;
+		freshCalibrationRequired = normalized.upstreamFreshRequired === true || nextCalibrationId === null || recoveryIdMatches;
+		safetyReady = (readiness === "ready" || readiness === "countdown") && !trackingPaused && !freshCalibrationRequired;
+		if (nextCalibrationId !== calibrationId) {
+			calibrationId = nextCalibrationId;
+			latestEvidence = null;
+			lastEvidenceFrameId = null;
+		}
+		if (safetyReady && invalidatedCalibrationId !== null && nextCalibrationId !== invalidatedCalibrationId) invalidatedCalibrationId = null;
+		if (normalized.candidate !== null) latestEvidence = normalized.candidate;
+	}
+	function captureEvidenceForTimeline() {
+		if (!latestEvidence || latestEvidence.measuredSourceFrameId === lastEvidenceFrameId) return;
+		lastEvidenceFrameId = latestEvidence.measuredSourceFrameId;
+		latestEvidenceTimelineMs = timelinePositionMs;
+	}
+	function enforceSafety() {
+		if (state === "playing" || state === "countdown" || state === "paused_manual") {
+			if (!safetyReady || freshCalibrationRequired) enterTrackingPause();
+		} else if (state === "paused_tracking" && safetyReady && !freshCalibrationRequired && calibrationId !== null) beginCountdown("tracking_resume");
+		else if (state === "calibrating" && safetyReady && calibrationId !== null) pauseReason = null;
+	}
+	function enterTrackingPause() {
+		if (invalidatedCalibrationId === null && calibrationId !== null) invalidatedCalibrationId = calibrationId;
+		cancelCountdown();
+		state = "paused_tracking";
+		pauseReason = "tracking_lost_recalibration_required";
+		latestEvidence = null;
+		lastEvidenceFrameId = null;
+		freshCalibrationRequired = true;
+		safetyReady = false;
+	}
+	function hasRequiredLease() {
+		if (!leaseSnapshot || !instanceId) return true;
+		return leaseSnapshot.ownerInstanceId === instanceId && leaseSnapshot.state === "owned" && Array.isArray(leaseSnapshot.resources) && leaseSnapshot.resources.includes("audio") && leaseSnapshot.resources.includes("camera");
+	}
+	function enforceLease() {
+		if (hasRequiredLease()) return;
+		if (state === "playing" || state === "countdown") {
+			cancelCountdown();
+			state = "paused_manual";
+			pauseReason = "media_lease_unavailable";
+		}
+	}
+	/** @param {unknown} value */
+	function setLeaseSnapshotInternal(value) {
+		leaseSnapshot = normalizeLeaseSnapshot(value);
+	}
+	/** @param {AeroCountdownReason} reason */
+	function beginCountdown(reason) {
+		state = "countdown";
+		pauseReason = null;
+		countdownReason = reason;
+		countdownStartedAtMs = timestampMs;
+		countdownTimelinePositionMs = timelinePositionMs;
+		countdown = countdownSnapshot("three", reason, 3, timestampMs, calibrationId);
+		publish(null);
+	}
+	/** @param {{positionMs: number, playing: boolean}} clock */
+	function advanceCountdown(clock) {
+		if (clock.playing || clock.positionMs !== countdownTimelinePositionMs) {
+			timelinePositionMs = countdownTimelinePositionMs;
+			cancelCountdown();
+			state = "paused_manual";
+			pauseReason = "countdown_audio_not_frozen";
+			return;
+		}
+		const elapsed = timestampMs - countdownStartedAtMs;
+		if (elapsed < countdownStepMs) countdown = countdownSnapshot("three", countdownReason, 3, timestampMs, calibrationId);
+		else if (elapsed < countdownStepMs * 2) countdown = countdownSnapshot("two", countdownReason, 2, timestampMs, calibrationId);
+		else if (elapsed < countdownStepMs * 3) countdown = countdownSnapshot("one", countdownReason, 1, timestampMs, calibrationId);
+		else {
+			countdown = countdownSnapshot("complete", countdownReason, null, timestampMs, calibrationId);
+			state = "playing";
+			pauseReason = null;
+		}
+	}
+	function cancelCountdown() {
+		if (countdown.state !== "inactive" && countdown.state !== "complete") countdown = countdownSnapshot("cancelled", countdownReason, null, timestampMs, calibrationId);
+		else countdown = inactiveCountdown(timestampMs);
+		countdownReason = null;
+	}
+	function judgeLiveEvents() {
+		for (const event of events) {
+			const eventId = String(event.eventId);
+			if (judgedIds.has(eventId)) continue;
+			const center = Number(event.centerTimestampMs);
+			if (variantForEvent(event).mode === "flow" && event.type !== "note") {
+				if (timelinePositionMs >= center) recordJudgement(event, "ignored", Object.freeze([]), null, false);
+				continue;
+			}
+			if (timelinePositionMs < center - prototypeJudgementDefaults$5.timingWindowBeforeMs) continue;
+			if (tryHit(event, false)) continue;
+			if (timelinePositionMs > center + prototypeJudgementDefaults$5.timingWindowAfterMs) recordJudgement(event, "miss", missDiagnostics(event), null, false);
+		}
+	}
+	function judgeShadowEvents() {
+		if (!latestEvidence || !lastInput || latestEvidence.calibrationId !== calibrationId) return;
+		const evidenceAge = timestampMs - latestEvidence.measurementTimestampMs;
+		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults$5.checkpointFreshnessMs) return;
+		for (const shadow of shadowVariants) {
+			const shadowEvents = Array.isArray(shadow.resolvedEvents) ? shadow.resolvedEvents : [];
+			for (const eventValue of shadowEvents) {
+				if (!isPlainRecord$3(eventValue)) continue;
+				const event = eventValue;
+				const key = `${String(shadow.variantId)}:${String(event.eventId)}:${latestEvidence.measuredSourceFrameId}`;
+				if (shadowConsumed.has(key)) continue;
+				const center = Number(event.centerTimestampMs);
+				if (Math.abs(latestEvidenceTimelineMs - center) > prototypeJudgementDefaults$5.timingWindowAfterMs) continue;
+				const match = matchEvent(event, shadow, latestEvidence, lastInput);
+				if (match.hit) {
+					shadowConsumed.add(key);
+					shadowJudgements.push(makeJudgement(event, shadow, "hit", match.diagnostics, latestEvidence, latestEvidenceTimelineMs, profileIdentity, true));
+				}
+			}
+		}
+	}
+	/** @param {DataRecord} event @param {boolean} shadow */
+	function tryHit(event, shadow) {
+		if (!latestEvidence || !lastInput) return false;
+		if (latestEvidence.calibrationId !== calibrationId) return false;
+		const evidenceAge = timestampMs - latestEvidence.measurementTimestampMs;
+		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults$5.checkpointFreshnessMs) return false;
+		const center = Number(event.centerTimestampMs);
+		const offset = latestEvidenceTimelineMs - center;
+		if (offset < -prototypeJudgementDefaults$5.timingWindowBeforeMs || offset > prototypeJudgementDefaults$5.timingWindowAfterMs) return false;
+		const match = matchEvent(event, variantForEvent(event), latestEvidence, lastInput);
+		if (!match.hit) return false;
+		const action = expectedAction(event);
+		const actionKey = `${latestEvidence.measuredSourceFrameId}|${action}`;
+		if (consumedActions.has(actionKey)) {
+			recordJudgement(event, "miss", Object.freeze(["action_consumed"]), latestEvidence, shadow);
+			return true;
+		}
+		const category = eventCategory(event);
+		const frameId = latestEvidence.measuredSourceFrameId;
+		const consumedWindows = consumedGuardPunchWindows.get(frameId) ?? [];
+		if ((category === "guard" || category === "punch") && consumedWindows.some((entry) => entry.category !== category && Math.abs(entry.centerTimestampMs - center) <= prototypeJudgementDefaults$5.timingWindowBeforeMs + prototypeJudgementDefaults$5.timingWindowAfterMs)) {
+			recordJudgement(event, "miss", Object.freeze(["blocked_overlap"]), latestEvidence, shadow);
+			return true;
+		}
+		consumedActions.add(actionKey);
+		if (category === "guard" || category === "punch") consumedGuardPunchWindows.set(frameId, Object.freeze([...consumedWindows, Object.freeze({
+			category,
+			centerTimestampMs: center
+		})]));
+		recordJudgement(event, "hit", match.diagnostics, latestEvidence, shadow);
+		return true;
+	}
+	/** @param {DataRecord} event @param {"hit" | "miss" | "ignored"} result @param {readonly string[]} diagnostics @param {AeroGameplayEvidenceSnapshot | null} evidence @param {boolean} shadow */
+	function recordJudgement(event, result, diagnostics, evidence, shadow) {
+		const eventVariant = variantForEvent(event);
+		const eventProfile = profileForEvent(event);
+		const judgement = makeJudgement(event, eventVariant, result, diagnostics, evidence, evidence ? latestEvidenceTimelineMs : null, eventProfile, shadow);
+		if (shadow) shadowJudgements.push(judgement);
+		else {
+			judgements.push(judgement);
+			judgedIds.add(String(event.eventId));
+			updateScore(result, eventVariant, eventProfile, scoringSettingsForEvent(event));
+		}
+	}
+	/** @param {"hit" | "miss" | "ignored"} result @param {DataRecord} scoreVariant @param {DataRecord} scoreProfile @param {DataRecord} settings */
+	function updateScore(result, scoreVariant, scoreProfile, settings) {
+		const key = scorePartitionKey(scoreVariant, scoreProfile, settings);
+		const next = { ...partitions.get(key) ?? {
+			partitionId: key,
+			variantId: scoreVariant.variantId,
+			chartId: scoreVariant.chartId,
+			rulesetId: scoreVariant.rulesetId,
+			recipeId: scoreVariant.recipeId,
+			modifierIds: scoreVariant.modifierIds,
+			mapHash: scoreVariant.mapHash,
+			scoreIdentityHash: scoreVariant.scoreIdentityHash,
+			profileId: scoreProfile.profileId,
+			profileVersion: scoreProfile.profileVersion,
+			profileHash: scoreProfile.contentHash,
+			profileClass: scoreProfile.class,
+			regenerationRequired: scoreProfile.regenerationRequired,
+			scoringSettings: settings,
+			scoringSettingsIdentity: scoreSettingsIdentity(settings),
+			ranked: scoreVariant.ranked === true,
+			localOnly: true,
+			hits: 0,
+			misses: 0,
+			ignored: 0,
+			score: 0,
+			maxCombo: 0,
+			combo: 0
+		} };
+		if (result === "hit") {
+			next.hits += 1;
+			next.combo += 1;
+			next.score = finiteScore(next.score + Number(settings.hitPoints) + Math.max(0, next.combo - 1) * Number(settings.comboBonusPerHit));
+			next.maxCombo = Math.max(next.maxCombo, next.combo);
+		} else if (result === "miss") {
+			next.misses += 1;
+			next.score = finiteScore(Math.max(0, next.score - Number(settings.missPenalty)));
+			next.combo = 0;
+		} else next.ignored += 1;
+		partitions.set(key, Object.freeze(next));
+	}
+	/** @param {DataRecord} event @returns {readonly string[]} */
+	function missDiagnostics(event) {
+		if (!latestEvidence) return Object.freeze(["no_input"]);
+		if (latestEvidence.calibrationId !== calibrationId) return Object.freeze(["calibration_mismatch"]);
+		const age = timestampMs - latestEvidence.measurementTimestampMs;
+		if (age < 0 || age > prototypeJudgementDefaults$5.checkpointFreshnessMs) return Object.freeze(["stale_input"]);
+		const match = matchEvent(event, variantForEvent(event), latestEvidence, lastInput);
+		return match.diagnostics.length > 0 ? match.diagnostics : Object.freeze(["timing_miss"]);
+	}
+	/** @param {Readonly<{code: string, message: string}> | null} error */
+	function publish(error) {
+		snapshot = makeSnapshot(error);
+		for (const listener of listeners) notify(listener);
+	}
+	/** @param {(value: DataRecord) => void} listener */
+	function notify(listener) {
+		try {
+			listener(snapshot);
+		} catch (error) {
+			try {
+				normalizedOptions.onListenerError?.(error);
+			} catch {}
+		}
+	}
+	/** @param {Readonly<{code: string, message: string}> | null} error */
+	function makeSnapshot(error) {
+		return Object.freeze({
+			schema: "aerobeat/gameplay_coordinator_snapshot",
+			version: 1,
+			serviceId: "aero.gameplay.session",
+			generation,
+			session: Object.freeze({
+				schema: "aerobeat/gameplay_session_snapshot",
+				version: 1,
+				sessionId,
+				state,
+				timestampMs,
+				timelinePositionMs,
+				packageId,
+				chartId: variant?.chartId ?? null,
+				calibrationId,
+				rulesetId: variant?.rulesetId ?? null,
+				recipeId: variant?.recipeId ?? null,
+				ranked: variant?.ranked === true,
+				pauseReason
+			}),
+			countdown,
+			safety: Object.freeze({
+				ready: safetyReady,
+				freshCalibrationRequired
+			}),
+			lease: leaseSnapshot,
+			selectedVariant: variant ? publicVariant$1(variant) : null,
+			profileIdentity,
+			scoringSettings,
+			activeEventIds: Object.freeze([...activeIds].sort(compareCodePoints$2)),
+			judgedEventIds: Object.freeze([...judgedIds].sort(compareCodePoints$2)),
+			judgements: Object.freeze([...judgements]),
+			shadowJudgements: Object.freeze([...shadowJudgements]),
+			scorePartitions: Object.freeze([...partitions.values()].map((entry) => Object.freeze({ ...entry }))),
+			error
+		});
+	}
+	function clearRunTruth() {
+		judgedIds.clear();
+		activeIds.clear();
+		judgements.length = 0;
+		shadowJudgements.length = 0;
+		shadowConsumed.clear();
+		consumedActions.clear();
+		consumedGuardPunchWindows.clear();
+		partitions.clear();
+		timelinePositionMs = 0;
+		countdownTimelinePositionMs = 0;
+		latestEvidence = null;
+		lastEvidenceFrameId = null;
+		lastInput = null;
+		countdown = inactiveCountdown(timestampMs);
+	}
+	/** @param {DataRecord} event */
+	function shouldPreserveEvent(event) {
+		return Number(event.centerTimestampMs) <= timelinePositionMs || judgedIds.has(String(event.eventId)) || activeIds.has(String(event.eventId));
+	}
+	/** @param {DataRecord} event @returns {DataRecord} */
+	function truthForEvent(event) {
+		const truth = eventTruth.get(event);
+		if (!truth) throw gameplayError("event_truth_missing", "Gameplay events require immutable content-generation truth");
+		return truth;
+	}
+	/** @param {DataRecord} event @returns {DataRecord} */
+	function variantForEvent(event) {
+		return truthForEvent(event).variant;
+	}
+	/** @param {DataRecord} event @returns {DataRecord} */
+	function profileForEvent(event) {
+		return truthForEvent(event).profileIdentity;
+	}
+	/** @param {DataRecord} event @returns {DataRecord} */
+	function scoringSettingsForEvent(event) {
+		return truthForEvent(event).scoringSettings;
+	}
+	function assertOpen() {
+		if (destroyed) throw gameplayError("service_destroyed", "Gameplay coordinator is destroyed");
+	}
+	function assertConfigured() {
+		assertOpen();
+		if (!variant || packageId === null) throw gameplayError("content_not_configured", "Gameplay content is not configured");
+	}
+	/** @param {number} value */
+	function advanceTimestamp(value) {
+		const next = requireNonNegativeNumber(value, "timestamp_invalid");
+		if (next < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
+		timestampMs = next;
+	}
+}
+/** @param {readonly DataRecord[]} sourceEvents @param {string} contentPackageId @param {number} generation @param {DataRecord} sourceVariant @param {DataRecord} sourceProfile @param {DataRecord} sourceScoringSettings */
+function bindEventTruth(sourceEvents, contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings) {
+	const result = /* @__PURE__ */ new WeakMap();
+	const truth = makeEventTruth(contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings);
+	for (const event of sourceEvents) result.set(event, truth);
+	return result;
+}
+/** @param {string} contentPackageId @param {number} generation @param {DataRecord} sourceVariant @param {DataRecord} sourceProfile @param {DataRecord} sourceScoringSettings */
+function makeEventTruth(contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings) {
+	return Object.freeze({
+		contentPackageId,
+		contentGeneration: generation,
+		variant: sourceVariant,
+		profileIdentity: sourceProfile,
+		scoringSettings: sourceScoringSettings
+	});
+}
+/** @param {GameplayCoordinatorOptions} options */
+function normalizeOptions(options) {
+	if (!isPlainRecord$3(options)) throw gameplayError("gameplay_options_invalid", "Gameplay options must be a plain record");
+	const keys = Reflect.ownKeys(options);
+	if (keys.some((key) => typeof key !== "string" || ![
+		"sessionId",
+		"instanceId",
+		"countdownStepMs",
+		"onListenerError"
+	].includes(key))) throw gameplayError("gameplay_options_invalid", "Gameplay options contain unknown or symbolic fields");
+	/** @type {Record<string, unknown>} */
+	const values = {};
+	for (const keyValue of keys) {
+		const key = keyValue;
+		const descriptor = Object.getOwnPropertyDescriptor(options, key);
+		if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError("gameplay_options_invalid", "Gameplay options cannot contain accessors or hidden fields");
+		values[key] = descriptor.value;
+	}
+	const callback = values.onListenerError;
+	if (callback !== void 0 && typeof callback !== "function") throw gameplayError("gameplay_options_invalid", "Listener error hook must be a function");
+	return Object.freeze({
+		sessionId: values.sessionId === void 0 ? `session-${randomToken()}` : requireString$1(values.sessionId, "session_id_invalid"),
+		instanceId: values.instanceId === void 0 ? null : requireString$1(values.instanceId, "instance_id_invalid"),
+		countdownStepMs: values.countdownStepMs === void 0 ? 1e3 : positiveNumber(values.countdownStepMs, "countdown_step_invalid"),
+		onListenerError: callback
+	});
+}
+/** @param {unknown} value @returns {{positionMs: number, playing: boolean}} */
+function normalizeClock(value) {
+	const record = requireDataRecordFields(value, "audio_clock_invalid", [
+		"contextTimeSeconds",
+		"positionSeconds",
+		"durationSeconds",
+		"progress",
+		"playing"
+	]);
+	const positionSeconds = requireNonNegativeNumber(record.positionSeconds, "audio_clock_invalid");
+	if (record.contextTimeSeconds !== void 0) requireNonNegativeNumber(record.contextTimeSeconds, "audio_clock_invalid");
+	if (record.durationSeconds !== void 0) requireNonNegativeNumber(record.durationSeconds, "audio_clock_invalid");
+	if (record.progress !== void 0 && (typeof record.progress !== "number" || !Number.isFinite(record.progress) || record.progress < 0 || record.progress > 1)) throw gameplayError("audio_clock_invalid", "Audio clock progress must be normalized");
+	if (typeof record.playing !== "boolean") throw gameplayError("audio_clock_invalid", "Audio clock playing must be boolean");
+	const positionMs = positionSeconds * 1e3;
+	if (!Number.isSafeInteger(positionMs) && (!Number.isFinite(positionMs) || positionMs > Number.MAX_SAFE_INTEGER)) throw gameplayError("audio_clock_invalid", "Audio clock position exceeds safe gameplay range");
+	return Object.freeze({
+		positionMs,
+		playing: record.playing
+	});
+}
+/** @param {unknown} value @returns {DataRecord} */
+function normalizeLeaseSnapshot(value) {
+	const copy = cloneGameplayData(value, "media_lease_invalid");
+	if (!isMediaLeaseSnapshot(copy)) throw gameplayError("media_lease_invalid", "Media lease snapshot does not satisfy the public contract");
+	return copy;
+}
+/** @param {unknown} value @returns {DataRecord} */
+function normalizeVariant(value) {
+	const record = requireRecord$3(value, "variant_invalid");
+	const rulesetId = requireString$1(record.rulesetId, "ruleset_invalid");
+	if (!rulesetIds$5.includes(rulesetId)) throw gameplayError("ruleset_invalid", "Variant ruleset is unsupported");
+	const mode = record.mode === "flow" ? "flow" : record.mode === "boxing" ? "boxing" : (() => {
+		throw gameplayError("mode_invalid", "Variant mode is unsupported");
+	})();
+	const recipeId = record.recipeId === null ? null : requireString$1(record.recipeId, "recipe_invalid");
+	if (mode === "flow" && (rulesetId !== "flow_grid_v1" || recipeId !== null)) throw gameplayError("variant_identity_invalid", "Flow variants require the Flow ruleset and no conversion recipe");
+	if (mode === "boxing" && (rulesetId === "flow_grid_v1" || recipeId === null || !conversionRecipeIds$5.includes(recipeId))) throw gameplayError("variant_identity_invalid", "Boxing variants require a supported Boxing ruleset and conversion recipe");
+	const modifierIds = requireStringArray(record.modifierIds ?? [], "modifier_ids_invalid", 32);
+	if (new Set(modifierIds).size !== modifierIds.length || [...modifierIds].sort(compareCodePoints$2).some((entry, index) => entry !== modifierIds[index]) || modifierIds.some((entry) => !SUPPORTED_MODIFIERS.includes(entry))) throw gameplayError("modifier_ids_invalid", "Modifier identity must be supported, sorted and unique");
+	if (typeof record.ranked !== "boolean") throw gameplayError("variant_rank_invalid", "Variant ranked identity must be boolean");
+	const provenance = record.provenance === void 0 ? null : cloneGameplayData(record.provenance);
+	if (isPlainRecord$3(provenance) && provenance.kind === "composite" && record.ranked) throw gameplayError("variant_rank_invalid", "Runtime composite variants must be unranked");
+	const mapHash = cloneGameplayData(record.mapHash, "map_hash_invalid");
+	const scoreIdentityHash = cloneGameplayData(record.scoreIdentityHash, "score_identity_hash_invalid");
+	if (!isContentHash$3(mapHash) || !isContentHash$3(scoreIdentityHash)) throw gameplayError("variant_hash_invalid", "Variant map and score identity hashes must satisfy the public content contract");
+	return Object.freeze({
+		variantId: requireString$1(record.variantId, "variant_id_invalid"),
+		chartId: requireString$1(record.chartId, "chart_id_invalid"),
+		mode,
+		rulesetId,
+		recipeId,
+		modifierIds,
+		ranked: record.ranked === true,
+		mapHash,
+		scoreIdentityHash,
+		provenance
+	});
+}
+/** @param {unknown} value @param {DataRecord} selectedVariant @returns {readonly DataRecord[]} */
+function normalizeEvents(value, selectedVariant) {
+	if (!Array.isArray(value) || value.length > 1e5) throw gameplayError("content_events_invalid", "Resolved events must be a bounded array");
+	const ids = /* @__PURE__ */ new Set();
+	const lineageOwners = /* @__PURE__ */ new Set();
+	const result = value.map((entry) => {
+		const envelope = requireRecord$3(entry, "content_event_invalid");
+		const authoredBeat = envelope.authoredBeat === void 0 ? null : requireRecord$3(envelope.authoredBeat, "authored_beat_invalid");
+		const eventId = requireString$1(envelope.eventId, "event_id_invalid");
+		if (ids.has(eventId)) throw gameplayError("event_id_duplicate", "Resolved event IDs must be unique");
+		ids.add(eventId);
+		if (authoredBeat?.eventId !== void 0 && authoredBeat.eventId !== eventId) throw gameplayError("event_id_mismatch", "Resolved and authored event IDs must agree");
+		const centerTimestampMs = requireNonNegativeNumber(envelope.centerTimestampMs, "event_timestamp_invalid");
+		const variantId = envelope.variantId === void 0 ? selectedVariant.variantId : requireString$1(envelope.variantId, "variant_id_invalid");
+		const chartId = envelope.chartId === void 0 ? selectedVariant.chartId : requireString$1(envelope.chartId, "chart_id_invalid");
+		if (variantId !== selectedVariant.variantId || chartId !== selectedVariant.chartId) throw gameplayError("event_variant_mismatch", "Resolved events must belong to the selected variant and chart");
+		const event = Object.freeze({
+			...envelope,
+			...authoredBeat ?? {},
+			authoredBeat,
+			eventId,
+			centerTimestampMs,
+			variantId,
+			chartId
+		});
+		validateEventForVariant(event, selectedVariant);
+		for (const sourceId of lineageIds(event)) {
+			if (lineageOwners.has(sourceId)) throw gameplayError("event_lineage_invalid", "Source lineage IDs must have one event owner");
+			lineageOwners.add(sourceId);
+		}
+		return event;
+	});
+	result.sort(eventOrder);
+	return Object.freeze(result);
+}
+/** @param {DataRecord} event @param {DataRecord} selectedVariant */
+function validateEventForVariant(event, selectedVariant) {
+	const type = requireString$1(event.type, "event_type_invalid");
+	if (selectedVariant.mode === "flow") {
+		if (![
+			"note",
+			"bomb",
+			"obstacle",
+			"arc",
+			"burst"
+		].includes(type)) throw gameplayError("event_type_invalid", "Flow event type is unsupported");
+		if (type === "note") {
+			if (event.hand !== "left" && event.hand !== "right") throw gameplayError("event_hand_invalid", "Flow notes require a hand");
+			requireGridCell(event.placement, "event_placement_invalid");
+			if (event.direction !== void 0 && directionName(event.direction) === null) throw gameplayError("event_direction_invalid", "Flow note direction is unsupported");
+		}
+	} else {
+		const action = expectedAction(event);
+		if (![...PUNCH_ACTIONS, ...CHECKPOINT_ACTIONS].includes(action)) throw gameplayError("event_type_invalid", "Boxing event type is unsupported");
+		if (selectedVariant.rulesetId === "boxing_spatial_grid_v1") {
+			if (PUNCH_ACTIONS.includes(action)) {
+				const target = requireRecord$3(event.spatialTarget, "spatial_target_invalid");
+				requireGridCell(target.targetCell, "spatial_target_invalid");
+				if (!Array.isArray(target.acceptedSubcells) || target.acceptedSubcells.length > 48 || target.acceptedSubcells.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 47)) throw gameplayError("spatial_target_invalid", "Spatial accepted subcells are invalid");
+				if (target.sourceCell !== void 0) requireGridCell(target.sourceCell, "spatial_target_invalid");
+				if (target.entryDirection !== void 0 && directionName(target.entryDirection) === null) throw gameplayError("spatial_target_invalid", "Spatial entry direction is invalid");
+			} else if (action === "guard" || action === "crossed_guard") {
+				const target = requireRecord$3(event.guardTarget, "guard_target_invalid");
+				requireGridCell(target.leftCell, "guard_target_invalid");
+				requireGridCell(target.rightCell, "guard_target_invalid");
+			} else {
+				const checkpoint = requireRecord$3(event.checkpoint, "checkpoint_invalid");
+				if (!Array.isArray(checkpoint.noseSafeCells) || checkpoint.noseSafeCells.length > 12 || checkpoint.noseSafeCells.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 11)) throw gameplayError("checkpoint_invalid", "Checkpoint nose-safe cells are invalid");
+			}
+		}
+	}
+	if (event.sourceEventIds !== void 0) {
+		const sourceIds = requireStringArray(event.sourceEventIds, "event_lineage_invalid", 256);
+		if (new Set(sourceIds).size !== sourceIds.length) throw gameplayError("event_lineage_invalid", "Event lineage IDs must be unique");
+	}
+}
+/** @param {unknown} value @returns {DataRecord} */
+function normalizeProfile$1(value) {
+	const record = requireRecord$3(value, "profile_identity_invalid");
+	if (!isPrototypeTuningIdentity$1(record) || record.class !== "between_run_ruleset") throw gameplayError("profile_identity_invalid", "Profile identity does not satisfy the gameplay tuning contract for a between-run ruleset");
+	return record;
+}
+/** @param {unknown} value @returns {DataRecord} */
+function normalizeScoringSettings(value) {
+	const record = requireDataRecordFields(value, "scoring_settings_invalid", [
+		"comboBonusPerHit",
+		"hitPoints",
+		"missPenalty"
+	]);
+	if (Reflect.ownKeys(record).length !== 3) throw gameplayError("scoring_settings_invalid", "Scoring settings require every exact field");
+	return Object.freeze({
+		comboBonusPerHit: boundedScoreNumber(record.comboBonusPerHit),
+		hitPoints: boundedScoreNumber(record.hitPoints),
+		missPenalty: boundedScoreNumber(record.missPenalty)
+	});
+}
+/** @param {unknown} value */
+function boundedScoreNumber(value) {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) throw gameplayError("scoring_settings_invalid", "Scoring settings must be finite values from 0 through 100");
+	return Object.is(value, -0) ? 0 : value;
+}
+/** @param {unknown} value @returns {readonly DataRecord[]} */
+function normalizeShadowVariants(value) {
+	if (!Array.isArray(value) || value.length > 4) throw gameplayError("shadow_variants_invalid", "Shadow variants must be a bounded array");
+	return Object.freeze(value.map((entry) => {
+		const record = requireRecord$3(entry, "shadow_variant_invalid");
+		const normalized = normalizeVariant(record);
+		const resolvedEvents = normalizeEvents(record.resolvedEvents ?? [], normalized);
+		return Object.freeze({
+			...normalized,
+			resolvedEvents
+		});
+	}));
+}
+/** @param {unknown} value @returns {readonly DataRecord[]} */
+function normalizeStraightQualifications(value) {
+	const entries = cloneGameplayData(value, "straight_qualifications_invalid", 64);
+	if (!Array.isArray(entries) || entries.length > 2) throw gameplayError("straight_qualifications_invalid", "Straight qualifications must be a bounded array");
+	const hands = /* @__PURE__ */ new Set();
+	return Object.freeze(entries.map((entryValue) => {
+		const entry = requireRecord$3(entryValue, "straight_qualification_invalid");
+		const hand = entry.hand === "left" || entry.hand === "right" ? entry.hand : (() => {
+			throw gameplayError("straight_qualification_invalid", "Straight qualification hand is invalid");
+		})();
+		if (hands.has(hand)) throw gameplayError("straight_qualification_invalid", "Straight qualification hands must be unique");
+		hands.add(hand);
+		if (typeof entry.semanticQualified !== "boolean" || typeof entry.spatialQualified !== "boolean") throw gameplayError("straight_qualification_invalid", "Straight qualification flags must be boolean");
+		const semanticStartTimestampMs = entry.semanticStartTimestampMs === null ? null : requireNonNegativeNumber(entry.semanticStartTimestampMs, "straight_qualification_invalid");
+		const spatialStartTimestampMs = entry.spatialStartTimestampMs === null ? null : requireNonNegativeNumber(entry.spatialStartTimestampMs, "straight_qualification_invalid");
+		const semanticDurationMs = requireNonNegativeNumber(entry.semanticDurationMs, "straight_qualification_invalid");
+		const spatialDurationMs = requireNonNegativeNumber(entry.spatialDurationMs, "straight_qualification_invalid");
+		if (entry.semanticQualified && semanticStartTimestampMs === null || entry.spatialQualified && spatialStartTimestampMs === null) throw gameplayError("straight_qualification_invalid", "Qualified straight evidence requires a measured start timestamp");
+		if (!Array.isArray(entry.acceptedSubcellColumns) || entry.acceptedSubcellColumns.length > 8 || entry.acceptedSubcellColumns.some((column) => !Number.isInteger(column) || column < 0 || column > 7) || new Set(entry.acceptedSubcellColumns).size !== entry.acceptedSubcellColumns.length) throw gameplayError("straight_qualification_invalid", "Accepted subcell columns are invalid");
+		return Object.freeze({
+			hand,
+			semanticStartTimestampMs,
+			semanticDurationMs,
+			semanticQualified: entry.semanticQualified,
+			spatialStartTimestampMs,
+			spatialDurationMs,
+			spatialQualified: entry.spatialQualified,
+			acceptedSubcellColumns: Object.freeze([...entry.acceptedSubcellColumns])
+		});
+	}));
+}
+/** @param {AeroGameplayEvidenceSnapshot} evidence */
+function validateEvidenceIdentity(evidence) {
+	if (new Set(evidence.activeBoxingActions).size !== evidence.activeBoxingActions.length) throw gameplayError("input_evidence_invalid", "Active Boxing action IDs must be unique");
+	const anchorIds = evidence.anchors.map((anchor) => anchor.anchor);
+	if (new Set(anchorIds).size !== anchorIds.length) throw gameplayError("input_evidence_invalid", "Measured anchor IDs must be unique");
+	const entryIds = evidence.entries.map((entry) => entry.anchor);
+	if (new Set(entryIds).size !== entryIds.length) throw gameplayError("input_evidence_invalid", "Measured entry anchor IDs must be unique");
+}
+/** @param {DataRecord} event @param {DataRecord | null} selectedVariant @param {AeroGameplayEvidenceSnapshot} evidence @param {DataRecord | null} input */
+function matchEvent(event, selectedVariant, evidence, input) {
+	const diagnostics = [];
+	const rulesetId = String(selectedVariant?.rulesetId ?? "flow_grid_v1");
+	if (rulesetId === "flow_grid_v1") return matchFlow(event, evidence);
+	const action = expectedAction(event);
+	if (!evidence.activeBoxingActions.includes(action)) diagnostics.push("no_input");
+	if (action.startsWith("straight_") && rulesetId === "boxing_semantic_track_v1") {
+		const hand = action.endsWith("_right") ? "right" : "left";
+		const qualification = (Array.isArray(input?.straightQualifications) ? input.straightQualifications : []).find((entry) => isPlainRecord$3(entry) && entry.hand === hand);
+		const start = isPlainRecord$3(qualification) && typeof qualification.semanticStartTimestampMs === "number" ? qualification.semanticStartTimestampMs : null;
+		if (!(isPlainRecord$3(qualification) && qualification.semanticQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults$5.straightQualificationMs)) diagnostics.push("qualification_too_short");
+	}
+	if (rulesetId === "boxing_spatial_grid_v1") matchSpatial(event, action, evidence, input, diagnostics);
+	return Object.freeze({
+		hit: diagnostics.length === 0,
+		diagnostics: Object.freeze(diagnostics)
+	});
+}
+/** @param {DataRecord} event @param {AeroGameplayEvidenceSnapshot} evidence */
+function matchFlow(event, evidence) {
+	const anchorName = `${event.hand === "right" ? "right" : "left"}_wrist`;
+	const anchor = evidence.anchors.find((entry) => entry.anchor === anchorName);
+	const diagnostics = [];
+	const placement = requireGridCell(event.placement, "event_placement_invalid");
+	if (!anchor || anchor.cell !== placement) diagnostics.push("wrong_cell");
+	if (event.direction !== void 0) {
+		const direction = directionName(event.direction);
+		const entry = evidence.entries.find((candidate) => candidate.anchor === anchorName && candidate.toCell === placement);
+		if (!entry || direction === null || entry.direction !== direction) diagnostics.push("wrong_direction");
+	}
+	return Object.freeze({
+		hit: diagnostics.length === 0,
+		diagnostics: Object.freeze(diagnostics)
+	});
+}
+/** @param {DataRecord} event @param {string} action @param {AeroGameplayEvidenceSnapshot} evidence @param {DataRecord | null} input @param {string[]} diagnostics */
+function matchSpatial(event, action, evidence, input, diagnostics) {
+	if (PUNCH_ACTIONS.includes(action)) {
+		const hand = action.endsWith("_right") ? "right" : "left";
+		const anchor = evidence.anchors.find((entry) => entry.anchor === `${hand}_wrist`);
+		const target = isPlainRecord$3(event.spatialTarget) ? event.spatialTarget : null;
+		if (!anchor || !target) {
+			diagnostics.push("wrong_cell");
+			return;
+		}
+		const accepted = Array.isArray(target.acceptedSubcells) ? target.acceptedSubcells : [];
+		const targetCell = requireGridCell(target.targetCell, "spatial_target_invalid");
+		if (accepted.length > 0 && !accepted.includes(anchor.subcell)) diagnostics.push("wrong_subcell");
+		else if (anchor.cell !== targetCell) diagnostics.push("wrong_cell");
+		if (target.entryDirection !== void 0) {
+			const sourceCell = target.sourceCell === void 0 ? null : requireGridCell(target.sourceCell, "spatial_target_invalid");
+			const direction = directionName(target.entryDirection);
+			if (!evidence.entries.some((entry) => entry.anchor === `${hand}_wrist` && entry.toCell === targetCell && (sourceCell === null || entry.fromCell === sourceCell) && entry.direction === direction)) diagnostics.push("wrong_direction");
+		}
+		if (action.startsWith("straight_")) {
+			const qualification = (Array.isArray(input?.straightQualifications) ? input.straightQualifications : []).find((entry) => isPlainRecord$3(entry) && entry.hand === hand);
+			const start = isPlainRecord$3(qualification) && typeof qualification.spatialStartTimestampMs === "number" ? qualification.spatialStartTimestampMs : null;
+			if (!(isPlainRecord$3(qualification) && qualification.spatialQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults$5.straightQualificationMs)) diagnostics.push("qualification_too_short");
+		}
+	} else if (action === "guard" || action === "crossed_guard") {
+		const target = isPlainRecord$3(event.guardTarget) ? event.guardTarget : null;
+		const left = evidence.anchors.find((entry) => entry.anchor === "left_wrist");
+		const right = evidence.anchors.find((entry) => entry.anchor === "right_wrist");
+		if (!target || !left || !right || left.cell !== target.leftCell || right.cell !== target.rightCell) diagnostics.push("wrong_cell");
+		if (target?.crossed === true && !evidence.activeBoxingActions.includes("crossed_guard")) diagnostics.push("no_input");
+	} else if (CHECKPOINT_ACTIONS.includes(action) && isPlainRecord$3(event.checkpoint) && Array.isArray(event.checkpoint.noseSafeCells)) {
+		const nose = evidence.anchors.find((entry) => entry.anchor === "nose");
+		if (!nose || !event.checkpoint.noseSafeCells.includes(nose.cell)) diagnostics.push("wrong_cell");
+	}
+}
+/** @param {DataRecord} event @param {DataRecord | null} selectedVariant @param {"hit" | "miss" | "ignored"} result @param {readonly string[]} diagnostics @param {AeroGameplayEvidenceSnapshot | null} evidence @param {number | null} evidenceTimelineMs @param {DataRecord} profile @param {boolean} shadow @returns {AeroGameplayJudgement} */
+function makeJudgement(event, selectedVariant, result, diagnostics, evidence, evidenceTimelineMs, profile, shadow) {
+	const rulesetId = selectedVariant?.rulesetId ?? "flow_grid_v1";
+	const recipeId = selectedVariant?.recipeId ?? null;
+	const center = Number(event.centerTimestampMs);
+	return Object.freeze({
+		schema: "aerobeat/gameplay_judgement",
+		version: 1,
+		eventId: String(event.eventId),
+		rulesetId,
+		recipeId,
+		result,
+		beatCenterTimestampMs: center,
+		evidenceTimestampMs: evidence ? evidence.measurementTimestampMs : null,
+		timingOffsetMs: evidenceTimelineMs === null ? null : evidenceTimelineMs - center,
+		diagnostics: Object.freeze([...diagnostics]),
+		shadow,
+		variantId: selectedVariant?.variantId ?? null,
+		chartId: selectedVariant?.chartId ?? null,
+		sourceEventIds: Object.freeze([...lineageIds(event)]),
+		mapHash: selectedVariant?.mapHash ?? null,
+		scoreIdentityHash: selectedVariant?.scoreIdentityHash ?? null,
+		profileId: profile.profileId,
+		profileVersion: profile.profileVersion,
+		profileHash: profile.contentHash
+	});
+}
+/** @param {DataRecord} event */
+function expectedAction(event) {
+	if (event.type === "guard" && isPlainRecord$3(event.guardTarget) && event.guardTarget.crossed === true) return "crossed_guard";
+	return typeof event.type === "string" ? event.type : "note";
+}
+/** @param {DataRecord} event */
+function eventCategory(event) {
+	const action = expectedAction(event);
+	return PUNCH_ACTIONS.includes(action) ? "punch" : action === "guard" || action === "crossed_guard" ? "guard" : "checkpoint";
+}
+/** @param {DataRecord} event */
+function lineageIds(event) {
+	return Array.isArray(event.sourceEventIds) ? event.sourceEventIds.filter((entry) => typeof entry === "string") : [];
+}
+/** @param {DataRecord} left @param {DataRecord} right */
+function eventOrder(left, right) {
+	return Number(left.centerTimestampMs) - Number(right.centerTimestampMs) || compareCodePoints$2(String(left.eventId), String(right.eventId));
+}
+/** @param {unknown} value @param {string} code */
+function positiveNumber(value, code) {
+	const number = requireNonNegativeNumber(value, code);
+	if (number <= 0) throw gameplayError(code, "Expected a positive number");
+	return number;
+}
+function defaultProfileIdentity() {
+	return Object.freeze({
+		schema: "aerobeat/prototype_tuning_identity",
+		version: 1,
+		profileId: "aero.gameplay.prototype.default",
+		profileVersion: "1",
+		contentHash: "0".repeat(64),
+		class: "between_run_ruleset",
+		regenerationRequired: false
+	});
+}
+function defaultScoringSettings() {
+	return Object.freeze({
+		comboBonusPerHit: 0,
+		hitPoints: 1,
+		missPenalty: 0
+	});
+}
+/** @param {DataRecord} settings */
+function scoreSettingsIdentity(settings) {
+	return `scoring-v1:${JSON.stringify(settings.hitPoints)},${JSON.stringify(settings.missPenalty)},${JSON.stringify(settings.comboBonusPerHit)}`;
+}
+/** @param {number} value */
+function finiteScore(value) {
+	if (!Number.isFinite(value) || value < 0) throw gameplayError("score_value_invalid", "Score arithmetic must remain finite and non-negative");
+	return Object.is(value, -0) ? 0 : value;
+}
+/** @param {DataRecord} variant @param {DataRecord} profile @param {DataRecord} settings */
+function scorePartitionKey(variant, profile, settings) {
+	const mapHash = isPlainRecord$3(variant.mapHash) && typeof variant.mapHash.value === "string" ? variant.mapHash.value : "unhashed";
+	const scoreHash = isPlainRecord$3(variant.scoreIdentityHash) && typeof variant.scoreIdentityHash.value === "string" ? variant.scoreIdentityHash.value : "unhashed";
+	return [
+		variant.variantId,
+		variant.chartId,
+		variant.mode,
+		variant.rulesetId,
+		variant.recipeId ?? "none",
+		[...variant.modifierIds].join(","),
+		variant.ranked ? "ranked" : "unranked",
+		mapHash,
+		scoreHash,
+		profile.profileId,
+		profile.profileVersion,
+		profile.contentHash,
+		profile.class,
+		profile.regenerationRequired ? "regenerate" : "live",
+		scoreSettingsIdentity(settings)
+	].join("|");
+}
+/** @param {DataRecord} variant */
+function publicVariant$1(variant) {
+	return Object.freeze({
+		variantId: variant.variantId,
+		chartId: variant.chartId,
+		mode: variant.mode,
+		rulesetId: variant.rulesetId,
+		recipeId: variant.recipeId,
+		modifierIds: variant.modifierIds,
+		ranked: variant.ranked,
+		mapHash: variant.mapHash,
+		scoreIdentityHash: variant.scoreIdentityHash,
+		provenance: variant.provenance
+	});
+}
+/** @param {"three" | "two" | "one" | "complete" | "cancelled"} state @param {AeroCountdownReason | null} reason @param {number | null} value @param {number} timestampMs @param {string | null} calibrationId */
+function countdownSnapshot(state, reason, value, timestampMs, calibrationId) {
+	return Object.freeze({
+		schema: "aerobeat/countdown_snapshot",
+		version: 1,
+		state,
+		reason,
+		value,
+		timestampMs,
+		gameplayTimeFrozen: state !== "complete",
+		calibrationId
+	});
+}
+/** @param {number} timestampMs */
+function inactiveCountdown(timestampMs) {
+	return Object.freeze({
+		schema: "aerobeat/countdown_snapshot",
+		version: 1,
+		state: "inactive",
+		reason: null,
+		value: null,
+		timestampMs,
+		gameplayTimeFrozen: true,
+		calibrationId: null
+	});
+}
+/** @param {unknown} value */
+function boundedReason(value) {
+	return typeof value === "string" && value.length > 0 && value.length <= 128 ? value : "manual";
+}
+/** @param {unknown} value */
+function directionName(value) {
+	return value === 0 ? "up" : value === 1 ? "down" : value === 2 ? "left" : value === 3 ? "right" : typeof value === "string" && [
+		"up",
+		"down",
+		"left",
+		"right"
+	].includes(value) ? value : null;
+}
+/** @param {unknown} value @param {string} code */
+function requireGridCell(value, code) {
+	if (!Number.isInteger(value) || Number(value) < 0 || Number(value) > 11) throw gameplayError(code, "Expected a 4x3 grid cell");
+	return Number(value);
+}
+function randomToken() {
+	const bytes = /* @__PURE__ */ new Uint32Array(2);
+	if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+	else {
+		bytes[0] = Math.floor(Math.random() * 4294967295);
+		bytes[1] = Math.floor(Math.random() * 4294967295);
+	}
+	return `${bytes[0].toString(16)}${bytes[1].toString(16)}`;
+}
+//#endregion
+//#region node_modules/@aerobeat/web-gameplay/src/prototype-profile-registry.js
+var PROFILE_SCHEMA = "aerobeat/prototype_profile";
+var BUNDLE_SCHEMA = "aerobeat/prototype_profile_bundle";
+var SNAPSHOT_SCHEMA = "aerobeat/prototype_profile_registry_snapshot";
+var PROFILE_CLASSES = Object.freeze([
+	"live_visual",
+	"between_run_ruleset",
+	"converter_regeneration"
+]);
+var DEFAULT_IDS = Object.freeze({
+	live_visual: "aero.visual.default",
+	between_run_ruleset: "aero.scoring.locked",
+	converter_regeneration: "aero.converter.canonical"
+});
+var SCORING_SAFE_STATES = Object.freeze([
+	"idle",
+	"calibrating",
+	"paused_manual",
+	"paused_tracking",
+	"completed",
+	"stopped"
+]);
+/** @typedef {Readonly<Record<string, unknown>>} DataRecord */
+var DEFAULT_DEFINITIONS = Object.freeze([
+	Object.freeze({
+		profileId: "aero.visual.default",
+		profileVersion: "1.0.0",
+		class: "live_visual",
+		label: "Default Visual (Experimental)",
+		settings: Object.freeze({
+			motionIntensity: 1,
+			roleScale: 1
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.visual.compact",
+		profileVersion: "1.0.0",
+		class: "live_visual",
+		label: "Compact Visual (Experimental)",
+		settings: Object.freeze({
+			motionIntensity: .8,
+			roleScale: .86
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.scoring.locked",
+		profileVersion: "1.0.0",
+		class: "between_run_ruleset",
+		label: "Locked Scoring (Experimental)",
+		settings: Object.freeze({
+			comboBonusPerHit: 0,
+			hitPoints: 1,
+			missPenalty: 0
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.scoring.prototype-wide",
+		profileVersion: "1.0.0",
+		class: "between_run_ruleset",
+		label: "Prototype Wide Scoring (Experimental)",
+		settings: Object.freeze({
+			comboBonusPerHit: .05,
+			hitPoints: 1.25,
+			missPenalty: 0
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.converter.canonical",
+		profileVersion: "1.0.0",
+		class: "converter_regeneration",
+		label: "Canonical Converter (Experimental)",
+		settings: Object.freeze({
+			guardRelocationRadius: 1,
+			reachAllowanceSubcells: 0
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.converter.prototype-reach",
+		profileVersion: "1.0.0",
+		class: "converter_regeneration",
+		label: "Prototype Reach Converter (Experimental)",
+		settings: Object.freeze({
+			guardRelocationRadius: 2,
+			reachAllowanceSubcells: 1
+		})
+	})
+]);
+/**
+* Per-game prototype profile authority. Profiles are experimental identities,
+* never a production winner selection.
+*
+* @param {{defaults?:readonly unknown[],bundleVersion?:string,onListenerError?:(error:unknown)=>void}} [options]
+*/
+function createAeroPrototypeProfileRegistry(options = {}) {
+	const safeOptions = requireDataRecordFields(options, "profile_registry_options_invalid", [
+		"defaults",
+		"bundleVersion",
+		"onListenerError"
+	]);
+	const listenerError = safeOptions.onListenerError;
+	if (listenerError !== void 0 && typeof listenerError !== "function") throw gameplayError("profile_registry_options_invalid", "Listener error handler must be a function");
+	const bundleVersion = safeOptions.bundleVersion === void 0 ? "1.0.0" : requireString$1(safeOptions.bundleVersion, "profile_bundle_version_invalid");
+	const defaults = materializeDefaultProfileList(safeOptions.defaults ?? DEFAULT_DEFINITIONS, "profile_defaults_invalid");
+	assertRequiredDefaults(defaults);
+	let profiles = mapProfiles(defaults);
+	let activeIds = Object.freeze({ ...DEFAULT_IDS });
+	let appliedConverterHash = String(profiles.get(DEFAULT_IDS.converter_regeneration)?.contentHash ?? "");
+	let generation = 0;
+	let destroyed = false;
+	const listeners = /* @__PURE__ */ new Set();
+	let snapshot = makeSnapshot();
+	return Object.freeze({
+		list,
+		getActive,
+		select,
+		importProfiles,
+		exportProfiles,
+		reset,
+		getSnapshot: () => snapshot,
+		subscribe,
+		destroy
+	});
+	function list() {
+		assertOpen();
+		return Object.freeze([...profiles.values()].sort(profileOrder));
+	}
+	/** @param {"live_visual"|"between_run_ruleset"|"converter_regeneration"} profileClass */
+	function getActive(profileClass) {
+		assertOpen();
+		return activeState(requireProfileClass(profileClass));
+	}
+	/**
+	* @param {string} profileId
+	* @param {{sessionState?:string,regeneratedPackageProfileHash?:string}} [context]
+	*/
+	function select(profileId, context = {}) {
+		assertOpen();
+		const id = requireString$1(profileId, "profile_id_invalid");
+		const profile = profiles.get(id);
+		if (!profile) throw gameplayError("profile_not_found", "Prototype profile is not registered");
+		const safeContext = requireDataRecordFields(context, "profile_selection_context_invalid", ["sessionState", "regeneratedPackageProfileHash"]);
+		if (profile.class === "between_run_ruleset") {
+			const sessionState = requireString$1(safeContext.sessionState, "profile_session_state_required");
+			if (!SCORING_SAFE_STATES.includes(sessionState)) throw gameplayError("profile_change_requires_pause", "Scoring profiles change only while idle, paused, or between runs");
+		}
+		const regeneratedHash = safeContext.regeneratedPackageProfileHash;
+		if (regeneratedHash !== void 0) {
+			const normalizedHash = requireHash$1(regeneratedHash, "profile_provenance_hash_invalid");
+			if (profile.class !== "converter_regeneration" || normalizedHash !== profile.contentHash) throw gameplayError("profile_provenance_hash_mismatch", "Regenerated package provenance must match the selected converter profile");
+			appliedConverterHash = normalizedHash;
+		}
+		activeIds = Object.freeze({
+			...activeIds,
+			[profile.class]: id
+		});
+		generation += 1;
+		publish();
+		return activeState(profile.class);
+	}
+	/** @param {unknown} bundle @param {{sessionState?:string}} [context] */
+	function importProfiles(bundle, context = {}) {
+		assertOpen();
+		const safeContext = requireDataRecordFields(context, "profile_import_context_invalid", ["sessionState"]);
+		const normalized = normalizeBundle(bundle);
+		if (normalized.bundleVersion !== bundleVersion) throw gameplayError("profile_bundle_version_incompatible", "Imported profile bundle version must match the registry bundle version");
+		const nextProfiles = mapProfiles(normalized.profiles);
+		assertRequiredDefaults(nextProfiles.values());
+		for (const activeId of Object.values(activeIds)) if (!nextProfiles.has(activeId)) throw gameplayError("profile_bundle_active_missing", "Imported bundle must contain every active profile");
+		const currentScoring = profiles.get(activeIds.between_run_ruleset);
+		const nextScoring = nextProfiles.get(activeIds.between_run_ruleset);
+		if (currentScoring?.contentHash !== nextScoring?.contentHash) {
+			const sessionState = requireString$1(safeContext.sessionState, "profile_session_state_required");
+			if (!SCORING_SAFE_STATES.includes(sessionState)) throw gameplayError("profile_change_requires_pause", "An imported active scoring profile changes only while idle, paused, or between runs");
+		}
+		profiles = nextProfiles;
+		generation += 1;
+		publish();
+		return snapshot;
+	}
+	function exportProfiles() {
+		assertOpen();
+		const exportedProfiles = Object.freeze([...profiles.values()].sort(profileOrder));
+		const body = Object.freeze({
+			schema: BUNDLE_SCHEMA,
+			version: 1,
+			bundleVersion,
+			profiles: exportedProfiles
+		});
+		return Object.freeze({
+			...body,
+			bundleHash: `sha256:${sha256Hex$2(canonicalJson$2(body))}`
+		});
+	}
+	function reset() {
+		assertOpen();
+		profiles = mapProfiles(defaults);
+		activeIds = Object.freeze({ ...DEFAULT_IDS });
+		appliedConverterHash = String(profiles.get(DEFAULT_IDS.converter_regeneration)?.contentHash ?? "");
+		generation += 1;
+		publish();
+		return snapshot;
+	}
+	/** @param {(value:DataRecord)=>void} listener */
+	function subscribe(listener) {
+		assertOpen();
+		if (typeof listener !== "function") throw gameplayError("profile_listener_invalid", "Profile listener must be a function");
+		listeners.add(listener);
+		notify(listener);
+		return () => listeners.delete(listener);
+	}
+	function destroy() {
+		if (destroyed) return;
+		destroyed = true;
+		generation += 1;
+		snapshot = makeSnapshot();
+		listeners.clear();
+	}
+	function assertOpen() {
+		if (destroyed) throw gameplayError("profile_registry_destroyed", "Prototype profile registry is destroyed");
+	}
+	function publish() {
+		snapshot = makeSnapshot();
+		for (const listener of listeners) notify(listener);
+	}
+	/** @param {(value:DataRecord)=>void} listener */
+	function notify(listener) {
+		try {
+			listener(snapshot);
+		} catch (error) {
+			try {
+				if (typeof listenerError === "function") listenerError(error);
+			} catch {}
+		}
+	}
+	function makeSnapshot() {
+		const converter = profiles.get(activeIds.converter_regeneration);
+		const selectedConverterHash = String(converter?.contentHash ?? "");
+		return Object.freeze({
+			schema: SNAPSHOT_SCHEMA,
+			version: 1,
+			generation,
+			destroyed,
+			bundleVersion,
+			profiles: Object.freeze([...profiles.values()].sort(profileOrder)),
+			active: Object.freeze({
+				visual: activeState("live_visual"),
+				scoring: activeState("between_run_ruleset"),
+				converter: activeState("converter_regeneration")
+			}),
+			appliedConverterHash,
+			pendingConverterHash: selectedConverterHash === appliedConverterHash ? null : selectedConverterHash,
+			regenerationRequired: selectedConverterHash !== appliedConverterHash,
+			experimental: true
+		});
+	}
+	/** @param {"live_visual"|"between_run_ruleset"|"converter_regeneration"} profileClass */
+	function activeState(profileClass) {
+		const profile = profiles.get(activeIds[profileClass]);
+		if (!profile) throw gameplayError("profile_active_missing", "Active profile is not registered");
+		const regenerationRequired = profileClass === "converter_regeneration" && profile.contentHash !== appliedConverterHash;
+		return Object.freeze({
+			profile,
+			identity: tuningIdentity$1(profile, regenerationRequired),
+			settings: profile.settings,
+			regenerationRequired,
+			appliedContentHash: profileClass === "converter_regeneration" ? appliedConverterHash : profile.contentHash
+		});
+	}
+}
+/** @param {Iterable<DataRecord>} entries */
+function mapProfiles(entries) {
+	const result = /* @__PURE__ */ new Map();
+	for (const profile of entries) {
+		if (result.has(String(profile.profileId))) throw gameplayError("profile_id_duplicate", "Profile IDs must be unique");
+		result.set(String(profile.profileId), profile);
+	}
+	return result;
+}
+/** @param {Iterable<DataRecord>} entries */
+function assertRequiredDefaults(entries) {
+	const profiles = [...entries];
+	const byClass = new Set(profiles.map((entry) => entry.class));
+	for (const profileClass of PROFILE_CLASSES) if (!byClass.has(profileClass)) throw gameplayError("profile_default_missing", `Profile class ${profileClass} requires at least one profile`);
+	for (const id of Object.values(DEFAULT_IDS)) if (!profiles.some((entry) => entry.profileId === id)) throw gameplayError("profile_default_missing", `Required default profile ${id} is missing`);
+}
+/** @param {unknown} value @param {string} code @returns {readonly DataRecord[]} */
+function materializeDefaultProfileList(value, code) {
+	return normalizeProfileList(value, code, materializeDefaultProfile);
+}
+/** @param {unknown} value @param {string} code @returns {readonly DataRecord[]} */
+function normalizeImportedProfileList(value, code) {
+	return normalizeProfileList(value, code, normalizeImportedProfile);
+}
+/** @param {unknown} value @param {string} code @param {(entry:unknown)=>DataRecord} normalizeEntry @returns {readonly DataRecord[]} */
+function normalizeProfileList(value, code, normalizeEntry) {
+	const cloned = cloneGameplayData(value, code, 4096);
+	if (!Array.isArray(cloned) || cloned.length < 3 || cloned.length > 64) throw gameplayError(code, "Profile list must contain 3..64 profiles");
+	const ids = /* @__PURE__ */ new Set();
+	const profiles = cloned.map(normalizeEntry);
+	for (const profile of profiles) {
+		if (ids.has(profile.profileId)) throw gameplayError("profile_id_duplicate", "Profile IDs must be unique");
+		ids.add(profile.profileId);
+	}
+	return Object.freeze(profiles.sort(profileOrder));
+}
+/** @param {unknown} value @returns {DataRecord} */
+function materializeDefaultProfile(value) {
+	return normalizeProfile(value, false);
+}
+/** @param {unknown} value @returns {DataRecord} */
+function normalizeImportedProfile(value) {
+	return normalizeProfile(value, true);
+}
+/** @param {unknown} value @param {boolean} strictImport @returns {DataRecord} */
+function normalizeProfile(value, strictImport) {
+	const fields = [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"class",
+		"label",
+		"experimental",
+		"settings",
+		"contentHash"
+	];
+	const record = requireDataRecordFields(value, "prototype_profile_invalid", fields);
+	if (strictImport && Reflect.ownKeys(record).length !== fields.length) throw gameplayError("prototype_profile_fields_missing", "Imported prototype profiles require every exact field");
+	if ((strictImport || record.schema !== void 0) && record.schema !== PROFILE_SCHEMA || (strictImport || record.version !== void 0) && record.version !== 1) throw gameplayError("prototype_profile_invalid", "Prototype profile schema/version is invalid");
+	const profileId = requireString$1(record.profileId, "profile_id_invalid");
+	const profileVersion = requireString$1(record.profileVersion, "profile_version_invalid");
+	const profileClass = requireProfileClass(record.class);
+	const label = requireString$1(record.label, "profile_label_invalid");
+	if ((strictImport || record.experimental !== void 0) && record.experimental !== true) throw gameplayError("profile_not_experimental", "Prototype profiles must remain experimental");
+	const settings = normalizeSettings(profileClass, record.settings);
+	const hashBody = Object.freeze({
+		schema: PROFILE_SCHEMA,
+		version: 1,
+		profileId,
+		profileVersion,
+		class: profileClass,
+		settings
+	});
+	const contentHash = sha256Hex$2(canonicalJson$2(hashBody));
+	if (strictImport || record.contentHash !== void 0) {
+		if (requireHash$1(record.contentHash, "profile_hash_invalid") !== contentHash) throw gameplayError("profile_hash_mismatch", "Profile content hash does not match canonical settings");
+	}
+	return Object.freeze({
+		...hashBody,
+		label,
+		experimental: true,
+		contentHash
+	});
+}
+/** @param {unknown} value */
+function normalizeBundle(value) {
+	const record = requireDataRecordFields(value, "profile_bundle_invalid", [
+		"schema",
+		"version",
+		"bundleVersion",
+		"profiles",
+		"bundleHash"
+	]);
+	if (record.schema !== BUNDLE_SCHEMA || record.version !== 1) throw gameplayError("profile_bundle_invalid", "Profile bundle schema/version is invalid");
+	const bundleVersion = requireString$1(record.bundleVersion, "profile_bundle_version_invalid");
+	const profiles = normalizeImportedProfileList(record.profiles, "profile_bundle_profiles_invalid");
+	const body = Object.freeze({
+		schema: BUNDLE_SCHEMA,
+		version: 1,
+		bundleVersion,
+		profiles
+	});
+	const expected = `sha256:${sha256Hex$2(canonicalJson$2(body))}`;
+	if (record.bundleHash !== expected) throw gameplayError("profile_bundle_hash_mismatch", "Profile bundle hash does not match canonical content");
+	return Object.freeze({
+		...body,
+		bundleHash: expected
+	});
+}
+/** @param {unknown} value @returns {"live_visual"|"between_run_ruleset"|"converter_regeneration"} */
+function requireProfileClass(value) {
+	if (!PROFILE_CLASSES.includes(value)) throw gameplayError("profile_class_invalid", "Prototype profile class is invalid");
+	return value;
+}
+/** @param {string} profileClass @param {unknown} value */
+function normalizeSettings(profileClass, value) {
+	if (profileClass === "live_visual") {
+		const record = exactSettings(value, ["motionIntensity", "roleScale"]);
+		return Object.freeze({
+			motionIntensity: boundedNumber(record.motionIntensity, 0, 2),
+			roleScale: boundedNumber(record.roleScale, .5, 1.5)
+		});
+	}
+	if (profileClass === "between_run_ruleset") {
+		const record = exactSettings(value, [
+			"comboBonusPerHit",
+			"hitPoints",
+			"missPenalty"
+		]);
+		return Object.freeze({
+			comboBonusPerHit: boundedNumber(record.comboBonusPerHit, 0, 10),
+			hitPoints: boundedNumber(record.hitPoints, 0, 100),
+			missPenalty: boundedNumber(record.missPenalty, 0, 100)
+		});
+	}
+	const record = exactSettings(value, ["guardRelocationRadius", "reachAllowanceSubcells"]);
+	return Object.freeze({
+		guardRelocationRadius: boundedInteger$2(record.guardRelocationRadius, 0, 8),
+		reachAllowanceSubcells: boundedInteger$2(record.reachAllowanceSubcells, 0, 8)
+	});
+}
+/** @param {unknown} value @param {readonly string[]} keys */
+function exactSettings(value, keys) {
+	const record = requireDataRecordFields(value, "profile_settings_invalid", keys);
+	if (Reflect.ownKeys(record).length !== keys.length) throw gameplayError("profile_settings_invalid", "Profile settings must contain every exact field");
+	return record;
+}
+/** @param {unknown} value @param {number} minimum @param {number} maximum */
+function boundedNumber(value, minimum, maximum) {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) throw gameplayError("profile_setting_invalid", "Profile numeric setting is outside its bounds");
+	return Object.is(value, -0) ? 0 : value;
+}
+/** @param {unknown} value @param {number} minimum @param {number} maximum */
+function boundedInteger$2(value, minimum, maximum) {
+	const result = boundedNumber(value, minimum, maximum);
+	if (!Number.isInteger(result)) throw gameplayError("profile_setting_invalid", "Profile integer setting is invalid");
+	return result;
+}
+/** @param {unknown} value @param {string} code */
+function requireHash$1(value, code) {
+	if (typeof value !== "string" || !/^[0-9a-f]{64}$/u.test(value)) throw gameplayError(code, "Expected a lowercase SHA-256 hex value");
+	return value;
+}
+/** @param {DataRecord} profile @param {boolean} regenerationRequired */
+function tuningIdentity$1(profile, regenerationRequired) {
+	return Object.freeze({
+		schema: "aerobeat/prototype_tuning_identity",
+		version: 1,
+		profileId: profile.profileId,
+		profileVersion: profile.profileVersion,
+		contentHash: profile.contentHash,
+		class: profile.class,
+		regenerationRequired
+	});
+}
+/** @param {DataRecord} left @param {DataRecord} right */
+function profileOrder(left, right) {
+	return compareUnicodeCodePoints(String(left.profileId), String(right.profileId));
+}
+/** Canonical JSON for bounded profile records. @param {unknown} value */
+function canonicalPrototypeProfileJson(value) {
+	return stringify(cloneGameplayData(value, "profile_canonical_json_invalid", 4096));
+	/** @param {unknown} entry @returns {string} */
+	function stringify(entry) {
+		if (entry === null || typeof entry === "boolean" || typeof entry === "number" || typeof entry === "string") return JSON.stringify(entry);
+		if (Array.isArray(entry)) return `[${entry.map(stringify).join(",")}]`;
+		if (!isPlainRecord$3(entry)) throw gameplayError("profile_canonical_json_invalid", "Canonical profile data must be plain");
+		return `{${Object.keys(entry).sort(compareUnicodeCodePoints).map((key) => `${JSON.stringify(key)}:${stringify(entry[key])}`).join(",")}}`;
+	}
+}
+/** @param {string} text */
+function sha256Hex$2(text) {
+	const bytes = new TextEncoder().encode(text);
+	const words = [];
+	const bitLength = bytes.length * 8;
+	for (const byte of bytes) words.push(byte);
+	words.push(128);
+	while (words.length % 64 !== 56) words.push(0);
+	const high = Math.floor(bitLength / 4294967296);
+	const low = bitLength >>> 0;
+	for (let shift = 24; shift >= 0; shift -= 8) words.push(high >>> shift & 255);
+	for (let shift = 24; shift >= 0; shift -= 8) words.push(low >>> shift & 255);
+	const h = [
+		1779033703,
+		3144134277,
+		1013904242,
+		2773480762,
+		1359893119,
+		2600822924,
+		528734635,
+		1541459225
+	];
+	const k = [
+		1116352408,
+		1899447441,
+		3049323471,
+		3921009573,
+		961987163,
+		1508970993,
+		2453635748,
+		2870763221,
+		3624381080,
+		310598401,
+		607225278,
+		1426881987,
+		1925078388,
+		2162078206,
+		2614888103,
+		3248222580,
+		3835390401,
+		4022224774,
+		264347078,
+		604807628,
+		770255983,
+		1249150122,
+		1555081692,
+		1996064986,
+		2554220882,
+		2821834349,
+		2952996808,
+		3210313671,
+		3336571891,
+		3584528711,
+		113926993,
+		338241895,
+		666307205,
+		773529912,
+		1294757372,
+		1396182291,
+		1695183700,
+		1986661051,
+		2177026350,
+		2456956037,
+		2730485921,
+		2820302411,
+		3259730800,
+		3345764771,
+		3516065817,
+		3600352804,
+		4094571909,
+		275423344,
+		430227734,
+		506948616,
+		659060556,
+		883997877,
+		958139571,
+		1322822218,
+		1537002063,
+		1747873779,
+		1955562222,
+		2024104815,
+		2227730452,
+		2361852424,
+		2428436474,
+		2756734187,
+		3204031479,
+		3329325298
+	];
+	const w = /* @__PURE__ */ new Uint32Array(64);
+	for (let offset = 0; offset < words.length; offset += 64) {
+		for (let i = 0; i < 16; i += 1) w[i] = (words[offset + i * 4] << 24 | words[offset + i * 4 + 1] << 16 | words[offset + i * 4 + 2] << 8 | words[offset + i * 4 + 3]) >>> 0;
+		for (let i = 16; i < 64; i += 1) {
+			const x = w[i - 15], y = w[i - 2];
+			const s0 = (ror(x, 7) ^ ror(x, 18) ^ x >>> 3) >>> 0, s1 = (ror(y, 17) ^ ror(y, 19) ^ y >>> 10) >>> 0;
+			w[i] = w[i - 16] + s0 + w[i - 7] + s1 >>> 0;
+		}
+		let [a, b, c, d, e, f, g, hh] = h;
+		for (let i = 0; i < 64; i += 1) {
+			const s1 = (ror(e, 6) ^ ror(e, 11) ^ ror(e, 25)) >>> 0;
+			const ch = (e & f ^ ~e & g) >>> 0;
+			const t1 = hh + s1 + ch + k[i] + w[i] >>> 0;
+			const t2 = ((ror(a, 2) ^ ror(a, 13) ^ ror(a, 22)) >>> 0) + ((a & b ^ a & c ^ b & c) >>> 0) >>> 0;
+			hh = g;
+			g = f;
+			f = e;
+			e = d + t1 >>> 0;
+			d = c;
+			c = b;
+			b = a;
+			a = t1 + t2 >>> 0;
+		}
+		h[0] = h[0] + a >>> 0;
+		h[1] = h[1] + b >>> 0;
+		h[2] = h[2] + c >>> 0;
+		h[3] = h[3] + d >>> 0;
+		h[4] = h[4] + e >>> 0;
+		h[5] = h[5] + f >>> 0;
+		h[6] = h[6] + g >>> 0;
+		h[7] = h[7] + hh >>> 0;
+	}
+	return h.map((value) => value.toString(16).padStart(8, "0")).join("");
+}
+/** @param {string} left @param {string} right */
+function compareUnicodeCodePoints(left, right) {
+	const leftPoints = Array.from(left, (entry) => entry.codePointAt(0) ?? 0);
+	const rightPoints = Array.from(right, (entry) => entry.codePointAt(0) ?? 0);
+	const length = Math.min(leftPoints.length, rightPoints.length);
+	for (let index = 0; index < length; index += 1) if (leftPoints[index] !== rightPoints[index]) return leftPoints[index] - rightPoints[index];
+	return leftPoints.length - rightPoints.length;
+}
+/** @param {number} value @param {number} bits */
+function ror(value, bits) {
+	return (value >>> bits | value << 32 - bits) >>> 0;
+}
+/** @param {unknown} value */
+function canonicalJson$2(value) {
+	return canonicalPrototypeProfileJson(value);
+}
+serviceIds$3.gameplaySession;
+Object.freeze(["flow", "boxing"]);
+Object.freeze({
+	authoritativeAudioClock: true,
+	calibratedInputOnly: true,
+	trackingSafetyPause: true,
+	frozenCountdown: true,
+	explicitPausedClockSynchronization: true,
+	flowGrid: true,
+	semanticTrackBoxing: true,
+	spatialGridBoxing: true,
+	futureVariantSwap: true,
+	diagnosticShadows: true,
+	prototypeProfileRegistry: true,
+	deterministicProfileBundles: true,
+	localPrototypeScoresOnly: true,
+	publicLeaderboards: false
+});
+//#endregion
 //#region node_modules/@aerobeat/web-ui/src/elements/aero-button/aero-button.js
 /**
 * @typedef {Object} AeroButtonActivateDetail
@@ -1587,7 +4171,7 @@ function readErrorField$1(value, field) {
 * @param {unknown} value
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function isRecord$9(value) {
+function isRecord$8(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -1600,8 +4184,8 @@ function isRecord$9(value) {
 * @param {readonly string[]} expectedKeys
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function hasExactKeys$5(value, expectedKeys) {
-	if (!isRecord$9(value)) return false;
+function hasExactKeys$4(value, expectedKeys) {
+	if (!isRecord$8(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	return keys.length === expectedKeys.length && keys.every((key) => {
 		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
@@ -1613,21 +4197,21 @@ function hasExactKeys$5(value, expectedKeys) {
 * @param {unknown} value
 * @returns {value is number}
 */
-function isFiniteNumber$4(value) {
+function isFiniteNumber$3(value) {
 	return typeof value === "number" && Number.isFinite(value);
 }
 /**
 * @param {unknown} value
 * @returns {value is number}
 */
-function isNonNegativeFiniteNumber$3(value) {
-	return isFiniteNumber$4(value) && value >= 0;
+function isNonNegativeFiniteNumber$2(value) {
+	return isFiniteNumber$3(value) && value >= 0;
 }
 /**
 * @param {unknown} value
 * @returns {value is string}
 */
-function isNonEmptyString$4(value) {
+function isNonEmptyString$3(value) {
 	return typeof value === "string" && value.length > 0;
 }
 Object.freeze([
@@ -1758,8 +4342,8 @@ Object.freeze([
 * @param {unknown} value
 * @returns {value is AeroContentHash}
 */
-function isContentHash$3(value) {
-	if (!hasExactKeys$5(value, [
+function isContentHash$2(value) {
+	if (!hasExactKeys$4(value, [
 		"schema",
 		"version",
 		"algorithm",
@@ -1806,7 +4390,7 @@ function isContentHash$3(value) {
 * @property {string | null} themeId Optional associated theme.
 */
 /** @type {readonly (keyof AeroThemeTokens)[]} */
-var serializableThemeTokenNames$5 = Object.freeze([
+var serializableThemeTokenNames$4 = Object.freeze([
 	"leftHandColor",
 	"rightHandColor",
 	"guardColor",
@@ -1830,17 +4414,17 @@ Object.freeze([
 * @returns {value is AeroThemeDescriptor}
 */
 function isThemeDescriptor$2(value) {
-	if (!hasExactKeys$5(value, [
+	if (!hasExactKeys$4(value, [
 		"schema",
 		"version",
 		"id",
 		"themeVersion",
 		"tokens",
 		"contentHash"
-	]) || !isRecord$9(value.tokens)) return false;
+	]) || !isRecord$8(value.tokens)) return false;
 	const tokens = value.tokens;
-	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$5.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$5.includes(key));
-	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$4(value.id) && isNonEmptyString$4(value.themeVersion) && exactTokenKeys && isNonEmptyString$4(tokens.leftHandColor) && isNonEmptyString$4(tokens.rightHandColor) && isNonEmptyString$4(tokens.guardColor) && isNonEmptyString$4(tokens.obstacleColor) && isNonEmptyString$4(tokens.receptorColor) && isNonNegativeFiniteNumber$3(tokens.approachLeadMs) && isNonNegativeFiniteNumber$3(tokens.targetStartScale) && isNonNegativeFiniteNumber$3(tokens.targetHitScale) && isNonEmptyString$4(tokens.approachEasing) && isNonEmptyString$4(tokens.hitEasing) && isNonEmptyString$4(tokens.missEasing) && isContentHash$3(value.contentHash);
+	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$4.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$4.includes(key));
+	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$3(value.id) && isNonEmptyString$3(value.themeVersion) && exactTokenKeys && isNonEmptyString$3(tokens.leftHandColor) && isNonEmptyString$3(tokens.rightHandColor) && isNonEmptyString$3(tokens.guardColor) && isNonEmptyString$3(tokens.obstacleColor) && isNonEmptyString$3(tokens.receptorColor) && isNonNegativeFiniteNumber$2(tokens.approachLeadMs) && isNonNegativeFiniteNumber$2(tokens.targetStartScale) && isNonNegativeFiniteNumber$2(tokens.targetHitScale) && isNonEmptyString$3(tokens.approachEasing) && isNonEmptyString$3(tokens.hitEasing) && isNonEmptyString$3(tokens.missEasing) && isContentHash$2(value.contentHash);
 }
 //#endregion
 //#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/gameplay-plan.js
@@ -2186,7 +4770,7 @@ function lerp$2(start, end, progress) {
 * @returns {AeroIconAtlasData}
 */
 function normalizeIconAtlasData$1(value) {
-	if (!isRecord$8(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
+	if (!isRecord$7(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
 	const width = Number(value.width);
 	const height = Number(value.height);
 	if (value.pixels.length !== width * height * 4) throw new TypeError("Icon atlas pixel length is invalid");
@@ -2195,7 +4779,7 @@ function normalizeIconAtlasData$1(value) {
 	const entries = [];
 	const seen = /* @__PURE__ */ new Set();
 	for (const raw of value.entries) {
-		if (!isRecord$8(raw) || typeof raw.id !== "string" || !gameplayIconIds$1.includes(raw.id) || seen.has(raw.id) || ![
+		if (!isRecord$7(raw) || typeof raw.id !== "string" || !gameplayIconIds$1.includes(raw.id) || seen.has(raw.id) || ![
 			raw.u0,
 			raw.v0,
 			raw.u1,
@@ -2219,7 +4803,7 @@ function normalizeIconAtlasData$1(value) {
 	});
 }
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$8(value) {
+function isRecord$7(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 //#endregion
@@ -2455,7 +5039,7 @@ var compactRendererVisualProfile$1 = visualProfile$1("aero.visual.compact", COMP
 * @returns {AeroRendererThemeTokens}
 */
 function normalizeRendererTheme$1(value) {
-	if (!isThemeDescriptor$2(value) || !isRecord$7(value.tokens)) return defaultRendererThemeTokens$1;
+	if (!isThemeDescriptor$2(value) || !isRecord$6(value.tokens)) return defaultRendererThemeTokens$1;
 	const tokens = value.tokens;
 	if (![
 		"leftHandColor",
@@ -2490,7 +5074,7 @@ function normalizeRendererTheme$1(value) {
 * @returns {AeroRendererTuning}
 */
 function normalizeRendererTuning$1(value) {
-	if (!isRecord$7(value)) return defaultRendererTuning$1;
+	if (!isRecord$6(value)) return defaultRendererTuning$1;
 	const numberNames = [
 		"gridInset",
 		"gridGap",
@@ -2582,7 +5166,7 @@ function rendererTuningFromVisualProfile$1(profile) {
 * @returns {AeroRendererBackgroundProjection}
 */
 function normalizeBackgroundProjection$1(value) {
-	if (!isRecord$7(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken$1)) return Object.freeze({
+	if (!isRecord$6(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken$1)) return Object.freeze({
 		kind: "linear-gradient",
 		colors: Object.freeze(["#071426", "#153b5d"]),
 		angleDeg: 180
@@ -2641,7 +5225,7 @@ function isNamedEasing$1(value) {
 	return value === "linear" || value === "ease-in" || value === "ease-out" || value === "ease-in-out";
 }
 /** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$7(value) {
+function isRecord$6(value) {
 	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
 }
 /** @param {number} value @param {number} minimum @param {number} maximum */
@@ -4316,7 +6900,7 @@ Object.freeze({
 *   fullscreenButton: "aero-fullscreen-button"
 * }>}
 */
-var elementNames$3 = Object.freeze({
+var elementNames$2 = Object.freeze({
 	game: "aero-game",
 	iconButton: "aero-icon-button",
 	calibrationBadge: "aero-calibration-badge",
@@ -4339,7 +6923,7 @@ var elementNames$3 = Object.freeze({
 * @param {unknown} value
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function isRecord$6(value) {
+function isRecord$5(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -4352,8 +6936,8 @@ function isRecord$6(value) {
 * @param {readonly string[]} expectedKeys
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function hasExactKeys$4(value, expectedKeys) {
-	if (!isRecord$6(value)) return false;
+function hasExactKeys$3(value, expectedKeys) {
+	if (!isRecord$5(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	return keys.length === expectedKeys.length && keys.every((key) => {
 		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
@@ -4367,7 +6951,7 @@ function hasExactKeys$4(value, expectedKeys) {
 * @param {readonly T[]} allowed
 * @returns {value is T}
 */
-function isOneOf$2(value, allowed) {
+function isOneOf$1(value, allowed) {
 	return typeof value === "string" && allowed.includes(value);
 }
 Object.freeze([
@@ -4530,13 +7114,13 @@ Object.freeze(["camera", "audio"]);
 * @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
 */
 /** @type {readonly AeroRulesetId[]} */
-var rulesetIds$4 = Object.freeze([
+var rulesetIds$3 = Object.freeze([
 	"flow_grid_v1",
 	"boxing_semantic_track_v1",
 	"boxing_spatial_grid_v1"
 ]);
 /** @type {readonly AeroConversionRecipeId[]} */
-var conversionRecipeIds$4 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
+var conversionRecipeIds$3 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
 Object.freeze([
 	"straight_left",
 	"straight_right",
@@ -4575,8 +7159,8 @@ Object.freeze({
 * @param {unknown} value
 * @returns {value is AeroPrototypeTuningIdentity}
 */
-function isPrototypeTuningIdentity$1(value) {
-	return hasExactKeys$4(value, [
+function isPrototypeTuningIdentity(value) {
+	return hasExactKeys$3(value, [
 		"schema",
 		"version",
 		"profileId",
@@ -4584,14 +7168,14 @@ function isPrototypeTuningIdentity$1(value) {
 		"contentHash",
 		"class",
 		"regenerationRequired"
-	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString$1(value.profileId, 256) && isBoundedNonEmptyString$1(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf$2(value.class, [
+	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString(value.profileId, 256) && isBoundedNonEmptyString(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf$1(value.class, [
 		"live_visual",
 		"between_run_ruleset",
 		"converter_regeneration"
 	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
 }
 /** @param {unknown} value @param {number} maximum */
-function isBoundedNonEmptyString$1(value, maximum) {
+function isBoundedNonEmptyString(value, maximum) {
 	return typeof value === "string" && value.length > 0 && value.length <= maximum;
 }
 Object.freeze([
@@ -5113,32 +7697,32 @@ var prototypeOptions = Object.freeze([
 	Object.freeze({
 		id: "flow",
 		label: "Flow · Grid",
-		rulesetId: rulesetIds$4[0],
+		rulesetId: rulesetIds$3[0],
 		recipeId: ""
 	}),
 	Object.freeze({
 		id: "semantic-row",
 		label: "Semantic Track · Row Family",
-		rulesetId: rulesetIds$4[1],
-		recipeId: conversionRecipeIds$4[0]
+		rulesetId: rulesetIds$3[1],
+		recipeId: conversionRecipeIds$3[0]
 	}),
 	Object.freeze({
 		id: "spatial-row",
 		label: "Spatial Grid · Row Family",
-		rulesetId: rulesetIds$4[2],
-		recipeId: conversionRecipeIds$4[0]
+		rulesetId: rulesetIds$3[2],
+		recipeId: conversionRecipeIds$3[0]
 	}),
 	Object.freeze({
 		id: "semantic-cut",
 		label: "Semantic Track · Cut Family",
-		rulesetId: rulesetIds$4[1],
-		recipeId: conversionRecipeIds$4[1]
+		rulesetId: rulesetIds$3[1],
+		recipeId: conversionRecipeIds$3[1]
 	}),
 	Object.freeze({
 		id: "spatial-cut",
 		label: "Spatial Grid · Cut Family",
-		rulesetId: rulesetIds$4[2],
-		recipeId: conversionRecipeIds$4[1]
+		rulesetId: rulesetIds$3[2],
+		recipeId: conversionRecipeIds$3[1]
 	})
 ]);
 var profileClasses = Object.freeze([
@@ -5158,7 +7742,7 @@ var scoringChangeStates = Object.freeze([
 var AeroPrototypeSelector = class extends AeroPresenterElement {
 	/** Atomically accept an exact public profile snapshot; malformed input preserves prior state. @param {AeroPresenterSnapshot} snapshot */
 	setSnapshot(snapshot) {
-		if (!isPlainRecord$3(snapshot) || Object.hasOwn(snapshot, "profileClasses") && !isValidProfilePresenterSnapshot(snapshot)) return;
+		if (!isPlainRecord$2(snapshot) || Object.hasOwn(snapshot, "profileClasses") && !isValidProfilePresenterSnapshot(snapshot)) return;
 		super.setSnapshot(snapshot);
 	}
 	/** Deterministic, immutable host-readable profile state; never a bundle. @returns {Readonly<{selectedProfileId:string,sessionState:string,profileClasses:readonly ProfileClassState[]}>} */
@@ -5222,18 +7806,18 @@ var AeroPrototypeSelector = class extends AeroPresenterElement {
 };
 /** @type {Readonly<Record<string, CustomElementConstructor>>} */
 var aeroProductPresenterConstructors = Object.freeze({
-	[elementNames$3.beatSaverBrowser]: AeroBeatSaverBrowser,
-	[elementNames$3.contentImportProgress]: AeroContentImportProgress,
-	[elementNames$3.contentLibrary]: AeroContentLibrary,
-	[elementNames$3.calibrationBadge]: AeroCalibrationBadge,
-	[elementNames$3.gridPlayfield]: AeroGridPlayfield,
-	[elementNames$3.flowHud]: AeroFlowHud,
-	[elementNames$3.boxingTrackHud]: AeroBoxingTrackHud,
-	[elementNames$3.boxingSpatialHud]: AeroBoxingSpatialHud,
-	[elementNames$3.trackingPause]: AeroTrackingPause,
-	[elementNames$3.countdown]: AeroResumeCountdown,
-	[elementNames$3.prototypeSelector]: AeroPrototypeSelector,
-	[elementNames$3.fullscreenButton]: AeroFullscreenButton,
+	[elementNames$2.beatSaverBrowser]: AeroBeatSaverBrowser,
+	[elementNames$2.contentImportProgress]: AeroContentImportProgress,
+	[elementNames$2.contentLibrary]: AeroContentLibrary,
+	[elementNames$2.calibrationBadge]: AeroCalibrationBadge,
+	[elementNames$2.gridPlayfield]: AeroGridPlayfield,
+	[elementNames$2.flowHud]: AeroFlowHud,
+	[elementNames$2.boxingTrackHud]: AeroBoxingTrackHud,
+	[elementNames$2.boxingSpatialHud]: AeroBoxingSpatialHud,
+	[elementNames$2.trackingPause]: AeroTrackingPause,
+	[elementNames$2.countdown]: AeroResumeCountdown,
+	[elementNames$2.prototypeSelector]: AeroPrototypeSelector,
+	[elementNames$2.fullscreenButton]: AeroFullscreenButton,
 	"aero-background-environment": AeroBackgroundEnvironment,
 	"aero-capabilities-panel": AeroCapabilitiesPanel,
 	"aero-error-panel": AeroErrorPanel
@@ -5264,12 +7848,12 @@ function readBoolean(record, key, fallback) {
 /** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {Readonly<Record<string, unknown>> | null} */
 function readRecord(record, key) {
 	const value = record[key];
-	return isPlainRecord$3(value) ? value : null;
+	return isPlainRecord$2(value) ? value : null;
 }
 /** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {Readonly<Record<string, unknown>>[]} */
 function readRecordList(record, key) {
 	const value = record[key];
-	return Array.isArray(value) ? value.filter(isPlainRecord$3) : [];
+	return Array.isArray(value) ? value.filter(isPlainRecord$2) : [];
 }
 /** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {string[]} */
 function readStringList(record, key) {
@@ -5282,7 +7866,7 @@ function readNumberList(record, key) {
 	return Array.isArray(value) ? value.filter((item) => typeof item === "number" && Number.isFinite(item)) : [];
 }
 /** @param {unknown} value @returns {value is Readonly<Record<string, unknown>>} */
-function isPlainRecord$3(value) {
+function isPlainRecord$2(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	try {
 		const prototype = Object.getPrototypeOf(value);
@@ -5294,7 +7878,7 @@ function isPlainRecord$3(value) {
 /** Narrow an external presenter snapshot to immutable JSON-like data. @param {unknown} value @returns {AeroPresenterSnapshot} */
 function narrowAeroPresenterSnapshot(value) {
 	const narrowed = narrowSnapshotValue(value, /* @__PURE__ */ new Set(), 0);
-	return isPlainRecord$3(narrowed) ? narrowed : Object.freeze({});
+	return isPlainRecord$2(narrowed) ? narrowed : Object.freeze({});
 }
 /** @param {unknown} value @param {Set<object>} seen @param {number} depth @returns {unknown} */
 function narrowSnapshotValue(value, seen, depth) {
@@ -5315,7 +7899,7 @@ function narrowSnapshotValue(value, seen, depth) {
 		seen.delete(value);
 		return Object.freeze(items);
 	}
-	if (!isPlainRecord$3(value)) return void 0;
+	if (!isPlainRecord$2(value)) return void 0;
 	seen.add(value);
 	/** @type {Record<string, unknown>} */
 	const record = {};
@@ -5409,7 +7993,7 @@ function calibrationMessage(state) {
 /** @typedef {Readonly<{class:string,active:ProfileIdentity,profiles:readonly ProfileIdentity[],experimental:boolean,selectedContentHash:string,appliedContentHash:string,pendingContentHash:string|null,regenerationRequired:boolean}>} ProfileClassState */
 /** Validate one complete selector snapshot without invoking accessors. @param {unknown} value @returns {boolean} */
 function isValidProfilePresenterSnapshot(value) {
-	if (!hasExactKeys$4(value, [
+	if (!hasExactKeys$3(value, [
 		"selectedProfileId",
 		"sessionState",
 		"profileClasses"
@@ -5420,7 +8004,7 @@ function isValidProfilePresenterSnapshot(value) {
 		const classDescriptor = typeof state === "object" && state !== null ? Object.getOwnPropertyDescriptor(state, "class") : void 0;
 		if (!classDescriptor?.enumerable || !("value" in classDescriptor) || typeof classDescriptor.value !== "string" || !profileClasses.includes(classDescriptor.value) || seen.has(classDescriptor.value)) return false;
 		const isConverter = classDescriptor.value === "converter_regeneration";
-		if (!hasExactKeys$4(state, isConverter ? [
+		if (!hasExactKeys$3(state, isConverter ? [
 			"class",
 			"active",
 			"profiles",
@@ -5434,7 +8018,7 @@ function isValidProfilePresenterSnapshot(value) {
 			"active",
 			"profiles",
 			"experimental"
-		]) || !isPrototypeTuningIdentity$1(state.active) || state.active.class !== state.class || typeof state.experimental !== "boolean" || !isExactDataArray(state.profiles, 64) || !state.profiles.every((identity) => isPrototypeTuningIdentity$1(identity) && identity.class === state.class)) return false;
+		]) || !isPrototypeTuningIdentity(state.active) || state.active.class !== state.class || typeof state.experimental !== "boolean" || !isExactDataArray(state.profiles, 64) || !state.profiles.every((identity) => isPrototypeTuningIdentity(identity) && identity.class === state.class)) return false;
 		if (isConverter) {
 			const selected = state.selectedContentHash;
 			const applied = state.appliedContentHash;
@@ -5828,9 +8412,9 @@ var AeroCalibrationScreen = class extends HTMLElement {
 	/** @returns {void} */
 	#applySnapshot() {
 		if (!this.shadowRoot || !this.isConnected) return;
-		const calibration = isRecord$5(this.screenSnapshot.calibration) ? this.screenSnapshot.calibration : Object.freeze({ state: "waiting" });
-		const capabilities = isRecord$5(this.screenSnapshot.capabilities) ? this.screenSnapshot.capabilities : Object.freeze({});
-		const grid = isRecord$5(this.screenSnapshot.grid) ? this.screenSnapshot.grid : Object.freeze({
+		const calibration = isRecord$4(this.screenSnapshot.calibration) ? this.screenSnapshot.calibration : Object.freeze({ state: "waiting" });
+		const capabilities = isRecord$4(this.screenSnapshot.capabilities) ? this.screenSnapshot.capabilities : Object.freeze({});
+		const grid = isRecord$4(this.screenSnapshot.grid) ? this.screenSnapshot.grid : Object.freeze({
 			mode: "calibration",
 			dimmed: true,
 			label: "Retained calibration grid"
@@ -5848,7 +8432,7 @@ function defineAeroCalibrationScreen() {
 	if (!customElements.get("aero-calibration-screen")) customElements.define("aero-calibration-screen", AeroCalibrationScreen);
 }
 /** @param {unknown} value @returns {value is Readonly<Record<string, unknown>>} */
-function isRecord$5(value) {
+function isRecord$4(value) {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 //#endregion
@@ -6716,13 +9300,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:84f87893dd1f0485ce8ff3a35ba8aa7fb0e85bd165dc4105e9bfb199da41b646";
+var buildStamp = "source:17aa9a9e592b3ee8be531365850510b209bc4d008cbc3a20244d14ecf4fa2ea3";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-84f87893dd1f0485";
+var cacheBust = "0.0.24-17aa9a9e592b3ee8";
 /**
 * Vite-injected package version from package.json.
 *
@@ -6901,11 +9485,11 @@ function cloneForEncoding(value) {
 	if (value === null || typeof value !== "object") return value;
 	if (Array.isArray(value)) return value.map((entry) => cloneForEncoding(entry));
 	const clone = Object.create(null);
-	for (const key of Object.keys(value).sort(compareCodePoints$2)) clone[key] = cloneForEncoding(value[key]);
+	for (const key of Object.keys(value).sort(compareCodePoints$1)) clone[key] = cloneForEncoding(value[key]);
 	return clone;
 }
 /** @param {string} left @param {string} right */
-function compareCodePoints$2(left, right) {
+function compareCodePoints$1(left, right) {
 	return left < right ? -1 : left > right ? 1 : 0;
 }
 //#endregion
@@ -6928,6 +9512,7 @@ var AeroGameMediaLeaseCoordinator = class {
 		/** @type {RegisteredParticipant|null} */ this.callbackParticipant = null;
 		/** @type {AeroGameLeaseCallbackContext|null} */ this.callbackContext = null;
 		/** @type {WeakSet<RegisteredParticipant>} */ this.releasedDuringTransfer = /* @__PURE__ */ new WeakSet();
+		/** @type {WeakSet<RegisteredParticipant>} */ this.activatedParticipants = /* @__PURE__ */ new WeakSet();
 		/** @type {Promise<unknown>} */ this.operationQueue = Promise.resolve();
 	}
 	/** @param {AeroGameMediaLeaseParticipant} participant */
@@ -6963,8 +9548,7 @@ var AeroGameMediaLeaseCoordinator = class {
 					previousPaused = true;
 				}
 				if (this.participants.get(registered.instanceId) !== registered) {
-					const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
-					if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease);
+					const recoverable = previousPaused ? await this.reactivateIfRegistered(previous).catch(() => null) : null;
 					this.owner = recoverable;
 					this.candidate = null;
 					this.transferring = false;
@@ -6972,14 +9556,15 @@ var AeroGameMediaLeaseCoordinator = class {
 				}
 				activationAttempted = true;
 				await this.invoke(registered, registered.activateLease);
+				this.activatedParticipants.add(registered);
 				if (this.participants.get(registered.instanceId) !== registered) {
 					try {
 						await this.invoke(registered, registered.releaseLease);
 					} catch {} finally {
+						this.activatedParticipants.delete(registered);
 						this.releasedDuringTransfer.add(registered);
 					}
-					const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
-					if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease).catch(() => {});
+					const recoverable = previousPaused ? await this.reactivateIfRegistered(previous).catch(() => null) : null;
 					this.owner = recoverable;
 					this.candidate = null;
 					this.transferring = false;
@@ -6994,10 +9579,10 @@ var AeroGameMediaLeaseCoordinator = class {
 					if (activationAttempted) try {
 						await this.invoke(registered, registered.releaseLease);
 					} catch {} finally {
+						this.activatedParticipants.delete(registered);
 						if (this.participants.get(registered.instanceId) !== registered) this.releasedDuringTransfer.add(registered);
 					}
-					const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
-					if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease).catch(() => {});
+					const recoverable = previousPaused ? await this.reactivateIfRegistered(previous).catch(() => null) : previous && this.participants.get(previous.instanceId) === previous ? previous : null;
 					this.candidate = null;
 					this.transferring = false;
 					this.owner = recoverable;
@@ -7027,6 +9612,7 @@ var AeroGameMediaLeaseCoordinator = class {
 				}
 				throw error;
 			}
+			this.activatedParticipants.delete(registered);
 			if (this.generation === token) {
 				this.candidate = null;
 				this.transferring = false;
@@ -7048,8 +9634,9 @@ var AeroGameMediaLeaseCoordinator = class {
 			this.transferring = true;
 			try {
 				if (this.releasedDuringTransfer.has(registered)) this.releasedDuringTransfer.delete(registered);
-				else await this.invoke(registered, registered.releaseLease);
+				else if (this.activatedParticipants.has(registered)) await this.invoke(registered, registered.releaseLease);
 			} finally {
+				this.activatedParticipants.delete(registered);
 				if (this.generation === token) {
 					if (this.candidate === registered) this.candidate = null;
 					this.transferring = false;
@@ -7076,6 +9663,13 @@ var AeroGameMediaLeaseCoordinator = class {
 		const registered = this.registrations.get(participant);
 		if (!registered || this.participants.get(registered.instanceId) !== registered) throw new Error("Lease participant is not registered");
 		return registered;
+	}
+	/** @param {RegisteredParticipant|null} participant @returns {Promise<RegisteredParticipant|null>} */
+	async reactivateIfRegistered(participant) {
+		if (!participant || this.participants.get(participant.instanceId) !== participant) return null;
+		await this.invoke(participant, participant.activateLease);
+		this.activatedParticipants.add(participant);
+		return this.participants.get(participant.instanceId) === participant ? participant : null;
 	}
 	/** @param {AeroGameMediaLeaseParticipant} participant @param {AeroGameLeaseCallbackContext} [callbackContext] */
 	assertNotReentrant(_participant, callbackContext) {
@@ -8472,7 +11066,7 @@ function createBrowserObjectUrlRevoker() {
 *   performancePolicy: "aero.performance.policy"
 * }>}
 */
-var serviceIds$2 = Object.freeze({
+var serviceIds$1 = Object.freeze({
 	audioClock: "aero.audio.clock",
 	videoMedia: "aero.video.media",
 	cvPose: "aero.cv.pose",
@@ -8532,7 +11126,7 @@ Object.freeze({
 * @param {unknown} value
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function isRecord$4(value) {
+function isRecord$3(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -8545,8 +11139,8 @@ function isRecord$4(value) {
 * @param {readonly string[]} expectedKeys
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function hasExactKeys$3(value, expectedKeys) {
-	if (!isRecord$4(value)) return false;
+function hasExactKeys$2(value, expectedKeys) {
+	if (!isRecord$3(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	return keys.length === expectedKeys.length && keys.every((key) => {
 		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
@@ -8558,21 +11152,21 @@ function hasExactKeys$3(value, expectedKeys) {
 * @param {unknown} value
 * @returns {value is number}
 */
-function isFiniteNumber$3(value) {
+function isFiniteNumber$2(value) {
 	return typeof value === "number" && Number.isFinite(value);
 }
 /**
 * @param {unknown} value
 * @returns {value is number}
 */
-function isNonNegativeFiniteNumber$2(value) {
-	return isFiniteNumber$3(value) && value >= 0;
+function isNonNegativeFiniteNumber$1(value) {
+	return isFiniteNumber$2(value) && value >= 0;
 }
 /**
 * @param {unknown} value
 * @returns {value is string}
 */
-function isNonEmptyString$3(value) {
+function isNonEmptyString$2(value) {
 	return typeof value === "string" && value.length > 0;
 }
 /**
@@ -8581,7 +11175,7 @@ function isNonEmptyString$3(value) {
 * @param {readonly T[]} allowed
 * @returns {value is T}
 */
-function isOneOf$1(value, allowed) {
+function isOneOf(value, allowed) {
 	return typeof value === "string" && allowed.includes(value);
 }
 Object.freeze([
@@ -8744,13 +11338,13 @@ Object.freeze(["camera", "audio"]);
 * @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
 */
 /** @type {readonly AeroRulesetId[]} */
-var rulesetIds$3 = Object.freeze([
+var rulesetIds$2 = Object.freeze([
 	"flow_grid_v1",
 	"boxing_semantic_track_v1",
 	"boxing_spatial_grid_v1"
 ]);
 /** @type {readonly AeroConversionRecipeId[]} */
-var conversionRecipeIds$3 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
+var conversionRecipeIds$2 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
 Object.freeze([
 	"straight_left",
 	"straight_right",
@@ -8832,7 +11426,7 @@ Object.freeze({
 * @property {AeroContentHash} packageHash Package integrity hash.
 */
 /** @type {readonly AeroMapModifierId[]} */
-var mapModifierIds$3 = Object.freeze([
+var mapModifierIds$2 = Object.freeze([
 	"no_squats",
 	"no_weaves",
 	"any_punch",
@@ -8843,8 +11437,8 @@ var mapModifierIds$3 = Object.freeze([
 * @param {unknown} value
 * @returns {value is AeroContentHash}
 */
-function isContentHash$2(value) {
-	if (!hasExactKeys$3(value, [
+function isContentHash$1(value) {
+	if (!hasExactKeys$2(value, [
 		"schema",
 		"version",
 		"algorithm",
@@ -8860,7 +11454,7 @@ function isContentHash$2(value) {
 * @returns {value is AeroPersistenceHandle}
 */
 function isPersistenceHandle(value) {
-	return hasExactKeys$3(value, [
+	return hasExactKeys$2(value, [
 		"schema",
 		"version",
 		"storage",
@@ -8868,11 +11462,11 @@ function isPersistenceHandle(value) {
 		"key",
 		"packageId",
 		"packageHash"
-	]) && value.schema === "aerobeat/persistence_handle" && value.version === 1 && isOneOf$1(value.storage, [
+	]) && value.schema === "aerobeat/persistence_handle" && value.version === 1 && isOneOf(value.storage, [
 		"indexeddb",
 		"memory",
 		"external_url"
-	]) && isNonEmptyString$3(value.namespace) && isNonEmptyString$3(value.key) && isNonEmptyString$3(value.packageId) && isContentHash$2(value.packageHash);
+	]) && isNonEmptyString$2(value.namespace) && isNonEmptyString$2(value.key) && isNonEmptyString$2(value.packageId) && isContentHash$1(value.packageHash);
 }
 Object.freeze([
 	"queued",
@@ -8921,7 +11515,7 @@ Object.freeze([
 * @property {string | null} themeId Optional associated theme.
 */
 /** @type {readonly (keyof AeroThemeTokens)[]} */
-var serializableThemeTokenNames$3 = Object.freeze([
+var serializableThemeTokenNames$2 = Object.freeze([
 	"leftHandColor",
 	"rightHandColor",
 	"guardColor",
@@ -8935,7 +11529,7 @@ var serializableThemeTokenNames$3 = Object.freeze([
 	"missEasing"
 ]);
 /** @type {readonly ("default" | "playlist" | "song" | "athlete")[]} */
-var backgroundSuggestionPrecedence$3 = Object.freeze([
+var backgroundSuggestionPrecedence$2 = Object.freeze([
 	"default",
 	"playlist",
 	"song",
@@ -8946,24 +11540,24 @@ var backgroundSuggestionPrecedence$3 = Object.freeze([
 * @returns {value is AeroThemeDescriptor}
 */
 function isThemeDescriptor$1(value) {
-	if (!hasExactKeys$3(value, [
+	if (!hasExactKeys$2(value, [
 		"schema",
 		"version",
 		"id",
 		"themeVersion",
 		"tokens",
 		"contentHash"
-	]) || !isRecord$4(value.tokens)) return false;
+	]) || !isRecord$3(value.tokens)) return false;
 	const tokens = value.tokens;
-	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$3.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$3.includes(key));
-	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$3(value.id) && isNonEmptyString$3(value.themeVersion) && exactTokenKeys && isNonEmptyString$3(tokens.leftHandColor) && isNonEmptyString$3(tokens.rightHandColor) && isNonEmptyString$3(tokens.guardColor) && isNonEmptyString$3(tokens.obstacleColor) && isNonEmptyString$3(tokens.receptorColor) && isNonNegativeFiniteNumber$2(tokens.approachLeadMs) && isNonNegativeFiniteNumber$2(tokens.targetStartScale) && isNonNegativeFiniteNumber$2(tokens.targetHitScale) && isNonEmptyString$3(tokens.approachEasing) && isNonEmptyString$3(tokens.hitEasing) && isNonEmptyString$3(tokens.missEasing) && isContentHash$2(value.contentHash);
+	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$2.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$2.includes(key));
+	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$2(value.id) && isNonEmptyString$2(value.themeVersion) && exactTokenKeys && isNonEmptyString$2(tokens.leftHandColor) && isNonEmptyString$2(tokens.rightHandColor) && isNonEmptyString$2(tokens.guardColor) && isNonEmptyString$2(tokens.obstacleColor) && isNonEmptyString$2(tokens.receptorColor) && isNonNegativeFiniteNumber$1(tokens.approachLeadMs) && isNonNegativeFiniteNumber$1(tokens.targetStartScale) && isNonNegativeFiniteNumber$1(tokens.targetHitScale) && isNonEmptyString$2(tokens.approachEasing) && isNonEmptyString$2(tokens.hitEasing) && isNonEmptyString$2(tokens.missEasing) && isContentHash$1(value.contentHash);
 }
 /**
 * @param {unknown} value
 * @returns {value is AeroBackgroundSuggestion}
 */
 function isBackgroundSuggestion(value) {
-	if (!hasExactKeys$3(value, [
+	if (!hasExactKeys$2(value, [
 		"schema",
 		"version",
 		"source",
@@ -8984,7 +11578,7 @@ function isBackgroundSuggestion(value) {
 		"video"
 	];
 	const mediaKind = value.kind === "image" || value.kind === "video";
-	return value.schema === "aerobeat/background_suggestion" && value.version === 1 && typeof value.source === "string" && sources.includes(value.source) && typeof value.kind === "string" && kinds.includes(value.kind) && (mediaKind ? isNonEmptyString$3(value.url) : value.url === null) && (value.hash === null || isContentHash$2(value.hash)) && (value.themeId === null || isNonEmptyString$3(value.themeId));
+	return value.schema === "aerobeat/background_suggestion" && value.version === 1 && typeof value.source === "string" && sources.includes(value.source) && typeof value.kind === "string" && kinds.includes(value.kind) && (mediaKind ? isNonEmptyString$2(value.url) : value.url === null) && (value.hash === null || isContentHash$1(value.hash)) && (value.themeId === null || isNonEmptyString$2(value.themeId));
 }
 Object.freeze([
 	"configure",
@@ -9093,7 +11687,7 @@ function hasExactDataKeys$1(value, keys) {
 	return actual.length === keys.length && actual.every((key) => typeof key === "string" && keys.includes(key));
 }
 /** Locale-independent Unicode code-point ordering for durable identities. @param {string} left @param {string} right */
-function compareCodePoints$1(left, right) {
+function compareCodePoints(left, right) {
 	return left < right ? -1 : left > right ? 1 : 0;
 }
 /** Read an own data-only diagnostic string without invoking accessors. @param {unknown} value @param {string} key */
@@ -9233,7 +11827,7 @@ async function parseAeroPackage(bytes) {
 	} catch {
 		throw dataError("aeropkg_metadata_invalid", "AEROPKG1 metadata is not valid UTF-8 JSON");
 	}
-	const metadata = requireRecord$3(cloneFrozenData(metadataValue), "aeropkg_metadata_invalid");
+	const metadata = requireRecord$2(cloneFrozenData(metadataValue), "aeropkg_metadata_invalid");
 	if (!hasExactDataKeys$1(metadata, [
 		"schema",
 		"version",
@@ -9250,7 +11844,7 @@ async function parseAeroPackage(bytes) {
 	/** @type {{path: string, kind: "audio" | "background" | "chart" | "other", hash: string, critical: boolean, url: null, bytes: Uint8Array}[]} */
 	const assets = [];
 	for (const rawEntry of table) {
-		const entry = requireRecord$3(rawEntry, "aeropkg_asset_invalid");
+		const entry = requireRecord$2(rawEntry, "aeropkg_asset_invalid");
 		if (!hasExactDataKeys$1(entry, [
 			"path",
 			"offset",
@@ -9302,7 +11896,7 @@ async function loadPackageAssets(value, options = {}) {
 	/** @type {LoadedAsset[]} */
 	const loaded = [];
 	for (const rawEntry of input) {
-		const entry = requireRecord$3(rawEntry, "asset_invalid");
+		const entry = requireRecord$2(rawEntry, "asset_invalid");
 		if (Reflect.ownKeys(entry).some((key) => typeof key !== "string" || ![
 			"path",
 			"kind",
@@ -9495,7 +12089,7 @@ function safeAdd(left, right) {
 	return result;
 }
 /** @param {unknown} value @param {string} code */
-function requireRecord$3(value, code) {
+function requireRecord$2(value, code) {
 	if (!isPlainDataRecord(value)) throw dataError(code, "Expected a plain asset record");
 	return value;
 }
@@ -9530,11 +12124,11 @@ function errorCodeFor(cause) {
 */
 async function validateRuntimePackage(packageValue, options = {}) {
 	const packageRecord = cloneFrozenData(packageValue);
-	requireString$1(packageRecord.schemaId, "package_schema_invalid");
+	requireString(packageRecord.schemaId, "package_schema_invalid");
 	if (packageRecord.schemaId !== "aerobeat.song-package.v1" || packageRecord.schemaVersion !== 1) throw dataError("package_schema_invalid", "Song package schema/version is unsupported");
-	const packageId = requireString$1(packageRecord.packageId, "package_identity_invalid");
-	const songId = requireString$1(packageRecord.songId, "package_identity_invalid");
-	const song = requireRecord$2(packageRecord.song, "song_invalid");
+	const packageId = requireString(packageRecord.packageId, "package_identity_invalid");
+	const songId = requireString(packageRecord.songId, "package_identity_invalid");
+	const song = requireRecord$1(packageRecord.song, "song_invalid");
 	if (song.songId !== songId) throw dataError("song_identity_mismatch", "Package and song identities do not match");
 	validateSource(packageRecord.source);
 	const converterProfile = await validatePackageConverterProfile(packageRecord);
@@ -9547,8 +12141,8 @@ async function validateRuntimePackage(packageValue, options = {}) {
 	const matrix = /* @__PURE__ */ new Set();
 	let flowCount = 0;
 	for (let index = 0; index < charts.length; index += 1) {
-		const chart = requireRecord$2(charts[index], "chart_invalid");
-		const chartId = requireString$1(chart.chartId, "chart_identity_invalid");
+		const chart = requireRecord$1(charts[index], "chart_invalid");
+		const chartId = requireString(chart.chartId, "chart_identity_invalid");
 		if (chartIds.has(chartId)) throw dataError("chart_identity_duplicate", "Chart IDs must be unique");
 		chartIds.add(chartId);
 		const beats = requireArray(chart.beats, "chart_beats_invalid");
@@ -9562,17 +12156,17 @@ async function validateRuntimePackage(packageValue, options = {}) {
 			flowCount += 1;
 			declaredChartHash = await sha256Hex$1(canonicalJson$1(chart));
 		} else if (chart.mode === "boxing") {
-			const prototype = requireRecord$2(chart.prototype, "prototype_invalid");
+			const prototype = requireRecord$1(chart.prototype, "prototype_invalid");
 			await validateChartConverterProfile(prototype, converterProfile);
 			if (prototype.contractId !== "aerobeat.boxing.prototype.v1") throw dataError("prototype_contract_invalid", "Boxing prototype contract is unsupported");
-			requireString$1(prototype.recipeVersion, "recipe_version_invalid");
-			requireString$1(prototype.rulesetVersion, "ruleset_version_invalid");
+			requireString(prototype.recipeVersion, "recipe_version_invalid");
+			requireString(prototype.rulesetVersion, "ruleset_version_invalid");
 			requireHashString(prototype.recipeHash, "recipe_hash_invalid");
 			requireHashString(prototype.rulesetHash, "ruleset_hash_invalid");
-			rulesetId = requireString$1(prototype.rulesetId, "ruleset_invalid");
-			recipeId = requireString$1(prototype.recipeId, "recipe_invalid");
-			if (!rulesetIds$3.includes(rulesetId) || rulesetId === "flow_grid_v1") throw dataError("ruleset_invalid", "Boxing ruleset is unsupported");
-			if (!conversionRecipeIds$3.includes(recipeId)) throw dataError("recipe_invalid", "Conversion recipe is unsupported");
+			rulesetId = requireString(prototype.rulesetId, "ruleset_invalid");
+			recipeId = requireString(prototype.recipeId, "recipe_invalid");
+			if (!rulesetIds$2.includes(rulesetId) || rulesetId === "flow_grid_v1") throw dataError("ruleset_invalid", "Boxing ruleset is unsupported");
+			if (!conversionRecipeIds$2.includes(recipeId)) throw dataError("recipe_invalid", "Conversion recipe is unsupported");
 			if (options.supportedRulesetIds && !options.supportedRulesetIds.includes(rulesetId)) throw dataError("ruleset_unavailable", `Ruleset ${rulesetId} is unavailable`);
 			if (options.supportedRecipeIds && !options.supportedRecipeIds.includes(recipeId)) throw dataError("recipe_unavailable", `Recipe ${recipeId} is unavailable`);
 			modifierIds = normalizeModifiers$1(prototype.modifiers);
@@ -9614,7 +12208,7 @@ async function validateRuntimePackage(packageValue, options = {}) {
 		}));
 	}
 	if (flowCount !== 1) throw dataError("flow_variant_invalid", "Package must contain exactly one Flow chart");
-	if (!conversionRecipeIds$3.flatMap((recipe) => ["boxing_semantic_track_v1", "boxing_spatial_grid_v1"].map((ruleset) => `${recipe}|${ruleset}`)).every((identity) => matrix.has(identity))) throw dataError("boxing_matrix_incomplete", "Package does not contain all four Boxing prototype variants");
+	if (!conversionRecipeIds$2.flatMap((recipe) => ["boxing_semantic_track_v1", "boxing_spatial_grid_v1"].map((ruleset) => `${recipe}|${ruleset}`)).every((identity) => matrix.has(identity))) throw dataError("boxing_matrix_incomplete", "Package does not contain all four Boxing prototype variants");
 	validateSets(packageRecord.sets, chartIds);
 	const packageHashValue = await sha256Hex$1(canonicalJson$1(packageRecord));
 	const expectedPackageHash = normalizeDeclaredHash(options.declaredPackageHash);
@@ -9655,7 +12249,7 @@ async function composeRuntimeVariant(base, requestedModifiers, packageId) {
 			}
 		}
 		if (type === "guard" && modifiers.includes("crossed_guard")) {
-			const target = requireRecord$2(beat.guardTarget, "guard_target_invalid");
+			const target = requireRecord$1(beat.guardTarget, "guard_target_invalid");
 			beat.guardTarget = {
 				...target,
 				leftCell: target.rightCell,
@@ -9674,7 +12268,7 @@ async function composeRuntimeVariant(base, requestedModifiers, packageId) {
 	const chartId = `${base.chartId}~mods-${suffixSeed.slice(0, 12)}`;
 	chartCopy.chartId = chartId;
 	if (base.mode === "boxing") {
-		const prototype = cloneMutable(requireRecord$2(chartCopy.prototype, "prototype_invalid"));
+		const prototype = cloneMutable(requireRecord$1(chartCopy.prototype, "prototype_invalid"));
 		const converterProfile = prototype.converterProfile === void 0 ? null : await normalizeConverterProfile$1(prototype.converterProfile);
 		prototype.modifiers = [...modifiers];
 		if (converterProfile) prototype.converterProfile = cloneMutable(converterProfile);
@@ -9715,7 +12309,7 @@ async function composeRuntimeVariant(base, requestedModifiers, packageId) {
 }
 /** @param {DataRecord} packageRecord @returns {Promise<Readonly<Record<string, unknown>> | null>} */
 async function validatePackageConverterProfile(packageRecord) {
-	const sourceValue = requireRecord$2(packageRecord.source, "source_provenance_invalid").converterProfile;
+	const sourceValue = requireRecord$1(packageRecord.source, "source_provenance_invalid").converterProfile;
 	const traceValue = packageRecord.conversionTrace;
 	const trace = isPlainDataRecord(traceValue) ? traceValue : null;
 	if (sourceValue === void 0) {
@@ -9728,9 +12322,9 @@ async function validatePackageConverterProfile(packageRecord) {
 	if (!sameProfile(profile, await normalizeConverterProfile$1(trace.converterProfile))) throw dataError("converter_profile_trace_mismatch", "Conversion trace profile must exactly match package source provenance");
 	const boxing = requireArray(trace.boxing, "converter_profile_boxing_trace_mismatch");
 	if (boxing.length !== 4) throw dataError("converter_profile_boxing_trace_mismatch", "Profile-authored packages require four Boxing trace profiles");
-	for (const value of boxing) if (!sameProfile(profile, await normalizeConverterProfile$1(requireRecord$2(value, "converter_profile_boxing_trace_mismatch").converterProfile))) throw dataError("converter_profile_boxing_trace_mismatch", "Every Boxing trace profile must match package source provenance");
+	for (const value of boxing) if (!sameProfile(profile, await normalizeConverterProfile$1(requireRecord$1(value, "converter_profile_boxing_trace_mismatch").converterProfile))) throw dataError("converter_profile_boxing_trace_mismatch", "Every Boxing trace profile must match package source provenance");
 	const flow = requireArray(trace.flow, "converter_profile_flow_trace_forbidden");
-	for (const value of flow) if (requireRecord$2(value, "converter_profile_flow_trace_forbidden").converterProfile !== void 0) throw dataError("converter_profile_flow_trace_forbidden", "Flow traces must not carry Boxing converter profile provenance");
+	for (const value of flow) if (requireRecord$1(value, "converter_profile_flow_trace_forbidden").converterProfile !== void 0) throw dataError("converter_profile_flow_trace_forbidden", "Flow traces must not carry Boxing converter profile provenance");
 	return profile;
 }
 /** @param {DataRecord | null} trace */
@@ -9740,7 +12334,7 @@ function validateUnboundTraceProfiles(trace) {
 		const traces = trace[key];
 		if (traces === void 0) continue;
 		const values = requireArray(traces, "converter_profile_unbound");
-		for (const value of values) if (requireRecord$2(value, "converter_profile_unbound").converterProfile !== void 0) throw dataError("converter_profile_unbound", "Trace converter profile requires package source provenance");
+		for (const value of values) if (requireRecord$1(value, "converter_profile_unbound").converterProfile !== void 0) throw dataError("converter_profile_unbound", "Trace converter profile requires package source provenance");
 	}
 }
 /** @param {DataRecord} prototype @param {Readonly<Record<string, unknown>> | null} expected */
@@ -9818,14 +12412,14 @@ function chartHashProjection(beats, recipeId, rulesetId, sourceHash, converterPr
 }
 /** @param {unknown} sourceValue */
 function validateSource(sourceValue) {
-	const source = requireRecord$2(sourceValue, "source_provenance_invalid");
+	const source = requireRecord$1(sourceValue, "source_provenance_invalid");
 	for (const key of [
 		"provider",
 		"sourceId",
 		"sourceVersionHash",
 		"difficulty",
 		"sourceDifficultyPath"
-	]) requireString$1(source[key], "source_provenance_invalid");
+	]) requireString(source[key], "source_provenance_invalid");
 	requireHashString(source.sourceHash, "source_hash_invalid");
 }
 /** @param {unknown} setsValue @param {Set<string>} chartIds */
@@ -9834,9 +12428,9 @@ function validateSets(setsValue, chartIds) {
 	const setIds = /* @__PURE__ */ new Set();
 	const linkedCharts = /* @__PURE__ */ new Set();
 	for (const item of sets) {
-		const set = requireRecord$2(item, "set_invalid");
-		const setId = requireString$1(set.setId, "set_identity_invalid");
-		const chartId = requireString$1(set.chartId, "set_chart_invalid");
+		const set = requireRecord$1(item, "set_invalid");
+		const setId = requireString(set.setId, "set_identity_invalid");
+		const chartId = requireString(set.chartId, "set_chart_invalid");
 		if (setIds.has(setId) || !chartIds.has(chartId)) throw dataError("set_reference_invalid", "Set identities and chart references must be unique and valid");
 		setIds.add(setId);
 		linkedCharts.add(chartId);
@@ -9848,10 +12442,10 @@ function validateEvents(beats, boxing) {
 	const ids = /* @__PURE__ */ new Set();
 	const lineageOwners = /* @__PURE__ */ new Set();
 	for (let index = 0; index < beats.length; index += 1) {
-		const beat = requireRecord$2(beats[index], "event_invalid");
+		const beat = requireRecord$1(beats[index], "event_invalid");
 		if (!Number.isFinite(beat.start) || Number(beat.start) < 0 || typeof beat.type !== "string" || beat.type.length === 0) throw dataError("event_shape_invalid", `Event ${index} is invalid`);
 		if (!boxing) continue;
-		const eventId = requireString$1(beat.eventId, "event_identity_invalid");
+		const eventId = requireString(beat.eventId, "event_identity_invalid");
 		if (ids.has(eventId)) throw dataError("event_identity_duplicate", "Boxing event IDs must be unique");
 		ids.add(eventId);
 		if (!Array.isArray(beat.sourceEventIds) || beat.sourceEventIds.length === 0 || beat.sourceEventIds.length > 64 || beat.sourceEventIds.some((entry) => typeof entry !== "string" || entry.length === 0 || entry.length > 512) || new Set(beat.sourceEventIds).size !== beat.sourceEventIds.length) throw dataError("event_lineage_invalid", "Boxing event lineage is required and must be unique");
@@ -9861,12 +12455,12 @@ function validateEvents(beats, boxing) {
 }
 /** @param {DataRecord} song */
 function readBpm(song) {
-	const first = requireRecord$2(requireArray(requireRecord$2(song.timing, "song_timing_invalid").tempoSegments, "song_timing_invalid")[0], "song_timing_invalid");
+	const first = requireRecord$1(requireArray(requireRecord$1(song.timing, "song_timing_invalid").tempoSegments, "song_timing_invalid")[0], "song_timing_invalid");
 	if (!Number.isFinite(first.bpm) || Number(first.bpm) <= 0) throw dataError("song_bpm_invalid", "Song BPM must be positive");
 	return Number(first.bpm);
 }
 /** @param {unknown} value @param {string} code @returns {DataRecord} */
-function requireRecord$2(value, code) {
+function requireRecord$1(value, code) {
 	if (!isPlainDataRecord(value)) throw dataError(code, "Expected a plain content record");
 	return value;
 }
@@ -9876,7 +12470,7 @@ function requireArray(value, code) {
 	return value;
 }
 /** @param {unknown} value @param {string} code @returns {string} */
-function requireString$1(value, code) {
+function requireString(value, code) {
 	if (typeof value !== "string" || value.length === 0) throw dataError(code, "Expected a non-empty content string");
 	return value;
 }
@@ -9902,15 +12496,15 @@ function normalizeDeclaredHash(value) {
 }
 /** @param {unknown} value @returns {string[]} */
 function normalizeModifiers$1(value) {
-	if (!Array.isArray(value) || value.length > mapModifierIds$3.length || value.some((entry) => typeof entry !== "string")) throw dataError("modifiers_invalid", "Modifiers must be a bounded string array");
+	if (!Array.isArray(value) || value.length > mapModifierIds$2.length || value.some((entry) => typeof entry !== "string")) throw dataError("modifiers_invalid", "Modifiers must be a bounded string array");
 	const result = [...new Set(value)].sort();
-	if (result.some((entry) => !mapModifierIds$3.includes(entry))) throw dataError("modifier_invalid", "Modifier is unsupported");
+	if (result.some((entry) => !mapModifierIds$2.includes(entry))) throw dataError("modifier_invalid", "Modifier is unsupported");
 	return result;
 }
 /** @param {readonly unknown[]} beats @param {readonly string[]} identity */
 function validateEventModifierIdentity(beats, identity) {
 	for (const value of beats) {
-		const beat = requireRecord$2(value, "event_invalid");
+		const beat = requireRecord$1(value, "event_invalid");
 		const emitted = [];
 		if (beat.modifier !== void 0 && beat.modifier !== null) emitted.push(beat.modifier);
 		if (beat.runtimeModifiers !== void 0) {
@@ -10129,7 +12723,7 @@ function createAeroContentRuntime(options = {}) {
 			const preservedIds = new Set(preserved.map((event) => String(event.eventId)));
 			const preservedTargets = new Set(preserved.flatMap(eventTargetKeys));
 			const replacement = future.filter((event) => Number(event.centerTimestampMs) >= playbackPositionMs && !preservedIds.has(String(event.eventId)) && eventTargetKeys(event).every((key) => !preservedTargets.has(key)));
-			resolvedEvents = Object.freeze([...preserved, ...replacement].sort((left, right) => Number(left.centerTimestampMs) - Number(right.centerTimestampMs) || compareCodePoints$1(String(left.eventId), String(right.eventId))));
+			resolvedEvents = Object.freeze([...preserved, ...replacement].sort((left, right) => Number(left.centerTimestampMs) - Number(right.centerTimestampMs) || compareCodePoints(String(left.eventId), String(right.eventId))));
 			selectedVariant = target;
 			publish();
 			return target;
@@ -10323,7 +12917,7 @@ function createAeroContentRuntime(options = {}) {
 		return Object.freeze({
 			schema: "aerobeat/content_runtime_snapshot",
 			version: 1,
-			serviceId: serviceIds$2.contentLibrary,
+			serviceId: serviceIds$1.contentLibrary,
 			state,
 			generation,
 			source: sourceSnapshot,
@@ -10331,8 +12925,8 @@ function createAeroContentRuntime(options = {}) {
 			packageId,
 			packageHash,
 			song: loadedPackage?.song ?? null,
-			variants: Object.freeze([...variantById.values()].map(publicVariant$1)),
-			selectedVariant: selectedVariant ? publicVariant$1(selectedVariant) : null,
+			variants: Object.freeze([...variantById.values()].map(publicVariant)),
+			selectedVariant: selectedVariant ? publicVariant(selectedVariant) : null,
 			resolvedEvents,
 			playback: Object.freeze({
 				state: playbackState,
@@ -10531,7 +13125,7 @@ async function raceAbort(promise, signal) {
 	});
 }
 /** @param {RuntimeVariant} variant */
-function publicVariant$1(variant) {
+function publicVariant(variant) {
 	return Object.freeze({
 		variantId: variant.variantId,
 		chartId: variant.chartId,
@@ -10560,7 +13154,7 @@ function timelineFor(variant, bpm) {
 			centerTimestampMs: Number(beat.start) * 6e4 / bpm,
 			authoredBeat: beat
 		});
-	}).sort((left, right) => left.centerTimestampMs - right.centerTimestampMs || compareCodePoints$1(left.eventId, right.eventId)));
+	}).sort((left, right) => left.centerTimestampMs - right.centerTimestampMs || compareCodePoints(left.eventId, right.eventId)));
 }
 /** @param {DataRecord} event @returns {string[]} */
 function eventTargetKeys(event) {
@@ -10672,7 +13266,7 @@ function fallbackBackground() {
 	return Object.freeze({
 		schema: "aerobeat/background_suggestion",
 		version: 1,
-		source: backgroundSuggestionPrecedence$3[0],
+		source: backgroundSuggestionPrecedence$2[0],
 		kind: "css",
 		url: null,
 		hash: null,
@@ -10709,7 +13303,7 @@ function publicError(cause) {
 //#endregion
 //#region node_modules/@aerobeat/web-content/src/index.js
 /** @type {"aero.content.library"} */
-var aeroContentServiceId = serviceIds$2.contentLibrary;
+var aeroContentServiceId = serviceIds$1.contentLibrary;
 Object.freeze({
 	schema: "aero.content.runtime.descriptor",
 	version: 1,
@@ -10753,7 +13347,7 @@ function serialize(value, seen) {
 		seen.delete(value);
 		return `[${parts.join(",")}]`;
 	}
-	if (!isPlainRecord$2(value)) throw new TypeError("Canonical JSON accepts plain data records only");
+	if (!isPlainRecord$1(value)) throw new TypeError("Canonical JSON accepts plain data records only");
 	if (seen.has(value)) throw new TypeError("Canonical JSON rejects cycles");
 	seen.add(value);
 	const keys = Reflect.ownKeys(value);
@@ -10773,7 +13367,7 @@ function serialize(value, seen) {
 * @param {unknown} value
 * @returns {value is Record<string, unknown>}
 */
-function isPlainRecord$2(value) {
+function isPlainRecord$1(value) {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -10837,7 +13431,7 @@ function parseBeatMapDifficulty(input, format) {
 	} catch (cause) {
 		throw new AuthoringParseError("difficulty_json_invalid", `Difficulty JSON could not be parsed${diagnostic$3(cause)}`);
 	}
-	if (!isPlainRecord$2(parsed)) throw new AuthoringParseError("difficulty_shape_invalid", "Difficulty root must be a plain record");
+	if (!isPlainRecord$1(parsed)) throw new AuthoringParseError("difficulty_shape_invalid", "Difficulty root must be a plain record");
 	if (format === "v4") return freezeSummary(normalizeV4(parsed));
 	if (format === "v2") return freezeSummary(normalizeV2(parsed));
 	return freezeSummary(normalizeV3(parsed));
@@ -10849,7 +13443,7 @@ function normalizeV2(map) {
 	const bombNotes = [];
 	let colorIndex = 0;
 	for (const entry of notes) {
-		if (!isPlainRecord$2(entry)) continue;
+		if (!isPlainRecord$1(entry)) continue;
 		const type = integer(entry._type ?? entry.type, -1);
 		const x = integer(entry._lineIndex ?? entry.lineIndex, 0);
 		const y = integer(entry._lineLayer ?? entry.lineLayer, 0);
@@ -10865,7 +13459,7 @@ function normalizeV2(map) {
 		colorNotes,
 		bombNotes,
 		obstacles: array(map._obstacles ?? map.obstacles).flatMap((entry) => {
-			if (!isPlainRecord$2(entry)) return [];
+			if (!isPlainRecord$1(entry)) return [];
 			const legacyType = integer(entry._type ?? entry.type, 0);
 			return [{
 				start: number(entry._time ?? entry.b, 0),
@@ -10876,7 +13470,7 @@ function normalizeV2(map) {
 				height: legacyType === 1 ? 1 : 3
 			}];
 		}),
-		sliders: array(map._sliders ?? map.sliders).flatMap((entry) => isPlainRecord$2(entry) ? [{
+		sliders: array(map._sliders ?? map.sliders).flatMap((entry) => isPlainRecord$1(entry) ? [{
 			start: number(entry._headTime ?? entry.b, 0),
 			end: number(entry._tailTime ?? entry.tb ?? entry._headTime ?? entry.b, 0),
 			cell: cellFromXY(integer(entry._headLineIndex ?? entry.x, 0), integer(entry._headLineLayer ?? entry.y, 0)),
@@ -10895,19 +13489,19 @@ function normalizeV2(map) {
 function normalizeV3(map) {
 	return {
 		colorNotes: array(map.colorNotes).flatMap((entry, sourceIndex) => {
-			if (!isPlainRecord$2(entry)) return [];
+			if (!isPlainRecord$1(entry)) return [];
 			const x = integer(entry.x, 0);
 			const y = integer(entry.y, 0);
 			const color = integer(entry.c, 0);
 			return [noteRecord(sourceIndex, number(entry.b, 0), x, y, color, integer(entry.d, 8), number(entry.a, 0), Object.hasOwn(entry, "a"))];
 		}),
-		bombNotes: array(map.bombNotes).flatMap((entry) => isPlainRecord$2(entry) ? [{
+		bombNotes: array(map.bombNotes).flatMap((entry) => isPlainRecord$1(entry) ? [{
 			start: number(entry.b, 0),
 			x: integer(entry.x, 0),
 			y: integer(entry.y, 0),
 			cell: cellFromXY(integer(entry.x, 0), integer(entry.y, 0))
 		}] : []),
-		obstacles: array(map.obstacles).flatMap((entry) => isPlainRecord$2(entry) ? [{
+		obstacles: array(map.obstacles).flatMap((entry) => isPlainRecord$1(entry) ? [{
 			start: number(entry.b, 0),
 			duration: number(entry.d, 0),
 			x: integer(entry.x, 0),
@@ -10915,7 +13509,7 @@ function normalizeV3(map) {
 			width: integer(entry.w, 1),
 			height: integer(entry.h, 1)
 		}] : []),
-		sliders: array(map.sliders).flatMap((entry) => isPlainRecord$2(entry) ? [{
+		sliders: array(map.sliders).flatMap((entry) => isPlainRecord$1(entry) ? [{
 			start: number(entry.b, 0),
 			end: number(entry.tb ?? entry.b, 0),
 			cell: cellFromXY(integer(entry.x, 0), integer(entry.y, 0)),
@@ -10928,7 +13522,7 @@ function normalizeV3(map) {
 			midAnchorMode: integer(entry.m, 0)
 		}] : []),
 		burstSliders: array(map.burstSliders).flatMap((entry) => {
-			if (!isPlainRecord$2(entry)) return [];
+			if (!isPlainRecord$1(entry)) return [];
 			const result = {
 				start: number(entry.b, 0),
 				end: number(entry.tb ?? entry.b, 0),
@@ -10947,7 +13541,7 @@ function normalizeV3(map) {
 function normalizeV4(map) {
 	const noteData = records(map.colorNotesData);
 	const colorNotes = array(map.colorNotes).flatMap((entry, sourceIndex) => {
-		if (!isPlainRecord$2(entry)) return [];
+		if (!isPlainRecord$1(entry)) return [];
 		const metadata = metadataAt(noteData, integer(entry.i, -1));
 		const x = intField(entry, metadata, "x", 0);
 		const y = intField(entry, metadata, "y", 0);
@@ -10956,7 +13550,7 @@ function normalizeV4(map) {
 	});
 	const bombData = records(map.bombNotesData);
 	const bombNotes = array(map.bombNotes).flatMap((entry) => {
-		if (!isPlainRecord$2(entry)) return [];
+		if (!isPlainRecord$1(entry)) return [];
 		const metadata = metadataAt(bombData, integer(entry.i, -1));
 		const x = intField(entry, metadata, "x", 0);
 		const y = intField(entry, metadata, "y", 0);
@@ -10969,7 +13563,7 @@ function normalizeV4(map) {
 	});
 	const obstacleData = records(map.obstaclesData);
 	const obstacles = array(map.obstacles).flatMap((entry) => {
-		if (!isPlainRecord$2(entry)) return [];
+		if (!isPlainRecord$1(entry)) return [];
 		const metadata = metadataAt(obstacleData, integer(entry.i, -1));
 		return [{
 			start: number(entry.b, 0),
@@ -10982,7 +13576,7 @@ function normalizeV4(map) {
 	});
 	const arcData = records(map.arcsData);
 	const sliders = array(map.arcs).flatMap((entry) => {
-		if (!isPlainRecord$2(entry)) return [];
+		if (!isPlainRecord$1(entry)) return [];
 		const head = metadataAt(noteData, integer(entry.hi, -1));
 		const tail = metadataAt(noteData, integer(entry.ti, -1));
 		const metadata = metadataAt(arcData, integer(entry.ai, -1));
@@ -11006,7 +13600,7 @@ function normalizeV4(map) {
 		obstacles,
 		sliders,
 		burstSliders: array(map.chains).flatMap((entry) => {
-			if (!isPlainRecord$2(entry)) return [];
+			if (!isPlainRecord$1(entry)) return [];
 			const head = metadataAt(noteData, integer(entry.i, -1));
 			const metadata = metadataAt(chainData, integer(entry.ci, -1));
 			const result = {
@@ -11052,7 +13646,7 @@ function array(value) {
 }
 /** @param {unknown} value */
 function records(value) {
-	return array(value).filter(isPlainRecord$2);
+	return array(value).filter(isPlainRecord$1);
 }
 /** @param {Record<string, unknown>[]} recordsValue @param {number} index */
 function metadataAt(recordsValue, index) {
@@ -11176,7 +13770,7 @@ async function normalizeConverterProfile(value) {
 }
 /** @param {unknown} value @param {readonly string[]} keys */
 function exactKeys(value, keys) {
-	if (!isPlainRecord$2(value) || Reflect.ownKeys(value).length !== keys.length) return false;
+	if (!isPlainRecord$1(value) || Reflect.ownKeys(value).length !== keys.length) return false;
 	return keys.every((key) => {
 		const descriptor = Object.getOwnPropertyDescriptor(value, key);
 		return descriptor && "value" in descriptor && descriptor.enumerable && descriptor.value !== void 0;
@@ -12266,7 +14860,7 @@ var maximumAssets = 2048;
 * @param {{package: Record<string, unknown>, packageHash: string, assets: readonly {path: string, bytes: Uint8Array}[]}} record
 */
 async function exportAuthoredPackage(record) {
-	if (!hasExactKeys$2(record, [
+	if (!hasExactKeys$1(record, [
 		"package",
 		"packageHash",
 		"assets"
@@ -12274,7 +14868,7 @@ async function exportAuthoredPackage(record) {
 	const packageValue = dataValue$1(record, "package");
 	const packageHash = dataValue$1(record, "packageHash");
 	const assetValues = denseArray(dataValue$1(record, "assets"), maximumAssets, "export_assets_exceeded");
-	if (!isPlainRecord$2(packageValue) || !validHash$2(packageHash)) throw exportError("export_record_invalid", "Authored package record is invalid");
+	if (!isPlainRecord$1(packageValue) || !validHash$2(packageHash)) throw exportError("export_record_invalid", "Authored package record is invalid");
 	let canonicalPackage;
 	try {
 		canonicalPackage = canonicalJson(packageValue);
@@ -12285,7 +14879,7 @@ async function exportAuthoredPackage(record) {
 	const seen = /* @__PURE__ */ new Set();
 	const assets = [];
 	for (const value of assetValues) {
-		if (!hasExactKeys$2(value, ["path", "bytes"])) throw exportError("export_asset_invalid", "Authored package asset is invalid");
+		if (!hasExactKeys$1(value, ["path", "bytes"])) throw exportError("export_asset_invalid", "Authored package asset is invalid");
 		const rawPath = dataValue$1(value, "path");
 		const rawBytes = dataValue$1(value, "bytes");
 		if (typeof rawPath !== "string" || !(rawBytes instanceof Uint8Array)) throw exportError("export_asset_invalid", "Authored package asset is invalid");
@@ -12340,8 +14934,8 @@ async function exportAuthoredPackage(record) {
 	});
 }
 /** @param {unknown} value @param {readonly string[]} keys */
-function hasExactKeys$2(value, keys) {
-	if (!isPlainRecord$2(value) || Reflect.ownKeys(value).length !== keys.length) return false;
+function hasExactKeys$1(value, keys) {
+	if (!isPlainRecord$1(value) || Reflect.ownKeys(value).length !== keys.length) return false;
 	return keys.every((key) => {
 		const descriptor = Object.getOwnPropertyDescriptor(value, key);
 		return descriptor && "value" in descriptor && descriptor.enumerable;
@@ -12403,7 +14997,7 @@ function exportError(code, message) {
 * @param {unknown} packageValue
 */
 function semanticParityProjection(packageValue) {
-	if (!isPlainRecord$2(packageValue)) throw new TypeError("Package is required for semantic parity");
+	if (!isPlainRecord$1(packageValue)) throw new TypeError("Package is required for semantic parity");
 	canonicalJson(packageValue);
 	if (!Array.isArray(packageValue.charts)) throw new TypeError("Package charts are required for semantic parity");
 	return {
@@ -12412,7 +15006,7 @@ function semanticParityProjection(packageValue) {
 		packageVersion: packageValue.packageVersion,
 		packageId: packageValue.packageId,
 		songId: packageValue.songId,
-		source: isPlainRecord$2(packageValue.source) ? pick(packageValue.source, [
+		source: isPlainRecord$1(packageValue.source) ? pick(packageValue.source, [
 			"provider",
 			"sourceId",
 			"sourceVersionHash",
@@ -12420,7 +15014,7 @@ function semanticParityProjection(packageValue) {
 			"sourceDifficultyPath",
 			"converterProfile"
 		]) : null,
-		song: isPlainRecord$2(packageValue.song) ? pick(packageValue.song, [
+		song: isPlainRecord$1(packageValue.song) ? pick(packageValue.song, [
 			"schemaId",
 			"schemaVersion",
 			"recordVersion",
@@ -12430,7 +15024,7 @@ function semanticParityProjection(packageValue) {
 			"audio",
 			"timing"
 		]) : null,
-		sets: Array.isArray(packageValue.sets) ? packageValue.sets.map((set) => isPlainRecord$2(set) ? pick(set, [
+		sets: Array.isArray(packageValue.sets) ? packageValue.sets.map((set) => isPlainRecord$1(set) ? pick(set, [
 			"schemaId",
 			"schemaVersion",
 			"recordVersion",
@@ -12443,8 +15037,8 @@ function semanticParityProjection(packageValue) {
 		rulesetDefinitions: Array.isArray(packageValue.rulesetDefinitions) ? packageValue.rulesetDefinitions.map(projectDefinition) : [],
 		presentationSuggestion: Object.hasOwn(packageValue, "presentationSuggestion") ? packageValue.presentationSuggestion : null,
 		charts: packageValue.charts.map((chart) => {
-			if (!isPlainRecord$2(chart)) return null;
-			const prototype = isPlainRecord$2(chart.prototype) ? chart.prototype : null;
+			if (!isPlainRecord$1(chart)) return null;
+			const prototype = isPlainRecord$1(chart.prototype) ? chart.prototype : null;
 			return {
 				schemaId: chart.schemaId,
 				schemaVersion: chart.schemaVersion,
@@ -12472,7 +15066,7 @@ function semanticParityProjection(packageValue) {
 }
 /** @param {unknown} value */
 function projectDefinition(value) {
-	if (!isPlainRecord$2(value)) return null;
+	if (!isPlainRecord$1(value)) return null;
 	const result = {};
 	for (const key of Reflect.ownKeys(value)) {
 		if (typeof key !== "string" || /hash/iu.test(key)) continue;
@@ -12483,9 +15077,9 @@ function projectDefinition(value) {
 }
 /** @param {unknown} value */
 function projectTraces(value) {
-	if (!isPlainRecord$2(value)) return null;
+	if (!isPlainRecord$1(value)) return null;
 	return {
-		boxing: Array.isArray(value.boxing) ? value.boxing.map((trace) => isPlainRecord$2(trace) ? {
+		boxing: Array.isArray(value.boxing) ? value.boxing.map((trace) => isPlainRecord$1(trace) ? {
 			...pick(trace, [
 				"chartId",
 				"difficulty",
@@ -12514,7 +15108,7 @@ function pick(value, keys) {
 }
 /** @param {unknown} beat */
 function projectBeat(beat) {
-	if (!isPlainRecord$2(beat)) return null;
+	if (!isPlainRecord$1(beat)) return null;
 	return pick(beat, [
 		"start",
 		"end",
@@ -12781,7 +15375,7 @@ function copyRecord(record) {
 		"writeToken"
 	])) throw storageError("storage_record_invalid", "Stored package record shape is invalid");
 	const key = valueFor(record, "key"), packageValue = valueFor(record, "package"), packageHash = valueFor(record, "packageHash"), createdAtMs = valueFor(record, "createdAtMs"), writeToken = valueFor(record, "writeToken");
-	if (typeof key !== "string" || !key || key.length > 1024 || !isPlainRecord$2(packageValue) || typeof packageHash !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(packageHash) || !Number.isSafeInteger(createdAtMs) || Number(createdAtMs) < 0 || typeof writeToken !== "string" || writeToken.length > 128) throw storageError("storage_record_invalid", "Stored package record values are invalid");
+	if (typeof key !== "string" || !key || key.length > 1024 || !isPlainRecord$1(packageValue) || typeof packageHash !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(packageHash) || !Number.isSafeInteger(createdAtMs) || Number(createdAtMs) < 0 || typeof writeToken !== "string" || writeToken.length > 128) throw storageError("storage_record_invalid", "Stored package record values are invalid");
 	let encoded;
 	try {
 		encoded = canonicalJson(packageValue);
@@ -12802,7 +15396,7 @@ function copyRecord(record) {
 }
 /** @param {StoredPackageRecord} record */
 function summaryFor(record) {
-	const packageId = valueFor(record.package, "packageId"), songName = valueFor(record.package, "songName"), source = valueFor(record.package, "source"), difficulty = isPlainRecord$2(source) ? valueFor(source, "difficulty") : "";
+	const packageId = valueFor(record.package, "packageId"), songName = valueFor(record.package, "songName"), source = valueFor(record.package, "source"), difficulty = isPlainRecord$1(source) ? valueFor(source, "difficulty") : "";
 	return deepFreeze$1({
 		key: record.key,
 		packageId: typeof packageId === "string" ? packageId : "",
@@ -12827,7 +15421,7 @@ function recordSize(record) {
 }
 /** @param {unknown} value @param {readonly string[]} keys */
 function exactRecord(value, keys) {
-	if (!isPlainRecord$2(value) || Reflect.ownKeys(value).length !== keys.length) return false;
+	if (!isPlainRecord$1(value) || Reflect.ownKeys(value).length !== keys.length) return false;
 	return keys.every((key) => {
 		const descriptor = Object.getOwnPropertyDescriptor(value, key);
 		return descriptor && "value" in descriptor && descriptor.enumerable && descriptor.value !== void 0;
@@ -12898,9 +15492,9 @@ var maximumIdentityChars = 512;
 * @param {{difficulty: string, sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, cacheSourceEntries?: boolean, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, limits?: Partial<typeof defaultLimits>}} options
 */
 async function prepareSourceMaterial(acquired, options) {
-	if (!isPlainRecord$2(acquired) || !isPlainRecord$2(options)) throw sourceError("source_invalid", "Source acquisition and options must be plain records");
+	if (!isPlainRecord$1(acquired) || !isPlainRecord$1(options)) throw sourceError("source_invalid", "Source acquisition and options must be plain records");
 	const nestedSource = dataProperty$1(acquired, "source");
-	const source = isPlainRecord$2(nestedSource) ? nestedSource : acquired;
+	const source = isPlainRecord$1(nestedSource) ? nestedSource : acquired;
 	if (!isSourceBundle(source)) throw sourceError("source_bundle_invalid", "Source must expose manifest, listEntryPaths and readEntry as data properties");
 	const manifest = dataProperty$1(source, "manifest");
 	const limits = normalizeLimits$1(dataProperty$1(options, "limits"));
@@ -12910,7 +15504,7 @@ async function prepareSourceMaterial(acquired, options) {
 	const wanted = normalizeDifficulty$1(difficultyValue);
 	let selected;
 	for (const entry of difficulties) {
-		if (!isPlainRecord$2(entry) || dataProperty$1(entry, "characteristic") !== "Standard") continue;
+		if (!isPlainRecord$1(entry) || dataProperty$1(entry, "characteristic") !== "Standard") continue;
 		const candidate = dataProperty$1(entry, "difficulty");
 		if (typeof candidate === "string" && candidate.length <= 64 && normalizeDifficulty$1(candidate) === wanted) {
 			selected = entry;
@@ -12968,9 +15562,9 @@ async function prepareSourceMaterial(acquired, options) {
 	const providerId = boundedDataString(dataProperty$1(acquired, "providerId"));
 	const sourceProvider = sourceProviderOption || providerId || "local";
 	const mapValue = dataProperty$1(acquired, "map");
-	const map = isPlainRecord$2(mapValue) ? mapValue : {};
+	const map = isPlainRecord$1(mapValue) ? mapValue : {};
 	const versionValue = dataProperty$1(acquired, "version");
-	const version = isPlainRecord$2(versionValue) ? versionValue : {};
+	const version = isPlainRecord$1(versionValue) ? versionValue : {};
 	const sourceIdOption = optionalIdentity(dataProperty$1(options, "sourceId"), "sourceId");
 	const sourceVersionOption = optionalIdentity(dataProperty$1(options, "sourceVersionHash"), "sourceVersionHash");
 	const sourceId = sourceIdOption || boundedDataString(dataProperty$1(map, "mapId")) || boundedDataString(dataProperty$1(manifest, "songName")) || "local-import";
@@ -13013,7 +15607,7 @@ async function prepareSourceMaterial(acquired, options) {
 }
 /** @param {unknown} value @returns {value is SourceBundle} */
 function isSourceBundle(value) {
-	return isPlainRecord$2(value) && isPlainRecord$2(dataProperty$1(value, "manifest")) && typeof dataProperty$1(value, "listEntryPaths") === "function" && typeof dataProperty$1(value, "readEntry") === "function";
+	return isPlainRecord$1(value) && isPlainRecord$1(dataProperty$1(value, "manifest")) && typeof dataProperty$1(value, "listEntryPaths") === "function" && typeof dataProperty$1(value, "readEntry") === "function";
 }
 /** @param {Record<string, unknown>} record @param {string} key */
 function dataProperty$1(record, key) {
@@ -13054,8 +15648,8 @@ function readBounded(reader, source, path, maximum, kind) {
 }
 /** @param {unknown} value */
 function normalizeLimits$1(value) {
-	if (value !== void 0 && !isPlainRecord$2(value)) throw sourceError("source_limits_invalid", "Source limits must be a plain record");
-	const override = isPlainRecord$2(value) ? value : {};
+	if (value !== void 0 && !isPlainRecord$1(value)) throw sourceError("source_limits_invalid", "Source limits must be a plain record");
+	const override = isPlainRecord$1(value) ? value : {};
 	const allowed = new Set(Object.keys(defaultLimits));
 	for (const key of Reflect.ownKeys(override)) if (typeof key !== "string" || !allowed.has(key) || dataProperty$1(override, key) === void 0) throw sourceError("source_limits_invalid", "Source limits contain an unknown or non-data field");
 	const result = { ...defaultLimits };
@@ -13077,7 +15671,7 @@ function optionalExpectedHash(value, field) {
 /** @param {unknown} value @param {string} selectedPath @param {number} maximumPathChars */
 function expectedPathHash(value, selectedPath, maximumPathChars) {
 	if (value === void 0 || value === null) return "";
-	if (!isPlainRecord$2(value)) throw sourceError("source_hash_invalid", "expectedDifficultyContentHashes must be a plain record");
+	if (!isPlainRecord$1(value)) throw sourceError("source_hash_invalid", "expectedDifficultyContentHashes must be a plain record");
 	const keys = Reflect.ownKeys(value);
 	if (keys.length > maximumDifficulties) throw sourceError("source_hash_invalid", "Difficulty hash map exceeds the entry limit");
 	let expected = "";
@@ -13158,7 +15752,7 @@ async function validateAuthoredPackage(packageValue) {
 		path,
 		message
 	}));
-	if (!isPlainRecord$2(packageValue)) {
+	if (!isPlainRecord$1(packageValue)) {
 		issue("package_invalid", "", "Package must be a plain record");
 		return Object.freeze({
 			valid: false,
@@ -13186,8 +15780,8 @@ async function validateAuthoredPackage(packageValue) {
 	} catch {
 		issue("definitions_invalid", "recipeDefinitions", "Definitions must be canonical plain data");
 	}
-	const sourceProfile = isPlainRecord$2(packageValue.source) ? packageValue.source.converterProfile : void 0;
-	const traceProfile = isPlainRecord$2(packageValue.conversionTrace) ? packageValue.conversionTrace.converterProfile : void 0;
+	const sourceProfile = isPlainRecord$1(packageValue.source) ? packageValue.source.converterProfile : void 0;
+	const traceProfile = isPlainRecord$1(packageValue.conversionTrace) ? packageValue.conversionTrace.converterProfile : void 0;
 	/** @type {Readonly<Record<string,unknown>> | null} */ let converterProfile = null;
 	if (sourceProfile !== void 0 || traceProfile !== void 0) try {
 		converterProfile = await normalizeConverterProfile(sourceProfile);
@@ -13195,12 +15789,12 @@ async function validateAuthoredPackage(packageValue) {
 	} catch (cause) {
 		issue("converter_profile_invalid", "source.converterProfile", cause instanceof Error ? cause.message : "Converter profile is invalid");
 	}
-	const conversionTrace = isPlainRecord$2(packageValue.conversionTrace) ? packageValue.conversionTrace : null;
+	const conversionTrace = isPlainRecord$1(packageValue.conversionTrace) ? packageValue.conversionTrace : null;
 	const boxingTraces = conversionTrace && Array.isArray(conversionTrace.boxing) ? conversionTrace.boxing : [];
 	const flowTraces = conversionTrace && Array.isArray(conversionTrace.flow) ? conversionTrace.flow : [];
 	for (let index = 0; index < boxingTraces.length; index += 1) {
 		const trace = boxingTraces[index];
-		const traceConverterProfile = isPlainRecord$2(trace) ? trace.converterProfile : void 0;
+		const traceConverterProfile = isPlainRecord$1(trace) ? trace.converterProfile : void 0;
 		if (converterProfile) try {
 			if (canonicalJson(traceConverterProfile) !== canonicalJson(converterProfile)) issue("converter_profile_boxing_trace_mismatch", `conversionTrace.boxing[${index}].converterProfile`, "Every Boxing trace converter profile must exactly match package source provenance");
 		} catch {
@@ -13208,7 +15802,7 @@ async function validateAuthoredPackage(packageValue) {
 		}
 		else if (traceConverterProfile !== void 0) issue("converter_profile_unbound", `conversionTrace.boxing[${index}].converterProfile`, "Boxing trace converter profile requires package source provenance");
 	}
-	for (let index = 0; index < flowTraces.length; index += 1) if (isPlainRecord$2(flowTraces[index]) && flowTraces[index].converterProfile !== void 0) issue("converter_profile_flow_trace_forbidden", `conversionTrace.flow[${index}].converterProfile`, "Flow traces must not carry Boxing converter profile provenance");
+	for (let index = 0; index < flowTraces.length; index += 1) if (isPlainRecord$1(flowTraces[index]) && flowTraces[index].converterProfile !== void 0) issue("converter_profile_flow_trace_forbidden", `conversionTrace.flow[${index}].converterProfile`, "Flow traces must not carry Boxing converter profile provenance");
 	const charts = Array.isArray(packageValue.charts) ? packageValue.charts : [];
 	if (charts.length !== 5) issue("chart_count_invalid", "charts", "One difficulty must contain Flow plus four Boxing charts");
 	const chartIds = /* @__PURE__ */ new Set();
@@ -13217,7 +15811,7 @@ async function validateAuthoredPackage(packageValue) {
 	for (let index = 0; index < charts.length; index += 1) {
 		const chart = charts[index];
 		const path = `charts[${index}]`;
-		if (!isPlainRecord$2(chart)) {
+		if (!isPlainRecord$1(chart)) {
 			issue("chart_invalid", path, "Chart must be a plain record");
 			continue;
 		}
@@ -13233,7 +15827,7 @@ async function validateAuthoredPackage(packageValue) {
 			for (let beatIndex = 0; beatIndex < chart.beats.length; beatIndex += 1) validateFlowBeat(chart.beats[beatIndex], `${path}.beats[${beatIndex}]`, issue);
 			continue;
 		}
-		if (chart.mode !== "boxing" || !isPlainRecord$2(chart.prototype)) {
+		if (chart.mode !== "boxing" || !isPlainRecord$1(chart.prototype)) {
 			issue("boxing_chart_invalid", path, "Boxing chart prototype metadata is required");
 			continue;
 		}
@@ -13265,13 +15859,13 @@ async function validateAuthoredPackage(packageValue) {
 		else if (prototype.converterProfile !== void 0) issue("converter_profile_unbound", `${path}.prototype.converterProfile`, "Chart converter profile requires package source provenance");
 		const modifiers = Array.isArray(prototype.modifiers) ? prototype.modifiers.map(String) : [];
 		const normalizedModifiers = [...new Set(modifiers)].sort();
-		const emittedModifiers = [...new Set(chart.beats.filter(isPlainRecord$2).map((beat) => beat.modifier).filter((value) => typeof value === "string"))];
+		const emittedModifiers = [...new Set(chart.beats.filter(isPlainRecord$1).map((beat) => beat.modifier).filter((value) => typeof value === "string"))];
 		if (!Array.isArray(prototype.modifiers) || modifiers.some((modifier) => !supportedModifiers.includes(modifier)) || canonicalJson(modifiers) !== canonicalJson(normalizedModifiers) || emittedModifiers.some((modifier) => !modifiers.includes(modifier))) issue("prototype_modifiers_invalid", `${path}.prototype.modifiers`, "Prototype modifiers must be sorted unique recognized union including emitted modifiers");
 		for (let beatIndex = 0; beatIndex < chart.beats.length; beatIndex += 1) validateBeat(chart.beats[beatIndex], `${path}.beats[${beatIndex}]`, issue);
 	}
 	if (flowCount !== 1 || matrix.size !== 4) issue("prototype_matrix_invalid", "charts", "Charts must contain one Flow and all four recipe/ruleset combinations");
 	const sets = Array.isArray(packageValue.sets) ? packageValue.sets : [];
-	if (sets.length !== charts.length || new Set(sets.filter(isPlainRecord$2).map((set) => set.setId)).size !== charts.length || sets.some((set) => !isPlainRecord$2(set) || !chartIds.has(String(set.chartId)) || set.songId !== packageValue.songId)) issue("set_identity_invalid", "sets", "Every chart requires a unique correctly-linked set");
+	if (sets.length !== charts.length || new Set(sets.filter(isPlainRecord$1).map((set) => set.setId)).size !== charts.length || sets.some((set) => !isPlainRecord$1(set) || !chartIds.has(String(set.chartId)) || set.songId !== packageValue.songId)) issue("set_identity_invalid", "sets", "Every chart requires a unique correctly-linked set");
 	let packageHash = null;
 	try {
 		packageHash = await prefixedSha256(canonicalPackage);
@@ -13286,7 +15880,7 @@ async function validateAuthoredPackage(packageValue) {
 }
 /** @param {unknown} beat @param {string} path @param {(code: string, path: string, message: string) => void} issue */
 function validateBeat(beat, path, issue) {
-	if (!isPlainRecord$2(beat)) {
+	if (!isPlainRecord$1(beat)) {
 		issue("beat_invalid", path, "Beat must be a plain record");
 		return;
 	}
@@ -13294,21 +15888,21 @@ function validateBeat(beat, path, issue) {
 	if (!nonEmpty(beat.eventId) || !Array.isArray(beat.sourceEventIds) || beat.sourceEventIds.some((entry) => !nonEmpty(entry))) issue("beat_lineage_invalid", path, "Boxing beat event/source IDs are required");
 	if (String(beat.type) === "guard") {
 		if (beat.timingWindowMs !== 180 || beat.evidenceFreshnessMs !== 150) issue("beat_timing_invalid", path, "Guard timing/freshness must match the frozen contract");
-		if (!isPlainRecord$2(beat.guardTarget) || !integerRange(beat.guardTarget.leftCell, 0, 11) || !integerRange(beat.guardTarget.rightCell, 0, 11)) issue("guard_target_invalid", `${path}.guardTarget`, "Guard cells must use athlete 0..11 IDs");
-		if (!isPlainRecord$2(beat.checkpoint) || beat.checkpoint.kind !== "instantaneous" || beat.checkpoint.timingWindowMs !== 180 || beat.checkpoint.freshnessMs !== 150) issue("guard_checkpoint_invalid", `${path}.checkpoint`, "Guard checkpoint must use frozen instantaneous timing");
+		if (!isPlainRecord$1(beat.guardTarget) || !integerRange(beat.guardTarget.leftCell, 0, 11) || !integerRange(beat.guardTarget.rightCell, 0, 11)) issue("guard_target_invalid", `${path}.guardTarget`, "Guard cells must use athlete 0..11 IDs");
+		if (!isPlainRecord$1(beat.checkpoint) || beat.checkpoint.kind !== "instantaneous" || beat.checkpoint.timingWindowMs !== 180 || beat.checkpoint.freshnessMs !== 150) issue("guard_checkpoint_invalid", `${path}.checkpoint`, "Guard checkpoint must use frozen instantaneous timing");
 	}
 	if (/^(straight|hook|uppercut)_/u.test(String(beat.type))) {
 		if (beat.timingWindowMs !== 180 || beat.evidenceFreshnessMs !== 150) issue("beat_timing_invalid", path, "Punch timing/freshness must match the frozen contract");
-		if (!isPlainRecord$2(beat.spatialTarget) || !integerRange(beat.spatialTarget.targetCell, 0, 11) || !Array.isArray(beat.spatialTarget.acceptedSubcells) || beat.spatialTarget.acceptedSubcells.some((entry) => !integerRange(entry, 0, 47))) issue("spatial_target_invalid", `${path}.spatialTarget`, "Punch spatial target must use athlete grid/subgrid IDs");
+		if (!isPlainRecord$1(beat.spatialTarget) || !integerRange(beat.spatialTarget.targetCell, 0, 11) || !Array.isArray(beat.spatialTarget.acceptedSubcells) || beat.spatialTarget.acceptedSubcells.some((entry) => !integerRange(entry, 0, 47))) issue("spatial_target_invalid", `${path}.spatialTarget`, "Punch spatial target must use athlete grid/subgrid IDs");
 	}
 	if (/^(squat|weave_)/u.test(String(beat.type))) {
 		if (!Array.isArray(beat.blockedCells) || beat.blockedCells.some((entry) => !integerRange(entry, 0, 11))) issue("blocked_cells_invalid", `${path}.blockedCells`, "Obstacle cells must use athlete 0..11 IDs");
-		if (!isPlainRecord$2(beat.checkpoint) || beat.checkpoint.kind !== "instantaneous" || beat.checkpoint.timingWindowMs !== 180 || beat.checkpoint.freshnessMs !== 150 || !Array.isArray(beat.checkpoint.noseSafeCells)) issue("obstacle_checkpoint_invalid", `${path}.checkpoint`, "Avoidance checkpoint requires frozen timing and nose safe cells");
+		if (!isPlainRecord$1(beat.checkpoint) || beat.checkpoint.kind !== "instantaneous" || beat.checkpoint.timingWindowMs !== 180 || beat.checkpoint.freshnessMs !== 150 || !Array.isArray(beat.checkpoint.noseSafeCells)) issue("obstacle_checkpoint_invalid", `${path}.checkpoint`, "Avoidance checkpoint requires frozen timing and nose safe cells");
 	}
 }
 /** @param {unknown} beat @param {string} path @param {(code: string, path: string, message: string) => void} issue */
 function validateFlowBeat(beat, path, issue) {
-	if (!isPlainRecord$2(beat) || !Number.isFinite(beat.start) || Number(beat.start) < 0 || ![
+	if (!isPlainRecord$1(beat) || !Number.isFinite(beat.start) || Number(beat.start) < 0 || ![
 		"note",
 		"bomb",
 		"obstacle",
@@ -13458,7 +16052,7 @@ function createBrowserAuthoringWorkerAdapter(options = {}) {
 					finish(reject, workerError("worker_request_invalid", diagnostic("Worker request could not be cloned", cause)));
 					return;
 				}
-				const bytes = isPlainRecord$2(clone) && clone.difficultyBytes instanceof Uint8Array ? clone.difficultyBytes : null;
+				const bytes = isPlainRecord$1(clone) && clone.difficultyBytes instanceof Uint8Array ? clone.difficultyBytes : null;
 				try {
 					worker.postMessage(clone, bytes ? [bytes.buffer] : []);
 				} catch (cause) {
@@ -13562,7 +16156,7 @@ function narrowRequest(request) {
 	const audioMatches = conversionOptions.audioPath === manifest.audioPath && conversionOptions.audioContentHash === manifest.audioContentHash || conversionOptions.audioPath === "" && conversionOptions.audioContentHash === "";
 	if (conversionOptions.difficulty !== selected.difficulty || conversionOptions.sourceDifficultyPath !== selected.path || conversionOptions.sourceDifficultyHash !== selected.contentHash || conversionOptions.bpm !== manifest.bpm || conversionOptions.sourceProvider !== manifest.sourceProvider || conversionOptions.sourceId !== manifest.sourceId || conversionOptions.sourceVersionHash !== manifest.sourceVersionHash || !audioMatches) throw workerError("worker_request_invalid", "Worker options do not match the inspected manifest");
 	if (Object.hasOwn(conversionOptions, "presentationSuggestion")) {
-		if (!isPlainRecord$2(conversionOptions.presentationSuggestion)) throw workerError("worker_request_invalid", "Worker presentation suggestion is invalid");
+		if (!isPlainRecord$1(conversionOptions.presentationSuggestion)) throw workerError("worker_request_invalid", "Worker presentation suggestion is invalid");
 		let encoded;
 		try {
 			encoded = canonicalJson(conversionOptions.presentationSuggestion);
@@ -13602,7 +16196,7 @@ function converterProfileShape(value) {
 }
 /** @param {unknown} value @param {string} expectedJobId */
 function narrowWorkerMessage(value, expectedJobId) {
-	if (!isPlainRecord$2(value) || value.schema !== "aerobeat/authoring_worker_message" || value.version !== 1 || value.jobId !== expectedJobId || ![
+	if (!isPlainRecord$1(value) || value.schema !== "aerobeat/authoring_worker_message" || value.version !== 1 || value.jobId !== expectedJobId || ![
 		"progress",
 		"result",
 		"error"
@@ -13633,7 +16227,7 @@ function narrowWorkerMessage(value, expectedJobId) {
 			"traces"
 		])) return null;
 		const result = value.result;
-		if (result.schema !== "aerobeat/authoring_worker_result" || result.version !== 1 || result.jobId !== expectedJobId || !isPlainRecord$2(result.package) || !validHash(result.packageHash) || !validHash(result.sourceHash) || !validHash(result.semanticParityHash)) return null;
+		if (result.schema !== "aerobeat/authoring_worker_result" || result.version !== 1 || result.jobId !== expectedJobId || !isPlainRecord$1(result.package) || !validHash(result.packageHash) || !validHash(result.sourceHash) || !validHash(result.semanticParityHash)) return null;
 		try {
 			const encoded = canonicalJson(result);
 			if (new TextEncoder().encode(encoded).byteLength > 67108864) return null;
@@ -13653,11 +16247,11 @@ function narrowWorkerMessage(value, expectedJobId) {
 }
 /** @param {unknown} value @param {readonly string[]} required */
 function hasExactDataKeys(value, required) {
-	return hasOnlyDataKeys(value, required, []) && isPlainRecord$2(value) && Reflect.ownKeys(value).length === required.length;
+	return hasOnlyDataKeys(value, required, []) && isPlainRecord$1(value) && Reflect.ownKeys(value).length === required.length;
 }
 /** @param {unknown} value @param {readonly string[]} required @param {readonly string[]} optional */
 function hasOnlyDataKeys(value, required, optional) {
-	if (!isPlainRecord$2(value)) return false;
+	if (!isPlainRecord$1(value)) return false;
 	const allowed = /* @__PURE__ */ new Set([...required, ...optional]);
 	for (const key of Reflect.ownKeys(value)) {
 		if (typeof key !== "string" || !allowed.has(key)) return false;
@@ -13800,12 +16394,12 @@ function createAeroWebContentAuthoringService(options = {}) {
 					}
 				});
 				checkCurrent(generation, abort.signal);
-				if (!isPlainRecord$2(result)) throw authoringError("worker_result_invalid", "Worker did not return a validated package");
+				if (!isPlainRecord$1(result)) throw authoringError("worker_result_invalid", "Worker did not return a validated package");
 				const resultPackage = dataProperty(result, "package");
 				const resultPackageHash = dataProperty(result, "packageHash");
 				const resultParityHash = dataProperty(result, "semanticParityHash");
 				const resultSourceHash = dataProperty(result, "sourceHash");
-				if (!isPlainRecord$2(resultPackage) || typeof resultPackageHash !== "string" || typeof resultParityHash !== "string" || typeof resultSourceHash !== "string") throw authoringError("worker_result_invalid", "Worker did not return a validated package");
+				if (!isPlainRecord$1(resultPackage) || typeof resultPackageHash !== "string" || typeof resultParityHash !== "string" || typeof resultSourceHash !== "string") throw authoringError("worker_result_invalid", "Worker did not return a validated package");
 				const trustedValidation = await validateAuthoredPackage(resultPackage);
 				if (!trustedValidation.valid || trustedValidation.packageHash !== resultPackageHash || !await workerResultMatchesManifest(resultPackage, manifest, normalizedOptions.includeAudio !== false, converterProfile, resultParityHash, resultSourceHash)) throw authoringError("worker_result_invalid", "Worker package failed main-thread validation, source/profile/projection binding or hash verification");
 				checkCurrent(generation, abort.signal);
@@ -14019,7 +16613,7 @@ function persistenceHandle(storage, key, packageId, packageHash) {
 /** @param {Readonly<Record<string, unknown>> | string} handle */
 function keyFor(handle) {
 	if (typeof handle === "string" && handle.length <= 1024 && handle) return handle;
-	if (isPlainRecord$2(handle)) {
+	if (isPlainRecord$1(handle)) {
 		const key = dataProperty(handle, "key");
 		if (typeof key === "string" && key && key.length <= 1024) return key;
 	}
@@ -14052,29 +16646,29 @@ function errorMessage$1(cause) {
 /** @param {Record<string,unknown>} packageValue @param {Record<string,unknown>} manifest @param {boolean} includeAudio @param {Readonly<Record<string,unknown>> | null} converterProfile @param {string} workerParityHash @param {string} workerSourceHash */
 async function workerResultMatchesManifest(packageValue, manifest, includeAudio, converterProfile, workerParityHash, workerSourceHash) {
 	const source = dataProperty(packageValue, "source"), selected = dataProperty(manifest, "selectedDifficulty"), song = dataProperty(packageValue, "song");
-	if (!isPlainRecord$2(source) || !isPlainRecord$2(selected) || !isPlainRecord$2(song)) return false;
+	if (!isPlainRecord$1(source) || !isPlainRecord$1(selected) || !isPlainRecord$1(song)) return false;
 	if (dataProperty(source, "provider") !== dataProperty(manifest, "sourceProvider") || dataProperty(source, "sourceId") !== dataProperty(manifest, "sourceId") || dataProperty(source, "sourceVersionHash") !== dataProperty(manifest, "sourceVersionHash") || dataProperty(source, "difficulty") !== dataProperty(selected, "difficulty") || dataProperty(source, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(source, "sourceHash") !== workerSourceHash) return false;
 	const charts = dataProperty(packageValue, "charts");
-	if (!Array.isArray(charts) || charts.some((chart) => !isPlainRecord$2(chart) || dataProperty(chart, "difficulty") !== dataProperty(selected, "difficulty"))) return false;
-	const conversionTrace = dataProperty(packageValue, "conversionTrace"), boxing = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "boxing") : null, flow = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "flow") : null;
-	if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((trace) => !isPlainRecord$2(trace) || dataProperty(trace, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(trace, "sourceDifficultyHash") !== dataProperty(selected, "contentHash") || dataProperty(trace, "sourceBeatmapVersion") !== `v${String(dataProperty(manifest, "sourceFormatMajor"))}` || dataProperty(trace, "sourceHash") !== workerSourceHash) || !Array.isArray(flow) || flow.some((trace) => !isPlainRecord$2(trace) || dataProperty(trace, "converterProfile") !== void 0)) return false;
+	if (!Array.isArray(charts) || charts.some((chart) => !isPlainRecord$1(chart) || dataProperty(chart, "difficulty") !== dataProperty(selected, "difficulty"))) return false;
+	const conversionTrace = dataProperty(packageValue, "conversionTrace"), boxing = isPlainRecord$1(conversionTrace) ? dataProperty(conversionTrace, "boxing") : null, flow = isPlainRecord$1(conversionTrace) ? dataProperty(conversionTrace, "flow") : null;
+	if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((trace) => !isPlainRecord$1(trace) || dataProperty(trace, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(trace, "sourceDifficultyHash") !== dataProperty(selected, "contentHash") || dataProperty(trace, "sourceBeatmapVersion") !== `v${String(dataProperty(manifest, "sourceFormatMajor"))}` || dataProperty(trace, "sourceHash") !== workerSourceHash) || !Array.isArray(flow) || flow.some((trace) => !isPlainRecord$1(trace) || dataProperty(trace, "converterProfile") !== void 0)) return false;
 	const expectedProfile = converterProfile ? canonicalJson(converterProfile) : null;
-	const sourceProfile = dataProperty(source, "converterProfile"), traceProfile = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "converterProfile") : void 0;
+	const sourceProfile = dataProperty(source, "converterProfile"), traceProfile = isPlainRecord$1(conversionTrace) ? dataProperty(conversionTrace, "converterProfile") : void 0;
 	try {
 		if (converterProfile) {
-			if (canonicalJson(sourceProfile) !== expectedProfile || canonicalJson(traceProfile) !== expectedProfile || boxing.some((trace) => canonicalJson(dataProperty(trace, "converterProfile")) !== expectedProfile) || charts.some((chart) => dataProperty(chart, "mode") === "boxing" && (!isPlainRecord$2(dataProperty(chart, "prototype")) || canonicalJson(dataProperty(dataProperty(chart, "prototype"), "converterProfile")) !== expectedProfile))) return false;
-		} else if (sourceProfile !== void 0 || traceProfile !== void 0 || boxing.some((trace) => dataProperty(trace, "converterProfile") !== void 0) || charts.some((chart) => isPlainRecord$2(dataProperty(chart, "prototype")) && dataProperty(dataProperty(chart, "prototype"), "converterProfile") !== void 0)) return false;
+			if (canonicalJson(sourceProfile) !== expectedProfile || canonicalJson(traceProfile) !== expectedProfile || boxing.some((trace) => canonicalJson(dataProperty(trace, "converterProfile")) !== expectedProfile) || charts.some((chart) => dataProperty(chart, "mode") === "boxing" && (!isPlainRecord$1(dataProperty(chart, "prototype")) || canonicalJson(dataProperty(dataProperty(chart, "prototype"), "converterProfile")) !== expectedProfile))) return false;
+		} else if (sourceProfile !== void 0 || traceProfile !== void 0 || boxing.some((trace) => dataProperty(trace, "converterProfile") !== void 0) || charts.some((chart) => isPlainRecord$1(dataProperty(chart, "prototype")) && dataProperty(dataProperty(chart, "prototype"), "converterProfile") !== void 0)) return false;
 		if (await semanticParityHash(packageValue) !== workerParityHash) return false;
 	} catch {
 		return false;
 	}
 	const audio = dataProperty(song, "audio"), audioPath = dataProperty(manifest, "audioPath"), audioHash = dataProperty(manifest, "audioContentHash");
-	if (includeAudio && typeof audioPath === "string" && audioPath && typeof audioHash === "string" && audioHash) return isPlainRecord$2(audio) && dataProperty(audio, "filePath") === audioPath && dataProperty(audio, "contentHash") === audioHash;
+	if (includeAudio && typeof audioPath === "string" && audioPath && typeof audioHash === "string" && audioHash) return isPlainRecord$1(audio) && dataProperty(audio, "filePath") === audioPath && dataProperty(audio, "contentHash") === audioHash;
 	return audio === void 0;
 }
 /** @param {unknown} value @returns {Readonly<NormalizedRequestOptions>} */
 function normalizeRequestOptions(value) {
-	if (!isPlainRecord$2(value)) throw authoringError("request_invalid", "Authoring options must be a plain record");
+	if (!isPlainRecord$1(value)) throw authoringError("request_invalid", "Authoring options must be a plain record");
 	const allowed = /* @__PURE__ */ new Set([
 		"difficulty",
 		"sourceProvider",
@@ -14132,7 +16726,7 @@ function normalizeRequestOptions(value) {
 	]) {
 		const entry = dataProperty(value, field);
 		if (entry !== void 0) {
-			if (!isPlainRecord$2(entry)) throw authoringError("request_invalid", `${field} must be a plain record`);
+			if (!isPlainRecord$1(entry)) throw authoringError("request_invalid", `${field} must be a plain record`);
 			let encoded;
 			try {
 				encoded = canonicalJson(entry);
@@ -14174,2073 +16768,6 @@ function authoringError(code, message) {
 	Object.assign(error, { code });
 	return error;
 }
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/service-ids.js
-/**
-* Canonical AeroBeat web service IDs.
-*
-* @type {Readonly<{
-*   audioClock: "aero.audio.clock",
-*   videoMedia: "aero.video.media",
-*   cvPose: "aero.cv.pose",
-*   inputRouter: "aero.input.router",
-*   bodyGrid: "aero.input.body-grid",
-*   beatSaverVendor: "aero.vendor.beatsaver",
-*   contentAuthoring: "aero.content.authoring",
-*   contentLibrary: "aero.content.library",
-*   gameplaySession: "aero.gameplay.session",
-*   prototypeProfiles: "aero.gameplay.prototype-profiles",
-*   mediaLease: "aero.assembly.media-lease",
-*   rendererWebgl2: "aero.renderer.webgl2",
-*   uiRouter: "aero.ui.router",
-*   performancePolicy: "aero.performance.policy"
-* }>}
-*/
-var serviceIds$1 = Object.freeze({
-	audioClock: "aero.audio.clock",
-	videoMedia: "aero.video.media",
-	cvPose: "aero.cv.pose",
-	inputRouter: "aero.input.router",
-	bodyGrid: "aero.input.body-grid",
-	beatSaverVendor: "aero.vendor.beatsaver",
-	contentAuthoring: "aero.content.authoring",
-	contentLibrary: "aero.content.library",
-	gameplaySession: "aero.gameplay.session",
-	prototypeProfiles: "aero.gameplay.prototype-profiles",
-	mediaLease: "aero.assembly.media-lease",
-	rendererWebgl2: "aero.renderer.webgl2",
-	uiRouter: "aero.ui.router",
-	performancePolicy: "aero.performance.policy"
-});
-Object.freeze({
-	uiNavigate: "aero:ui:navigate",
-	cvPoseFrame: "aero:cv:pose-frame",
-	audioClockTick: "aero:audio:clock-tick",
-	inputBoxingIntent: "aero:input:boxing-intent",
-	inputFlowIntent: "aero:input:flow-intent",
-	bodyGridChanged: "aero:input:body-grid-changed",
-	calibrationChanged: "aero:input:calibration-changed",
-	trackingSafetyChanged: "aero:input:tracking-safety-changed",
-	beatSaverResults: "aero:beatsaver:results",
-	contentImportChanged: "aero:content:import-changed",
-	contentChartLoaded: "aero:content:chart-loaded",
-	contentVariantChanged: "aero:content:variant-changed",
-	gameplaySessionChanged: "aero:gameplay:session-changed",
-	gameplayScoreChange: "aero:gameplay:score-change",
-	gameplayJudgement: "aero:gameplay:judgement",
-	countdownChanged: "aero:gameplay:countdown-changed",
-	mediaLeaseChanged: "aero:assembly:media-lease-changed",
-	gameCommand: "aero:game:command",
-	gameEvent: "aero:game:event"
-});
-Object.freeze({
-	game: "aero-game",
-	iconButton: "aero-icon-button",
-	calibrationBadge: "aero-calibration-badge",
-	calibrationScreen: "aero-calibration-screen",
-	gridPlayfield: "aero-grid-playfield",
-	flowHud: "aero-flow-hud",
-	boxingTrackHud: "aero-boxing-track-hud",
-	boxingSpatialHud: "aero-boxing-spatial-hud",
-	trackingPause: "aero-tracking-pause",
-	countdown: "aero-resume-countdown",
-	prototypeSelector: "aero-prototype-selector",
-	beatSaverBrowser: "aero-beatsaver-browser",
-	contentImportProgress: "aero-content-import-progress",
-	contentLibrary: "aero-content-library",
-	fullscreenButton: "aero-fullscreen-button"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function isRecord$3(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Require a plain record to contain exactly the declared own enumerable keys.
-* Payload records remain the versioned extension point; contract envelopes do not.
-*
-* @param {unknown} value
-* @param {readonly string[]} expectedKeys
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function hasExactKeys$1(value, expectedKeys) {
-	if (!isRecord$3(value)) return false;
-	const keys = Reflect.ownKeys(value);
-	return keys.length === expectedKeys.length && keys.every((key) => {
-		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
-	});
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isFiniteNumber$2(value) {
-	return typeof value === "number" && Number.isFinite(value);
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNonNegativeFiniteNumber$1(value) {
-	return isFiniteNumber$2(value) && value >= 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is string}
-*/
-function isNonEmptyString$2(value) {
-	return typeof value === "string" && value.length > 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNormalizedNumber(value) {
-	return isFiniteNumber$2(value) && value >= 0 && value <= 1;
-}
-/**
-* @template {string} T
-* @param {unknown} value
-* @param {readonly T[]} allowed
-* @returns {value is T}
-*/
-function isOneOf(value, allowed) {
-	return typeof value === "string" && allowed.includes(value);
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-Object.freeze(["measured", "predicted"]);
-Object.freeze({
-	idle: "idle",
-	loading: "loading",
-	ready: "ready",
-	failed: "failed",
-	disposed: "disposed"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/body-grid-contracts.js
-/**
-* @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
-*/
-/**
-* @typedef {"up" | "right" | "down" | "left"} AeroCardinalDirection
-*/
-/**
-* @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
-*/
-/**
-* @typedef {"not_ready" | "calibration_required" | "countdown" | "ready" | "paused_tracking" | "paused_manual" | "destroyed"} AeroReadinessState
-*/
-/**
-* @typedef {Object} AeroCalibratedBounds
-* @property {number} left Athlete-space left edge.
-* @property {number} top Athlete-space top edge.
-* @property {number} right Athlete-space right edge.
-* @property {number} bottom Athlete-space bottom edge.
-*/
-/**
-* @typedef {Object} AeroBodyGridAnchorSnapshot
-* @property {"aerobeat/body_grid_anchor_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
-* @property {string} calibrationId Calibration generation identity.
-* @property {number} measurementTimestampMs Latest real measurement timestamp.
-* @property {boolean} valid Whether this measured anchor is gameplay-valid.
-* @property {number} confidence Normalized measured confidence.
-* @property {number} rawX Unclamped athlete-space X.
-* @property {number} rawY Unclamped athlete-space Y.
-* @property {number | null} x Normalized athlete-space X when valid.
-* @property {number | null} y Normalized athlete-space Y when valid.
-* @property {number | null} cell Top-left row-major 4x3 scoring cell, or null outside the grid.
-* @property {number | null} subcell Top-left row-major 8x6 diagnostic/scoring subcell, or null outside the grid.
-*/
-/**
-* @typedef {Object} AeroBodyGridCellEntry
-* @property {"aerobeat/body_grid_cell_entry"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
-* @property {string} calibrationId Calibration generation identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {number} fromCell In-grid source cell.
-* @property {number} toCell In-grid destination cell.
-* @property {AeroCardinalDirection} direction Cardinal athlete-space entry direction.
-* @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
-*/
-/**
-* @typedef {Object} AeroCalibrationSnapshot
-* @property {"aerobeat/calibration_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroCalibrationState} state Calibration lifecycle state.
-* @property {AeroReadinessState} readiness Gameplay readiness state.
-* @property {string | null} calibrationId Current calibration generation.
-* @property {number} timestampMs Snapshot timestamp.
-* @property {number} holdDurationMs Required qualified hold duration.
-* @property {number} holdProgressMs Current qualified hold progress.
-* @property {number} cooldownRemainingMs Cooldown remaining after completion.
-* @property {boolean} releaseRequired Whether T-pose release is required before refire.
-* @property {AeroCalibratedBounds | null} bounds Atomically published athlete-space bounds.
-* @property {import("./coordinate-spaces.js").AeroGridDescriptor} grid Public 4x3 athlete grid.
-* @property {import("./coordinate-spaces.js").AeroGridDescriptor} subgrid Public 8x6 athlete subgrid.
-* @property {string | null} invalidationReason Null or stable invalidation reason.
-*/
-/**
-* @typedef {Object} AeroTrackingSafetySnapshot
-* @property {"aerobeat/tracking_safety_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {number} timestampMs Snapshot timestamp.
-* @property {number} lossThresholdMs Sustained loss duration that pauses gameplay.
-* @property {number} lossDurationMs Current sustained loss duration.
-* @property {boolean} allRequiredAnchorsVisible Whether all seven required anchors pass confidence.
-* @property {boolean} gameplayPaused Whether tracking safety currently pauses gameplay.
-* @property {boolean} freshCalibrationRequired Whether pause exit requires new calibration.
-*/
-/** @type {readonly AeroUpperBodyAnchorName[]} */
-var upperBodyAnchorNames$2 = Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-/** @type {readonly AeroCardinalDirection[]} */
-var cardinalDirections$2 = Object.freeze([
-	"up",
-	"right",
-	"down",
-	"left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-/** @type {readonly AeroReadinessState[]} */
-var readinessStates$2 = Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-/**
-* @param {unknown} value
-* @returns {value is AeroBodyGridAnchorSnapshot}
-*/
-function isBodyGridAnchorSnapshot(value) {
-	if (!isRecord$3(value)) return false;
-	const valid = typeof value.valid === "boolean" ? value.valid : false;
-	const normalizedPosition = valid ? isNormalizedNumber(value.rawX) && isNormalizedNumber(value.rawY) && isNormalizedNumber(value.x) && isNormalizedNumber(value.y) : (value.x === null || isNormalizedNumber(value.x)) && (value.y === null || isNormalizedNumber(value.y));
-	const nullableCell = value.cell === null || Number.isInteger(value.cell) && Number(value.cell) >= 0 && Number(value.cell) < 12;
-	const nullableSubcell = value.subcell === null || Number.isInteger(value.subcell) && Number(value.subcell) >= 0 && Number(value.subcell) < 48;
-	const invalidHasNoScoringCell = valid || value.cell === null && value.subcell === null;
-	return value.schema === "aerobeat/body_grid_anchor_snapshot" && value.version === 1 && isOneOf(value.anchor, upperBodyAnchorNames$2) && isNonEmptyString$2(value.calibrationId) && isNonNegativeFiniteNumber$1(value.measurementTimestampMs) && typeof value.valid === "boolean" && isNormalizedNumber(value.confidence) && isFiniteNumber$2(value.rawX) && isFiniteNumber$2(value.rawY) && normalizedPosition && nullableCell && nullableSubcell && invalidHasNoScoringCell && (!valid || value.x !== null && value.y !== null);
-}
-/**
-* @param {unknown} value
-* @returns {value is AeroBodyGridCellEntry}
-*/
-function isBodyGridCellEntry(value) {
-	return isRecord$3(value) && value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf(value.anchor, upperBodyAnchorNames$2) && isNonEmptyString$2(value.calibrationId) && isNonNegativeFiniteNumber$1(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && isOneOf(value.direction, cardinalDirections$2) && value.provenance === "measured";
-}
-Object.freeze([
-	"idle",
-	"selecting_content",
-	"calibrating",
-	"countdown",
-	"playing",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"error",
-	"destroyed"
-]);
-Object.freeze([
-	"initial_start",
-	"manual_resume",
-	"tracking_resume",
-	"content_change"
-]);
-/** @type {readonly ("camera" | "audio")[]} */
-var mediaLeaseResources$1 = Object.freeze(["camera", "audio"]);
-/**
-* @param {unknown} value
-* @returns {value is AeroMediaLeaseSnapshot}
-*/
-function isMediaLeaseSnapshot(value) {
-	return hasExactKeys$1(value, [
-		"schema",
-		"version",
-		"ownerInstanceId",
-		"generation",
-		"state",
-		"resources"
-	]) && value.schema === "aerobeat/media_lease_snapshot" && value.version === 1 && (value.ownerInstanceId === null || isNonEmptyString$2(value.ownerInstanceId)) && Number.isInteger(value.generation) && Number(value.generation) >= 0 && (value.state === "idle" || value.state === "transferring" || value.state === "owned") && Array.isArray(value.resources) && value.resources.every((item) => mediaLeaseResources$1.includes(item)) && new Set(value.resources).size === value.resources.length;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/gameplay-contracts.js
-/**
-* @typedef {"flow_grid_v1" | "boxing_semantic_track_v1" | "boxing_spatial_grid_v1"} AeroRulesetId
-*/
-/**
-* @typedef {"row_family_balanced_height_v1" | "cut_family_source_height_v1"} AeroConversionRecipeId
-*/
-/**
-* @typedef {"straight_left" | "straight_right" | "hook_left" | "hook_right" | "uppercut_left" | "uppercut_right" | "guard" | "crossed_guard" | "squat" | "weave_left" | "weave_right"} AeroBoxingAction
-*/
-/**
-* @typedef {"no_input" | "stale_input" | "wrong_cell" | "wrong_subcell" | "wrong_direction" | "qualification_too_short" | "tracking_invalid" | "calibration_mismatch" | "timing_miss" | "blocked_overlap" | "action_consumed"} AeroJudgementDiagnosticCode
-*/
-/**
-* @typedef {Object} AeroGameplayEvidenceSnapshot
-* @property {"aerobeat/gameplay_evidence_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} calibrationId Calibration generation.
-* @property {string} measuredSourceFrameId Real source-frame identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
-* @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cardinal cell entries.
-*/
-/**
-* @typedef {Object} AeroGameplayJudgement
-* @property {"aerobeat/gameplay_judgement"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} eventId Authored event identity.
-* @property {AeroRulesetId} rulesetId Ruleset identity.
-* @property {AeroConversionRecipeId | null} recipeId Recipe identity when generated.
-* @property {"hit" | "miss" | "ignored"} result Binary prototype result or non-scoring ignored event.
-* @property {number} beatCenterTimestampMs Event center timestamp.
-* @property {number | null} evidenceTimestampMs Consumed evidence timestamp.
-* @property {number | null} timingOffsetMs Evidence minus beat center.
-* @property {readonly AeroJudgementDiagnosticCode[]} diagnostics Detailed diagnostics.
-* @property {boolean} shadow Whether this judgement is diagnostic-only.
-*/
-/**
-* @typedef {Object} AeroPrototypeTuningIdentityBase
-* @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} profileId Stable bounded profile ID.
-* @property {string} profileVersion Stable bounded profile version.
-* @property {string} contentHash Bare lowercase SHA-256 content hash.
-*/
-/**
-* A converter identity is pending when `regenerationRequired` is true and
-* applied when the owning registry has matched generated-package provenance
-* and emits false. Visual and scoring identities are always live/applied.
-*
-* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
-*/
-/** @type {readonly AeroRulesetId[]} */
-var rulesetIds$2 = Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-/** @type {readonly AeroConversionRecipeId[]} */
-var conversionRecipeIds$2 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-/** @type {readonly AeroBoxingAction[]} */
-var boxingActions$2 = Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-var prototypeJudgementDefaults$2 = Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-/**
-* @param {unknown} value
-* @returns {value is AeroGameplayEvidenceSnapshot}
-*/
-function isGameplayEvidenceSnapshot(value) {
-	return isRecord$3(value) && value.schema === "aerobeat/gameplay_evidence_snapshot" && value.version === 1 && isNonEmptyString$2(value.calibrationId) && isNonEmptyString$2(value.measuredSourceFrameId) && isNonNegativeFiniteNumber$1(value.measurementTimestampMs) && value.provenance === "measured" && Array.isArray(value.activeBoxingActions) && value.activeBoxingActions.every((item) => isOneOf(item, boxingActions$2)) && Array.isArray(value.anchors) && value.anchors.every(isBodyGridAnchorSnapshot) && Array.isArray(value.entries) && value.entries.every(isBodyGridCellEntry);
-}
-/**
-* @param {unknown} value
-* @returns {value is AeroPrototypeTuningIdentity}
-*/
-function isPrototypeTuningIdentity(value) {
-	return hasExactKeys$1(value, [
-		"schema",
-		"version",
-		"profileId",
-		"profileVersion",
-		"contentHash",
-		"class",
-		"regenerationRequired"
-	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString(value.profileId, 256) && isBoundedNonEmptyString(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf(value.class, [
-		"live_visual",
-		"between_run_ruleset",
-		"converter_regeneration"
-	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
-}
-/** @param {unknown} value @param {number} maximum */
-function isBoundedNonEmptyString(value, maximum) {
-	return typeof value === "string" && value.length > 0 && value.length <= maximum;
-}
-Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroContentHash}
-*/
-function isContentHash$1(value) {
-	if (!hasExactKeys$1(value, [
-		"schema",
-		"version",
-		"algorithm",
-		"value"
-	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
-	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
-	if (typeof value.value !== "string") return false;
-	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
-	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
-}
-Object.freeze([
-	"queued",
-	"acquiring",
-	"inspecting",
-	"converting",
-	"validating",
-	"persisting",
-	"complete",
-	"cancelled",
-	"failed"
-]);
-Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-Object.freeze([
-	"configure",
-	"start",
-	"pause",
-	"resume",
-	"stop",
-	"reset_calibration",
-	"request_fullscreen",
-	"select_content",
-	"select_variant",
-	"browse_beatsaver",
-	"import_beatsaver",
-	"import_local_zip",
-	"cancel_import",
-	"delete_package",
-	"set_theme",
-	"destroy"
-]);
-Object.freeze([
-	"ready",
-	"capabilities_changed",
-	"calibration_changed",
-	"tracking_changed",
-	"session_changed",
-	"score_changed",
-	"content_changed",
-	"beatsaver_results",
-	"import_changed",
-	"fullscreen_changed",
-	"error",
-	"destroyed"
-]);
-Object.freeze({
-	schema: "aerobeat/asset_policy",
-	version: 1,
-	requireChartHash: true,
-	requireAudioHash: true,
-	requireExternalAudioCors: true,
-	requireSampledMediaCors: true,
-	cosmeticBackgroundFailure: "fallback",
-	criticalAssetFailure: "block_startup"
-});
-Object.freeze([
-	"handshake_request",
-	"handshake_ack",
-	"command",
-	"event",
-	"error",
-	"disconnect"
-]);
-Object.freeze({
-	schema: "aerobeat/iframe_message",
-	version: 1,
-	target: "immediate_parent",
-	rawMediaAllowed: false
-});
-Object.freeze([
-	"audioBytes",
-	"frame",
-	"frames",
-	"imageBitmap",
-	"mediaStream",
-	"mediaStreamTrack",
-	"pixels",
-	"rawAudio",
-	"rawFrame",
-	"rawFrames",
-	"screenshot",
-	"videoFrame",
-	"zipBytes"
-]);
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/src/data.js
-/** @typedef {Readonly<Record<string, unknown>>} DataRecord */
-var MAX_DEPTH = 12;
-var MAX_ITEMS = 4096;
-var MAX_KEYS = 256;
-var MAX_STRING = 8192;
-/**
-* Clone untrusted JSON-like data without invoking getters or coercion hooks.
-*
-* @param {unknown} value
-* @param {string} [code]
-* @param {number} [maximumItems]
-* @returns {unknown}
-*/
-function cloneGameplayData(value, code = "gameplay_data_invalid", maximumItems = MAX_ITEMS) {
-	if (!Number.isSafeInteger(maximumItems) || maximumItems <= 0 || maximumItems > 15e5) throw gameplayError(code, "Gameplay item limit is invalid");
-	let items = 0;
-	return clone(value, 0);
-	/** @param {unknown} entry @param {number} depth @returns {unknown} */
-	function clone(entry, depth) {
-		if (depth > MAX_DEPTH || items > maximumItems) throw gameplayError(code, "Gameplay data exceeds structural limits");
-		if (entry === null || typeof entry === "boolean") return entry;
-		if (typeof entry === "number") {
-			if (!Number.isFinite(entry)) throw gameplayError(code, "Gameplay numbers must be finite");
-			return Object.is(entry, -0) ? 0 : entry;
-		}
-		if (typeof entry === "string") {
-			if (entry.length > MAX_STRING) throw gameplayError(code, "Gameplay strings exceed the length limit");
-			return entry;
-		}
-		if (Array.isArray(entry)) {
-			if (Reflect.ownKeys(entry).some((key) => typeof key !== "string" || key !== "length" && !/^(0|[1-9][0-9]*)$/u.test(key))) throw gameplayError(code, "Gameplay arrays cannot contain symbolic or named properties");
-			const lengthDescriptor = Object.getOwnPropertyDescriptor(entry, "length");
-			if (!lengthDescriptor || !("value" in lengthDescriptor) || !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0 || lengthDescriptor.value > maximumItems) throw gameplayError(code, "Gameplay arrays exceed the item limit");
-			const length = lengthDescriptor.value;
-			items += length;
-			if (items > maximumItems) throw gameplayError(code, "Gameplay data exceeds structural limits");
-			const result = [];
-			for (let index = 0; index < length; index += 1) {
-				const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
-				if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError(code, "Gameplay arrays cannot contain accessors or holes");
-				result.push(clone(descriptor.value, depth + 1));
-			}
-			return Object.freeze(result);
-		}
-		if (!isPlainRecord$1(entry)) throw gameplayError(code, "Gameplay data must contain plain records only");
-		const keys = Reflect.ownKeys(entry);
-		if (keys.length > MAX_KEYS || keys.some((key) => typeof key !== "string")) throw gameplayError(code, "Gameplay records exceed key limits or contain symbols");
-		items += keys.length;
-		if (items > maximumItems) throw gameplayError(code, "Gameplay data exceeds structural limits");
-		/** @type {Record<string, unknown>} */
-		const result = {};
-		for (const keyValue of keys) {
-			const key = keyValue;
-			if (key.length > 256) throw gameplayError(code, "Gameplay record keys exceed the length limit");
-			const descriptor = Object.getOwnPropertyDescriptor(entry, key);
-			if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError(code, "Gameplay records cannot contain accessors or hidden properties");
-			result[key] = clone(descriptor.value, depth + 1);
-		}
-		return Object.freeze(result);
-	}
-}
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isPlainRecord$1(value) {
-	if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Read only an exact set of top-level own data fields without traversing values.
-* This is used for transport envelopes whose documented optional values may be undefined.
-*
-* @param {unknown} value
-* @param {string} code
-* @param {readonly string[]} allowedKeys
-* @returns {DataRecord}
-*/
-function requireDataRecordFields(value, code, allowedKeys) {
-	if (!isPlainRecord$1(value)) throw gameplayError(code, "Expected a plain record");
-	const allowed = new Set(allowedKeys);
-	const keys = Reflect.ownKeys(value);
-	if (keys.some((key) => typeof key !== "string" || !allowed.has(key))) throw gameplayError(code, "Record contains unknown or symbolic fields");
-	/** @type {Record<string, unknown>} */
-	const result = {};
-	for (const keyValue of keys) {
-		const key = keyValue;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError(code, "Record cannot contain accessors or hidden fields");
-		result[key] = descriptor.value;
-	}
-	return Object.freeze(result);
-}
-/** @param {unknown} value @param {string} code @param {number} [maximumItems] @returns {DataRecord} */
-function requireRecord$1(value, code, maximumItems) {
-	if (!isPlainRecord$1(value)) throw gameplayError(code, "Expected a plain record");
-	return cloneGameplayData(value, code, maximumItems);
-}
-/** @param {unknown} value @param {string} code @returns {string} */
-function requireString(value, code) {
-	if (typeof value !== "string" || value.length === 0 || value.length > 256) throw gameplayError(code, "Expected a bounded non-empty string");
-	return value;
-}
-/** @param {unknown} value @param {string} code @returns {number} */
-function requireNonNegativeNumber(value, code) {
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw gameplayError(code, "Expected a non-negative finite number");
-	return Object.is(value, -0) ? 0 : value;
-}
-/** @param {unknown} value @param {string} code @param {number} [limit] @returns {readonly string[]} */
-function requireStringArray(value, code, limit = 2048) {
-	const copy = cloneGameplayData(value, code, limit);
-	if (!Array.isArray(copy) || copy.length > limit) throw gameplayError(code, "Expected a bounded string array");
-	const result = [];
-	for (const entry of copy) result.push(requireString(entry, code));
-	return Object.freeze(result);
-}
-/** @param {string} code @param {string} message @returns {Error & {code: string}} */
-function gameplayError(code, message) {
-	return Object.assign(new Error(message), { code });
-}
-/** @param {string} left @param {string} right @returns {number} */
-function compareCodePoints(left, right) {
-	return left < right ? -1 : left > right ? 1 : 0;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/src/session-coordinator.js
-/** @typedef {Readonly<Record<string, unknown>>} DataRecord */
-/** @typedef {import("@aerobeat/web-contracts").AeroGameplayEvidenceSnapshot} AeroGameplayEvidenceSnapshot */
-/** @typedef {import("@aerobeat/web-contracts").AeroGameplayJudgement} AeroGameplayJudgement */
-/** @typedef {import("@aerobeat/web-contracts").AeroGameplaySessionState} AeroGameplaySessionState */
-/** @typedef {import("@aerobeat/web-contracts").AeroCountdownReason} AeroCountdownReason */
-/** @type {readonly string[]} */
-var CHECKPOINT_ACTIONS = Object.freeze([
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-/** @type {readonly string[]} */
-var PUNCH_ACTIONS = Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right"
-]);
-/** @type {readonly string[]} */
-var SUPPORTED_MODIFIERS = Object.freeze([
-	"any_punch",
-	"cross_body",
-	"crossed_guard",
-	"no_squats",
-	"no_weaves"
-]);
-/**
-* @typedef {Object} GameplayCoordinatorOptions
-* @property {string} [sessionId]
-* @property {string} [instanceId]
-* @property {number} [countdownStepMs]
-* @property {(error: unknown) => void} [onListenerError]
-*/
-/**
-* @typedef {Object} GameplayContentConfiguration
-* @property {string} packageId
-* @property {DataRecord} selectedVariant
-* @property {readonly DataRecord[]} resolvedEvents
-* @property {DataRecord} [profileIdentity]
-* @property {DataRecord} [scoringSettings]
-* @property {readonly DataRecord[]} [shadowVariants]
-*/
-/**
-* Create a deterministic per-game session coordinator. Wall timestamps drive safety/countdown;
-* the injected audio clock is the sole gameplay timeline authority.
-*
-* @param {GameplayCoordinatorOptions} [options]
-*/
-function createAeroGameplaySessionCoordinator(options = {}) {
-	const normalizedOptions = normalizeOptions(options);
-	const sessionId = normalizedOptions.sessionId;
-	const instanceId = normalizedOptions.instanceId;
-	const countdownStepMs = normalizedOptions.countdownStepMs;
-	const listeners = /* @__PURE__ */ new Set();
-	let destroyed = false;
-	let generation = 0;
-	let state = "idle";
-	let timestampMs = 0;
-	let timelinePositionMs = 0;
-	let packageId = null;
-	let variant = null;
-	let profileIdentity = defaultProfileIdentity();
-	let scoringSettings = defaultScoringSettings();
-	let events = Object.freeze([]);
-	let contentGeneration = 0;
-	let eventTruth = /* @__PURE__ */ new WeakMap();
-	let shadowVariants = Object.freeze([]);
-	let calibrationId = null;
-	let safetyReady = false;
-	let freshCalibrationRequired = true;
-	let pauseReason = null;
-	let countdown = inactiveCountdown(0);
-	let countdownStartedAtMs = 0;
-	let countdownTimelinePositionMs = 0;
-	let countdownReason = null;
-	let invalidatedCalibrationId = null;
-	let lastInput = null;
-	let latestEvidence = null;
-	let latestEvidenceTimelineMs = 0;
-	let lastEvidenceFrameId = null;
-	let leaseSnapshot = null;
-	const judgedIds = /* @__PURE__ */ new Set();
-	let activeIds = /* @__PURE__ */ new Set();
-	const judgements = [];
-	const shadowJudgements = [];
-	const shadowConsumed = /* @__PURE__ */ new Set();
-	const consumedActions = /* @__PURE__ */ new Set();
-	const consumedGuardPunchWindows = /* @__PURE__ */ new Map();
-	const partitions = /* @__PURE__ */ new Map();
-	let snapshot = makeSnapshot(null);
-	return Object.freeze({
-		configureContent,
-		requestStart,
-		pause,
-		resume,
-		advance,
-		synchronizePausedClock,
-		applyFutureContent,
-		setActiveEventIds,
-		setLeaseSnapshot,
-		stop,
-		reset,
-		getSnapshot: () => snapshot,
-		getJudgements: () => Object.freeze([...judgements]),
-		getScorePartitions: () => Object.freeze([...partitions.values()].map((entry) => Object.freeze({ ...entry }))),
-		subscribe,
-		destroy
-	});
-	/** @param {GameplayContentConfiguration} configuration */
-	function configureContent(configuration) {
-		assertOpen();
-		const source = requireRecord$1(configuration, "content_configuration_invalid", 15e5);
-		const nextPackageId = requireString(source.packageId, "content_package_invalid");
-		const nextVariant = normalizeVariant(source.selectedVariant);
-		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
-		const nextProfileIdentity = source.profileIdentity === void 0 ? defaultProfileIdentity() : normalizeProfile(source.profileIdentity);
-		const nextScoringSettings = source.scoringSettings === void 0 ? defaultScoringSettings() : normalizeScoringSettings(source.scoringSettings);
-		const nextShadowVariants = source.shadowVariants === void 0 ? Object.freeze([]) : normalizeShadowVariants(source.shadowVariants);
-		const nextContentGeneration = contentGeneration + 1;
-		const nextEventTruth = bindEventTruth(nextEvents, nextPackageId, nextContentGeneration, nextVariant, nextProfileIdentity, nextScoringSettings);
-		packageId = nextPackageId;
-		variant = nextVariant;
-		contentGeneration = nextContentGeneration;
-		eventTruth = nextEventTruth;
-		events = nextEvents;
-		profileIdentity = nextProfileIdentity;
-		scoringSettings = nextScoringSettings;
-		shadowVariants = nextShadowVariants;
-		clearRunTruth();
-		state = "calibrating";
-		pauseReason = "calibration_required";
-		generation += 1;
-		publish(null);
-		return snapshot;
-	}
-	/** @param {number} atTimestampMs */
-	function requestStart(atTimestampMs) {
-		assertConfigured();
-		if (state !== "calibrating") throw gameplayError("session_state_invalid", "Initial start requires the calibrating state");
-		advanceTimestamp(atTimestampMs);
-		if (!hasRequiredLease()) {
-			state = "paused_manual";
-			pauseReason = "media_lease_unavailable";
-			publish(null);
-			return Object.freeze({
-				accepted: false,
-				reason: "media_lease_unavailable"
-			});
-		}
-		if (!safetyReady || freshCalibrationRequired || calibrationId === null) {
-			state = "calibrating";
-			pauseReason = "calibration_required";
-			publish(null);
-			return Object.freeze({
-				accepted: false,
-				reason: "calibration_required"
-			});
-		}
-		beginCountdown("initial_start");
-		return Object.freeze({
-			accepted: true,
-			reason: null
-		});
-	}
-	/** @param {number} atTimestampMs @param {string} [reason] */
-	function pause(atTimestampMs, reason = "manual") {
-		assertOpen();
-		advanceTimestamp(atTimestampMs);
-		if (state === "destroyed") return snapshot;
-		cancelCountdown();
-		state = "paused_manual";
-		pauseReason = boundedReason(reason);
-		publish(null);
-		return snapshot;
-	}
-	/** @param {number} atTimestampMs */
-	function resume(atTimestampMs) {
-		assertConfigured();
-		if (state !== "paused_manual" && state !== "paused_tracking") throw gameplayError("session_state_invalid", "Resume requires a paused session");
-		advanceTimestamp(atTimestampMs);
-		if (!hasRequiredLease()) {
-			state = "paused_manual";
-			pauseReason = "media_lease_unavailable";
-			publish(null);
-			return Object.freeze({
-				accepted: false,
-				reason: "media_lease_unavailable"
-			});
-		}
-		if (!safetyReady || freshCalibrationRequired || calibrationId === null) {
-			state = freshCalibrationRequired ? "paused_tracking" : "calibrating";
-			pauseReason = "calibration_required";
-			publish(null);
-			return Object.freeze({
-				accepted: false,
-				reason: "calibration_required"
-			});
-		}
-		beginCountdown(state === "paused_tracking" ? "tracking_resume" : "manual_resume");
-		return Object.freeze({
-			accepted: true,
-			reason: null
-		});
-	}
-	/**
-	* Advance deterministic state using one audio-clock and optional input sample.
-	*
-	* @param {{timestampMs: number, clock: unknown, input?: unknown, lease?: unknown}} frame
-	*/
-	function advance(frame) {
-		assertOpen();
-		const safeFrame = requireDataRecordFields(frame, "advance_frame_invalid", [
-			"timestampMs",
-			"clock",
-			"input",
-			"lease"
-		]);
-		const nextTimestampMs = requireNonNegativeNumber(safeFrame.timestampMs, "timestamp_invalid");
-		if (nextTimestampMs < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
-		const clock = normalizeClock(safeFrame.clock);
-		const nextLease = safeFrame.lease === void 0 ? null : normalizeLeaseSnapshot(safeFrame.lease);
-		const nextInput = safeFrame.input === void 0 ? null : normalizeInputSnapshot(safeFrame.input);
-		const enteredState = state;
-		const enteredAsCountdown = enteredState === "countdown";
-		const previousTimelinePositionMs = timelinePositionMs;
-		timestampMs = nextTimestampMs;
-		if (nextLease !== null) leaseSnapshot = nextLease;
-		if (nextInput !== null) commitInput(nextInput);
-		enforceLease();
-		enforceSafety();
-		if (enteredAsCountdown && state === "countdown") advanceCountdown(clock);
-		if (enteredState === "playing" && state === "playing") {
-			if (!clock.playing) {
-				state = "paused_manual";
-				pauseReason = "audio_clock_not_playing";
-			} else if (clock.positionMs < previousTimelinePositionMs) {
-				state = "paused_manual";
-				pauseReason = "audio_clock_rollback";
-			} else {
-				timelinePositionMs = clock.positionMs;
-				captureEvidenceForTimeline();
-				judgeLiveEvents();
-				judgeShadowEvents();
-				if (events.length > 0 && judgedIds.size >= events.length) {
-					state = "completed";
-					pauseReason = null;
-				}
-			}
-		} else if (enteredState !== "playing" && enteredState !== "countdown" && enteredState !== "paused_manual" && enteredState !== "paused_tracking" && state !== "paused_tracking") timelinePositionMs = clock.positionMs;
-		publish(null);
-		return snapshot;
-	}
-	/**
-	* Synchronize an explicit paused seek from the authoritative audio clock.
-	* Ordinary advance frames cannot move a manually paused timeline.
-	*
-	* @param {{timestampMs: number, clock: unknown}} frame
-	*/
-	function synchronizePausedClock(frame) {
-		assertConfigured();
-		if (state !== "paused_manual") throw gameplayError("session_state_invalid", "Paused clock synchronization requires a manual pause");
-		const safeFrame = requireDataRecordFields(frame, "paused_clock_frame_invalid", ["timestampMs", "clock"]);
-		const nextTimestampMs = requireNonNegativeNumber(safeFrame.timestampMs, "timestamp_invalid");
-		if (nextTimestampMs < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
-		const clock = normalizeClock(safeFrame.clock);
-		if (clock.playing) throw gameplayError("paused_clock_not_frozen", "Paused clock synchronization requires a stopped audio clock");
-		timestampMs = nextTimestampMs;
-		timelinePositionMs = clock.positionMs;
-		publish(null);
-		return snapshot;
-	}
-	/** @param {GameplayContentConfiguration} configuration */
-	function applyFutureContent(configuration) {
-		assertConfigured();
-		if (state === "playing" || state === "countdown") throw gameplayError("variant_swap_requires_pause", "Future variant swaps require a paused session");
-		const source = requireRecord$1(configuration, "content_configuration_invalid", 15e5);
-		const nextPackageId = requireString(source.packageId, "content_package_invalid");
-		if (nextPackageId !== packageId) throw gameplayError("variant_swap_package_mismatch", "Future variant swaps must remain in the loaded package");
-		const nextVariant = normalizeVariant(source.selectedVariant);
-		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
-		const nextProfileIdentity = source.profileIdentity === void 0 ? profileIdentity : normalizeProfile(source.profileIdentity);
-		const nextScoringSettings = source.scoringSettings === void 0 ? scoringSettings : normalizeScoringSettings(source.scoringSettings);
-		const nextShadowVariants = source.shadowVariants === void 0 ? shadowVariants : normalizeShadowVariants(source.shadowVariants);
-		const preserve = new Map(events.filter((event) => shouldPreserveEvent(event)).map((event) => [String(event.eventId), event]));
-		const lineage = new Set([...preserve.values()].flatMap((event) => lineageIds(event)));
-		const merged = [...preserve.values()];
-		const acceptedNextEvents = [];
-		for (const event of nextEvents) {
-			if (preserve.has(String(event.eventId))) continue;
-			if (Number(event.centerTimestampMs) <= timelinePositionMs) continue;
-			if (lineageIds(event).some((id) => lineage.has(id))) continue;
-			merged.push(event);
-			acceptedNextEvents.push(event);
-		}
-		if (merged.length > 1e5) throw gameplayError("content_events_invalid", "Future content merge exceeds the event limit");
-		merged.sort(eventOrder);
-		const nextContentGeneration = contentGeneration + 1;
-		const nextEventTruth = /* @__PURE__ */ new WeakMap();
-		for (const event of preserve.values()) {
-			const truth = eventTruth.get(event);
-			if (!truth) throw gameplayError("event_truth_missing", "Preserved events require immutable content-generation truth");
-			nextEventTruth.set(event, truth);
-		}
-		for (const event of acceptedNextEvents) nextEventTruth.set(event, makeEventTruth(nextPackageId, nextContentGeneration, nextVariant, nextProfileIdentity, nextScoringSettings));
-		events = Object.freeze(merged);
-		variant = nextVariant;
-		contentGeneration = nextContentGeneration;
-		eventTruth = nextEventTruth;
-		profileIdentity = nextProfileIdentity;
-		scoringSettings = nextScoringSettings;
-		shadowVariants = nextShadowVariants;
-		generation += 1;
-		publish(null);
-		return snapshot;
-	}
-	/** @param {readonly string[]} ids */
-	function setActiveEventIds(ids) {
-		assertConfigured();
-		const normalizedIds = requireStringArray(ids, "active_event_ids_invalid", 2048);
-		if (new Set(normalizedIds).size !== normalizedIds.length) throw gameplayError("active_event_ids_invalid", "Active event IDs must be unique");
-		const knownIds = new Set(events.map((event) => String(event.eventId)));
-		if (normalizedIds.some((id) => !knownIds.has(id))) throw gameplayError("active_event_ids_invalid", "Active event IDs must belong to current content");
-		activeIds = new Set(normalizedIds);
-		publish(null);
-		return snapshot;
-	}
-	/** @param {unknown} value */
-	function setLeaseSnapshot(value) {
-		assertOpen();
-		setLeaseSnapshotInternal(value);
-		enforceLease();
-		publish(null);
-		return snapshot;
-	}
-	/** @param {number} atTimestampMs */
-	function stop(atTimestampMs) {
-		assertOpen();
-		advanceTimestamp(atTimestampMs);
-		cancelCountdown();
-		state = "completed";
-		pauseReason = null;
-		publish(null);
-		return snapshot;
-	}
-	/** @param {number} [atTimestampMs] */
-	function reset(atTimestampMs = timestampMs) {
-		assertOpen();
-		advanceTimestamp(atTimestampMs);
-		generation += 1;
-		clearRunTruth();
-		state = packageId === null ? "idle" : "calibrating";
-		pauseReason = packageId === null ? null : "calibration_required";
-		calibrationId = null;
-		invalidatedCalibrationId = null;
-		safetyReady = false;
-		freshCalibrationRequired = true;
-		publish(null);
-		return snapshot;
-	}
-	/** @param {(value: DataRecord) => void} listener */
-	function subscribe(listener) {
-		assertOpen();
-		if (typeof listener !== "function") throw gameplayError("listener_invalid", "Gameplay listener must be a function");
-		listeners.add(listener);
-		notify(listener);
-		return () => listeners.delete(listener);
-	}
-	function destroy() {
-		if (destroyed) return;
-		generation += 1;
-		destroyed = true;
-		state = "destroyed";
-		cancelCountdown();
-		latestEvidence = null;
-		lastInput = null;
-		pauseReason = null;
-		publish(null);
-		listeners.clear();
-	}
-	/** @param {unknown} value @returns {DataRecord} */
-	function normalizeInputSnapshot(value) {
-		const input = requireRecord$1(value, "input_snapshot_invalid");
-		const calibration = requireRecord$1(input.calibration, "input_calibration_invalid");
-		const tracking = requireRecord$1(input.tracking, "input_tracking_invalid");
-		const nextCalibrationId = calibration.calibrationId === null ? null : requireString(calibration.calibrationId, "calibration_id_invalid");
-		const readiness = requireString(calibration.readiness, "input_calibration_invalid");
-		if (!readinessStates$2.includes(readiness)) throw gameplayError("input_calibration_invalid", "Input readiness state is unsupported");
-		if (typeof tracking.gameplayPaused !== "boolean" || typeof tracking.freshCalibrationRequired !== "boolean" || typeof input.countdownFrozen !== "boolean") throw gameplayError("input_tracking_invalid", "Input tracking safety fields must be boolean");
-		const qualifications = normalizeStraightQualifications(input.straightQualifications ?? []);
-		const candidate = input.latestEvidence;
-		if (candidate !== null && candidate !== void 0) {
-			if (!isGameplayEvidenceSnapshot(candidate)) throw gameplayError("input_evidence_invalid", "Input evidence does not satisfy the public contract");
-			validateEvidenceIdentity(candidate);
-			if (nextCalibrationId === null || candidate.calibrationId !== nextCalibrationId) throw gameplayError("input_evidence_invalid", "Input evidence must belong to the snapshot calibration");
-		}
-		return Object.freeze({
-			input: Object.freeze({
-				...input,
-				straightQualifications: qualifications
-			}),
-			nextCalibrationId,
-			readiness,
-			trackingPaused: tracking.gameplayPaused || input.countdownFrozen,
-			upstreamFreshRequired: tracking.freshCalibrationRequired,
-			candidate: candidate ?? null
-		});
-	}
-	/** @param {DataRecord} normalized */
-	function commitInput(normalized) {
-		const input = normalized.input;
-		const nextCalibrationId = normalized.nextCalibrationId;
-		const readiness = normalized.readiness;
-		const trackingPaused = normalized.trackingPaused === true;
-		lastInput = input;
-		const recoveryIdMatches = invalidatedCalibrationId !== null && nextCalibrationId === invalidatedCalibrationId;
-		freshCalibrationRequired = normalized.upstreamFreshRequired === true || nextCalibrationId === null || recoveryIdMatches;
-		safetyReady = (readiness === "ready" || readiness === "countdown") && !trackingPaused && !freshCalibrationRequired;
-		if (nextCalibrationId !== calibrationId) {
-			calibrationId = nextCalibrationId;
-			latestEvidence = null;
-			lastEvidenceFrameId = null;
-		}
-		if (safetyReady && invalidatedCalibrationId !== null && nextCalibrationId !== invalidatedCalibrationId) invalidatedCalibrationId = null;
-		if (normalized.candidate !== null) latestEvidence = normalized.candidate;
-	}
-	function captureEvidenceForTimeline() {
-		if (!latestEvidence || latestEvidence.measuredSourceFrameId === lastEvidenceFrameId) return;
-		lastEvidenceFrameId = latestEvidence.measuredSourceFrameId;
-		latestEvidenceTimelineMs = timelinePositionMs;
-	}
-	function enforceSafety() {
-		if (state === "playing" || state === "countdown" || state === "paused_manual") {
-			if (!safetyReady || freshCalibrationRequired) enterTrackingPause();
-		} else if (state === "paused_tracking" && safetyReady && !freshCalibrationRequired && calibrationId !== null) beginCountdown("tracking_resume");
-		else if (state === "calibrating" && safetyReady && calibrationId !== null) pauseReason = null;
-	}
-	function enterTrackingPause() {
-		if (invalidatedCalibrationId === null && calibrationId !== null) invalidatedCalibrationId = calibrationId;
-		cancelCountdown();
-		state = "paused_tracking";
-		pauseReason = "tracking_lost_recalibration_required";
-		latestEvidence = null;
-		lastEvidenceFrameId = null;
-		freshCalibrationRequired = true;
-		safetyReady = false;
-	}
-	function hasRequiredLease() {
-		if (!leaseSnapshot || !instanceId) return true;
-		return leaseSnapshot.ownerInstanceId === instanceId && leaseSnapshot.state === "owned" && Array.isArray(leaseSnapshot.resources) && leaseSnapshot.resources.includes("audio") && leaseSnapshot.resources.includes("camera");
-	}
-	function enforceLease() {
-		if (hasRequiredLease()) return;
-		if (state === "playing" || state === "countdown") {
-			cancelCountdown();
-			state = "paused_manual";
-			pauseReason = "media_lease_unavailable";
-		}
-	}
-	/** @param {unknown} value */
-	function setLeaseSnapshotInternal(value) {
-		leaseSnapshot = normalizeLeaseSnapshot(value);
-	}
-	/** @param {AeroCountdownReason} reason */
-	function beginCountdown(reason) {
-		state = "countdown";
-		pauseReason = null;
-		countdownReason = reason;
-		countdownStartedAtMs = timestampMs;
-		countdownTimelinePositionMs = timelinePositionMs;
-		countdown = countdownSnapshot("three", reason, 3, timestampMs, calibrationId);
-		publish(null);
-	}
-	/** @param {{positionMs: number, playing: boolean}} clock */
-	function advanceCountdown(clock) {
-		if (clock.playing || clock.positionMs !== countdownTimelinePositionMs) {
-			timelinePositionMs = countdownTimelinePositionMs;
-			cancelCountdown();
-			state = "paused_manual";
-			pauseReason = "countdown_audio_not_frozen";
-			return;
-		}
-		const elapsed = timestampMs - countdownStartedAtMs;
-		if (elapsed < countdownStepMs) countdown = countdownSnapshot("three", countdownReason, 3, timestampMs, calibrationId);
-		else if (elapsed < countdownStepMs * 2) countdown = countdownSnapshot("two", countdownReason, 2, timestampMs, calibrationId);
-		else if (elapsed < countdownStepMs * 3) countdown = countdownSnapshot("one", countdownReason, 1, timestampMs, calibrationId);
-		else {
-			countdown = countdownSnapshot("complete", countdownReason, null, timestampMs, calibrationId);
-			state = "playing";
-			pauseReason = null;
-		}
-	}
-	function cancelCountdown() {
-		if (countdown.state !== "inactive" && countdown.state !== "complete") countdown = countdownSnapshot("cancelled", countdownReason, null, timestampMs, calibrationId);
-		else countdown = inactiveCountdown(timestampMs);
-		countdownReason = null;
-	}
-	function judgeLiveEvents() {
-		for (const event of events) {
-			const eventId = String(event.eventId);
-			if (judgedIds.has(eventId)) continue;
-			const center = Number(event.centerTimestampMs);
-			if (variantForEvent(event).mode === "flow" && event.type !== "note") {
-				if (timelinePositionMs >= center) recordJudgement(event, "ignored", Object.freeze([]), null, false);
-				continue;
-			}
-			if (timelinePositionMs < center - prototypeJudgementDefaults$2.timingWindowBeforeMs) continue;
-			if (tryHit(event, false)) continue;
-			if (timelinePositionMs > center + prototypeJudgementDefaults$2.timingWindowAfterMs) recordJudgement(event, "miss", missDiagnostics(event), null, false);
-		}
-	}
-	function judgeShadowEvents() {
-		if (!latestEvidence || !lastInput || latestEvidence.calibrationId !== calibrationId) return;
-		const evidenceAge = timestampMs - latestEvidence.measurementTimestampMs;
-		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults$2.checkpointFreshnessMs) return;
-		for (const shadow of shadowVariants) {
-			const shadowEvents = Array.isArray(shadow.resolvedEvents) ? shadow.resolvedEvents : [];
-			for (const eventValue of shadowEvents) {
-				if (!isPlainRecord$1(eventValue)) continue;
-				const event = eventValue;
-				const key = `${String(shadow.variantId)}:${String(event.eventId)}:${latestEvidence.measuredSourceFrameId}`;
-				if (shadowConsumed.has(key)) continue;
-				const center = Number(event.centerTimestampMs);
-				if (Math.abs(latestEvidenceTimelineMs - center) > prototypeJudgementDefaults$2.timingWindowAfterMs) continue;
-				const match = matchEvent(event, shadow, latestEvidence, lastInput);
-				if (match.hit) {
-					shadowConsumed.add(key);
-					shadowJudgements.push(makeJudgement(event, shadow, "hit", match.diagnostics, latestEvidence, latestEvidenceTimelineMs, profileIdentity, true));
-				}
-			}
-		}
-	}
-	/** @param {DataRecord} event @param {boolean} shadow */
-	function tryHit(event, shadow) {
-		if (!latestEvidence || !lastInput) return false;
-		if (latestEvidence.calibrationId !== calibrationId) return false;
-		const evidenceAge = timestampMs - latestEvidence.measurementTimestampMs;
-		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults$2.checkpointFreshnessMs) return false;
-		const center = Number(event.centerTimestampMs);
-		const offset = latestEvidenceTimelineMs - center;
-		if (offset < -prototypeJudgementDefaults$2.timingWindowBeforeMs || offset > prototypeJudgementDefaults$2.timingWindowAfterMs) return false;
-		const match = matchEvent(event, variantForEvent(event), latestEvidence, lastInput);
-		if (!match.hit) return false;
-		const action = expectedAction(event);
-		const actionKey = `${latestEvidence.measuredSourceFrameId}|${action}`;
-		if (consumedActions.has(actionKey)) {
-			recordJudgement(event, "miss", Object.freeze(["action_consumed"]), latestEvidence, shadow);
-			return true;
-		}
-		const category = eventCategory(event);
-		const frameId = latestEvidence.measuredSourceFrameId;
-		const consumedWindows = consumedGuardPunchWindows.get(frameId) ?? [];
-		if ((category === "guard" || category === "punch") && consumedWindows.some((entry) => entry.category !== category && Math.abs(entry.centerTimestampMs - center) <= prototypeJudgementDefaults$2.timingWindowBeforeMs + prototypeJudgementDefaults$2.timingWindowAfterMs)) {
-			recordJudgement(event, "miss", Object.freeze(["blocked_overlap"]), latestEvidence, shadow);
-			return true;
-		}
-		consumedActions.add(actionKey);
-		if (category === "guard" || category === "punch") consumedGuardPunchWindows.set(frameId, Object.freeze([...consumedWindows, Object.freeze({
-			category,
-			centerTimestampMs: center
-		})]));
-		recordJudgement(event, "hit", match.diagnostics, latestEvidence, shadow);
-		return true;
-	}
-	/** @param {DataRecord} event @param {"hit" | "miss" | "ignored"} result @param {readonly string[]} diagnostics @param {AeroGameplayEvidenceSnapshot | null} evidence @param {boolean} shadow */
-	function recordJudgement(event, result, diagnostics, evidence, shadow) {
-		const eventVariant = variantForEvent(event);
-		const eventProfile = profileForEvent(event);
-		const judgement = makeJudgement(event, eventVariant, result, diagnostics, evidence, evidence ? latestEvidenceTimelineMs : null, eventProfile, shadow);
-		if (shadow) shadowJudgements.push(judgement);
-		else {
-			judgements.push(judgement);
-			judgedIds.add(String(event.eventId));
-			updateScore(result, eventVariant, eventProfile, scoringSettingsForEvent(event));
-		}
-	}
-	/** @param {"hit" | "miss" | "ignored"} result @param {DataRecord} scoreVariant @param {DataRecord} scoreProfile @param {DataRecord} settings */
-	function updateScore(result, scoreVariant, scoreProfile, settings) {
-		const key = scorePartitionKey(scoreVariant, scoreProfile, settings);
-		const next = { ...partitions.get(key) ?? {
-			partitionId: key,
-			variantId: scoreVariant.variantId,
-			chartId: scoreVariant.chartId,
-			rulesetId: scoreVariant.rulesetId,
-			recipeId: scoreVariant.recipeId,
-			modifierIds: scoreVariant.modifierIds,
-			mapHash: scoreVariant.mapHash,
-			scoreIdentityHash: scoreVariant.scoreIdentityHash,
-			profileId: scoreProfile.profileId,
-			profileVersion: scoreProfile.profileVersion,
-			profileHash: scoreProfile.contentHash,
-			profileClass: scoreProfile.class,
-			regenerationRequired: scoreProfile.regenerationRequired,
-			scoringSettings: settings,
-			scoringSettingsIdentity: scoreSettingsIdentity(settings),
-			ranked: scoreVariant.ranked === true,
-			localOnly: true,
-			hits: 0,
-			misses: 0,
-			ignored: 0,
-			score: 0,
-			maxCombo: 0,
-			combo: 0
-		} };
-		if (result === "hit") {
-			next.hits += 1;
-			next.combo += 1;
-			next.score = finiteScore(next.score + Number(settings.hitPoints) + Math.max(0, next.combo - 1) * Number(settings.comboBonusPerHit));
-			next.maxCombo = Math.max(next.maxCombo, next.combo);
-		} else if (result === "miss") {
-			next.misses += 1;
-			next.score = finiteScore(Math.max(0, next.score - Number(settings.missPenalty)));
-			next.combo = 0;
-		} else next.ignored += 1;
-		partitions.set(key, Object.freeze(next));
-	}
-	/** @param {DataRecord} event @returns {readonly string[]} */
-	function missDiagnostics(event) {
-		if (!latestEvidence) return Object.freeze(["no_input"]);
-		if (latestEvidence.calibrationId !== calibrationId) return Object.freeze(["calibration_mismatch"]);
-		const age = timestampMs - latestEvidence.measurementTimestampMs;
-		if (age < 0 || age > prototypeJudgementDefaults$2.checkpointFreshnessMs) return Object.freeze(["stale_input"]);
-		const match = matchEvent(event, variantForEvent(event), latestEvidence, lastInput);
-		return match.diagnostics.length > 0 ? match.diagnostics : Object.freeze(["timing_miss"]);
-	}
-	/** @param {Readonly<{code: string, message: string}> | null} error */
-	function publish(error) {
-		snapshot = makeSnapshot(error);
-		for (const listener of listeners) notify(listener);
-	}
-	/** @param {(value: DataRecord) => void} listener */
-	function notify(listener) {
-		try {
-			listener(snapshot);
-		} catch (error) {
-			try {
-				normalizedOptions.onListenerError?.(error);
-			} catch {}
-		}
-	}
-	/** @param {Readonly<{code: string, message: string}> | null} error */
-	function makeSnapshot(error) {
-		return Object.freeze({
-			schema: "aerobeat/gameplay_coordinator_snapshot",
-			version: 1,
-			serviceId: "aero.gameplay.session",
-			generation,
-			session: Object.freeze({
-				schema: "aerobeat/gameplay_session_snapshot",
-				version: 1,
-				sessionId,
-				state,
-				timestampMs,
-				timelinePositionMs,
-				packageId,
-				chartId: variant?.chartId ?? null,
-				calibrationId,
-				rulesetId: variant?.rulesetId ?? null,
-				recipeId: variant?.recipeId ?? null,
-				ranked: variant?.ranked === true,
-				pauseReason
-			}),
-			countdown,
-			safety: Object.freeze({
-				ready: safetyReady,
-				freshCalibrationRequired
-			}),
-			lease: leaseSnapshot,
-			selectedVariant: variant ? publicVariant(variant) : null,
-			profileIdentity,
-			scoringSettings,
-			activeEventIds: Object.freeze([...activeIds].sort(compareCodePoints)),
-			judgedEventIds: Object.freeze([...judgedIds].sort(compareCodePoints)),
-			judgements: Object.freeze([...judgements]),
-			shadowJudgements: Object.freeze([...shadowJudgements]),
-			scorePartitions: Object.freeze([...partitions.values()].map((entry) => Object.freeze({ ...entry }))),
-			error
-		});
-	}
-	function clearRunTruth() {
-		judgedIds.clear();
-		activeIds.clear();
-		judgements.length = 0;
-		shadowJudgements.length = 0;
-		shadowConsumed.clear();
-		consumedActions.clear();
-		consumedGuardPunchWindows.clear();
-		partitions.clear();
-		timelinePositionMs = 0;
-		countdownTimelinePositionMs = 0;
-		latestEvidence = null;
-		lastEvidenceFrameId = null;
-		lastInput = null;
-		countdown = inactiveCountdown(timestampMs);
-	}
-	/** @param {DataRecord} event */
-	function shouldPreserveEvent(event) {
-		return Number(event.centerTimestampMs) <= timelinePositionMs || judgedIds.has(String(event.eventId)) || activeIds.has(String(event.eventId));
-	}
-	/** @param {DataRecord} event @returns {DataRecord} */
-	function truthForEvent(event) {
-		const truth = eventTruth.get(event);
-		if (!truth) throw gameplayError("event_truth_missing", "Gameplay events require immutable content-generation truth");
-		return truth;
-	}
-	/** @param {DataRecord} event @returns {DataRecord} */
-	function variantForEvent(event) {
-		return truthForEvent(event).variant;
-	}
-	/** @param {DataRecord} event @returns {DataRecord} */
-	function profileForEvent(event) {
-		return truthForEvent(event).profileIdentity;
-	}
-	/** @param {DataRecord} event @returns {DataRecord} */
-	function scoringSettingsForEvent(event) {
-		return truthForEvent(event).scoringSettings;
-	}
-	function assertOpen() {
-		if (destroyed) throw gameplayError("service_destroyed", "Gameplay coordinator is destroyed");
-	}
-	function assertConfigured() {
-		assertOpen();
-		if (!variant || packageId === null) throw gameplayError("content_not_configured", "Gameplay content is not configured");
-	}
-	/** @param {number} value */
-	function advanceTimestamp(value) {
-		const next = requireNonNegativeNumber(value, "timestamp_invalid");
-		if (next < timestampMs) throw gameplayError("timestamp_rollback", "Gameplay timestamps must not roll back");
-		timestampMs = next;
-	}
-}
-/** @param {readonly DataRecord[]} sourceEvents @param {string} contentPackageId @param {number} generation @param {DataRecord} sourceVariant @param {DataRecord} sourceProfile @param {DataRecord} sourceScoringSettings */
-function bindEventTruth(sourceEvents, contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings) {
-	const result = /* @__PURE__ */ new WeakMap();
-	const truth = makeEventTruth(contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings);
-	for (const event of sourceEvents) result.set(event, truth);
-	return result;
-}
-/** @param {string} contentPackageId @param {number} generation @param {DataRecord} sourceVariant @param {DataRecord} sourceProfile @param {DataRecord} sourceScoringSettings */
-function makeEventTruth(contentPackageId, generation, sourceVariant, sourceProfile, sourceScoringSettings) {
-	return Object.freeze({
-		contentPackageId,
-		contentGeneration: generation,
-		variant: sourceVariant,
-		profileIdentity: sourceProfile,
-		scoringSettings: sourceScoringSettings
-	});
-}
-/** @param {GameplayCoordinatorOptions} options */
-function normalizeOptions(options) {
-	if (!isPlainRecord$1(options)) throw gameplayError("gameplay_options_invalid", "Gameplay options must be a plain record");
-	const keys = Reflect.ownKeys(options);
-	if (keys.some((key) => typeof key !== "string" || ![
-		"sessionId",
-		"instanceId",
-		"countdownStepMs",
-		"onListenerError"
-	].includes(key))) throw gameplayError("gameplay_options_invalid", "Gameplay options contain unknown or symbolic fields");
-	/** @type {Record<string, unknown>} */
-	const values = {};
-	for (const keyValue of keys) {
-		const key = keyValue;
-		const descriptor = Object.getOwnPropertyDescriptor(options, key);
-		if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw gameplayError("gameplay_options_invalid", "Gameplay options cannot contain accessors or hidden fields");
-		values[key] = descriptor.value;
-	}
-	const callback = values.onListenerError;
-	if (callback !== void 0 && typeof callback !== "function") throw gameplayError("gameplay_options_invalid", "Listener error hook must be a function");
-	return Object.freeze({
-		sessionId: values.sessionId === void 0 ? `session-${randomToken()}` : requireString(values.sessionId, "session_id_invalid"),
-		instanceId: values.instanceId === void 0 ? null : requireString(values.instanceId, "instance_id_invalid"),
-		countdownStepMs: values.countdownStepMs === void 0 ? 1e3 : positiveNumber(values.countdownStepMs, "countdown_step_invalid"),
-		onListenerError: callback
-	});
-}
-/** @param {unknown} value @returns {{positionMs: number, playing: boolean}} */
-function normalizeClock(value) {
-	const record = requireDataRecordFields(value, "audio_clock_invalid", [
-		"contextTimeSeconds",
-		"positionSeconds",
-		"durationSeconds",
-		"progress",
-		"playing"
-	]);
-	const positionSeconds = requireNonNegativeNumber(record.positionSeconds, "audio_clock_invalid");
-	if (record.contextTimeSeconds !== void 0) requireNonNegativeNumber(record.contextTimeSeconds, "audio_clock_invalid");
-	if (record.durationSeconds !== void 0) requireNonNegativeNumber(record.durationSeconds, "audio_clock_invalid");
-	if (record.progress !== void 0 && (typeof record.progress !== "number" || !Number.isFinite(record.progress) || record.progress < 0 || record.progress > 1)) throw gameplayError("audio_clock_invalid", "Audio clock progress must be normalized");
-	if (typeof record.playing !== "boolean") throw gameplayError("audio_clock_invalid", "Audio clock playing must be boolean");
-	const positionMs = positionSeconds * 1e3;
-	if (!Number.isSafeInteger(positionMs) && (!Number.isFinite(positionMs) || positionMs > Number.MAX_SAFE_INTEGER)) throw gameplayError("audio_clock_invalid", "Audio clock position exceeds safe gameplay range");
-	return Object.freeze({
-		positionMs,
-		playing: record.playing
-	});
-}
-/** @param {unknown} value @returns {DataRecord} */
-function normalizeLeaseSnapshot(value) {
-	const copy = cloneGameplayData(value, "media_lease_invalid");
-	if (!isMediaLeaseSnapshot(copy)) throw gameplayError("media_lease_invalid", "Media lease snapshot does not satisfy the public contract");
-	return copy;
-}
-/** @param {unknown} value @returns {DataRecord} */
-function normalizeVariant(value) {
-	const record = requireRecord$1(value, "variant_invalid");
-	const rulesetId = requireString(record.rulesetId, "ruleset_invalid");
-	if (!rulesetIds$2.includes(rulesetId)) throw gameplayError("ruleset_invalid", "Variant ruleset is unsupported");
-	const mode = record.mode === "flow" ? "flow" : record.mode === "boxing" ? "boxing" : (() => {
-		throw gameplayError("mode_invalid", "Variant mode is unsupported");
-	})();
-	const recipeId = record.recipeId === null ? null : requireString(record.recipeId, "recipe_invalid");
-	if (mode === "flow" && (rulesetId !== "flow_grid_v1" || recipeId !== null)) throw gameplayError("variant_identity_invalid", "Flow variants require the Flow ruleset and no conversion recipe");
-	if (mode === "boxing" && (rulesetId === "flow_grid_v1" || recipeId === null || !conversionRecipeIds$2.includes(recipeId))) throw gameplayError("variant_identity_invalid", "Boxing variants require a supported Boxing ruleset and conversion recipe");
-	const modifierIds = requireStringArray(record.modifierIds ?? [], "modifier_ids_invalid", 32);
-	if (new Set(modifierIds).size !== modifierIds.length || [...modifierIds].sort(compareCodePoints).some((entry, index) => entry !== modifierIds[index]) || modifierIds.some((entry) => !SUPPORTED_MODIFIERS.includes(entry))) throw gameplayError("modifier_ids_invalid", "Modifier identity must be supported, sorted and unique");
-	if (typeof record.ranked !== "boolean") throw gameplayError("variant_rank_invalid", "Variant ranked identity must be boolean");
-	const provenance = record.provenance === void 0 ? null : cloneGameplayData(record.provenance);
-	if (isPlainRecord$1(provenance) && provenance.kind === "composite" && record.ranked) throw gameplayError("variant_rank_invalid", "Runtime composite variants must be unranked");
-	const mapHash = cloneGameplayData(record.mapHash, "map_hash_invalid");
-	const scoreIdentityHash = cloneGameplayData(record.scoreIdentityHash, "score_identity_hash_invalid");
-	if (!isContentHash$1(mapHash) || !isContentHash$1(scoreIdentityHash)) throw gameplayError("variant_hash_invalid", "Variant map and score identity hashes must satisfy the public content contract");
-	return Object.freeze({
-		variantId: requireString(record.variantId, "variant_id_invalid"),
-		chartId: requireString(record.chartId, "chart_id_invalid"),
-		mode,
-		rulesetId,
-		recipeId,
-		modifierIds,
-		ranked: record.ranked === true,
-		mapHash,
-		scoreIdentityHash,
-		provenance
-	});
-}
-/** @param {unknown} value @param {DataRecord} selectedVariant @returns {readonly DataRecord[]} */
-function normalizeEvents(value, selectedVariant) {
-	if (!Array.isArray(value) || value.length > 1e5) throw gameplayError("content_events_invalid", "Resolved events must be a bounded array");
-	const ids = /* @__PURE__ */ new Set();
-	const lineageOwners = /* @__PURE__ */ new Set();
-	const result = value.map((entry) => {
-		const envelope = requireRecord$1(entry, "content_event_invalid");
-		const authoredBeat = envelope.authoredBeat === void 0 ? null : requireRecord$1(envelope.authoredBeat, "authored_beat_invalid");
-		const eventId = requireString(envelope.eventId, "event_id_invalid");
-		if (ids.has(eventId)) throw gameplayError("event_id_duplicate", "Resolved event IDs must be unique");
-		ids.add(eventId);
-		if (authoredBeat?.eventId !== void 0 && authoredBeat.eventId !== eventId) throw gameplayError("event_id_mismatch", "Resolved and authored event IDs must agree");
-		const centerTimestampMs = requireNonNegativeNumber(envelope.centerTimestampMs, "event_timestamp_invalid");
-		const variantId = envelope.variantId === void 0 ? selectedVariant.variantId : requireString(envelope.variantId, "variant_id_invalid");
-		const chartId = envelope.chartId === void 0 ? selectedVariant.chartId : requireString(envelope.chartId, "chart_id_invalid");
-		if (variantId !== selectedVariant.variantId || chartId !== selectedVariant.chartId) throw gameplayError("event_variant_mismatch", "Resolved events must belong to the selected variant and chart");
-		const event = Object.freeze({
-			...envelope,
-			...authoredBeat ?? {},
-			authoredBeat,
-			eventId,
-			centerTimestampMs,
-			variantId,
-			chartId
-		});
-		validateEventForVariant(event, selectedVariant);
-		for (const sourceId of lineageIds(event)) {
-			if (lineageOwners.has(sourceId)) throw gameplayError("event_lineage_invalid", "Source lineage IDs must have one event owner");
-			lineageOwners.add(sourceId);
-		}
-		return event;
-	});
-	result.sort(eventOrder);
-	return Object.freeze(result);
-}
-/** @param {DataRecord} event @param {DataRecord} selectedVariant */
-function validateEventForVariant(event, selectedVariant) {
-	const type = requireString(event.type, "event_type_invalid");
-	if (selectedVariant.mode === "flow") {
-		if (![
-			"note",
-			"bomb",
-			"obstacle",
-			"arc",
-			"burst"
-		].includes(type)) throw gameplayError("event_type_invalid", "Flow event type is unsupported");
-		if (type === "note") {
-			if (event.hand !== "left" && event.hand !== "right") throw gameplayError("event_hand_invalid", "Flow notes require a hand");
-			requireGridCell(event.placement, "event_placement_invalid");
-			if (event.direction !== void 0 && directionName(event.direction) === null) throw gameplayError("event_direction_invalid", "Flow note direction is unsupported");
-		}
-	} else {
-		const action = expectedAction(event);
-		if (![...PUNCH_ACTIONS, ...CHECKPOINT_ACTIONS].includes(action)) throw gameplayError("event_type_invalid", "Boxing event type is unsupported");
-		if (selectedVariant.rulesetId === "boxing_spatial_grid_v1") {
-			if (PUNCH_ACTIONS.includes(action)) {
-				const target = requireRecord$1(event.spatialTarget, "spatial_target_invalid");
-				requireGridCell(target.targetCell, "spatial_target_invalid");
-				if (!Array.isArray(target.acceptedSubcells) || target.acceptedSubcells.length > 48 || target.acceptedSubcells.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 47)) throw gameplayError("spatial_target_invalid", "Spatial accepted subcells are invalid");
-				if (target.sourceCell !== void 0) requireGridCell(target.sourceCell, "spatial_target_invalid");
-				if (target.entryDirection !== void 0 && directionName(target.entryDirection) === null) throw gameplayError("spatial_target_invalid", "Spatial entry direction is invalid");
-			} else if (action === "guard" || action === "crossed_guard") {
-				const target = requireRecord$1(event.guardTarget, "guard_target_invalid");
-				requireGridCell(target.leftCell, "guard_target_invalid");
-				requireGridCell(target.rightCell, "guard_target_invalid");
-			} else {
-				const checkpoint = requireRecord$1(event.checkpoint, "checkpoint_invalid");
-				if (!Array.isArray(checkpoint.noseSafeCells) || checkpoint.noseSafeCells.length > 12 || checkpoint.noseSafeCells.some((entry) => !Number.isInteger(entry) || entry < 0 || entry > 11)) throw gameplayError("checkpoint_invalid", "Checkpoint nose-safe cells are invalid");
-			}
-		}
-	}
-	if (event.sourceEventIds !== void 0) {
-		const sourceIds = requireStringArray(event.sourceEventIds, "event_lineage_invalid", 256);
-		if (new Set(sourceIds).size !== sourceIds.length) throw gameplayError("event_lineage_invalid", "Event lineage IDs must be unique");
-	}
-}
-/** @param {unknown} value @returns {DataRecord} */
-function normalizeProfile(value) {
-	const record = requireRecord$1(value, "profile_identity_invalid");
-	if (!isPrototypeTuningIdentity(record) || record.class !== "between_run_ruleset") throw gameplayError("profile_identity_invalid", "Profile identity does not satisfy the gameplay tuning contract for a between-run ruleset");
-	return record;
-}
-/** @param {unknown} value @returns {DataRecord} */
-function normalizeScoringSettings(value) {
-	const record = requireDataRecordFields(value, "scoring_settings_invalid", [
-		"comboBonusPerHit",
-		"hitPoints",
-		"missPenalty"
-	]);
-	if (Reflect.ownKeys(record).length !== 3) throw gameplayError("scoring_settings_invalid", "Scoring settings require every exact field");
-	return Object.freeze({
-		comboBonusPerHit: boundedScoreNumber(record.comboBonusPerHit),
-		hitPoints: boundedScoreNumber(record.hitPoints),
-		missPenalty: boundedScoreNumber(record.missPenalty)
-	});
-}
-/** @param {unknown} value */
-function boundedScoreNumber(value) {
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) throw gameplayError("scoring_settings_invalid", "Scoring settings must be finite values from 0 through 100");
-	return Object.is(value, -0) ? 0 : value;
-}
-/** @param {unknown} value @returns {readonly DataRecord[]} */
-function normalizeShadowVariants(value) {
-	if (!Array.isArray(value) || value.length > 4) throw gameplayError("shadow_variants_invalid", "Shadow variants must be a bounded array");
-	return Object.freeze(value.map((entry) => {
-		const record = requireRecord$1(entry, "shadow_variant_invalid");
-		const normalized = normalizeVariant(record);
-		const resolvedEvents = normalizeEvents(record.resolvedEvents ?? [], normalized);
-		return Object.freeze({
-			...normalized,
-			resolvedEvents
-		});
-	}));
-}
-/** @param {unknown} value @returns {readonly DataRecord[]} */
-function normalizeStraightQualifications(value) {
-	const entries = cloneGameplayData(value, "straight_qualifications_invalid", 64);
-	if (!Array.isArray(entries) || entries.length > 2) throw gameplayError("straight_qualifications_invalid", "Straight qualifications must be a bounded array");
-	const hands = /* @__PURE__ */ new Set();
-	return Object.freeze(entries.map((entryValue) => {
-		const entry = requireRecord$1(entryValue, "straight_qualification_invalid");
-		const hand = entry.hand === "left" || entry.hand === "right" ? entry.hand : (() => {
-			throw gameplayError("straight_qualification_invalid", "Straight qualification hand is invalid");
-		})();
-		if (hands.has(hand)) throw gameplayError("straight_qualification_invalid", "Straight qualification hands must be unique");
-		hands.add(hand);
-		if (typeof entry.semanticQualified !== "boolean" || typeof entry.spatialQualified !== "boolean") throw gameplayError("straight_qualification_invalid", "Straight qualification flags must be boolean");
-		const semanticStartTimestampMs = entry.semanticStartTimestampMs === null ? null : requireNonNegativeNumber(entry.semanticStartTimestampMs, "straight_qualification_invalid");
-		const spatialStartTimestampMs = entry.spatialStartTimestampMs === null ? null : requireNonNegativeNumber(entry.spatialStartTimestampMs, "straight_qualification_invalid");
-		const semanticDurationMs = requireNonNegativeNumber(entry.semanticDurationMs, "straight_qualification_invalid");
-		const spatialDurationMs = requireNonNegativeNumber(entry.spatialDurationMs, "straight_qualification_invalid");
-		if (entry.semanticQualified && semanticStartTimestampMs === null || entry.spatialQualified && spatialStartTimestampMs === null) throw gameplayError("straight_qualification_invalid", "Qualified straight evidence requires a measured start timestamp");
-		if (!Array.isArray(entry.acceptedSubcellColumns) || entry.acceptedSubcellColumns.length > 8 || entry.acceptedSubcellColumns.some((column) => !Number.isInteger(column) || column < 0 || column > 7) || new Set(entry.acceptedSubcellColumns).size !== entry.acceptedSubcellColumns.length) throw gameplayError("straight_qualification_invalid", "Accepted subcell columns are invalid");
-		return Object.freeze({
-			hand,
-			semanticStartTimestampMs,
-			semanticDurationMs,
-			semanticQualified: entry.semanticQualified,
-			spatialStartTimestampMs,
-			spatialDurationMs,
-			spatialQualified: entry.spatialQualified,
-			acceptedSubcellColumns: Object.freeze([...entry.acceptedSubcellColumns])
-		});
-	}));
-}
-/** @param {AeroGameplayEvidenceSnapshot} evidence */
-function validateEvidenceIdentity(evidence) {
-	if (new Set(evidence.activeBoxingActions).size !== evidence.activeBoxingActions.length) throw gameplayError("input_evidence_invalid", "Active Boxing action IDs must be unique");
-	const anchorIds = evidence.anchors.map((anchor) => anchor.anchor);
-	if (new Set(anchorIds).size !== anchorIds.length) throw gameplayError("input_evidence_invalid", "Measured anchor IDs must be unique");
-	const entryIds = evidence.entries.map((entry) => entry.anchor);
-	if (new Set(entryIds).size !== entryIds.length) throw gameplayError("input_evidence_invalid", "Measured entry anchor IDs must be unique");
-}
-/** @param {DataRecord} event @param {DataRecord | null} selectedVariant @param {AeroGameplayEvidenceSnapshot} evidence @param {DataRecord | null} input */
-function matchEvent(event, selectedVariant, evidence, input) {
-	const diagnostics = [];
-	const rulesetId = String(selectedVariant?.rulesetId ?? "flow_grid_v1");
-	if (rulesetId === "flow_grid_v1") return matchFlow(event, evidence);
-	const action = expectedAction(event);
-	if (!evidence.activeBoxingActions.includes(action)) diagnostics.push("no_input");
-	if (action.startsWith("straight_") && rulesetId === "boxing_semantic_track_v1") {
-		const hand = action.endsWith("_right") ? "right" : "left";
-		const qualification = (Array.isArray(input?.straightQualifications) ? input.straightQualifications : []).find((entry) => isPlainRecord$1(entry) && entry.hand === hand);
-		const start = isPlainRecord$1(qualification) && typeof qualification.semanticStartTimestampMs === "number" ? qualification.semanticStartTimestampMs : null;
-		if (!(isPlainRecord$1(qualification) && qualification.semanticQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults$2.straightQualificationMs)) diagnostics.push("qualification_too_short");
-	}
-	if (rulesetId === "boxing_spatial_grid_v1") matchSpatial(event, action, evidence, input, diagnostics);
-	return Object.freeze({
-		hit: diagnostics.length === 0,
-		diagnostics: Object.freeze(diagnostics)
-	});
-}
-/** @param {DataRecord} event @param {AeroGameplayEvidenceSnapshot} evidence */
-function matchFlow(event, evidence) {
-	const anchorName = `${event.hand === "right" ? "right" : "left"}_wrist`;
-	const anchor = evidence.anchors.find((entry) => entry.anchor === anchorName);
-	const diagnostics = [];
-	const placement = requireGridCell(event.placement, "event_placement_invalid");
-	if (!anchor || anchor.cell !== placement) diagnostics.push("wrong_cell");
-	if (event.direction !== void 0) {
-		const direction = directionName(event.direction);
-		const entry = evidence.entries.find((candidate) => candidate.anchor === anchorName && candidate.toCell === placement);
-		if (!entry || direction === null || entry.direction !== direction) diagnostics.push("wrong_direction");
-	}
-	return Object.freeze({
-		hit: diagnostics.length === 0,
-		diagnostics: Object.freeze(diagnostics)
-	});
-}
-/** @param {DataRecord} event @param {string} action @param {AeroGameplayEvidenceSnapshot} evidence @param {DataRecord | null} input @param {string[]} diagnostics */
-function matchSpatial(event, action, evidence, input, diagnostics) {
-	if (PUNCH_ACTIONS.includes(action)) {
-		const hand = action.endsWith("_right") ? "right" : "left";
-		const anchor = evidence.anchors.find((entry) => entry.anchor === `${hand}_wrist`);
-		const target = isPlainRecord$1(event.spatialTarget) ? event.spatialTarget : null;
-		if (!anchor || !target) {
-			diagnostics.push("wrong_cell");
-			return;
-		}
-		const accepted = Array.isArray(target.acceptedSubcells) ? target.acceptedSubcells : [];
-		const targetCell = requireGridCell(target.targetCell, "spatial_target_invalid");
-		if (accepted.length > 0 && !accepted.includes(anchor.subcell)) diagnostics.push("wrong_subcell");
-		else if (anchor.cell !== targetCell) diagnostics.push("wrong_cell");
-		if (target.entryDirection !== void 0) {
-			const sourceCell = target.sourceCell === void 0 ? null : requireGridCell(target.sourceCell, "spatial_target_invalid");
-			const direction = directionName(target.entryDirection);
-			if (!evidence.entries.some((entry) => entry.anchor === `${hand}_wrist` && entry.toCell === targetCell && (sourceCell === null || entry.fromCell === sourceCell) && entry.direction === direction)) diagnostics.push("wrong_direction");
-		}
-		if (action.startsWith("straight_")) {
-			const qualification = (Array.isArray(input?.straightQualifications) ? input.straightQualifications : []).find((entry) => isPlainRecord$1(entry) && entry.hand === hand);
-			const start = isPlainRecord$1(qualification) && typeof qualification.spatialStartTimestampMs === "number" ? qualification.spatialStartTimestampMs : null;
-			if (!(isPlainRecord$1(qualification) && qualification.spatialQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults$2.straightQualificationMs)) diagnostics.push("qualification_too_short");
-		}
-	} else if (action === "guard" || action === "crossed_guard") {
-		const target = isPlainRecord$1(event.guardTarget) ? event.guardTarget : null;
-		const left = evidence.anchors.find((entry) => entry.anchor === "left_wrist");
-		const right = evidence.anchors.find((entry) => entry.anchor === "right_wrist");
-		if (!target || !left || !right || left.cell !== target.leftCell || right.cell !== target.rightCell) diagnostics.push("wrong_cell");
-		if (target?.crossed === true && !evidence.activeBoxingActions.includes("crossed_guard")) diagnostics.push("no_input");
-	} else if (CHECKPOINT_ACTIONS.includes(action) && isPlainRecord$1(event.checkpoint) && Array.isArray(event.checkpoint.noseSafeCells)) {
-		const nose = evidence.anchors.find((entry) => entry.anchor === "nose");
-		if (!nose || !event.checkpoint.noseSafeCells.includes(nose.cell)) diagnostics.push("wrong_cell");
-	}
-}
-/** @param {DataRecord} event @param {DataRecord | null} selectedVariant @param {"hit" | "miss" | "ignored"} result @param {readonly string[]} diagnostics @param {AeroGameplayEvidenceSnapshot | null} evidence @param {number | null} evidenceTimelineMs @param {DataRecord} profile @param {boolean} shadow @returns {AeroGameplayJudgement} */
-function makeJudgement(event, selectedVariant, result, diagnostics, evidence, evidenceTimelineMs, profile, shadow) {
-	const rulesetId = selectedVariant?.rulesetId ?? "flow_grid_v1";
-	const recipeId = selectedVariant?.recipeId ?? null;
-	const center = Number(event.centerTimestampMs);
-	return Object.freeze({
-		schema: "aerobeat/gameplay_judgement",
-		version: 1,
-		eventId: String(event.eventId),
-		rulesetId,
-		recipeId,
-		result,
-		beatCenterTimestampMs: center,
-		evidenceTimestampMs: evidence ? evidence.measurementTimestampMs : null,
-		timingOffsetMs: evidenceTimelineMs === null ? null : evidenceTimelineMs - center,
-		diagnostics: Object.freeze([...diagnostics]),
-		shadow,
-		variantId: selectedVariant?.variantId ?? null,
-		chartId: selectedVariant?.chartId ?? null,
-		sourceEventIds: Object.freeze([...lineageIds(event)]),
-		mapHash: selectedVariant?.mapHash ?? null,
-		scoreIdentityHash: selectedVariant?.scoreIdentityHash ?? null,
-		profileId: profile.profileId,
-		profileVersion: profile.profileVersion,
-		profileHash: profile.contentHash
-	});
-}
-/** @param {DataRecord} event */
-function expectedAction(event) {
-	if (event.type === "guard" && isPlainRecord$1(event.guardTarget) && event.guardTarget.crossed === true) return "crossed_guard";
-	return typeof event.type === "string" ? event.type : "note";
-}
-/** @param {DataRecord} event */
-function eventCategory(event) {
-	const action = expectedAction(event);
-	return PUNCH_ACTIONS.includes(action) ? "punch" : action === "guard" || action === "crossed_guard" ? "guard" : "checkpoint";
-}
-/** @param {DataRecord} event */
-function lineageIds(event) {
-	return Array.isArray(event.sourceEventIds) ? event.sourceEventIds.filter((entry) => typeof entry === "string") : [];
-}
-/** @param {DataRecord} left @param {DataRecord} right */
-function eventOrder(left, right) {
-	return Number(left.centerTimestampMs) - Number(right.centerTimestampMs) || compareCodePoints(String(left.eventId), String(right.eventId));
-}
-/** @param {unknown} value @param {string} code */
-function positiveNumber(value, code) {
-	const number = requireNonNegativeNumber(value, code);
-	if (number <= 0) throw gameplayError(code, "Expected a positive number");
-	return number;
-}
-function defaultProfileIdentity() {
-	return Object.freeze({
-		schema: "aerobeat/prototype_tuning_identity",
-		version: 1,
-		profileId: "aero.gameplay.prototype.default",
-		profileVersion: "1",
-		contentHash: "0".repeat(64),
-		class: "between_run_ruleset",
-		regenerationRequired: false
-	});
-}
-function defaultScoringSettings() {
-	return Object.freeze({
-		comboBonusPerHit: 0,
-		hitPoints: 1,
-		missPenalty: 0
-	});
-}
-/** @param {DataRecord} settings */
-function scoreSettingsIdentity(settings) {
-	return `scoring-v1:${JSON.stringify(settings.hitPoints)},${JSON.stringify(settings.missPenalty)},${JSON.stringify(settings.comboBonusPerHit)}`;
-}
-/** @param {number} value */
-function finiteScore(value) {
-	if (!Number.isFinite(value) || value < 0) throw gameplayError("score_value_invalid", "Score arithmetic must remain finite and non-negative");
-	return Object.is(value, -0) ? 0 : value;
-}
-/** @param {DataRecord} variant @param {DataRecord} profile @param {DataRecord} settings */
-function scorePartitionKey(variant, profile, settings) {
-	const mapHash = isPlainRecord$1(variant.mapHash) && typeof variant.mapHash.value === "string" ? variant.mapHash.value : "unhashed";
-	const scoreHash = isPlainRecord$1(variant.scoreIdentityHash) && typeof variant.scoreIdentityHash.value === "string" ? variant.scoreIdentityHash.value : "unhashed";
-	return [
-		variant.variantId,
-		variant.chartId,
-		variant.mode,
-		variant.rulesetId,
-		variant.recipeId ?? "none",
-		[...variant.modifierIds].join(","),
-		variant.ranked ? "ranked" : "unranked",
-		mapHash,
-		scoreHash,
-		profile.profileId,
-		profile.profileVersion,
-		profile.contentHash,
-		profile.class,
-		profile.regenerationRequired ? "regenerate" : "live",
-		scoreSettingsIdentity(settings)
-	].join("|");
-}
-/** @param {DataRecord} variant */
-function publicVariant(variant) {
-	return Object.freeze({
-		variantId: variant.variantId,
-		chartId: variant.chartId,
-		mode: variant.mode,
-		rulesetId: variant.rulesetId,
-		recipeId: variant.recipeId,
-		modifierIds: variant.modifierIds,
-		ranked: variant.ranked,
-		mapHash: variant.mapHash,
-		scoreIdentityHash: variant.scoreIdentityHash,
-		provenance: variant.provenance
-	});
-}
-/** @param {"three" | "two" | "one" | "complete" | "cancelled"} state @param {AeroCountdownReason | null} reason @param {number | null} value @param {number} timestampMs @param {string | null} calibrationId */
-function countdownSnapshot(state, reason, value, timestampMs, calibrationId) {
-	return Object.freeze({
-		schema: "aerobeat/countdown_snapshot",
-		version: 1,
-		state,
-		reason,
-		value,
-		timestampMs,
-		gameplayTimeFrozen: state !== "complete",
-		calibrationId
-	});
-}
-/** @param {number} timestampMs */
-function inactiveCountdown(timestampMs) {
-	return Object.freeze({
-		schema: "aerobeat/countdown_snapshot",
-		version: 1,
-		state: "inactive",
-		reason: null,
-		value: null,
-		timestampMs,
-		gameplayTimeFrozen: true,
-		calibrationId: null
-	});
-}
-/** @param {unknown} value */
-function boundedReason(value) {
-	return typeof value === "string" && value.length > 0 && value.length <= 128 ? value : "manual";
-}
-/** @param {unknown} value */
-function directionName(value) {
-	return value === 0 ? "up" : value === 1 ? "down" : value === 2 ? "left" : value === 3 ? "right" : typeof value === "string" && [
-		"up",
-		"down",
-		"left",
-		"right"
-	].includes(value) ? value : null;
-}
-/** @param {unknown} value @param {string} code */
-function requireGridCell(value, code) {
-	if (!Number.isInteger(value) || Number(value) < 0 || Number(value) > 11) throw gameplayError(code, "Expected a 4x3 grid cell");
-	return Number(value);
-}
-function randomToken() {
-	const bytes = /* @__PURE__ */ new Uint32Array(2);
-	if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
-	else {
-		bytes[0] = Math.floor(Math.random() * 4294967295);
-		bytes[1] = Math.floor(Math.random() * 4294967295);
-	}
-	return `${bytes[0].toString(16)}${bytes[1].toString(16)}`;
-}
-Object.freeze([
-	"live_visual",
-	"between_run_ruleset",
-	"converter_regeneration"
-]);
-Object.freeze({
-	live_visual: "aero.visual.default",
-	between_run_ruleset: "aero.scoring.locked",
-	converter_regeneration: "aero.converter.canonical"
-});
-Object.freeze([
-	"idle",
-	"calibrating",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"stopped"
-]);
-Object.freeze([
-	Object.freeze({
-		profileId: "aero.visual.default",
-		profileVersion: "1.0.0",
-		class: "live_visual",
-		label: "Default Visual (Experimental)",
-		settings: Object.freeze({
-			motionIntensity: 1,
-			roleScale: 1
-		})
-	}),
-	Object.freeze({
-		profileId: "aero.visual.compact",
-		profileVersion: "1.0.0",
-		class: "live_visual",
-		label: "Compact Visual (Experimental)",
-		settings: Object.freeze({
-			motionIntensity: .8,
-			roleScale: .86
-		})
-	}),
-	Object.freeze({
-		profileId: "aero.scoring.locked",
-		profileVersion: "1.0.0",
-		class: "between_run_ruleset",
-		label: "Locked Scoring (Experimental)",
-		settings: Object.freeze({
-			comboBonusPerHit: 0,
-			hitPoints: 1,
-			missPenalty: 0
-		})
-	}),
-	Object.freeze({
-		profileId: "aero.scoring.prototype-wide",
-		profileVersion: "1.0.0",
-		class: "between_run_ruleset",
-		label: "Prototype Wide Scoring (Experimental)",
-		settings: Object.freeze({
-			comboBonusPerHit: .05,
-			hitPoints: 1.25,
-			missPenalty: 0
-		})
-	}),
-	Object.freeze({
-		profileId: "aero.converter.canonical",
-		profileVersion: "1.0.0",
-		class: "converter_regeneration",
-		label: "Canonical Converter (Experimental)",
-		settings: Object.freeze({
-			guardRelocationRadius: 1,
-			reachAllowanceSubcells: 0
-		})
-	}),
-	Object.freeze({
-		profileId: "aero.converter.prototype-reach",
-		profileVersion: "1.0.0",
-		class: "converter_regeneration",
-		label: "Prototype Reach Converter (Experimental)",
-		settings: Object.freeze({
-			guardRelocationRadius: 2,
-			reachAllowanceSubcells: 1
-		})
-	})
-]);
-serviceIds$1.gameplaySession;
-Object.freeze(["flow", "boxing"]);
-Object.freeze({
-	authoritativeAudioClock: true,
-	calibratedInputOnly: true,
-	trackingSafetyPause: true,
-	frozenCountdown: true,
-	explicitPausedClockSynchronization: true,
-	flowGrid: true,
-	semanticTrackBoxing: true,
-	spatialGridBoxing: true,
-	futureVariantSwap: true,
-	diagnosticShadows: true,
-	prototypeProfileRegistry: true,
-	deterministicProfileBundles: true,
-	localPrototypeScoresOnly: true,
-	publicLeaderboards: false
-});
 Object.freeze({
 	audioClock: "aero.audio.clock",
 	videoMedia: "aero.video.media",
@@ -21626,6 +22153,7 @@ function createAeroGameServiceGraph(options = {}) {
 		cv,
 		input: createAeroBodyGridService({ calibrationIdPrefix: `${instanceId}-calibration` }),
 		audio,
+		profiles: createAeroPrototypeProfileRegistry(),
 		gameplay: createAeroGameplaySessionCoordinator({ instanceId }),
 		renderer: createAeroWebGl2Renderer()
 	});
@@ -21847,9 +22375,12 @@ var AeroGame = class extends HTMLElement {
 		const graph = this.graph;
 		const normalized = contentSource(source);
 		const kind = normalized.kind;
+		let profilePackage = kind === "direct" ? packageFromEnvelope(normalized.package) : null;
 		try {
-			if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
-			else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
+			if (kind === "persistence") {
+				profilePackage = (await graph.authoring.loadPackage(normalized.handle)).package;
+				await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
+			} else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
 			else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
 			else throw new TypeError("Unsupported content source kind");
 		} catch (error) {
@@ -21864,6 +22395,7 @@ var AeroGame = class extends HTMLElement {
 			throw error;
 		}
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		if (profilePackage) this.synchronizeConverterProvenance(profilePackage);
 		this.configureGameplayFromContent(false);
 		this.syncContentPlayback();
 		this.publish("content_changed");
@@ -21891,6 +22423,49 @@ var AeroGame = class extends HTMLElement {
 		this.configureGameplayFromContent(futureOnly);
 		this.syncContentPlayback();
 		this.publish("content_changed");
+		return this.getSnapshot();
+	}
+	/** Select one registered experimental profile by bounded ID. */
+	selectPrototypeProfile(profileId) {
+		this.assertConnected();
+		const id = boundedProfileIdentifier(profileId);
+		if (!this.graph.profiles.getSnapshot().profiles.find((profile) => profile.profileId === id)) throw new Error("Prototype profile is not registered");
+		const sessionState = profileSessionState(this.graph.gameplay.getSnapshot());
+		if (this.graph.profiles.select(id, { sessionState }).identity.class === "between_run_ruleset") this.applyActiveScoringProfile();
+		this.publish("profiles_changed");
+		return this.getSnapshot();
+	}
+	/** Atomically import one direct-host profile bundle. Bundles never cross iframe messaging. */
+	importPrototypeProfiles(bundle) {
+		this.assertConnected();
+		const before = this.graph.profiles.getSnapshot();
+		this.graph.profiles.importProfiles(bundle, { sessionState: profileSessionState(this.graph.gameplay.getSnapshot()) });
+		const after = this.graph.profiles.getSnapshot();
+		if (before.active.scoring.identity.contentHash !== after.active.scoring.identity.contentHash) this.applyActiveScoringProfile();
+		this.publish("profiles_changed");
+		return this.getSnapshot();
+	}
+	/** Export an immutable direct-host bundle. Callers keep it outside snapshots and iframe traffic. */
+	exportPrototypeProfiles() {
+		this.assertConnected();
+		return this.graph.profiles.exportProfiles();
+	}
+	resetPrototypeProfiles() {
+		this.assertConnected();
+		const state = profileSessionState(this.graph.gameplay.getSnapshot());
+		if (![
+			"idle",
+			"calibrating",
+			"paused_manual",
+			"paused_tracking",
+			"completed",
+			"stopped"
+		].includes(state)) throw new Error("Profile reset requires an idle, paused, or between-run session");
+		const appliedHash = this.graph.profiles.getSnapshot().appliedConverterHash;
+		this.graph.profiles.reset();
+		this.restoreAppliedConverterSelection(appliedHash);
+		this.applyActiveScoringProfile();
+		this.publish("profiles_changed");
 		return this.getSnapshot();
 	}
 	async browseBeatSaver(query = {}) {
@@ -22115,8 +22690,9 @@ var AeroGame = class extends HTMLElement {
 				cv: graph.cv.getStatus(),
 				input: graph.input.getSnapshot(),
 				audio: graph.audio.getStatus(),
+				profiles: profileTelemetry(graph.profiles.getSnapshot()),
 				gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()),
-				renderer: graph.renderer.describe()
+				renderer: rendererTelemetry(graph.renderer.describe())
 			} : null,
 			error: this.lastError
 		}, 0, 2048);
@@ -22140,6 +22716,11 @@ var AeroGame = class extends HTMLElement {
 		]) if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => {
 			this.renderPresenters();
 			this.emitGameEvent(type, { snapshot: this.snapshotForType(type) });
+		}));
+		this.unsubscribe.push(this.graph.profiles.subscribe(() => {
+			this.applyActiveVisualProfile();
+			this.renderPresenters();
+			this.emitGameEvent("profiles_changed", { snapshot: profileTelemetry(this.graph.profiles.getSnapshot()) });
 		}));
 	}
 	bindLease() {
@@ -22201,6 +22782,7 @@ var AeroGame = class extends HTMLElement {
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const raw = options === void 0 ? Object.freeze({}) : safeData(options, 0, 32);
+		const converter = graph.profiles.getActive("converter_regeneration");
 		let result;
 		try {
 			result = await graph.authoring.convertAndPersist(acquired.source, {
@@ -22210,6 +22792,7 @@ var AeroGame = class extends HTMLElement {
 				sourceVersionHash: acquired.sourceHash,
 				modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5),
 				includeAudio: dataValue(raw, "includeAudio") !== false,
+				converterProfile: converter.profile,
 				signal: this.activeAbort.signal
 			});
 		} catch (error) {
@@ -22217,6 +22800,11 @@ var AeroGame = class extends HTMLElement {
 			throw error;
 		}
 		if (!this.isCurrent(generation, graph)) return null;
+		if (!packageCarriesConverterProfile(result.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
+		graph.profiles.select(converter.profile.profileId, {
+			sessionState: profileSessionState(graph.gameplay.getSnapshot()),
+			regeneratedPackageProfileHash: converter.profile.contentHash
+		});
 		this.emitGameEvent("import_changed", { snapshot: result.job });
 		await this.refreshLibrary(generation);
 		await this.selectContent({
@@ -22258,22 +22846,56 @@ var AeroGame = class extends HTMLElement {
 	configureGameplayFromContent(futureOnly) {
 		const content = this.graph.content.getSnapshot();
 		if (content.state !== "ready" || !content.selectedVariant) return;
+		const scoring = this.graph.profiles.getActive("between_run_ruleset");
 		const configuration = {
 			packageId: content.packageId,
 			selectedVariant: content.selectedVariant,
 			resolvedEvents: content.resolvedEvents,
-			profileIdentity: {
-				schema: "aerobeat/prototype_tuning_identity",
-				version: 1,
-				profileId: "assembly-default",
-				profileVersion: "1",
-				contentHash: "0000000000000000000000000000000000000000000000000000000000000000",
-				class: "between_run_ruleset",
-				regenerationRequired: false
-			}
+			profileIdentity: scoring.identity,
+			scoringSettings: scoring.settings
 		};
 		if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
 		else this.graph.gameplay.configureContent(configuration);
+	}
+	applyActiveVisualProfile() {
+		if (!this.graph) return;
+		const visual = this.graph.profiles.getActive("live_visual");
+		this.graph.renderer.importTuning({
+			identity: visual.identity,
+			settings: visual.settings
+		});
+	}
+	applyActiveScoringProfile() {
+		if (!this.graph) return;
+		const content = this.graph.content.getSnapshot();
+		if (content.state !== "ready" || !content.selectedVariant) return;
+		const session = this.graph.gameplay.getSnapshot().session;
+		const futureOnly = session.packageId === content.packageId && [
+			"calibrating",
+			"paused_manual",
+			"paused_tracking"
+		].includes(session.state);
+		this.configureGameplayFromContent(futureOnly);
+	}
+	synchronizeConverterProvenance(packageValue) {
+		const profile = converterProfileFromPackage(packageValue);
+		if (!profile || !packageCarriesConverterProfile(packageValue, profile)) return;
+		const snapshot = this.graph.profiles.getSnapshot();
+		const applied = snapshot.profiles.find((entry) => entry.class === "converter_regeneration" && entry.contentHash === profile.contentHash);
+		if (!applied) return;
+		const desiredId = snapshot.active.converter.profile.profileId;
+		this.graph.profiles.select(applied.profileId, { regeneratedPackageProfileHash: applied.contentHash });
+		if (desiredId !== applied.profileId) this.graph.profiles.select(desiredId);
+	}
+	restoreAppliedConverterSelection(appliedHash) {
+		const profile = dataValue(this.graph.content.getSnapshot().lineage, "converterProfile");
+		if (!profile || dataValue(profile, "contentHash") !== appliedHash) return;
+		const snapshot = this.graph.profiles.getSnapshot();
+		const desiredId = snapshot.active.converter.profile.profileId;
+		const applied = snapshot.profiles.find((entry) => entry.class === "converter_regeneration" && entry.contentHash === appliedHash);
+		if (!applied) return;
+		this.graph.profiles.select(applied.profileId, { regeneratedPackageProfileHash: appliedHash });
+		if (desiredId !== applied.profileId) this.graph.profiles.select(desiredId);
 	}
 	syncContentPlayback() {
 		if (!this.graph || this.graph.content.getSnapshot().state !== "ready") return;
@@ -22443,11 +23065,7 @@ var AeroGame = class extends HTMLElement {
 			calibration: input.calibration
 		});
 		setPresenter(this, "aero-resume-countdown", gameplay.countdown ?? {});
-		setPresenter(this, "aero-prototype-selector", {
-			variants: content.variants,
-			selectedVariantId: content.selectedVariant?.variantId ?? null,
-			disabled: session.state === "playing"
-		});
+		setPresenter(this, "aero-prototype-selector", profilePresenterSnapshot(this.graph.profiles.getSnapshot(), content.selectedVariant, session.state));
 		setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
 		setPresenter(this, "aero-content-library", {
 			...this.libraryView,
@@ -22585,8 +23203,50 @@ var AeroGame = class extends HTMLElement {
 			const packageId = dataValue(detail.payload, "packageId");
 			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
 			if (handle) this.deletePackage(handle).catch((error) => this.handleError(error));
-		} else if (detail.type === "prototype-select") this.selectVariant(dataValue(detail.payload, "profileId") ?? "").catch((error) => this.handleError(error));
+		} else if (detail.type === "prototype-select") {
+			const target = this.variantForPresentation(dataValue(detail.payload, "profileId"));
+			if (target) this.selectVariant(target.variantId).catch((error) => this.handleError(error));
+		} else if (detail.type === "prototype-profile-select") try {
+			this.selectProfileFromIntent(detail.payload);
+		} catch (error) {
+			this.handleError(error);
+		}
+		else if (detail.type === "tuning-import-request") this.emitGameEvent("profile_bundle_import_requested", {});
+		else if (detail.type === "tuning-export") try {
+			const bundle = this.exportPrototypeProfiles();
+			this.emitGameEvent("profile_bundle_exported", {
+				bundleVersion: bundle.bundleVersion,
+				bundleHash: bundle.bundleHash,
+				profileCount: bundle.profiles.length
+			});
+		} catch (error) {
+			this.handleError(error);
+		}
+		else if (detail.type === "tuning-reset") try {
+			this.resetPrototypeProfiles();
+		} catch (error) {
+			this.handleError(error);
+		}
 		else if (detail.type === "calibration-reset") this.reset();
+	}
+	variantForPresentation(value) {
+		if (typeof value !== "string") return null;
+		return this.graph.content.getSnapshot().variants.find((variant) => profilePresentationId(variant) === value) ?? null;
+	}
+	selectProfileFromIntent(payload) {
+		const profileId = dataValue(payload, "profileId");
+		const profileVersion = dataValue(payload, "profileVersion");
+		const contentHash = dataValue(payload, "contentHash");
+		const profileClass = dataValue(payload, "profileClass");
+		if (![
+			profileId,
+			profileVersion,
+			contentHash,
+			profileClass
+		].every((value) => typeof value === "string")) throw new TypeError("Profile selection intent is invalid");
+		const profile = this.graph.profiles.getSnapshot().profiles.find((entry) => entry.profileId === profileId);
+		if (!profile || profile.profileVersion !== profileVersion || profile.contentHash !== contentHash || profile.class !== profileClass) throw new TypeError("Profile selection intent does not match the host registry");
+		return this.selectPrototypeProfile(profileId);
 	}
 	publish(type) {
 		this.renderPresenters();
@@ -22615,6 +23275,7 @@ var AeroGame = class extends HTMLElement {
 		if (type === "import_changed") return snapshot.services?.authoring ?? null;
 		if (type === "calibration_changed" || type === "tracking_changed") return snapshot.services?.input ?? null;
 		if (type === "session_changed" || type === "score_changed") return snapshot.services?.gameplay ?? null;
+		if (type === "profiles_changed") return snapshot.services?.profiles ?? null;
 		if (type === "fullscreen_changed") return snapshot.fullscreen;
 		return snapshot;
 	}
@@ -22698,6 +23359,9 @@ var AeroGame = class extends HTMLElement {
 			} catch {}
 			try {
 				graph.input.destroy();
+			} catch {}
+			try {
+				graph.profiles.destroy();
 			} catch {}
 			try {
 				graph.gameplay.destroy();
@@ -22802,6 +23466,10 @@ function boundedString(value, fallback) {
 }
 function boundedIdentifier(value, label) {
 	if (typeof value !== "string" || !/^[0-9a-zA-Z_-]{1,256}$/u.test(value)) throw new TypeError(`${label} is invalid`);
+	return value;
+}
+function boundedProfileIdentifier(value) {
+	if (typeof value !== "string" || value.length < 1 || value.length > 256) throw new TypeError("Prototype profile ID is invalid");
 	return value;
 }
 function stringList(value, maximum) {
@@ -22942,6 +23610,121 @@ function renderTarget(event) {
 }
 function flowDirection(value) {
 	return value === 0 || value === "up" ? "up" : value === 1 || value === "right" ? "right" : value === 2 || value === "down" ? "down" : value === 3 || value === "left" ? "left" : null;
+}
+function profileSessionState(gameplay) {
+	const countdown = dataValue(gameplay, "countdown");
+	const session = dataValue(gameplay, "session");
+	if (dataValue(countdown, "value") !== null && dataValue(countdown, "value") !== void 0) return "countdown";
+	return typeof dataValue(session, "state") === "string" ? dataValue(session, "state") : "idle";
+}
+function profilePresentationId(variant) {
+	if (dataValue(variant, "mode") === "flow") return "flow";
+	const semantic = String(dataValue(variant, "rulesetId") ?? "").includes("semantic");
+	const row = String(dataValue(variant, "recipeId") ?? "").includes("row_family");
+	return `${semantic ? "semantic" : "spatial"}-${row ? "row" : "cut"}`;
+}
+function tuningIdentity(profile, regenerationRequired) {
+	return Object.freeze({
+		schema: "aerobeat/prototype_tuning_identity",
+		version: 1,
+		profileId: profile.profileId,
+		profileVersion: profile.profileVersion,
+		contentHash: profile.contentHash,
+		class: profile.class,
+		regenerationRequired
+	});
+}
+function profileTelemetry(snapshot) {
+	return Object.freeze({
+		schema: snapshot.schema,
+		version: snapshot.version,
+		generation: snapshot.generation,
+		destroyed: snapshot.destroyed,
+		bundleVersion: snapshot.bundleVersion,
+		profileCount: snapshot.profiles.length,
+		active: Object.freeze({
+			visual: snapshot.active.visual.identity,
+			scoring: snapshot.active.scoring.identity,
+			converter: snapshot.active.converter.identity
+		}),
+		appliedConverterHash: snapshot.appliedConverterHash,
+		pendingConverterHash: snapshot.pendingConverterHash,
+		regenerationRequired: snapshot.regenerationRequired,
+		experimental: true
+	});
+}
+function rendererTelemetry(snapshot) {
+	return Object.freeze({
+		serviceId: dataValue(snapshot, "serviceId"),
+		state: dataValue(snapshot, "state"),
+		supported: dataValue(snapshot, "supported"),
+		attached: dataValue(snapshot, "attached"),
+		contextLost: dataValue(snapshot, "contextLost"),
+		widthCssPx: dataValue(snapshot, "widthCssPx"),
+		heightCssPx: dataValue(snapshot, "heightCssPx"),
+		devicePixelRatio: dataValue(snapshot, "devicePixelRatio"),
+		visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"),
+		tuningRequiresRegeneration: false,
+		experimental: true,
+		errorMessage: dataValue(snapshot, "errorMessage")
+	});
+}
+function profilePresenterSnapshot(snapshot, selectedVariant, sessionState) {
+	const classes = [
+		"live_visual",
+		"between_run_ruleset",
+		"converter_regeneration"
+	].map((profileClass) => {
+		const key = profileClass === "live_visual" ? "visual" : profileClass === "between_run_ruleset" ? "scoring" : "converter";
+		const active = snapshot.active[key];
+		const profiles = Object.freeze(snapshot.profiles.filter((profile) => profile.class === profileClass).map((profile) => tuningIdentity(profile, profileClass === "converter_regeneration" && profile.contentHash !== snapshot.appliedConverterHash)));
+		if (profileClass !== "converter_regeneration") return Object.freeze({
+			class: profileClass,
+			active: active.identity,
+			profiles,
+			experimental: true
+		});
+		return Object.freeze({
+			class: profileClass,
+			active: active.identity,
+			profiles,
+			experimental: true,
+			selectedContentHash: active.identity.contentHash,
+			appliedContentHash: snapshot.appliedConverterHash,
+			pendingContentHash: snapshot.pendingConverterHash,
+			regenerationRequired: snapshot.regenerationRequired
+		});
+	});
+	return Object.freeze({
+		selectedProfileId: selectedVariant ? profilePresentationId(selectedVariant) : "flow",
+		sessionState: String(sessionState ?? "idle"),
+		profileClasses: Object.freeze(classes)
+	});
+}
+function packageFromEnvelope(envelope) {
+	const value = dataValue(envelope, "package");
+	return value && typeof value === "object" ? value : null;
+}
+function converterProfileFromPackage(packageValue) {
+	const profile = dataValue(dataValue(packageValue, "source"), "converterProfile");
+	return profile && typeof profile === "object" ? profile : null;
+}
+function packageCarriesConverterProfile(packageValue, profile) {
+	try {
+		const expected = canonicalPrototypeProfileJson(profile);
+		const source = dataValue(packageValue, "source");
+		const trace = dataValue(packageValue, "conversionTrace");
+		if (canonicalPrototypeProfileJson(dataValue(source, "converterProfile")) !== expected || canonicalPrototypeProfileJson(dataValue(trace, "converterProfile")) !== expected) return false;
+		const boxing = dataValue(trace, "boxing");
+		const flow = dataValue(trace, "flow");
+		const charts = dataValue(packageValue, "charts");
+		if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((entry) => canonicalPrototypeProfileJson(dataValue(entry, "converterProfile")) !== expected)) return false;
+		if (!Array.isArray(flow) || flow.some((entry) => dataValue(entry, "converterProfile") !== void 0)) return false;
+		const boxingCharts = Array.isArray(charts) ? charts.filter((chart) => dataValue(chart, "mode") === "boxing") : [];
+		return boxingCharts.length === 4 && boxingCharts.every((chart) => canonicalPrototypeProfileJson(dataValue(dataValue(chart, "prototype"), "converterProfile")) === expected);
+	} catch {
+		return false;
+	}
 }
 /** Descriptor-safe bounded clone for public snapshots/commands. */
 function safeData(value, depth, maximumItems) {
