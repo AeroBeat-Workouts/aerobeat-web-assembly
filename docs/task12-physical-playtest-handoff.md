@@ -48,6 +48,12 @@ The real cross-origin iframe element, child viewport, main, and game bounds are 
 
 P0 `aerobeat-web-assembly-ctp`, `9s6`, QA `0n6`, and physical Bead `3h7` remain open for independent QA/physical confirmation.
 
+### Final re-QA failure at `0180797`
+
+Do not begin the next physical retest from this target. All functional shell acceptance passes, but the checked-in release identity is stale: proof/build/cache stamps claim source `36cd13bd…`, while the exact current source and linked dependency graph computes `4765fe8c…`. Two fresh release and pack rounds are mutually byte-identical, but rebuilding changes tracked release identity files, so exact HEAD does not reproduce cleanly.
+
+Linked P0 `aerobeat-web-assembly-bzw` owns the frozen-dependency release refresh. `ctp`, `9s6`, and `0n6` remain in progress. Physical `3h7` remains open and unchanged.
+
 ## Host inventory
 
 - Session: active X11 desktop, `DISPLAY=:1`.

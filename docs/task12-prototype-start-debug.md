@@ -327,3 +327,69 @@ Iframe acceptance measures the parent `iframe#game`, child `innerWidth`/`innerHe
 
 During hardening, exhaustive output exposed two test-model assumptions: the corner button intentionally remains visible as a close control while the drawer is open, and clipped compact labels/options are not visible text. A later reconnect assertion incorrectly expected the frame timer to restart without media; reconnect correctly creates a fresh connected, media-idle graph with timer zero. The final classifier models those documented behaviors without weakening closed-shell acceptance.
 
+## Final Re-QA Failure at `0180797`: Stale Release Identity
+
+### Exact Observed Failure
+
+All functional shell acceptance and runtime gates pass, but the checked-in release does not reproduce from the exact current source/dependency graph. `release/raw/0.0.24/aerobeat-release-proof.json` and the embedded `buildStamp`/`cacheBust` claim source fingerprint `36cd13bd277b6c78210ba12ed63228ffadaf6ddd24f44417707ea897cd169cc6`. The repository's own `computeReleaseFingerprint()` returns `4765fe8c98ff9d6a82d46ea8287fe559053f4a17623792ef10111df5da9e5db0`.
+
+Two fresh `build-release` rounds and two dry-run packs are mutually byte-identical, but rebuilding changes the tracked proof fingerprint and `assets/index.js` build/cache stamps from `36cd13bd…` to `4765fe8c…`. QA restored the generated probe output after recording the difference, leaving exact HEAD clean.
+
+### Expected Behavior
+
+The checked-in proof fingerprint and embedded build/cache stamps must equal the fingerprint computed from the frozen current source and recursively linked local package graph. Fresh deterministic rebuilds must produce no tracked release diff.
+
+### Execution Path
+
+1. `build-release.js` computes the source fingerprint through `scripts/release-fingerprint.js`.
+2. The fingerprint covers assembly entry/config/package inputs and recursively linked local runtime package metadata/source.
+3. Vite injects that value into `buildStamp` and `cacheBust`.
+4. The proof records the same value.
+5. At current HEAD/dependencies, the computed value differs from the checked-in release, so rebuilding changes two tracked files even though artifact byte count remains `3971178`.
+
+### Most Likely Root Cause
+
+A fingerprint input in the assembly or recursively linked file-dependency graph changed after the release at `f2858f9` was generated, without refreshing and committing the release proof/build stamps. The aggregate proof does not identify which historical input changed.
+
+### Alternative Hypotheses
+
+- Nondeterministic release output is contradicted by two identical fresh release rounds and identical dry-run packs.
+- Functional source drift is unlikely: mapped source content and all shell tests pass; the observed tracked bundle delta is limited to fingerprint/cache stamp strings and proof identity.
+
+### Why Previous Fixes Failed
+
+The opacity/exhaustive-shell repair validated and documented a deterministic release snapshot, but did not freeze or re-check the linked dependency graph immediately before final handoff. Later local package input drift invalidated the aggregate source identity without changing this repo's functional shell source.
+
+### Unknowns
+
+The exact linked input responsible for the fingerprint delta is not recoverable from the aggregate proof alone. This does not prevent repair: freeze current dependencies, rebuild, compare twice, and commit the matching release.
+
+### Minimal Reproduction
+
+1. On clean exact HEAD `0180797`, run `computeReleaseFingerprint()` and observe `4765fe8c…`.
+2. Read the checked-in proof and observe `36cd13bd…`.
+3. Run `npm run build-release`; observe tracked proof and `assets/index.js` stamp changes.
+4. Run it again; observe byte-identical fresh output.
+
+### Proposed Verification
+
+Freeze the current linked package heads, regenerate the raw release twice, compare recursive file hashes and dry-run packs, verify proof/build/cache source identities all equal the current computed fingerprint, commit the refreshed release, and verify a third rebuild leaves Git clean.
+
+### Recommended Fix
+
+Refresh only the generated raw release identity from the frozen current dependency graph, then repeat final QA before closing `ctp`, `9s6`, and `0n6`.
+
+### Debugging Record
+
+```text
+Problem: Checked-in raw release source identity is stale at final QA HEAD.
+Observed symptom: proof/build stamps claim 36cd13bd…, current fingerprint is 4765fe8c…; rebuild changes tracked release.
+Root cause: a fingerprint input changed after release generation without refreshing committed proof/stamps.
+Evidence: computeReleaseFingerprint output; build-release diff in proof and assets/index.js; two identical fresh rounds.
+Failed approaches: Treating a previously deterministic release snapshot as valid after linked dependency drift.
+Corrective action: Freeze dependency graph, regenerate and commit matching release identity, verify clean rebuild.
+Verification test: proof/build/cache stamps equal computed fingerprint; repeated release/pack hashes match; Git remains clean.
+Related files/components: scripts/release-fingerprint.js; scripts/build-release.js; release/raw/0.0.24/aerobeat-release-proof.json; release/raw/0.0.24/assets/index.js.
+Remaining uncertainty: Which historical linked input caused the aggregate hash delta.
+```
+
