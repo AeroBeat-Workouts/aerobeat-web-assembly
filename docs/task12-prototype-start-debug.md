@@ -139,3 +139,28 @@ Required repair:
 4. Extend assembly snapshots/tests so first/current Music choices are visibly checked and continue to drive the existing scalar select intents.
 5. Re-run UI/assembly QA and audit before asking for another phone test.
 
+## Physical Finding: Gameplay HUD and Drawer Copy Still Too Dense
+
+Derrick's next phone screenshot and direct report establish a stricter product rule:
+
+- while actual gameplay is active and the drawer is closed, the only visible UI above the camera/playfield is the corner pause/hamburger control and its background;
+- the drawer still contains too much explanatory/status/development copy; each section should expose its options and true actions, not schema names or development notes.
+
+The attachment inspection service failed to return a visual report, so no additional screenshot detail is inferred here. The operator's explicit description is sufficient to reproduce the code-level issue.
+
+Current code confirms the cause:
+
+1. The closed gameplay shell always mounts visible `aero-calibration-badge`, `aero-tracking-pause`, and `aero-resume-countdown` presenters in `.hud`, regardless of whether their state is currently relevant.
+2. A bottom-left `.status` pill is always visible and continuously publishes runtime text.
+3. The drawer always renders the `AeroBeat` drawer title and a visible Info runtime status, while nested compact presenters retain some live/error/progress text by design.
+4. The first repair hid many metadata fields but optimized each presenter independently; it did not assert the stronger whole-screen invariant of exactly one visible gameplay control or a whole-drawer text allowlist.
+
+Required behavior:
+
+- In steady gameplay, hide every HUD/status element visually; retain only the top-corner menu control and its background.
+- Keep runtime announcements available to assistive technology through a visually hidden live region.
+- During calibration, tracking recovery, or 3-2-1, show only the minimum transient cue required by the previously approved flow; do not render full cards, headings, calibration IDs, reset controls, or explanatory paragraphs over the playfield.
+- Remove the drawer brand/title and nonactionable Info runtime copy.
+- In compact product presenters, show option labels and true action labels only. Preserve concise errors, import progress/cancel, device limitations that block play, and the Music prerequisite because these are actionable; hide schema names, IDs, hashes, author/mapping/development notes, storage/quota copy, variant-count copy, and redundant selected-item text.
+- Add a closed-playing exact-visibility test and a composed-tree drawer text allowlist for Gameplay, Visuals, Music, and Info.
+
