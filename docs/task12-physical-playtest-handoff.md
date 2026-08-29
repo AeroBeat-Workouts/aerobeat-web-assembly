@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly target:** `8edd028` (`main`, synchronized with `origin/main`)  
+**Assembly target:** `b02bf68` (`main`; four-section/start repair, push verification follows in Git handoff)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
@@ -79,21 +79,22 @@ Playwright pierces the open component shadow roots.
 - Local fallback: `getByRole("button", { name: "Choose local ZIP" })`
 - Selected-map version/difficulty controls: `getByLabel("Version")`, `getByLabel("Difficulty")`
 - Import: `getByRole("button", { name: "Import selected map" })`
-- Prototype/profile presenter: `page.locator("aero-game").locator("aero-prototype-selector")`
+- Gameplay radios: `page.locator("aero-game").locator('aero-prototype-selector[scope="gameplay"]')`
+- Visual radios: `page.locator("aero-game").locator('aero-prototype-selector[scope="visuals"]')`
 - Calibration status: `page.locator("aero-game").locator("aero-calibration-badge")`
 - Fullscreen: `page.locator("aero-game").locator("aero-fullscreen-button")`
 - Automated iframe: `page.locator("iframe#game")`
 - Iframe child root: `page.frameLocator("iframe#game").locator("aero-game")`
 
-Prototype labels:
+Gameplay labels:
 
-1. `Flow · Grid`
-2. `Semantic Track · Row Family`
-3. `Spatial Grid · Row Family`
-4. `Semantic Track · Cut Family`
-5. `Spatial Grid · Cut Family`
+1. `Flow`
+2. `Semantic Row`
+3. `Spatial Row`
+4. `Semantic Cut`
+5. `Spatial Cut`
 
-Profile controls are grouped under `Live Visual`, `Between Run Ruleset`, and `Converter Regeneration`. Visual changes apply live. Scoring changes must be disabled while playing/counting down and enabled only between runs. Converter selection must remain regeneration-required until the newly authored package reports the selected hash through source provenance, the top conversion trace, all four Boxing traces, and all four Boxing charts.
+The physical drawer exposes visual choices only under Visuals. Experimental scoring/converter/profile-bundle controls remain direct-host API/registry contracts and are intentionally absent from this product drawer.
 
 ## Current nonprebundled BeatSaver candidates
 
@@ -202,7 +203,7 @@ Fill this section during operator play. Do not infer results from automation.
 
 | Check | Desktop direct | Android HTTPS | Notes |
 | --- | --- | --- | --- |
-| Gameplay-first playfield, hamburger, compact drawer | pending | retest pending | Initial Android load exposed the dense-overlay/no-start P0; repairs `5c95ae8` plus UI `f8bd62b` pass independent automated/visual QA, but operator confirmation of the repaired phone view is still required. |
+| Gameplay-first playfield, hamburger, compact drawer | pending | retest pending | Initial Android loads exposed dense-overlay/no-start P0s. Gameplay-first `5c95ae8`, scoped UI `b075797`, and four-section/start repair `b02bf68` pass automated gates; independent QA and operator confirmation remain required. |
 | Camera prompt and live BRIO/phone camera | pending | pending | |
 | Four-second T-pose + cooldown/release | pending | pending | |
 | 4×3 grid and 8×6 subcells | pending | pending | |
