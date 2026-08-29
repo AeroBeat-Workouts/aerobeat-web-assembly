@@ -102,6 +102,108 @@
 		return value;
 	}
 	//#endregion
+	//#region node_modules/@aerobeat/web-content-authoring/src/converter-profile.js
+	const converterProfileClass = "converter_regeneration";
+	deepFreeze({
+		schema: "aerobeat/prototype_profile",
+		version: 1,
+		profileId: "aero.converter.canonical",
+		profileVersion: "1.0.0",
+		class: converterProfileClass,
+		label: "Canonical Converter (Experimental)",
+		experimental: true,
+		settings: {
+			guardRelocationRadius: 1,
+			reachAllowanceSubcells: 0
+		},
+		contentHash: "a43b53a39c13c9e9efe59854aee0fa16efdcd3c6a29bc09f678d94b3fd8f0202"
+	});
+	deepFreeze({
+		schema: "aerobeat/prototype_profile",
+		version: 1,
+		profileId: "aero.converter.prototype-reach",
+		profileVersion: "1.0.0",
+		class: converterProfileClass,
+		label: "Prototype Reach Converter (Experimental)",
+		experimental: true,
+		settings: {
+			guardRelocationRadius: 2,
+			reachAllowanceSubcells: 1
+		},
+		contentHash: "e37f8b527ed5ce86738ce22007fc963f83bccd737893fb4728d3b83eaa044eea"
+	});
+	/**
+	* Normalize and cryptographically verify one exact experimental converter profile.
+	* The label is display-only; identity hashes exact schema/version/id/version/class/settings.
+	*
+	* @param {unknown} value
+	*/
+	async function normalizeConverterProfile(value) {
+		if (!exactKeys(value, [
+			"schema",
+			"version",
+			"profileId",
+			"profileVersion",
+			"class",
+			"label",
+			"experimental",
+			"settings",
+			"contentHash"
+		])) throw profileError("converter_profile_invalid", "Converter profile must contain the exact bounded profile fields");
+		const record = value;
+		if (record.schema !== "aerobeat/prototype_profile" || record.version !== 1 || record.class !== "converter_regeneration" || record.experimental !== true) throw profileError("converter_profile_invalid", "Converter profile schema, version, class and experimental truth are required");
+		const profileId = boundedString$1(record.profileId, "profileId", 128);
+		const profileVersion = boundedString$1(record.profileVersion, "profileVersion", 64);
+		const label = boundedString$1(record.label, "label", 256);
+		if (!exactKeys(record.settings, ["guardRelocationRadius", "reachAllowanceSubcells"])) throw profileError("converter_profile_settings_invalid", "Converter profile settings must contain the exact supported fields");
+		const sourceSettings = record.settings;
+		const settings = deepFreeze({
+			guardRelocationRadius: boundedInteger(sourceSettings.guardRelocationRadius, "guardRelocationRadius", 0, 8),
+			reachAllowanceSubcells: boundedInteger(sourceSettings.reachAllowanceSubcells, "reachAllowanceSubcells", 0, 8)
+		});
+		const hashBody = deepFreeze({
+			schema: "aerobeat/prototype_profile",
+			version: 1,
+			profileId,
+			profileVersion,
+			class: converterProfileClass,
+			settings
+		});
+		const contentHash = await sha256Hex(canonicalJson(hashBody));
+		if (record.contentHash !== contentHash) throw profileError("converter_profile_hash_mismatch", "Converter profile content hash does not match its canonical identity and settings");
+		return deepFreeze({
+			...hashBody,
+			label,
+			experimental: true,
+			contentHash
+		});
+	}
+	/** @param {unknown} value @param {readonly string[]} keys */
+	function exactKeys(value, keys) {
+		if (!isPlainRecord(value) || Reflect.ownKeys(value).length !== keys.length) return false;
+		return keys.every((key) => {
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			return descriptor && "value" in descriptor && descriptor.enumerable && descriptor.value !== void 0;
+		});
+	}
+	/** @param {unknown} value @param {string} field @param {number} maximum */
+	function boundedString$1(value, field, maximum) {
+		if (typeof value !== "string" || !value || value.length > maximum) throw profileError("converter_profile_invalid", `${field} must be a bounded non-empty string`);
+		return value;
+	}
+	/** @param {unknown} value @param {string} field @param {number} minimum @param {number} maximum */
+	function boundedInteger(value, field, minimum, maximum) {
+		if (!Number.isInteger(value) || Number(value) < minimum || Number(value) > maximum) throw profileError("converter_profile_settings_invalid", `${field} must be an integer from ${minimum} through ${maximum}`);
+		return Number(value);
+	}
+	/** @param {string} code @param {string} message */
+	function profileError(code, message) {
+		const error = new Error(message);
+		error.name = "AeroConverterProfileError";
+		Object.assign(error, { code });
+		return error;
+	}
+	//#endregion
 	//#region node_modules/@aerobeat/web-content-authoring/src/beatmap.js
 	/** @typedef {"v2" | "v3" | "v4"} BeatMapFormat */
 	/**
@@ -490,7 +592,7 @@
 	* Convert one normalized difficulty into Flow plus four Boxing charts.
 	*
 	* @param {Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>} sourceSummary
-	* @param {{difficulty: Difficulty, songToken: string, songName: string, bpm: number, sourceProvider: string, sourceId: string, sourceVersionHash: string, sourceDifficultyPath: string, sourceBeatmapVersion: string, sourceDifficultyHash?: string, audioPath?: string, audioContentHash?: string, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>}} options
+	* @param {{difficulty: Difficulty, songToken: string, songName: string, bpm: number, sourceProvider: string, sourceId: string, sourceVersionHash: string, sourceDifficultyPath: string, sourceBeatmapVersion: string, sourceDifficultyHash?: string, audioPath?: string, audioContentHash?: string, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>, converterProfile?: Readonly<Record<string, unknown>>}} options
 	* @param {(progress: number, phase: string) => void} [onProgress]
 	* @returns {Promise<Readonly<{package: DataRecord, packageHash: string, sourceHash: string, charts: DataRecord[], traces: DataRecord[], flowTrace: DataRecord}>>}
 	*/
@@ -499,15 +601,24 @@
 		const difficulty = normalizeDifficulty(options.difficulty);
 		const songToken = sanitizeToken(options.songToken || options.sourceId || "imported");
 		const modifiers = normalizeModifiers(options.modifiers ?? []);
+		const converterProfile = options.converterProfile ? await normalizeConverterProfile(options.converterProfile) : null;
+		const converterSettings = converterProfile ? {
+			...converterProfile.settings,
+			profileApplied: true
+		} : {
+			guardRelocationRadius: 8,
+			reachAllowanceSubcells: 0,
+			profileApplied: false
+		};
 		const sourceHash = await prefixedSha256(canonicalJson(sourceSummary));
 		const sourceDifficultyHash = options.sourceDifficultyHash ?? await prefixedSha256(canonicalJson(sourceSummary));
 		const charts = [];
 		const traces = [];
 		let matrixIndex = 0;
 		for (const recipe of recipeDefinitions) {
-			const generated = await generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers);
+			const generated = await generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers, converterSettings);
 			for (const rulesetId of [semanticTrackRulesetId, spatialGridRulesetId]) {
-				const chart = await chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, options.presentationSuggestion);
+				const chart = await chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, options.presentationSuggestion, converterProfile);
 				charts.push(chart);
 				traces.push({
 					chartId: chart.chartId,
@@ -520,6 +631,7 @@
 					sourceDifficultyPath: options.sourceDifficultyPath,
 					sourceBeatmapVersion: options.sourceBeatmapVersion,
 					sourceDifficultyHash,
+					...converterProfile ? { converterProfile: cloneData(converterProfile) } : {},
 					optimizer: cloneData(generated.optimizer),
 					events: cloneData(generated.trace)
 				});
@@ -554,7 +666,8 @@
 				sourceVersionHash: options.sourceVersionHash,
 				difficulty,
 				sourceDifficultyPath: options.sourceDifficultyPath,
-				sourceHash
+				sourceHash,
+				...converterProfile ? { converterProfile: cloneData(converterProfile) } : {}
 			},
 			song: {
 				schemaId: "aerobeat.song.v1",
@@ -587,7 +700,8 @@
 			rulesetDefinitions: cloneData(rulesetDefinitions),
 			conversionTrace: {
 				boxing: traces,
-				flow: [flow.trace]
+				flow: [flow.trace],
+				...converterProfile ? { converterProfile: cloneData(converterProfile) } : {}
 			},
 			presentationSuggestion: options.presentationSuggestion ? cloneData(options.presentationSuggestion) : null
 		};
@@ -602,8 +716,8 @@
 			flowTrace: flow.trace
 		});
 	}
-	/** @param {DataRecord} generated @param {Difficulty} difficulty @param {string} songToken @param {DataRecord} recipe @param {string} rulesetId @param {string} sourceHash @param {readonly string[]} modifiers @param {Readonly<Record<string, unknown>> | undefined} suggestion */
-	async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, suggestion) {
+	/** @param {DataRecord} generated @param {Difficulty} difficulty @param {string} songToken @param {DataRecord} recipe @param {string} rulesetId @param {string} sourceHash @param {readonly string[]} modifiers @param {Readonly<Record<string, unknown>> | undefined} suggestion @param {Readonly<Record<string, unknown>> | null} converterProfile */
+	async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, suggestion, converterProfile) {
 		const recipeId = String(recipe.recipeId);
 		const recipeShort = recipeId === "row_family_balanced_height_v1" ? "row-family" : "cut-family";
 		const rulesetShort = rulesetId === "boxing_semantic_track_v1" ? "semantic-track" : "spatial-grid";
@@ -614,7 +728,8 @@
 			beats,
 			recipeId,
 			rulesetId,
-			sourceHash
+			sourceHash,
+			...converterProfile ? { converterProfile } : {}
 		}));
 		const allModifiers = [...modifiers];
 		for (const beat of beats) if (typeof beat.modifier === "string" && !allModifiers.includes(beat.modifier)) allModifiers.push(beat.modifier);
@@ -638,6 +753,7 @@
 				rulesetHash,
 				contentHash,
 				modifiers: allModifiers,
+				...converterProfile ? { converterProfile: cloneData(converterProfile) } : {},
 				regenerationRequiredFor: [
 					"punchMinSpacingMs",
 					"reachSubcellsPerBeat",
@@ -650,8 +766,8 @@
 		if (suggestion) Object.assign(chart, { presentationSuggestion: cloneData(suggestion) });
 		return chart;
 	}
-	/** @param {Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>} sourceSummary @param {Difficulty} difficulty @param {number} bpm @param {DataRecord} recipe @param {readonly string[]} modifiers */
-	async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers) {
+	/** @param {Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>} sourceSummary @param {Difficulty} difficulty @param {number} bpm @param {DataRecord} recipe @param {readonly string[]} modifiers @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+	async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers, converterSettings) {
 		const trace = [];
 		const obstacleWindows = obstaclesFor(sourceSummary.obstacles ?? [], bpm);
 		const groups = noteGroups(sourceSummary.colorNotes ?? []);
@@ -697,7 +813,7 @@
 			});
 		}
 		candidates.sort(candidateOrder);
-		const optimizer = selectSpacingOptimizedPunches(candidates, bpm, obstacleWindows, difficulty);
+		const optimizer = selectSpacingOptimizedPunches(candidates, bpm, obstacleWindows, difficulty, converterSettings);
 		const beats = [];
 		let lastPunchMs = -1e9;
 		let previousHand = "";
@@ -718,7 +834,7 @@
 			const start = Number(candidate.start);
 			const startMs = beatToMs(start, bpm);
 			if (candidate.kind === "guard") {
-				const emitted = await emitGuard(candidate, obstacleWindows, wristSubcell, wristBeat, difficulty, bpm, String(recipe.recipeId));
+				const emitted = await emitGuard(candidate, obstacleWindows, wristSubcell, wristBeat, difficulty, bpm, String(recipe.recipeId), converterSettings);
 				trace.push(emitted.trace);
 				if (emitted.ok && emitted.beat) {
 					beats.push(emitted.beat);
@@ -746,7 +862,7 @@
 			}
 			spatial.acceptedSubcells = safe;
 			const deltaBeats = Math.max(start - wristBeat[hand], 0);
-			const target = safe.find((subcell) => reachable(wristSubcell[hand], subcell, deltaBeats, reachSubcellsPerBeat[difficulty], blocked));
+			const target = safe.find((subcell) => reachable(wristSubcell[hand], subcell, deltaBeats, reachSubcellsPerBeat[difficulty] + converterSettings.reachAllowanceSubcells, blocked));
 			if (target === void 0) {
 				trace.push(dropTrace(candidate, "unreachable_after_optimizer"));
 				continue;
@@ -837,6 +953,10 @@
 			optimizer: {
 				priorityOrder: optimizerPriority,
 				punchMinSpacingMs: 360,
+				...converterSettings.profileApplied ? {
+					guardRelocationRadius: converterSettings.guardRelocationRadius,
+					reachAllowanceSubcells: converterSettings.reachAllowanceSubcells
+				} : {},
 				selectedStableIds: [...optimizer.selected.keys()]
 			}
 		};
@@ -848,15 +968,15 @@
 		"source_order",
 		"stable_event_id"
 	];
-	/** @param {DataRecord[]} candidates @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty */
-	function selectSpacingOptimizedPunches(candidates, bpm, obstacles, difficulty) {
+	/** @param {DataRecord[]} candidates @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+	function selectSpacingOptimizedPunches(candidates, bpm, obstacles, difficulty, converterSettings) {
 		const punches = [];
 		const infeasible = /* @__PURE__ */ new Map();
 		const guardTimesMs = candidates.filter((candidate) => candidate.kind === "guard").map((candidate) => beatToMs(Number(candidate.start), bpm));
 		for (const candidate of candidates) {
 			if (candidate.kind !== "punch") continue;
 			const punchMs = beatToMs(Number(candidate.start), bpm);
-			const reason = guardTimesMs.some((guardMs) => Math.abs(punchMs - guardMs) <= 180.0001) ? "guard_window_reserved_before_optimizer" : staticInfeasibility(candidate, bpm, obstacles, difficulty);
+			const reason = guardTimesMs.some((guardMs) => Math.abs(punchMs - guardMs) <= 180.0001) ? "guard_window_reserved_before_optimizer" : staticInfeasibility(candidate, bpm, obstacles, difficulty, converterSettings);
 			if (reason) infeasible.set(String(candidate.stableId), reason);
 			else punches.push(candidate);
 		}
@@ -879,8 +999,8 @@
 			infeasible
 		};
 	}
-	/** @param {DataRecord} candidate @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty */
-	function staticInfeasibility(candidate, bpm, obstacles, difficulty) {
+	/** @param {DataRecord} candidate @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+	function staticInfeasibility(candidate, bpm, obstacles, difficulty, converterSettings) {
 		const note = candidate.note;
 		const hand = String(note.hand);
 		const spatial = spatialTarget(String(candidate.family), hand, Number(candidate.targetRow));
@@ -891,7 +1011,7 @@
 		for (const subcell of spatial.acceptedSubcells) {
 			if (blocked.has(subcell)) continue;
 			safe = true;
-			if (reachable(seedSubcell(seed), subcell, Number(candidate.start), reachSubcellsPerBeat[difficulty], blocked)) {
+			if (reachable(seedSubcell(seed), subcell, Number(candidate.start), reachSubcellsPerBeat[difficulty] + converterSettings.reachAllowanceSubcells, blocked)) {
 				reach = true;
 				break;
 			}
@@ -974,15 +1094,15 @@
 		for (const cell of cells) cell % 4 <= 1 ? left += 1 : right += 1;
 		return left > right ? "weave_right" : right > left ? "weave_left" : "squat";
 	}
-	/** @param {DataRecord} candidate @param {ObstacleWindow[]} obstacles @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty @param {number} bpm @param {string} recipeIdValue */
-	async function emitGuard(candidate, obstacles, wristSubcell, wristBeat, difficulty, bpm, recipeIdValue) {
+	/** @param {DataRecord} candidate @param {ObstacleWindow[]} obstacles @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty @param {number} bpm @param {string} recipeIdValue @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+	async function emitGuard(candidate, obstacles, wristSubcell, wristBeat, difficulty, bpm, recipeIdValue, converterSettings) {
 		const notes = candidate.notes;
 		const left = noteForHand(notes, "left");
 		const right = noteForHand(notes, "right");
 		const crossed = Number(left.cell) % 4 > Number(right.cell) % 4;
 		const sourcePair = [topLeftCell(Number(left.cell)), topLeftCell(Number(right.cell))];
 		const start = Number(candidate.start);
-		const pair = chooseGuardPair(sourcePair, crossed, blockedSubcellsAt(beatToMs(start, bpm), obstacles), start, wristSubcell, wristBeat, difficulty);
+		const pair = chooseGuardPair(sourcePair, crossed, blockedSubcellsAt(beatToMs(start, bpm), obstacles), start, wristSubcell, wristBeat, difficulty, converterSettings);
 		if (!pair.length) return {
 			ok: false,
 			trace: dropTrace(candidate, "guard_no_legal_pair")
@@ -1026,16 +1146,17 @@
 			}
 		};
 	}
-	/** @param {number[]} sourcePair @param {boolean} crossed @param {Set<number>} blocked @param {number} start @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty */
-	function chooseGuardPair(sourcePair, crossed, blocked, start, wristSubcell, wristBeat, difficulty) {
+	/** @param {number[]} sourcePair @param {boolean} crossed @param {Set<number>} blocked @param {number} start @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+	function chooseGuardPair(sourcePair, crossed, blocked, start, wristSubcell, wristBeat, difficulty, converterSettings) {
 		const sourceSorted = [...sourcePair].sort((a, b) => a - b);
 		const candidates = [];
 		for (const pair of guardPairs) {
+			if (Math.max(cellDistance(sourceSorted[0], pair[0]), cellDistance(sourceSorted[1], pair[1])) > converterSettings.guardRelocationRadius) continue;
 			const subcells = [seedSubcell(pair[0]), seedSubcell(pair[1])];
 			if (blocked.has(subcells[0]) || blocked.has(subcells[1])) continue;
 			const leftTarget = crossed ? subcells[1] : subcells[0];
 			const rightTarget = crossed ? subcells[0] : subcells[1];
-			const rate = reachSubcellsPerBeat[difficulty];
+			const rate = reachSubcellsPerBeat[difficulty] + converterSettings.reachAllowanceSubcells;
 			if (!reachable(wristSubcell.left, leftTarget, Math.max(start - wristBeat.left, 0), rate, blocked) || !reachable(wristSubcell.right, rightTarget, Math.max(start - wristBeat.right, 0), rate, blocked)) continue;
 			const sourceRow = Math.floor(sourceSorted[0] / 4) === Math.floor(sourceSorted[1] / 4) ? Math.floor(sourceSorted[0] / 4) : 1;
 			const pairRow = Math.floor(pair[0] / 4);
@@ -1366,6 +1487,10 @@
 		const row = clamp(Math.floor(cell / 4), 0, 2), column = clamp(cell % 4, 0, 3);
 		return (row * 2 + 1) * 8 + column * 2 + 1;
 	}
+	/** @param {number} left @param {number} right */
+	function cellDistance(left, right) {
+		return Math.abs(Math.floor(left / 4) - Math.floor(right / 4)) + Math.abs(left % 4 - right % 4);
+	}
 	/** @param {number} beat @param {number} bpm */
 	function beatToMs(beat, bpm) {
 		return beat * 6e4 / Math.max(bpm, 1);
@@ -1433,7 +1558,8 @@
 				"sourceId",
 				"sourceVersionHash",
 				"difficulty",
-				"sourceDifficultyPath"
+				"sourceDifficultyPath",
+				"converterProfile"
 			]) : null,
 			song: isPlainRecord(packageValue.song) ? pick(packageValue.song, [
 				"schemaId",
@@ -1475,6 +1601,7 @@
 						"rulesetId",
 						"rulesetVersion",
 						"modifiers",
+						"converterProfile",
 						"regenerationRequiredFor"
 					]) : null,
 					presentationSuggestion: Object.hasOwn(chart, "presentationSuggestion") ? chart.presentationSuggestion : null,
@@ -1507,12 +1634,14 @@
 					"recipeId",
 					"rulesetId",
 					"sourceDifficultyPath",
-					"sourceBeatmapVersion"
+					"sourceBeatmapVersion",
+					"converterProfile"
 				]),
 				optimizer: trace.optimizer,
 				events: trace.events
 			} : null) : [],
-			flow: Array.isArray(value.flow) ? value.flow : null
+			flow: Array.isArray(value.flow) ? value.flow : null,
+			...value.converterProfile ? { converterProfile: value.converterProfile } : {}
 		};
 	}
 	/** @param {Record<string, unknown>} value @param {readonly string[]} keys */
@@ -1599,6 +1728,15 @@
 		} catch {
 			issue("definitions_invalid", "recipeDefinitions", "Definitions must be canonical plain data");
 		}
+		const sourceProfile = isPlainRecord(packageValue.source) ? packageValue.source.converterProfile : void 0;
+		const traceProfile = isPlainRecord(packageValue.conversionTrace) ? packageValue.conversionTrace.converterProfile : void 0;
+		/** @type {Readonly<Record<string,unknown>> | null} */ let converterProfile = null;
+		if (sourceProfile !== void 0 || traceProfile !== void 0) try {
+			converterProfile = await normalizeConverterProfile(sourceProfile);
+			if (canonicalJson(traceProfile) !== canonicalJson(converterProfile)) issue("converter_profile_trace_mismatch", "conversionTrace.converterProfile", "Conversion trace profile must exactly match package source provenance");
+		} catch (cause) {
+			issue("converter_profile_invalid", "source.converterProfile", cause instanceof Error ? cause.message : "Converter profile is invalid");
+		}
 		const charts = Array.isArray(packageValue.charts) ? packageValue.charts : [];
 		if (charts.length !== 5) issue("chart_count_invalid", "charts", "One difficulty must contain Flow plus four Boxing charts");
 		const chartIds = /* @__PURE__ */ new Set();
@@ -1639,6 +1777,20 @@
 				"rulesetHash",
 				"contentHash"
 			]) if (!validHash$1(prototype[hashName])) issue("prototype_hash_invalid", `${path}.prototype.${hashName}`, "Hash must be sha256 plus 64 lowercase hexadecimal digits");
+			if (converterProfile) try {
+				if (canonicalJson(prototype.converterProfile) !== canonicalJson(converterProfile)) issue("converter_profile_chart_mismatch", `${path}.prototype.converterProfile`, "Chart converter profile must exactly match package provenance");
+				const expectedContentHash = await prefixedSha256(canonicalJson({
+					beats: chart.beats,
+					recipeId: prototype.recipeId,
+					rulesetId: prototype.rulesetId,
+					sourceHash: prototype.sourceHash,
+					converterProfile
+				}));
+				if (prototype.contentHash !== expectedContentHash) issue("converter_profile_content_hash_mismatch", `${path}.prototype.contentHash`, "Chart content hash must bind converter profile identity and generated beats");
+			} catch {
+				issue("converter_profile_chart_mismatch", `${path}.prototype.converterProfile`, "Chart converter profile is invalid");
+			}
+			else if (prototype.converterProfile !== void 0) issue("converter_profile_unbound", `${path}.prototype.converterProfile`, "Chart converter profile requires package source provenance");
 			const modifiers = Array.isArray(prototype.modifiers) ? prototype.modifiers.map(String) : [];
 			const normalizedModifiers = [...new Set(modifiers)].sort();
 			const emittedModifiers = [...new Set(chart.beats.filter(isPlainRecord).map((beat) => beat.modifier).filter((value) => typeof value === "string"))];
@@ -1723,6 +1875,7 @@
 	*/
 	async function executeWorkerConversion(request, runtime = {}) {
 		const normalized = narrowRequest(request);
+		if (normalized.options.converterProfile) normalized.options.converterProfile = await normalizeConverterProfile(normalized.options.converterProfile);
 		checkAbort(runtime.signal);
 		safeProgress(runtime.onProgress, .05, "parsing");
 		const sourceSummary = parseBeatMapDifficulty(normalized.difficultyBytes, normalized.format);
@@ -1817,7 +1970,7 @@
 			"audioContentHash",
 			"modifiers"
 		];
-		if (!hasOnlyDataKeys(record.options, requiredOptions, ["presentationSuggestion"]) || !requiredOptions.every((key) => Object.hasOwn(record.options, key))) throw workerError("worker_request_invalid", "Worker conversion options are invalid");
+		if (!hasOnlyDataKeys(record.options, requiredOptions, ["presentationSuggestion", "converterProfile"]) || !requiredOptions.every((key) => Object.hasOwn(record.options, key))) throw workerError("worker_request_invalid", "Worker conversion options are invalid");
 		const conversionOptions = record.options;
 		for (const field of [
 			"difficulty",
@@ -1845,6 +1998,7 @@
 			}
 			if (new TextEncoder().encode(encoded).byteLength > 65536) throw workerError("worker_request_invalid", "Worker presentation suggestion exceeds the size limit");
 		}
+		if (Object.hasOwn(conversionOptions, "converterProfile") && !converterProfileShape(conversionOptions.converterProfile)) throw workerError("worker_request_invalid", "Worker converter profile shape is invalid");
 		const major = Number(manifest.sourceFormatMajor);
 		const format = major === 2 ? "v2" : major === 3 ? "v3" : "v4";
 		return {
@@ -1853,6 +2007,25 @@
 			format,
 			options: cloneData(conversionOptions)
 		};
+	}
+	/** @param {unknown} value */
+	function converterProfileShape(value) {
+		if (!hasExactDataKeys(value, [
+			"schema",
+			"version",
+			"profileId",
+			"profileVersion",
+			"class",
+			"label",
+			"experimental",
+			"settings",
+			"contentHash"
+		])) return false;
+		const profile = value;
+		if (profile.schema !== "aerobeat/prototype_profile" || profile.version !== 1 || profile.class !== "converter_regeneration" || profile.experimental !== true || !boundedString(profile.profileId, 128) || !profile.profileId || !boundedString(profile.profileVersion, 64) || !profile.profileVersion || !boundedString(profile.label, 256) || !profile.label || typeof profile.contentHash !== "string" || !/^[0-9a-f]{64}$/u.test(profile.contentHash)) return false;
+		if (!hasExactDataKeys(profile.settings, ["guardRelocationRadius", "reachAllowanceSubcells"])) return false;
+		const settings = profile.settings;
+		return Number.isInteger(settings.guardRelocationRadius) && Number(settings.guardRelocationRadius) >= 0 && Number(settings.guardRelocationRadius) <= 8 && Number.isInteger(settings.reachAllowanceSubcells) && Number(settings.reachAllowanceSubcells) >= 0 && Number(settings.reachAllowanceSubcells) <= 8;
 	}
 	/** @param {unknown} value @param {readonly string[]} required */
 	function hasExactDataKeys(value, required) {
@@ -1968,4 +2141,4 @@
 	//#endregion
 })();
 
-//# sourceMappingURL=conversion-worker-DCjt02nl.js.map
+//# sourceMappingURL=conversion-worker-B1lWXdzq.js.map
