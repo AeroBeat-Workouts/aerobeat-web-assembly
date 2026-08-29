@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly implementation target:** `2116b87` (corrected live-v4 integration plus locked eight-way Flow and matching frozen raw release on `main`)
+**Assembly implementation target:** `0894c35` (isolated remote/local song preview over the corrected live-v4, eight-way Flow, compact Music, and camera-compositor stack)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
@@ -109,7 +109,9 @@ Playwright pierces the open component shadow roots.
 - Search field: `getByLabel("Search maps")`
 - Latest button: `getByRole("button", { name: "Latest" })`
 - Local fallback: `getByRole("button", { name: "Choose local ZIP" })`
-- Selected-map version/difficulty controls: `getByLabel("Version")`, `getByLabel("Difficulty")`
+- Selected-map Version/Difficulty: `getByLabel("Version")`, `getByLabel("Difficulty")`; singleton values are labeled `<output>` elements, while two or more choices remain native `<select>` elements.
+- Remote preview: selected map `getByRole("button", { name: /^Preview / })`, changing to `Stop` while active.
+- Local preview: selected downloaded song action area `getByRole("button", { name: /^Preview / })`, changing to `Stop` while active.
 - Import: `getByRole("button", { name: "Import selected map" })`
 - Gameplay radios: `page.locator("aero-game").locator('aero-prototype-selector[scope="gameplay"]')`
 - Visual radios: `page.locator("aero-game").locator('aero-prototype-selector[scope="visuals"]')`
@@ -266,6 +268,16 @@ At exact `37a35a6`, the unchanged existing Tailscale route and fresh source were
 
 Pixel compositor validation passed twice; full unit/browser/live `53F26`/build passed. Checked release, two fresh recursive manifests, and two packs match with the fingerprint/proof/bytes above. Automated `h8z`, `p4p`, and `9y6` are closed. Physical `kdf` and `3h7` remain open: refresh/reopen the phone page and complete the camera/calibration/play checklist below before physical closure.
 
+### Song Preview/Stop and singleton choices ready for phone retest
+
+UI implementation `90c9523` with independent closure HEAD `8db6acf` removes the false dropdown affordance: Version and Difficulty remain native selects only when two or more alternatives exist; one available value is a concise visibly labeled static value. For exact Soda Pop map `4BE5E`, the phone should show `Version bd4eb4e8` and `Difficulty Hard`, not inert dropdown arrows. A Preview button appears immediately above those values and changes to Stop while the exact provider clip plays. The selected downloaded-song action area likewise contains one Preview/Stop plus the existing one Export/Delete set.
+
+Assembly `0894c35` owns one hidden child-local preview audio element. Remote playback resolves the exact selected version's private provider URL; local playback reads the selected package's already-verified audio bytes, creates one temporary Blob URL, and stops after at most 10 seconds. Stop, target changes, import/start, menu close, hidden document, reconnect, and destroy clear listeners/timers/source and revoke any Blob URL. Preview does not touch gameplay audio/clock, session, camera, or lease, and raw audio/URLs/Blob data never enter public snapshots or iframe messages.
+
+Independent QA exercised the unchanged managed local/Tailscale routes and fresh direct/real-cross-origin iframe children at exact 390×844 and 844×390. The live remote `4BE5E` MP3 played and toggled Preview→Stop→Preview in all served/direct/iframe checks. A real managed-route import authored `SODA POP.egg`, selected Flow, created one child-local Blob preview with an active 10-second bound, then stopped, cleared its source, and deleted the ephemeral package; gameplay audio/session/camera/lease stayed byte-for-byte equivalent across preview start. Full check/test/browser, product shell/camera matrices, build, two recursive releases, two dry packs, and diff checks pass. Frozen release source fingerprint is `634fca0e18ac08a696cd5284d8ff7c1e42b0ca1c1ab70d4a9e087ac37d42039a`, proof SHA-256 is `0b85bd831af90d27228286edef5eaaaf7197c7cb3f6a5c43c1ae0d0bd314ec79`, and pre-manifest bytes are `3327157`.
+
+Phone retest: search `kpop demon hunters soda pop song`; choose `Saja Boys - Soda Pop`; confirm the two labeled singleton values; tap Preview and hear the clip while the same action reads Stop; tap Stop and confirm silence. Import Hard, then use the downloaded song's Preview/Stop and confirm it does not request camera or begin calibration. Finally press Calibrate / Start and confirm any preview stops before the existing camera/T-pose flow. Repeat once with a map exposing multiple difficulties and confirm the real Difficulty select opens and changes the selected difficulty. These checks are operator-owned; automation is not physical success.
+
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
@@ -296,6 +308,7 @@ Fill this section during operator play. Do not infer results from automation.
 | Spatial Cut physical play | pending | pending | |
 | Two current maps direct acquisition | pending | pending | |
 | Two current maps local ZIP fallback | pending | pending | |
+| Remote and downloaded Preview/Stop; singleton/multiple choice clarity | pending | retest pending | Use `4BE5E` for one Version/Hard and another map with multiple Standard difficulties; preview must stop before Calibrate / Start. |
 | Fullscreen/autoplay gestures | pending | pending | |
 | Tracking loss/recalibration/hidden | pending | pending | |
 | Comfort/clarity observations | pending | pending | Experimental notes only; no winner. |

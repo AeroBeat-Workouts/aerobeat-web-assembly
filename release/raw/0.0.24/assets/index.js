@@ -6547,6 +6547,10 @@ var sharedStyles = `
   :host([compact]) .compact-library-choice input[type="radio"] { accent-color: var(--aero-color-focus,#0a84ff); block-size: 42px; flex: 0 0 42px; inline-size: 42px; margin: 0; padding: 0; }
   :host([compact]) .compact-library-choice span { font-weight: 750; min-inline-size: 0; overflow-wrap: anywhere; }
   :host([compact]) .compact-library-actions { border-block-start: 1px solid rgba(53,141,175,.32); margin-block-start: 2px; padding-block-start: 8px; }
+  :host([compact]) .compact-preview-action { inline-size: 100%; }
+  :host([compact]) .compact-singleton-field { align-items: center; background: rgba(255,255,255,.88); border: 1px solid rgba(53,141,175,.42); border-radius: 8px; display: grid; gap: 2px; min-block-size: 42px; padding: 5px 10px; }
+  :host([compact]) .compact-singleton-field > span { color: var(--aero-color-muted,#486c7d); font-size: .7rem; font-weight: 750; }
+  :host([compact]) .compact-singleton-field > output { font-size: .92rem; font-weight: 750; min-inline-size: 0; overflow-wrap: anywhere; }
   @media (max-width: 430px) { .panel { border-radius: 10px; padding: 12px; } .row > button { flex: 1 1 auto; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
 `;
@@ -6656,6 +6660,11 @@ var AeroPresenterElement = class extends HTMLElement {
 };
 /** BeatSaver discovery, detail, version, difficulty and local-import intent presenter. */
 var AeroBeatSaverBrowser = class extends AeroPresenterElement {
+	static observedAttributes = ["compact"];
+	/** Compact changes selected-map choice markup; removing it restores the default presenter exactly. @param {string} name @param {string | null} oldValue @param {string | null} newValue */
+	attributeChangedCallback(name, oldValue, newValue) {
+		if (name === "compact" && oldValue !== newValue && this.isConnected) this.render();
+	}
 	render() {
 		const state = readString(this.presenterSnapshot, "state", "idle");
 		const query = readString(this.presenterSnapshot, "query", "");
@@ -6670,6 +6679,7 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
 		const selectedDifficulty = readString(this.presenterSnapshot, "selectedDifficulty", "");
 		const error = readString(this.presenterSnapshot, "errorMessage", "");
 		const busy = state === "loading";
+		const detail = selected ? this.compact ? compactBeatSaverDetailMarkup(selected, versions, difficulties, selectedVersion, selectedDifficulty, previewSnapshot(this.presenterSnapshot)) : defaultBeatSaverDetailMarkup(selected, versions, difficulties, selectedVersion, selectedDifficulty) : "";
 		this.renderMarkup(`
       <section class="panel" part="panel" aria-labelledby="beatsaver-heading">
         <h2 id="beatsaver-heading">Find BeatSaver maps</h2>
@@ -6683,10 +6693,7 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
         <div class="cards choice-radios" part="results" role="radiogroup" aria-label="BeatSaver results">
           ${results.map((result, index) => mapResultMarkup(result, index === checkedResultIndex)).join("") || `<p class="muted">${state === "empty" ? "No compatible maps found." : "Search or browse latest maps."}</p>`}
         </div>
-        ${selected ? `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(readString(selected, "name", "Selected map"))}</h3><p class="muted">${escapeHtml(readString(selected, "songAuthorName", ""))} · mapped by ${escapeHtml(readString(selected, "levelAuthorName", "Unknown"))}</p>
-          <label><span class="compact-field-label">Version</span><select aria-label="Version" part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
-          <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
-          <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>` : ""}
+        ${detail}
       </section>`);
 	}
 	/** Map radios commit on `change`; action buttons retain the inherited click path. @param {Event} event */
@@ -6722,6 +6729,13 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
 				mapId,
 				versionHash,
 				difficultyId: target instanceof HTMLSelectElement ? target.value : ""
+			});
+			return;
+		}
+		if (type === "beatsaver-preview-toggle") {
+			this.emitIntent(type, {
+				mapId,
+				versionHash
 			});
 			return;
 		}
@@ -6785,7 +6799,7 @@ var AeroContentLibrary = class extends AeroPresenterElement {
 		const checkedPackageIndex = packages.length ? Math.max(0, selectedPackageIndex) : -1;
 		if (this.pendingDeletePackageId && !packages.some((item) => readString(item, "packageId", "") === this.pendingDeletePackageId)) this.pendingDeletePackageId = "";
 		if (this.compact) {
-			this.renderMarkup(compactLibraryMarkup(packages, checkedPackageIndex, this.pendingDeletePackageId, error));
+			this.renderMarkup(compactLibraryMarkup(packages, checkedPackageIndex, this.pendingDeletePackageId, error, previewSnapshot(this.presenterSnapshot)));
 			return;
 		}
 		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards choice-radios" part="items" role="radiogroup" aria-label="Available library packages">${packages.map((item, index) => libraryItemMarkup(item, this.pendingDeletePackageId, index === checkedPackageIndex)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
@@ -6807,6 +6821,10 @@ var AeroContentLibrary = class extends AeroPresenterElement {
 				this.render();
 				queueMicrotask(() => [...this.shadowRoot?.querySelectorAll("input[name='library-package-choice']") ?? []].find((input) => input instanceof HTMLInputElement && input.value === packageId)?.focus());
 			}
+			return;
+		}
+		if (type === "library-preview-toggle") {
+			this.emitIntent(type, { packageId });
 			return;
 		}
 		if (type === "library-delete-request") {
@@ -7291,8 +7309,68 @@ function mapResultMarkup(result, checked) {
 function optionMarkup(value, label, selected) {
 	return `<option value="${escapeAttribute(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
 }
-/** Compact quick-choice library using the real persistence-summary shape. @param {readonly Readonly<Record<string, unknown>>[]} packages @param {number} checkedIndex @param {string} pendingDeletePackageId @param {string} error @returns {string} */
-function compactLibraryMarkup(packages, checkedIndex, pendingDeletePackageId, error) {
+/** @typedef {Readonly<{state:"idle"|"loading"|"playing"|"ended"|"error",mapId:string,versionHash:string,packageId:string,errorMessage:string}>} PreviewSnapshot */
+/** Default selected-map markup remains byte-for-byte compatible when compact mode is absent. @param {Readonly<Record<string, unknown>>} selected @param {readonly Readonly<Record<string, unknown>>[]} versions @param {readonly string[]} difficulties @param {string} selectedVersion @param {string} selectedDifficulty @returns {string} */
+function defaultBeatSaverDetailMarkup(selected, versions, difficulties, selectedVersion, selectedDifficulty) {
+	return `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(readString(selected, "name", "Selected map"))}</h3><p class="muted">${escapeHtml(readString(selected, "songAuthorName", ""))} · mapped by ${escapeHtml(readString(selected, "levelAuthorName", "Unknown"))}</p>
+          <label><span class="compact-field-label">Version</span><select aria-label="Version" part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
+          <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
+          <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>`;
+}
+/** Compact selected-map markup exposes preview and only real choices as select controls. @param {Readonly<Record<string, unknown>>} selected @param {readonly Readonly<Record<string, unknown>>[]} versionRecords @param {readonly string[]} difficultyValues @param {string} selectedVersion @param {string} selectedDifficulty @param {PreviewSnapshot} preview @returns {string} */
+function compactBeatSaverDetailMarkup(selected, versionRecords, difficultyValues, selectedVersion, selectedDifficulty, preview) {
+	const mapId = readBoundedString(selected, "mapId", "", 256);
+	const mapName = readBoundedString(selected, "name", "Selected map", 256);
+	const versions = versionRecords.filter((version) => readBoundedString(version, "versionHash", "", 256) !== "");
+	const difficulties = difficultyValues.filter((difficulty) => difficulty.length > 0).map((difficulty) => difficulty.slice(0, 128));
+	const effectiveVersion = versions.some((version) => readString(version, "versionHash", "") === selectedVersion) ? selectedVersion : readString(versions[0] ?? {}, "versionHash", "");
+	const effectiveDifficulty = difficulties.includes(selectedDifficulty) ? selectedDifficulty : difficulties[0] ?? "";
+	const exactPreview = preview.mapId === mapId && preview.versionHash === effectiveVersion;
+	const previewActive = exactPreview && (preview.state === "loading" || preview.state === "playing");
+	const previewError = exactPreview && preview.state === "error" ? preview.errorMessage : "";
+	const previewLabel = previewActive ? "Stop" : "Preview";
+	const versionField = compactChoiceFieldMarkup("Version", "version-select", "beatsaver-version-select", versions.map((version) => ({
+		value: readString(version, "versionHash", ""),
+		label: readString(version, "label", readString(version, "versionHash", "Version"))
+	})), effectiveVersion);
+	const difficultyField = compactChoiceFieldMarkup("Difficulty", "difficulty-select", "beatsaver-difficulty-select", difficulties.map((difficulty) => ({
+		value: difficulty,
+		label: difficulty
+	})), effectiveDifficulty);
+	return `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(mapName)}</h3><button class="compact-preview-action" part="preview-button" type="button" data-intent="beatsaver-preview-toggle" aria-label="${previewLabel} ${escapeAttribute(mapName)}" aria-pressed="${previewActive}" aria-busy="${preview.state === "loading" && exactPreview}" ${effectiveVersion ? "" : "disabled"}>${previewLabel}</button>${previewError ? `<p class="error" role="status" aria-live="polite">${escapeHtml(previewError)}</p>` : ""}${versionField}${difficultyField}<button part="import-button" type="button" data-intent="beatsaver-import" ${effectiveVersion && effectiveDifficulty ? "" : "disabled"}>Import selected map</button></section>`;
+}
+/** @typedef {Readonly<{value:string,label:string}>} CompactChoice */
+/** A compact field is static for one value, a native select for real choice, and an error for none. @param {string} label @param {string} part @param {string} intent @param {readonly CompactChoice[]} choices @param {string} selected @returns {string} */
+function compactChoiceFieldMarkup(label, part, intent, choices, selected) {
+	if (choices.length === 0) return `<p class="error" role="status">${escapeHtml(label)} unavailable.</p>`;
+	if (choices.length === 1) return `<div class="compact-singleton-field" part="${escapeAttribute(part)}"><span>${escapeHtml(label)}</span><output aria-label="${escapeAttribute(label)}">${escapeHtml(choices[0].label)}</output></div>`;
+	return `<label><span class="compact-field-label">${escapeHtml(label)}</span><select aria-label="${escapeAttribute(label)}" part="${escapeAttribute(part)}" data-intent="${escapeAttribute(intent)}">${choices.map((choice) => optionMarkup(choice.value, choice.label, selected)).join("")}</select></label>`;
+}
+/** Read bounded scalar preview presentation state only. @param {Readonly<Record<string, unknown>>} snapshot @returns {PreviewSnapshot} */
+function previewSnapshot(snapshot) {
+	const preview = readRecord(snapshot, "preview") ?? {};
+	const rawState = readBoundedString(preview, "state", "idle", 32);
+	const state = [
+		"idle",
+		"loading",
+		"playing",
+		"ended",
+		"error"
+	].includes(rawState) ? rawState : "idle";
+	return Object.freeze({
+		state,
+		mapId: readBoundedString(preview, "mapId", "", 256),
+		versionHash: readBoundedString(preview, "versionHash", "", 256),
+		packageId: readBoundedString(preview, "packageId", "", 1024),
+		errorMessage: readBoundedString(preview, "errorMessage", "", 256)
+	});
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {string} fallback @param {number} maximumLength @returns {string} */
+function readBoundedString(record, key, fallback, maximumLength) {
+	return readString(record, key, fallback).slice(0, maximumLength);
+}
+/** Compact quick-choice library using the real persistence-summary shape. @param {readonly Readonly<Record<string, unknown>>[]} packages @param {number} checkedIndex @param {string} pendingDeletePackageId @param {string} error @param {PreviewSnapshot} preview @returns {string} */
+function compactLibraryMarkup(packages, checkedIndex, pendingDeletePackageId, error, preview) {
 	const usable = packages.map((item, sourceIndex) => ({
 		item,
 		sourceIndex,
@@ -7314,7 +7392,7 @@ function compactLibraryMarkup(packages, checkedIndex, pendingDeletePackageId, er
 		return `<label class="compact-library-choice" part="item"><input type="radio" name="library-package-choice" value="${escapeAttribute(entry.id)}" data-intent="library-select" data-value="${escapeAttribute(entry.id)}" aria-label="Select ${escapeAttribute(label)}" ${index === checkedUsableIndex ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`;
 	}).join("");
 	const selected = checkedUsableIndex >= 0 ? usable[checkedUsableIndex] : null;
-	const actions = selected ? compactLibraryActions(selected.item, pendingDeletePackageId, labels[checkedUsableIndex] ?? selected.base) : "";
+	const actions = selected ? compactLibraryActions(selected.item, pendingDeletePackageId, labels[checkedUsableIndex] ?? selected.base, preview) : "";
 	return `<section class="panel compact-library" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">Downloaded songs</h2>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="compact-library-choices" part="items" role="radiogroup" aria-label="Downloaded songs">${choices || `<p class="muted compact-critical">No downloaded songs.</p>`}</div>${actions}</section>`;
 }
 /** @param {Readonly<Record<string, unknown>>} item @returns {string} */
@@ -7323,12 +7401,17 @@ function compactLibraryBaseLabel(item) {
 	const difficulty = readString(item, "difficulty", "");
 	return difficulty ? `${songName} · ${difficulty}` : songName;
 }
-/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {string} label @returns {string} */
-function compactLibraryActions(item, pendingDeletePackageId, label) {
+/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {string} label @param {PreviewSnapshot} preview @returns {string} */
+function compactLibraryActions(item, pendingDeletePackageId, label, preview) {
 	const id = readString(item, "packageId", "");
 	const accessibleLabel = escapeAttribute(label);
-	const deleteControls = id !== "" && id === pendingDeletePackageId ? `<span role="status">Delete ${escapeHtml(label)}?</span><button type="button" aria-label="Confirm delete ${accessibleLabel}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm</button><button type="button" aria-label="Cancel deleting ${accessibleLabel}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleLabel}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
-	return `<div class="row compact-library-actions" part="selected-actions" aria-label="Selected song actions"><button type="button" aria-label="Export ${accessibleLabel}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div>`;
+	const pending = id !== "" && id === pendingDeletePackageId;
+	const exactPreview = preview.packageId === id;
+	const previewActive = exactPreview && (preview.state === "loading" || preview.state === "playing");
+	const previewLabel = previewActive ? "Stop" : "Preview";
+	const previewError = exactPreview && preview.state === "error" ? preview.errorMessage : "";
+	const deleteControls = pending ? `<span role="status">Delete ${escapeHtml(label)}?</span><button type="button" aria-label="Confirm delete ${accessibleLabel}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm</button><button type="button" aria-label="Cancel deleting ${accessibleLabel}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleLabel}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
+	return `<div class="row compact-library-actions" part="selected-actions" aria-label="Selected song actions"><button class="compact-preview-action" part="preview-button" type="button" aria-label="${previewLabel} ${accessibleLabel}" aria-pressed="${previewActive}" aria-busy="${exactPreview && preview.state === "loading"}" data-intent="library-preview-toggle" data-value="${escapeAttribute(id)}">${previewLabel}</button>${previewError ? `<p class="error" role="status" aria-live="polite">${escapeHtml(previewError)}</p>` : ""}<button type="button" aria-label="Export ${accessibleLabel}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div>`;
 }
 /** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {boolean} checked @returns {string} */
 function libraryItemMarkup(item, pendingDeletePackageId, checked) {
@@ -7864,13 +7947,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:01b535c6eab264203e88c343e6f46e1093c628559924838da07553864ba4de0e";
+var buildStamp = "source:634fca0e18ac08a696cd5284d8ff7c1e42b0ca1c1ab70d4a9e087ac37d42039a";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-01b535c6eab26420";
+var cacheBust = "0.0.24-634fca0e18ac08a6";
 /**
 * Vite-injected package version from package.json.
 *
@@ -18096,6 +18179,11 @@ var AeroGame = class extends HTMLElement {
 		this.musicPrerequisite = "";
 		this.pendingLibrarySelection = null;
 		this.menuFocusRestore = null;
+		this.previewView = emptyPreviewView();
+		this.previewGeneration = 0;
+		this.previewTimer = 0;
+		this.previewObjectUrl = null;
+		this.previewListeners = null;
 		this.boundVisibility = () => {
 			this.applyVisibility();
 		};
@@ -18137,6 +18225,7 @@ var AeroGame = class extends HTMLElement {
 		this.musicPrerequisite = "";
 		this.pendingLibrarySelection = null;
 		this.menuFocusRestore = null;
+		this.stopPreview({ render: false });
 		this.browsedMaps.clear();
 		this.beatSaverView = emptyBeatSaverView();
 		this.libraryView = Object.freeze({
@@ -18192,6 +18281,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	async start() {
 		this.assertConnected();
+		this.stopPreview();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const participant = this.leaseParticipant;
@@ -18294,6 +18384,7 @@ var AeroGame = class extends HTMLElement {
 	/** @param {unknown} source */
 	async selectContent(source) {
 		this.assertConnected();
+		this.stopPreview();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const normalized = contentSource(source);
@@ -18393,6 +18484,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	async browseBeatSaver(query = {}) {
 		this.assertConnected();
+		this.stopPreview();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const normalized = safeData(query, 0, 32);
@@ -18449,6 +18541,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	async importBeatSaver(map, versionIdentifier, authoringOptions) {
 		this.assertConnected();
+		this.stopPreview();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		let acquired;
@@ -18488,6 +18581,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	async importLocalZip(input, authoringOptions) {
 		this.assertConnected();
+		this.stopPreview();
 		if (!(input instanceof Blob || input instanceof ArrayBuffer || input instanceof Uint8Array)) throw new TypeError("Local import requires Blob, ArrayBuffer, or Uint8Array");
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
@@ -18507,6 +18601,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	async deletePackage(handle) {
 		this.assertConnected();
+		this.stopPreview();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const deleted = await graph.authoring.deletePackage(safeData(handle, 0, 16));
@@ -18962,6 +19057,7 @@ var AeroGame = class extends HTMLElement {
 		await graph.audio.setDocumentHidden(hidden);
 		if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
 		if (hidden) {
+			this.stopPreview();
 			this.stopFrameLoop();
 			await graph.cv.stop();
 			if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
@@ -19036,9 +19132,13 @@ var AeroGame = class extends HTMLElement {
 		setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
 		setPresenter(this, "aero-content-library", {
 			...this.libraryView,
-			selectedPackageId: content.packageId ?? this.libraryView.selectedPackageId
+			selectedPackageId: content.packageId ?? this.libraryView.selectedPackageId,
+			preview: this.previewView
 		});
-		setPresenter(this, "aero-beatsaver-browser", this.beatSaverView);
+		setPresenter(this, "aero-beatsaver-browser", {
+			...this.beatSaverView,
+			preview: this.previewView
+		});
 		setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
 		setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
 		const runtimeMessage = runtimeStatus(content, session, input);
@@ -19085,6 +19185,7 @@ var AeroGame = class extends HTMLElement {
 		}
 	}
 	selectBrowsedMap(mapId) {
+		this.stopPreview();
 		const map = this.browsedMaps.get(boundedIdentifier(mapId, "BeatSaver map ID").toUpperCase());
 		if (!map) throw new Error("Selected BeatSaver map is unavailable");
 		const version = playableVersions(map)[0];
@@ -19103,6 +19204,7 @@ var AeroGame = class extends HTMLElement {
 		return summary;
 	}
 	selectBrowsedVersion(versionHash) {
+		this.stopPreview();
 		const mapId = this.beatSaverView.selectedMap?.mapId;
 		const map = typeof mapId === "string" ? this.browsedMaps.get(mapId.toUpperCase()) : null;
 		if (!map) throw new Error("Select a BeatSaver map first");
@@ -19192,6 +19294,160 @@ var AeroGame = class extends HTMLElement {
 			byteLength: exported.byteLength
 		});
 	}
+	async toggleBeatSaverPreview(mapIdValue, versionHashValue) {
+		this.assertConnected();
+		const mapId = boundedIdentifier(mapIdValue, "BeatSaver map ID");
+		const versionHash = boundedIdentifier(versionHashValue, "BeatSaver version hash");
+		const target = Object.freeze({
+			mapId,
+			versionHash,
+			packageId: ""
+		});
+		if (activePreview(this.previewView, target)) {
+			this.stopPreview();
+			return;
+		}
+		if (this.beatSaverView.selectedMap?.mapId !== mapId || this.beatSaverView.selectedVersionHash !== versionHash) throw new Error("Select this song version before previewing it");
+		const rawUrl = playableVersions(this.browsedMaps.get(mapId.toUpperCase())).find((entry) => entry.hash === versionHash)?.previewUrl;
+		if (typeof rawUrl !== "string" || rawUrl.length > 2048) throw new Error("Preview is unavailable for this song");
+		let url;
+		try {
+			url = new URL(rawUrl);
+		} catch {
+			throw new Error("Preview is unavailable for this song");
+		}
+		if (url.protocol !== "https:") throw new Error("Preview is unavailable for this song");
+		await this.startPreview(url.href, target, 0);
+	}
+	async toggleLibraryPreview(packageIdValue) {
+		this.assertConnected();
+		const packageId = boundedString(packageIdValue, "");
+		if (!packageId || this.libraryView.selectedPackageId !== packageId) throw new Error("Select this downloaded song before previewing it");
+		if (!this.libraryView.packages.find((entry) => entry.packageId === packageId)) throw new Error("Downloaded song is unavailable");
+		const target = Object.freeze({
+			mapId: "",
+			versionHash: "",
+			packageId
+		});
+		if (activePreview(this.previewView, target)) {
+			this.stopPreview();
+			return;
+		}
+		this.stopPreview({ render: false });
+		const token = this.previewGeneration;
+		this.setPreviewView("loading", target, "");
+		try {
+			if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
+			if (token !== this.previewGeneration || this.lifecycle !== "connected" || !this.graph) return;
+			const content = this.graph.content.getSnapshot();
+			const audio = content.song?.audio;
+			if (content.packageId !== packageId || !audio || typeof audio.filePath !== "string") throw new Error("Downloaded song is still loading");
+			const bytes = this.graph.content.readAsset(audio.filePath);
+			const mimeType = previewMimeType(audio.filePath);
+			const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+			if (token !== this.previewGeneration) {
+				URL.revokeObjectURL(objectUrl);
+				return;
+			}
+			this.previewObjectUrl = objectUrl;
+			await this.playPreview(objectUrl, target, token, 1e4);
+		} catch (error) {
+			if (token === this.previewGeneration) this.failPreview(token, target, error);
+		}
+	}
+	async startPreview(sourceUrl, target, maximumMs) {
+		this.stopPreview({ render: false });
+		const token = this.previewGeneration;
+		this.setPreviewView("loading", target, "");
+		try {
+			await this.playPreview(sourceUrl, target, token, maximumMs);
+		} catch (error) {
+			if (token === this.previewGeneration) this.failPreview(token, target, error);
+		}
+	}
+	async playPreview(sourceUrl, target, token, maximumMs) {
+		const audio = this.previewAudioElement();
+		const playing = () => {
+			if (token === this.previewGeneration) this.setPreviewView("playing", target, "");
+		};
+		const ended = () => {
+			if (token === this.previewGeneration) this.finishPreview(token, target, "ended");
+		};
+		const failed = () => {
+			if (token === this.previewGeneration) this.failPreview(token, target, /* @__PURE__ */ new Error("Preview playback failed"));
+		};
+		this.previewListeners = Object.freeze({
+			playing,
+			ended,
+			failed
+		});
+		audio.addEventListener("playing", playing);
+		audio.addEventListener("ended", ended);
+		audio.addEventListener("error", failed);
+		audio.preload = "auto";
+		audio.src = sourceUrl;
+		audio.currentTime = 0;
+		audio.load();
+		await Promise.resolve(audio.play());
+		if (token !== this.previewGeneration) return;
+		if (this.previewView.state === "loading") this.setPreviewView("playing", target, "");
+		if (maximumMs > 0) this.previewTimer = globalThis.setTimeout(() => {
+			if (token === this.previewGeneration) this.finishPreview(token, target, "ended");
+		}, maximumMs);
+	}
+	finishPreview(token, target, state) {
+		if (token !== this.previewGeneration) return;
+		this.cleanupPreviewMedia();
+		this.previewGeneration += 1;
+		this.previewView = previewView(state, target, "");
+		this.renderPresenters();
+	}
+	failPreview(token, target, _error) {
+		if (token !== this.previewGeneration) return;
+		this.cleanupPreviewMedia();
+		this.previewGeneration += 1;
+		this.previewView = previewView("error", target, "Preview unavailable. Try again.");
+		this.renderPresenters();
+	}
+	stopPreview(options = {}) {
+		this.previewGeneration += 1;
+		this.cleanupPreviewMedia();
+		this.previewView = emptyPreviewView();
+		if (options.render !== false && this.lifecycle === "connected") this.renderPresenters();
+	}
+	cleanupPreviewMedia() {
+		if (this.previewTimer) globalThis.clearTimeout(this.previewTimer);
+		this.previewTimer = 0;
+		const audio = this.shadowRoot?.querySelector("audio[data-role='preview']");
+		if (audio instanceof HTMLAudioElement) {
+			const listeners = this.previewListeners;
+			if (listeners) {
+				audio.removeEventListener("playing", listeners.playing);
+				audio.removeEventListener("ended", listeners.ended);
+				audio.removeEventListener("error", listeners.failed);
+			}
+			try {
+				audio.pause();
+			} catch {}
+			audio.removeAttribute("src");
+			try {
+				audio.load();
+			} catch {}
+		}
+		this.previewListeners = null;
+		const objectUrl = this.previewObjectUrl;
+		this.previewObjectUrl = null;
+		if (objectUrl) URL.revokeObjectURL(objectUrl);
+	}
+	setPreviewView(state, target, errorMessage) {
+		this.previewView = previewView(state, target, errorMessage);
+		this.renderPresenters();
+	}
+	previewAudioElement() {
+		const value = this.shadowRoot?.querySelector("audio[data-role='preview']");
+		if (!(value instanceof HTMLAudioElement)) throw new Error("Preview audio surface missing");
+		return value;
+	}
 	async handleLocalZip(event) {
 		const input = event.currentTarget;
 		if (!(input instanceof HTMLInputElement) || !input.files?.[0]) return;
@@ -19255,6 +19511,7 @@ var AeroGame = class extends HTMLElement {
 			} catch {}
 			this.graph.audio.pause().catch((error) => this.handleError(error));
 		} else {
+			this.stopPreview();
 			this.menuOpen = false;
 			this.menuPauseArmed = true;
 			this.graph.input.resetCalibration("menu_closed_recalibration_required");
@@ -19269,6 +19526,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	async startFromMenu() {
 		if (!this.graph || this.menuStarting) return;
+		this.stopPreview();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		this.menuStarting = true;
@@ -19364,22 +19622,27 @@ var AeroGame = class extends HTMLElement {
 		else if (detail.type === "beatsaver-difficulty-select") {
 			const difficulty = dataValue(detail.payload, "difficultyId");
 			if (typeof difficulty === "string" && this.beatSaverView.difficulties.includes(difficulty)) {
+				this.stopPreview();
 				this.beatSaverView = Object.freeze({
 					...this.beatSaverView,
 					selectedDifficulty: difficulty
 				});
 				this.renderPresenters();
 			}
-		} else if (detail.type === "beatsaver-import") this.importBeatSaverById(dataValue(detail.payload, "mapId"), dataValue(detail.payload, "versionHash"), {
+		} else if (detail.type === "beatsaver-preview-toggle") this.toggleBeatSaverPreview(dataValue(detail.payload, "mapId"), dataValue(detail.payload, "versionHash")).catch((error) => this.handleError(error));
+		else if (detail.type === "beatsaver-import") this.importBeatSaverById(dataValue(detail.payload, "mapId"), dataValue(detail.payload, "versionHash"), {
 			difficulty: dataValue(detail.payload, "difficultyId"),
 			sourceId: dataValue(detail.payload, "mapId")
 		}).catch((error) => this.handleError(error));
-		else if (detail.type === "local-zip-request") this.localZipInput().click();
-		else if (detail.type === "content-import-cancel") this.cancelImport();
+		else if (detail.type === "local-zip-request") {
+			this.stopPreview();
+			this.localZipInput().click();
+		} else if (detail.type === "content-import-cancel") this.cancelImport();
 		else if (detail.type === "library-select") {
 			const packageId = dataValue(detail.payload, "packageId");
 			const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId);
 			if (summary) {
+				this.stopPreview();
 				this.libraryView = Object.freeze({
 					...this.libraryView,
 					selectedPackageId: packageId
@@ -19387,7 +19650,8 @@ var AeroGame = class extends HTMLElement {
 				this.renderPresenters();
 				this.beginLibrarySelection(summary);
 			}
-		} else if (detail.type === "library-export") {
+		} else if (detail.type === "library-preview-toggle") this.toggleLibraryPreview(dataValue(detail.payload, "packageId")).catch((error) => this.handleError(error));
+		else if (detail.type === "library-export") {
 			const packageId = dataValue(detail.payload, "packageId");
 			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
 			if (handle) this.exportLibraryPackage(handle).catch((error) => this.handleError(error));
@@ -19520,6 +19784,7 @@ var AeroGame = class extends HTMLElement {
 			this.lifecycle = finalState;
 			return;
 		}
+		this.stopPreview({ render: false });
 		this.connectedGeneration += 1;
 		this.visibilityGeneration += 1;
 		this.lifecycle = finalState;
@@ -19605,7 +19870,7 @@ function template() {
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
 *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
 .drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`;
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`;
 }
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) {
@@ -19730,6 +19995,45 @@ function emptyBeatSaverView() {
 		selectedDifficulty: "",
 		errorMessage: ""
 	});
+}
+function emptyPreviewView() {
+	return previewView("idle", {
+		mapId: "",
+		versionHash: "",
+		packageId: ""
+	}, "");
+}
+function previewView(state, target, errorMessage) {
+	const safeState = [
+		"idle",
+		"loading",
+		"playing",
+		"ended",
+		"error"
+	].includes(state) ? state : "idle";
+	return Object.freeze({
+		state: safeState,
+		mapId: boundedString(target?.mapId, "").slice(0, 256),
+		versionHash: boundedString(target?.versionHash, "").slice(0, 256),
+		packageId: boundedString(target?.packageId, "").slice(0, 1024),
+		errorMessage: boundedString(errorMessage, "").slice(0, 256)
+	});
+}
+function activePreview(view, target) {
+	return (view.state === "loading" || view.state === "playing") && view.mapId === target.mapId && view.versionHash === target.versionHash && view.packageId === target.packageId;
+}
+function previewMimeType(path) {
+	const extension = String(path).split(".").at(-1)?.toLowerCase() ?? "";
+	return Object.freeze({
+		egg: "audio/ogg",
+		ogg: "audio/ogg",
+		mp3: "audio/mpeg",
+		wav: "audio/wav",
+		m4a: "audio/mp4",
+		aac: "audio/aac",
+		flac: "audio/flac",
+		webm: "audio/webm"
+	})[extension] ?? "application/octet-stream";
 }
 function playableContent(content) {
 	return content?.state === "ready" && typeof content.packageId === "string" && content.packageId.length > 0 && typeof content.selectedVariant?.variantId === "string" && content.selectedVariant.variantId.length > 0;
