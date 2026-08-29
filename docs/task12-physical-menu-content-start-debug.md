@@ -183,3 +183,16 @@ Verification test: Four phone embed contexts, real summary shape/duplicates, pla
 Related files/components: assembly src/index.js template/renderInteractionShell/browse/select/refreshLibrary/startFromMenu/handleUiIntent; UI aero-product-presenters sharedStyles/BeatSaver/library; authoring persistence summary/service; existing dev:tailscale Vite transform.
 Remaining uncertainty: Unseen attachment pixels, exact phone Version DOM/options, real IndexedDB metadata, and post-Music-gate camera/calibration behavior.
 ```
+
+## Implemented Repair — QA Pending
+
+The UI-owned compact quick-choice contract landed and closed QA at `b777bdb`. Assembly P0 `h8z` now implements the diagnosed owning boundary:
+
+- one opaque `#f3f8fa` drawer surface contains Calibrate/Start and all four sections; computed heading contrast is about 15.65:1;
+- the sole 48×48 corner control changes `☰` to `×`; the second drawer-close button no longer exists, while backdrop, Escape, deep focus cycling, and focus restoration remain;
+- real `songName`/`difficulty` authoring summaries sort deterministically, preserve the selected package, and feed the UI's concise radios plus one selected Export/Delete area; `library-export` now downloads child-local bytes without snapshot or iframe transport;
+- browse results and Version options retain only versions with at least one Standard difficulty, and the first playable version always supplies a Difficulty option;
+- Calibrate/Start serializes repeat taps, awaits a pending local selection or imports the selected BeatSaver map, verifies playable content, requests camera exactly once, and closes directly into the fresh T-pose gate; failed import leaves the drawer open and camera untouched;
+- Vite resolves `@aerobeat/web-ui` to its linked source with symlink following and an explicit local workspace allow-list. The existing managed `:5173` process auto-reloaded its config without being stopped or replaced; its actual browser DOM now proves no Play button, one local radio, one Export/Delete area, one menu control, and `×` while open.
+
+Direct and real cross-origin iframe matrices at 390×844 and 844×390 now assert the one surface/control, AA contrast, exact drawer text/actions, unsupported-version filtering, failed-import zero-camera behavior, successful selected-map import then one camera request/menu close/T-pose, local quick selection, lifecycle/privacy/no-winner, and renderer overlay invariants. Automated evidence does not replace Derrick's pending phone camera/calibration/play observation.

@@ -1,6 +1,7 @@
 // @ts-check
 
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { computeReleaseFingerprint } from "./scripts/release-fingerprint.js";
 
 const basePath = process.env.AEROBEAT_BASE_PATH ?? "/";
@@ -23,13 +24,15 @@ export default {
     __AEROBEAT_PACKAGE_VERSION__: JSON.stringify(packageJson.version)
   },
   resolve: {
-    preserveSymlinks: true
+    alias: [{ find: /^@aerobeat\/web-ui$/u, replacement: fileURLToPath(new URL("../aerobeat-web-ui/src/index.js", import.meta.url)) }],
+    preserveSymlinks: false
   },
   optimizeDeps: {
     exclude: ["@aerobeat/web-content-authoring", "@aerobeat/web-contracts", "@aerobeat/web-gameplay", "@aerobeat/web-renderer", "@aerobeat/web-ui"]
   },
   server: {
     allowedHosts: [tailscaleHost],
+    fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
     host: "127.0.0.1",
     port: 5173,
     strictPort: false

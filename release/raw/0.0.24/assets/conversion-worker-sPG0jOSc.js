@@ -1,5 +1,5 @@
 (function() {
-	//#region node_modules/@aerobeat/web-content-authoring/src/canonical.js
+	//#region ../aerobeat-web-content-authoring/src/canonical.js
 	/**
 	* Deterministically serialize JSON-compatible data with lexically sorted object keys.
 	* Undefined, functions, symbols, accessors, cycles and non-finite numbers are rejected.
@@ -102,7 +102,7 @@
 		return value;
 	}
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/converter-profile.js
+	//#region ../aerobeat-web-content-authoring/src/converter-profile.js
 	const converterProfileClass = "converter_regeneration";
 	deepFreeze({
 		schema: "aerobeat/prototype_profile",
@@ -204,7 +204,7 @@
 		return error;
 	}
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/beatmap.js
+	//#region ../aerobeat-web-content-authoring/src/beatmap.js
 	/** @typedef {"v2" | "v3" | "v4"} BeatMapFormat */
 	/**
 	* Parse and narrow one Beat Saber Standard difficulty document.
@@ -483,7 +483,7 @@
 		}
 	};
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/definitions.js
+	//#region ../aerobeat-web-content-authoring/src/definitions.js
 	const boxingPrototypeContractId = "aerobeat.boxing.prototype.v1";
 	const rowFamilyRecipeId = "row_family_balanced_height_v1";
 	const cutFamilyRecipeId = "cut_family_source_height_v1";
@@ -585,7 +585,7 @@
 		"cross_body"
 	]);
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/converter.js
+	//#region ../aerobeat-web-content-authoring/src/converter.js
 	/** @typedef {"Easy" | "Normal" | "Hard" | "Expert" | "ExpertPlus"} Difficulty */
 	/** @typedef {Record<string, unknown>} DataRecord */
 	/**
@@ -1537,7 +1537,7 @@
 		return Math.ceil(maxBeat * 60 / Math.max(bpm, 1));
 	}
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/parity.js
+	//#region ../aerobeat-web-content-authoring/src/parity.js
 	/**
 	* Cross-language semantic projection. Language-specific canonical hashes are excluded;
 	* definitions, timing, lineage, ordering, targets, checkpoints, modifiers and traces are not.
@@ -1687,7 +1687,7 @@
 		return prefixedSha256(canonicalJson(semanticParityProjection(packageValue)));
 	}
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/validator.js
+	//#region ../aerobeat-web-content-authoring/src/validator.js
 	/**
 	* Validate the canonical browser-authored package before persistence/export.
 	*
@@ -1879,7 +1879,7 @@
 		return Number.isInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
 	}
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/worker-protocol.js
+	//#region ../aerobeat-web-content-authoring/src/worker-protocol.js
 	/** @typedef {Parameters<typeof convertDifficulty>[1]} WorkerConversionOptions */
 	/** @typedef {"v2" | "v3" | "v4"} BeatMapFormat */
 	/**
@@ -2099,7 +2099,7 @@
 		return error;
 	}
 	//#endregion
-	//#region node_modules/@aerobeat/web-content-authoring/src/conversion-worker.js
+	//#region ../aerobeat-web-content-authoring/src/conversion-worker.js
 	const scope = globalThis;
 	scope.onmessage = async (event) => {
 		const request = event.data;
@@ -2156,4 +2156,4 @@
 	//#endregion
 })();
 
-//# sourceMappingURL=conversion-worker-DPEmn8d7.js.map
+//# sourceMappingURL=conversion-worker-sPG0jOSc.js.map

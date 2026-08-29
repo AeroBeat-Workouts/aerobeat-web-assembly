@@ -1,5 +1,5 @@
 import { t as __vitePreload } from "./index.js";
-//#region node_modules/@aerobeat/web-vendor-mediapipe/node_modules/@mediapipe/tasks-vision/vision_bundle.mjs
+//#region ../aerobeat-web-vendor-mediapipe/node_modules/@mediapipe/tasks-vision/vision_bundle.mjs
 var t = "undefined" != typeof self ? self : {};
 function e(e, r) {
 	t: {
@@ -5953,4 +5953,4 @@ Kc.prototype.detectForVideo = Kc.prototype.H, Kc.prototype.detect = Kc.prototype
 //#endregion
 export { Pu as DrawingUtils, ic as FaceDetector, mc as FaceLandmarker, ah as FilesetResolver, Ac as GestureRecognizer, bc as HandLandmarker, xc as HolisticLandmarker, Rc as ImageClassifier, Ic as ImageEmbedder, Oc as ImageSegmenter, Fc as ImageSegmenterResult, $c as InteractiveSegmenter, Bc as InteractiveSegmenterLegacy, Uc as InteractiveSegmenterLegacyResult, Xu as MPImage, Su as MPMask, Gc as ObjectDetector, Kc as PoseLandmarker, iu as TaskRunner, nc as VisionTaskRunner };
 
-//# sourceMappingURL=vision_bundle-CAb2dpSo.js.map
+//# sourceMappingURL=vision_bundle-CPgxPL03.js.map

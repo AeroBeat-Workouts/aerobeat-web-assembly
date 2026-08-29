@@ -2,7 +2,7 @@
   "artifactKind": "raw-unminified-browser-proof",
   "packageName": "@aerobeat/web-assembly",
   "proofVersion": "0.0.24",
-  "sourceFingerprint": "6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97",
+  "sourceFingerprint": "fdb493e4b0c947b9af3e75b8dd742a5928f090bc4d92ea96b2fe9b3b339c2bde",
   "minified": false,
   "basePath": "/",
   "productionPoseConfiguration": {
@@ -29,13 +29,13 @@
     "mediapipe"
   ],
   "runtimeJavaScriptAssets": [
-    "assets/conversion-worker-DPEmn8d7.js",
+    "assets/conversion-worker-sPG0jOSc.js",
     "assets/index.js",
     "assets/mediapipe-worker.js",
-    "assets/vision_bundle-CAb2dpSo.js"
+    "assets/vision_bundle-CPgxPL03.js"
   ],
   "runtimeWasmAssets": [],
-  "totalArtifactBytesBeforeManifest": 4004042,
+  "totalArtifactBytesBeforeManifest": 3274849,
   "forbiddenRuntimeAssetPatternsChecked": [
     "movenet",
     "onnx",

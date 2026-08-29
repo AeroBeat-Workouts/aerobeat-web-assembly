@@ -28,7 +28,29 @@
 		fetch(link.href, fetchOpts);
 	}
 })();
-Object.freeze({
+//#endregion
+//#region ../aerobeat-web-contracts/src/service-ids.js
+/**
+* Canonical AeroBeat web service IDs.
+*
+* @type {Readonly<{
+*   audioClock: "aero.audio.clock",
+*   videoMedia: "aero.video.media",
+*   cvPose: "aero.cv.pose",
+*   inputRouter: "aero.input.router",
+*   bodyGrid: "aero.input.body-grid",
+*   beatSaverVendor: "aero.vendor.beatsaver",
+*   contentAuthoring: "aero.content.authoring",
+*   contentLibrary: "aero.content.library",
+*   gameplaySession: "aero.gameplay.session",
+*   prototypeProfiles: "aero.gameplay.prototype-profiles",
+*   mediaLease: "aero.assembly.media-lease",
+*   rendererWebgl2: "aero.renderer.webgl2",
+*   uiRouter: "aero.ui.router",
+*   performancePolicy: "aero.performance.policy"
+* }>}
+*/
+var serviceIds = Object.freeze({
 	audioClock: "aero.audio.clock",
 	videoMedia: "aero.video.media",
 	cvPose: "aero.cv.pose",
@@ -66,7 +88,7 @@ Object.freeze({
 	gameEvent: "aero:game:event"
 });
 //#endregion
-//#region node_modules/@aerobeat/web-contracts/src/element-names.js
+//#region ../aerobeat-web-contracts/src/element-names.js
 /**
 * Canonical custom element registry names used across AeroBeat web packages.
 *
@@ -88,7 +110,7 @@ Object.freeze({
 *   fullscreenButton: "aero-fullscreen-button"
 * }>}
 */
-var elementNames$4 = Object.freeze({
+var elementNames = Object.freeze({
 	game: "aero-game",
 	iconButton: "aero-icon-button",
 	calibrationBadge: "aero-calibration-badge",
@@ -106,12 +128,12 @@ var elementNames$4 = Object.freeze({
 	fullscreenButton: "aero-fullscreen-button"
 });
 //#endregion
-//#region node_modules/@aerobeat/web-contracts/src/contract-guards.js
+//#region ../aerobeat-web-contracts/src/contract-guards.js
 /**
 * @param {unknown} value
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function isRecord$10(value) {
+function isRecord$3(value) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const prototype = Object.getPrototypeOf(value);
 	return prototype === Object.prototype || prototype === null;
@@ -124,8 +146,8 @@ function isRecord$10(value) {
 * @param {readonly string[]} expectedKeys
 * @returns {value is Readonly<Record<string, unknown>>}
 */
-function hasExactKeys$6(value, expectedKeys) {
-	if (!isRecord$10(value)) return false;
+function hasExactKeys$1(value, expectedKeys) {
+	if (!isRecord$3(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	return keys.length === expectedKeys.length && keys.every((key) => {
 		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
@@ -137,22 +159,29 @@ function hasExactKeys$6(value, expectedKeys) {
 * @param {unknown} value
 * @returns {value is number}
 */
-function isFiniteNumber$5(value) {
+function isFiniteNumber(value) {
 	return typeof value === "number" && Number.isFinite(value);
 }
 /**
 * @param {unknown} value
 * @returns {value is number}
 */
-function isNonNegativeFiniteNumber$4(value) {
-	return isFiniteNumber$5(value) && value >= 0;
+function isNonNegativeFiniteNumber(value) {
+	return isFiniteNumber(value) && value >= 0;
 }
 /**
 * @param {unknown} value
 * @returns {value is string}
 */
-function isNonEmptyString$5(value) {
+function isNonEmptyString$1(value) {
 	return typeof value === "string" && value.length > 0;
+}
+/**
+* @param {unknown} value
+* @returns {value is number}
+*/
+function isNormalizedNumber(value) {
+	return isFiniteNumber(value) && value >= 0 && value <= 1;
 }
 /**
 * @template {string} T
@@ -160,7 +189,7 @@ function isNonEmptyString$5(value) {
 * @param {readonly T[]} allowed
 * @returns {value is T}
 */
-function isOneOf$3(value, allowed) {
+function isOneOf(value, allowed) {
 	return typeof value === "string" && allowed.includes(value);
 }
 Object.freeze([
@@ -169,7 +198,8 @@ Object.freeze([
 	"athlete_top_left",
 	"playfield_top_left"
 ]);
-Object.freeze({
+/** @type {AeroGridDescriptor} */
+var athleteBodyGrid4x3 = Object.freeze({
 	schema: "aerobeat/grid_descriptor",
 	version: 1,
 	id: "athlete_body_4x3",
@@ -179,7 +209,8 @@ Object.freeze({
 	indexing: "top_left_row_major",
 	horizontallyOpposedToCamera: true
 });
-Object.freeze({
+/** @type {AeroGridDescriptor} */
+var athleteBodySubgrid8x6 = Object.freeze({
 	schema: "aerobeat/grid_descriptor",
 	version: 1,
 	id: "athlete_body_8x6",
@@ -199,6 +230,36 @@ Object.freeze({
 	indexing: "top_left_row_major",
 	horizontallyOpposedToCamera: false
 });
+/**
+* Convert an upstream camera point directly to public athlete space.
+*
+* @param {AeroNormalizedPoint} point
+* @returns {AeroNormalizedPoint}
+*/
+function cameraPreviewToAthlete(point) {
+	return Object.freeze({
+		x: 1 - point.x,
+		y: point.y
+	});
+}
+/**
+* Resolve a normalized point without clamping. Coordinates on or outside the far edge
+* are diagnostic-only and produce no scoring cell.
+*
+* @param {AeroNormalizedPoint} point
+* @param {AeroGridDescriptor} descriptor
+* @returns {AeroGridCellRef | null}
+*/
+function normalizedPointToGridCell(point, descriptor) {
+	if (!isFiniteNumber(point.x) || !isFiniteNumber(point.y) || point.x < 0 || point.x >= 1 || point.y < 0 || point.y >= 1) return null;
+	const column = point.x === 0 ? 0 : Math.floor(point.x * descriptor.columns);
+	const row = point.y === 0 ? 0 : Math.floor(point.y * descriptor.rows);
+	return Object.freeze({
+		id: row === 0 && column === 0 ? 0 : row * descriptor.columns + column,
+		row,
+		column
+	});
+}
 Object.freeze(["measured", "predicted"]);
 Object.freeze({
 	idle: "idle",
@@ -207,7 +268,91 @@ Object.freeze({
 	failed: "failed",
 	disposed: "disposed"
 });
-Object.freeze([
+//#endregion
+//#region ../aerobeat-web-contracts/src/body-grid-contracts.js
+/**
+* @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
+*/
+/**
+* @typedef {"up" | "up-right" | "right" | "down-right" | "down" | "down-left" | "left" | "up-left"} AeroBodyGridDirection
+*/
+/**
+* Compatibility alias for consumers that previously named this cardinal-only contract.
+* The serialized direction field is now eight-way without changing its schema shape.
+* @deprecated Use AeroBodyGridDirection.
+* @typedef {AeroBodyGridDirection} AeroCardinalDirection
+*/
+/**
+* @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
+*/
+/**
+* @typedef {"not_ready" | "calibration_required" | "countdown" | "ready" | "paused_tracking" | "paused_manual" | "destroyed"} AeroReadinessState
+*/
+/**
+* @typedef {Object} AeroCalibratedBounds
+* @property {number} left Athlete-space left edge.
+* @property {number} top Athlete-space top edge.
+* @property {number} right Athlete-space right edge.
+* @property {number} bottom Athlete-space bottom edge.
+*/
+/**
+* @typedef {Object} AeroBodyGridAnchorSnapshot
+* @property {"aerobeat/body_grid_anchor_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
+* @property {string} calibrationId Calibration generation identity.
+* @property {number} measurementTimestampMs Latest real measurement timestamp.
+* @property {boolean} valid Whether this measured anchor is gameplay-valid.
+* @property {number} confidence Normalized measured confidence.
+* @property {number} rawX Unclamped athlete-space X.
+* @property {number} rawY Unclamped athlete-space Y.
+* @property {number | null} x Normalized athlete-space X when valid.
+* @property {number | null} y Normalized athlete-space Y when valid.
+* @property {number | null} cell Top-left row-major 4x3 scoring cell, or null outside the grid.
+* @property {number | null} subcell Top-left row-major 8x6 diagnostic/scoring subcell, or null outside the grid.
+*/
+/**
+* @typedef {Object} AeroBodyGridCellEntry
+* @property {"aerobeat/body_grid_cell_entry"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
+* @property {string} calibrationId Calibration generation identity.
+* @property {number} measurementTimestampMs Real measurement timestamp.
+* @property {number} fromCell In-grid source cell.
+* @property {number} toCell In-grid destination cell.
+* @property {AeroBodyGridDirection} [direction] Eight-way athlete-space entry direction when recent motion is unambiguous. Omission records a measured cell entry without directional evidence.
+* @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
+*/
+/**
+* @typedef {Object} AeroCalibrationSnapshot
+* @property {"aerobeat/calibration_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {AeroCalibrationState} state Calibration lifecycle state.
+* @property {AeroReadinessState} readiness Gameplay readiness state.
+* @property {string | null} calibrationId Current calibration generation.
+* @property {number} timestampMs Snapshot timestamp.
+* @property {number} holdDurationMs Required qualified hold duration.
+* @property {number} holdProgressMs Current qualified hold progress.
+* @property {number} cooldownRemainingMs Cooldown remaining after completion.
+* @property {boolean} releaseRequired Whether T-pose release is required before refire.
+* @property {AeroCalibratedBounds | null} bounds Atomically published athlete-space bounds.
+* @property {import("./coordinate-spaces.js").AeroGridDescriptor} grid Public 4x3 athlete grid.
+* @property {import("./coordinate-spaces.js").AeroGridDescriptor} subgrid Public 8x6 athlete subgrid.
+* @property {string | null} invalidationReason Null or stable invalidation reason.
+*/
+/**
+* @typedef {Object} AeroTrackingSafetySnapshot
+* @property {"aerobeat/tracking_safety_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {number} timestampMs Snapshot timestamp.
+* @property {number} lossThresholdMs Sustained loss duration that pauses gameplay.
+* @property {number} lossDurationMs Current sustained loss duration.
+* @property {boolean} allRequiredAnchorsVisible Whether all seven required anchors pass confidence.
+* @property {boolean} gameplayPaused Whether tracking safety currently pauses gameplay.
+* @property {boolean} freshCalibrationRequired Whether pause exit requires new calibration.
+*/
+/** @type {readonly AeroUpperBodyAnchorName[]} */
+var upperBodyAnchorNames = Object.freeze([
 	"nose",
 	"left_shoulder",
 	"right_shoulder",
@@ -216,7 +361,8 @@ Object.freeze([
 	"left_wrist",
 	"right_wrist"
 ]);
-Object.freeze([
+/** @type {readonly AeroBodyGridDirection[]} */
+var bodyGridDirections = Object.freeze([
 	"up",
 	"up-right",
 	"right",
@@ -235,7 +381,8 @@ Object.freeze([
 	"tracking_lost",
 	"invalidated"
 ]);
-Object.freeze([
+/** @type {readonly AeroReadinessState[]} */
+var readinessStates = Object.freeze([
 	"not_ready",
 	"calibration_required",
 	"countdown",
@@ -244,7 +391,7 @@ Object.freeze([
 	"paused_manual",
 	"destroyed"
 ]);
-Object.freeze({
+var calibrationDefaults = Object.freeze({
 	requiredConfidence: .5,
 	holdDurationMs: 4e3,
 	cooldownDurationMs: 4e3,
@@ -252,6 +399,28 @@ Object.freeze({
 	wristElbowVerticalRatio: .35,
 	minimumElbowAngleDeg: 130
 });
+/**
+* @param {unknown} value
+* @returns {value is AeroBodyGridAnchorSnapshot}
+*/
+function isBodyGridAnchorSnapshot(value) {
+	if (!isRecord$3(value)) return false;
+	const valid = typeof value.valid === "boolean" ? value.valid : false;
+	const normalizedPosition = valid ? isNormalizedNumber(value.rawX) && isNormalizedNumber(value.rawY) && isNormalizedNumber(value.x) && isNormalizedNumber(value.y) : (value.x === null || isNormalizedNumber(value.x)) && (value.y === null || isNormalizedNumber(value.y));
+	const nullableCell = value.cell === null || Number.isInteger(value.cell) && Number(value.cell) >= 0 && Number(value.cell) < 12;
+	const nullableSubcell = value.subcell === null || Number.isInteger(value.subcell) && Number(value.subcell) >= 0 && Number(value.subcell) < 48;
+	const invalidHasNoScoringCell = valid || value.cell === null && value.subcell === null;
+	return value.schema === "aerobeat/body_grid_anchor_snapshot" && value.version === 1 && isOneOf(value.anchor, upperBodyAnchorNames) && isNonEmptyString$1(value.calibrationId) && isNonNegativeFiniteNumber(value.measurementTimestampMs) && typeof value.valid === "boolean" && isNormalizedNumber(value.confidence) && isFiniteNumber(value.rawX) && isFiniteNumber(value.rawY) && normalizedPosition && nullableCell && nullableSubcell && invalidHasNoScoringCell && (!valid || value.x !== null && value.y !== null);
+}
+/**
+* @param {unknown} value
+* @returns {value is AeroBodyGridCellEntry}
+*/
+function isBodyGridCellEntry(value) {
+	if (!isRecord$3(value)) return false;
+	const directionValid = !Object.hasOwn(value, "direction") || isOneOf(value.direction, bodyGridDirections);
+	return value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf(value.anchor, upperBodyAnchorNames) && isNonEmptyString$1(value.calibrationId) && isNonNegativeFiniteNumber(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && directionValid && value.provenance === "measured";
+}
 Object.freeze([
 	"idle",
 	"selecting_content",
@@ -270,14 +439,87 @@ Object.freeze([
 	"tracking_resume",
 	"content_change"
 ]);
-Object.freeze(["camera", "audio"]);
-Object.freeze([
+/** @type {readonly ("camera" | "audio")[]} */
+var mediaLeaseResources = Object.freeze(["camera", "audio"]);
+/**
+* @param {unknown} value
+* @returns {value is AeroMediaLeaseSnapshot}
+*/
+function isMediaLeaseSnapshot(value) {
+	return hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"ownerInstanceId",
+		"generation",
+		"state",
+		"resources"
+	]) && value.schema === "aerobeat/media_lease_snapshot" && value.version === 1 && (value.ownerInstanceId === null || isNonEmptyString$1(value.ownerInstanceId)) && Number.isInteger(value.generation) && Number(value.generation) >= 0 && (value.state === "idle" || value.state === "transferring" || value.state === "owned") && Array.isArray(value.resources) && value.resources.every((item) => mediaLeaseResources.includes(item)) && new Set(value.resources).size === value.resources.length;
+}
+//#endregion
+//#region ../aerobeat-web-contracts/src/gameplay-contracts.js
+/**
+* @typedef {"flow_grid_v1" | "boxing_semantic_track_v1" | "boxing_spatial_grid_v1"} AeroRulesetId
+*/
+/**
+* @typedef {"row_family_balanced_height_v1" | "cut_family_source_height_v1"} AeroConversionRecipeId
+*/
+/**
+* @typedef {"straight_left" | "straight_right" | "hook_left" | "hook_right" | "uppercut_left" | "uppercut_right" | "guard" | "crossed_guard" | "squat" | "weave_left" | "weave_right"} AeroBoxingAction
+*/
+/**
+* @typedef {"no_input" | "stale_input" | "wrong_cell" | "wrong_subcell" | "wrong_direction" | "qualification_too_short" | "tracking_invalid" | "calibration_mismatch" | "timing_miss" | "blocked_overlap" | "action_consumed"} AeroJudgementDiagnosticCode
+*/
+/**
+* @typedef {Object} AeroGameplayEvidenceSnapshot
+* @property {"aerobeat/gameplay_evidence_snapshot"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} calibrationId Calibration generation.
+* @property {string} measuredSourceFrameId Real source-frame identity.
+* @property {number} measurementTimestampMs Real measurement timestamp.
+* @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
+* @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
+*/
+/**
+* @typedef {Object} AeroGameplayJudgement
+* @property {"aerobeat/gameplay_judgement"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} eventId Authored event identity.
+* @property {AeroRulesetId} rulesetId Ruleset identity.
+* @property {AeroConversionRecipeId | null} recipeId Recipe identity when generated.
+* @property {"hit" | "miss" | "ignored"} result Binary prototype result or non-scoring ignored event.
+* @property {number} beatCenterTimestampMs Event center timestamp.
+* @property {number | null} evidenceTimestampMs Consumed evidence timestamp.
+* @property {number | null} timingOffsetMs Evidence minus beat center.
+* @property {readonly AeroJudgementDiagnosticCode[]} diagnostics Detailed diagnostics.
+* @property {boolean} shadow Whether this judgement is diagnostic-only.
+*/
+/**
+* @typedef {Object} AeroPrototypeTuningIdentityBase
+* @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} profileId Stable bounded profile ID.
+* @property {string} profileVersion Stable bounded profile version.
+* @property {string} contentHash Bare lowercase SHA-256 content hash.
+*/
+/**
+* A converter identity is pending when `regenerationRequired` is true and
+* applied when the owning registry has matched generated-package provenance
+* and emits false. Visual and scoring identities are always live/applied.
+*
+* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
+*/
+/** @type {readonly AeroRulesetId[]} */
+var rulesetIds = Object.freeze([
 	"flow_grid_v1",
 	"boxing_semantic_track_v1",
 	"boxing_spatial_grid_v1"
 ]);
-Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-Object.freeze([
+/** @type {readonly AeroConversionRecipeId[]} */
+var conversionRecipeIds = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
+/** @type {readonly AeroBoxingAction[]} */
+var boxingActions = Object.freeze([
 	"straight_left",
 	"straight_right",
 	"hook_left",
@@ -303,7 +545,7 @@ Object.freeze([
 	"blocked_overlap",
 	"action_consumed"
 ]);
-Object.freeze({
+var prototypeJudgementDefaults = Object.freeze({
 	timingWindowBeforeMs: 180,
 	timingWindowAfterMs: 180,
 	checkpointFreshnessMs: 150,
@@ -311,13 +553,125 @@ Object.freeze({
 	straightContinuityGapMs: 150,
 	minimumPunchSpacingMs: 360
 });
-Object.freeze([
+/**
+* @param {unknown} value
+* @returns {value is AeroGameplayEvidenceSnapshot}
+*/
+function isGameplayEvidenceSnapshot(value) {
+	return isRecord$3(value) && value.schema === "aerobeat/gameplay_evidence_snapshot" && value.version === 1 && isNonEmptyString$1(value.calibrationId) && isNonEmptyString$1(value.measuredSourceFrameId) && isNonNegativeFiniteNumber(value.measurementTimestampMs) && value.provenance === "measured" && Array.isArray(value.activeBoxingActions) && value.activeBoxingActions.every((item) => isOneOf(item, boxingActions)) && Array.isArray(value.anchors) && value.anchors.every(isBodyGridAnchorSnapshot) && Array.isArray(value.entries) && value.entries.every(isBodyGridCellEntry);
+}
+/**
+* @param {unknown} value
+* @returns {value is AeroPrototypeTuningIdentity}
+*/
+function isPrototypeTuningIdentity(value) {
+	return hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString(value.profileId, 256) && isBoundedNonEmptyString(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf(value.class, [
+		"live_visual",
+		"between_run_ruleset",
+		"converter_regeneration"
+	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
+}
+/** @param {unknown} value @param {number} maximum */
+function isBoundedNonEmptyString(value, maximum) {
+	return typeof value === "string" && value.length > 0 && value.length <= maximum;
+}
+//#endregion
+//#region ../aerobeat-web-contracts/src/content-contracts.js
+/**
+* @typedef {"no_squats" | "no_weaves" | "any_punch" | "crossed_guard" | "cross_body"} AeroMapModifierId
+*/
+/**
+* @typedef {Object} AeroContentHash
+* @property {"aerobeat/content_hash"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {"sha1" | "sha256"} algorithm Hash algorithm.
+* @property {string} value Lowercase hexadecimal hash.
+*/
+/**
+* @typedef {Object} AeroContentProvenance
+* @property {"aerobeat/content_provenance"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} sourceProvider Provider identity.
+* @property {string} sourceId Provider map/source identity.
+* @property {string} sourceVersionHash Selected source version hash.
+* @property {string} sourceDifficulty Source difficulty identity.
+* @property {string} recipeVersion Immutable recipe version.
+* @property {readonly string[]} sourceEventIds Stable source event lineage.
+*/
+/**
+* @typedef {Object} AeroContentVariantIdentity
+* @property {"aerobeat/content_variant_identity"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} packageId Package identity.
+* @property {string} chartId Chart identity.
+* @property {import("./gameplay-contracts.js").AeroRulesetId} rulesetId Ruleset identity.
+* @property {import("./gameplay-contracts.js").AeroConversionRecipeId | null} recipeId Conversion recipe.
+* @property {readonly AeroMapModifierId[]} modifierIds Ordered modifier identities.
+* @property {AeroContentHash} mapHash Canonical map hash.
+* @property {AeroContentHash} scoreIdentityHash Ruleset/recipe/map score partition hash.
+* @property {boolean} ranked Whether this immutable variant is ranked.
+*/
+/**
+* @typedef {Object} AeroPersistenceHandle
+* @property {"aerobeat/persistence_handle"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {"indexeddb" | "memory" | "external_url"} storage Storage class.
+* @property {string} namespace Stable storage namespace.
+* @property {string} key Opaque package key.
+* @property {string} packageId Public package identity.
+* @property {AeroContentHash} packageHash Package integrity hash.
+*/
+/** @type {readonly AeroMapModifierId[]} */
+var mapModifierIds = Object.freeze([
 	"no_squats",
 	"no_weaves",
 	"any_punch",
 	"crossed_guard",
 	"cross_body"
 ]);
+/**
+* @param {unknown} value
+* @returns {value is AeroContentHash}
+*/
+function isContentHash(value) {
+	if (!hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"algorithm",
+		"value"
+	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
+	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
+	if (typeof value.value !== "string") return false;
+	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
+	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
+}
+/**
+* @param {unknown} value
+* @returns {value is AeroPersistenceHandle}
+*/
+function isPersistenceHandle(value) {
+	return hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"storage",
+		"namespace",
+		"key",
+		"packageId",
+		"packageHash"
+	]) && value.schema === "aerobeat/persistence_handle" && value.version === 1 && isOneOf(value.storage, [
+		"indexeddb",
+		"memory",
+		"external_url"
+	]) && isNonEmptyString$1(value.namespace) && isNonEmptyString$1(value.key) && isNonEmptyString$1(value.packageId) && isContentHash(value.packageHash);
+}
 Object.freeze([
 	"queued",
 	"acquiring",
@@ -329,7 +683,43 @@ Object.freeze([
 	"cancelled",
 	"failed"
 ]);
-Object.freeze([
+//#endregion
+//#region ../aerobeat-web-contracts/src/theme-contracts.js
+/**
+* @typedef {Object} AeroThemeTokens
+* @property {string} leftHandColor CSS color token value.
+* @property {string} rightHandColor CSS color token value.
+* @property {string} guardColor CSS color token value.
+* @property {string} obstacleColor CSS color token value.
+* @property {string} receptorColor CSS color token value.
+* @property {number} approachLeadMs Approach animation lead time.
+* @property {number} targetStartScale Target initial scale.
+* @property {number} targetHitScale Target beat-center scale.
+* @property {string} approachEasing Serializable easing token.
+* @property {string} hitEasing Serializable easing token.
+* @property {string} missEasing Serializable easing token.
+*/
+/**
+* @typedef {Object} AeroThemeDescriptor
+* @property {"aerobeat/theme_descriptor"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {string} id Stable theme ID.
+* @property {string} themeVersion Theme version.
+* @property {AeroThemeTokens} tokens Serializable approved tokens.
+* @property {import("./content-contracts.js").AeroContentHash} contentHash Canonical token hash.
+*/
+/**
+* @typedef {Object} AeroBackgroundSuggestion
+* @property {"aerobeat/background_suggestion"} schema Schema ID.
+* @property {1} version Schema version.
+* @property {"default" | "playlist" | "song" | "athlete"} source Suggestion precedence source.
+* @property {"css" | "image" | "video"} kind Background kind.
+* @property {string | null} url External/package URL for media kinds.
+* @property {import("./content-contracts.js").AeroContentHash | null} hash Required media hash for gameplay package assets.
+* @property {string | null} themeId Optional associated theme.
+*/
+/** @type {readonly (keyof AeroThemeTokens)[]} */
+var serializableThemeTokenNames = Object.freeze([
 	"leftHandColor",
 	"rightHandColor",
 	"guardColor",
@@ -342,14 +732,60 @@ Object.freeze([
 	"hitEasing",
 	"missEasing"
 ]);
-Object.freeze([
+/** @type {readonly ("default" | "playlist" | "song" | "athlete")[]} */
+var backgroundSuggestionPrecedence = Object.freeze([
 	"default",
 	"playlist",
 	"song",
 	"athlete"
 ]);
+/**
+* @param {unknown} value
+* @returns {value is AeroThemeDescriptor}
+*/
+function isThemeDescriptor(value) {
+	if (!hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"id",
+		"themeVersion",
+		"tokens",
+		"contentHash"
+	]) || !isRecord$3(value.tokens)) return false;
+	const tokens = value.tokens;
+	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames.length && Object.keys(tokens).every((key) => serializableThemeTokenNames.includes(key));
+	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$1(value.id) && isNonEmptyString$1(value.themeVersion) && exactTokenKeys && isNonEmptyString$1(tokens.leftHandColor) && isNonEmptyString$1(tokens.rightHandColor) && isNonEmptyString$1(tokens.guardColor) && isNonEmptyString$1(tokens.obstacleColor) && isNonEmptyString$1(tokens.receptorColor) && isNonNegativeFiniteNumber(tokens.approachLeadMs) && isNonNegativeFiniteNumber(tokens.targetStartScale) && isNonNegativeFiniteNumber(tokens.targetHitScale) && isNonEmptyString$1(tokens.approachEasing) && isNonEmptyString$1(tokens.hitEasing) && isNonEmptyString$1(tokens.missEasing) && isContentHash(value.contentHash);
+}
+/**
+* @param {unknown} value
+* @returns {value is AeroBackgroundSuggestion}
+*/
+function isBackgroundSuggestion(value) {
+	if (!hasExactKeys$1(value, [
+		"schema",
+		"version",
+		"source",
+		"kind",
+		"url",
+		"hash",
+		"themeId"
+	])) return false;
+	const sources = [
+		"default",
+		"playlist",
+		"song",
+		"athlete"
+	];
+	const kinds = [
+		"css",
+		"image",
+		"video"
+	];
+	const mediaKind = value.kind === "image" || value.kind === "video";
+	return value.schema === "aerobeat/background_suggestion" && value.version === 1 && typeof value.source === "string" && sources.includes(value.source) && typeof value.kind === "string" && kinds.includes(value.kind) && (mediaKind ? isNonEmptyString$1(value.url) : value.url === null) && (value.hash === null || isContentHash(value.hash)) && (value.themeId === null || isNonEmptyString$1(value.themeId));
+}
 //#endregion
-//#region node_modules/@aerobeat/web-contracts/src/host-contracts.js
+//#region ../aerobeat-web-contracts/src/host-contracts.js
 /**
 * @typedef {"configure" | "start" | "pause" | "resume" | "stop" | "reset_calibration" | "request_fullscreen" | "select_content" | "select_variant" | "browse_beatsaver" | "import_beatsaver" | "import_local_zip" | "cancel_import" | "delete_package" | "set_theme" | "destroy"} AeroGameCommandType
 */
@@ -419,7 +855,7 @@ Object.freeze([
 * @property {"block_startup"} criticalAssetFailure Gameplay-critical asset behavior.
 */
 /** @type {readonly AeroGameCommandType[]} */
-var gameCommandTypes$4 = Object.freeze([
+var gameCommandTypes = Object.freeze([
 	"configure",
 	"start",
 	"pause",
@@ -438,7 +874,7 @@ var gameCommandTypes$4 = Object.freeze([
 	"destroy"
 ]);
 /** @type {readonly AeroGameEventType[]} */
-var gameEventTypes$4 = Object.freeze([
+var gameEventTypes = Object.freeze([
 	"ready",
 	"capabilities_changed",
 	"calibration_changed",
@@ -467,30 +903,30 @@ Object.freeze({
 * @returns {value is AeroGameCommand}
 */
 function isGameCommand(value) {
-	return hasExactKeys$6(value, [
+	return hasExactKeys$1(value, [
 		"schema",
 		"version",
 		"commandId",
 		"type",
 		"payload"
-	]) && value.schema === "aerobeat/game_command" && value.version === 1 && isNonEmptyString$5(value.commandId) && isOneOf$3(value.type, gameCommandTypes$4) && (value.payload === null || isRecord$10(value.payload));
+	]) && value.schema === "aerobeat/game_command" && value.version === 1 && isNonEmptyString$1(value.commandId) && isOneOf(value.type, gameCommandTypes) && (value.payload === null || isRecord$3(value.payload));
 }
 /**
 * @param {unknown} value
 * @returns {value is AeroGameEvent}
 */
 function isGameEvent(value) {
-	return hasExactKeys$6(value, [
+	return hasExactKeys$1(value, [
 		"schema",
 		"version",
 		"eventId",
 		"type",
 		"timestampMs",
 		"payload"
-	]) && value.schema === "aerobeat/game_event" && value.version === 1 && isNonEmptyString$5(value.eventId) && isOneOf$3(value.type, gameEventTypes$4) && isNonNegativeFiniteNumber$4(value.timestampMs) && (value.payload === null || isRecord$10(value.payload));
+	]) && value.schema === "aerobeat/game_event" && value.version === 1 && isNonEmptyString$1(value.eventId) && isOneOf(value.type, gameEventTypes) && isNonNegativeFiniteNumber(value.timestampMs) && (value.payload === null || isRecord$3(value.payload));
 }
 //#endregion
-//#region node_modules/@aerobeat/web-contracts/src/iframe-contracts.js
+//#region ../aerobeat-web-contracts/src/iframe-contracts.js
 /**
 * @typedef {"handshake_request" | "handshake_ack" | "command" | "event" | "error" | "disconnect"} AeroIframeMessageKind
 */
@@ -504,7 +940,7 @@ function isGameEvent(value) {
 * @property {Readonly<Record<string, unknown>> | null} payload Structured payload without media/binary data.
 */
 /** @type {readonly AeroIframeMessageKind[]} */
-var iframeMessageKinds$4 = Object.freeze([
+var iframeMessageKinds = Object.freeze([
 	"handshake_request",
 	"handshake_ack",
 	"command",
@@ -600,7 +1036,7 @@ function isBridgeValue(value, seen) {
 		seen.delete(value);
 		return valid;
 	}
-	if (!isRecord$10(value)) return false;
+	if (!isRecord$3(value)) return false;
 	if (seen.has(value)) return false;
 	const keys = Reflect.ownKeys(value);
 	if (keys.some((key) => {
@@ -627,14 +1063,14 @@ function isBridgeValue(value, seen) {
 * @returns {boolean}
 */
 function isSafeIframePayload(value) {
-	return value === null || isRecord$10(value) && isBridgeValue(value, /* @__PURE__ */ new Set());
+	return value === null || isRecord$3(value) && isBridgeValue(value, /* @__PURE__ */ new Set());
 }
 /**
 * @param {unknown} value
 * @returns {value is AeroIframeMessage}
 */
 function isIframeMessage(value) {
-	if (!hasExactKeys$6(value, [
+	if (!hasExactKeys$1(value, [
 		"schema",
 		"version",
 		"kind",
@@ -642,639 +1078,15 @@ function isIframeMessage(value) {
 		"instanceId",
 		"payload"
 	])) return false;
-	if (value.schema !== "aerobeat/iframe_message" || value.version !== 1 || !isOneOf$3(value.kind, iframeMessageKinds$4) || !isNonEmptyString$5(value.messageId) || !isNonEmptyString$5(value.instanceId) || !isSafeIframePayload(value.payload)) return false;
-	if (value.kind === "handshake_request") return hasExactKeys$6(value.payload, ["protocolVersion"]) && value.payload.protocolVersion === 1;
-	if (value.kind === "handshake_ack") return hasExactKeys$6(value.payload, ["protocolVersion", "accepted"]) && value.payload.protocolVersion === 1 && typeof value.payload.accepted === "boolean";
-	if (value.kind === "command") return hasExactKeys$6(value.payload, ["command"]) && isGameCommand(value.payload.command);
-	if (value.kind === "event") return hasExactKeys$6(value.payload, ["event"]) && isGameEvent(value.payload.event);
+	if (value.schema !== "aerobeat/iframe_message" || value.version !== 1 || !isOneOf(value.kind, iframeMessageKinds) || !isNonEmptyString$1(value.messageId) || !isNonEmptyString$1(value.instanceId) || !isSafeIframePayload(value.payload)) return false;
+	if (value.kind === "handshake_request") return hasExactKeys$1(value.payload, ["protocolVersion"]) && value.payload.protocolVersion === 1;
+	if (value.kind === "handshake_ack") return hasExactKeys$1(value.payload, ["protocolVersion", "accepted"]) && value.payload.protocolVersion === 1 && typeof value.payload.accepted === "boolean";
+	if (value.kind === "command") return hasExactKeys$1(value.payload, ["command"]) && isGameCommand(value.payload.command);
+	if (value.kind === "event") return hasExactKeys$1(value.payload, ["event"]) && isGameEvent(value.payload.event);
 	return true;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/service-ids.js
-/**
-* Canonical AeroBeat web service IDs.
-*
-* @type {Readonly<{
-*   audioClock: "aero.audio.clock",
-*   videoMedia: "aero.video.media",
-*   cvPose: "aero.cv.pose",
-*   inputRouter: "aero.input.router",
-*   bodyGrid: "aero.input.body-grid",
-*   beatSaverVendor: "aero.vendor.beatsaver",
-*   contentAuthoring: "aero.content.authoring",
-*   contentLibrary: "aero.content.library",
-*   gameplaySession: "aero.gameplay.session",
-*   prototypeProfiles: "aero.gameplay.prototype-profiles",
-*   mediaLease: "aero.assembly.media-lease",
-*   rendererWebgl2: "aero.renderer.webgl2",
-*   uiRouter: "aero.ui.router",
-*   performancePolicy: "aero.performance.policy"
-* }>}
-*/
-var serviceIds$3 = Object.freeze({
-	audioClock: "aero.audio.clock",
-	videoMedia: "aero.video.media",
-	cvPose: "aero.cv.pose",
-	inputRouter: "aero.input.router",
-	bodyGrid: "aero.input.body-grid",
-	beatSaverVendor: "aero.vendor.beatsaver",
-	contentAuthoring: "aero.content.authoring",
-	contentLibrary: "aero.content.library",
-	gameplaySession: "aero.gameplay.session",
-	prototypeProfiles: "aero.gameplay.prototype-profiles",
-	mediaLease: "aero.assembly.media-lease",
-	rendererWebgl2: "aero.renderer.webgl2",
-	uiRouter: "aero.ui.router",
-	performancePolicy: "aero.performance.policy"
-});
-Object.freeze({
-	uiNavigate: "aero:ui:navigate",
-	cvPoseFrame: "aero:cv:pose-frame",
-	audioClockTick: "aero:audio:clock-tick",
-	inputBoxingIntent: "aero:input:boxing-intent",
-	inputFlowIntent: "aero:input:flow-intent",
-	bodyGridChanged: "aero:input:body-grid-changed",
-	calibrationChanged: "aero:input:calibration-changed",
-	trackingSafetyChanged: "aero:input:tracking-safety-changed",
-	beatSaverResults: "aero:beatsaver:results",
-	contentImportChanged: "aero:content:import-changed",
-	contentChartLoaded: "aero:content:chart-loaded",
-	contentVariantChanged: "aero:content:variant-changed",
-	gameplaySessionChanged: "aero:gameplay:session-changed",
-	gameplayScoreChange: "aero:gameplay:score-change",
-	gameplayJudgement: "aero:gameplay:judgement",
-	countdownChanged: "aero:gameplay:countdown-changed",
-	mediaLeaseChanged: "aero:assembly:media-lease-changed",
-	gameCommand: "aero:game:command",
-	gameEvent: "aero:game:event"
-});
-Object.freeze({
-	game: "aero-game",
-	iconButton: "aero-icon-button",
-	calibrationBadge: "aero-calibration-badge",
-	calibrationScreen: "aero-calibration-screen",
-	gridPlayfield: "aero-grid-playfield",
-	flowHud: "aero-flow-hud",
-	boxingTrackHud: "aero-boxing-track-hud",
-	boxingSpatialHud: "aero-boxing-spatial-hud",
-	trackingPause: "aero-tracking-pause",
-	countdown: "aero-resume-countdown",
-	prototypeSelector: "aero-prototype-selector",
-	beatSaverBrowser: "aero-beatsaver-browser",
-	contentImportProgress: "aero-content-import-progress",
-	contentLibrary: "aero-content-library",
-	fullscreenButton: "aero-fullscreen-button"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function isRecord$9(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Require a plain record to contain exactly the declared own enumerable keys.
-* Payload records remain the versioned extension point; contract envelopes do not.
-*
-* @param {unknown} value
-* @param {readonly string[]} expectedKeys
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function hasExactKeys$5(value, expectedKeys) {
-	if (!isRecord$9(value)) return false;
-	const keys = Reflect.ownKeys(value);
-	return keys.length === expectedKeys.length && keys.every((key) => {
-		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
-	});
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isFiniteNumber$4(value) {
-	return typeof value === "number" && Number.isFinite(value);
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNonNegativeFiniteNumber$3(value) {
-	return isFiniteNumber$4(value) && value >= 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is string}
-*/
-function isNonEmptyString$4(value) {
-	return typeof value === "string" && value.length > 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNormalizedNumber(value) {
-	return isFiniteNumber$4(value) && value >= 0 && value <= 1;
-}
-/**
-* @template {string} T
-* @param {unknown} value
-* @param {readonly T[]} allowed
-* @returns {value is T}
-*/
-function isOneOf$2(value, allowed) {
-	return typeof value === "string" && allowed.includes(value);
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-Object.freeze(["measured", "predicted"]);
-Object.freeze({
-	idle: "idle",
-	loading: "loading",
-	ready: "ready",
-	failed: "failed",
-	disposed: "disposed"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/body-grid-contracts.js
-/**
-* @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
-*/
-/**
-* @typedef {"up" | "up-right" | "right" | "down-right" | "down" | "down-left" | "left" | "up-left"} AeroBodyGridDirection
-*/
-/**
-* Compatibility alias for consumers that previously named this cardinal-only contract.
-* The serialized direction field is now eight-way without changing its schema shape.
-* @deprecated Use AeroBodyGridDirection.
-* @typedef {AeroBodyGridDirection} AeroCardinalDirection
-*/
-/**
-* @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
-*/
-/**
-* @typedef {"not_ready" | "calibration_required" | "countdown" | "ready" | "paused_tracking" | "paused_manual" | "destroyed"} AeroReadinessState
-*/
-/**
-* @typedef {Object} AeroCalibratedBounds
-* @property {number} left Athlete-space left edge.
-* @property {number} top Athlete-space top edge.
-* @property {number} right Athlete-space right edge.
-* @property {number} bottom Athlete-space bottom edge.
-*/
-/**
-* @typedef {Object} AeroBodyGridAnchorSnapshot
-* @property {"aerobeat/body_grid_anchor_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
-* @property {string} calibrationId Calibration generation identity.
-* @property {number} measurementTimestampMs Latest real measurement timestamp.
-* @property {boolean} valid Whether this measured anchor is gameplay-valid.
-* @property {number} confidence Normalized measured confidence.
-* @property {number} rawX Unclamped athlete-space X.
-* @property {number} rawY Unclamped athlete-space Y.
-* @property {number | null} x Normalized athlete-space X when valid.
-* @property {number | null} y Normalized athlete-space Y when valid.
-* @property {number | null} cell Top-left row-major 4x3 scoring cell, or null outside the grid.
-* @property {number | null} subcell Top-left row-major 8x6 diagnostic/scoring subcell, or null outside the grid.
-*/
-/**
-* @typedef {Object} AeroBodyGridCellEntry
-* @property {"aerobeat/body_grid_cell_entry"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
-* @property {string} calibrationId Calibration generation identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {number} fromCell In-grid source cell.
-* @property {number} toCell In-grid destination cell.
-* @property {AeroBodyGridDirection} [direction] Eight-way athlete-space entry direction when recent motion is unambiguous. Omission records a measured cell entry without directional evidence.
-* @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
-*/
-/**
-* @typedef {Object} AeroCalibrationSnapshot
-* @property {"aerobeat/calibration_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroCalibrationState} state Calibration lifecycle state.
-* @property {AeroReadinessState} readiness Gameplay readiness state.
-* @property {string | null} calibrationId Current calibration generation.
-* @property {number} timestampMs Snapshot timestamp.
-* @property {number} holdDurationMs Required qualified hold duration.
-* @property {number} holdProgressMs Current qualified hold progress.
-* @property {number} cooldownRemainingMs Cooldown remaining after completion.
-* @property {boolean} releaseRequired Whether T-pose release is required before refire.
-* @property {AeroCalibratedBounds | null} bounds Atomically published athlete-space bounds.
-* @property {import("./coordinate-spaces.js").AeroGridDescriptor} grid Public 4x3 athlete grid.
-* @property {import("./coordinate-spaces.js").AeroGridDescriptor} subgrid Public 8x6 athlete subgrid.
-* @property {string | null} invalidationReason Null or stable invalidation reason.
-*/
-/**
-* @typedef {Object} AeroTrackingSafetySnapshot
-* @property {"aerobeat/tracking_safety_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {number} timestampMs Snapshot timestamp.
-* @property {number} lossThresholdMs Sustained loss duration that pauses gameplay.
-* @property {number} lossDurationMs Current sustained loss duration.
-* @property {boolean} allRequiredAnchorsVisible Whether all seven required anchors pass confidence.
-* @property {boolean} gameplayPaused Whether tracking safety currently pauses gameplay.
-* @property {boolean} freshCalibrationRequired Whether pause exit requires new calibration.
-*/
-/** @type {readonly AeroUpperBodyAnchorName[]} */
-var upperBodyAnchorNames$5 = Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-/** @type {readonly AeroBodyGridDirection[]} */
-var bodyGridDirections$5 = Object.freeze([
-	"up",
-	"up-right",
-	"right",
-	"down-right",
-	"down",
-	"down-left",
-	"left",
-	"up-left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-/** @type {readonly AeroReadinessState[]} */
-var readinessStates$5 = Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-/**
-* @param {unknown} value
-* @returns {value is AeroBodyGridAnchorSnapshot}
-*/
-function isBodyGridAnchorSnapshot(value) {
-	if (!isRecord$9(value)) return false;
-	const valid = typeof value.valid === "boolean" ? value.valid : false;
-	const normalizedPosition = valid ? isNormalizedNumber(value.rawX) && isNormalizedNumber(value.rawY) && isNormalizedNumber(value.x) && isNormalizedNumber(value.y) : (value.x === null || isNormalizedNumber(value.x)) && (value.y === null || isNormalizedNumber(value.y));
-	const nullableCell = value.cell === null || Number.isInteger(value.cell) && Number(value.cell) >= 0 && Number(value.cell) < 12;
-	const nullableSubcell = value.subcell === null || Number.isInteger(value.subcell) && Number(value.subcell) >= 0 && Number(value.subcell) < 48;
-	const invalidHasNoScoringCell = valid || value.cell === null && value.subcell === null;
-	return value.schema === "aerobeat/body_grid_anchor_snapshot" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && typeof value.valid === "boolean" && isNormalizedNumber(value.confidence) && isFiniteNumber$4(value.rawX) && isFiniteNumber$4(value.rawY) && normalizedPosition && nullableCell && nullableSubcell && invalidHasNoScoringCell && (!valid || value.x !== null && value.y !== null);
-}
-/**
-* @param {unknown} value
-* @returns {value is AeroBodyGridCellEntry}
-*/
-function isBodyGridCellEntry(value) {
-	if (!isRecord$9(value)) return false;
-	const directionValid = !Object.hasOwn(value, "direction") || isOneOf$2(value.direction, bodyGridDirections$5);
-	return value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && directionValid && value.provenance === "measured";
-}
-Object.freeze([
-	"idle",
-	"selecting_content",
-	"calibrating",
-	"countdown",
-	"playing",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"error",
-	"destroyed"
-]);
-Object.freeze([
-	"initial_start",
-	"manual_resume",
-	"tracking_resume",
-	"content_change"
-]);
-/** @type {readonly ("camera" | "audio")[]} */
-var mediaLeaseResources$3 = Object.freeze(["camera", "audio"]);
-/**
-* @param {unknown} value
-* @returns {value is AeroMediaLeaseSnapshot}
-*/
-function isMediaLeaseSnapshot(value) {
-	return hasExactKeys$5(value, [
-		"schema",
-		"version",
-		"ownerInstanceId",
-		"generation",
-		"state",
-		"resources"
-	]) && value.schema === "aerobeat/media_lease_snapshot" && value.version === 1 && (value.ownerInstanceId === null || isNonEmptyString$4(value.ownerInstanceId)) && Number.isInteger(value.generation) && Number(value.generation) >= 0 && (value.state === "idle" || value.state === "transferring" || value.state === "owned") && Array.isArray(value.resources) && value.resources.every((item) => mediaLeaseResources$3.includes(item)) && new Set(value.resources).size === value.resources.length;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/node_modules/@aerobeat/web-contracts/src/gameplay-contracts.js
-/**
-* @typedef {"flow_grid_v1" | "boxing_semantic_track_v1" | "boxing_spatial_grid_v1"} AeroRulesetId
-*/
-/**
-* @typedef {"row_family_balanced_height_v1" | "cut_family_source_height_v1"} AeroConversionRecipeId
-*/
-/**
-* @typedef {"straight_left" | "straight_right" | "hook_left" | "hook_right" | "uppercut_left" | "uppercut_right" | "guard" | "crossed_guard" | "squat" | "weave_left" | "weave_right"} AeroBoxingAction
-*/
-/**
-* @typedef {"no_input" | "stale_input" | "wrong_cell" | "wrong_subcell" | "wrong_direction" | "qualification_too_short" | "tracking_invalid" | "calibration_mismatch" | "timing_miss" | "blocked_overlap" | "action_consumed"} AeroJudgementDiagnosticCode
-*/
-/**
-* @typedef {Object} AeroGameplayEvidenceSnapshot
-* @property {"aerobeat/gameplay_evidence_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} calibrationId Calibration generation.
-* @property {string} measuredSourceFrameId Real source-frame identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
-* @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
-*/
-/**
-* @typedef {Object} AeroGameplayJudgement
-* @property {"aerobeat/gameplay_judgement"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} eventId Authored event identity.
-* @property {AeroRulesetId} rulesetId Ruleset identity.
-* @property {AeroConversionRecipeId | null} recipeId Recipe identity when generated.
-* @property {"hit" | "miss" | "ignored"} result Binary prototype result or non-scoring ignored event.
-* @property {number} beatCenterTimestampMs Event center timestamp.
-* @property {number | null} evidenceTimestampMs Consumed evidence timestamp.
-* @property {number | null} timingOffsetMs Evidence minus beat center.
-* @property {readonly AeroJudgementDiagnosticCode[]} diagnostics Detailed diagnostics.
-* @property {boolean} shadow Whether this judgement is diagnostic-only.
-*/
-/**
-* @typedef {Object} AeroPrototypeTuningIdentityBase
-* @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} profileId Stable bounded profile ID.
-* @property {string} profileVersion Stable bounded profile version.
-* @property {string} contentHash Bare lowercase SHA-256 content hash.
-*/
-/**
-* A converter identity is pending when `regenerationRequired` is true and
-* applied when the owning registry has matched generated-package provenance
-* and emits false. Visual and scoring identities are always live/applied.
-*
-* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
-*/
-/** @type {readonly AeroRulesetId[]} */
-var rulesetIds$5 = Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-/** @type {readonly AeroConversionRecipeId[]} */
-var conversionRecipeIds$5 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-/** @type {readonly AeroBoxingAction[]} */
-var boxingActions$5 = Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-var prototypeJudgementDefaults$5 = Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-/**
-* @param {unknown} value
-* @returns {value is AeroGameplayEvidenceSnapshot}
-*/
-function isGameplayEvidenceSnapshot(value) {
-	return isRecord$9(value) && value.schema === "aerobeat/gameplay_evidence_snapshot" && value.version === 1 && isNonEmptyString$4(value.calibrationId) && isNonEmptyString$4(value.measuredSourceFrameId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && value.provenance === "measured" && Array.isArray(value.activeBoxingActions) && value.activeBoxingActions.every((item) => isOneOf$2(item, boxingActions$5)) && Array.isArray(value.anchors) && value.anchors.every(isBodyGridAnchorSnapshot) && Array.isArray(value.entries) && value.entries.every(isBodyGridCellEntry);
-}
-/**
-* @param {unknown} value
-* @returns {value is AeroPrototypeTuningIdentity}
-*/
-function isPrototypeTuningIdentity$1(value) {
-	return hasExactKeys$5(value, [
-		"schema",
-		"version",
-		"profileId",
-		"profileVersion",
-		"contentHash",
-		"class",
-		"regenerationRequired"
-	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString$1(value.profileId, 256) && isBoundedNonEmptyString$1(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf$2(value.class, [
-		"live_visual",
-		"between_run_ruleset",
-		"converter_regeneration"
-	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
-}
-/** @param {unknown} value @param {number} maximum */
-function isBoundedNonEmptyString$1(value, maximum) {
-	return typeof value === "string" && value.length > 0 && value.length <= maximum;
-}
-Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroContentHash}
-*/
-function isContentHash$3(value) {
-	if (!hasExactKeys$5(value, [
-		"schema",
-		"version",
-		"algorithm",
-		"value"
-	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
-	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
-	if (typeof value.value !== "string") return false;
-	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
-	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
-}
-Object.freeze([
-	"queued",
-	"acquiring",
-	"inspecting",
-	"converting",
-	"validating",
-	"persisting",
-	"complete",
-	"cancelled",
-	"failed"
-]);
-Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-Object.freeze([
-	"configure",
-	"start",
-	"pause",
-	"resume",
-	"stop",
-	"reset_calibration",
-	"request_fullscreen",
-	"select_content",
-	"select_variant",
-	"browse_beatsaver",
-	"import_beatsaver",
-	"import_local_zip",
-	"cancel_import",
-	"delete_package",
-	"set_theme",
-	"destroy"
-]);
-Object.freeze([
-	"ready",
-	"capabilities_changed",
-	"calibration_changed",
-	"tracking_changed",
-	"session_changed",
-	"score_changed",
-	"content_changed",
-	"beatsaver_results",
-	"import_changed",
-	"fullscreen_changed",
-	"error",
-	"destroyed"
-]);
-Object.freeze({
-	schema: "aerobeat/asset_policy",
-	version: 1,
-	requireChartHash: true,
-	requireAudioHash: true,
-	requireExternalAudioCors: true,
-	requireSampledMediaCors: true,
-	cosmeticBackgroundFailure: "fallback",
-	criticalAssetFailure: "block_startup"
-});
-Object.freeze([
-	"handshake_request",
-	"handshake_ack",
-	"command",
-	"event",
-	"error",
-	"disconnect"
-]);
-Object.freeze({
-	schema: "aerobeat/iframe_message",
-	version: 1,
-	target: "immediate_parent",
-	rawMediaAllowed: false
-});
-Object.freeze([
-	"audioBytes",
-	"frame",
-	"frames",
-	"imageBitmap",
-	"mediaStream",
-	"mediaStreamTrack",
-	"pixels",
-	"rawAudio",
-	"rawFrame",
-	"rawFrames",
-	"screenshot",
-	"videoFrame",
-	"zipBytes"
-]);
-//#endregion
-//#region node_modules/@aerobeat/web-gameplay/src/data.js
+//#region ../aerobeat-web-gameplay/src/data.js
 /** @typedef {Readonly<Record<string, unknown>>} DataRecord */
 var MAX_DEPTH = 12;
 var MAX_ITEMS = 4096;
@@ -1398,7 +1210,7 @@ function compareCodePoints$2(left, right) {
 	return left < right ? -1 : left > right ? 1 : 0;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-gameplay/src/session-coordinator.js
+//#region ../aerobeat-web-gameplay/src/session-coordinator.js
 /** @typedef {Readonly<Record<string, unknown>>} DataRecord */
 /** @typedef {import("@aerobeat/web-contracts").AeroGameplayEvidenceSnapshot} AeroGameplayEvidenceSnapshot */
 /** @typedef {import("@aerobeat/web-contracts").AeroGameplayJudgement} AeroGameplayJudgement */
@@ -1789,7 +1601,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const tracking = requireRecord$3(input.tracking, "input_tracking_invalid");
 		const nextCalibrationId = calibration.calibrationId === null ? null : requireString$1(calibration.calibrationId, "calibration_id_invalid");
 		const readiness = requireString$1(calibration.readiness, "input_calibration_invalid");
-		if (!readinessStates$5.includes(readiness)) throw gameplayError("input_calibration_invalid", "Input readiness state is unsupported");
+		if (!readinessStates.includes(readiness)) throw gameplayError("input_calibration_invalid", "Input readiness state is unsupported");
 		if (typeof tracking.gameplayPaused !== "boolean" || typeof tracking.freshCalibrationRequired !== "boolean" || typeof input.countdownFrozen !== "boolean") throw gameplayError("input_tracking_invalid", "Input tracking safety fields must be boolean");
 		const qualifications = normalizeStraightQualifications(input.straightQualifications ?? []);
 		const candidate = input.latestEvidence;
@@ -1908,15 +1720,15 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 				if (timelinePositionMs >= center) recordJudgement(event, "ignored", Object.freeze([]), null, false);
 				continue;
 			}
-			if (timelinePositionMs < center - prototypeJudgementDefaults$5.timingWindowBeforeMs) continue;
+			if (timelinePositionMs < center - prototypeJudgementDefaults.timingWindowBeforeMs) continue;
 			if (tryHit(event, false)) continue;
-			if (timelinePositionMs > center + prototypeJudgementDefaults$5.timingWindowAfterMs) recordJudgement(event, "miss", missDiagnostics(event), null, false);
+			if (timelinePositionMs > center + prototypeJudgementDefaults.timingWindowAfterMs) recordJudgement(event, "miss", missDiagnostics(event), null, false);
 		}
 	}
 	function judgeShadowEvents() {
 		if (!latestEvidence || !lastInput || latestEvidence.calibrationId !== calibrationId) return;
 		const evidenceAge = timestampMs - latestEvidence.measurementTimestampMs;
-		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults$5.checkpointFreshnessMs) return;
+		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults.checkpointFreshnessMs) return;
 		for (const shadow of shadowVariants) {
 			const shadowEvents = Array.isArray(shadow.resolvedEvents) ? shadow.resolvedEvents : [];
 			for (const eventValue of shadowEvents) {
@@ -1925,7 +1737,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 				const key = `${String(shadow.variantId)}:${String(event.eventId)}:${latestEvidence.measuredSourceFrameId}`;
 				if (shadowConsumed.has(key)) continue;
 				const center = Number(event.centerTimestampMs);
-				if (Math.abs(latestEvidenceTimelineMs - center) > prototypeJudgementDefaults$5.timingWindowAfterMs) continue;
+				if (Math.abs(latestEvidenceTimelineMs - center) > prototypeJudgementDefaults.timingWindowAfterMs) continue;
 				const match = matchEvent(event, shadow, latestEvidence, lastInput);
 				if (match.hit) {
 					shadowConsumed.add(key);
@@ -1939,10 +1751,10 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		if (!latestEvidence || !lastInput) return false;
 		if (latestEvidence.calibrationId !== calibrationId) return false;
 		const evidenceAge = timestampMs - latestEvidence.measurementTimestampMs;
-		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults$5.checkpointFreshnessMs) return false;
+		if (evidenceAge < 0 || evidenceAge > prototypeJudgementDefaults.checkpointFreshnessMs) return false;
 		const center = Number(event.centerTimestampMs);
 		const offset = latestEvidenceTimelineMs - center;
-		if (offset < -prototypeJudgementDefaults$5.timingWindowBeforeMs || offset > prototypeJudgementDefaults$5.timingWindowAfterMs) return false;
+		if (offset < -prototypeJudgementDefaults.timingWindowBeforeMs || offset > prototypeJudgementDefaults.timingWindowAfterMs) return false;
 		const match = matchEvent(event, variantForEvent(event), latestEvidence, lastInput);
 		if (!match.hit) return false;
 		const action = expectedAction(event);
@@ -1954,7 +1766,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const category = eventCategory(event);
 		const frameId = latestEvidence.measuredSourceFrameId;
 		const consumedWindows = consumedGuardPunchWindows.get(frameId) ?? [];
-		if ((category === "guard" || category === "punch") && consumedWindows.some((entry) => entry.category !== category && Math.abs(entry.centerTimestampMs - center) <= prototypeJudgementDefaults$5.timingWindowBeforeMs + prototypeJudgementDefaults$5.timingWindowAfterMs)) {
+		if ((category === "guard" || category === "punch") && consumedWindows.some((entry) => entry.category !== category && Math.abs(entry.centerTimestampMs - center) <= prototypeJudgementDefaults.timingWindowBeforeMs + prototypeJudgementDefaults.timingWindowAfterMs)) {
 			recordJudgement(event, "miss", Object.freeze(["blocked_overlap"]), latestEvidence, shadow);
 			return true;
 		}
@@ -2023,7 +1835,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		if (!latestEvidence) return Object.freeze(["no_input"]);
 		if (latestEvidence.calibrationId !== calibrationId) return Object.freeze(["calibration_mismatch"]);
 		const age = timestampMs - latestEvidence.measurementTimestampMs;
-		if (age < 0 || age > prototypeJudgementDefaults$5.checkpointFreshnessMs) return Object.freeze(["stale_input"]);
+		if (age < 0 || age > prototypeJudgementDefaults.checkpointFreshnessMs) return Object.freeze(["stale_input"]);
 		const match = matchEvent(event, variantForEvent(event), latestEvidence, lastInput);
 		return match.diagnostics.length > 0 ? match.diagnostics : Object.freeze(["timing_miss"]);
 	}
@@ -2208,13 +2020,13 @@ function normalizeLeaseSnapshot(value) {
 function normalizeVariant(value) {
 	const record = requireRecord$3(value, "variant_invalid");
 	const rulesetId = requireString$1(record.rulesetId, "ruleset_invalid");
-	if (!rulesetIds$5.includes(rulesetId)) throw gameplayError("ruleset_invalid", "Variant ruleset is unsupported");
+	if (!rulesetIds.includes(rulesetId)) throw gameplayError("ruleset_invalid", "Variant ruleset is unsupported");
 	const mode = record.mode === "flow" ? "flow" : record.mode === "boxing" ? "boxing" : (() => {
 		throw gameplayError("mode_invalid", "Variant mode is unsupported");
 	})();
 	const recipeId = record.recipeId === null ? null : requireString$1(record.recipeId, "recipe_invalid");
 	if (mode === "flow" && (rulesetId !== "flow_grid_v1" || recipeId !== null)) throw gameplayError("variant_identity_invalid", "Flow variants require the Flow ruleset and no conversion recipe");
-	if (mode === "boxing" && (rulesetId === "flow_grid_v1" || recipeId === null || !conversionRecipeIds$5.includes(recipeId))) throw gameplayError("variant_identity_invalid", "Boxing variants require a supported Boxing ruleset and conversion recipe");
+	if (mode === "boxing" && (rulesetId === "flow_grid_v1" || recipeId === null || !conversionRecipeIds.includes(recipeId))) throw gameplayError("variant_identity_invalid", "Boxing variants require a supported Boxing ruleset and conversion recipe");
 	const modifierIds = requireStringArray(record.modifierIds ?? [], "modifier_ids_invalid", 32);
 	if (new Set(modifierIds).size !== modifierIds.length || [...modifierIds].sort(compareCodePoints$2).some((entry, index) => entry !== modifierIds[index]) || modifierIds.some((entry) => !SUPPORTED_MODIFIERS.includes(entry))) throw gameplayError("modifier_ids_invalid", "Modifier identity must be supported, sorted and unique");
 	if (typeof record.ranked !== "boolean") throw gameplayError("variant_rank_invalid", "Variant ranked identity must be boolean");
@@ -2222,7 +2034,7 @@ function normalizeVariant(value) {
 	if (isPlainRecord$3(provenance) && provenance.kind === "composite" && record.ranked) throw gameplayError("variant_rank_invalid", "Runtime composite variants must be unranked");
 	const mapHash = cloneGameplayData(record.mapHash, "map_hash_invalid");
 	const scoreIdentityHash = cloneGameplayData(record.scoreIdentityHash, "score_identity_hash_invalid");
-	if (!isContentHash$3(mapHash) || !isContentHash$3(scoreIdentityHash)) throw gameplayError("variant_hash_invalid", "Variant map and score identity hashes must satisfy the public content contract");
+	if (!isContentHash(mapHash) || !isContentHash(scoreIdentityHash)) throw gameplayError("variant_hash_invalid", "Variant map and score identity hashes must satisfy the public content contract");
 	return Object.freeze({
 		variantId: requireString$1(record.variantId, "variant_id_invalid"),
 		chartId: requireString$1(record.chartId, "chart_id_invalid"),
@@ -2315,7 +2127,7 @@ function validateEventForVariant(event, selectedVariant) {
 /** @param {unknown} value @returns {DataRecord} */
 function normalizeProfile$1(value) {
 	const record = requireRecord$3(value, "profile_identity_invalid");
-	if (!isPrototypeTuningIdentity$1(record) || record.class !== "between_run_ruleset") throw gameplayError("profile_identity_invalid", "Profile identity does not satisfy the gameplay tuning contract for a between-run ruleset");
+	if (!isPrototypeTuningIdentity(record) || record.class !== "between_run_ruleset") throw gameplayError("profile_identity_invalid", "Profile identity does not satisfy the gameplay tuning contract for a between-run ruleset");
 	return record;
 }
 /** @param {unknown} value @returns {DataRecord} */
@@ -2400,7 +2212,7 @@ function matchEvent(event, selectedVariant, evidence, input) {
 		const hand = action.endsWith("_right") ? "right" : "left";
 		const qualification = (Array.isArray(input?.straightQualifications) ? input.straightQualifications : []).find((entry) => isPlainRecord$3(entry) && entry.hand === hand);
 		const start = isPlainRecord$3(qualification) && typeof qualification.semanticStartTimestampMs === "number" ? qualification.semanticStartTimestampMs : null;
-		if (!(isPlainRecord$3(qualification) && qualification.semanticQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults$5.straightQualificationMs)) diagnostics.push("qualification_too_short");
+		if (!(isPlainRecord$3(qualification) && qualification.semanticQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults.straightQualificationMs)) diagnostics.push("qualification_too_short");
 	}
 	if (rulesetId === "boxing_spatial_grid_v1") matchSpatial(event, action, evidence, input, diagnostics);
 	return Object.freeze({
@@ -2449,7 +2261,7 @@ function matchSpatial(event, action, evidence, input, diagnostics) {
 		if (action.startsWith("straight_")) {
 			const qualification = (Array.isArray(input?.straightQualifications) ? input.straightQualifications : []).find((entry) => isPlainRecord$3(entry) && entry.hand === hand);
 			const start = isPlainRecord$3(qualification) && typeof qualification.spatialStartTimestampMs === "number" ? qualification.spatialStartTimestampMs : null;
-			if (!(isPlainRecord$3(qualification) && qualification.spatialQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults$5.straightQualificationMs)) diagnostics.push("qualification_too_short");
+			if (!(isPlainRecord$3(qualification) && qualification.spatialQualified === true && start !== null && evidence.measurementTimestampMs - start >= prototypeJudgementDefaults.straightQualificationMs)) diagnostics.push("qualification_too_short");
 		}
 	} else if (action === "guard" || action === "crossed_guard") {
 		const target = isPlainRecord$3(event.guardTarget) ? event.guardTarget : null;
@@ -2628,7 +2440,7 @@ var CARDINAL_DIRECTIONS = Object.freeze([
 /** @param {unknown} value @returns {import("@aerobeat/web-contracts").AeroBodyGridDirection | null} */
 function flowDirectionName(value) {
 	if (Number.isInteger(value) && Number(value) >= 0 && Number(value) < BEAT_SABER_FLOW_DIRECTIONS.length) return BEAT_SABER_FLOW_DIRECTIONS[Number(value)] ?? null;
-	return typeof value === "string" && bodyGridDirections$5.includes(value) ? value : null;
+	return typeof value === "string" && bodyGridDirections.includes(value) ? value : null;
 }
 /** @param {unknown} value @returns {"up" | "down" | "left" | "right" | null} */
 function cardinalDirectionName(value) {
@@ -2650,7 +2462,7 @@ function randomToken() {
 	return `${bytes[0].toString(16)}${bytes[1].toString(16)}`;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-gameplay/src/prototype-profile-registry.js
+//#region ../aerobeat-web-gameplay/src/prototype-profile-registry.js
 var PROFILE_SCHEMA = "aerobeat/prototype_profile";
 var BUNDLE_SCHEMA = "aerobeat/prototype_profile_bundle";
 var SNAPSHOT_SCHEMA = "aerobeat/prototype_profile_registry_snapshot";
@@ -3248,7 +3060,7 @@ function ror(value, bits) {
 function canonicalJson$2(value) {
 	return canonicalPrototypeProfileJson(value);
 }
-serviceIds$3.gameplaySession;
+serviceIds.gameplaySession;
 Object.freeze(["flow", "boxing"]);
 Object.freeze({
 	authoritativeAudioClock: true,
@@ -3267,7 +3079,7 @@ Object.freeze({
 	publicLeaderboards: false
 });
 //#endregion
-//#region node_modules/@aerobeat/web-ui/src/elements/aero-button/aero-button.js
+//#region ../aerobeat-web-ui/src/elements/aero-button/aero-button.js
 /**
 * @typedef {Object} AeroButtonActivateDetail
 * @property {string} label Visible command label when activation occurred.
@@ -3380,5317 +3192,7 @@ function defineAeroButton() {
 	if (!customElements.get("aero-button")) customElements.define("aero-button", AeroButton);
 }
 //#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-video/src/source-descriptors.js
-/** @typedef {"live-camera" | "loaded-video" | "replay-video-feed"} AeroVideoSourceKind */
-/** @typedef {"stretch" | "contain" | "cover"} AeroVideoFitMode */
-/** @typedef {"background-only" | "sampled-media"} AeroVideoReadabilityRequirement */
-/** @typedef {"anonymous" | "use-credentials" | undefined} AeroVideoCrossOriginMode */
-/**
-* Shared descriptor fields for every video source.
-*
-* @typedef {object} AeroVideoSourceBase
-* @property {AeroVideoSourceKind} kind Source kind.
-* @property {string} sourceId Stable source identifier for diagnostics and calibration invalidation.
-* @property {AeroVideoFitMode} fitMode Presentation fit metadata.
-* @property {boolean} mirrored Whether consumers should mirror the surface.
-*/
-/**
-* @typedef {AeroVideoSourceBase & {
-*   kind: "live-camera",
-*   constraints: MediaStreamConstraints
-* }} LiveCameraSourceDescriptor
-*/
-/**
-* @typedef {AeroVideoSourceBase & {
-*   kind: "loaded-video",
-*   url: string,
-*   mediaType: string | undefined,
-*   loop: boolean,
-*   autoplay: boolean,
-*   muted: boolean,
-*   startTimeSeconds: number,
-*   readabilityRequirement: AeroVideoReadabilityRequirement,
-*   crossOrigin: AeroVideoCrossOriginMode,
-*   objectUrlOwned: boolean
-* }} LoadedVideoSourceDescriptor
-*/
-/**
-* @typedef {AeroVideoSourceBase & {
-*   kind: "replay-video-feed",
-*   url: string,
-*   frameRate: number | undefined,
-*   loop: boolean,
-*   autoplay: boolean,
-*   muted: boolean,
-*   startTimeSeconds: number,
-*   readabilityRequirement: "sampled-media",
-*   crossOrigin: AeroVideoCrossOriginMode,
-*   objectUrlOwned: boolean
-* }} ReplayVideoFeedSourceDescriptor
-*/
-/**
-* @typedef {object} LiveCameraSourceDescriptorOptions
-* @property {string | undefined} sourceId Stable source identifier.
-* @property {MediaStreamConstraints | undefined} constraints Browser camera constraints.
-* @property {AeroVideoFitMode | undefined} fitMode Presentation fit metadata.
-* @property {boolean | undefined} mirrored Whether consumers should mirror the surface.
-*/
-/**
-* @typedef {object} LoadedVideoSourceDescriptorOptions
-* @property {string} url Browser-loadable video URL.
-* @property {string | undefined} sourceId Stable source identifier.
-* @property {string | undefined} mediaType Optional MIME type hint.
-* @property {AeroVideoFitMode | undefined} fitMode Presentation fit metadata.
-* @property {boolean | undefined} mirrored Whether consumers should mirror the surface.
-* @property {boolean | undefined} loop Whether playback should loop.
-* @property {boolean | undefined} autoplay Whether playback should begin after loading.
-* @property {boolean | undefined} muted Whether the element should be muted.
-* @property {number | undefined} startTimeSeconds Initial playback position.
-* @property {AeroVideoReadabilityRequirement | undefined} readabilityRequirement Whether the source is cosmetic-only or must remain sample-readable.
-* @property {AeroVideoCrossOriginMode} crossOrigin Browser media CORS mode.
-* @property {boolean | undefined} objectUrlOwned Whether the facade must revoke this object URL on release.
-*/
-/**
-* @typedef {object} ReplayVideoFeedSourceDescriptorOptions
-* @property {string} url Browser-loadable replay video URL.
-* @property {string | undefined} sourceId Stable source identifier.
-* @property {number | undefined} frameRate Optional replay frame-rate metadata.
-* @property {AeroVideoFitMode | undefined} fitMode Presentation fit metadata.
-* @property {boolean | undefined} mirrored Whether consumers should mirror the surface.
-* @property {boolean | undefined} loop Whether playback should loop.
-* @property {boolean | undefined} autoplay Whether playback should begin after loading.
-* @property {boolean | undefined} muted Whether the element should be muted.
-* @property {number | undefined} startTimeSeconds Initial playback position.
-* @property {AeroVideoCrossOriginMode} crossOrigin Browser media CORS mode.
-* @property {boolean | undefined} objectUrlOwned Whether the facade must revoke this object URL on release.
-*/
-/** @returns {MediaStreamConstraints} */
-function defaultLiveCameraConstraints$1() {
-	return {
-		audio: false,
-		video: { facingMode: "user" }
-	};
-}
-/**
-* @param {LiveCameraSourceDescriptorOptions} [options]
-* @returns {LiveCameraSourceDescriptor}
-*/
-function createLiveCameraSourceDescriptor$1(options = {}) {
-	return {
-		kind: "live-camera",
-		sourceId: options.sourceId ?? "aero.video.live-camera",
-		constraints: options.constraints ?? defaultLiveCameraConstraints$1(),
-		fitMode: options.fitMode ?? "contain",
-		mirrored: options.mirrored ?? true
-	};
-}
-/**
-* @param {LoadedVideoSourceDescriptorOptions} options
-* @returns {LoadedVideoSourceDescriptor}
-*/
-function createLoadedVideoSourceDescriptor$1(options) {
-	const readabilityRequirement = options.readabilityRequirement ?? "background-only";
-	return {
-		kind: "loaded-video",
-		sourceId: options.sourceId ?? "aero.video.loaded-video",
-		url: options.url,
-		mediaType: options.mediaType,
-		fitMode: options.fitMode ?? "contain",
-		mirrored: options.mirrored ?? false,
-		loop: options.loop ?? false,
-		autoplay: options.autoplay ?? false,
-		muted: options.muted ?? false,
-		startTimeSeconds: finiteNonNegative$5(options.startTimeSeconds),
-		readabilityRequirement,
-		crossOrigin: options.crossOrigin ?? (readabilityRequirement === "sampled-media" ? "anonymous" : void 0),
-		objectUrlOwned: options.objectUrlOwned ?? false
-	};
-}
-/** @param {number | undefined} value @returns {number} */
-function finiteNonNegative$5(value) {
-	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-video/src/browser-video-facade.js
-/** @type {"aero.video.media"} */
-var aeroVideoMediaServiceId$1 = "aero.video.media";
-/** @typedef {"idle" | "loading" | "ready" | "playing" | "paused" | "ended" | "error" | "destroyed"} AeroVideoPlaybackState */
-/** @typedef {"connected" | "destroyed"} AeroVideoLifecycleState */
-/** @typedef {"inactive" | "active" | "paused" | "released"} AeroVideoLeaseState */
-/** @typedef {"facade-owned" | "host-owned" | "none"} AeroMediaStreamOwnership */
-/** @typedef {"not-required" | "unknown" | "readable" | "blocked"} AeroVideoReadabilityState */
-/** @typedef {import("./source-descriptors.js").AeroVideoFitMode} AeroVideoFitMode */
-/** @typedef {import("./source-descriptors.js").AeroVideoSourceKind} AeroVideoSourceKind */
-/** @typedef {import("./source-descriptors.js").LiveCameraSourceDescriptor} LiveCameraSourceDescriptor */
-/** @typedef {import("./source-descriptors.js").LoadedVideoSourceDescriptor} LoadedVideoSourceDescriptor */
-/** @typedef {import("./source-descriptors.js").ReplayVideoFeedSourceDescriptor} ReplayVideoFeedSourceDescriptor */
-/** @typedef {LoadedVideoSourceDescriptor | ReplayVideoFeedSourceDescriptor} BrowserLoadedVideoDescriptor */
-/**
-* @typedef {object} AeroVideoErrorSnapshot
-* @property {string} code Stable AeroBeat error code.
-* @property {string} name Browser or adapter error name.
-* @property {string} message Human-readable diagnostic.
-*/
-/**
-* @typedef {object} AeroVideoCapabilities
-* @property {boolean} cameraRequest Camera requests are available.
-* @property {true} injectedStreams Host streams can be injected.
-* @property {true} loadedVideo Browser video sources are supported.
-* @property {true} visibilityPause Visibility pause hooks are supported.
-* @property {true} leaseLifecycle Lease lifecycle hooks are supported.
-* @property {true} corsReadabilityReporting Sample readability can be reported truthfully.
-* @property {boolean} objectUrls Blob object URLs can be created and revoked.
-*/
-/**
-* @typedef {object} AeroCameraRequestResult
-* @property {"granted" | "unsupported" | "blocked" | "stale"} status Permission result.
-* @property {LiveCameraSourceDescriptor} source Source descriptor used for the request.
-* @property {MediaStream | undefined} stream Retained stream only when permission is granted.
-* @property {string | undefined} errorName Browser error name when blocked.
-* @property {string} message Diagnostic message.
-* @property {number} generation Lifecycle generation that produced the result.
-*/
-/**
-* @typedef {object} AeroCameraDeviceDescriptor
-* @property {string} deviceId Browser media device ID.
-* @property {string} label Browser-provided or fallback display label.
-* @property {string | undefined} groupId Browser media device group ID.
-*/
-/**
-* @typedef {object} AeroVideoStatusSnapshot
-* @property {"aero.video.media"} serviceId Stable service ID.
-* @property {AeroVideoLifecycleState} lifecycleState Connection lifecycle.
-* @property {number} generation Lifecycle generation.
-* @property {AeroVideoLeaseState} leaseState Lease participation state.
-* @property {boolean} documentHidden Whether the owning document is hidden.
-* @property {boolean} inferencePaused Whether inference consumers must pause.
-* @property {boolean} gameplayPaused Whether gameplay consumers must pause.
-* @property {AeroMediaStreamOwnership} streamOwnership Current stream ownership.
-* @property {number} sourceChangeId Monotonic source/mirror/aspect identity generation.
-* @property {string | undefined} calibrationSourceIdentity Source identity used for calibration invalidation.
-* @property {AeroVideoReadabilityState} readabilityState Current sampled-media readability truth.
-* @property {string | undefined} readabilityReason Optional readability diagnostic.
-* @property {AeroVideoErrorSnapshot | undefined} lastError Last lifecycle error.
-* @property {AeroVideoCapabilities} capabilities Runtime capabilities.
-*/
-/**
-* @typedef {object} AeroVideoSurfaceDescriptor
-* @property {"aero.video.media"} serviceId Stable service ID.
-* @property {AeroVideoSourceKind | undefined} sourceKind Current source kind.
-* @property {string | undefined} sourceId Current source identifier.
-* @property {AeroVideoPlaybackState} playbackState Current playback state.
-* @property {AeroVideoFitMode} fitMode Presentation fit metadata.
-* @property {boolean} mirrored Whether consumers should mirror the surface.
-* @property {boolean} hasElement Whether a video element is attached.
-* @property {boolean} hasRetainedStream Whether a stream is retained.
-* @property {AeroMediaStreamOwnership} streamOwnership Current stream ownership.
-* @property {number | undefined} intrinsicWidth Current video intrinsic width.
-* @property {number | undefined} intrinsicHeight Current video intrinsic height.
-* @property {number | undefined} sourceAspectRatio Current intrinsic aspect ratio.
-* @property {number | undefined} durationSeconds Current media duration.
-* @property {number} currentTimeSeconds Current playback position.
-* @property {number} sourceChangeId Monotonic source/mirror/aspect identity generation.
-* @property {string | undefined} calibrationSourceIdentity Source identity used for calibration invalidation.
-* @property {AeroVideoReadabilityState} readabilityState Current sampled-media readability truth.
-* @property {AeroVideoLifecycleState} lifecycleState Connection lifecycle.
-* @property {AeroVideoLeaseState} leaseState Lease participation state.
-* @property {boolean} documentHidden Whether the owning document is hidden.
-*/
-/**
-* @typedef {object} AeroVisibilityDocument
-* @property {string | undefined} visibilityState Visibility state.
-* @property {(type: string, listener: () => void) => void} addEventListener Adds a listener.
-* @property {(type: string, listener: () => void) => void} removeEventListener Removes a listener.
-*/
-/**
-* @typedef {object} AeroObjectUrlApi
-* @property {(value: Blob) => string} createObjectURL Creates an object URL.
-* @property {(url: string) => void} revokeObjectURL Revokes an object URL.
-*/
-/**
-* @typedef {object} BrowserVideoMediaFacadeOptions
-* @property {MediaDevices | undefined} mediaDevices Optional media-devices adapter.
-* @property {AeroVisibilityDocument | undefined} document Optional visibility adapter.
-* @property {AeroObjectUrlApi | undefined} objectUrlApi Optional object-URL adapter.
-*/
-/**
-* @typedef {object} CameraRequestOptions
-* @property {AbortSignal | undefined} signal Consumer cancellation signal.
-*/
-/**
-* @typedef {object} InjectCameraStreamOptions
-* @property {LiveCameraSourceDescriptor | undefined} source Source metadata.
-* @property {"host-owned" | "facade-owned" | undefined} ownership Stream ownership. Host-owned is the safe default.
-*/
-/**
-* @typedef {object} AttachStreamOptions
-* @property {LiveCameraSourceDescriptor | undefined} source Source metadata.
-* @property {"host-owned" | "facade-owned" | undefined} ownership Ownership when the supplied stream is not already retained.
-*/
-/**
-* @typedef {object} BlobVideoSourceOptions
-* @property {string | undefined} sourceId Source identifier.
-* @property {string | undefined} mediaType MIME hint.
-* @property {AeroVideoFitMode | undefined} fitMode Fit mode.
-* @property {boolean | undefined} mirrored Mirror metadata.
-* @property {boolean | undefined} loop Loop playback.
-* @property {boolean | undefined} autoplay Autoplay playback.
-* @property {boolean | undefined} muted Mute playback.
-* @property {number | undefined} startTimeSeconds Start time.
-* @property {"background-only" | "sampled-media" | undefined} readabilityRequirement Readability requirement.
-*/
-/**
-* @typedef {object} LeaseReleaseOptions
-* @property {boolean | undefined} releaseStream Whether to release the retained stream. Defaults true.
-*/
-/**
-* @typedef {object} BrowserVideoMediaFacade
-* @property {"aero.video.media"} serviceId Stable service ID.
-* @property {readonly AeroVideoSourceKind[]} supportedSources Supported kinds.
-* @property {() => MediaStream | undefined} getRetainedCameraStream Reads the retained stream.
-* @property {() => Promise<readonly AeroCameraDeviceDescriptor[]>} listCameraDevices Lists cameras.
-* @property {(source?: LiveCameraSourceDescriptor, options?: CameraRequestOptions) => Promise<AeroCameraRequestResult>} requestCamera Requests an owned camera stream.
-* @property {(stream: MediaStream, options?: InjectCameraStreamOptions) => AeroVideoSurfaceDescriptor} injectCameraStream Retains a host or transferred stream without attaching a surface.
-* @property {(videoElement: HTMLVideoElement, stream?: MediaStream, options?: AttachStreamOptions) => AeroVideoSurfaceDescriptor} attachCameraStream Attaches a stream.
-* @property {(videoElement: HTMLVideoElement, source: BrowserLoadedVideoDescriptor) => AeroVideoSurfaceDescriptor} attachVideoSource Attaches a URL source.
-* @property {(videoElement: HTMLVideoElement, blob: Blob, options?: BlobVideoSourceOptions) => AeroVideoSurfaceDescriptor} attachVideoBlob Creates and owns an object URL source.
-* @property {(videoElement: HTMLVideoElement) => Promise<AeroVideoSurfaceDescriptor>} play Starts playback.
-* @property {(videoElement?: HTMLVideoElement) => AeroVideoSurfaceDescriptor} pause Pauses playback.
-* @property {(videoElement: HTMLVideoElement, timeSeconds: number) => AeroVideoSurfaceDescriptor} seek Seeks playback.
-* @property {(readable: boolean, reason?: string) => AeroVideoStatusSnapshot} reportSourceReadability Records sampled-media CORS/readback truth.
-* @property {(hidden: boolean) => AeroVideoStatusSnapshot} setDocumentHidden Applies visibility pause hooks while retaining camera.
-* @property {() => AeroVideoStatusSnapshot} activateLease Activates this instance's lease.
-* @property {() => AeroVideoStatusSnapshot} pauseForLease Pauses consumers while retaining resources.
-* @property {(options?: LeaseReleaseOptions) => AeroVideoStatusSnapshot} releaseLease Releases lease participation.
-* @property {(videoElement?: HTMLVideoElement) => AeroVideoSurfaceDescriptor} describeSurface Describes surface state.
-* @property {() => AeroVideoStatusSnapshot} describeStatus Describes lifecycle/capability state.
-* @property {() => void} teardownCameraStream Releases the retained stream and stops only facade-owned tracks.
-* @property {(videoElement?: HTMLVideoElement) => AeroVideoSurfaceDescriptor} clearVideoElement Detaches and cleans a surface.
-* @property {() => AeroVideoStatusSnapshot} destroy Destroys synchronously and idempotently.
-* @property {() => AeroVideoStatusSnapshot} reconnect Starts a fresh lifecycle generation after destroy.
-*/
-/**
-* @param {BrowserVideoMediaFacadeOptions} [options]
-* @returns {BrowserVideoMediaFacade}
-*/
-function createBrowserVideoMediaFacade$1(options = {}) {
-	const mediaDevices = options.mediaDevices ?? globalThis.navigator?.mediaDevices;
-	const visibilityDocument = options.document ?? asVisibilityDocument$1(globalThis.document);
-	const objectUrlApi = options.objectUrlApi ?? asObjectUrlApi$1(globalThis.URL);
-	/** @type {MediaStream | undefined} */ let retainedStream;
-	/** @type {AeroMediaStreamOwnership} */ let streamOwnership = "none";
-	/** @type {LiveCameraSourceDescriptor | BrowserLoadedVideoDescriptor | undefined} */ let currentSource;
-	/** @type {HTMLVideoElement | undefined} */ let attachedElement;
-	/** @type {AeroVideoPlaybackState} */ let playbackState = "idle";
-	/** @type {AeroVideoLifecycleState} */ let lifecycleState = "connected";
-	/** @type {AeroVideoLeaseState} */ let leaseState = "inactive";
-	/** @type {AeroVideoReadabilityState} */ let readabilityState = "not-required";
-	/** @type {string | undefined} */ let readabilityReason;
-	/** @type {AeroVideoErrorSnapshot | undefined} */ let lastError;
-	/** @type {string | undefined} */ let ownedObjectUrl;
-	let documentHidden = visibilityDocument?.visibilityState === "hidden";
-	let generation = 1;
-	let operationId = 0;
-	let sourceChangeId = 0;
-	/** @type {string | undefined} */ let sourceSignature;
-	/** @type {Array<() => void>} */ let elementCleanups = [];
-	/** @type {AeroVideoCapabilities} */
-	const capabilities = Object.freeze({
-		cameraRequest: Boolean(mediaDevices?.getUserMedia),
-		injectedStreams: true,
-		loadedVideo: true,
-		visibilityPause: true,
-		leaseLifecycle: true,
-		corsReadabilityReporting: true,
-		objectUrls: Boolean(objectUrlApi)
-	});
-	const onVisibilityChange = () => {
-		setDocumentHidden(visibilityDocument?.visibilityState === "hidden");
-	};
-	visibilityDocument?.addEventListener("visibilitychange", onVisibilityChange);
-	function nextOperation() {
-		operationId += 1;
-		return operationId;
-	}
-	/** @param {number} expectedGeneration @param {number} expectedOperation */
-	function isCurrent(expectedGeneration, expectedOperation) {
-		return lifecycleState === "connected" && generation === expectedGeneration && operationId === expectedOperation;
-	}
-	/** @param {MediaStream | undefined} stream */
-	function stopTracks(stream) {
-		stream?.getTracks().forEach((track) => track.stop());
-	}
-	function releaseRetainedStream() {
-		if (streamOwnership === "facade-owned") stopTracks(retainedStream);
-		retainedStream = void 0;
-		streamOwnership = "none";
-	}
-	function revokeOwnedObjectUrl() {
-		if (ownedObjectUrl && objectUrlApi) objectUrlApi.revokeObjectURL(ownedObjectUrl);
-		ownedObjectUrl = void 0;
-	}
-	function unbindElement() {
-		for (const cleanup of elementCleanups) cleanup();
-		elementCleanups = [];
-	}
-	/** @param {HTMLVideoElement} element */
-	function detachElement(element) {
-		element.pause();
-		if (element.srcObject) element.srcObject = null;
-		element.removeAttribute("src");
-		element.load();
-		if (element === attachedElement) {
-			unbindElement();
-			attachedElement = void 0;
-			revokeOwnedObjectUrl();
-		}
-	}
-	/** @param {HTMLVideoElement} element */
-	function bindElement(element) {
-		if (attachedElement && attachedElement !== element) detachElement(attachedElement);
-		else unbindElement();
-		attachedElement = element;
-		const bindings = [
-			["loadedmetadata", () => refreshSourceIdentity(element)],
-			["play", () => {
-				if (attachedElement === element) playbackState = "playing";
-			}],
-			["pause", () => {
-				if (attachedElement === element && playbackState !== "destroyed") playbackState = "paused";
-			}],
-			["ended", () => {
-				if (attachedElement === element) playbackState = "ended";
-			}],
-			["error", () => {
-				if (attachedElement === element) {
-					playbackState = "error";
-					lastError = {
-						code: "media_element_error",
-						name: "MediaElementError",
-						message: "The attached media element reported an error"
-					};
-				}
-			}]
-		];
-		for (const [type, listener] of bindings) {
-			element.addEventListener?.(type, listener);
-			elementCleanups.push(() => element.removeEventListener?.(type, listener));
-		}
-		refreshSourceIdentity(element);
-	}
-	/** @param {HTMLVideoElement | undefined} element */
-	function refreshSourceIdentity(element) {
-		const width = positiveNumberOrUndefined$4(element?.videoWidth);
-		const height = positiveNumberOrUndefined$4(element?.videoHeight);
-		const aspect = width && height ? width / height : void 0;
-		const signature = currentSource ? `${currentSource.kind}|${currentSource.sourceId}|${currentSource.mirrored ? "mirrored" : "unmirrored"}|${aspect?.toFixed(6) ?? "aspect-unknown"}` : void 0;
-		if (signature !== sourceSignature) {
-			sourceSignature = signature;
-			sourceChangeId += 1;
-		}
-	}
-	/** @param {LiveCameraSourceDescriptor | BrowserLoadedVideoDescriptor} source */
-	function setCurrentSource(source) {
-		currentSource = source;
-		readabilityReason = void 0;
-		readabilityState = source.kind === "live-camera" ? "readable" : source.readabilityRequirement === "background-only" ? "not-required" : "unknown";
-		refreshSourceIdentity(attachedElement);
-	}
-	/** @param {boolean} hidden */
-	function setDocumentHidden(hidden) {
-		documentHidden = hidden;
-		if (hidden) {
-			nextOperation();
-			if (attachedElement) attachedElement.pause();
-			if (playbackState === "playing" || playbackState === "loading") playbackState = "paused";
-		}
-		return describeStatus();
-	}
-	function describeStatus() {
-		return Object.freeze({
-			serviceId: aeroVideoMediaServiceId$1,
-			lifecycleState,
-			generation,
-			leaseState,
-			documentHidden,
-			inferencePaused: documentHidden || leaseState !== "active" || lifecycleState === "destroyed",
-			gameplayPaused: documentHidden || leaseState !== "active" || lifecycleState === "destroyed",
-			streamOwnership,
-			sourceChangeId,
-			calibrationSourceIdentity: sourceSignature,
-			readabilityState,
-			readabilityReason,
-			lastError: lastError ? Object.freeze({ ...lastError }) : void 0,
-			capabilities
-		});
-	}
-	/** @param {HTMLVideoElement | undefined} element */
-	function describeSurface(element = attachedElement) {
-		refreshSourceIdentity(element);
-		const width = positiveNumberOrUndefined$4(element?.videoWidth);
-		const height = positiveNumberOrUndefined$4(element?.videoHeight);
-		return Object.freeze({
-			serviceId: aeroVideoMediaServiceId$1,
-			sourceKind: currentSource?.kind,
-			sourceId: currentSource?.sourceId,
-			playbackState,
-			fitMode: currentSource?.fitMode ?? "contain",
-			mirrored: currentSource?.mirrored ?? false,
-			hasElement: Boolean(element),
-			hasRetainedStream: Boolean(retainedStream),
-			streamOwnership,
-			intrinsicWidth: width,
-			intrinsicHeight: height,
-			sourceAspectRatio: width && height ? width / height : void 0,
-			durationSeconds: finiteNumberOrUndefined$1(element?.duration),
-			currentTimeSeconds: finiteNumberOrZero$3(element?.currentTime),
-			sourceChangeId,
-			calibrationSourceIdentity: sourceSignature,
-			readabilityState,
-			lifecycleState,
-			leaseState,
-			documentHidden
-		});
-	}
-	/** @param {HTMLVideoElement | undefined} element */
-	function clearVideoElement(element = attachedElement) {
-		nextOperation();
-		if (element) detachElement(element);
-		else {
-			unbindElement();
-			attachedElement = void 0;
-			revokeOwnedObjectUrl();
-		}
-		if (currentSource?.kind !== "live-camera") {
-			currentSource = void 0;
-			refreshSourceIdentity(void 0);
-			readabilityState = "not-required";
-			readabilityReason = void 0;
-		}
-		if (lifecycleState !== "destroyed") playbackState = retainedStream ? "ready" : "idle";
-		return describeSurface();
-	}
-	function teardownCameraStream() {
-		nextOperation();
-		releaseRetainedStream();
-		if (currentSource?.kind === "live-camera") {
-			if (attachedElement) detachElement(attachedElement);
-			currentSource = void 0;
-			refreshSourceIdentity(void 0);
-			if (lifecycleState !== "destroyed") playbackState = "idle";
-		}
-	}
-	const facade = {
-		serviceId: aeroVideoMediaServiceId$1,
-		supportedSources: Object.freeze([
-			"live-camera",
-			"loaded-video",
-			"replay-video-feed"
-		]),
-		getRetainedCameraStream() {
-			return retainedStream;
-		},
-		async listCameraDevices() {
-			if (!mediaDevices?.enumerateDevices || lifecycleState === "destroyed") return [];
-			return (await mediaDevices.enumerateDevices()).filter((device) => device.kind === "videoinput" && device.deviceId).map((device, index) => ({
-				deviceId: device.deviceId,
-				label: device.label || `Camera ${index + 1}`,
-				groupId: device.groupId || void 0
-			}));
-		},
-		async requestCamera(source = createLiveCameraSourceDescriptor$1(), requestOptions = {}) {
-			if (lifecycleState === "destroyed") return {
-				status: "stale",
-				source,
-				stream: void 0,
-				errorName: "InvalidStateError",
-				message: "Reconnect before requesting a camera",
-				generation
-			};
-			const requestGeneration = generation;
-			const requestOperation = nextOperation();
-			const previousSourceKind = currentSource?.kind;
-			lastError = void 0;
-			playbackState = "loading";
-			if (!mediaDevices?.getUserMedia) {
-				playbackState = "error";
-				lastError = {
-					code: "camera_unsupported",
-					name: "NotSupportedError",
-					message: "Camera API unavailable in this browser context"
-				};
-				return {
-					status: "unsupported",
-					source,
-					stream: void 0,
-					errorName: void 0,
-					message: lastError.message,
-					generation: requestGeneration
-				};
-			}
-			if (requestOptions.signal?.aborted) {
-				playbackState = "idle";
-				return {
-					status: "stale",
-					source,
-					stream: void 0,
-					errorName: "AbortError",
-					message: "Camera request was cancelled",
-					generation: requestGeneration
-				};
-			}
-			try {
-				const stream = await mediaDevices.getUserMedia(source.constraints);
-				if (requestOptions.signal?.aborted || !isCurrent(requestGeneration, requestOperation)) {
-					stopTracks(stream);
-					return {
-						status: "stale",
-						source,
-						stream: void 0,
-						errorName: "AbortError",
-						message: "Late camera result was discarded",
-						generation: requestGeneration
-					};
-				}
-				if (previousSourceKind !== void 0 && previousSourceKind !== "live-camera" && attachedElement) detachElement(attachedElement);
-				releaseRetainedStream();
-				retainedStream = stream;
-				streamOwnership = "facade-owned";
-				setCurrentSource(source);
-				if (previousSourceKind === "live-camera" && attachedElement) attachedElement.srcObject = stream;
-				playbackState = "ready";
-				return {
-					status: "granted",
-					source,
-					stream,
-					errorName: void 0,
-					message: "Camera permission granted",
-					generation: requestGeneration
-				};
-			} catch (error) {
-				if (!isCurrent(requestGeneration, requestOperation)) return {
-					status: "stale",
-					source,
-					stream: void 0,
-					errorName: "AbortError",
-					message: "Late camera failure was discarded",
-					generation: requestGeneration
-				};
-				playbackState = "error";
-				lastError = {
-					code: "camera_request_failed",
-					name: readErrorField$1(error, "name") ?? "CameraRequestError",
-					message: readErrorField$1(error, "message") ?? "Camera permission request failed"
-				};
-				return {
-					status: "blocked",
-					source,
-					stream: void 0,
-					errorName: lastError.name,
-					message: lastError.message,
-					generation: requestGeneration
-				};
-			}
-		},
-		injectCameraStream(stream, injectOptions = {}) {
-			if (lifecycleState === "destroyed") return describeSurface();
-			nextOperation();
-			const previousSourceKind = currentSource?.kind;
-			if (previousSourceKind !== void 0 && previousSourceKind !== "live-camera" && attachedElement) detachElement(attachedElement);
-			const nextOwnership = injectOptions.ownership ?? (stream === retainedStream ? streamOwnership : "host-owned");
-			if (stream !== retainedStream) releaseRetainedStream();
-			retainedStream = stream;
-			streamOwnership = nextOwnership;
-			setCurrentSource(injectOptions.source ?? createLiveCameraSourceDescriptor$1());
-			if (previousSourceKind === "live-camera" && attachedElement) attachedElement.srcObject = stream;
-			lastError = void 0;
-			playbackState = "ready";
-			return describeSurface();
-		},
-		attachCameraStream(videoElement, stream = retainedStream, attachOptions = {}) {
-			if (lifecycleState === "destroyed") return describeSurface();
-			nextOperation();
-			if (currentSource?.kind !== void 0 && currentSource.kind !== "live-camera" && attachedElement) detachElement(attachedElement);
-			if (!stream) {
-				setCurrentSource(attachOptions.source ?? createLiveCameraSourceDescriptor$1());
-				playbackState = "error";
-				lastError = {
-					code: "camera_stream_missing",
-					name: "MediaStreamError",
-					message: "No camera stream is available to attach"
-				};
-				return describeSurface(videoElement);
-			}
-			if (stream !== retainedStream) facade.injectCameraStream(stream, attachOptions);
-			else if (attachOptions.source || currentSource?.kind !== "live-camera") setCurrentSource(attachOptions.source ?? createLiveCameraSourceDescriptor$1());
-			bindElement(videoElement);
-			videoElement.srcObject = stream;
-			videoElement.muted = true;
-			videoElement.playsInline = true;
-			playbackState = "ready";
-			return describeSurface(videoElement);
-		},
-		attachVideoSource(videoElement, source) {
-			if (lifecycleState === "destroyed") return describeSurface();
-			nextOperation();
-			if (currentSource?.kind === "live-camera") teardownCameraStream();
-			else clearVideoElement(attachedElement);
-			setCurrentSource(source);
-			bindElement(videoElement);
-			playbackState = "loading";
-			videoElement.srcObject = null;
-			videoElement.crossOrigin = source.crossOrigin ?? null;
-			videoElement.src = source.url;
-			videoElement.loop = source.loop;
-			videoElement.autoplay = source.autoplay;
-			videoElement.muted = source.muted;
-			videoElement.currentTime = source.startTimeSeconds;
-			if (source.objectUrlOwned) ownedObjectUrl = source.url;
-			playbackState = "ready";
-			return describeSurface(videoElement);
-		},
-		attachVideoBlob(videoElement, blob, blobOptions = {}) {
-			if (lifecycleState === "destroyed") return describeSurface();
-			if (!objectUrlApi) {
-				playbackState = "error";
-				lastError = {
-					code: "object_url_unsupported",
-					name: "NotSupportedError",
-					message: "Object URLs are unavailable in this browser context"
-				};
-				return describeSurface(videoElement);
-			}
-			const url = objectUrlApi.createObjectURL(blob);
-			const source = createLoadedVideoSourceDescriptor$1({
-				...blobOptions,
-				url,
-				mediaType: blobOptions.mediaType ?? (blob.type || void 0),
-				objectUrlOwned: true
-			});
-			return facade.attachVideoSource(videoElement, source);
-		},
-		async play(videoElement) {
-			if (lifecycleState === "destroyed") return describeSurface(videoElement);
-			const playGeneration = generation;
-			const playOperation = nextOperation();
-			bindElement(videoElement);
-			try {
-				await videoElement.play();
-				if (isCurrent(playGeneration, playOperation)) playbackState = "playing";
-			} catch (error) {
-				if (isCurrent(playGeneration, playOperation)) {
-					playbackState = "error";
-					lastError = {
-						code: "media_play_failed",
-						name: readErrorField$1(error, "name") ?? "PlaybackError",
-						message: readErrorField$1(error, "message") ?? "Media playback failed"
-					};
-				}
-			}
-			return describeSurface(videoElement);
-		},
-		pause(videoElement = attachedElement) {
-			nextOperation();
-			videoElement?.pause();
-			if (lifecycleState !== "destroyed") playbackState = "paused";
-			return describeSurface(videoElement);
-		},
-		seek(videoElement, timeSeconds) {
-			videoElement.currentTime = finiteNonNegative$4(timeSeconds);
-			return describeSurface(videoElement);
-		},
-		reportSourceReadability(readable, reason) {
-			if (lifecycleState === "destroyed") return describeStatus();
-			readabilityState = readable ? "readable" : "blocked";
-			readabilityReason = reason;
-			if (!readable && currentSource && currentSource.kind !== "live-camera" && currentSource.readabilityRequirement === "sampled-media") lastError = {
-				code: "sampled_media_unreadable",
-				name: "SecurityError",
-				message: reason ?? "Sampled media is not readable; verify CORS headers"
-			};
-			return describeStatus();
-		},
-		setDocumentHidden,
-		activateLease() {
-			if (lifecycleState === "connected") leaseState = "active";
-			return describeStatus();
-		},
-		pauseForLease() {
-			if (lifecycleState === "destroyed") return describeStatus();
-			nextOperation();
-			leaseState = "paused";
-			if (attachedElement) {
-				attachedElement.pause();
-				playbackState = "paused";
-			}
-			return describeStatus();
-		},
-		releaseLease(releaseOptions = {}) {
-			if (lifecycleState === "destroyed") return describeStatus();
-			nextOperation();
-			leaseState = "released";
-			if (attachedElement) {
-				attachedElement.pause();
-				playbackState = "paused";
-			}
-			if (releaseOptions.releaseStream ?? true) teardownCameraStream();
-			return describeStatus();
-		},
-		describeSurface,
-		describeStatus,
-		teardownCameraStream,
-		clearVideoElement,
-		destroy() {
-			if (lifecycleState === "destroyed") return describeStatus();
-			nextOperation();
-			generation += 1;
-			lifecycleState = "destroyed";
-			leaseState = "released";
-			visibilityDocument?.removeEventListener("visibilitychange", onVisibilityChange);
-			clearVideoElement(attachedElement);
-			releaseRetainedStream();
-			currentSource = void 0;
-			sourceSignature = void 0;
-			playbackState = "destroyed";
-			readabilityState = "not-required";
-			readabilityReason = void 0;
-			return describeStatus();
-		},
-		reconnect() {
-			if (lifecycleState === "connected") return describeStatus();
-			generation += 1;
-			nextOperation();
-			lifecycleState = "connected";
-			leaseState = "inactive";
-			playbackState = "idle";
-			lastError = void 0;
-			documentHidden = visibilityDocument?.visibilityState === "hidden";
-			visibilityDocument?.addEventListener("visibilitychange", onVisibilityChange);
-			return describeStatus();
-		}
-	};
-	return facade;
-}
-/** @param {unknown} value @returns {AeroVisibilityDocument | undefined} */
-function asVisibilityDocument$1(value) {
-	if (value && typeof value === "object" && "addEventListener" in value && "removeEventListener" in value) return value;
-}
-/** @param {unknown} value @returns {AeroObjectUrlApi | undefined} */
-function asObjectUrlApi$1(value) {
-	if (value && typeof value === "function" && "createObjectURL" in value && "revokeObjectURL" in value) return value;
-}
-/** @param {number | undefined} value @returns {number | undefined} */
-function positiveNumberOrUndefined$4(value) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
-}
-/** @param {number | undefined} value @returns {number | undefined} */
-function finiteNumberOrUndefined$1(value) {
-	return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-/** @param {number | undefined} value @returns {number} */
-function finiteNumberOrZero$3(value) {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-/** @param {number} value @returns {number} */
-function finiteNonNegative$4(value) {
-	return Number.isFinite(value) && value >= 0 ? value : 0;
-}
-/** @param {unknown} value @param {"name" | "message"} field @returns {string | undefined} */
-function readErrorField$1(value, field) {
-	if (value && typeof value === "object" && field in value) {
-		const fieldValue = value[field];
-		return typeof fieldValue === "string" ? fieldValue : void 0;
-	}
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function isRecord$8(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Require a plain record to contain exactly the declared own enumerable keys.
-* Payload records remain the versioned extension point; contract envelopes do not.
-*
-* @param {unknown} value
-* @param {readonly string[]} expectedKeys
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function hasExactKeys$4(value, expectedKeys) {
-	if (!isRecord$8(value)) return false;
-	const keys = Reflect.ownKeys(value);
-	return keys.length === expectedKeys.length && keys.every((key) => {
-		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
-	});
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isFiniteNumber$3(value) {
-	return typeof value === "number" && Number.isFinite(value);
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNonNegativeFiniteNumber$2(value) {
-	return isFiniteNumber$3(value) && value >= 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is string}
-*/
-function isNonEmptyString$3(value) {
-	return typeof value === "string" && value.length > 0;
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-Object.freeze([
-	"up",
-	"up-right",
-	"right",
-	"down-right",
-	"down",
-	"down-left",
-	"left",
-	"up-left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroContentHash}
-*/
-function isContentHash$2(value) {
-	if (!hasExactKeys$4(value, [
-		"schema",
-		"version",
-		"algorithm",
-		"value"
-	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
-	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
-	if (typeof value.value !== "string") return false;
-	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
-	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/node_modules/@aerobeat/web-contracts/src/theme-contracts.js
-/**
-* @typedef {Object} AeroThemeTokens
-* @property {string} leftHandColor CSS color token value.
-* @property {string} rightHandColor CSS color token value.
-* @property {string} guardColor CSS color token value.
-* @property {string} obstacleColor CSS color token value.
-* @property {string} receptorColor CSS color token value.
-* @property {number} approachLeadMs Approach animation lead time.
-* @property {number} targetStartScale Target initial scale.
-* @property {number} targetHitScale Target beat-center scale.
-* @property {string} approachEasing Serializable easing token.
-* @property {string} hitEasing Serializable easing token.
-* @property {string} missEasing Serializable easing token.
-*/
-/**
-* @typedef {Object} AeroThemeDescriptor
-* @property {"aerobeat/theme_descriptor"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} id Stable theme ID.
-* @property {string} themeVersion Theme version.
-* @property {AeroThemeTokens} tokens Serializable approved tokens.
-* @property {import("./content-contracts.js").AeroContentHash} contentHash Canonical token hash.
-*/
-/**
-* @typedef {Object} AeroBackgroundSuggestion
-* @property {"aerobeat/background_suggestion"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {"default" | "playlist" | "song" | "athlete"} source Suggestion precedence source.
-* @property {"css" | "image" | "video"} kind Background kind.
-* @property {string | null} url External/package URL for media kinds.
-* @property {import("./content-contracts.js").AeroContentHash | null} hash Required media hash for gameplay package assets.
-* @property {string | null} themeId Optional associated theme.
-*/
-/** @type {readonly (keyof AeroThemeTokens)[]} */
-var serializableThemeTokenNames$4 = Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroThemeDescriptor}
-*/
-function isThemeDescriptor$2(value) {
-	if (!hasExactKeys$4(value, [
-		"schema",
-		"version",
-		"id",
-		"themeVersion",
-		"tokens",
-		"contentHash"
-	]) || !isRecord$8(value.tokens)) return false;
-	const tokens = value.tokens;
-	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$4.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$4.includes(key));
-	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$3(value.id) && isNonEmptyString$3(value.themeVersion) && exactTokenKeys && isNonEmptyString$3(tokens.leftHandColor) && isNonEmptyString$3(tokens.rightHandColor) && isNonEmptyString$3(tokens.guardColor) && isNonEmptyString$3(tokens.obstacleColor) && isNonEmptyString$3(tokens.receptorColor) && isNonNegativeFiniteNumber$2(tokens.approachLeadMs) && isNonNegativeFiniteNumber$2(tokens.targetStartScale) && isNonNegativeFiniteNumber$2(tokens.targetHitScale) && isNonEmptyString$3(tokens.approachEasing) && isNonEmptyString$3(tokens.hitEasing) && isNonEmptyString$3(tokens.missEasing) && isContentHash$2(value.contentHash);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/gameplay-plan.js
-/** @typedef {"flow" | "boxing_spatial_grid" | "boxing_semantic_track"} AeroGameplayPresentation */
-/** @typedef {"left" | "right" | "guard" | "obstacle" | "neutral" | "safe"} AeroVisualRole */
-/** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
-/** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
-/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, contrast:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
-/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
-/** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
-/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
-/** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
-/** @typedef {{commands:readonly AeroGameplayDrawCommand[], overlay:Readonly<{kind:string,dim:number,countdown:number|null}>, presentation:AeroGameplayPresentation, grid:Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}} AeroGameplayRenderPlan */
-/** @type {AeroRendererTuning} */
-var defaultRendererTuning$1 = Object.freeze({
-	id: "aero.renderer.prototype.default",
-	version: "1",
-	hash: "visual-538685f6",
-	gridInset: .055,
-	gridGap: .018,
-	receptorAlpha: .22,
-	approachRingScale: 1.55,
-	approachRingWidth: .08,
-	laneWidth: .22,
-	roleScale: 1,
-	dprCap: 2
-});
-/** @type {AeroRendererThemeTokens} */
-var defaultRendererThemeTokens$1 = Object.freeze({
-	leftHandColor: "#2693ff",
-	rightHandColor: "#39c96b",
-	guardColor: "#9a67ea",
-	obstacleColor: "#e5484d",
-	receptorColor: "#d9f5ff",
-	approachLeadMs: 900,
-	targetStartScale: .48,
-	targetHitScale: 1,
-	approachEasing: "linear",
-	hitEasing: "ease-out",
-	missEasing: "ease-out"
-});
-/** Stable branding semantic IDs consumed by the alpha-mask atlas. */
-var gameplayIconIds$1 = Object.freeze([
-	"boxing.glove",
-	"boxing.guard.crossed",
-	"boxing.guard.standard",
-	"boxing.hook.left",
-	"boxing.hook.right",
-	"boxing.squat",
-	"boxing.straight.left",
-	"boxing.straight.right",
-	"boxing.uppercut.left",
-	"boxing.uppercut.right",
-	"boxing.weave.left",
-	"boxing.weave.right",
-	"calibration.tpose"
-]);
-/**
-* Build a deterministic, screenshot-free renderer command plan. The visible playfield
-* is normalized screen space and never consumes camera/athlete-grid coordinates.
-*
-* @param {AeroGameplayFrame} frame
-* @param {AeroRendererThemeTokens} [theme]
-* @param {AeroRendererTuning} [tuning]
-* @returns {AeroGameplayRenderPlan}
-*/
-function buildGameplayRenderPlan$1(frame, theme = defaultRendererThemeTokens$1, tuning = defaultRendererTuning$1) {
-	if (!isPresentation$1(frame.presentation) || !Number.isFinite(frame.nowMs) || !Array.isArray(frame.targets)) throw new TypeError("Gameplay frame is invalid");
-	const grid = fitPlayfieldGrid$1(tuning.gridInset, frame.viewportAspect);
-	/** @type {AeroGameplayDrawCommand[]} */
-	const commands = [];
-	if (frame.presentation === "boxing_semantic_track") addTrack$1(commands, tuning, frame.viewportAspect);
-	else addGridReceptors$1(commands, grid, tuning);
-	for (const cell of frame.safeCells ?? []) {
-		const rect = cellRect$1(cell, grid, tuning.gridGap);
-		if (rect) commands.push(command$1("hatch", "safe", rect, .22, 1, null, true, 1, null));
-	}
-	for (const cell of frame.blockedCells ?? []) {
-		const rect = cellRect$1(cell, grid, tuning.gridGap);
-		if (rect) commands.push(command$1("hatch", "obstacle", rect, .72, 1, null, true, 3, null));
-	}
-	for (const target of frame.targets) addTarget$1(commands, frame, target, grid, theme, tuning);
-	const overlayKind = frame.overlay ?? "none";
-	const defaultDim = overlayKind === "none" ? 0 : .62;
-	return Object.freeze({
-		commands: Object.freeze(commands.sort((a, b) => a.layer - b.layer)),
-		overlay: Object.freeze({
-			kind: overlayKind,
-			dim: clamp$5(frame.calibrationDim ?? defaultDim, 0, 1),
-			countdown: normalizeCountdown$1(frame.countdown)
-		}),
-		presentation: frame.presentation,
-		grid
-	});
-}
-/**
-* Fit a physical 4:3 playfield into any normalized viewport. Normalized widths are
-* compensated by viewport aspect so 4x3 cells and icons remain physically square.
-*
-* @param {number} inset
-* @param {number|undefined} viewportAspect
-* @returns {Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}
-*/
-function fitPlayfieldGrid$1(inset, viewportAspect) {
-	const aspect = Number.isFinite(viewportAspect) && Number(viewportAspect) > 0 ? Number(viewportAspect) : 4 / 3;
-	const available = Math.max(.02, 1 - clamp$5(inset, 0, .25) * 2);
-	const playfieldAspect = 4 / 3;
-	const width = aspect >= playfieldAspect ? available * playfieldAspect / aspect : available;
-	const height = aspect >= playfieldAspect ? available : available * aspect / playfieldAspect;
-	return Object.freeze({
-		x: (1 - width) / 2,
-		y: (1 - height) / 2,
-		width,
-		height,
-		columns: 4,
-		rows: 3
-	});
-}
-/** @param {AeroGameplayDrawCommand[]} commands @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect */
-function addTrack$1(commands, tuning, viewportAspect) {
-	const track = trackGeometry$1(tuning, viewportAspect);
-	commands.push(command$1("rect", "left", {
-		x: track.leftX,
-		y: track.y,
-		width: track.width,
-		height: track.height
-	}, .12, 1, null, false, 0, null));
-	commands.push(command$1("rect", "right", {
-		x: track.rightX,
-		y: track.y,
-		width: track.width,
-		height: track.height
-	}, .12, 1, null, false, 0, null));
-	const lineHeight = Math.min(.008, track.targetHeight * .05);
-	commands.push(command$1("line", "neutral", {
-		x: track.leftX,
-		y: track.receptorY + track.targetHeight / 2,
-		width: track.width,
-		height: lineHeight
-	}, .68, 1, null, false, 1, null));
-	commands.push(command$1("line", "neutral", {
-		x: track.rightX,
-		y: track.receptorY + track.targetHeight / 2,
-		width: track.width,
-		height: lineHeight
-	}, .68, 1, null, false, 1, null));
-}
-/** @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect */
-function trackGeometry$1(tuning, viewportAspect) {
-	const aspect = Number.isFinite(viewportAspect) && Number(viewportAspect) > 0 ? Number(viewportAspect) : 4 / 3;
-	const gap = .1;
-	const y = .08;
-	const height = .84;
-	const width = Math.min(tuning.laneWidth, height * .32 / aspect);
-	const leftX = .5 - gap / 2 - width;
-	const rightX = .55;
-	const targetHeight = width * aspect;
-	return {
-		width,
-		leftX,
-		rightX,
-		y,
-		height,
-		targetHeight,
-		receptorY: .9199999999999999 - targetHeight
-	};
-}
-/** @param {AeroGameplayDrawCommand[]} commands @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererTuning} tuning */
-function addGridReceptors$1(commands, grid, tuning) {
-	for (let cell = 0; cell < 12; cell += 1) {
-		const rect = cellRect$1(cell, grid, tuning.gridGap);
-		if (rect) commands.push(command$1("rect", "neutral", rect, tuning.receptorAlpha, 1, null, false, 0, null));
-	}
-}
-/** @param {AeroGameplayDrawCommand[]} commands @param {AeroGameplayFrame} frame @param {AeroRenderableTarget} target @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererThemeTokens} theme @param {AeroRendererTuning} tuning */
-function addTarget$1(commands, frame, target, grid, theme, tuning) {
-	const role = target.hand === "left" ? "left" : target.hand === "right" ? "right" : target.kind === "obstacle" ? "obstacle" : target.kind === "safe" ? "safe" : target.kind === "guard" ? "guard" : "neutral";
-	const lead = Math.max(1, target.approachLeadMs ?? theme.approachLeadMs);
-	const progress = applyNamedEasing$1(clamp$5(1 - (target.beatCenterMs - frame.nowMs) / lead, 0, 1), theme.approachEasing);
-	const feedback = applyNamedEasing$1(clamp$5(target.feedbackProgress ?? 0, 0, 1), target.judgement === "miss" ? theme.missEasing : theme.hitEasing);
-	let scale = lerp$2(theme.targetStartScale, theme.targetHitScale, progress);
-	let alpha = lerp$2(.35, 1, progress);
-	if (target.judgement === "hit") {
-		scale *= 1 - feedback * .65;
-		alpha *= 1 - feedback;
-	} else if (target.judgement === "miss") {
-		scale *= 1 + feedback * .12;
-		alpha *= 1 - feedback * .9;
-	}
-	const rects = targetRects$1(frame.presentation, target, grid, tuning, frame.viewportAspect);
-	for (const targetRect of rects) {
-		const baseRect = scaledRect$1(targetRect, tuning.roleScale);
-		const rect = scaledRect$1(baseRect, scale);
-		const iconId = iconIdFor$1(target);
-		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
-		commands.push(command$1(kind, role, rect, alpha, scale, iconId, target.kind === "obstacle", 4, target.id, progress));
-		if (target.direction) for (const cue of directionCueRects$1(rect, target.direction)) commands.push(command$1(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress, true));
-		if (target.judgement === void 0 || target.judgement === "pending") commands.push(command$1("ring", role, scaledRect$1(baseRect, lerp$2(tuning.approachRingScale, 1, progress)), .85, lerp$2(tuning.approachRingScale, 1, progress), null, false, 5, target.id, progress));
-	}
-}
-/** @param {AeroGameplayPresentation} presentation @param {AeroRenderableTarget} target @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect @returns {AeroNormalizedRect[]} */
-function targetRects$1(presentation, target, grid, tuning, viewportAspect) {
-	if (presentation === "boxing_semantic_track" && target.kind !== "obstacle") {
-		const track = trackGeometry$1(tuning, viewportAspect);
-		if (target.kind === "guard") return [{
-			x: track.leftX,
-			y: track.receptorY,
-			width: track.rightX + track.width - track.leftX,
-			height: track.targetHeight
-		}];
-		return [{
-			x: (target.lane ?? target.hand) === "left" ? track.leftX : track.rightX,
-			y: track.receptorY,
-			width: track.width,
-			height: track.targetHeight
-		}];
-	}
-	const cells = target.cells.length > 0 ? target.cells : target.cell === null ? [] : [target.cell];
-	if (target.kind === "guard" && cells.length >= 2) {
-		const first = cellRect$1(cells[0], grid, tuning.gridGap);
-		const second = cellRect$1(cells[1], grid, tuning.gridGap);
-		if (!first || !second) return [];
-		const left = Math.min(first.x, second.x);
-		const top = Math.min(first.y, second.y);
-		return [{
-			x: left,
-			y: top,
-			width: Math.max(first.x + first.width, second.x + second.width) - left,
-			height: Math.max(first.y + first.height, second.y + second.height) - top
-		}];
-	}
-	return cells.map((cell) => cellRect$1(cell, grid, tuning.gridGap)).filter((rect) => rect !== null);
-}
-/** @param {number} cell @param {{x:number,y:number,width:number,height:number}} grid @param {number} gap @returns {AeroNormalizedRect|null} */
-function cellRect$1(cell, grid, gap = 0) {
-	if (!Number.isInteger(cell) || cell < 0 || cell >= 12) return null;
-	const column = cell % 4;
-	const row = Math.floor(cell / 4);
-	const width = grid.width / 4;
-	const height = grid.height / 3;
-	return Object.freeze({
-		x: grid.x + column * width + gap / 2,
-		y: grid.y + row * height + gap / 2,
-		width: width - gap,
-		height: height - gap
-	});
-}
-/** @param {AeroRenderableTarget} target @returns {string|null} */
-function iconIdFor$1(target) {
-	if (target.kind === "guard") return target.family === "crossed_guard" ? "boxing.guard.crossed" : "boxing.guard.standard";
-	if (target.kind === "punch") return `boxing.${target.family}.${target.hand}`;
-	if (target.family === "squat") return "boxing.squat";
-	if (target.family === "weave" && (target.hand === "left" || target.hand === "right")) return `boxing.weave.${target.hand}`;
-	return null;
-}
-/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @param {boolean} [contrast] @returns {AeroGameplayDrawCommand} */
-function command$1(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1, contrast = false) {
-	return Object.freeze({
-		kind,
-		role,
-		rect: Object.freeze({ ...rect }),
-		alpha,
-		scale,
-		saturation: clamp$5(saturation, 0, 1),
-		iconId,
-		hatch,
-		contrast,
-		layer,
-		targetId
-	});
-}
-/** @param {AeroNormalizedRect} rect @param {import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
-function directionCueRects$1(rect, direction) {
-	if (![
-		"up",
-		"up-right",
-		"right",
-		"down-right",
-		"down",
-		"down-left",
-		"left",
-		"up-left"
-	].includes(direction)) throw new TypeError("Flow direction cue is unsupported");
-	const thickness = Math.min(rect.width, rect.height) * .09;
-	if (!direction.includes("-")) {
-		const shaft = direction === "left" || direction === "right" ? {
-			x: rect.x + rect.width * .25,
-			y: rect.y + rect.height * .5 - thickness / 2,
-			width: rect.width * .5,
-			height: thickness
-		} : {
-			x: rect.x + rect.width * .5 - thickness / 2,
-			y: rect.y + rect.height * .25,
-			width: thickness,
-			height: rect.height * .5
-		};
-		const size = thickness * 2.5;
-		const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
-		const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
-		return Object.freeze([{
-			kind: "line",
-			rect: Object.freeze(shaft)
-		}, {
-			kind: "circle",
-			rect: Object.freeze({
-				x: headX - size / 2,
-				y: headY - size / 2,
-				width: size,
-				height: size
-			})
-		}]);
-	}
-	const xSign = direction.endsWith("right") ? 1 : -1;
-	const ySign = direction.startsWith("down") ? 1 : -1;
-	const segments = 7;
-	/** @type {{kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
-	const cues = [];
-	for (let index = 0; index < segments; index += 1) {
-		const offset = -.2 + index * (.4 / 6);
-		const centerX = rect.x + rect.width * (.5 + xSign * offset);
-		const centerY = rect.y + rect.height * (.5 + ySign * offset);
-		cues.push({
-			kind: "line",
-			rect: Object.freeze({
-				x: centerX - thickness / 2,
-				y: centerY - thickness / 2,
-				width: thickness,
-				height: thickness
-			})
-		});
-	}
-	const size = thickness * 2.5;
-	const headX = rect.x + rect.width * (.5 + xSign * .3);
-	const headY = rect.y + rect.height * (.5 + ySign * .3);
-	cues.push({
-		kind: "circle",
-		rect: Object.freeze({
-			x: headX - size / 2,
-			y: headY - size / 2,
-			width: size,
-			height: size
-		})
-	});
-	return Object.freeze(cues);
-}
-/** @param {AeroNormalizedRect} rect @param {number} scale @returns {AeroNormalizedRect} */
-function scaledRect$1(rect, scale) {
-	const width = rect.width * scale;
-	const height = rect.height * scale;
-	return {
-		x: rect.x + (rect.width - width) / 2,
-		y: rect.y + (rect.height - height) / 2,
-		width,
-		height
-	};
-}
-/** @param {unknown} value @returns {value is AeroGameplayPresentation} */
-function isPresentation$1(value) {
-	return value === "flow" || value === "boxing_spatial_grid" || value === "boxing_semantic_track";
-}
-/** @param {number|undefined|null} value @returns {number|null} */
-function normalizeCountdown$1(value) {
-	return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 3 ? Number(value) : null;
-}
-/** @param {number} value @param {number} minimum @param {number} maximum */
-function clamp$5(value, minimum, maximum) {
-	return Math.max(minimum, Math.min(maximum, value));
-}
-/** @param {number} progress @param {string} easing @returns {number} */
-function applyNamedEasing$1(progress, easing) {
-	const value = clamp$5(progress, 0, 1);
-	if (easing === "ease-in") return value * value;
-	if (easing === "ease-out") return 1 - (1 - value) * (1 - value);
-	if (easing === "ease-in-out") return value < .5 ? 2 * value * value : 1 - Math.pow(-2 * value + 2, 2) / 2;
-	return value;
-}
-/** @param {number} start @param {number} end @param {number} progress */
-function lerp$2(start, end, progress) {
-	return start + (end - start) * progress;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/icon-atlas.js
-/**
-* Narrow atlas bytes and UV metadata before they become private GPU state.
-* Every semantic icon is required; malformed or colored RGB inputs degrade to shapes.
-*
-* @param {unknown} value
-* @returns {AeroIconAtlasData}
-*/
-function normalizeIconAtlasData$1(value) {
-	if (!isRecord$7(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
-	const width = Number(value.width);
-	const height = Number(value.height);
-	if (value.pixels.length !== width * height * 4) throw new TypeError("Icon atlas pixel length is invalid");
-	for (let index = 0; index < value.pixels.length; index += 4) if (value.pixels[index] !== 255 || value.pixels[index + 1] !== 255 || value.pixels[index + 2] !== 255) throw new TypeError("Icon atlas RGB must be normalized white");
-	/** @type {AeroIconAtlasEntry[]} */
-	const entries = [];
-	const seen = /* @__PURE__ */ new Set();
-	for (const raw of value.entries) {
-		if (!isRecord$7(raw) || typeof raw.id !== "string" || !gameplayIconIds$1.includes(raw.id) || seen.has(raw.id) || ![
-			raw.u0,
-			raw.v0,
-			raw.u1,
-			raw.v1
-		].every((entry) => typeof entry === "number" && Number.isFinite(entry) && entry >= 0 && entry <= 1) || Number(raw.u0) >= Number(raw.u1) || Number(raw.v0) >= Number(raw.v1)) throw new TypeError("Icon atlas entry is invalid");
-		seen.add(raw.id);
-		entries.push(Object.freeze({
-			id: raw.id,
-			u0: Number(raw.u0),
-			v0: Number(raw.v0),
-			u1: Number(raw.u1),
-			v1: Number(raw.v1)
-		}));
-	}
-	if (entries.length !== gameplayIconIds$1.length || gameplayIconIds$1.some((id) => !seen.has(id))) throw new TypeError("Icon atlas does not contain the expected semantic set");
-	return Object.freeze({
-		width,
-		height,
-		pixels: value.pixels.slice(),
-		entries: Object.freeze(entries)
-	});
-}
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$7(value) {
-	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/landmark-mapping.js
-/**
-* Media fitting modes shared with `@aerobeat/web-video` descriptors.
-*
-* @typedef {"stretch" | "contain" | "cover"} AeroRendererFitMode
-*/
-/**
-* Normalized pose or hand landmark accepted by the renderer overlay path.
-*
-* @typedef {object} AeroNormalizedLandmark
-* @property {number | undefined} id Optional landmark identifier.
-* @property {number} x Normalized horizontal position in source media space.
-* @property {number} y Normalized vertical position in source media space.
-* @property {number | undefined} z Optional normalized depth.
-* @property {number | undefined} v Optional visibility/confidence.
-*/
-/**
-* Pixel rectangle occupied by fitted media content inside a render viewport.
-*
-* @typedef {object} AeroRendererContentRect
-* @property {number} x Left edge in viewport pixels.
-* @property {number} y Top edge in viewport pixels.
-* @property {number} width Width in viewport pixels.
-* @property {number} height Height in viewport pixels.
-*/
-/**
-* Surface metadata used to map normalized landmarks over media. It is designed
-* to accept public metadata from `@aerobeat/web-video` without importing that
-* package or owning its lifecycle.
-*
-* @typedef {object} AeroRendererOverlaySurfaceDescriptor
-* @property {number} viewportWidth Canvas drawing-buffer or viewport width.
-* @property {number} viewportHeight Canvas drawing-buffer or viewport height.
-* @property {number | undefined} intrinsicWidth Source media intrinsic width.
-* @property {number | undefined} intrinsicHeight Source media intrinsic height.
-* @property {AeroRendererFitMode} fitMode Presentation fit mode.
-* @property {boolean} mirrored Whether normalized x should be mirrored.
-* @property {AeroRendererContentRect | undefined} contentRect Explicit fitted media rectangle, when already known.
-*/
-/**
-* Viewport-space landmark after fitting and mirroring.
-*
-* @typedef {object} AeroViewportLandmark
-* @property {number | undefined} id Optional landmark identifier.
-* @property {number} x Pixel-space horizontal position.
-* @property {number} y Pixel-space vertical position.
-* @property {number | undefined} z Optional normalized depth.
-* @property {number | undefined} v Optional visibility/confidence.
-*/
-/**
-* Clip-space landmark suitable for direct WebGL2 drawing.
-*
-* @typedef {object} AeroClipSpaceLandmark
-* @property {number | undefined} id Optional landmark identifier.
-* @property {number} x Clip-space horizontal position.
-* @property {number} y Clip-space vertical position.
-* @property {number | undefined} z Optional normalized depth.
-* @property {number | undefined} v Optional visibility/confidence.
-*/
-/**
-* @typedef {object} AeroRendererOverlaySurfaceDescriptorInput
-* @property {number} [viewportWidth] Canvas drawing-buffer or viewport width.
-* @property {number} [viewportHeight] Canvas drawing-buffer or viewport height.
-* @property {number} [width] Alternate viewport width.
-* @property {number} [height] Alternate viewport height.
-* @property {number} [intrinsicWidth] Source media intrinsic width.
-* @property {number} [intrinsicHeight] Source media intrinsic height.
-* @property {number} [videoWidth] Alternate source media width.
-* @property {number} [videoHeight] Alternate source media height.
-* @property {AeroRendererFitMode} [fitMode] Presentation fit mode.
-* @property {boolean} [mirrored] Whether normalized x should be mirrored.
-* @property {boolean} [mirror] Alternate mirror flag.
-* @property {AeroRendererContentRect} [contentRect] Explicit fitted media rectangle.
-*/
-/**
-* Normalizes a partial descriptor into the renderer's mapping shape.
-*
-* @param {AeroRendererOverlaySurfaceDescriptorInput} [descriptor]
-* @returns {AeroRendererOverlaySurfaceDescriptor}
-*/
-function normalizeOverlaySurfaceDescriptor$1(descriptor = {}) {
-	return {
-		viewportWidth: positiveNumberOrZero$1(descriptor.viewportWidth ?? descriptor.width),
-		viewportHeight: positiveNumberOrZero$1(descriptor.viewportHeight ?? descriptor.height),
-		intrinsicWidth: positiveNumberOrUndefined$3(descriptor.intrinsicWidth ?? descriptor.videoWidth),
-		intrinsicHeight: positiveNumberOrUndefined$3(descriptor.intrinsicHeight ?? descriptor.videoHeight),
-		fitMode: normalizeFitMode$2(descriptor.fitMode),
-		mirrored: Boolean(descriptor.mirrored ?? descriptor.mirror ?? false),
-		contentRect: descriptor.contentRect
-	};
-}
-/**
-* Computes the fitted media rectangle inside a viewport.
-*
-* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
-* @returns {AeroRendererContentRect}
-*/
-function computeMediaContentRect$1(descriptor) {
-	const surface = normalizeOverlaySurfaceDescriptor$1(descriptor);
-	if (surface.contentRect) return sanitizeRect$1(surface.contentRect);
-	if (surface.viewportWidth <= 0 || surface.viewportHeight <= 0) return {
-		x: 0,
-		y: 0,
-		width: 0,
-		height: 0
-	};
-	if (surface.fitMode === "stretch" || !surface.intrinsicWidth || !surface.intrinsicHeight) return {
-		x: 0,
-		y: 0,
-		width: surface.viewportWidth,
-		height: surface.viewportHeight
-	};
-	const containScale = Math.min(surface.viewportWidth / surface.intrinsicWidth, surface.viewportHeight / surface.intrinsicHeight);
-	const coverScale = Math.max(surface.viewportWidth / surface.intrinsicWidth, surface.viewportHeight / surface.intrinsicHeight);
-	const scale = surface.fitMode === "cover" ? coverScale : containScale;
-	const width = surface.intrinsicWidth * scale;
-	const height = surface.intrinsicHeight * scale;
-	return {
-		x: (surface.viewportWidth - width) * .5,
-		y: (surface.viewportHeight - height) * .5,
-		width,
-		height
-	};
-}
-/**
-* Maps a normalized landmark to viewport pixels, respecting fit and mirror.
-*
-* @param {AeroNormalizedLandmark} landmark
-* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
-* @returns {AeroViewportLandmark}
-*/
-function mapNormalizedLandmarkToViewport$1(landmark, descriptor) {
-	const surface = normalizeOverlaySurfaceDescriptor$1(descriptor);
-	const rect = computeMediaContentRect$1(surface);
-	const normalizedX = clamp01$3(landmark.x);
-	const x = surface.mirrored ? 1 - normalizedX : normalizedX;
-	return {
-		id: landmark.id,
-		x: rect.x + x * rect.width,
-		y: rect.y + clamp01$3(landmark.y) * rect.height,
-		z: landmark.z,
-		v: landmark.v
-	};
-}
-/**
-* Maps a normalized landmark to WebGL clip space.
-*
-* @param {AeroNormalizedLandmark} landmark
-* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
-* @returns {AeroClipSpaceLandmark}
-*/
-function mapNormalizedLandmarkToClipSpace$1(landmark, descriptor) {
-	const surface = normalizeOverlaySurfaceDescriptor$1(descriptor);
-	const viewport = mapNormalizedLandmarkToViewport$1(landmark, surface);
-	return {
-		id: landmark.id,
-		x: surface.viewportWidth > 0 ? viewport.x / surface.viewportWidth * 2 - 1 : 0,
-		y: surface.viewportHeight > 0 ? 1 - viewport.y / surface.viewportHeight * 2 : 0,
-		z: landmark.z,
-		v: landmark.v
-	};
-}
-/**
-* @param {AeroRendererFitMode | undefined} value
-* @returns {AeroRendererFitMode}
-*/
-function normalizeFitMode$2(value) {
-	return value === "cover" || value === "stretch" || value === "contain" ? value : "contain";
-}
-/**
-* @param {number | undefined} value
-* @returns {number}
-*/
-function positiveNumberOrZero$1(value) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
-}
-/**
-* @param {number | undefined} value
-* @returns {number | undefined}
-*/
-function positiveNumberOrUndefined$3(value) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
-}
-/**
-* @param {number} value
-* @returns {number}
-*/
-function clamp01$3(value) {
-	if (!Number.isFinite(value)) return 0;
-	return Math.min(Math.max(value, 0), 1);
-}
-/**
-* @param {AeroRendererContentRect} rect
-* @returns {AeroRendererContentRect}
-*/
-function sanitizeRect$1(rect) {
-	return {
-		x: finiteNumberOrZero$2(rect.x),
-		y: finiteNumberOrZero$2(rect.y),
-		width: positiveNumberOrZero$1(rect.width),
-		height: positiveNumberOrZero$1(rect.height)
-	};
-}
-/**
-* @param {number} value
-* @returns {number}
-*/
-function finiteNumberOrZero$2(value) {
-	return Number.isFinite(value) ? value : 0;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/visual-profiles.js
-/** @typedef {import("./gameplay-plan.js").AeroRendererThemeTokens} AeroRendererThemeTokens */
-/** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
-/** @typedef {{schema:"aerobeat/theme_descriptor",version:1,id:string,themeVersion:string,tokens:AeroRendererThemeTokens,contentHash:Readonly<{algorithm:string,value:string}>}} AeroThemeDescriptor */
-/** @typedef {{kind:"solid"|"linear-gradient",colors:readonly string[],angleDeg:number}} AeroRendererBackgroundProjection */
-/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:"live_visual",regenerationRequired:false}>} AeroRendererVisualIdentity */
-/** @typedef {Readonly<{motionIntensity:number,roleScale:number}>} AeroRendererVisualSettings */
-/** @typedef {Readonly<{identity:AeroRendererVisualIdentity,settings:AeroRendererVisualSettings}>} AeroRendererVisualProfileSelection */
-var DEFAULT_VISUAL_HASH$1 = "fdcf478c91e21ef88970299e29fcc35d574bfe69e0d7d00d9f823ee9507f39a3";
-var COMPACT_VISUAL_HASH$1 = "e65d53dfaafe8a859c08837acb3d447b10b03508bd5ae64677d273c93657d603";
-/** @type {AeroRendererVisualProfileSelection} */
-var defaultRendererVisualProfile$1 = visualProfile$1("aero.visual.default", DEFAULT_VISUAL_HASH$1, 1, 1);
-/** @type {AeroRendererVisualProfileSelection} */
-var compactRendererVisualProfile$1 = visualProfile$1("aero.visual.compact", COMPACT_VISUAL_HASH$1, .8, .86);
-/**
-* Narrow a public theme descriptor into renderer-owned immutable tokens.
-*
-* @param {unknown} value
-* @returns {AeroRendererThemeTokens}
-*/
-function normalizeRendererTheme$1(value) {
-	if (!isThemeDescriptor$2(value) || !isRecord$6(value.tokens)) return defaultRendererThemeTokens$1;
-	const tokens = value.tokens;
-	if (![
-		"leftHandColor",
-		"rightHandColor",
-		"guardColor",
-		"obstacleColor",
-		"receptorColor"
-	].every((name) => isRendererColorToken$1(tokens[name])) || ![
-		"approachEasing",
-		"hitEasing",
-		"missEasing"
-	].every((name) => isNamedEasing$1(tokens[name]))) return defaultRendererThemeTokens$1;
-	if (typeof tokens.approachLeadMs !== "number" || !Number.isFinite(tokens.approachLeadMs) || tokens.approachLeadMs < 1 || tokens.approachLeadMs > 1e4 || typeof tokens.targetStartScale !== "number" || !Number.isFinite(tokens.targetStartScale) || tokens.targetStartScale < .05 || tokens.targetStartScale > 3 || typeof tokens.targetHitScale !== "number" || !Number.isFinite(tokens.targetHitScale) || tokens.targetHitScale < .05 || tokens.targetHitScale > 3) return defaultRendererThemeTokens$1;
-	return Object.freeze({
-		leftHandColor: String(tokens.leftHandColor),
-		rightHandColor: String(tokens.rightHandColor),
-		guardColor: String(tokens.guardColor),
-		obstacleColor: String(tokens.obstacleColor),
-		receptorColor: String(tokens.receptorColor),
-		approachLeadMs: Number(tokens.approachLeadMs),
-		targetStartScale: Number(tokens.targetStartScale),
-		targetHitScale: Number(tokens.targetHitScale),
-		approachEasing: String(tokens.approachEasing),
-		hitEasing: String(tokens.hitEasing),
-		missEasing: String(tokens.missEasing)
-	});
-}
-/**
-* Normalize renderer-only visual tuning. Scoring/converter values are deliberately absent.
-*
-* @param {unknown} value
-* @returns {AeroRendererTuning}
-*/
-function normalizeRendererTuning$1(value) {
-	if (!isRecord$6(value)) return defaultRendererTuning$1;
-	const numberNames = [
-		"gridInset",
-		"gridGap",
-		"receptorAlpha",
-		"approachRingScale",
-		"approachRingWidth",
-		"laneWidth",
-		"roleScale",
-		"dprCap"
-	];
-	const requiredNames = [
-		"id",
-		"version",
-		...numberNames
-	];
-	const keys = Object.keys(value);
-	if (!keys.every((key) => requiredNames.includes(key) || key === "hash") || !requiredNames.every((key) => keys.includes(key)) || typeof value.id !== "string" || value.id.length === 0 || typeof value.version !== "string" || value.version.length === 0 || !numberNames.every((name) => typeof value[name] === "number" && Number.isFinite(value[name]))) return defaultRendererTuning$1;
-	const normalized = {
-		id: value.id,
-		version: value.version,
-		gridInset: clamp$4(Number(value.gridInset), 0, .25),
-		gridGap: clamp$4(Number(value.gridGap), 0, .08),
-		receptorAlpha: clamp$4(Number(value.receptorAlpha), 0, 1),
-		approachRingScale: clamp$4(Number(value.approachRingScale), 1, 3),
-		approachRingWidth: clamp$4(Number(value.approachRingWidth), .01, .3),
-		laneWidth: clamp$4(Number(value.laneWidth), .1, .4),
-		roleScale: clamp$4(Number(value.roleScale), .5, 1.5),
-		dprCap: clamp$4(Number(value.dprCap), 1, 4)
-	};
-	const hash = stableVisualHash$1(normalized);
-	if (value.hash !== void 0 && value.hash !== hash) return defaultRendererTuning$1;
-	return Object.freeze({
-		...normalized,
-		hash
-	});
-}
-/**
-* Strictly narrow one public gameplay visual selection without depending on the
-* gameplay package. Only the two content-hashed experimental Task 11 profiles
-* are renderer inputs; scoring/converter identities never cross this adapter.
-*
-* @param {unknown} value
-* @returns {AeroRendererVisualProfileSelection}
-*/
-function normalizeRendererVisualProfile$1(value) {
-	const outer = exactDataRecord$1(value, ["identity", "settings"], "Visual profile selection");
-	const identity = exactDataRecord$1(outer.identity, [
-		"schema",
-		"version",
-		"profileId",
-		"profileVersion",
-		"contentHash",
-		"class",
-		"regenerationRequired"
-	], "Visual profile identity");
-	const settings = exactDataRecord$1(outer.settings, ["motionIntensity", "roleScale"], "Visual profile settings");
-	if (identity.schema !== "aerobeat/prototype_tuning_identity" || identity.version !== 1 || identity.class !== "live_visual" || identity.regenerationRequired !== false) throw new TypeError("Visual profile identity is incompatible with live renderer tuning");
-	for (const name of [
-		"profileId",
-		"profileVersion",
-		"contentHash"
-	]) if (typeof identity[name] !== "string" || identity[name].length === 0 || identity[name].length > 128) throw new TypeError(`Visual profile ${name} is invalid`);
-	if (!/^[0-9a-f]{64}$/u.test(String(identity.contentHash))) throw new TypeError("Visual profile contentHash must be bare lowercase SHA-256");
-	if (typeof settings.motionIntensity !== "number" || !Number.isFinite(settings.motionIntensity) || settings.motionIntensity < 0 || settings.motionIntensity > 2 || typeof settings.roleScale !== "number" || !Number.isFinite(settings.roleScale) || settings.roleScale < .5 || settings.roleScale > 1.5) throw new TypeError("Visual profile settings are outside renderer bounds");
-	const normalized = visualProfile$1(String(identity.profileId), String(identity.contentHash), Number(settings.motionIntensity), Number(settings.roleScale), String(identity.profileVersion));
-	const expected = normalized.identity.profileId === "aero.visual.default" ? defaultRendererVisualProfile$1 : normalized.identity.profileId === "aero.visual.compact" ? compactRendererVisualProfile$1 : null;
-	if (!expected || !sameVisualSelection$1(normalized, expected)) throw new TypeError("Visual profile identity, settings, or content hash is not a supported experimental profile");
-	return expected;
-}
-/** @param {AeroRendererVisualProfileSelection} profile @returns {AeroRendererTuning} */
-function rendererTuningFromVisualProfile$1(profile) {
-	const motionIntensity = profile.settings.motionIntensity;
-	const roleScale = profile.settings.roleScale;
-	return normalizeRendererTuning$1({
-		id: profile.identity.profileId,
-		version: profile.identity.profileVersion,
-		gridInset: defaultRendererTuning$1.gridInset,
-		gridGap: defaultRendererTuning$1.gridGap,
-		receptorAlpha: defaultRendererTuning$1.receptorAlpha,
-		approachRingScale: 1 + (defaultRendererTuning$1.approachRingScale - 1) * motionIntensity,
-		approachRingWidth: defaultRendererTuning$1.approachRingWidth * Math.max(.5, motionIntensity),
-		laneWidth: defaultRendererTuning$1.laneWidth,
-		roleScale,
-		dprCap: defaultRendererTuning$1.dprCap
-	});
-}
-/**
-* @param {unknown} value
-* @returns {AeroRendererBackgroundProjection}
-*/
-function normalizeBackgroundProjection$1(value) {
-	if (!isRecord$6(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken$1)) return Object.freeze({
-		kind: "linear-gradient",
-		colors: Object.freeze(["#071426", "#153b5d"]),
-		angleDeg: 180
-	});
-	return Object.freeze({
-		kind: value.kind,
-		colors: Object.freeze(value.colors.map(String).slice(0, 4)),
-		angleDeg: typeof value.angleDeg === "number" && Number.isFinite(value.angleDeg) ? value.angleDeg : 180
-	});
-}
-/**
-* Convert supported CSS tokens to linear renderer RGBA. Unknown CSS variables degrade
-* to the supplied fallback instead of pretending WebGL can resolve the cascade.
-*
-* @param {string} token
-* @param {readonly [number,number,number,number]} fallback
-* @returns {readonly [number,number,number,number]}
-*/
-function colorTokenToRgba$1(token, fallback) {
-	const hex = token.trim().match(/^#([0-9a-f]{6}|[0-9a-f]{8})$/iu);
-	if (hex) {
-		const value = hex[1];
-		return Object.freeze([
-			parseInt(value.slice(0, 2), 16) / 255,
-			parseInt(value.slice(2, 4), 16) / 255,
-			parseInt(value.slice(4, 6), 16) / 255,
-			value.length === 8 ? parseInt(value.slice(6, 8), 16) / 255 : 1
-		]);
-	}
-	const rgb = token.trim().match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d*(?:\.\d+)?))?\s*\)$/iu);
-	if (rgb) return Object.freeze([
-		clamp$4(Number(rgb[1]) / 255, 0, 1),
-		clamp$4(Number(rgb[2]) / 255, 0, 1),
-		clamp$4(Number(rgb[3]) / 255, 0, 1),
-		clamp$4(rgb[4] === void 0 ? 1 : Number(rgb[4]), 0, 1)
-	]);
-	return fallback;
-}
-/** @param {Readonly<Record<string, string|number>>} value @returns {string} */
-function stableVisualHash$1(value) {
-	const canonical = Object.keys(value).sort().map((key) => `${key}:${String(value[key])}`).join("|");
-	let hash = 2166136261;
-	for (let index = 0; index < canonical.length; index += 1) {
-		hash ^= canonical.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return `visual-${(hash >>> 0).toString(16).padStart(8, "0")}`;
-}
-/** @param {unknown} value @returns {value is string} */
-function isRendererColorToken$1(value) {
-	if (typeof value !== "string" || value.length === 0 || value.length > 128) return false;
-	return /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/iu.test(value.trim()) || /^rgba?\(\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?(?:\s*,\s*\d*(?:\.\d+)?)?\s*\)$/iu.test(value.trim());
-}
-/** @param {unknown} value @returns {value is string} */
-function isNamedEasing$1(value) {
-	return value === "linear" || value === "ease-in" || value === "ease-out" || value === "ease-in-out";
-}
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$6(value) {
-	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-}
-/** @param {number} value @param {number} minimum @param {number} maximum */
-function clamp$4(value, minimum, maximum) {
-	return Math.max(minimum, Math.min(maximum, value));
-}
-/** @param {string} profileId @param {string} contentHash @param {number} motionIntensity @param {number} roleScale @param {string} [profileVersion] @returns {AeroRendererVisualProfileSelection} */
-function visualProfile$1(profileId, contentHash, motionIntensity, roleScale, profileVersion = "1.0.0") {
-	return Object.freeze({
-		identity: Object.freeze({
-			schema: "aerobeat/prototype_tuning_identity",
-			version: 1,
-			profileId,
-			profileVersion,
-			contentHash,
-			class: "live_visual",
-			regenerationRequired: false
-		}),
-		settings: Object.freeze({
-			motionIntensity,
-			roleScale
-		})
-	});
-}
-/** @param {unknown} value @param {readonly string[]} keys @param {string} label @returns {Record<string,unknown>} */
-function exactDataRecord$1(value, keys, label) {
-	if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError(`${label} must be a plain data record`);
-	const descriptors = Object.getOwnPropertyDescriptors(value);
-	const names = Object.keys(descriptors);
-	if (names.length !== keys.length || !keys.every((key) => names.includes(key))) throw new TypeError(`${label} fields are invalid`);
-	/** @type {Record<string,unknown>} */ const result = {};
-	for (const key of keys) {
-		const descriptor = descriptors[key];
-		if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) throw new TypeError(`${label} must not contain accessors or hidden fields`);
-		result[key] = descriptor.value;
-	}
-	return result;
-}
-/** @param {AeroRendererVisualProfileSelection} left @param {AeroRendererVisualProfileSelection} right */
-function sameVisualSelection$1(left, right) {
-	return left.identity.profileId === right.identity.profileId && left.identity.profileVersion === right.identity.profileVersion && left.identity.contentHash === right.identity.contentHash && left.settings.motionIntensity === right.settings.motionIntensity && left.settings.roleScale === right.settings.roleScale;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/renderer-facade.js
-/** @type {"aero.renderer.webgl2"} */
-var aeroWebGl2RendererServiceId$1 = "aero.renderer.webgl2";
-/** @typedef {import("./gameplay-plan.js").AeroGameplayFrame} AeroGameplayFrame */
-/** @typedef {import("./gameplay-plan.js").AeroGameplayRenderPlan} AeroGameplayRenderPlan */
-/** @typedef {import("./gameplay-plan.js").AeroRendererThemeTokens} AeroRendererThemeTokens */
-/** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
-/** @typedef {import("./icon-atlas.js").AeroIconAtlasData} AeroIconAtlasData */
-/** @typedef {import("./landmark-mapping.js").AeroNormalizedLandmark} AeroNormalizedLandmark */
-/** @typedef {import("./landmark-mapping.js").AeroRendererOverlaySurfaceDescriptorInput} AeroRendererOverlaySurfaceDescriptorInput */
-/** @typedef {"unsupported"|"ready"|"running"|"context_lost"|"error"|"destroyed"} AeroRendererState */
-/** @typedef {{widthCssPx:number,heightCssPx:number,devicePixelRatio:number,maxDevicePixelRatio?:number}} AeroRendererResize */
-/** @typedef {{surface?:AeroRendererOverlaySurfaceDescriptorInput,connections?:readonly (readonly [number,number])[],minVisibility?:number,color?:readonly [number,number,number,number],pointSize?:number}} AeroRendererOverlayOptions */
-/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,visualProfile:import("./visual-profiles.js").AeroRendererVisualProfileSelection,visualProfileIdentity:import("./visual-profiles.js").AeroRendererVisualIdentity,visualProfileSettings:import("./visual-profiles.js").AeroRendererVisualSettings,experimental:true,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
-/** @typedef {{serviceId:"aero.renderer.webgl2",webgl2:boolean,exactContainerResize:true,dprAware:true,contextLossRecovery:true,alphaMaskIcons:boolean,liveTuning:true,maxDevicePixelRatio:number,degradations:readonly string[]}} AeroWebGl2RendererCapabilities */
-/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,shapeLocation:WebGLUniformLocation|null,ringWidthLocation:WebGLUniformLocation|null}} ShapeProgram */
-/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,uvRectLocation:WebGLUniformLocation|null,samplerLocation:WebGLUniformLocation|null}} IconProgram */
-/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,colorLocation:WebGLUniformLocation|null,pointSizeLocation:WebGLUniformLocation|null}} OverlayProgram */
-/**
-* Per-game renderer. No process-global singleton exists: each connected aero-game owns
-* one instance and one canvas/context lifecycle.
-*/
-var AeroWebGl2Renderer$1 = class {
-	/** @param {{contextAttributes?:WebGLContextAttributes}} [options] */
-	constructor(options = {}) {
-		this.serviceId = aeroWebGl2RendererServiceId$1;
-		this.contextAttributes = options.contextAttributes ?? {
-			alpha: true,
-			antialias: true,
-			premultipliedAlpha: true
-		};
-		/** @type {HTMLCanvasElement|null} */ this.canvas = null;
-		/** @type {WebGL2RenderingContext|null} */ this.gl = null;
-		/** @type {ShapeProgram|null} */ this.shapeProgram = null;
-		/** @type {IconProgram|null} */ this.iconProgram = null;
-		/** @type {OverlayProgram|null} */ this.overlayProgram = null;
-		/** @type {WebGLTexture|null} */ this.iconTexture = null;
-		/** @type {AeroIconAtlasData|null} */ this.iconAtlasData = null;
-		/** @type {Map<string, import("./icon-atlas.js").AeroIconAtlasEntry>} */ this.iconEntries = /* @__PURE__ */ new Map();
-		/** @type {AeroRendererState} */ this.state = "unsupported";
-		/** @type {AeroRendererThemeTokens} */ this.theme = defaultRendererThemeTokens$1;
-		this.visualProfile = defaultRendererVisualProfile$1;
-		/** @type {AeroRendererTuning} */ this.tuning = rendererTuningFromVisualProfile$1(this.visualProfile);
-		this.themeId = "aero.theme.default";
-		this.themeVersion = "1";
-		this.themeHash = "theme-default";
-		this.background = normalizeBackgroundProjection$1(null);
-		this.iconAtlasError = null;
-		this.errorMessage = null;
-		this.frameCount = 0;
-		this.drawCount = 0;
-		this.widthCssPx = 0;
-		this.heightCssPx = 0;
-		this.devicePixelRatio = 1;
-		this.contextLost = false;
-		this.destroyed = false;
-		this.onContextLost = (event) => {
-			event.preventDefault();
-			this.contextLost = true;
-			this.state = "context_lost";
-			this.releaseGpuReferences(false);
-		};
-		this.onContextRestored = () => {
-			if (!this.canvas || this.destroyed) return;
-			this.contextLost = false;
-			this.acquireContext();
-		};
-	}
-	/** @param {HTMLCanvasElement} canvas @param {WebGLContextAttributes} [options] @returns {AeroWebGl2RendererStatus} */
-	attach(canvas, options = this.contextAttributes) {
-		if (this.destroyed) return this.describe();
-		if (this.canvas !== canvas) this.detach();
-		this.canvas = canvas;
-		this.contextAttributes = options;
-		canvas.addEventListener("webglcontextlost", this.onContextLost);
-		canvas.addEventListener("webglcontextrestored", this.onContextRestored);
-		this.acquireContext();
-		return this.describe();
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	detach() {
-		if (this.canvas) {
-			this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
-			this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
-		}
-		this.deleteGpuResources();
-		this.canvas = null;
-		this.gl = null;
-		this.contextLost = false;
-		if (!this.destroyed) this.state = "unsupported";
-		return this.describe();
-	}
-	/** @param {AeroRendererResize} size @returns {AeroWebGl2RendererStatus} */
-	resize(size) {
-		if (!this.canvas || this.destroyed) return this.describe();
-		this.widthCssPx = finiteNonNegative$3(size.widthCssPx);
-		this.heightCssPx = finiteNonNegative$3(size.heightCssPx);
-		const cap = Math.max(1, Math.min(size.maxDevicePixelRatio ?? this.tuning.dprCap, this.tuning.dprCap));
-		this.devicePixelRatio = Math.max(.1, Math.min(Number.isFinite(size.devicePixelRatio) ? size.devicePixelRatio : 1, cap));
-		const width = Math.max(1, Math.round(this.widthCssPx * this.devicePixelRatio));
-		const height = Math.max(1, Math.round(this.heightCssPx * this.devicePixelRatio));
-		if (this.canvas.width !== width) this.canvas.width = width;
-		if (this.canvas.height !== height) this.canvas.height = height;
-		this.canvas.style.width = `${this.widthCssPx}px`;
-		this.canvas.style.height = `${this.heightCssPx}px`;
-		this.configureViewport();
-		return this.describe();
-	}
-	/** @param {unknown} descriptor @returns {AeroWebGl2RendererStatus} */
-	setTheme(descriptor) {
-		if (this.destroyed) return this.describe();
-		const normalized = normalizeRendererTheme$1(descriptor);
-		const accepted = isThemeDescriptor$2(descriptor) && normalized !== defaultRendererThemeTokens$1;
-		this.theme = normalized;
-		this.themeId = accepted ? descriptor.id : "aero.theme.default";
-		this.themeVersion = accepted ? descriptor.themeVersion : "1";
-		this.themeHash = accepted ? descriptor.contentHash.value : "theme-default";
-		return this.describe();
-	}
-	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
-	setTuning(selection) {
-		return this.importTuning(selection);
-	}
-	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
-	importTuning(selection) {
-		if (this.destroyed) return this.describe();
-		const visualProfile = normalizeRendererVisualProfile$1(selection);
-		const tuning = rendererTuningFromVisualProfile$1(visualProfile);
-		this.visualProfile = visualProfile;
-		this.tuning = tuning;
-		return this.describe();
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	resetTuning() {
-		if (!this.destroyed) {
-			this.visualProfile = defaultRendererVisualProfile$1;
-			this.tuning = rendererTuningFromVisualProfile$1(this.visualProfile);
-		}
-		return this.describe();
-	}
-	/** @returns {import("./visual-profiles.js").AeroRendererVisualProfileSelection} */
-	exportTuning() {
-		return this.visualProfile;
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	getSnapshot() {
-		return this.describe();
-	}
-	/** @param {unknown} background @returns {AeroWebGl2RendererStatus} */
-	setBackgroundProjection(background) {
-		if (!this.destroyed) this.background = normalizeBackgroundProjection$1(background);
-		return this.describe();
-	}
-	/** @param {AeroIconAtlasData} atlas @returns {AeroWebGl2RendererStatus} */
-	uploadIconAtlas(atlas) {
-		if (this.destroyed) return this.describe();
-		let normalized;
-		try {
-			normalized = normalizeIconAtlasData$1(atlas);
-		} catch (error) {
-			if (this.gl && this.iconTexture) this.gl.deleteTexture(this.iconTexture);
-			this.iconTexture = null;
-			this.iconAtlasData = null;
-			this.iconEntries.clear();
-			this.iconAtlasError = error instanceof Error ? error.message : "Icon atlas is invalid";
-			return this.describe();
-		}
-		this.iconAtlasData = normalized;
-		this.iconEntries = new Map(normalized.entries.map((entry) => [entry.id, entry]));
-		this.iconAtlasError = null;
-		const gl = this.gl;
-		if (!gl) return this.describe();
-		if (this.iconTexture) gl.deleteTexture(this.iconTexture);
-		const texture = gl.createTexture();
-		if (!texture) {
-			this.iconAtlasError = "Unable to create icon atlas texture";
-			return this.describe();
-		}
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, normalized.width, normalized.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, normalized.pixels);
-		this.iconTexture = texture;
-		return this.describe();
-	}
-	/** @param {AeroGameplayFrame} frame @returns {{status:AeroWebGl2RendererStatus,plan:AeroGameplayRenderPlan}} */
-	renderGameplayFrame(frame) {
-		const width = this.widthCssPx > 0 ? this.widthCssPx : this.gl?.drawingBufferWidth ?? 0;
-		const height = this.heightCssPx > 0 ? this.heightCssPx : this.gl?.drawingBufferHeight ?? 0;
-		const viewportAspect = frame.viewportAspect ?? (width > 0 && height > 0 ? width / height : 4 / 3);
-		const plan = buildGameplayRenderPlan$1({
-			...frame,
-			viewportAspect
-		}, this.theme, this.tuning);
-		const gl = this.gl;
-		if (!gl || this.destroyed || this.contextLost) return {
-			status: this.describe(),
-			plan
-		};
-		try {
-			this.configureViewport();
-			const background = colorTokenToRgba$1(this.background.colors[0], [
-				.03,
-				.08,
-				.15,
-				1
-			]);
-			gl.clearColor(background[0], background[1], background[2], background[3]);
-			gl.clear(gl.COLOR_BUFFER_BIT);
-			for (const draw of plan.commands) this.drawCommand(draw);
-			if (plan.overlay.dim > 0) this.drawShape({
-				x: 0,
-				y: 0,
-				width: 1,
-				height: 1
-			}, [
-				0,
-				0,
-				0,
-				plan.overlay.dim
-			], 0, .08);
-			if (plan.overlay.countdown !== null) this.drawCountdown(plan.overlay.countdown);
-			this.frameCount += 1;
-			this.state = "running";
-		} catch (error) {
-			this.fail(error);
-		}
-		return {
-			status: this.describe(),
-			plan
-		};
-	}
-	/** @param {{color?:readonly [number,number,number,number]}} [options] */
-	clear(options = {}) {
-		const gl = this.gl;
-		if (!gl || this.destroyed) return { status: this.describe() };
-		const color = options.color ?? [
-			0,
-			0,
-			0,
-			0
-		];
-		this.configureViewport();
-		gl.clearColor(...color);
-		gl.clear(gl.COLOR_BUFFER_BIT);
-		this.frameCount += 1;
-		this.state = "running";
-		return { status: this.describe() };
-	}
-	/** @param {{color?:readonly [number,number,number,number]}} [options] */
-	renderFrame(options = {}) {
-		return this.clear(options);
-	}
-	/** @param {readonly AeroNormalizedLandmark[]} landmarks @param {AeroRendererOverlayOptions} [options] */
-	renderLandmarkOverlay(landmarks, options = {}) {
-		const gl = this.gl;
-		if (!gl || this.destroyed) return {
-			status: this.describe(),
-			pointCount: 0,
-			lineVertexCount: 0
-		};
-		try {
-			const program = this.overlayProgram ?? createOverlayProgram$1(gl);
-			this.overlayProgram = program;
-			const surface = normalizeOverlaySurfaceDescriptor$1({
-				viewportWidth: gl.drawingBufferWidth,
-				viewportHeight: gl.drawingBufferHeight,
-				...options.surface
-			});
-			const visible = landmarks.filter((landmark) => (typeof landmark.v === "number" ? landmark.v : 1) >= (options.minVisibility ?? 0));
-			const points = visible.flatMap((landmark) => {
-				const clip = mapNormalizedLandmarkToClipSpace$1(landmark, surface);
-				return [clip.x, clip.y];
-			});
-			const byId = new Map(visible.map((landmark) => [landmark.id, landmark]));
-			/** @type {number[]} */ const lines = [];
-			for (const pair of options.connections ?? []) {
-				const a = byId.get(pair[0]);
-				const b = byId.get(pair[1]);
-				if (a && b) {
-					const ac = mapNormalizedLandmarkToClipSpace$1(a, surface);
-					const bc = mapNormalizedLandmarkToClipSpace$1(b, surface);
-					lines.push(ac.x, ac.y, bc.x, bc.y);
-				}
-			}
-			drawOverlay$1(gl, program, lines, gl.LINES, options);
-			drawOverlay$1(gl, program, points, gl.POINTS, options);
-			this.drawCount += 1;
-			this.state = "running";
-			return {
-				status: this.describe(),
-				pointCount: points.length / 2,
-				lineVertexCount: lines.length / 2
-			};
-		} catch (error) {
-			this.fail(error);
-			return {
-				status: this.describe(),
-				pointCount: 0,
-				lineVertexCount: 0
-			};
-		}
-	}
-	/** @returns {AeroWebGl2RendererCapabilities} */
-	getCapabilities() {
-		const degradations = [];
-		if (!this.gl) degradations.push("webgl2_unavailable");
-		if (!this.iconTexture) degradations.push(this.iconAtlasError ? "icon_atlas_invalid_fallback_shapes" : "icon_atlas_unavailable_fallback_shapes");
-		if (this.background.kind === "linear-gradient" && this.background.colors.length > 1) degradations.push("gradient_background_projected_to_primary_color");
-		return Object.freeze({
-			serviceId: aeroWebGl2RendererServiceId$1,
-			webgl2: Boolean(this.gl),
-			exactContainerResize: true,
-			dprAware: true,
-			contextLossRecovery: true,
-			alphaMaskIcons: Boolean(this.iconTexture),
-			liveTuning: true,
-			maxDevicePixelRatio: this.tuning.dprCap,
-			degradations: Object.freeze(degradations)
-		});
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	describe() {
-		return Object.freeze({
-			serviceId: aeroWebGl2RendererServiceId$1,
-			state: this.state,
-			supported: Boolean(this.gl),
-			attached: Boolean(this.canvas && this.gl),
-			contextLost: this.contextLost,
-			destroyed: this.destroyed,
-			frameCount: this.frameCount,
-			drawCount: this.drawCount,
-			viewportWidth: this.gl?.drawingBufferWidth ?? this.canvas?.width ?? 0,
-			viewportHeight: this.gl?.drawingBufferHeight ?? this.canvas?.height ?? 0,
-			widthCssPx: this.widthCssPx,
-			heightCssPx: this.heightCssPx,
-			devicePixelRatio: this.devicePixelRatio,
-			themeId: this.themeId,
-			themeVersion: this.themeVersion,
-			themeHash: this.themeHash,
-			tuningId: this.tuning.id,
-			tuningVersion: this.tuning.version,
-			tuningHash: this.tuning.hash,
-			tuningRequiresRegeneration: false,
-			visualProfile: this.visualProfile,
-			visualProfileIdentity: this.visualProfile.identity,
-			visualProfileSettings: this.visualProfile.settings,
-			experimental: true,
-			iconAtlasReady: Boolean(this.iconTexture),
-			iconAtlasError: this.iconAtlasError,
-			errorMessage: this.errorMessage
-		});
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	destroy() {
-		if (this.destroyed) return this.describe();
-		this.destroyed = true;
-		this.detach();
-		this.state = "destroyed";
-		this.iconEntries.clear();
-		this.iconAtlasData = null;
-		return this.describe();
-	}
-	acquireContext() {
-		if (!this.canvas || this.destroyed) return;
-		try {
-			const context = this.canvas.getContext("webgl2", this.contextAttributes);
-			if (!context) {
-				this.gl = null;
-				this.state = "unsupported";
-				this.errorMessage = "WebGL2 is unavailable for this canvas";
-				return;
-			}
-			this.gl = context;
-			this.state = "ready";
-			this.errorMessage = null;
-			this.contextLost = false;
-			context.enable(context.BLEND);
-			context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
-			this.configureViewport();
-			if (this.iconAtlasData) this.uploadIconAtlas(this.iconAtlasData);
-		} catch (error) {
-			this.gl = null;
-			this.fail(error);
-		}
-	}
-	configureViewport() {
-		if (this.gl) this.gl.viewport(0, 0, this.gl.drawingBufferWidth || this.canvas?.width || 1, this.gl.drawingBufferHeight || this.canvas?.height || 1);
-	}
-	/** @param {import("./gameplay-plan.js").AeroGameplayDrawCommand} draw */
-	drawCommand(draw) {
-		const color = draw.contrast ? this.cueContrastColor(draw.role, draw.alpha, draw.saturation) : this.roleColor(draw.role, draw.alpha, draw.saturation);
-		if (draw.kind === "icon" && draw.iconId && this.iconTexture && this.iconEntries.has(draw.iconId)) this.drawIcon(draw.rect, color, this.iconEntries.get(draw.iconId));
-		else this.drawShape(draw.rect, color, draw.kind === "circle" ? 1 : draw.kind === "ring" ? 2 : draw.kind === "hatch" ? 3 : 0, this.tuning.approachRingWidth);
-		this.drawCount += 1;
-	}
-	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
-	roleColor(role, alpha, saturation) {
-		const fallback = [
-			.85,
-			.95,
-			1,
-			alpha
-		];
-		const color = colorTokenToRgba$1(role === "left" ? this.theme.leftHandColor : role === "right" ? this.theme.rightHandColor : role === "guard" ? this.theme.guardColor : role === "obstacle" ? this.theme.obstacleColor : role === "safe" ? "#56d6c9" : this.theme.receptorColor, fallback);
-		const gray = color[0] * .2126 + color[1] * .7152 + color[2] * .0722;
-		return [
-			gray + (color[0] - gray) * saturation,
-			gray + (color[1] - gray) * saturation,
-			gray + (color[2] - gray) * saturation,
-			color[3] * alpha
-		];
-	}
-	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
-	cueContrastColor(role, alpha, saturation) {
-		const target = this.roleColor(role, alpha, saturation);
-		const luminance = relativeLuminance$1(target[0], target[1], target[2]);
-		const blackContrast = (luminance + .05) / .05;
-		const channel = 1.05 / (luminance + .05) > blackContrast ? 1 : 0;
-		return [
-			channel,
-			channel,
-			channel,
-			target[3]
-		];
-	}
-	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {number} shape @param {number} ringWidth */
-	drawShape(rect, color, shape, ringWidth) {
-		const gl = this.gl;
-		if (!gl) return;
-		const program = this.shapeProgram ?? createShapeProgram$1(gl);
-		this.shapeProgram = program;
-		uploadQuad$1(gl, program.buffer, program.positionLocation, program.localLocation, rect);
-		gl.useProgram(program.program);
-		gl.uniform4f(program.colorLocation, ...color);
-		gl.uniform1i(program.shapeLocation, shape);
-		gl.uniform1f(program.ringWidthLocation, ringWidth);
-		gl.drawArrays(gl.TRIANGLES, 0, 6);
-	}
-	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {import("./icon-atlas.js").AeroIconAtlasEntry|undefined} entry */
-	drawIcon(rect, color, entry) {
-		const gl = this.gl;
-		if (!gl || !entry || !this.iconTexture) return;
-		const program = this.iconProgram ?? createIconProgram$1(gl);
-		this.iconProgram = program;
-		uploadQuad$1(gl, program.buffer, program.positionLocation, program.localLocation, rect);
-		gl.useProgram(program.program);
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, this.iconTexture);
-		gl.uniform1i(program.samplerLocation, 0);
-		gl.uniform4f(program.colorLocation, ...color);
-		gl.uniform4f(program.uvRectLocation, entry.u0, entry.v0, entry.u1, entry.v1);
-		gl.drawArrays(gl.TRIANGLES, 0, 6);
-	}
-	/** @param {number} value */
-	drawCountdown(value) {
-		const segments = countdownSegments$1(value);
-		for (const rect of segments) this.drawShape(rect, [
-			1,
-			1,
-			1,
-			.94
-		], 0, .1);
-	}
-	deleteGpuResources() {
-		const gl = this.gl;
-		if (gl) {
-			for (const program of [
-				this.shapeProgram,
-				this.iconProgram,
-				this.overlayProgram
-			]) if (program) {
-				gl.deleteBuffer(program.buffer);
-				gl.deleteProgram(program.program);
-			}
-			if (this.iconTexture) gl.deleteTexture(this.iconTexture);
-		}
-		this.releaseGpuReferences(true);
-	}
-	/** @param {boolean} clearEntries */
-	releaseGpuReferences(clearEntries) {
-		this.shapeProgram = null;
-		this.iconProgram = null;
-		this.overlayProgram = null;
-		this.iconTexture = null;
-		if (clearEntries) this.iconEntries.clear();
-	}
-	/** @param {unknown} error */
-	fail(error) {
-		this.state = "error";
-		this.errorMessage = error instanceof Error ? error.message : "Renderer operation failed";
-	}
-};
-/** @param {{contextAttributes?:WebGLContextAttributes}} [options] @returns {AeroWebGl2Renderer} */
-function createAeroWebGl2Renderer$1(options) {
-	return new AeroWebGl2Renderer$1(options);
-}
-/** @param {WebGL2RenderingContext} gl @returns {ShapeProgram} */
-function createShapeProgram$1(gl) {
-	const program = linkProgram$1(gl, QUAD_VERTEX$1, SHAPE_FRAGMENT$1);
-	return {
-		program,
-		buffer: requiredBuffer$1(gl),
-		positionLocation: gl.getAttribLocation(program, "a_position"),
-		localLocation: gl.getAttribLocation(program, "a_local"),
-		colorLocation: gl.getUniformLocation(program, "u_color"),
-		shapeLocation: gl.getUniformLocation(program, "u_shape"),
-		ringWidthLocation: gl.getUniformLocation(program, "u_ringWidth")
-	};
-}
-/** @param {WebGL2RenderingContext} gl @returns {IconProgram} */
-function createIconProgram$1(gl) {
-	const program = linkProgram$1(gl, QUAD_VERTEX$1, ICON_FRAGMENT$1);
-	return {
-		program,
-		buffer: requiredBuffer$1(gl),
-		positionLocation: gl.getAttribLocation(program, "a_position"),
-		localLocation: gl.getAttribLocation(program, "a_local"),
-		colorLocation: gl.getUniformLocation(program, "u_color"),
-		uvRectLocation: gl.getUniformLocation(program, "u_uvRect"),
-		samplerLocation: gl.getUniformLocation(program, "u_mask")
-	};
-}
-/** @param {WebGL2RenderingContext} gl @returns {OverlayProgram} */
-function createOverlayProgram$1(gl) {
-	const program = linkProgram$1(gl, `#version 300 es\nin vec2 a_position; uniform float u_pointSize; void main(){gl_Position=vec4(a_position,0.,1.);gl_PointSize=u_pointSize;}`, `#version 300 es\nprecision mediump float; uniform vec4 u_color; out vec4 outColor; void main(){outColor=u_color;}`);
-	return {
-		program,
-		buffer: requiredBuffer$1(gl),
-		positionLocation: gl.getAttribLocation(program, "a_position"),
-		colorLocation: gl.getUniformLocation(program, "u_color"),
-		pointSizeLocation: gl.getUniformLocation(program, "u_pointSize")
-	};
-}
-/** @param {WebGL2RenderingContext} gl @param {string} vertex @param {string} fragment */
-function linkProgram$1(gl, vertex, fragment) {
-	const vs = compile$1(gl, gl.VERTEX_SHADER, vertex);
-	const fs = compile$1(gl, gl.FRAGMENT_SHADER, fragment);
-	const program = gl.createProgram();
-	if (!program) throw new Error("Unable to create renderer program");
-	gl.attachShader(program, vs);
-	gl.attachShader(program, fs);
-	gl.linkProgram(program);
-	gl.deleteShader(vs);
-	gl.deleteShader(fs);
-	if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "Unable to link renderer program");
-	return program;
-}
-/** @param {WebGL2RenderingContext} gl @param {number} type @param {string} source */
-function compile$1(gl, type, source) {
-	const shader = gl.createShader(type);
-	if (!shader) throw new Error("Unable to create renderer shader");
-	gl.shaderSource(shader, source);
-	gl.compileShader(shader);
-	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) ?? "Unable to compile renderer shader");
-	return shader;
-}
-/** @param {WebGL2RenderingContext} gl */
-function requiredBuffer$1(gl) {
-	const buffer = gl.createBuffer();
-	if (!buffer) throw new Error("Unable to create renderer buffer");
-	return buffer;
-}
-/** @param {WebGL2RenderingContext} gl @param {WebGLBuffer} buffer @param {number} positionLocation @param {number} localLocation @param {{x:number,y:number,width:number,height:number}} rect */
-function uploadQuad$1(gl, buffer, positionLocation, localLocation, rect) {
-	const x0 = rect.x * 2 - 1;
-	const x1 = (rect.x + rect.width) * 2 - 1;
-	const y0 = 1 - rect.y * 2;
-	const y1 = 1 - (rect.y + rect.height) * 2;
-	const values = new Float32Array([
-		x0,
-		y0,
-		0,
-		0,
-		x1,
-		y0,
-		1,
-		0,
-		x0,
-		y1,
-		0,
-		1,
-		x0,
-		y1,
-		0,
-		1,
-		x1,
-		y0,
-		1,
-		0,
-		x1,
-		y1,
-		1,
-		1
-	]);
-	gl.useProgram(null);
-	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, values, gl.STREAM_DRAW);
-	gl.enableVertexAttribArray(positionLocation);
-	gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0);
-	gl.enableVertexAttribArray(localLocation);
-	gl.vertexAttribPointer(localLocation, 2, gl.FLOAT, false, 16, 8);
-}
-/** @param {WebGL2RenderingContext} gl @param {OverlayProgram} program @param {number[]} vertices @param {number} primitive @param {AeroRendererOverlayOptions} options */
-function drawOverlay$1(gl, program, vertices, primitive, options) {
-	if (vertices.length === 0) return;
-	const color = options.color ?? [
-		.24,
-		.9,
-		.45,
-		.95
-	];
-	gl.useProgram(program.program);
-	gl.bindBuffer(gl.ARRAY_BUFFER, program.buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
-	gl.enableVertexAttribArray(program.positionLocation);
-	gl.vertexAttribPointer(program.positionLocation, 2, gl.FLOAT, false, 0, 0);
-	gl.uniform4f(program.colorLocation, ...color);
-	gl.uniform1f(program.pointSizeLocation, options.pointSize ?? 6);
-	gl.drawArrays(primitive, 0, vertices.length / 2);
-}
-/** @param {number} value @returns {readonly {x:number,y:number,width:number,height:number}[]} */
-function countdownSegments$1(value) {
-	const horizontal = (y) => ({
-		x: .43,
-		y,
-		width: .14,
-		height: .025
-	});
-	const left = (y) => ({
-		x: .43,
-		y,
-		width: .025,
-		height: .12
-	});
-	const right = (y) => ({
-		x: .545,
-		y,
-		width: .025,
-		height: .12
-	});
-	if (value === 1) return [right(.36), right(.51)];
-	if (value === 2) return [
-		horizontal(.34),
-		right(.36),
-		horizontal(.49),
-		left(.51),
-		horizontal(.64)
-	];
-	return [
-		horizontal(.34),
-		right(.36),
-		horizontal(.49),
-		right(.51),
-		horizontal(.64)
-	];
-}
-/** @param {number} value */
-function finiteNonNegative$3(value) {
-	return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-/** @param {number} red @param {number} green @param {number} blue */
-function relativeLuminance$1(red, green, blue) {
-	const linear = (channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
-	return linear(red) * .2126 + linear(green) * .7152 + linear(blue) * .0722;
-}
-var QUAD_VERTEX$1 = `#version 300 es
-in vec2 a_position; in vec2 a_local; out vec2 v_local; void main(){v_local=a_local;gl_Position=vec4(a_position,0.,1.);}`;
-var SHAPE_FRAGMENT$1 = `#version 300 es
-precision mediump float; in vec2 v_local; uniform vec4 u_color; uniform int u_shape; uniform float u_ringWidth; out vec4 outColor;
-void main(){float d=distance(v_local,vec2(.5)); if(u_shape==1 && d>.5) discard; if(u_shape==2 && abs(d-.43)>u_ringWidth*.5) discard; vec4 color=u_color; if(u_shape==3 && mod(floor((v_local.x+v_local.y)*18.),2.)<1.) color.rgb*=.48; outColor=color;}`;
-var ICON_FRAGMENT$1 = `#version 300 es
-precision mediump float; in vec2 v_local; uniform sampler2D u_mask; uniform vec4 u_color; uniform vec4 u_uvRect; out vec4 outColor;
-void main(){vec2 uv=mix(u_uvRect.xy,u_uvRect.zw,v_local);float alpha=texture(u_mask,uv).a; if(alpha<.02) discard;outColor=vec4(u_color.rgb,u_color.a*alpha);}`;
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/elements/aero-media-pose-preview/aero-media-pose-preview.js
-/**
-* Pose landmark IDs used for the durable body skeleton overlay.
-*
-* @type {readonly (readonly [number, number])[]}
-*/
-var aeroPosePreviewSkeletonConnections = Object.freeze([
-	Object.freeze([0, 5]),
-	Object.freeze([0, 6]),
-	Object.freeze([5, 6]),
-	Object.freeze([5, 7]),
-	Object.freeze([7, 9]),
-	Object.freeze([6, 8]),
-	Object.freeze([8, 10])
-]);
-/**
-* Upper-body pose landmarks visible in the phone calibration checkpoint.
-*
-* @type {ReadonlyMap<string, number>}
-*/
-var aeroPosePreviewLandmarkIds = /* @__PURE__ */ new Map([
-	["nose", 0],
-	["left_shoulder", 5],
-	["right_shoulder", 6],
-	["left_elbow", 7],
-	["right_elbow", 8],
-	["left_wrist", 9],
-	["right_wrist", 10]
-]);
-/**
-* @type {readonly string[]}
-*/
-var aeroPosePreviewLandmarkOrder = Object.freeze([
-	"nose",
-	"left_wrist",
-	"left_elbow",
-	"left_shoulder",
-	"right_shoulder",
-	"right_elbow",
-	"right_wrist"
-]);
-/**
-* @typedef {"smoother" | "fast"} AeroMediaPosePreviewTrackingProfile
-*/
-/**
-* Preview tracking profiles for phone readability versus latency checks.
-*
-* @type {Readonly<Record<AeroMediaPosePreviewTrackingProfile, { alpha: number }>>}
-*/
-var aeroPosePreviewTrackingProfiles = Object.freeze({
-	smoother: Object.freeze({ alpha: .42 }),
-	fast: Object.freeze({ alpha: 1 })
-});
-/**
-* @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame
-* @typedef {import("@aerobeat/web-contracts").AeroPoseRoutingSample} AeroPoseRoutingSample
-* @typedef {import("@aerobeat/web-video").createBrowserVideoMediaFacade} CreateBrowserVideoMediaFacade
-*/
-/**
-* @typedef {ReturnType<CreateBrowserVideoMediaFacade>} BrowserVideoMediaFacade
-* @typedef {ReturnType<import("@aerobeat/web-renderer").createAeroWebGl2Renderer>} AeroWebGl2Renderer
-*/
-/**
-* @typedef {"contain" | "cover" | "stretch"} AeroMediaPosePreviewFitMode
-*/
-/**
-* @typedef {object} AeroMediaPosePreviewSource
-* @property {"live-camera" | "loaded-video" | "replay-video-feed"} kind Source kind owned by `@aerobeat/web-video`.
-* @property {string} sourceId Source identifier.
-* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
-* @property {boolean} mirrored Whether the player-facing preview is mirrored.
-*/
-/**
-* @typedef {AeroMediaPosePreviewSource & {
-*   url: string,
-*   loop: boolean,
-*   autoplay: boolean,
-*   muted: boolean,
-*   startTimeSeconds: number
-* }} AeroMediaPosePreviewVideoSource
-*/
-/**
-* @typedef {object} AeroMediaPosePreviewSurface
-* @property {string | undefined} sourceKind Current source kind.
-* @property {string | undefined} sourceId Current source identifier.
-* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
-* @property {boolean} mirrored Whether the player-facing preview is mirrored.
-* @property {number | undefined} intrinsicWidth Source media width.
-* @property {number | undefined} intrinsicHeight Source media height.
-* @property {number} currentTimeSeconds Current media time.
-*/
-/**
-* @typedef {object} AeroMediaPosePreviewSnapshot
-* @property {string | undefined} sourceKind Current source kind.
-* @property {string | undefined} sourceId Current source identifier.
-* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
-* @property {boolean} mirrored Whether the player-facing preview is mirrored.
-* @property {number} landmarkCount Number of landmarks submitted to the overlay.
-* @property {number} rendererDrawCount Current renderer draw count.
-* @property {AeroMediaPosePreviewTrackingProfile} trackingProfile Active preview smoothing profile.
-* @property {{x: number, y: number, width: number, height: number}} contentRect Fitted content rectangle.
-* @property {number | undefined} mediaPoseDeltaMs Media time minus latest real measurement timestamp, when comparable.
-* @property {number | undefined} presentationTargetDeltaMs Media time minus the routed presentation target, when comparable.
-* @property {import("@aerobeat/web-contracts").AeroPoseSampleProvenance | undefined} poseProvenance Measured or predicted overlay source.
-* @property {number | undefined} measurementTimestampMs Latest real measurement timestamp.
-* @property {number | undefined} predictionHorizonMs Current bounded prediction horizon.
-*/
-/**
-* @typedef {object} AeroMediaPosePreviewOverlaySurface
-* @property {number} viewportWidth Overlay canvas width.
-* @property {number} viewportHeight Overlay canvas height.
-* @property {number | undefined} intrinsicWidth Source media width.
-* @property {number | undefined} intrinsicHeight Source media height.
-* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
-* @property {boolean} mirrored Whether normalized x should be mirrored.
-* @property {{x: number, y: number, width: number, height: number} | undefined} contentRect Explicit fitted media rectangle.
-*/
-/**
-* @typedef {object} AeroMediaPosePreviewLandmark
-* @property {number} id Stable pose landmark identifier.
-* @property {string} name Stable AeroBeat landmark name.
-* @property {number} x Smoothed normalized horizontal position.
-* @property {number} y Smoothed normalized vertical position.
-* @property {number} v Detector confidence.
-*/
-/**
-* Web UI presenter that composes a video-owned media surface with the shared
-* WebGL2 renderer overlay path. CV and vendor adapters only provide pose data.
-*/
-var AeroMediaPosePreview = class extends HTMLElement {
-	/**
-	* Observed attributes for declarative scenes.
-	*
-	* @returns {string[]}
-	*/
-	static get observedAttributes() {
-		return [
-			"fit-mode",
-			"mirrored",
-			"source-id",
-			"source-kind",
-			"tracking-profile"
-		];
-	}
-	/**
-	* Creates the preview shadow DOM.
-	*/
-	constructor() {
-		super();
-		/** @type {BrowserVideoMediaFacade} */
-		this.videoMediaFacade = createBrowserVideoMediaFacade$1();
-		/** @type {AeroWebGl2Renderer} */
-		this.renderer = createAeroWebGl2Renderer$1();
-		/** @type {AeroMediaPosePreviewSurface | undefined} */
-		this.surface = void 0;
-		/** @type {NormalizedPoseFrame | undefined} */
-		this.poseFrame = void 0;
-		/** @type {AeroPoseRoutingSample | undefined} */
-		this.poseRoutingSample = void 0;
-		/** @type {Map<string, AeroMediaPosePreviewLandmark>} */
-		this.smoothedLandmarks = /* @__PURE__ */ new Map();
-		/** @type {string} */
-		this.lastSmoothedFrameKey = "";
-		/** @type {string} */
-		this.lastSmoothedSourceId = "";
-		/** @type {AeroMediaPosePreviewTrackingProfile} */
-		this.trackingProfile = "smoother";
-		/** @type {ResizeObserver | undefined} */
-		this.resizeObserver = void 0;
-		const root = this.attachShadow({ mode: "open" });
-		root.innerHTML = `
-      <style>
-        :host {
-          aspect-ratio: 16 / 9;
-          background: #06151a;
-          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
-          border-radius: var(--aero-radius-panel, 8px);
-          box-shadow: var(--aero-shadow-panel, 0 16px 38px rgba(16, 52, 71, 0.18));
-          box-sizing: border-box;
-          display: block;
-          inline-size: 100%;
-          max-inline-size: 720px;
-          min-block-size: 180px;
-          overflow: hidden;
-        }
-
-        .preview {
-          block-size: 100%;
-          display: grid;
-          inline-size: 100%;
-          overflow: hidden;
-          position: relative;
-        }
-
-        video,
-        canvas {
-          block-size: 100%;
-          grid-area: 1 / 1;
-          inline-size: 100%;
-        }
-
-        video {
-          background: #06151a;
-        }
-
-        video[data-fit-mode="contain"] {
-          object-fit: contain;
-        }
-
-        video[data-fit-mode="cover"] {
-          object-fit: cover;
-        }
-
-        video[data-fit-mode="stretch"] {
-          object-fit: fill;
-        }
-
-        video[data-mirrored="true"] {
-          transform: scaleX(-1);
-        }
-
-        canvas {
-          pointer-events: none;
-          position: relative;
-          z-index: 1;
-        }
-      </style>
-      <section class="preview" part="preview">
-        <video muted playsinline data-fit-mode="contain" data-mirrored="false"></video>
-        <canvas aria-hidden="true"></canvas>
-      </section>
-    `;
-	}
-	/**
-	* Attaches renderer and size observers when connected.
-	*/
-	connectedCallback() {
-		this.#syncAttributesToSurface();
-		this.#attachRenderer();
-		this.resizeObserver = new ResizeObserver(() => {
-			this.#sizeOverlayCanvas();
-			this.renderPreview();
-		});
-		this.resizeObserver.observe(this);
-		this.renderPreview();
-	}
-	/**
-	* Releases local observers and renderer attachment.
-	*/
-	disconnectedCallback() {
-		this.resizeObserver?.disconnect();
-		this.resizeObserver = void 0;
-		this.renderer.detach();
-	}
-	/**
-	* Syncs declarative attributes.
-	*/
-	attributeChangedCallback() {
-		this.#syncAttributesToSurface();
-		this.renderPreview();
-	}
-	/**
-	* Injects the video facade owned by `@aerobeat/web-video`.
-	*
-	* @param {BrowserVideoMediaFacade} videoMediaFacade
-	* @returns {void}
-	*/
-	setVideoMediaFacade(videoMediaFacade) {
-		this.videoMediaFacade = videoMediaFacade;
-	}
-	/**
-	* Injects the WebGL2 overlay renderer owned by `@aerobeat/web-renderer`.
-	*
-	* @param {AeroWebGl2Renderer} renderer
-	* @returns {void}
-	*/
-	setRenderer(renderer) {
-		this.renderer.detach();
-		this.renderer = renderer;
-		this.#attachRenderer();
-		this.renderPreview();
-	}
-	/**
-	* Attaches a retained or supplied live camera stream to the media surface.
-	*
-	* @param {MediaStream | undefined} stream
-	* @param {AeroMediaPosePreviewSource | undefined} source
-	* @returns {AeroMediaPosePreviewSurface}
-	*/
-	attachCameraStream(stream, source) {
-		const surface = this.videoMediaFacade.attachCameraStream(this.#videoElement(), stream, { source });
-		this.setSurfaceDescriptor(surface);
-		return this.#surfaceSnapshot();
-	}
-	/**
-	* Attaches a loaded video or replay feed descriptor to the media surface.
-	*
-	* @param {AeroMediaPosePreviewVideoSource} source
-	* @returns {AeroMediaPosePreviewSurface}
-	*/
-	attachVideoSource(source) {
-		const surface = this.videoMediaFacade.attachVideoSource(this.#videoElement(), source);
-		this.setSurfaceDescriptor(surface);
-		return this.#surfaceSnapshot();
-	}
-	/**
-	* Updates public surface metadata already described by the video facade.
-	*
-	* @param {Partial<AeroMediaPosePreviewSurface>} surface
-	* @param {{ render?: boolean }} [options]
-	* @returns {void}
-	*/
-	setSurfaceDescriptor(surface, options = {}) {
-		const previousSurface = this.surface;
-		this.surface = normalizeSurface({
-			...this.surface,
-			...surface
-		});
-		if (hasPresentationSurfaceChanged(previousSurface, this.surface)) this.#resetSmoothingState();
-		this.#applySurfaceToMedia();
-		if (options.render !== false) this.renderPreview();
-	}
-	/**
-	* Updates the pose frame drawn by the renderer overlay.
-	*
-	* @param {NormalizedPoseFrame | undefined} poseFrame
-	* @param {{ render?: boolean }} [options]
-	* @returns {void}
-	*/
-	setPoseFrame(poseFrame, options = {}) {
-		const previousSourceId = this.poseRoutingSample?.sourceId ?? this.poseFrame?.sourceId;
-		const crossedRoutingBoundary = Boolean(this.poseRoutingSample);
-		this.poseRoutingSample = void 0;
-		this.poseFrame = poseFrame;
-		if (!poseFrame || crossedRoutingBoundary || previousSourceId !== poseFrame.sourceId) this.#resetSmoothingState();
-		if (options.render !== false) this.renderPreview();
-	}
-	/**
-	* Updates the overlay from a truthfully tagged gameplay-routing sample without
-	* exposing the estimate as measured adapter output.
-	*
-	* @param {AeroPoseRoutingSample | undefined} sample
-	* @param {{ render?: boolean }} [options]
-	* @returns {void}
-	*/
-	setPoseRoutingSample(sample, options = {}) {
-		const previousSample = this.poseRoutingSample;
-		const crossedMeasuredFrameBoundary = Boolean(this.poseFrame);
-		this.poseFrame = void 0;
-		this.poseRoutingSample = sample;
-		if (!sample || crossedMeasuredFrameBoundary || previousSample?.sourceId !== sample.sourceId || previousSample?.routeEpoch !== sample.routeEpoch || previousSample?.provenance !== sample.provenance) this.#resetSmoothingState();
-		if (options.render !== false) this.renderPreview();
-	}
-	/**
-	* Selects how aggressively preview landmarks smooth incoming pose frames.
-	*
-	* @param {AeroMediaPosePreviewTrackingProfile | string | undefined} profile
-	* @returns {void}
-	*/
-	setTrackingProfile(profile) {
-		const nextProfile = normalizeTrackingProfile(profile);
-		if (nextProfile === this.trackingProfile) return;
-		this.trackingProfile = nextProfile;
-		this.#resetSmoothingState();
-		this.setAttribute("tracking-profile", nextProfile);
-		this.renderPreview();
-	}
-	/**
-	* Renders the current pose frame over the current media content rect.
-	*
-	* @returns {AeroMediaPosePreviewSnapshot}
-	*/
-	renderPreview() {
-		this.#sizeOverlayCanvas();
-		this.#applySurfaceToMedia();
-		this.renderer.clear({ color: [
-			0,
-			0,
-			0,
-			0
-		] });
-		const surface = this.#overlaySurface();
-		const landmarks = this.#visiblePoseLandmarks();
-		const result = this.renderer.renderLandmarkOverlay(landmarks, {
-			surface,
-			connections: aeroPosePreviewSkeletonConnections,
-			minVisibility: .25,
-			color: [
-				.24,
-				.9,
-				.45,
-				.95
-			],
-			pointSize: 7
-		});
-		const canvas = this.#canvasElement();
-		canvas.dataset.landmarkCount = String(landmarks.length);
-		canvas.dataset.rendererDrawCount = String(result.status.drawCount);
-		canvas.dataset.trackingProfile = this.trackingProfile;
-		canvas.dataset.contentRect = JSON.stringify(computeMediaContentRect$1(surface));
-		canvas.dataset.mediaPoseDeltaMs = String(this.#mediaPoseDeltaMs() ?? "");
-		canvas.dataset.presentationTargetDeltaMs = String(this.#presentationTargetDeltaMs() ?? "");
-		canvas.dataset.poseProvenance = this.poseRoutingSample?.provenance ?? (this.poseFrame ? "measured" : "");
-		canvas.dataset.measurementTimestampMs = String(this.#measurementTimestampMs() ?? "");
-		canvas.dataset.predictionHorizonMs = String(this.poseRoutingSample?.predictionHorizonMs ?? (this.poseFrame ? 0 : ""));
-		return this.describePreview();
-	}
-	/**
-	* Reports the current preview composition state for validation and assembly.
-	*
-	* @returns {AeroMediaPosePreviewSnapshot}
-	*/
-	describePreview() {
-		const surface = this.#overlaySurface();
-		const rendererStatus = this.renderer.describe();
-		return {
-			sourceKind: this.surface?.sourceKind,
-			sourceId: this.surface?.sourceId,
-			fitMode: surface.fitMode,
-			mirrored: surface.mirrored ?? false,
-			landmarkCount: this.#visiblePoseLandmarks().length,
-			rendererDrawCount: rendererStatus.drawCount,
-			trackingProfile: this.trackingProfile,
-			contentRect: computeMediaContentRect$1(surface),
-			mediaPoseDeltaMs: this.#mediaPoseDeltaMs(),
-			presentationTargetDeltaMs: this.#presentationTargetDeltaMs(),
-			poseProvenance: this.poseRoutingSample?.provenance ?? (this.poseFrame ? "measured" : void 0),
-			measurementTimestampMs: this.#measurementTimestampMs(),
-			predictionHorizonMs: this.poseRoutingSample?.predictionHorizonMs ?? (this.poseFrame ? 0 : void 0)
-		};
-	}
-	/**
-	* @returns {HTMLVideoElement}
-	*/
-	#videoElement() {
-		const video = this.shadowRoot?.querySelector("video");
-		if (!(video instanceof HTMLVideoElement)) throw new Error("Aero media preview video element is unavailable.");
-		return video;
-	}
-	/**
-	* @returns {HTMLCanvasElement}
-	*/
-	#canvasElement() {
-		const canvas = this.shadowRoot?.querySelector("canvas");
-		if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Aero media preview canvas element is unavailable.");
-		return canvas;
-	}
-	/**
-	* @returns {void}
-	*/
-	#attachRenderer() {
-		if (!this.isConnected) return;
-		this.#sizeOverlayCanvas();
-		this.renderer.attach(this.#canvasElement(), {
-			alpha: true,
-			antialias: true
-		});
-	}
-	/**
-	* @returns {void}
-	*/
-	#sizeOverlayCanvas() {
-		const canvas = this.#canvasElement();
-		const rect = this.getBoundingClientRect();
-		const width = Math.max(1, Math.round(rect.width || this.clientWidth || 640));
-		const height = Math.max(1, Math.round(rect.height || this.clientHeight || 360));
-		if (canvas.width !== width) canvas.width = width;
-		if (canvas.height !== height) canvas.height = height;
-	}
-	/**
-	* @returns {void}
-	*/
-	#syncAttributesToSurface() {
-		const previousSurface = this.surface;
-		const nextTrackingProfile = normalizeTrackingProfile(this.getAttribute("tracking-profile") ?? this.trackingProfile);
-		if (nextTrackingProfile !== this.trackingProfile) {
-			this.trackingProfile = nextTrackingProfile;
-			this.#resetSmoothingState();
-		}
-		this.surface = normalizeSurface({
-			...this.surface,
-			sourceKind: this.getAttribute("source-kind") ?? this.surface?.sourceKind,
-			sourceId: this.getAttribute("source-id") ?? this.surface?.sourceId,
-			fitMode: normalizeFitMode$1(this.getAttribute("fit-mode") ?? this.surface?.fitMode),
-			mirrored: this.hasAttribute("mirrored") ? this.getAttribute("mirrored") !== "false" : this.surface?.mirrored
-		});
-		if (hasPresentationSurfaceChanged(previousSurface, this.surface)) this.#resetSmoothingState();
-		this.#applySurfaceToMedia();
-	}
-	/**
-	* @returns {void}
-	*/
-	#applySurfaceToMedia() {
-		const video = this.#videoElement();
-		const fitMode = this.surface?.fitMode ?? "contain";
-		video.dataset.fitMode = fitMode;
-		video.dataset.mirrored = String(this.surface?.mirrored ?? false);
-		video.dataset.sourceKind = this.surface?.sourceKind ?? "";
-		video.dataset.sourceId = this.surface?.sourceId ?? "";
-	}
-	/**
-	* @returns {AeroMediaPosePreviewOverlaySurface}
-	*/
-	#overlaySurface() {
-		const canvas = this.#canvasElement();
-		const video = this.#videoElement();
-		return {
-			viewportWidth: canvas.width,
-			viewportHeight: canvas.height,
-			intrinsicWidth: this.surface?.intrinsicWidth ?? positiveNumberOrUndefined$2(video.videoWidth),
-			intrinsicHeight: this.surface?.intrinsicHeight ?? positiveNumberOrUndefined$2(video.videoHeight),
-			fitMode: this.surface?.fitMode ?? "contain",
-			mirrored: this.surface?.mirrored ?? false,
-			contentRect: this.#measuredVideoContentRect()
-		};
-	}
-	/**
-	* @returns {AeroMediaPosePreviewLandmark[]}
-	*/
-	#visiblePoseLandmarks() {
-		const presentation = this.poseRoutingSample ?? this.poseFrame;
-		const sourceId = presentation?.sourceId ?? "none";
-		const presentationSourceKey = this.poseRoutingSample ? `routing:${this.poseRoutingSample.routeEpoch}:${this.poseRoutingSample.provenance}:${sourceId}` : `measured-frame:${sourceId}`;
-		const frameKey = this.poseRoutingSample ? `${presentationSourceKey}:${this.poseRoutingSample.targetTimestampMs}` : `${presentationSourceKey}:${this.poseFrame?.timestampMs ?? -1}`;
-		if (frameKey !== this.lastSmoothedFrameKey) {
-			if (presentationSourceKey !== this.lastSmoothedSourceId) this.smoothedLandmarks = /* @__PURE__ */ new Map();
-			const rawLandmarks = normalizePoseLandmarks(presentation);
-			/** @type {Map<string, AeroMediaPosePreviewLandmark>} */
-			const nextSmoothed = /* @__PURE__ */ new Map();
-			const smoothingAlpha = aeroPosePreviewTrackingProfiles[this.trackingProfile].alpha;
-			for (const landmark of rawLandmarks) {
-				const previous = this.smoothedLandmarks.get(landmark.name);
-				nextSmoothed.set(landmark.name, previous ? smoothLandmark(previous, landmark, smoothingAlpha) : landmark);
-			}
-			this.smoothedLandmarks = nextSmoothed;
-			this.lastSmoothedFrameKey = frameKey;
-			this.lastSmoothedSourceId = presentationSourceKey;
-		}
-		return aeroPosePreviewLandmarkOrder.map((name) => this.smoothedLandmarks.get(name)).filter(isPreviewLandmark);
-	}
-	/**
-	* Drops filter history at source, lifecycle, tracking, and provenance boundaries.
-	*
-	* @returns {void}
-	*/
-	#resetSmoothingState() {
-		this.smoothedLandmarks = /* @__PURE__ */ new Map();
-		this.lastSmoothedFrameKey = "";
-		this.lastSmoothedSourceId = "";
-	}
-	/**
-	* @returns {{x: number, y: number, width: number, height: number} | undefined}
-	*/
-	#measuredVideoContentRect() {
-		const canvas = this.#canvasElement();
-		const video = this.#videoElement();
-		const canvasRect = canvas.getBoundingClientRect();
-		const videoRect = video.getBoundingClientRect();
-		if (canvasRect.width <= 0 || canvasRect.height <= 0 || videoRect.width <= 0 || videoRect.height <= 0) return;
-		const fitRect = computeMediaContentRect$1({
-			viewportWidth: videoRect.width,
-			viewportHeight: videoRect.height,
-			intrinsicWidth: this.surface?.intrinsicWidth ?? positiveNumberOrUndefined$2(video.videoWidth),
-			intrinsicHeight: this.surface?.intrinsicHeight ?? positiveNumberOrUndefined$2(video.videoHeight),
-			fitMode: this.surface?.fitMode ?? "contain",
-			mirrored: this.surface?.mirrored ?? false
-		});
-		const scaleX = canvas.width / canvasRect.width;
-		const scaleY = canvas.height / canvasRect.height;
-		return {
-			x: (videoRect.left - canvasRect.left + fitRect.x) * scaleX,
-			y: (videoRect.top - canvasRect.top + fitRect.y) * scaleY,
-			width: fitRect.width * scaleX,
-			height: fitRect.height * scaleY
-		};
-	}
-	/**
-	* @returns {number | undefined}
-	*/
-	#mediaPoseDeltaMs() {
-		const measurementTimestampMs = this.#measurementTimestampMs();
-		if (measurementTimestampMs === void 0 || this.surface?.sourceKind !== "live-camera") return;
-		const mediaTimeMs = this.surface.currentTimeSeconds * 1e3;
-		if (!Number.isFinite(mediaTimeMs)) return;
-		return Math.round(mediaTimeMs - measurementTimestampMs);
-	}
-	/**
-	* @returns {number | undefined}
-	*/
-	#presentationTargetDeltaMs() {
-		if (!this.poseRoutingSample || this.surface?.sourceKind !== "live-camera") return;
-		const mediaTimeMs = this.surface.currentTimeSeconds * 1e3;
-		if (!Number.isFinite(mediaTimeMs) || !Number.isFinite(this.poseRoutingSample.targetTimestampMs)) return;
-		return Math.round(mediaTimeMs - this.poseRoutingSample.targetTimestampMs);
-	}
-	/**
-	* @returns {number | undefined}
-	*/
-	#measurementTimestampMs() {
-		return this.poseRoutingSample?.measurementTimestampMs ?? this.poseFrame?.timestampMs;
-	}
-	/**
-	* @returns {AeroMediaPosePreviewSurface}
-	*/
-	#surfaceSnapshot() {
-		return normalizeSurface(this.surface);
-	}
-};
-/**
-* Defines `aero-media-pose-preview` when it is not already registered.
-*
-* @returns {void}
-*/
-function defineAeroMediaPosePreview() {
-	if (!customElements.get("aero-media-pose-preview")) customElements.define("aero-media-pose-preview", AeroMediaPosePreview);
-}
-/**
-* @param {Partial<AeroMediaPosePreviewSurface> | undefined} surface
-* @returns {AeroMediaPosePreviewSurface}
-*/
-function normalizeSurface(surface) {
-	return {
-		sourceKind: surface?.sourceKind,
-		sourceId: surface?.sourceId,
-		fitMode: normalizeFitMode$1(surface?.fitMode),
-		mirrored: surface?.mirrored ?? false,
-		intrinsicWidth: positiveNumberOrUndefined$2(surface?.intrinsicWidth),
-		intrinsicHeight: positiveNumberOrUndefined$2(surface?.intrinsicHeight),
-		currentTimeSeconds: typeof surface?.currentTimeSeconds === "number" ? surface.currentTimeSeconds : 0
-	};
-}
-/**
-* @param {AeroMediaPosePreviewSurface | undefined} previous
-* @param {AeroMediaPosePreviewSurface | undefined} next
-* @returns {boolean}
-*/
-function hasPresentationSurfaceChanged(previous, next) {
-	return previous?.sourceKind !== next?.sourceKind || previous?.sourceId !== next?.sourceId || previous?.mirrored !== next?.mirrored;
-}
-/**
-* @param {string | undefined} value
-* @returns {AeroMediaPosePreviewFitMode}
-*/
-function normalizeFitMode$1(value) {
-	return value === "cover" || value === "stretch" || value === "contain" ? value : "contain";
-}
-/**
-* @param {string | undefined} value
-* @returns {AeroMediaPosePreviewTrackingProfile}
-*/
-function normalizeTrackingProfile(value) {
-	return value === "fast" ? "fast" : "smoother";
-}
-/**
-* @param {number | undefined} value
-* @returns {number | undefined}
-*/
-function positiveNumberOrUndefined$2(value) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
-}
-/**
-* @param {NormalizedPoseFrame | AeroPoseRoutingSample | undefined} poseSample
-* @returns {AeroMediaPosePreviewLandmark[]}
-*/
-function normalizePoseLandmarks(poseSample) {
-	/** @type {Map<string, AeroMediaPosePreviewLandmark>} */
-	const landmarksByName = /* @__PURE__ */ new Map();
-	for (const landmark of poseSample?.landmarks ?? []) {
-		const id = aeroPosePreviewLandmarkIds.get(landmark.name);
-		if (id === void 0) continue;
-		landmarksByName.set(landmark.name, {
-			id,
-			name: landmark.name,
-			x: landmark.x,
-			y: landmark.y,
-			v: landmark.confidence
-		});
-	}
-	return aeroPosePreviewLandmarkOrder.map((name) => landmarksByName.get(name)).filter(isPreviewLandmark);
-}
-/**
-* @param {AeroMediaPosePreviewLandmark | undefined} landmark
-* @returns {landmark is AeroMediaPosePreviewLandmark}
-*/
-function isPreviewLandmark(landmark) {
-	return Boolean(landmark);
-}
-/**
-* @param {AeroMediaPosePreviewLandmark} previous
-* @param {AeroMediaPosePreviewLandmark} next
-* @param {number} alpha
-* @returns {AeroMediaPosePreviewLandmark}
-*/
-function smoothLandmark(previous, next, alpha) {
-	return {
-		id: next.id,
-		name: next.name,
-		x: lerp$1(previous.x, next.x, alpha),
-		y: lerp$1(previous.y, next.y, alpha),
-		v: next.v
-	};
-}
-/**
-* @param {number} start
-* @param {number} end
-* @param {number} alpha
-* @returns {number}
-*/
-function lerp$1(start, end, alpha) {
-	return start + (end - start) * alpha;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/elements/aero-pose-flow-panel/aero-pose-flow-panel.js
-/**
-* @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame
-*/
-/**
-* @typedef {Object} PoseFlowDraftEventView
-* @property {string} mode Gameplay mode.
-* @property {string} eventName Browser event name.
-* @property {string} summary Short event summary.
-*/
-/**
-* @typedef {Object} PoseFlowPanelState
-* @property {NormalizedPoseFrame | undefined} poseFrame Current normalized pose frame.
-* @property {readonly PoseFlowDraftEventView[]} inputEvents Gameplay-facing draft input events.
-*/
-/**
-* Proving panel for deterministic pose-frame and input-router runtime state.
-*/
-var AeroPoseFlowPanel = class extends HTMLElement {
-	/**
-	* Observed attributes for declarative scenes.
-	*
-	* @returns {string[]}
-	*/
-	static get observedAttributes() {
-		return [
-			"source-id",
-			"timestamp-ms",
-			"input-summary"
-		];
-	}
-	/**
-	* Creates the panel shadow DOM.
-	*/
-	constructor() {
-		super();
-		/** @type {PoseFlowPanelState} */
-		this.state = {
-			poseFrame: void 0,
-			inputEvents: []
-		};
-		const root = this.attachShadow({ mode: "open" });
-		root.innerHTML = `
-      <style>
-        :host {
-          display: block;
-        }
-
-        .panel {
-          background: var(--aero-color-surface, rgba(244, 252, 255, 0.9));
-          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
-          border-radius: var(--aero-radius-panel, 8px);
-          box-shadow: var(--aero-shadow-panel, 0 16px 38px rgba(16, 52, 71, 0.18));
-          color: var(--aero-color-ink, #103447);
-          display: grid;
-          gap: var(--aero-space-3, 12px);
-          padding: var(--aero-space-4, 16px);
-        }
-
-        .heading {
-          font: 700 1rem var(--aero-font-family, system-ui, sans-serif);
-        }
-
-        .grid {
-          display: grid;
-          gap: var(--aero-space-2, 8px);
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .metric,
-        .events {
-          border-block-start: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.28));
-          display: grid;
-          gap: 4px;
-          padding-block-start: var(--aero-space-2, 8px);
-        }
-
-        .label {
-          font: 700 0.72rem var(--aero-font-family, system-ui, sans-serif);
-          text-transform: uppercase;
-        }
-
-        .value {
-          font: 500 0.9rem var(--aero-font-family, system-ui, sans-serif);
-          overflow-wrap: anywhere;
-        }
-
-        .events {
-          grid-column: 1 / -1;
-        }
-      </style>
-      <section class="panel" part="panel">
-        <span class="heading">Runtime pose flow</span>
-        <div class="grid">
-          <span class="metric">
-            <span class="label">Source</span>
-            <span class="value source">No frame</span>
-          </span>
-          <span class="metric">
-            <span class="label">Timestamp</span>
-            <span class="value timestamp">0 ms</span>
-          </span>
-          <span class="metric">
-            <span class="label">Landmarks</span>
-            <span class="value landmarks">0</span>
-          </span>
-          <span class="metric">
-            <span class="label">Input events</span>
-            <span class="value event-count">0</span>
-          </span>
-          <span class="events">
-            <span class="label">Draft event data</span>
-            <span class="value event-summary">Waiting for replay input</span>
-          </span>
-        </div>
-      </section>
-    `;
-	}
-	/**
-	* Syncs state into the shadow DOM.
-	*/
-	connectedCallback() {
-		this.#render();
-	}
-	/**
-	* Syncs attributes into the panel content.
-	*/
-	attributeChangedCallback() {
-		this.#render();
-	}
-	/**
-	* @param {NormalizedPoseFrame | undefined} poseFrame
-	* @returns {void}
-	*/
-	setPoseFrame(poseFrame) {
-		this.state = {
-			poseFrame,
-			inputEvents: this.state.inputEvents
-		};
-		this.#render();
-	}
-	/**
-	* @param {readonly PoseFlowDraftEventView[]} inputEvents
-	* @returns {void}
-	*/
-	setInputEvents(inputEvents) {
-		this.state = {
-			poseFrame: this.state.poseFrame,
-			inputEvents
-		};
-		this.#render();
-	}
-	/**
-	* @param {PoseFlowPanelState} state
-	* @returns {void}
-	*/
-	setProvingState(state) {
-		this.state = {
-			poseFrame: state.poseFrame,
-			inputEvents: [...state.inputEvents]
-		};
-		this.#render();
-	}
-	/**
-	* Updates visible panel content from state or declarative attributes.
-	*/
-	#render() {
-		const poseFrame = this.state.poseFrame;
-		const sourceId = poseFrame?.sourceId ?? this.getAttribute("source-id") ?? "No frame";
-		const timestampMs = poseFrame?.timestampMs ?? Number(this.getAttribute("timestamp-ms") ?? 0);
-		const landmarkCount = poseFrame?.landmarks.length ?? 0;
-		const inputEvents = this.state.inputEvents;
-		const fallbackSummary = this.getAttribute("input-summary") ?? "Waiting for replay input";
-		const eventSummary = inputEvents.length > 0 ? inputEvents.map((event) => `${event.mode} ${event.summary}`).join(" | ") : fallbackSummary;
-		this.#setText(".source", sourceId);
-		this.#setText(".timestamp", `${timestampMs} ms`);
-		this.#setText(".landmarks", String(landmarkCount));
-		this.#setText(".event-count", String(inputEvents.length));
-		this.#setText(".event-summary", eventSummary);
-	}
-	/**
-	* @param {string} selector
-	* @param {string} text
-	* @returns {void}
-	*/
-	#setText(selector, text) {
-		const target = this.shadowRoot?.querySelector(selector);
-		if (target) target.textContent = text;
-	}
-};
-/**
-* Defines `aero-pose-flow-panel` when it is not already registered.
-*
-* @returns {void}
-*/
-function defineAeroPoseFlowPanel() {
-	if (!customElements.get("aero-pose-flow-panel")) customElements.define("aero-pose-flow-panel", AeroPoseFlowPanel);
-}
-Object.freeze({
-	audioClock: "aero.audio.clock",
-	videoMedia: "aero.video.media",
-	cvPose: "aero.cv.pose",
-	inputRouter: "aero.input.router",
-	bodyGrid: "aero.input.body-grid",
-	beatSaverVendor: "aero.vendor.beatsaver",
-	contentAuthoring: "aero.content.authoring",
-	contentLibrary: "aero.content.library",
-	gameplaySession: "aero.gameplay.session",
-	prototypeProfiles: "aero.gameplay.prototype-profiles",
-	mediaLease: "aero.assembly.media-lease",
-	rendererWebgl2: "aero.renderer.webgl2",
-	uiRouter: "aero.ui.router",
-	performancePolicy: "aero.performance.policy"
-});
-Object.freeze({
-	uiNavigate: "aero:ui:navigate",
-	cvPoseFrame: "aero:cv:pose-frame",
-	audioClockTick: "aero:audio:clock-tick",
-	inputBoxingIntent: "aero:input:boxing-intent",
-	inputFlowIntent: "aero:input:flow-intent",
-	bodyGridChanged: "aero:input:body-grid-changed",
-	calibrationChanged: "aero:input:calibration-changed",
-	trackingSafetyChanged: "aero:input:tracking-safety-changed",
-	beatSaverResults: "aero:beatsaver:results",
-	contentImportChanged: "aero:content:import-changed",
-	contentChartLoaded: "aero:content:chart-loaded",
-	contentVariantChanged: "aero:content:variant-changed",
-	gameplaySessionChanged: "aero:gameplay:session-changed",
-	gameplayScoreChange: "aero:gameplay:score-change",
-	gameplayJudgement: "aero:gameplay:judgement",
-	countdownChanged: "aero:gameplay:countdown-changed",
-	mediaLeaseChanged: "aero:assembly:media-lease-changed",
-	gameCommand: "aero:game:command",
-	gameEvent: "aero:game:event"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-contracts/src/element-names.js
-/**
-* Canonical custom element registry names used across AeroBeat web packages.
-*
-* @type {Readonly<{
-*   game: "aero-game",
-*   iconButton: "aero-icon-button",
-*   calibrationBadge: "aero-calibration-badge",
-*   calibrationScreen: "aero-calibration-screen",
-*   gridPlayfield: "aero-grid-playfield",
-*   flowHud: "aero-flow-hud",
-*   boxingTrackHud: "aero-boxing-track-hud",
-*   boxingSpatialHud: "aero-boxing-spatial-hud",
-*   trackingPause: "aero-tracking-pause",
-*   countdown: "aero-resume-countdown",
-*   prototypeSelector: "aero-prototype-selector",
-*   beatSaverBrowser: "aero-beatsaver-browser",
-*   contentImportProgress: "aero-content-import-progress",
-*   contentLibrary: "aero-content-library",
-*   fullscreenButton: "aero-fullscreen-button"
-* }>}
-*/
-var elementNames$2 = Object.freeze({
-	game: "aero-game",
-	iconButton: "aero-icon-button",
-	calibrationBadge: "aero-calibration-badge",
-	calibrationScreen: "aero-calibration-screen",
-	gridPlayfield: "aero-grid-playfield",
-	flowHud: "aero-flow-hud",
-	boxingTrackHud: "aero-boxing-track-hud",
-	boxingSpatialHud: "aero-boxing-spatial-hud",
-	trackingPause: "aero-tracking-pause",
-	countdown: "aero-resume-countdown",
-	prototypeSelector: "aero-prototype-selector",
-	beatSaverBrowser: "aero-beatsaver-browser",
-	contentImportProgress: "aero-content-import-progress",
-	contentLibrary: "aero-content-library",
-	fullscreenButton: "aero-fullscreen-button"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function isRecord$5(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Require a plain record to contain exactly the declared own enumerable keys.
-* Payload records remain the versioned extension point; contract envelopes do not.
-*
-* @param {unknown} value
-* @param {readonly string[]} expectedKeys
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function hasExactKeys$3(value, expectedKeys) {
-	if (!isRecord$5(value)) return false;
-	const keys = Reflect.ownKeys(value);
-	return keys.length === expectedKeys.length && keys.every((key) => {
-		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
-	});
-}
-/**
-* @template {string} T
-* @param {unknown} value
-* @param {readonly T[]} allowed
-* @returns {value is T}
-*/
-function isOneOf$1(value, allowed) {
-	return typeof value === "string" && allowed.includes(value);
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-Object.freeze(["measured", "predicted"]);
-Object.freeze({
-	idle: "idle",
-	loading: "loading",
-	ready: "ready",
-	failed: "failed",
-	disposed: "disposed"
-});
-Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-Object.freeze([
-	"up",
-	"up-right",
-	"right",
-	"down-right",
-	"down",
-	"down-left",
-	"left",
-	"up-left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-Object.freeze([
-	"idle",
-	"selecting_content",
-	"calibrating",
-	"countdown",
-	"playing",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"error",
-	"destroyed"
-]);
-Object.freeze([
-	"initial_start",
-	"manual_resume",
-	"tracking_resume",
-	"content_change"
-]);
-Object.freeze(["camera", "audio"]);
-//#endregion
-//#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-contracts/src/gameplay-contracts.js
-/**
-* @typedef {"flow_grid_v1" | "boxing_semantic_track_v1" | "boxing_spatial_grid_v1"} AeroRulesetId
-*/
-/**
-* @typedef {"row_family_balanced_height_v1" | "cut_family_source_height_v1"} AeroConversionRecipeId
-*/
-/**
-* @typedef {"straight_left" | "straight_right" | "hook_left" | "hook_right" | "uppercut_left" | "uppercut_right" | "guard" | "crossed_guard" | "squat" | "weave_left" | "weave_right"} AeroBoxingAction
-*/
-/**
-* @typedef {"no_input" | "stale_input" | "wrong_cell" | "wrong_subcell" | "wrong_direction" | "qualification_too_short" | "tracking_invalid" | "calibration_mismatch" | "timing_miss" | "blocked_overlap" | "action_consumed"} AeroJudgementDiagnosticCode
-*/
-/**
-* @typedef {Object} AeroGameplayEvidenceSnapshot
-* @property {"aerobeat/gameplay_evidence_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} calibrationId Calibration generation.
-* @property {string} measuredSourceFrameId Real source-frame identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
-* @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
-*/
-/**
-* @typedef {Object} AeroGameplayJudgement
-* @property {"aerobeat/gameplay_judgement"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} eventId Authored event identity.
-* @property {AeroRulesetId} rulesetId Ruleset identity.
-* @property {AeroConversionRecipeId | null} recipeId Recipe identity when generated.
-* @property {"hit" | "miss" | "ignored"} result Binary prototype result or non-scoring ignored event.
-* @property {number} beatCenterTimestampMs Event center timestamp.
-* @property {number | null} evidenceTimestampMs Consumed evidence timestamp.
-* @property {number | null} timingOffsetMs Evidence minus beat center.
-* @property {readonly AeroJudgementDiagnosticCode[]} diagnostics Detailed diagnostics.
-* @property {boolean} shadow Whether this judgement is diagnostic-only.
-*/
-/**
-* @typedef {Object} AeroPrototypeTuningIdentityBase
-* @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} profileId Stable bounded profile ID.
-* @property {string} profileVersion Stable bounded profile version.
-* @property {string} contentHash Bare lowercase SHA-256 content hash.
-*/
-/**
-* A converter identity is pending when `regenerationRequired` is true and
-* applied when the owning registry has matched generated-package provenance
-* and emits false. Visual and scoring identities are always live/applied.
-*
-* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
-*/
-/** @type {readonly AeroRulesetId[]} */
-var rulesetIds$3 = Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-/** @type {readonly AeroConversionRecipeId[]} */
-var conversionRecipeIds$3 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-/**
-* @param {unknown} value
-* @returns {value is AeroPrototypeTuningIdentity}
-*/
-function isPrototypeTuningIdentity(value) {
-	return hasExactKeys$3(value, [
-		"schema",
-		"version",
-		"profileId",
-		"profileVersion",
-		"contentHash",
-		"class",
-		"regenerationRequired"
-	]) && value.schema === "aerobeat/prototype_tuning_identity" && value.version === 1 && isBoundedNonEmptyString(value.profileId, 256) && isBoundedNonEmptyString(value.profileVersion, 256) && typeof value.contentHash === "string" && /^[0-9a-f]{64}$/u.test(value.contentHash) && isOneOf$1(value.class, [
-		"live_visual",
-		"between_run_ruleset",
-		"converter_regeneration"
-	]) && typeof value.regenerationRequired === "boolean" && (value.class === "converter_regeneration" || value.regenerationRequired === false);
-}
-/** @param {unknown} value @param {number} maximum */
-function isBoundedNonEmptyString(value, maximum) {
-	return typeof value === "string" && value.length > 0 && value.length <= maximum;
-}
-Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-Object.freeze([
-	"queued",
-	"acquiring",
-	"inspecting",
-	"converting",
-	"validating",
-	"persisting",
-	"complete",
-	"cancelled",
-	"failed"
-]);
-Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-Object.freeze([
-	"configure",
-	"start",
-	"pause",
-	"resume",
-	"stop",
-	"reset_calibration",
-	"request_fullscreen",
-	"select_content",
-	"select_variant",
-	"browse_beatsaver",
-	"import_beatsaver",
-	"import_local_zip",
-	"cancel_import",
-	"delete_package",
-	"set_theme",
-	"destroy"
-]);
-Object.freeze([
-	"ready",
-	"capabilities_changed",
-	"calibration_changed",
-	"tracking_changed",
-	"session_changed",
-	"score_changed",
-	"content_changed",
-	"beatsaver_results",
-	"import_changed",
-	"fullscreen_changed",
-	"error",
-	"destroyed"
-]);
-Object.freeze({
-	schema: "aerobeat/asset_policy",
-	version: 1,
-	requireChartHash: true,
-	requireAudioHash: true,
-	requireExternalAudioCors: true,
-	requireSampledMediaCors: true,
-	cosmeticBackgroundFailure: "fallback",
-	criticalAssetFailure: "block_startup"
-});
-Object.freeze([
-	"handshake_request",
-	"handshake_ack",
-	"command",
-	"event",
-	"error",
-	"disconnect"
-]);
-Object.freeze({
-	schema: "aerobeat/iframe_message",
-	version: 1,
-	target: "immediate_parent",
-	rawMediaAllowed: false
-});
-Object.freeze([
-	"audioBytes",
-	"frame",
-	"frames",
-	"imageBitmap",
-	"mediaStream",
-	"mediaStreamTrack",
-	"pixels",
-	"rawAudio",
-	"rawFrame",
-	"rawFrames",
-	"screenshot",
-	"videoFrame",
-	"zipBytes"
-]);
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/elements/aero-product-presenters.js
-/** Public composed UI-intent event name. @type {"aero:ui:intent"} */
-var aeroUiIntentEventName = "aero:ui:intent";
-/**
-* @typedef {Object} AeroUiIntentDetail
-* @property {string} type Stable intent type.
-* @property {Readonly<Record<string, string | number | boolean | null>>} payload Serializable metadata only; never files or bytes.
-*/
-/** @typedef {Readonly<Record<string, unknown>>} AeroPresenterSnapshot */
-var sharedStyles = `
-  :host { box-sizing: border-box; color: var(--aero-color-ink, #103447); display: block; font-family: var(--aero-font-family, system-ui, sans-serif); min-inline-size: 0; }
-  *, *::before, *::after { box-sizing: border-box; }
-  .panel { background: linear-gradient(145deg, rgba(255,255,255,.94), rgba(207,241,255,.84)); border: 1px solid var(--aero-color-border, rgba(53,141,175,.42)); border-radius: var(--aero-radius-panel, 14px); box-shadow: 0 10px 28px rgba(16,52,71,.16); display: grid; gap: var(--aero-space-3, 12px); min-inline-size: 0; padding: var(--aero-space-4, 16px); }
-  h2, h3, p { margin: 0; }
-  h2 { font-size: clamp(1rem, 3.5vw, 1.35rem); }
-  h3 { font-size: .94rem; }
-  .muted { color: var(--aero-color-muted, #486c7d); font-size: .82rem; min-inline-size: 0; overflow-wrap: anywhere; }
-  .row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
-  .stack { display: grid; gap: 8px; }
-  .control, button, input, select { border: 1px solid var(--aero-color-border, rgba(53,141,175,.5)); border-radius: 8px; color: inherit; font: inherit; min-block-size: 42px; }
-  button { background: linear-gradient(180deg, #fff, #bcecff); color: var(--aero-color-ink, #103447); cursor: pointer; font-weight: 750; padding: 8px 13px; touch-action: manipulation; }
-  button[aria-pressed="true"], button[role="radio"][aria-checked="true"] { background: linear-gradient(180deg, #0a84ff, #086ccf); border-color: #fff; box-shadow: 0 0 0 3px var(--aero-color-focus, #0a84ff), inset 0 0 0 2px rgba(255,255,255,.72); color: #fff; }
-  button[disabled], input[disabled], select[disabled] { cursor: not-allowed; opacity: .55; }
-  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--aero-color-focus, #0a84ff); outline-offset: 2px; }
-  input, select { background: rgba(255,255,255,.92); inline-size: 100%; padding: 8px 10px; }
-  label { display: grid; font-size: .78rem; font-weight: 750; gap: 4px; }
-  .live { min-block-size: 1.25em; }
-  .pill { background: rgba(43,142,183,.12); border-radius: 999px; display: inline-flex; font-size: .74rem; font-weight: 800; padding: 4px 8px; }
-  .error { color: var(--aero-color-error, #9f1d24); }
-  .cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
-  .card { background: rgba(255,255,255,.72); border: 1px solid rgba(53,141,175,.3); border-radius: 10px; display: grid; gap: 6px; padding: 10px; text-align: start; }
-  .cards > article > .card { inline-size: 100%; }
-  .choice-radio { align-items: center; cursor: pointer; display: flex; font-size: 1rem; gap: 10px; min-block-size: 42px; }
-  .choice-radio:has(input:checked) { background: rgba(10,132,255,.14); border-color: var(--aero-color-focus, #0a84ff); box-shadow: inset 0 0 0 1px var(--aero-color-focus, #0a84ff); }
-  .choice-radio input[type="radio"] { accent-color: var(--aero-color-focus, #0a84ff); block-size: 42px; flex: 0 0 42px; inline-size: 42px; margin: 0 8px 0 0; padding: 0; }
-  .card > .choice-radio { border: 1px solid transparent; border-radius: 8px; padding: 0 8px; }
-  .choice-copy { display: grid; gap: 4px; min-inline-size: 0; }
-  progress { accent-color: var(--aero-color-focus, #0a84ff); inline-size: 100%; }
-  .visually-hidden { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
-  :host([compact]) .panel { background: transparent; border: 0; border-radius: 0; box-shadow: none; gap: 8px; padding: 0; }
-  :host([compact]) h1, :host([compact]) h2, :host([compact]) h3, :host([compact]) .compact-field-label, :host([compact]) .compact-converter-truth { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
-  :host([compact]) .compact-explanatory, :host([compact]) .compact-identity, :host([compact]) .compact-telemetry, :host([compact]) .muted:not(.live):not(.compact-critical):not(.compact-converter-truth), :host([compact]) .pill:not(.error) { display: none; }
-  :host([compact]) .compact-status:not(.error) { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
-  :host([compact]) [part="storage"], :host([compact]) [part="detail"] > p, :host([compact]) .choice-copy > .muted { display: none; }
-  :host([compact]) [part="items"] span[role="status"] { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
-  :host([compact]) .cards { grid-template-columns: minmax(0, 1fr); }
-  :host([compact]) .card { padding: 8px; }
-  :host([compact]) label { gap: 0; }
-  :host([compact]) .compact-hide-when-clear { display: none; }
-  @media (max-width: 430px) { .panel { border-radius: 10px; padding: 12px; } .row > button { flex: 1 1 auto; } }
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
-`;
-/**
-* Presenter base with deferred DOM setup and reconnect-safe delegated listeners.
-*/
-var AeroPresenterElement = class extends HTMLElement {
-	constructor() {
-		super();
-		/** @type {AeroPresenterSnapshot} */
-		this.presenterSnapshot = Object.freeze({});
-		this.boundClick = (event) => this.handleDelegatedClick(event);
-		this.boundChange = (event) => this.handleDelegatedChange(event);
-		this.boundSubmit = (event) => this.handleDelegatedSubmit(event);
-		this.boundKeydown = (event) => this.handleDelegatedKeydown(event);
-	}
-	/** Boolean compact rendering mode; equivalent to the provider-neutral `[compact]` attribute. @returns {boolean} */
-	get compact() {
-		return this.hasAttribute("compact");
-	}
-	/** @param {boolean} value */
-	set compact(value) {
-		this.toggleAttribute("compact", value === true);
-	}
-	connectedCallback() {
-		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
-		this.shadowRoot?.addEventListener("click", this.boundClick);
-		this.shadowRoot?.addEventListener("change", this.boundChange);
-		this.shadowRoot?.addEventListener("submit", this.boundSubmit);
-		this.shadowRoot?.addEventListener("keydown", this.boundKeydown);
-		this.render();
-	}
-	disconnectedCallback() {
-		this.shadowRoot?.removeEventListener("click", this.boundClick);
-		this.shadowRoot?.removeEventListener("change", this.boundChange);
-		this.shadowRoot?.removeEventListener("submit", this.boundSubmit);
-		this.shadowRoot?.removeEventListener("keydown", this.boundKeydown);
-	}
-	/** @param {AeroPresenterSnapshot} snapshot */
-	setSnapshot(snapshot) {
-		this.presenterSnapshot = narrowAeroPresenterSnapshot(snapshot);
-		this.render();
-	}
-	/** @returns {void} */
-	render() {}
-	/** @param {Event} event @returns {void} */
-	handleDelegatedClick(event) {
-		const target = event.composedPath()[0];
-		if (!(target instanceof HTMLElement)) return;
-		const type = target.dataset.intent;
-		if (!type || target.getAttribute("aria-disabled") === "true" || target instanceof HTMLButtonElement && target.disabled) return;
-		this.onIntent(type, target);
-	}
-	/** @param {Event} event @returns {void} */
-	handleDelegatedChange(event) {
-		const target = event.composedPath()[0];
-		if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
-		const type = target.dataset.intent;
-		if (type) this.onIntent(type, target);
-	}
-	/** @param {Event} event @returns {void} */
-	handleDelegatedSubmit(event) {
-		const target = event.composedPath()[0];
-		if (!(target instanceof HTMLFormElement) || target.dataset.form !== "search") return;
-		event.preventDefault();
-		const input = this.shadowRoot?.querySelector("input[data-field='query']");
-		this.emitIntent("beatsaver-search", { query: input instanceof HTMLInputElement ? input.value.trim().slice(0, 256) : "" });
-	}
-	/** @param {KeyboardEvent} event @returns {void} */
-	handleDelegatedKeydown(event) {}
-	/** @param {string} type @param {HTMLElement} target @returns {void} */
-	onIntent(type, target) {
-		const value = target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : target.dataset.value ?? "";
-		this.emitIntent(type, value === "" ? {} : { value });
-	}
-	/** @param {string} type @param {Record<string, string | number | boolean | null>} [payload] @returns {void} */
-	emitIntent(type, payload = {}) {
-		/** @type {AeroUiIntentDetail} */
-		const detail = Object.freeze({
-			type,
-			payload: Object.freeze({ ...payload })
-		});
-		this.dispatchEvent(new CustomEvent(aeroUiIntentEventName, {
-			bubbles: true,
-			composed: true,
-			detail
-		}));
-	}
-	/** @param {string} markup @returns {void} */
-	renderMarkup(markup) {
-		if (!this.shadowRoot || !this.isConnected) return;
-		const focused = this.shadowRoot.activeElement;
-		const focusIdentity = focused instanceof HTMLElement ? Object.freeze({
-			intent: focused.dataset.intent ?? "",
-			value: focused.dataset.value ?? "",
-			field: focused.dataset.field ?? ""
-		}) : null;
-		this.shadowRoot.innerHTML = `<style>${sharedStyles}</style>${markup}`;
-		if (focusIdentity && (focusIdentity.intent || focusIdentity.field)) {
-			const controls = this.shadowRoot.querySelectorAll("button,input,select");
-			for (const control of controls) if (control instanceof HTMLElement && (control.dataset.intent ?? "") === focusIdentity.intent && (control.dataset.value ?? "") === focusIdentity.value && (control.dataset.field ?? "") === focusIdentity.field) {
-				control.focus();
-				break;
-			}
-		}
-	}
-};
-/** BeatSaver discovery, detail, version, difficulty and local-import intent presenter. */
-var AeroBeatSaverBrowser = class extends AeroPresenterElement {
-	render() {
-		const state = readString(this.presenterSnapshot, "state", "idle");
-		const query = readString(this.presenterSnapshot, "query", "");
-		const results = readRecordList(this.presenterSnapshot, "results").slice(0, 50);
-		const selected = readRecord(this.presenterSnapshot, "selectedMap");
-		const selectedMapId = selected ? readString(selected, "mapId", "") : "";
-		const selectedResultIndex = results.findIndex((result) => readString(result, "mapId", "") === selectedMapId);
-		const checkedResultIndex = results.length ? Math.max(0, selectedResultIndex) : -1;
-		const versions = readRecordList(this.presenterSnapshot, "versions");
-		const difficulties = readStringList(this.presenterSnapshot, "difficulties");
-		const selectedVersion = readString(this.presenterSnapshot, "selectedVersionHash", "");
-		const selectedDifficulty = readString(this.presenterSnapshot, "selectedDifficulty", "");
-		const error = readString(this.presenterSnapshot, "errorMessage", "");
-		const busy = state === "loading";
-		this.renderMarkup(`
-      <section class="panel" part="panel" aria-labelledby="beatsaver-heading">
-        <h2 id="beatsaver-heading">Find BeatSaver maps</h2>
-        <form class="row" part="search" data-form="search">
-          <label style="flex:1 1 14rem"><span class="compact-field-label">Search maps</span><input part="search-input" data-field="query" aria-label="Search maps" value="${escapeAttribute(query)}" autocomplete="off" ${busy ? "disabled" : ""}></label>
-          <button part="search-button" type="submit" ${busy ? "disabled" : ""}>Search</button>
-          <button part="latest-button" type="button" data-intent="beatsaver-latest" ${busy ? "disabled" : ""}>Latest</button>
-          <button part="local-import-button" type="button" data-intent="local-zip-request">Choose local ZIP</button>
-        </form>
-        <p class="live compact-status ${error ? "error" : "muted"}" role="status" aria-live="polite">${escapeHtml(error || statusText(state, results.length))}</p>
-        <div class="cards choice-radios" part="results" role="radiogroup" aria-label="BeatSaver results">
-          ${results.map((result, index) => mapResultMarkup(result, index === checkedResultIndex)).join("") || `<p class="muted">${state === "empty" ? "No compatible maps found." : "Search or browse latest maps."}</p>`}
-        </div>
-        ${selected ? `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(readString(selected, "name", "Selected map"))}</h3><p class="muted">${escapeHtml(readString(selected, "songAuthorName", ""))} · mapped by ${escapeHtml(readString(selected, "levelAuthorName", "Unknown"))}</p>
-          <label><span class="compact-field-label">Version</span><select aria-label="Version" part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
-          <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
-          <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>` : ""}
-      </section>`);
-	}
-	/** Map radios commit on `change`; action buttons retain the inherited click path. @param {Event} event */
-	handleDelegatedClick(event) {
-		const target = event.composedPath()[0];
-		if (target instanceof HTMLInputElement && target.type === "radio") return;
-		super.handleDelegatedClick(event);
-	}
-	/** @param {string} type @param {HTMLElement} target */
-	onIntent(type, target) {
-		const selectedMap = readRecord(this.presenterSnapshot, "selectedMap");
-		const mapId = selectedMap ? readString(selectedMap, "mapId", "") : "";
-		const versionHash = readString(this.presenterSnapshot, "selectedVersionHash", "");
-		const difficultyId = readString(this.presenterSnapshot, "selectedDifficulty", "");
-		if (type === "beatsaver-select-map") {
-			this.emitIntent(type, { mapId: target.dataset.value ?? "" });
-			return;
-		}
-		if (type === "beatsaver-search") {
-			const input = this.shadowRoot?.querySelector("input[data-field='query']");
-			this.emitIntent(type, { query: input instanceof HTMLInputElement ? input.value.trim() : "" });
-			return;
-		}
-		if (type === "beatsaver-version-select") {
-			this.emitIntent(type, {
-				mapId,
-				versionHash: target instanceof HTMLSelectElement ? target.value : ""
-			});
-			return;
-		}
-		if (type === "beatsaver-difficulty-select") {
-			this.emitIntent(type, {
-				mapId,
-				versionHash,
-				difficultyId: target instanceof HTMLSelectElement ? target.value : ""
-			});
-			return;
-		}
-		if (type === "beatsaver-import") {
-			const versionSelect = this.shadowRoot?.querySelector("select[data-intent='beatsaver-version-select']");
-			const difficultySelect = this.shadowRoot?.querySelector("select[data-intent='beatsaver-difficulty-select']");
-			this.emitIntent(type, {
-				mapId,
-				versionHash: versionSelect instanceof HTMLSelectElement ? versionSelect.value : versionHash,
-				difficultyId: difficultySelect instanceof HTMLSelectElement ? difficultySelect.value : difficultyId
-			});
-			return;
-		}
-		this.emitIntent(type);
-	}
-};
-/** Worker conversion progress and cancellation presenter. */
-var AeroContentImportProgress = class extends AeroPresenterElement {
-	render() {
-		const state = readString(this.presenterSnapshot, "state", "queued");
-		const progress = clamp$3(readNumber(this.presenterSnapshot, "progress", 0), 0, 1);
-		const jobId = readString(this.presenterSnapshot, "jobId", "");
-		const error = readString(this.presenterSnapshot, "errorMessage", "");
-		const cancellable = ![
-			"complete",
-			"cancelled",
-			"failed"
-		].includes(state);
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="import-heading"><h2 id="import-heading">Content import</h2><p class="live ${error ? "error" : ""}" role="status" aria-live="polite">${escapeHtml(error || `${titleCase(state)} · ${Math.round(progress * 100)}%`)}</p><progress part="progress" max="1" value="${progress}" aria-label="Import progress"></progress><button part="cancel-button" type="button" data-intent="content-import-cancel" data-value="${escapeAttribute(jobId)}" ${cancellable ? "" : "disabled"}>Cancel import</button></section>`);
-	}
-	/** @param {string} type @param {HTMLElement} target */
-	onIntent(type, target) {
-		this.emitIntent(type, { jobId: target.dataset.value ?? "" });
-	}
-};
-/** Locally authored package and quota presenter. */
-var AeroContentLibrary = class extends AeroPresenterElement {
-	constructor() {
-		super();
-		this.pendingDeletePackageId = "";
-	}
-	render() {
-		const packages = readRecordList(this.presenterSnapshot, "packages").slice(0, 100);
-		const used = readStorageBytes(this.presenterSnapshot, "usedBytes");
-		const quota = readStorageBytes(this.presenterSnapshot, "quotaBytes");
-		const error = readString(this.presenterSnapshot, "errorMessage", "");
-		const selectedPackageId = readString(this.presenterSnapshot, "selectedPackageId", "");
-		const selectedPackageIndex = packages.findIndex((item) => readString(item, "packageId", "") === selectedPackageId);
-		const checkedPackageIndex = packages.length ? Math.max(0, selectedPackageIndex) : -1;
-		if (this.pendingDeletePackageId && !packages.some((item) => readString(item, "packageId", "") === this.pendingDeletePackageId)) this.pendingDeletePackageId = "";
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards choice-radios" part="items" role="radiogroup" aria-label="Available library packages">${packages.map((item, index) => libraryItemMarkup(item, this.pendingDeletePackageId, index === checkedPackageIndex)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
-	}
-	/** Package radios commit on `change`; package actions retain the inherited click path. @param {Event} event */
-	handleDelegatedClick(event) {
-		const target = event.composedPath()[0];
-		if (target instanceof HTMLInputElement && target.type === "radio") return;
-		super.handleDelegatedClick(event);
-	}
-	/** @param {string} type @param {HTMLElement} target */
-	onIntent(type, target) {
-		const packageId = target.dataset.value ?? "";
-		if (type === "library-delete-request") {
-			this.pendingDeletePackageId = packageId;
-			this.render();
-			queueMicrotask(() => {
-				const confirm = this.shadowRoot?.querySelector("button[data-intent='library-delete']");
-				if (confirm instanceof HTMLElement) confirm.focus();
-			});
-			return;
-		}
-		if (type === "library-delete-cancel") {
-			this.pendingDeletePackageId = "";
-			this.render();
-			return;
-		}
-		if (type === "library-delete") {
-			this.pendingDeletePackageId = "";
-			this.emitIntent(type, { packageId });
-			this.render();
-			return;
-		}
-		this.emitIntent(type, { packageId });
-	}
-};
-/** T-pose hold/cooldown/success badge. */
-var AeroCalibrationBadge = class extends AeroPresenterElement {
-	render() {
-		const state = readString(this.presenterSnapshot, "state", "waiting");
-		const progress = clamp$3(readNumber(this.presenterSnapshot, "progress", 0), 0, 1);
-		const message = readString(this.presenterSnapshot, "message", calibrationMessage(state));
-		const calibrationId = readString(this.presenterSnapshot, "calibrationId", "");
-		this.renderMarkup(`<section class="panel" part="badge" aria-labelledby="calibration-badge-heading"><div class="row"><h2 id="calibration-badge-heading">T-pose calibration</h2><span class="pill" part="state">${escapeHtml(titleCase(state))}</span></div><p class="live" role="status" aria-live="polite">${escapeHtml(message)}</p><progress part="hold-progress" max="1" value="${progress}" aria-label="T-pose hold progress"></progress><p class="muted">${calibrationId ? `Calibration ${escapeHtml(calibrationId)}` : "Session calibration required"}</p><button part="reset-button" type="button" data-intent="calibration-reset">Reset calibration</button></section>`);
-	}
-};
-/** Renderer-owned surface host for Flow and Spatial Grid. */
-var AeroGridPlayfield = class extends AeroPresenterElement {
-	render() {
-		const mode = readString(this.presenterSnapshot, "mode", "flow");
-		const dimmed = readBoolean(this.presenterSnapshot, "dimmed", false);
-		const label = readString(this.presenterSnapshot, "label", `${titleCase(mode)} playfield`);
-		if (!this.shadowRoot?.querySelector(".playfield")) this.renderMarkup(`<section class="playfield" part="playfield"><div class="surface" part="render-surface" data-render-surface></div><div class="receptors" aria-hidden="true">${Array.from({ length: 12 }, (_, index) => `<i data-cell="${index}"></i>`).join("")}</div></section><style>:host{block-size:100%;inline-size:100%;min-block-size:12rem}.playfield{background:linear-gradient(180deg,var(--aero-playfield-background-start,#071426),var(--aero-playfield-background-end,#153b5d));block-size:100%;border-radius:12px;inline-size:100%;overflow:hidden;position:relative}.playfield.dimmed{filter:brightness(.45)}.surface{inset:0;position:absolute}.receptors{display:grid;gap:2%;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);inset:8%;position:absolute}.receptors i{border:1px solid color-mix(in srgb,var(--aero-role-receptor,#d9f5ff) 32%,transparent);border-radius:8px}</style>`);
-		const playfield = this.shadowRoot?.querySelector(".playfield");
-		if (playfield instanceof HTMLElement) {
-			playfield.classList.toggle("dimmed", dimmed);
-			playfield.setAttribute("aria-label", label);
-		}
-	}
-	/** @returns {HTMLElement | null} Public renderer attachment surface. */
-	getRenderSurface() {
-		const surface = this.shadowRoot?.querySelector("[data-render-surface]");
-		return surface instanceof HTMLElement ? surface : null;
-	}
-};
-/** Flow HUD presenter. */
-var AeroFlowHud = class extends AeroPresenterElement {
-	render() {
-		const score = readNumber(this.presenterSnapshot, "score", 0);
-		const combo = readNumber(this.presenterSnapshot, "combo", 0);
-		const direction = readString(this.presenterSnapshot, "direction", "—");
-		this.renderMarkup(`<section class="panel row" part="hud" aria-label="Flow status"><strong>Flow</strong><span part="score">Score ${score}</span><span part="combo">Combo ${combo}</span><span part="direction">Direction ${escapeHtml(direction)}</span></section>`);
-	}
-};
-/** Semantic two-lane Boxing HUD presenter. */
-var AeroBoxingTrackHud = class extends AeroPresenterElement {
-	render() {
-		const left = readString(this.presenterSnapshot, "leftAction", "Ready");
-		const right = readString(this.presenterSnapshot, "rightAction", "Ready");
-		const defense = readString(this.presenterSnapshot, "defense", "Clear");
-		this.renderMarkup(`<section class="tracks" part="hud" aria-label="Semantic Track Boxing"><div class="lane left" part="left-lane"><strong>Athlete left</strong><span>${escapeHtml(left)}</span></div><div class="lane right" part="right-lane"><strong>Athlete right</strong><span>${escapeHtml(right)}</span></div><div class="defense" part="defense-layer">Defense: ${escapeHtml(defense)}</div></section><style>.tracks{display:grid;gap:8px;grid-template-columns:1fr 1fr}.lane,.defense{border-radius:10px;color:var(--aero-role-on-color,#071426);display:grid;gap:4px;min-block-size:64px;padding:12px}.left{background:var(--aero-role-left,#2693ff)}.right{background:var(--aero-role-right,#39c96b)}.defense{background:var(--aero-role-guard,#9a67ea);grid-column:1/-1;min-block-size:auto}</style>`);
-	}
-};
-/** Spatial Grid Boxing HUD presenter. */
-var AeroBoxingSpatialHud = class extends AeroPresenterElement {
-	render() {
-		const target = readString(this.presenterSnapshot, "target", "Ready");
-		const blockedCells = readNumberList(this.presenterSnapshot, "blockedCells");
-		const safeCell = readNumber(this.presenterSnapshot, "safeCell", -1);
-		this.renderMarkup(`<section class="panel" part="hud" aria-label="Spatial Grid Boxing"><div class="row"><strong>Spatial Grid</strong><span>${escapeHtml(target)}</span></div><p class="muted">Blocked cells: ${blockedCells.length ? blockedCells.join(", ") : "none"}${safeCell >= 0 ? ` · safe cell ${safeCell}` : ""}</p></section>`);
-	}
-};
-/** Tracking-loss pause presenter. */
-var AeroTrackingPause = class extends AeroPresenterElement {
-	constructor() {
-		super();
-		this.dialogActive = false;
-		/** @type {HTMLElement | null} */
-		this.returnFocus = null;
-	}
-	render() {
-		const active = readBoolean(this.presenterSnapshot, "active", false);
-		const message = readString(this.presenterSnapshot, "message", "Tracking paused. Recalibrate to continue.");
-		const reason = readString(this.presenterSnapshot, "reason", "tracking_lost");
-		if (active && !this.dialogActive) this.returnFocus = deepActiveElement$1();
-		const restoreFocus = !active && this.dialogActive ? this.returnFocus : null;
-		this.dialogActive = active;
-		this.toggleAttribute("hidden", !active);
-		this.renderMarkup(`<section class="overlay" part="overlay" role="alertdialog" aria-modal="true" aria-labelledby="tracking-heading" aria-describedby="tracking-message"><h2 id="tracking-heading">Workout paused</h2><p id="tracking-message">${escapeHtml(message)}</p><span class="pill">${escapeHtml(reason)}</span><button part="recalibrate-button" type="button" data-intent="calibration-reset">Recalibrate</button></section><style>:host{inset:0;position:absolute;z-index:20}:host([hidden]){display:none}.overlay{align-content:center;background:rgba(4,17,30,var(--aero-overlay-dim-opacity,.72));block-size:100%;color:#fff;display:grid;gap:14px;inline-size:100%;justify-items:center;padding:24px;text-align:center}</style>`);
-		queueMicrotask(() => {
-			if (active) {
-				const action = this.shadowRoot?.querySelector("button[data-intent='calibration-reset']");
-				if (action instanceof HTMLElement) action.focus();
-			} else if (restoreFocus?.isConnected) restoreFocus.focus();
-		});
-	}
-	disconnectedCallback() {
-		super.disconnectedCallback();
-		if (this.dialogActive && this.returnFocus?.isConnected) this.returnFocus.focus();
-	}
-};
-/** Frozen-time resume countdown presenter. */
-var AeroResumeCountdown = class extends AeroPresenterElement {
-	render() {
-		const active = readBoolean(this.presenterSnapshot, "active", false);
-		const value = readNumber(this.presenterSnapshot, "value", 3);
-		const frozen = readBoolean(this.presenterSnapshot, "frozen", true);
-		this.toggleAttribute("hidden", !active);
-		this.renderMarkup(`<div class="countdown" part="countdown" role="status" aria-live="assertive" aria-label="Resume countdown ${value}"><strong>${value}</strong><span>${frozen ? "Workout time frozen" : "Get ready"}</span></div><style>:host{display:grid;inset:0;place-items:center;pointer-events:none;position:absolute;z-index:19}:host([hidden]){display:none}.countdown{align-items:center;background:rgba(4,17,30,.82);border-radius:50%;color:#fff;display:grid;inline-size:8rem;justify-items:center;min-block-size:8rem;padding:12px;text-align:center}.countdown strong{font-size:3.6rem;line-height:1}</style>`);
-	}
-};
-/** Cosmetic environment presenter; loading/fallback policy remains outside UI. */
-var AeroBackgroundEnvironment = class extends AeroPresenterElement {
-	render() {
-		const label = readString(this.presenterSnapshot, "label", "AeroBeat environment");
-		const url = readString(this.presenterSnapshot, "url", "");
-		const fallback = readBoolean(this.presenterSnapshot, "fallback", false);
-		this.renderMarkup(`<div class="environment" part="environment" role="img" aria-label="${escapeAttribute(label)}"><span class="pill">${fallback ? "Fallback environment" : escapeHtml(label)}</span></div><style>:host{inset:0;position:absolute;z-index:-1}.environment{background:linear-gradient(160deg,var(--aero-playfield-background-start,#071426),var(--aero-playfield-background-end,#153b5d));block-size:100%;inline-size:100%;padding:12px}</style>`);
-		const environment = this.shadowRoot?.querySelector(".environment");
-		if (environment instanceof HTMLElement && isSafeVisualUrl(url)) environment.style.backgroundImage = `url(${JSON.stringify(url)})`;
-	}
-};
-/** Child-owned fullscreen request presenter. */
-var AeroFullscreenButton = class extends AeroPresenterElement {
-	render() {
-		const supported = readBoolean(this.presenterSnapshot, "supported", false);
-		const active = readBoolean(this.presenterSnapshot, "active", false);
-		const pending = readBoolean(this.presenterSnapshot, "requestPending", false);
-		const error = readString(this.presenterSnapshot, "errorCode", "");
-		this.renderMarkup(`<div class="stack"><button part="control" type="button" data-intent="${active ? "fullscreen-exit" : "fullscreen-request"}" aria-pressed="${active}" ${supported && !pending ? "" : "disabled"}>${active ? "Exit fullscreen" : "Enter fullscreen"}</button>${error ? `<span class="error" role="status">${escapeHtml(error)}</span>` : ""}</div>`);
-	}
-};
-/** Capability and limitation presenter. */
-var AeroCapabilitiesPanel = class extends AeroPresenterElement {
-	render() {
-		const limitations = readStringList(this.presenterSnapshot, "limitations");
-		this.renderMarkup(`<section class="panel ${limitations.length ? "" : "compact-hide-when-clear"}" part="panel" aria-labelledby="capabilities-heading"><h2 id="capabilities-heading">Device capabilities</h2><div class="cards compact-telemetry">${[
-			"camera",
-			"fullscreen",
-			"autoplay",
-			"webgl2",
-			"indexedDb",
-			"worker",
-			"directBeatSaverCors",
-			"localZipImport"
-		].map((name) => `<span class="pill">${escapeHtml(titleCase(name))}: ${readBoolean(this.presenterSnapshot, name, false) ? "available" : "unavailable"}</span>`).join("")}</div>${limitations.length ? `<ul part="limitations" aria-label="Device limitations">${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">No reported limitations.</p>`}</section>`);
-	}
-};
-/** User-safe error presenter. */
-var AeroErrorPanel = class extends AeroPresenterElement {
-	render() {
-		const code = readString(this.presenterSnapshot, "code", "unknown_error");
-		const message = readString(this.presenterSnapshot, "message", "An unexpected error occurred.");
-		const retryable = readBoolean(this.presenterSnapshot, "retryable", false);
-		this.renderMarkup(`<section class="panel" part="panel" role="alert"><h2>Something needs attention</h2><p class="error">${escapeHtml(message)}</p><span class="pill">${escapeHtml(code)}</span>${retryable ? `<button part="retry-button" type="button" data-intent="error-retry">Try again</button>` : ""}</section>`);
-	}
-};
-var prototypeOptions = Object.freeze([
-	Object.freeze({
-		id: "flow",
-		label: "Flow · Grid",
-		productLabel: "Flow",
-		rulesetId: rulesetIds$3[0],
-		recipeId: ""
-	}),
-	Object.freeze({
-		id: "semantic-row",
-		label: "Semantic Track · Row Family",
-		productLabel: "Semantic Row",
-		rulesetId: rulesetIds$3[1],
-		recipeId: conversionRecipeIds$3[0]
-	}),
-	Object.freeze({
-		id: "spatial-row",
-		label: "Spatial Grid · Row Family",
-		productLabel: "Spatial Row",
-		rulesetId: rulesetIds$3[2],
-		recipeId: conversionRecipeIds$3[0]
-	}),
-	Object.freeze({
-		id: "semantic-cut",
-		label: "Semantic Track · Cut Family",
-		productLabel: "Semantic Cut",
-		rulesetId: rulesetIds$3[1],
-		recipeId: conversionRecipeIds$3[1]
-	}),
-	Object.freeze({
-		id: "spatial-cut",
-		label: "Spatial Grid · Cut Family",
-		productLabel: "Spatial Cut",
-		rulesetId: rulesetIds$3[2],
-		recipeId: conversionRecipeIds$3[1]
-	})
-]);
-var profileClasses = Object.freeze([
-	"live_visual",
-	"between_run_ruleset",
-	"converter_regeneration"
-]);
-var scoringChangeStates = Object.freeze([
-	"idle",
-	"calibrating",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"stopped"
-]);
-/** Flow/four-Boxing prototype and three-class experimental profile presenter. Product embeds may narrow it to Gameplay or Visuals with `[scope]`. */
-var AeroPrototypeSelector = class extends AeroPresenterElement {
-	static get observedAttributes() {
-		return ["scope"];
-	}
-	/** Narrow product view, or the unchanged full development view when omitted. @returns {"gameplay" | "visuals" | "full"} */
-	get scope() {
-		const value = this.getAttribute("scope");
-		return value === "gameplay" || value === "visuals" ? value : "full";
-	}
-	/** @param {string | null} value */
-	set scope(value) {
-		if (value === "gameplay" || value === "visuals") this.setAttribute("scope", value);
-		else this.removeAttribute("scope");
-	}
-	/** @returns {void} */
-	attributeChangedCallback() {
-		this.render();
-	}
-	/** Atomically accept an exact public profile snapshot; malformed input preserves prior state. @param {AeroPresenterSnapshot} snapshot */
-	setSnapshot(snapshot) {
-		if (!isPlainRecord$2(snapshot) || Object.hasOwn(snapshot, "profileClasses") && !isValidProfilePresenterSnapshot(snapshot)) return;
-		super.setSnapshot(snapshot);
-	}
-	/** Deterministic, immutable host-readable profile state; never a bundle. @returns {Readonly<{selectedProfileId:string,sessionState:string,profileClasses:readonly ProfileClassState[]}>} */
-	getProfilePresenterState() {
-		const selectedSnapshot = readString(this.presenterSnapshot, "selectedProfileId", "flow");
-		return Object.freeze({
-			selectedProfileId: prototypeOptions.some((option) => option.id === selectedSnapshot) ? selectedSnapshot : "flow",
-			sessionState: readString(this.presenterSnapshot, "sessionState", "idle"),
-			profileClasses: normalizeProfileClassStates(this.presenterSnapshot)
-		});
-	}
-	render() {
-		const selectedSnapshot = readString(this.presenterSnapshot, "selectedProfileId", "flow");
-		const selected = prototypeOptions.some((option) => option.id === selectedSnapshot) ? selectedSnapshot : "flow";
-		if (this.scope === "gameplay") {
-			const options = prototypeOptions.map((option) => Object.freeze({
-				id: option.id,
-				label: option.productLabel,
-				profileClass: "",
-				profileVersion: "",
-				contentHash: ""
-			}));
-			this.renderMarkup(productRadioMarkup("Gameplay", "gameplay-choice", options, Math.max(0, options.findIndex((option) => option.id === selected)), "prototype-select"));
-			return;
-		}
-		if (this.scope === "visuals") {
-			const visualState = readRecordList(this.presenterSnapshot, "profileClasses").find((state) => readString(state, "class", "") === "live_visual");
-			const active = visualState ? readRecord(visualState, "active") : null;
-			const options = visualState ? readRecordList(visualState, "profiles").map((profile) => Object.freeze({
-				id: readString(profile, "profileId", ""),
-				label: visualProfileLabel(readString(profile, "profileId", "")),
-				profileClass: "live_visual",
-				profileVersion: readString(profile, "profileVersion", ""),
-				contentHash: readString(profile, "contentHash", "")
-			})).filter((option) => option.id !== "") : [];
-			const activeIndex = active ? options.findIndex((option) => option.id === readString(active, "profileId", "") && option.profileVersion === readString(active, "profileVersion", "") && option.contentHash === readString(active, "contentHash", "")) : -1;
-			this.renderMarkup(productRadioMarkup("Visuals", "visual-choice", options, Math.max(0, activeIndex), "prototype-profile-select"));
-			return;
-		}
-		const sessionState = readString(this.presenterSnapshot, "sessionState", "idle");
-		const scoringDisabled = !scoringChangeStates.includes(sessionState);
-		const scoringReason = scoringDisabled ? sessionState === "countdown" ? "Scoring profiles are locked during countdown." : "Pause or finish the run to change scoring profiles." : "Scoring profile changes apply between runs.";
-		const classStates = normalizeProfileClassStates(this.presenterSnapshot);
-		const statusText = classStates.length === 3 ? "Visual, scoring, and converter profile state loaded." : "Profile state is incomplete.";
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="profiles-heading"><h2 id="profiles-heading">Workout prototype</h2><div class="cards" part="profiles" role="radiogroup" aria-label="Prototype presentation">${prototypeOptions.map((option) => `<button type="button" part="profile" role="radio" aria-checked="${selected === option.id}" tabindex="${selected === option.id ? "0" : "-1"}" data-intent="prototype-select" data-value="${option.id}"><strong>${escapeHtml(option.label)}</strong><span class="muted">${escapeHtml(option.rulesetId)}${option.recipeId ? ` · ${escapeHtml(option.recipeId)}` : ""}</span></button>`).join("")}</div><p class="muted live compact-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><section class="stack" part="telemetry" aria-label="Experimental profile management">${classStates.map((state) => profileClassMarkup(state, scoringDisabled, scoringReason)).join("") || `<p class="muted">No valid experimental profile state loaded.</p>`}</section><div class="row" aria-label="Profile bundle actions"><button type="button" part="import-button" data-intent="tuning-import-request" aria-label="Import experimental profile bundle">Import profiles</button><button type="button" part="export-button" data-intent="tuning-export" aria-label="Export experimental profile bundle">Export profiles</button><button type="button" part="reset-button" data-intent="tuning-reset" aria-label="Reset experimental profiles">Reset profiles</button></div></section>`);
-	}
-	/** Native scoped radios commit on `change`; full-view buttons retain the inherited click path. @param {Event} event */
-	handleDelegatedClick(event) {
-		const target = event.composedPath()[0];
-		if (this.scope !== "full" && target instanceof HTMLInputElement && target.type === "radio") return;
-		super.handleDelegatedClick(event);
-	}
-	/** @param {string} type @param {HTMLElement} target */
-	onIntent(type, target) {
-		if (type === "prototype-select") {
-			for (const radio of this.shadowRoot?.querySelectorAll("button[role='radio']") ?? []) if (radio instanceof HTMLButtonElement) {
-				const selected = radio === target;
-				radio.tabIndex = selected ? 0 : -1;
-				radio.setAttribute("aria-checked", selected ? "true" : "false");
-			}
-			this.emitIntent(type, { profileId: target.dataset.value ?? "" });
-		} else if (type === "prototype-profile-select") this.emitIntent(type, {
-			profileClass: target.dataset.profileClass ?? "",
-			profileId: target.dataset.value ?? "",
-			profileVersion: target.dataset.profileVersion ?? "",
-			contentHash: target.dataset.contentHash ?? ""
-		});
-		else this.emitIntent(type);
-	}
-	/** @param {KeyboardEvent} event */
-	handleDelegatedKeydown(event) {
-		const target = event.composedPath()[0];
-		if (!(target instanceof HTMLButtonElement) || target.getAttribute("role") !== "radio") return;
-		const radios = [...this.shadowRoot?.querySelectorAll("button[role='radio']") ?? []].filter((item) => item instanceof HTMLButtonElement);
-		const currentIndex = radios.indexOf(target);
-		if (currentIndex < 0) return;
-		let nextIndex = currentIndex;
-		if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % radios.length;
-		else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (currentIndex - 1 + radios.length) % radios.length;
-		else if (event.key === "Home") nextIndex = 0;
-		else if (event.key === "End") nextIndex = radios.length - 1;
-		else return;
-		event.preventDefault();
-		for (const [index, radio] of radios.entries()) {
-			radio.tabIndex = index === nextIndex ? 0 : -1;
-			radio.setAttribute("aria-checked", index === nextIndex ? "true" : "false");
-		}
-		const next = radios[nextIndex];
-		next.focus();
-		this.emitIntent("prototype-select", { profileId: next.dataset.value ?? "" });
-	}
-};
-/** @type {Readonly<Record<string, CustomElementConstructor>>} */
-var aeroProductPresenterConstructors = Object.freeze({
-	[elementNames$2.beatSaverBrowser]: AeroBeatSaverBrowser,
-	[elementNames$2.contentImportProgress]: AeroContentImportProgress,
-	[elementNames$2.contentLibrary]: AeroContentLibrary,
-	[elementNames$2.calibrationBadge]: AeroCalibrationBadge,
-	[elementNames$2.gridPlayfield]: AeroGridPlayfield,
-	[elementNames$2.flowHud]: AeroFlowHud,
-	[elementNames$2.boxingTrackHud]: AeroBoxingTrackHud,
-	[elementNames$2.boxingSpatialHud]: AeroBoxingSpatialHud,
-	[elementNames$2.trackingPause]: AeroTrackingPause,
-	[elementNames$2.countdown]: AeroResumeCountdown,
-	[elementNames$2.prototypeSelector]: AeroPrototypeSelector,
-	[elementNames$2.fullscreenButton]: AeroFullscreenButton,
-	"aero-background-environment": AeroBackgroundEnvironment,
-	"aero-capabilities-panel": AeroCapabilitiesPanel,
-	"aero-error-panel": AeroErrorPanel
-});
-/** Defines all Task 9 product presenter elements idempotently. @returns {void} */
-function defineAeroProductPresenters() {
-	for (const [name, constructor] of Object.entries(aeroProductPresenterConstructors)) if (!customElements.get(name)) customElements.define(name, constructor);
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {string} fallback @returns {string} */
-function readString(record, key, fallback) {
-	const value = record[key];
-	return typeof value === "string" ? value : fallback;
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {number} fallback @returns {number} */
-function readNumber(record, key, fallback) {
-	const value = record[key];
-	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {number} */
-function readStorageBytes(record, key) {
-	return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(readNumber(record, key, 0))));
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {boolean} fallback @returns {boolean} */
-function readBoolean(record, key, fallback) {
-	const value = record[key];
-	return typeof value === "boolean" ? value : fallback;
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {Readonly<Record<string, unknown>> | null} */
-function readRecord(record, key) {
-	const value = record[key];
-	return isPlainRecord$2(value) ? value : null;
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {Readonly<Record<string, unknown>>[]} */
-function readRecordList(record, key) {
-	const value = record[key];
-	return Array.isArray(value) ? value.filter(isPlainRecord$2) : [];
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {string[]} */
-function readStringList(record, key) {
-	const value = record[key];
-	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-}
-/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {number[]} */
-function readNumberList(record, key) {
-	const value = record[key];
-	return Array.isArray(value) ? value.filter((item) => typeof item === "number" && Number.isFinite(item)) : [];
-}
-/** @param {unknown} value @returns {value is Readonly<Record<string, unknown>>} */
-function isPlainRecord$2(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	try {
-		const prototype = Object.getPrototypeOf(value);
-		return prototype === Object.prototype || prototype === null;
-	} catch {
-		return false;
-	}
-}
-/** Narrow an external presenter snapshot to immutable JSON-like data. @param {unknown} value @returns {AeroPresenterSnapshot} */
-function narrowAeroPresenterSnapshot(value) {
-	const narrowed = narrowSnapshotValue(value, /* @__PURE__ */ new Set(), 0);
-	return isPlainRecord$2(narrowed) ? narrowed : Object.freeze({});
-}
-/** @param {unknown} value @param {Set<object>} seen @param {number} depth @returns {unknown} */
-function narrowSnapshotValue(value, seen, depth) {
-	if (value === null || typeof value === "boolean") return value;
-	if (typeof value === "string") return value.slice(0, 4096);
-	if (typeof value === "number") return Number.isFinite(value) ? value : void 0;
-	if (depth >= 10 || typeof value !== "object" || value === null || seen.has(value)) return void 0;
-	if (Array.isArray(value)) {
-		seen.add(value);
-		const items = [];
-		const length = Math.min(500, value.length);
-		for (let index = 0; index < length; index += 1) {
-			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-			if (!descriptor || !("value" in descriptor)) continue;
-			const narrowed = narrowSnapshotValue(descriptor.value, seen, depth + 1);
-			if (narrowed !== void 0) items.push(narrowed);
-		}
-		seen.delete(value);
-		return Object.freeze(items);
-	}
-	if (!isPlainRecord$2(value)) return void 0;
-	seen.add(value);
-	/** @type {Record<string, unknown>} */
-	const record = {};
-	try {
-		for (const key of Reflect.ownKeys(value).slice(0, 500)) {
-			if (typeof key !== "string") continue;
-			const descriptor = Object.getOwnPropertyDescriptor(value, key);
-			if (!descriptor?.enumerable || !("value" in descriptor)) continue;
-			const narrowed = narrowSnapshotValue(descriptor.value, seen, depth + 1);
-			if (narrowed !== void 0) record[key] = narrowed;
-		}
-	} catch {
-		seen.delete(value);
-		return;
-	}
-	seen.delete(value);
-	return Object.freeze(record);
-}
-/** @returns {HTMLElement | null} */
-function deepActiveElement$1() {
-	let active = document.activeElement;
-	while (active instanceof HTMLElement && active.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-	return active instanceof HTMLElement ? active : null;
-}
-/** @param {string} value @returns {string} */
-function escapeHtml(value) {
-	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;").replaceAll("'", "&#39;");
-}
-/** @param {string} value @returns {string} */
-function escapeAttribute(value) {
-	return escapeHtml(value).replaceAll("`", "&#96;");
-}
-/** @param {number} value @param {number} min @param {number} max @returns {number} */
-function clamp$3(value, min, max) {
-	return Math.min(max, Math.max(min, value));
-}
-/** @param {string} value @returns {string} */
-function titleCase(value) {
-	return value.replaceAll(/[_-]/gu, " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
-}
-/** @param {string} state @param {number} count @returns {string} */
-function statusText(state, count) {
-	if (state === "loading") return "Loading BeatSaver maps…";
-	if (state === "empty") return "No compatible maps found.";
-	if (count > 0) return `${count} map${count === 1 ? "" : "s"} available.`;
-	return "Search or browse latest maps.";
-}
-/** @param {Readonly<Record<string, unknown>>} result @param {boolean} checked @returns {string} */
-function mapResultMarkup(result, checked) {
-	const id = readString(result, "mapId", "");
-	const name = readString(result, "name", "Untitled map");
-	const author = readString(result, "songAuthorName", "Unknown artist");
-	return `<article><label class="card choice-radio" part="result"><input type="radio" name="beatsaver-map-choice" value="${escapeAttribute(id)}" data-intent="beatsaver-select-map" data-value="${escapeAttribute(id)}" ${checked ? "checked" : ""}><span class="choice-copy"><strong>${escapeHtml(name)}</strong><span class="muted">${escapeHtml(author)} · ${escapeHtml(id)}</span></span></label></article>`;
-}
-/** @param {string} value @param {string} label @param {string} selected @returns {string} */
-function optionMarkup(value, label, selected) {
-	return `<option value="${escapeAttribute(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
-}
-/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {boolean} checked @returns {string} */
-function libraryItemMarkup(item, pendingDeletePackageId, checked) {
-	const id = readString(item, "packageId", "");
-	const name = readString(item, "name", "Untitled package");
-	const variantCount = readNumber(item, "variantCount", 0);
-	const pending = id !== "" && id === pendingDeletePackageId;
-	const accessibleName = escapeAttribute(name);
-	const deleteControls = pending ? `<span role="status">Delete ${escapeHtml(name)}?</span><button type="button" aria-label="Confirm delete ${accessibleName}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm delete</button><button type="button" aria-label="Cancel deleting ${accessibleName}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleName}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
-	return `<article class="card" part="item"><label class="choice-radio"><input type="radio" name="library-package-choice" value="${escapeAttribute(id)}" data-intent="library-select" data-value="${escapeAttribute(id)}" aria-label="Select ${accessibleName}" ${checked ? "checked" : ""}><span class="choice-copy"><strong>${escapeHtml(name)}</strong><span class="muted">${variantCount} playable variant${variantCount === 1 ? "" : "s"}</span></span></label><div class="row"><button type="button" aria-label="Export ${accessibleName}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div></article>`;
-}
-/** @param {number} used @param {number} quota @returns {string} */
-function formatStorage(used, quota) {
-	if (quota <= 0) return `${formatBytes(used)} stored · quota unavailable`;
-	if (used > quota) return `${formatBytes(used)} of ${formatBytes(quota)} used · over quota`;
-	return `${formatBytes(used)} of ${formatBytes(quota)} used (${Math.round(used / quota * 100)}%)`;
-}
-/** @param {number} bytes @returns {string} */
-function formatBytes(bytes) {
-	if (bytes < 1024) return `${Math.max(0, Math.round(bytes))} B`;
-	if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KiB`;
-	return `${(bytes / 1048576).toFixed(1)} MiB`;
-}
-/** @param {string} state @returns {string} */
-function calibrationMessage(state) {
-	return {
-		waiting: "Step back until your upper body is visible.",
-		holding: "Hold a steady T-pose for four seconds.",
-		cooldown: "Calibration captured. Relax your arms.",
-		calibrated: "Calibration ready.",
-		tracking_lost: "Tracking lost. A fresh calibration is required.",
-		error: "Calibration could not complete."
-	}[state] ?? "Calibration required.";
-}
-/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:string,regenerationRequired:boolean}>} ProfileIdentity */
-/** @typedef {Readonly<{class:string,active:ProfileIdentity,profiles:readonly ProfileIdentity[],experimental:boolean,selectedContentHash:string,appliedContentHash:string,pendingContentHash:string|null,regenerationRequired:boolean}>} ProfileClassState */
-/** @typedef {Readonly<{id:string,label:string,profileClass:string,profileVersion:string,contentHash:string}>} ProductRadioOption */
-/** Native product radio group with no development identity text. @param {string} heading @param {string} name @param {readonly ProductRadioOption[]} options @param {number} selectedIndex @param {string} intent @returns {string} */
-function productRadioMarkup(heading, name, options, selectedIndex, intent) {
-	return `<section class="panel product-selector" part="panel" aria-labelledby="product-selector-heading"><h2 id="product-selector-heading">${escapeHtml(heading)}</h2><fieldset part="choices"><legend class="visually-hidden">Choose ${escapeHtml(heading)}</legend><div class="product-radios">${options.map((option, index) => `<label class="product-radio"><input type="radio" name="${escapeAttribute(name)}" value="${escapeAttribute(option.id)}" data-intent="${escapeAttribute(intent)}" data-value="${escapeAttribute(option.id)}" data-profile-class="${escapeAttribute(option.profileClass)}" data-profile-version="${escapeAttribute(option.profileVersion)}" data-content-hash="${escapeAttribute(option.contentHash)}" ${index === selectedIndex ? "checked" : ""}><span>${escapeHtml(option.label)}</span></label>`).join("")}</div></fieldset></section><style>:host([scope]) .product-selector{gap:8px}:host([scope]) fieldset{border:0;margin:0;min-inline-size:0;padding:0}:host([scope]) .product-radios{display:grid;gap:6px}:host([scope]) .product-radio{align-items:center;background:rgba(255,255,255,.72);border:1px solid rgba(53,141,175,.3);border-radius:10px;cursor:pointer;display:flex;font-size:1rem;gap:10px;min-block-size:42px;padding:0 10px}:host([scope]) .product-radio:has(input:checked){background:rgba(10,132,255,.14);border-color:var(--aero-color-focus,#0a84ff);box-shadow:inset 0 0 0 1px var(--aero-color-focus,#0a84ff)}:host([scope]) .product-radio input[type="radio"]{accent-color:var(--aero-color-focus,#0a84ff);block-size:42px;flex:0 0 42px;inline-size:42px;margin:0;padding:0}:host([scope]) .product-radio span{font-weight:750}:host([scope][compact]) .product-selector h2{block-size:1px;clip:rect(0 0 0 0);clip-path:inset(50%);inline-size:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;white-space:nowrap}</style>`;
-}
-/** Human-facing live visual label. @param {string} profileId @returns {string} */
-function visualProfileLabel(profileId) {
-	return titleCase(profileId.replace(/^aero\.visual\./u, "").replaceAll(/(?:^|[._-])experimental(?:[._-]|$)/giu, " ").trim() || "Visual");
-}
-/** Validate one complete selector snapshot without invoking accessors. @param {unknown} value @returns {boolean} */
-function isValidProfilePresenterSnapshot(value) {
-	if (!hasExactKeys$3(value, [
-		"selectedProfileId",
-		"sessionState",
-		"profileClasses"
-	])) return false;
-	if (typeof value.selectedProfileId !== "string" || !prototypeOptions.some((option) => option.id === value.selectedProfileId) || typeof value.sessionState !== "string" || value.sessionState.length > 64 || !isExactDataArray(value.profileClasses, 3)) return false;
-	const seen = /* @__PURE__ */ new Set();
-	for (const state of value.profileClasses) {
-		const classDescriptor = typeof state === "object" && state !== null ? Object.getOwnPropertyDescriptor(state, "class") : void 0;
-		if (!classDescriptor?.enumerable || !("value" in classDescriptor) || typeof classDescriptor.value !== "string" || !profileClasses.includes(classDescriptor.value) || seen.has(classDescriptor.value)) return false;
-		const isConverter = classDescriptor.value === "converter_regeneration";
-		if (!hasExactKeys$3(state, isConverter ? [
-			"class",
-			"active",
-			"profiles",
-			"experimental",
-			"selectedContentHash",
-			"appliedContentHash",
-			"pendingContentHash",
-			"regenerationRequired"
-		] : [
-			"class",
-			"active",
-			"profiles",
-			"experimental"
-		]) || !isPrototypeTuningIdentity(state.active) || state.active.class !== state.class || typeof state.experimental !== "boolean" || !isExactDataArray(state.profiles, 64) || !state.profiles.every((identity) => isPrototypeTuningIdentity(identity) && identity.class === state.class)) return false;
-		if (isConverter) {
-			const selected = state.selectedContentHash;
-			const applied = state.appliedContentHash;
-			const pending = state.pendingContentHash;
-			if (!isBareHash(selected) || !isBareHash(applied) || pending !== null && !isBareHash(pending) || typeof state.regenerationRequired !== "boolean" || state.active.contentHash !== selected || state.active.regenerationRequired !== state.regenerationRequired) return false;
-			if (state.regenerationRequired ? pending !== selected || selected === applied : pending !== null || selected !== applied) return false;
-		}
-		seen.add(state.class);
-	}
-	return seen.size === 3;
-}
-/** @param {unknown} value @param {number} maximumLength @returns {value is readonly unknown[]} */
-function isExactDataArray(value, maximumLength) {
-	if (!Array.isArray(value) || value.length > maximumLength) return false;
-	const keys = Reflect.ownKeys(value);
-	if (keys.length !== value.length + 1 || keys.at(-1) !== "length") return false;
-	for (let index = 0; index < value.length; index += 1) {
-		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
-		if (!descriptor?.enumerable || !("value" in descriptor)) return false;
-	}
-	return true;
-}
-/** @param {unknown} value @returns {value is string} */
-function isBareHash(value) {
-	return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
-}
-/** @param {Readonly<Record<string, unknown>>} snapshot @returns {readonly ProfileClassState[]} */
-function normalizeProfileClassStates(snapshot) {
-	const result = [];
-	for (const source of readRecordList(snapshot, "profileClasses")) {
-		const active = readRecord(source, "active");
-		const profiles = readRecordList(source, "profiles");
-		profiles.sort((left, right) => `${left.profileId}\u0000${left.profileVersion}\u0000${left.contentHash}`.localeCompare(`${right.profileId}\u0000${right.profileVersion}\u0000${right.contentHash}`));
-		const isConverter = active.class === "converter_regeneration";
-		result.push(Object.freeze({
-			class: active.class,
-			active,
-			profiles: Object.freeze(profiles),
-			experimental: readBoolean(source, "experimental", false),
-			selectedContentHash: isConverter ? readString(source, "selectedContentHash", "") : active.contentHash,
-			appliedContentHash: isConverter ? readString(source, "appliedContentHash", "") : active.contentHash,
-			pendingContentHash: isConverter ? source.pendingContentHash === null ? null : readString(source, "pendingContentHash", "") : null,
-			regenerationRequired: isConverter && readBoolean(source, "regenerationRequired", false)
-		}));
-	}
-	result.sort((left, right) => profileClasses.indexOf(left.class) - profileClasses.indexOf(right.class));
-	return Object.freeze(result);
-}
-/** @param {ProfileClassState} state @param {boolean} scoringDisabled @param {string} scoringReason @returns {string} */
-function profileClassMarkup(state, scoringDisabled, scoringReason) {
-	const isScoring = state.class === "between_run_ruleset";
-	const isConverter = state.class === "converter_regeneration";
-	const disabled = isScoring && scoringDisabled;
-	const policy = state.class === "live_visual" ? "Applies immediately." : isScoring ? scoringReason : state.regenerationRequired ? "Regenerate content to apply this converter profile." : "Selected converter profile matches generated content.";
-	const options = state.profiles.length ? `<div class="row" aria-label="${escapeAttribute(titleCase(state.class))} profile choices">${state.profiles.map((profile) => {
-		const active = profile.profileId === state.active.profileId && profile.profileVersion === state.active.profileVersion && profile.contentHash === state.active.contentHash;
-		return `<button type="button" data-intent="prototype-profile-select" data-profile-class="${escapeAttribute(profile.class)}" data-value="${escapeAttribute(profile.profileId)}" data-profile-version="${escapeAttribute(profile.profileVersion)}" data-content-hash="${escapeAttribute(profile.contentHash)}" aria-pressed="${active}" ${disabled ? "disabled" : ""} aria-label="Select ${escapeAttribute(profile.profileId)} ${escapeAttribute(titleCase(profile.class))} profile">${escapeHtml(profile.profileId)}</button>`;
-	}).join("")}</div>` : "";
-	const converterTruth = isConverter ? `<p class="muted compact-converter-truth" role="status" aria-live="polite">Selected ${escapeHtml(state.selectedContentHash)}<br>Applied ${escapeHtml(state.appliedContentHash)}<br>Pending ${escapeHtml(state.pendingContentHash ?? "none")}</p>` : "";
-	const policyClass = disabled ? "compact-critical" : "compact-explanatory";
-	return `<article class="card" data-profile-class="${escapeAttribute(state.class)}"><div class="row"><h3>${escapeHtml(titleCase(state.class))}</h3>${state.experimental ? `<span class="pill compact-telemetry">Experimental</span>` : ""}${state.regenerationRequired ? `<span class="pill error">Regeneration required</span>` : `<span class="pill">Applied</span>`}</div>${identityMarkup(state.active)}<p class="muted live ${policyClass}" role="status" aria-live="polite">${escapeHtml(policy)}</p>${converterTruth}${options}</article>`;
-}
-/** @param {ProfileIdentity} identity @returns {string} */
-function identityMarkup(identity) {
-	return `<div class="compact-identity" part="profile-identity"><strong>${escapeHtml(identity.profileId)}</strong><p class="muted">Version ${escapeHtml(identity.profileVersion)} · ${escapeHtml(identity.class)}<br>Hash ${escapeHtml(identity.contentHash)}</p></div>`;
-}
-/** @param {string} url @returns {boolean} */
-function isSafeVisualUrl(url) {
-	if (url === "") return false;
-	try {
-		const parsed = new URL(url, document.baseURI);
-		return parsed.protocol === "https:" || parsed.protocol === "blob:" || parsed.protocol === "http:" && parsed.hostname === "127.0.0.1";
-	} catch {
-		return false;
-	}
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/elements/aero-select/aero-select.js
-/**
-* Public change event dispatched by `aero-select` after option selection.
-*
-* @type {"aero-select-change"}
-*/
-var aeroSelectChangeEventName = "aero-select-change";
-/**
-* @typedef {object} AeroSelectOption
-* @property {string} value Stable option value.
-* @property {string} label Visible option label.
-*/
-/**
-* Reusable select control for compact phone-test settings.
-*/
-var AeroSelect = class extends HTMLElement {
-	/**
-	* Observed attributes for the component.
-	*
-	* @returns {string[]}
-	*/
-	static get observedAttributes() {
-		return [
-			"disabled",
-			"label",
-			"value"
-		];
-	}
-	/**
-	* Creates the select shadow DOM.
-	*/
-	constructor() {
-		super();
-		/** @type {AeroSelectOption[]} */
-		this.options = [];
-		const root = this.attachShadow({ mode: "open" });
-		root.innerHTML = `
-      <style>
-        :host {
-          color: var(--aero-color-ink, #103447);
-          display: block;
-          font-family: var(--aero-font-family, system-ui, sans-serif);
-        }
-
-        .field {
-          display: grid;
-          gap: 4px;
-        }
-
-        .label {
-          font-size: 0.72rem;
-          font-weight: 800;
-          line-height: 1.1;
-        }
-
-        .control {
-          appearance: none;
-          background:
-            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(218, 246, 255, 0.82)),
-            linear-gradient(90deg, transparent calc(100% - 34px), rgba(83, 163, 189, 0.18) calc(100% - 34px));
-          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
-          border-radius: 8px;
-          box-shadow: 0 8px 18px rgba(16, 52, 71, 0.13);
-          box-sizing: border-box;
-          color: var(--aero-color-ink, #103447);
-          font: 750 0.82rem var(--aero-font-family, system-ui, sans-serif);
-          inline-size: 100%;
-          min-block-size: 36px;
-          padding: 8px 34px 8px 10px;
-        }
-
-        .select-wrap {
-          display: grid;
-          position: relative;
-        }
-
-        .select-wrap::after {
-          block-size: 0;
-          border-left: 5px solid transparent;
-          border-right: 5px solid transparent;
-          border-top: 6px solid #245e77;
-          content: "";
-          inline-size: 0;
-          inset-block-start: 50%;
-          inset-inline-end: 12px;
-          pointer-events: none;
-          position: absolute;
-          transform: translateY(-35%);
-        }
-
-        :host([disabled]) .control {
-          cursor: not-allowed;
-          opacity: 0.58;
-        }
-      </style>
-      <label class="field">
-        <span class="label"></span>
-        <span class="select-wrap">
-          <select class="control" part="control"></select>
-        </span>
-      </label>
-    `;
-		this.#selectElement().addEventListener("change", () => this.#dispatchChange());
-	}
-	/**
-	* Syncs attributes and options.
-	*/
-	connectedCallback() {
-		this.#render();
-	}
-	/**
-	* Syncs attributes and options.
-	*/
-	attributeChangedCallback() {
-		this.#render();
-	}
-	/**
-	* Replaces the available option set.
-	*
-	* @param {readonly AeroSelectOption[]} options
-	* @returns {void}
-	*/
-	setOptions(options) {
-		this.options = options.map((option) => ({
-			value: option.value,
-			label: option.label
-		}));
-		this.#render();
-	}
-	/**
-	* @returns {string}
-	*/
-	get value() {
-		return this.#selectElement().value;
-	}
-	/**
-	* @param {string} value
-	*/
-	set value(value) {
-		this.setAttribute("value", value);
-	}
-	/**
-	* @returns {HTMLSelectElement}
-	*/
-	#selectElement() {
-		const select = this.shadowRoot?.querySelector("select.control");
-		if (!(select instanceof HTMLSelectElement)) throw new Error("Aero select control is unavailable.");
-		return select;
-	}
-	/**
-	* @returns {void}
-	*/
-	#render() {
-		const label = this.shadowRoot?.querySelector(".label");
-		if (label) label.textContent = this.getAttribute("label") ?? "Select";
-		const select = this.#selectElement();
-		const targetValue = this.getAttribute("value") ?? select.value;
-		select.disabled = this.hasAttribute("disabled");
-		select.replaceChildren(...this.options.map((option) => {
-			const element = document.createElement("option");
-			element.value = option.value;
-			element.textContent = option.label;
-			return element;
-		}));
-		if (this.options.some((option) => option.value === targetValue)) select.value = targetValue;
-	}
-	/**
-	* @returns {void}
-	*/
-	#dispatchChange() {
-		const select = this.#selectElement();
-		this.setAttribute("value", select.value);
-		this.dispatchEvent(new CustomEvent(aeroSelectChangeEventName, {
-			bubbles: true,
-			composed: true,
-			detail: {
-				value: select.value,
-				label: select.selectedOptions[0]?.textContent ?? select.value
-			}
-		}));
-	}
-};
-/**
-* Defines `aero-select` when it is not already registered.
-*
-* @returns {void}
-*/
-function defineAeroSelect() {
-	if (!customElements.get("aero-select")) customElements.define("aero-select", AeroSelect);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/elements/aero-status-panel/aero-status-panel.js
-/**
-* Status panel for calibration, CV, and input proving scenes.
-*/
-var AeroStatusPanel = class extends HTMLElement {
-	/**
-	* Observed attributes for the component.
-	*
-	* @returns {string[]}
-	*/
-	static get observedAttributes() {
-		return ["heading", "status"];
-	}
-	/**
-	* Creates the panel shadow DOM.
-	*/
-	constructor() {
-		super();
-		const root = this.attachShadow({ mode: "open" });
-		root.innerHTML = `
-      <style>
-        :host {
-          display: block;
-        }
-
-        .panel {
-          background: var(--aero-color-surface, rgba(244, 252, 255, 0.84));
-          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
-          border-radius: var(--aero-radius-panel, 8px);
-          box-shadow: var(--aero-shadow-panel, 0 16px 38px rgba(16, 52, 71, 0.18));
-          color: var(--aero-color-ink, #103447);
-          display: grid;
-          gap: var(--aero-space-2, 8px);
-          padding: var(--aero-space-4, 16px);
-        }
-
-        .heading {
-          font: 700 1rem var(--aero-font-family, system-ui, sans-serif);
-        }
-
-        .status {
-          font: 500 0.9rem var(--aero-font-family, system-ui, sans-serif);
-        }
-      </style>
-      <section class="panel" part="panel">
-        <span class="heading"></span>
-        <span class="status"></span>
-      </section>
-    `;
-	}
-	/**
-	* Syncs attributes into the panel content.
-	*/
-	connectedCallback() {
-		this.#render();
-	}
-	/**
-	* Syncs attributes into the panel content.
-	*/
-	attributeChangedCallback() {
-		this.#render();
-	}
-	/**
-	* Updates the visible panel content.
-	*/
-	#render() {
-		const heading = this.shadowRoot?.querySelector(".heading");
-		const status = this.shadowRoot?.querySelector(".status");
-		if (heading) heading.textContent = this.getAttribute("heading") ?? "AeroBeat";
-		if (status) status.textContent = this.getAttribute("status") ?? "Ready";
-	}
-};
-/**
-* Defines `aero-status-panel` when it is not already registered.
-*
-* @returns {void}
-*/
-function defineAeroStatusPanel() {
-	if (!customElements.get("aero-status-panel")) customElements.define("aero-status-panel", AeroStatusPanel);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/screens/aero-calibration-screen/aero-calibration-screen.js
-/** @typedef {Readonly<Record<string, unknown>>} AeroCalibrationCompositionSnapshot */
-/**
-* Automatic-calibration composition screen. The screen presents snapshots only;
-* camera, pose math, calibration and capability policy stay with their owners.
-*/
-var AeroCalibrationScreen = class extends HTMLElement {
-	constructor() {
-		super();
-		/** @type {AeroCalibrationCompositionSnapshot} */
-		this.screenSnapshot = Object.freeze({});
-	}
-	connectedCallback() {
-		defineAeroMediaPosePreview();
-		defineAeroProductPresenters();
-		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
-		this.#ensureDom();
-		this.#applySnapshot();
-	}
-	disconnectedCallback() {
-		const preview = this.shadowRoot?.querySelector("aero-media-pose-preview");
-		if (preview instanceof HTMLElement && "clearPoseFrame" in preview && typeof preview.clearPoseFrame === "function") preview.clearPoseFrame();
-	}
-	/** @param {AeroCalibrationCompositionSnapshot} snapshot @returns {void} */
-	setSnapshot(snapshot) {
-		this.screenSnapshot = narrowAeroPresenterSnapshot(snapshot);
-		this.#applySnapshot();
-	}
-	/** @returns {void} */
-	#ensureDom() {
-		if (!this.shadowRoot || this.shadowRoot.childElementCount > 0) return;
-		this.shadowRoot.innerHTML = `
-      <style>
-        :host { block-size: 100%; box-sizing: border-box; display: block; inline-size: 100%; min-block-size: 0; min-inline-size: 0; }
-        .layout { block-size: 100%; display: grid; gap: var(--aero-space-4, 16px); grid-template-columns: minmax(0, 1fr) minmax(18rem, .6fr); inline-size: 100%; padding: var(--aero-space-4, 16px); }
-        .preview { min-block-size: 16rem; min-inline-size: 0; position: relative; }
-        .preview > aero-media-pose-preview, .preview > aero-grid-playfield { block-size: 100%; inline-size: 100%; inset: 0; position: absolute; }
-        .status { align-content: start; display: grid; gap: var(--aero-space-3, 12px); min-inline-size: 0; overflow: auto; }
-        @media (max-width: 700px), (max-height: 440px) and (orientation: landscape) { .layout { grid-template-columns: 1fr; grid-template-rows: minmax(12rem, 1fr) auto; padding: 10px; } .status { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); } }
-      </style>
-      <section class="layout" part="layout" aria-label="Camera calibration">
-        <div class="preview" part="preview"><aero-media-pose-preview></aero-media-pose-preview><aero-grid-playfield></aero-grid-playfield></div>
-        <div class="status" part="status"><aero-calibration-badge></aero-calibration-badge><aero-capabilities-panel></aero-capabilities-panel></div>
-      </section>`;
-	}
-	/** @returns {void} */
-	#applySnapshot() {
-		if (!this.shadowRoot || !this.isConnected) return;
-		const calibration = isRecord$4(this.screenSnapshot.calibration) ? this.screenSnapshot.calibration : Object.freeze({ state: "waiting" });
-		const capabilities = isRecord$4(this.screenSnapshot.capabilities) ? this.screenSnapshot.capabilities : Object.freeze({});
-		const grid = isRecord$4(this.screenSnapshot.grid) ? this.screenSnapshot.grid : Object.freeze({
-			mode: "calibration",
-			dimmed: true,
-			label: "Retained calibration grid"
-		});
-		const badge = this.shadowRoot.querySelector("aero-calibration-badge");
-		if (badge instanceof AeroCalibrationBadge) badge.setSnapshot(calibration);
-		const capabilityPanel = this.shadowRoot.querySelector("aero-capabilities-panel");
-		if (capabilityPanel instanceof AeroCapabilitiesPanel) capabilityPanel.setSnapshot(capabilities);
-		const playfield = this.shadowRoot.querySelector("aero-grid-playfield");
-		if (playfield instanceof AeroGridPlayfield) playfield.setSnapshot(grid);
-	}
-};
-/** Defines `aero-calibration-screen` idempotently. @returns {void} */
-function defineAeroCalibrationScreen() {
-	if (!customElements.get("aero-calibration-screen")) customElements.define("aero-calibration-screen", AeroCalibrationScreen);
-}
-/** @param {unknown} value @returns {value is Readonly<Record<string, unknown>>} */
-function isRecord$4(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-ui/src/index.js
-/** Defines every public AeroBeat UI component idempotently. @returns {void} */
-function defineAeroUiElements() {
-	defineAeroButton();
-	defineAeroMediaPosePreview();
-	defineAeroPoseFlowPanel();
-	defineAeroProductPresenters();
-	defineAeroSelect();
-	defineAeroStatusPanel();
-	defineAeroCalibrationScreen();
-}
-Object.freeze({
-	aeroButton: AeroButton,
-	aeroMediaPosePreview: AeroMediaPosePreview,
-	aeroPoseFlowPanel: AeroPoseFlowPanel,
-	aeroSelect: AeroSelect,
-	aeroStatusPanel: AeroStatusPanel,
-	aeroCalibrationScreen: AeroCalibrationScreen,
-	aeroBeatSaverBrowser: AeroBeatSaverBrowser,
-	aeroContentImportProgress: AeroContentImportProgress,
-	aeroContentLibrary: AeroContentLibrary,
-	aeroCalibrationBadge: AeroCalibrationBadge,
-	aeroGridPlayfield: AeroGridPlayfield,
-	aeroFlowHud: AeroFlowHud,
-	aeroBoxingTrackHud: AeroBoxingTrackHud,
-	aeroBoxingSpatialHud: AeroBoxingSpatialHud,
-	aeroTrackingPause: AeroTrackingPause,
-	aeroResumeCountdown: AeroResumeCountdown,
-	aeroBackgroundEnvironment: AeroBackgroundEnvironment,
-	aeroFullscreenButton: AeroFullscreenButton,
-	aeroCapabilitiesPanel: AeroCapabilitiesPanel,
-	aeroErrorPanel: AeroErrorPanel,
-	aeroPrototypeSelector: AeroPrototypeSelector
-});
-//#endregion
-//#region node_modules/@aerobeat/web-video/src/source-descriptors.js
+//#region ../aerobeat-web-video/src/source-descriptors.js
 /** @typedef {"live-camera" | "loaded-video" | "replay-video-feed"} AeroVideoSourceKind */
 /** @typedef {"stretch" | "contain" | "cover"} AeroVideoFitMode */
 /** @typedef {"background-only" | "sampled-media"} AeroVideoReadabilityRequirement */
@@ -8821,7 +3323,7 @@ function finiteNonNegative$2(value) {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-video/src/browser-video-facade.js
+//#region ../aerobeat-web-video/src/browser-video-facade.js
 /** @type {"aero.video.media"} */
 var aeroVideoMediaServiceId = "aero.video.media";
 /** @typedef {"idle" | "loading" | "ready" | "playing" | "paused" | "ended" | "error" | "destroyed"} AeroVideoPlaybackState */
@@ -9090,8 +3592,8 @@ function createBrowserVideoMediaFacade(options = {}) {
 	}
 	/** @param {HTMLVideoElement | undefined} element */
 	function refreshSourceIdentity(element) {
-		const width = positiveNumberOrUndefined$1(element?.videoWidth);
-		const height = positiveNumberOrUndefined$1(element?.videoHeight);
+		const width = positiveNumberOrUndefined$2(element?.videoWidth);
+		const height = positiveNumberOrUndefined$2(element?.videoHeight);
 		const aspect = width && height ? width / height : void 0;
 		const signature = currentSource ? `${currentSource.kind}|${currentSource.sourceId}|${currentSource.mirrored ? "mirrored" : "unmirrored"}|${aspect?.toFixed(6) ?? "aspect-unknown"}` : void 0;
 		if (signature !== sourceSignature) {
@@ -9137,8 +3639,8 @@ function createBrowserVideoMediaFacade(options = {}) {
 	/** @param {HTMLVideoElement | undefined} element */
 	function describeSurface(element = attachedElement) {
 		refreshSourceIdentity(element);
-		const width = positiveNumberOrUndefined$1(element?.videoWidth);
-		const height = positiveNumberOrUndefined$1(element?.videoHeight);
+		const width = positiveNumberOrUndefined$2(element?.videoWidth);
+		const height = positiveNumberOrUndefined$2(element?.videoHeight);
 		return Object.freeze({
 			serviceId: aeroVideoMediaServiceId,
 			sourceKind: currentSource?.kind,
@@ -9490,7 +3992,7 @@ function asObjectUrlApi(value) {
 	if (value && typeof value === "function" && "createObjectURL" in value && "revokeObjectURL" in value) return value;
 }
 /** @param {number | undefined} value @returns {number | undefined} */
-function positiveNumberOrUndefined$1(value) {
+function positiveNumberOrUndefined$2(value) {
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
 }
 /** @param {number | undefined} value @returns {number | undefined} */
@@ -9513,19 +4015,3862 @@ function readErrorField(value, field) {
 	}
 }
 //#endregion
+//#region ../aerobeat-web-renderer/src/gameplay-plan.js
+/** @typedef {"flow" | "boxing_spatial_grid" | "boxing_semantic_track"} AeroGameplayPresentation */
+/** @typedef {"left" | "right" | "guard" | "obstacle" | "neutral" | "safe"} AeroVisualRole */
+/** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
+/** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
+/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, contrast:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
+/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
+/** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
+/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
+/** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
+/** @typedef {{commands:readonly AeroGameplayDrawCommand[], overlay:Readonly<{kind:string,dim:number,countdown:number|null}>, presentation:AeroGameplayPresentation, grid:Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}} AeroGameplayRenderPlan */
+/** @type {AeroRendererTuning} */
+var defaultRendererTuning = Object.freeze({
+	id: "aero.renderer.prototype.default",
+	version: "1",
+	hash: "visual-538685f6",
+	gridInset: .055,
+	gridGap: .018,
+	receptorAlpha: .22,
+	approachRingScale: 1.55,
+	approachRingWidth: .08,
+	laneWidth: .22,
+	roleScale: 1,
+	dprCap: 2
+});
+/** @type {AeroRendererThemeTokens} */
+var defaultRendererThemeTokens = Object.freeze({
+	leftHandColor: "#2693ff",
+	rightHandColor: "#39c96b",
+	guardColor: "#9a67ea",
+	obstacleColor: "#e5484d",
+	receptorColor: "#d9f5ff",
+	approachLeadMs: 900,
+	targetStartScale: .48,
+	targetHitScale: 1,
+	approachEasing: "linear",
+	hitEasing: "ease-out",
+	missEasing: "ease-out"
+});
+/** Stable branding semantic IDs consumed by the alpha-mask atlas. */
+var gameplayIconIds = Object.freeze([
+	"boxing.glove",
+	"boxing.guard.crossed",
+	"boxing.guard.standard",
+	"boxing.hook.left",
+	"boxing.hook.right",
+	"boxing.squat",
+	"boxing.straight.left",
+	"boxing.straight.right",
+	"boxing.uppercut.left",
+	"boxing.uppercut.right",
+	"boxing.weave.left",
+	"boxing.weave.right",
+	"calibration.tpose"
+]);
+/**
+* Build a deterministic, screenshot-free renderer command plan. The visible playfield
+* is normalized screen space and never consumes camera/athlete-grid coordinates.
+*
+* @param {AeroGameplayFrame} frame
+* @param {AeroRendererThemeTokens} [theme]
+* @param {AeroRendererTuning} [tuning]
+* @returns {AeroGameplayRenderPlan}
+*/
+function buildGameplayRenderPlan(frame, theme = defaultRendererThemeTokens, tuning = defaultRendererTuning) {
+	if (!isPresentation(frame.presentation) || !Number.isFinite(frame.nowMs) || !Array.isArray(frame.targets)) throw new TypeError("Gameplay frame is invalid");
+	const grid = fitPlayfieldGrid(tuning.gridInset, frame.viewportAspect);
+	/** @type {AeroGameplayDrawCommand[]} */
+	const commands = [];
+	if (frame.presentation === "boxing_semantic_track") addTrack(commands, tuning, frame.viewportAspect);
+	else addGridReceptors(commands, grid, tuning);
+	for (const cell of frame.safeCells ?? []) {
+		const rect = cellRect(cell, grid, tuning.gridGap);
+		if (rect) commands.push(command("hatch", "safe", rect, .22, 1, null, true, 1, null));
+	}
+	for (const cell of frame.blockedCells ?? []) {
+		const rect = cellRect(cell, grid, tuning.gridGap);
+		if (rect) commands.push(command("hatch", "obstacle", rect, .72, 1, null, true, 3, null));
+	}
+	for (const target of frame.targets) addTarget(commands, frame, target, grid, theme, tuning);
+	const overlayKind = frame.overlay ?? "none";
+	const defaultDim = overlayKind === "none" ? 0 : .62;
+	return Object.freeze({
+		commands: Object.freeze(commands.sort((a, b) => a.layer - b.layer)),
+		overlay: Object.freeze({
+			kind: overlayKind,
+			dim: clamp$3(frame.calibrationDim ?? defaultDim, 0, 1),
+			countdown: normalizeCountdown(frame.countdown)
+		}),
+		presentation: frame.presentation,
+		grid
+	});
+}
+/**
+* Fit a physical 4:3 playfield into any normalized viewport. Normalized widths are
+* compensated by viewport aspect so 4x3 cells and icons remain physically square.
+*
+* @param {number} inset
+* @param {number|undefined} viewportAspect
+* @returns {Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}
+*/
+function fitPlayfieldGrid(inset, viewportAspect) {
+	const aspect = Number.isFinite(viewportAspect) && Number(viewportAspect) > 0 ? Number(viewportAspect) : 4 / 3;
+	const available = Math.max(.02, 1 - clamp$3(inset, 0, .25) * 2);
+	const playfieldAspect = 4 / 3;
+	const width = aspect >= playfieldAspect ? available * playfieldAspect / aspect : available;
+	const height = aspect >= playfieldAspect ? available : available * aspect / playfieldAspect;
+	return Object.freeze({
+		x: (1 - width) / 2,
+		y: (1 - height) / 2,
+		width,
+		height,
+		columns: 4,
+		rows: 3
+	});
+}
+/** @param {AeroGameplayDrawCommand[]} commands @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect */
+function addTrack(commands, tuning, viewportAspect) {
+	const track = trackGeometry(tuning, viewportAspect);
+	commands.push(command("rect", "left", {
+		x: track.leftX,
+		y: track.y,
+		width: track.width,
+		height: track.height
+	}, .12, 1, null, false, 0, null));
+	commands.push(command("rect", "right", {
+		x: track.rightX,
+		y: track.y,
+		width: track.width,
+		height: track.height
+	}, .12, 1, null, false, 0, null));
+	const lineHeight = Math.min(.008, track.targetHeight * .05);
+	commands.push(command("line", "neutral", {
+		x: track.leftX,
+		y: track.receptorY + track.targetHeight / 2,
+		width: track.width,
+		height: lineHeight
+	}, .68, 1, null, false, 1, null));
+	commands.push(command("line", "neutral", {
+		x: track.rightX,
+		y: track.receptorY + track.targetHeight / 2,
+		width: track.width,
+		height: lineHeight
+	}, .68, 1, null, false, 1, null));
+}
+/** @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect */
+function trackGeometry(tuning, viewportAspect) {
+	const aspect = Number.isFinite(viewportAspect) && Number(viewportAspect) > 0 ? Number(viewportAspect) : 4 / 3;
+	const gap = .1;
+	const y = .08;
+	const height = .84;
+	const width = Math.min(tuning.laneWidth, height * .32 / aspect);
+	const leftX = .5 - gap / 2 - width;
+	const rightX = .55;
+	const targetHeight = width * aspect;
+	return {
+		width,
+		leftX,
+		rightX,
+		y,
+		height,
+		targetHeight,
+		receptorY: .9199999999999999 - targetHeight
+	};
+}
+/** @param {AeroGameplayDrawCommand[]} commands @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererTuning} tuning */
+function addGridReceptors(commands, grid, tuning) {
+	for (let cell = 0; cell < 12; cell += 1) {
+		const rect = cellRect(cell, grid, tuning.gridGap);
+		if (rect) commands.push(command("rect", "neutral", rect, tuning.receptorAlpha, 1, null, false, 0, null));
+	}
+}
+/** @param {AeroGameplayDrawCommand[]} commands @param {AeroGameplayFrame} frame @param {AeroRenderableTarget} target @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererThemeTokens} theme @param {AeroRendererTuning} tuning */
+function addTarget(commands, frame, target, grid, theme, tuning) {
+	const role = target.hand === "left" ? "left" : target.hand === "right" ? "right" : target.kind === "obstacle" ? "obstacle" : target.kind === "safe" ? "safe" : target.kind === "guard" ? "guard" : "neutral";
+	const lead = Math.max(1, target.approachLeadMs ?? theme.approachLeadMs);
+	const progress = applyNamedEasing(clamp$3(1 - (target.beatCenterMs - frame.nowMs) / lead, 0, 1), theme.approachEasing);
+	const feedback = applyNamedEasing(clamp$3(target.feedbackProgress ?? 0, 0, 1), target.judgement === "miss" ? theme.missEasing : theme.hitEasing);
+	let scale = lerp$1(theme.targetStartScale, theme.targetHitScale, progress);
+	let alpha = lerp$1(.35, 1, progress);
+	if (target.judgement === "hit") {
+		scale *= 1 - feedback * .65;
+		alpha *= 1 - feedback;
+	} else if (target.judgement === "miss") {
+		scale *= 1 + feedback * .12;
+		alpha *= 1 - feedback * .9;
+	}
+	const rects = targetRects(frame.presentation, target, grid, tuning, frame.viewportAspect);
+	for (const targetRect of rects) {
+		const baseRect = scaledRect(targetRect, tuning.roleScale);
+		const rect = scaledRect(baseRect, scale);
+		const iconId = iconIdFor(target);
+		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
+		commands.push(command(kind, role, rect, alpha, scale, iconId, target.kind === "obstacle", 4, target.id, progress));
+		if (target.direction) for (const cue of directionCueRects(rect, target.direction)) commands.push(command(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress, true));
+		if (target.judgement === void 0 || target.judgement === "pending") commands.push(command("ring", role, scaledRect(baseRect, lerp$1(tuning.approachRingScale, 1, progress)), .85, lerp$1(tuning.approachRingScale, 1, progress), null, false, 5, target.id, progress));
+	}
+}
+/** @param {AeroGameplayPresentation} presentation @param {AeroRenderableTarget} target @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect @returns {AeroNormalizedRect[]} */
+function targetRects(presentation, target, grid, tuning, viewportAspect) {
+	if (presentation === "boxing_semantic_track" && target.kind !== "obstacle") {
+		const track = trackGeometry(tuning, viewportAspect);
+		if (target.kind === "guard") return [{
+			x: track.leftX,
+			y: track.receptorY,
+			width: track.rightX + track.width - track.leftX,
+			height: track.targetHeight
+		}];
+		return [{
+			x: (target.lane ?? target.hand) === "left" ? track.leftX : track.rightX,
+			y: track.receptorY,
+			width: track.width,
+			height: track.targetHeight
+		}];
+	}
+	const cells = target.cells.length > 0 ? target.cells : target.cell === null ? [] : [target.cell];
+	if (target.kind === "guard" && cells.length >= 2) {
+		const first = cellRect(cells[0], grid, tuning.gridGap);
+		const second = cellRect(cells[1], grid, tuning.gridGap);
+		if (!first || !second) return [];
+		const left = Math.min(first.x, second.x);
+		const top = Math.min(first.y, second.y);
+		return [{
+			x: left,
+			y: top,
+			width: Math.max(first.x + first.width, second.x + second.width) - left,
+			height: Math.max(first.y + first.height, second.y + second.height) - top
+		}];
+	}
+	return cells.map((cell) => cellRect(cell, grid, tuning.gridGap)).filter((rect) => rect !== null);
+}
+/** @param {number} cell @param {{x:number,y:number,width:number,height:number}} grid @param {number} gap @returns {AeroNormalizedRect|null} */
+function cellRect(cell, grid, gap = 0) {
+	if (!Number.isInteger(cell) || cell < 0 || cell >= 12) return null;
+	const column = cell % 4;
+	const row = Math.floor(cell / 4);
+	const width = grid.width / 4;
+	const height = grid.height / 3;
+	return Object.freeze({
+		x: grid.x + column * width + gap / 2,
+		y: grid.y + row * height + gap / 2,
+		width: width - gap,
+		height: height - gap
+	});
+}
+/** @param {AeroRenderableTarget} target @returns {string|null} */
+function iconIdFor(target) {
+	if (target.kind === "guard") return target.family === "crossed_guard" ? "boxing.guard.crossed" : "boxing.guard.standard";
+	if (target.kind === "punch") return `boxing.${target.family}.${target.hand}`;
+	if (target.family === "squat") return "boxing.squat";
+	if (target.family === "weave" && (target.hand === "left" || target.hand === "right")) return `boxing.weave.${target.hand}`;
+	return null;
+}
+/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @param {boolean} [contrast] @returns {AeroGameplayDrawCommand} */
+function command(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1, contrast = false) {
+	return Object.freeze({
+		kind,
+		role,
+		rect: Object.freeze({ ...rect }),
+		alpha,
+		scale,
+		saturation: clamp$3(saturation, 0, 1),
+		iconId,
+		hatch,
+		contrast,
+		layer,
+		targetId
+	});
+}
+/** @param {AeroNormalizedRect} rect @param {import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
+function directionCueRects(rect, direction) {
+	if (![
+		"up",
+		"up-right",
+		"right",
+		"down-right",
+		"down",
+		"down-left",
+		"left",
+		"up-left"
+	].includes(direction)) throw new TypeError("Flow direction cue is unsupported");
+	const thickness = Math.min(rect.width, rect.height) * .09;
+	if (!direction.includes("-")) {
+		const shaft = direction === "left" || direction === "right" ? {
+			x: rect.x + rect.width * .25,
+			y: rect.y + rect.height * .5 - thickness / 2,
+			width: rect.width * .5,
+			height: thickness
+		} : {
+			x: rect.x + rect.width * .5 - thickness / 2,
+			y: rect.y + rect.height * .25,
+			width: thickness,
+			height: rect.height * .5
+		};
+		const size = thickness * 2.5;
+		const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
+		const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
+		return Object.freeze([{
+			kind: "line",
+			rect: Object.freeze(shaft)
+		}, {
+			kind: "circle",
+			rect: Object.freeze({
+				x: headX - size / 2,
+				y: headY - size / 2,
+				width: size,
+				height: size
+			})
+		}]);
+	}
+	const xSign = direction.endsWith("right") ? 1 : -1;
+	const ySign = direction.startsWith("down") ? 1 : -1;
+	const segments = 7;
+	/** @type {{kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
+	const cues = [];
+	for (let index = 0; index < segments; index += 1) {
+		const offset = -.2 + index * (.4 / 6);
+		const centerX = rect.x + rect.width * (.5 + xSign * offset);
+		const centerY = rect.y + rect.height * (.5 + ySign * offset);
+		cues.push({
+			kind: "line",
+			rect: Object.freeze({
+				x: centerX - thickness / 2,
+				y: centerY - thickness / 2,
+				width: thickness,
+				height: thickness
+			})
+		});
+	}
+	const size = thickness * 2.5;
+	const headX = rect.x + rect.width * (.5 + xSign * .3);
+	const headY = rect.y + rect.height * (.5 + ySign * .3);
+	cues.push({
+		kind: "circle",
+		rect: Object.freeze({
+			x: headX - size / 2,
+			y: headY - size / 2,
+			width: size,
+			height: size
+		})
+	});
+	return Object.freeze(cues);
+}
+/** @param {AeroNormalizedRect} rect @param {number} scale @returns {AeroNormalizedRect} */
+function scaledRect(rect, scale) {
+	const width = rect.width * scale;
+	const height = rect.height * scale;
+	return {
+		x: rect.x + (rect.width - width) / 2,
+		y: rect.y + (rect.height - height) / 2,
+		width,
+		height
+	};
+}
+/** @param {unknown} value @returns {value is AeroGameplayPresentation} */
+function isPresentation(value) {
+	return value === "flow" || value === "boxing_spatial_grid" || value === "boxing_semantic_track";
+}
+/** @param {number|undefined|null} value @returns {number|null} */
+function normalizeCountdown(value) {
+	return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 3 ? Number(value) : null;
+}
+/** @param {number} value @param {number} minimum @param {number} maximum */
+function clamp$3(value, minimum, maximum) {
+	return Math.max(minimum, Math.min(maximum, value));
+}
+/** @param {number} progress @param {string} easing @returns {number} */
+function applyNamedEasing(progress, easing) {
+	const value = clamp$3(progress, 0, 1);
+	if (easing === "ease-in") return value * value;
+	if (easing === "ease-out") return 1 - (1 - value) * (1 - value);
+	if (easing === "ease-in-out") return value < .5 ? 2 * value * value : 1 - Math.pow(-2 * value + 2, 2) / 2;
+	return value;
+}
+/** @param {number} start @param {number} end @param {number} progress */
+function lerp$1(start, end, progress) {
+	return start + (end - start) * progress;
+}
+//#endregion
+//#region ../aerobeat-web-renderer/src/icon-atlas.js
+/**
+* Narrow atlas bytes and UV metadata before they become private GPU state.
+* Every semantic icon is required; malformed or colored RGB inputs degrade to shapes.
+*
+* @param {unknown} value
+* @returns {AeroIconAtlasData}
+*/
+function normalizeIconAtlasData(value) {
+	if (!isRecord$2(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
+	const width = Number(value.width);
+	const height = Number(value.height);
+	if (value.pixels.length !== width * height * 4) throw new TypeError("Icon atlas pixel length is invalid");
+	for (let index = 0; index < value.pixels.length; index += 4) if (value.pixels[index] !== 255 || value.pixels[index + 1] !== 255 || value.pixels[index + 2] !== 255) throw new TypeError("Icon atlas RGB must be normalized white");
+	/** @type {AeroIconAtlasEntry[]} */
+	const entries = [];
+	const seen = /* @__PURE__ */ new Set();
+	for (const raw of value.entries) {
+		if (!isRecord$2(raw) || typeof raw.id !== "string" || !gameplayIconIds.includes(raw.id) || seen.has(raw.id) || ![
+			raw.u0,
+			raw.v0,
+			raw.u1,
+			raw.v1
+		].every((entry) => typeof entry === "number" && Number.isFinite(entry) && entry >= 0 && entry <= 1) || Number(raw.u0) >= Number(raw.u1) || Number(raw.v0) >= Number(raw.v1)) throw new TypeError("Icon atlas entry is invalid");
+		seen.add(raw.id);
+		entries.push(Object.freeze({
+			id: raw.id,
+			u0: Number(raw.u0),
+			v0: Number(raw.v0),
+			u1: Number(raw.u1),
+			v1: Number(raw.v1)
+		}));
+	}
+	if (entries.length !== gameplayIconIds.length || gameplayIconIds.some((id) => !seen.has(id))) throw new TypeError("Icon atlas does not contain the expected semantic set");
+	return Object.freeze({
+		width,
+		height,
+		pixels: value.pixels.slice(),
+		entries: Object.freeze(entries)
+	});
+}
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isRecord$2(value) {
+	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+}
+//#endregion
+//#region ../aerobeat-web-renderer/src/landmark-mapping.js
+/**
+* Media fitting modes shared with `@aerobeat/web-video` descriptors.
+*
+* @typedef {"stretch" | "contain" | "cover"} AeroRendererFitMode
+*/
+/**
+* Normalized pose or hand landmark accepted by the renderer overlay path.
+*
+* @typedef {object} AeroNormalizedLandmark
+* @property {number | undefined} id Optional landmark identifier.
+* @property {number} x Normalized horizontal position in source media space.
+* @property {number} y Normalized vertical position in source media space.
+* @property {number | undefined} z Optional normalized depth.
+* @property {number | undefined} v Optional visibility/confidence.
+*/
+/**
+* Pixel rectangle occupied by fitted media content inside a render viewport.
+*
+* @typedef {object} AeroRendererContentRect
+* @property {number} x Left edge in viewport pixels.
+* @property {number} y Top edge in viewport pixels.
+* @property {number} width Width in viewport pixels.
+* @property {number} height Height in viewport pixels.
+*/
+/**
+* Surface metadata used to map normalized landmarks over media. It is designed
+* to accept public metadata from `@aerobeat/web-video` without importing that
+* package or owning its lifecycle.
+*
+* @typedef {object} AeroRendererOverlaySurfaceDescriptor
+* @property {number} viewportWidth Canvas drawing-buffer or viewport width.
+* @property {number} viewportHeight Canvas drawing-buffer or viewport height.
+* @property {number | undefined} intrinsicWidth Source media intrinsic width.
+* @property {number | undefined} intrinsicHeight Source media intrinsic height.
+* @property {AeroRendererFitMode} fitMode Presentation fit mode.
+* @property {boolean} mirrored Whether normalized x should be mirrored.
+* @property {AeroRendererContentRect | undefined} contentRect Explicit fitted media rectangle, when already known.
+*/
+/**
+* Viewport-space landmark after fitting and mirroring.
+*
+* @typedef {object} AeroViewportLandmark
+* @property {number | undefined} id Optional landmark identifier.
+* @property {number} x Pixel-space horizontal position.
+* @property {number} y Pixel-space vertical position.
+* @property {number | undefined} z Optional normalized depth.
+* @property {number | undefined} v Optional visibility/confidence.
+*/
+/**
+* Clip-space landmark suitable for direct WebGL2 drawing.
+*
+* @typedef {object} AeroClipSpaceLandmark
+* @property {number | undefined} id Optional landmark identifier.
+* @property {number} x Clip-space horizontal position.
+* @property {number} y Clip-space vertical position.
+* @property {number | undefined} z Optional normalized depth.
+* @property {number | undefined} v Optional visibility/confidence.
+*/
+/**
+* @typedef {object} AeroRendererOverlaySurfaceDescriptorInput
+* @property {number} [viewportWidth] Canvas drawing-buffer or viewport width.
+* @property {number} [viewportHeight] Canvas drawing-buffer or viewport height.
+* @property {number} [width] Alternate viewport width.
+* @property {number} [height] Alternate viewport height.
+* @property {number} [intrinsicWidth] Source media intrinsic width.
+* @property {number} [intrinsicHeight] Source media intrinsic height.
+* @property {number} [videoWidth] Alternate source media width.
+* @property {number} [videoHeight] Alternate source media height.
+* @property {AeroRendererFitMode} [fitMode] Presentation fit mode.
+* @property {boolean} [mirrored] Whether normalized x should be mirrored.
+* @property {boolean} [mirror] Alternate mirror flag.
+* @property {AeroRendererContentRect} [contentRect] Explicit fitted media rectangle.
+*/
+/**
+* Normalizes a partial descriptor into the renderer's mapping shape.
+*
+* @param {AeroRendererOverlaySurfaceDescriptorInput} [descriptor]
+* @returns {AeroRendererOverlaySurfaceDescriptor}
+*/
+function normalizeOverlaySurfaceDescriptor(descriptor = {}) {
+	return {
+		viewportWidth: positiveNumberOrZero(descriptor.viewportWidth ?? descriptor.width),
+		viewportHeight: positiveNumberOrZero(descriptor.viewportHeight ?? descriptor.height),
+		intrinsicWidth: positiveNumberOrUndefined$1(descriptor.intrinsicWidth ?? descriptor.videoWidth),
+		intrinsicHeight: positiveNumberOrUndefined$1(descriptor.intrinsicHeight ?? descriptor.videoHeight),
+		fitMode: normalizeFitMode$1(descriptor.fitMode),
+		mirrored: Boolean(descriptor.mirrored ?? descriptor.mirror ?? false),
+		contentRect: descriptor.contentRect
+	};
+}
+/**
+* Computes the fitted media rectangle inside a viewport.
+*
+* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
+* @returns {AeroRendererContentRect}
+*/
+function computeMediaContentRect(descriptor) {
+	const surface = normalizeOverlaySurfaceDescriptor(descriptor);
+	if (surface.contentRect) return sanitizeRect(surface.contentRect);
+	if (surface.viewportWidth <= 0 || surface.viewportHeight <= 0) return {
+		x: 0,
+		y: 0,
+		width: 0,
+		height: 0
+	};
+	if (surface.fitMode === "stretch" || !surface.intrinsicWidth || !surface.intrinsicHeight) return {
+		x: 0,
+		y: 0,
+		width: surface.viewportWidth,
+		height: surface.viewportHeight
+	};
+	const containScale = Math.min(surface.viewportWidth / surface.intrinsicWidth, surface.viewportHeight / surface.intrinsicHeight);
+	const coverScale = Math.max(surface.viewportWidth / surface.intrinsicWidth, surface.viewportHeight / surface.intrinsicHeight);
+	const scale = surface.fitMode === "cover" ? coverScale : containScale;
+	const width = surface.intrinsicWidth * scale;
+	const height = surface.intrinsicHeight * scale;
+	return {
+		x: (surface.viewportWidth - width) * .5,
+		y: (surface.viewportHeight - height) * .5,
+		width,
+		height
+	};
+}
+/**
+* Maps a normalized landmark to viewport pixels, respecting fit and mirror.
+*
+* @param {AeroNormalizedLandmark} landmark
+* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
+* @returns {AeroViewportLandmark}
+*/
+function mapNormalizedLandmarkToViewport(landmark, descriptor) {
+	const surface = normalizeOverlaySurfaceDescriptor(descriptor);
+	const rect = computeMediaContentRect(surface);
+	const normalizedX = clamp01$2(landmark.x);
+	const x = surface.mirrored ? 1 - normalizedX : normalizedX;
+	return {
+		id: landmark.id,
+		x: rect.x + x * rect.width,
+		y: rect.y + clamp01$2(landmark.y) * rect.height,
+		z: landmark.z,
+		v: landmark.v
+	};
+}
+/**
+* Maps a normalized landmark to WebGL clip space.
+*
+* @param {AeroNormalizedLandmark} landmark
+* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
+* @returns {AeroClipSpaceLandmark}
+*/
+function mapNormalizedLandmarkToClipSpace(landmark, descriptor) {
+	const surface = normalizeOverlaySurfaceDescriptor(descriptor);
+	const viewport = mapNormalizedLandmarkToViewport(landmark, surface);
+	return {
+		id: landmark.id,
+		x: surface.viewportWidth > 0 ? viewport.x / surface.viewportWidth * 2 - 1 : 0,
+		y: surface.viewportHeight > 0 ? 1 - viewport.y / surface.viewportHeight * 2 : 0,
+		z: landmark.z,
+		v: landmark.v
+	};
+}
+/**
+* @param {AeroRendererFitMode | undefined} value
+* @returns {AeroRendererFitMode}
+*/
+function normalizeFitMode$1(value) {
+	return value === "cover" || value === "stretch" || value === "contain" ? value : "contain";
+}
+/**
+* @param {number | undefined} value
+* @returns {number}
+*/
+function positiveNumberOrZero(value) {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
+}
+/**
+* @param {number | undefined} value
+* @returns {number | undefined}
+*/
+function positiveNumberOrUndefined$1(value) {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
+}
+/**
+* @param {number} value
+* @returns {number}
+*/
+function clamp01$2(value) {
+	if (!Number.isFinite(value)) return 0;
+	return Math.min(Math.max(value, 0), 1);
+}
+/**
+* @param {AeroRendererContentRect} rect
+* @returns {AeroRendererContentRect}
+*/
+function sanitizeRect(rect) {
+	return {
+		x: finiteNumberOrZero(rect.x),
+		y: finiteNumberOrZero(rect.y),
+		width: positiveNumberOrZero(rect.width),
+		height: positiveNumberOrZero(rect.height)
+	};
+}
+/**
+* @param {number} value
+* @returns {number}
+*/
+function finiteNumberOrZero(value) {
+	return Number.isFinite(value) ? value : 0;
+}
+//#endregion
+//#region ../aerobeat-web-renderer/src/visual-profiles.js
+/** @typedef {import("./gameplay-plan.js").AeroRendererThemeTokens} AeroRendererThemeTokens */
+/** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
+/** @typedef {{schema:"aerobeat/theme_descriptor",version:1,id:string,themeVersion:string,tokens:AeroRendererThemeTokens,contentHash:Readonly<{algorithm:string,value:string}>}} AeroThemeDescriptor */
+/** @typedef {{kind:"solid"|"linear-gradient",colors:readonly string[],angleDeg:number}} AeroRendererBackgroundProjection */
+/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:"live_visual",regenerationRequired:false}>} AeroRendererVisualIdentity */
+/** @typedef {Readonly<{motionIntensity:number,roleScale:number}>} AeroRendererVisualSettings */
+/** @typedef {Readonly<{identity:AeroRendererVisualIdentity,settings:AeroRendererVisualSettings}>} AeroRendererVisualProfileSelection */
+var DEFAULT_VISUAL_HASH = "fdcf478c91e21ef88970299e29fcc35d574bfe69e0d7d00d9f823ee9507f39a3";
+var COMPACT_VISUAL_HASH = "e65d53dfaafe8a859c08837acb3d447b10b03508bd5ae64677d273c93657d603";
+/** @type {AeroRendererVisualProfileSelection} */
+var defaultRendererVisualProfile = visualProfile("aero.visual.default", DEFAULT_VISUAL_HASH, 1, 1);
+/** @type {AeroRendererVisualProfileSelection} */
+var compactRendererVisualProfile = visualProfile("aero.visual.compact", COMPACT_VISUAL_HASH, .8, .86);
+/**
+* Narrow a public theme descriptor into renderer-owned immutable tokens.
+*
+* @param {unknown} value
+* @returns {AeroRendererThemeTokens}
+*/
+function normalizeRendererTheme(value) {
+	if (!isThemeDescriptor(value) || !isRecord$1(value.tokens)) return defaultRendererThemeTokens;
+	const tokens = value.tokens;
+	if (![
+		"leftHandColor",
+		"rightHandColor",
+		"guardColor",
+		"obstacleColor",
+		"receptorColor"
+	].every((name) => isRendererColorToken(tokens[name])) || ![
+		"approachEasing",
+		"hitEasing",
+		"missEasing"
+	].every((name) => isNamedEasing(tokens[name]))) return defaultRendererThemeTokens;
+	if (typeof tokens.approachLeadMs !== "number" || !Number.isFinite(tokens.approachLeadMs) || tokens.approachLeadMs < 1 || tokens.approachLeadMs > 1e4 || typeof tokens.targetStartScale !== "number" || !Number.isFinite(tokens.targetStartScale) || tokens.targetStartScale < .05 || tokens.targetStartScale > 3 || typeof tokens.targetHitScale !== "number" || !Number.isFinite(tokens.targetHitScale) || tokens.targetHitScale < .05 || tokens.targetHitScale > 3) return defaultRendererThemeTokens;
+	return Object.freeze({
+		leftHandColor: String(tokens.leftHandColor),
+		rightHandColor: String(tokens.rightHandColor),
+		guardColor: String(tokens.guardColor),
+		obstacleColor: String(tokens.obstacleColor),
+		receptorColor: String(tokens.receptorColor),
+		approachLeadMs: Number(tokens.approachLeadMs),
+		targetStartScale: Number(tokens.targetStartScale),
+		targetHitScale: Number(tokens.targetHitScale),
+		approachEasing: String(tokens.approachEasing),
+		hitEasing: String(tokens.hitEasing),
+		missEasing: String(tokens.missEasing)
+	});
+}
+/**
+* Normalize renderer-only visual tuning. Scoring/converter values are deliberately absent.
+*
+* @param {unknown} value
+* @returns {AeroRendererTuning}
+*/
+function normalizeRendererTuning(value) {
+	if (!isRecord$1(value)) return defaultRendererTuning;
+	const numberNames = [
+		"gridInset",
+		"gridGap",
+		"receptorAlpha",
+		"approachRingScale",
+		"approachRingWidth",
+		"laneWidth",
+		"roleScale",
+		"dprCap"
+	];
+	const requiredNames = [
+		"id",
+		"version",
+		...numberNames
+	];
+	const keys = Object.keys(value);
+	if (!keys.every((key) => requiredNames.includes(key) || key === "hash") || !requiredNames.every((key) => keys.includes(key)) || typeof value.id !== "string" || value.id.length === 0 || typeof value.version !== "string" || value.version.length === 0 || !numberNames.every((name) => typeof value[name] === "number" && Number.isFinite(value[name]))) return defaultRendererTuning;
+	const normalized = {
+		id: value.id,
+		version: value.version,
+		gridInset: clamp$2(Number(value.gridInset), 0, .25),
+		gridGap: clamp$2(Number(value.gridGap), 0, .08),
+		receptorAlpha: clamp$2(Number(value.receptorAlpha), 0, 1),
+		approachRingScale: clamp$2(Number(value.approachRingScale), 1, 3),
+		approachRingWidth: clamp$2(Number(value.approachRingWidth), .01, .3),
+		laneWidth: clamp$2(Number(value.laneWidth), .1, .4),
+		roleScale: clamp$2(Number(value.roleScale), .5, 1.5),
+		dprCap: clamp$2(Number(value.dprCap), 1, 4)
+	};
+	const hash = stableVisualHash(normalized);
+	if (value.hash !== void 0 && value.hash !== hash) return defaultRendererTuning;
+	return Object.freeze({
+		...normalized,
+		hash
+	});
+}
+/**
+* Strictly narrow one public gameplay visual selection without depending on the
+* gameplay package. Only the two content-hashed experimental Task 11 profiles
+* are renderer inputs; scoring/converter identities never cross this adapter.
+*
+* @param {unknown} value
+* @returns {AeroRendererVisualProfileSelection}
+*/
+function normalizeRendererVisualProfile(value) {
+	const outer = exactDataRecord(value, ["identity", "settings"], "Visual profile selection");
+	const identity = exactDataRecord(outer.identity, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	], "Visual profile identity");
+	const settings = exactDataRecord(outer.settings, ["motionIntensity", "roleScale"], "Visual profile settings");
+	if (identity.schema !== "aerobeat/prototype_tuning_identity" || identity.version !== 1 || identity.class !== "live_visual" || identity.regenerationRequired !== false) throw new TypeError("Visual profile identity is incompatible with live renderer tuning");
+	for (const name of [
+		"profileId",
+		"profileVersion",
+		"contentHash"
+	]) if (typeof identity[name] !== "string" || identity[name].length === 0 || identity[name].length > 128) throw new TypeError(`Visual profile ${name} is invalid`);
+	if (!/^[0-9a-f]{64}$/u.test(String(identity.contentHash))) throw new TypeError("Visual profile contentHash must be bare lowercase SHA-256");
+	if (typeof settings.motionIntensity !== "number" || !Number.isFinite(settings.motionIntensity) || settings.motionIntensity < 0 || settings.motionIntensity > 2 || typeof settings.roleScale !== "number" || !Number.isFinite(settings.roleScale) || settings.roleScale < .5 || settings.roleScale > 1.5) throw new TypeError("Visual profile settings are outside renderer bounds");
+	const normalized = visualProfile(String(identity.profileId), String(identity.contentHash), Number(settings.motionIntensity), Number(settings.roleScale), String(identity.profileVersion));
+	const expected = normalized.identity.profileId === "aero.visual.default" ? defaultRendererVisualProfile : normalized.identity.profileId === "aero.visual.compact" ? compactRendererVisualProfile : null;
+	if (!expected || !sameVisualSelection(normalized, expected)) throw new TypeError("Visual profile identity, settings, or content hash is not a supported experimental profile");
+	return expected;
+}
+/** @param {AeroRendererVisualProfileSelection} profile @returns {AeroRendererTuning} */
+function rendererTuningFromVisualProfile(profile) {
+	const motionIntensity = profile.settings.motionIntensity;
+	const roleScale = profile.settings.roleScale;
+	return normalizeRendererTuning({
+		id: profile.identity.profileId,
+		version: profile.identity.profileVersion,
+		gridInset: defaultRendererTuning.gridInset,
+		gridGap: defaultRendererTuning.gridGap,
+		receptorAlpha: defaultRendererTuning.receptorAlpha,
+		approachRingScale: 1 + (defaultRendererTuning.approachRingScale - 1) * motionIntensity,
+		approachRingWidth: defaultRendererTuning.approachRingWidth * Math.max(.5, motionIntensity),
+		laneWidth: defaultRendererTuning.laneWidth,
+		roleScale,
+		dprCap: defaultRendererTuning.dprCap
+	});
+}
+/**
+* @param {unknown} value
+* @returns {AeroRendererBackgroundProjection}
+*/
+function normalizeBackgroundProjection(value) {
+	if (!isRecord$1(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken)) return Object.freeze({
+		kind: "linear-gradient",
+		colors: Object.freeze(["#071426", "#153b5d"]),
+		angleDeg: 180
+	});
+	return Object.freeze({
+		kind: value.kind,
+		colors: Object.freeze(value.colors.map(String).slice(0, 4)),
+		angleDeg: typeof value.angleDeg === "number" && Number.isFinite(value.angleDeg) ? value.angleDeg : 180
+	});
+}
+/**
+* Convert supported CSS tokens to linear renderer RGBA. Unknown CSS variables degrade
+* to the supplied fallback instead of pretending WebGL can resolve the cascade.
+*
+* @param {string} token
+* @param {readonly [number,number,number,number]} fallback
+* @returns {readonly [number,number,number,number]}
+*/
+function colorTokenToRgba(token, fallback) {
+	const hex = token.trim().match(/^#([0-9a-f]{6}|[0-9a-f]{8})$/iu);
+	if (hex) {
+		const value = hex[1];
+		return Object.freeze([
+			parseInt(value.slice(0, 2), 16) / 255,
+			parseInt(value.slice(2, 4), 16) / 255,
+			parseInt(value.slice(4, 6), 16) / 255,
+			value.length === 8 ? parseInt(value.slice(6, 8), 16) / 255 : 1
+		]);
+	}
+	const rgb = token.trim().match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d*(?:\.\d+)?))?\s*\)$/iu);
+	if (rgb) return Object.freeze([
+		clamp$2(Number(rgb[1]) / 255, 0, 1),
+		clamp$2(Number(rgb[2]) / 255, 0, 1),
+		clamp$2(Number(rgb[3]) / 255, 0, 1),
+		clamp$2(rgb[4] === void 0 ? 1 : Number(rgb[4]), 0, 1)
+	]);
+	return fallback;
+}
+/** @param {Readonly<Record<string, string|number>>} value @returns {string} */
+function stableVisualHash(value) {
+	const canonical = Object.keys(value).sort().map((key) => `${key}:${String(value[key])}`).join("|");
+	let hash = 2166136261;
+	for (let index = 0; index < canonical.length; index += 1) {
+		hash ^= canonical.charCodeAt(index);
+		hash = Math.imul(hash, 16777619);
+	}
+	return `visual-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+/** @param {unknown} value @returns {value is string} */
+function isRendererColorToken(value) {
+	if (typeof value !== "string" || value.length === 0 || value.length > 128) return false;
+	return /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/iu.test(value.trim()) || /^rgba?\(\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?(?:\s*,\s*\d*(?:\.\d+)?)?\s*\)$/iu.test(value.trim());
+}
+/** @param {unknown} value @returns {value is string} */
+function isNamedEasing(value) {
+	return value === "linear" || value === "ease-in" || value === "ease-out" || value === "ease-in-out";
+}
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
+function isRecord$1(value) {
+	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+}
+/** @param {number} value @param {number} minimum @param {number} maximum */
+function clamp$2(value, minimum, maximum) {
+	return Math.max(minimum, Math.min(maximum, value));
+}
+/** @param {string} profileId @param {string} contentHash @param {number} motionIntensity @param {number} roleScale @param {string} [profileVersion] @returns {AeroRendererVisualProfileSelection} */
+function visualProfile(profileId, contentHash, motionIntensity, roleScale, profileVersion = "1.0.0") {
+	return Object.freeze({
+		identity: Object.freeze({
+			schema: "aerobeat/prototype_tuning_identity",
+			version: 1,
+			profileId,
+			profileVersion,
+			contentHash,
+			class: "live_visual",
+			regenerationRequired: false
+		}),
+		settings: Object.freeze({
+			motionIntensity,
+			roleScale
+		})
+	});
+}
+/** @param {unknown} value @param {readonly string[]} keys @param {string} label @returns {Record<string,unknown>} */
+function exactDataRecord(value, keys, label) {
+	if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError(`${label} must be a plain data record`);
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	const names = Object.keys(descriptors);
+	if (names.length !== keys.length || !keys.every((key) => names.includes(key))) throw new TypeError(`${label} fields are invalid`);
+	/** @type {Record<string,unknown>} */ const result = {};
+	for (const key of keys) {
+		const descriptor = descriptors[key];
+		if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) throw new TypeError(`${label} must not contain accessors or hidden fields`);
+		result[key] = descriptor.value;
+	}
+	return result;
+}
+/** @param {AeroRendererVisualProfileSelection} left @param {AeroRendererVisualProfileSelection} right */
+function sameVisualSelection(left, right) {
+	return left.identity.profileId === right.identity.profileId && left.identity.profileVersion === right.identity.profileVersion && left.identity.contentHash === right.identity.contentHash && left.settings.motionIntensity === right.settings.motionIntensity && left.settings.roleScale === right.settings.roleScale;
+}
+//#endregion
+//#region ../aerobeat-web-renderer/src/renderer-facade.js
+/** @type {"aero.renderer.webgl2"} */
+var aeroWebGl2RendererServiceId = "aero.renderer.webgl2";
+/** @typedef {import("./gameplay-plan.js").AeroGameplayFrame} AeroGameplayFrame */
+/** @typedef {import("./gameplay-plan.js").AeroGameplayRenderPlan} AeroGameplayRenderPlan */
+/** @typedef {import("./gameplay-plan.js").AeroRendererThemeTokens} AeroRendererThemeTokens */
+/** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
+/** @typedef {import("./icon-atlas.js").AeroIconAtlasData} AeroIconAtlasData */
+/** @typedef {import("./landmark-mapping.js").AeroNormalizedLandmark} AeroNormalizedLandmark */
+/** @typedef {import("./landmark-mapping.js").AeroRendererOverlaySurfaceDescriptorInput} AeroRendererOverlaySurfaceDescriptorInput */
+/** @typedef {"unsupported"|"ready"|"running"|"context_lost"|"error"|"destroyed"} AeroRendererState */
+/** @typedef {{widthCssPx:number,heightCssPx:number,devicePixelRatio:number,maxDevicePixelRatio?:number}} AeroRendererResize */
+/** @typedef {{surface?:AeroRendererOverlaySurfaceDescriptorInput,connections?:readonly (readonly [number,number])[],minVisibility?:number,color?:readonly [number,number,number,number],pointSize?:number}} AeroRendererOverlayOptions */
+/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,visualProfile:import("./visual-profiles.js").AeroRendererVisualProfileSelection,visualProfileIdentity:import("./visual-profiles.js").AeroRendererVisualIdentity,visualProfileSettings:import("./visual-profiles.js").AeroRendererVisualSettings,experimental:true,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
+/** @typedef {{serviceId:"aero.renderer.webgl2",webgl2:boolean,exactContainerResize:true,dprAware:true,contextLossRecovery:true,alphaMaskIcons:boolean,liveTuning:true,maxDevicePixelRatio:number,degradations:readonly string[]}} AeroWebGl2RendererCapabilities */
+/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,shapeLocation:WebGLUniformLocation|null,ringWidthLocation:WebGLUniformLocation|null}} ShapeProgram */
+/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,uvRectLocation:WebGLUniformLocation|null,samplerLocation:WebGLUniformLocation|null}} IconProgram */
+/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,colorLocation:WebGLUniformLocation|null,pointSizeLocation:WebGLUniformLocation|null}} OverlayProgram */
+/**
+* Per-game renderer. No process-global singleton exists: each connected aero-game owns
+* one instance and one canvas/context lifecycle.
+*/
+var AeroWebGl2Renderer = class {
+	/** @param {{contextAttributes?:WebGLContextAttributes}} [options] */
+	constructor(options = {}) {
+		this.serviceId = aeroWebGl2RendererServiceId;
+		this.contextAttributes = options.contextAttributes ?? {
+			alpha: true,
+			antialias: true,
+			premultipliedAlpha: true
+		};
+		/** @type {HTMLCanvasElement|null} */ this.canvas = null;
+		/** @type {WebGL2RenderingContext|null} */ this.gl = null;
+		/** @type {ShapeProgram|null} */ this.shapeProgram = null;
+		/** @type {IconProgram|null} */ this.iconProgram = null;
+		/** @type {OverlayProgram|null} */ this.overlayProgram = null;
+		/** @type {WebGLTexture|null} */ this.iconTexture = null;
+		/** @type {AeroIconAtlasData|null} */ this.iconAtlasData = null;
+		/** @type {Map<string, import("./icon-atlas.js").AeroIconAtlasEntry>} */ this.iconEntries = /* @__PURE__ */ new Map();
+		/** @type {AeroRendererState} */ this.state = "unsupported";
+		/** @type {AeroRendererThemeTokens} */ this.theme = defaultRendererThemeTokens;
+		this.visualProfile = defaultRendererVisualProfile;
+		/** @type {AeroRendererTuning} */ this.tuning = rendererTuningFromVisualProfile(this.visualProfile);
+		this.themeId = "aero.theme.default";
+		this.themeVersion = "1";
+		this.themeHash = "theme-default";
+		this.background = normalizeBackgroundProjection(null);
+		this.iconAtlasError = null;
+		this.errorMessage = null;
+		this.frameCount = 0;
+		this.drawCount = 0;
+		this.widthCssPx = 0;
+		this.heightCssPx = 0;
+		this.devicePixelRatio = 1;
+		this.contextLost = false;
+		this.destroyed = false;
+		this.onContextLost = (event) => {
+			event.preventDefault();
+			this.contextLost = true;
+			this.state = "context_lost";
+			this.releaseGpuReferences(false);
+		};
+		this.onContextRestored = () => {
+			if (!this.canvas || this.destroyed) return;
+			this.contextLost = false;
+			this.acquireContext();
+		};
+	}
+	/** @param {HTMLCanvasElement} canvas @param {WebGLContextAttributes} [options] @returns {AeroWebGl2RendererStatus} */
+	attach(canvas, options = this.contextAttributes) {
+		if (this.destroyed) return this.describe();
+		if (this.canvas !== canvas) this.detach();
+		this.canvas = canvas;
+		this.contextAttributes = options;
+		canvas.addEventListener("webglcontextlost", this.onContextLost);
+		canvas.addEventListener("webglcontextrestored", this.onContextRestored);
+		this.acquireContext();
+		return this.describe();
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	detach() {
+		if (this.canvas) {
+			this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
+			this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
+		}
+		this.deleteGpuResources();
+		this.canvas = null;
+		this.gl = null;
+		this.contextLost = false;
+		if (!this.destroyed) this.state = "unsupported";
+		return this.describe();
+	}
+	/** @param {AeroRendererResize} size @returns {AeroWebGl2RendererStatus} */
+	resize(size) {
+		if (!this.canvas || this.destroyed) return this.describe();
+		this.widthCssPx = finiteNonNegative(size.widthCssPx);
+		this.heightCssPx = finiteNonNegative(size.heightCssPx);
+		const cap = Math.max(1, Math.min(size.maxDevicePixelRatio ?? this.tuning.dprCap, this.tuning.dprCap));
+		this.devicePixelRatio = Math.max(.1, Math.min(Number.isFinite(size.devicePixelRatio) ? size.devicePixelRatio : 1, cap));
+		const width = Math.max(1, Math.round(this.widthCssPx * this.devicePixelRatio));
+		const height = Math.max(1, Math.round(this.heightCssPx * this.devicePixelRatio));
+		if (this.canvas.width !== width) this.canvas.width = width;
+		if (this.canvas.height !== height) this.canvas.height = height;
+		this.canvas.style.width = `${this.widthCssPx}px`;
+		this.canvas.style.height = `${this.heightCssPx}px`;
+		this.configureViewport();
+		return this.describe();
+	}
+	/** @param {unknown} descriptor @returns {AeroWebGl2RendererStatus} */
+	setTheme(descriptor) {
+		if (this.destroyed) return this.describe();
+		const normalized = normalizeRendererTheme(descriptor);
+		const accepted = isThemeDescriptor(descriptor) && normalized !== defaultRendererThemeTokens;
+		this.theme = normalized;
+		this.themeId = accepted ? descriptor.id : "aero.theme.default";
+		this.themeVersion = accepted ? descriptor.themeVersion : "1";
+		this.themeHash = accepted ? descriptor.contentHash.value : "theme-default";
+		return this.describe();
+	}
+	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
+	setTuning(selection) {
+		return this.importTuning(selection);
+	}
+	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
+	importTuning(selection) {
+		if (this.destroyed) return this.describe();
+		const visualProfile = normalizeRendererVisualProfile(selection);
+		const tuning = rendererTuningFromVisualProfile(visualProfile);
+		this.visualProfile = visualProfile;
+		this.tuning = tuning;
+		return this.describe();
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	resetTuning() {
+		if (!this.destroyed) {
+			this.visualProfile = defaultRendererVisualProfile;
+			this.tuning = rendererTuningFromVisualProfile(this.visualProfile);
+		}
+		return this.describe();
+	}
+	/** @returns {import("./visual-profiles.js").AeroRendererVisualProfileSelection} */
+	exportTuning() {
+		return this.visualProfile;
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	getSnapshot() {
+		return this.describe();
+	}
+	/** @param {unknown} background @returns {AeroWebGl2RendererStatus} */
+	setBackgroundProjection(background) {
+		if (!this.destroyed) this.background = normalizeBackgroundProjection(background);
+		return this.describe();
+	}
+	/** @param {AeroIconAtlasData} atlas @returns {AeroWebGl2RendererStatus} */
+	uploadIconAtlas(atlas) {
+		if (this.destroyed) return this.describe();
+		let normalized;
+		try {
+			normalized = normalizeIconAtlasData(atlas);
+		} catch (error) {
+			if (this.gl && this.iconTexture) this.gl.deleteTexture(this.iconTexture);
+			this.iconTexture = null;
+			this.iconAtlasData = null;
+			this.iconEntries.clear();
+			this.iconAtlasError = error instanceof Error ? error.message : "Icon atlas is invalid";
+			return this.describe();
+		}
+		this.iconAtlasData = normalized;
+		this.iconEntries = new Map(normalized.entries.map((entry) => [entry.id, entry]));
+		this.iconAtlasError = null;
+		const gl = this.gl;
+		if (!gl) return this.describe();
+		if (this.iconTexture) gl.deleteTexture(this.iconTexture);
+		const texture = gl.createTexture();
+		if (!texture) {
+			this.iconAtlasError = "Unable to create icon atlas texture";
+			return this.describe();
+		}
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, normalized.width, normalized.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, normalized.pixels);
+		this.iconTexture = texture;
+		return this.describe();
+	}
+	/** @param {AeroGameplayFrame} frame @returns {{status:AeroWebGl2RendererStatus,plan:AeroGameplayRenderPlan}} */
+	renderGameplayFrame(frame) {
+		const width = this.widthCssPx > 0 ? this.widthCssPx : this.gl?.drawingBufferWidth ?? 0;
+		const height = this.heightCssPx > 0 ? this.heightCssPx : this.gl?.drawingBufferHeight ?? 0;
+		const viewportAspect = frame.viewportAspect ?? (width > 0 && height > 0 ? width / height : 4 / 3);
+		const plan = buildGameplayRenderPlan({
+			...frame,
+			viewportAspect
+		}, this.theme, this.tuning);
+		const gl = this.gl;
+		if (!gl || this.destroyed || this.contextLost) return {
+			status: this.describe(),
+			plan
+		};
+		try {
+			this.configureViewport();
+			const background = colorTokenToRgba(this.background.colors[0], [
+				.03,
+				.08,
+				.15,
+				1
+			]);
+			gl.clearColor(background[0], background[1], background[2], background[3]);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+			for (const draw of plan.commands) this.drawCommand(draw);
+			if (plan.overlay.dim > 0) this.drawShape({
+				x: 0,
+				y: 0,
+				width: 1,
+				height: 1
+			}, [
+				0,
+				0,
+				0,
+				plan.overlay.dim
+			], 0, .08);
+			if (plan.overlay.countdown !== null) this.drawCountdown(plan.overlay.countdown);
+			this.frameCount += 1;
+			this.state = "running";
+		} catch (error) {
+			this.fail(error);
+		}
+		return {
+			status: this.describe(),
+			plan
+		};
+	}
+	/** @param {{color?:readonly [number,number,number,number]}} [options] */
+	clear(options = {}) {
+		const gl = this.gl;
+		if (!gl || this.destroyed) return { status: this.describe() };
+		const color = options.color ?? [
+			0,
+			0,
+			0,
+			0
+		];
+		this.configureViewport();
+		gl.clearColor(...color);
+		gl.clear(gl.COLOR_BUFFER_BIT);
+		this.frameCount += 1;
+		this.state = "running";
+		return { status: this.describe() };
+	}
+	/** @param {{color?:readonly [number,number,number,number]}} [options] */
+	renderFrame(options = {}) {
+		return this.clear(options);
+	}
+	/** @param {readonly AeroNormalizedLandmark[]} landmarks @param {AeroRendererOverlayOptions} [options] */
+	renderLandmarkOverlay(landmarks, options = {}) {
+		const gl = this.gl;
+		if (!gl || this.destroyed) return {
+			status: this.describe(),
+			pointCount: 0,
+			lineVertexCount: 0
+		};
+		try {
+			const program = this.overlayProgram ?? createOverlayProgram(gl);
+			this.overlayProgram = program;
+			const surface = normalizeOverlaySurfaceDescriptor({
+				viewportWidth: gl.drawingBufferWidth,
+				viewportHeight: gl.drawingBufferHeight,
+				...options.surface
+			});
+			const visible = landmarks.filter((landmark) => (typeof landmark.v === "number" ? landmark.v : 1) >= (options.minVisibility ?? 0));
+			const points = visible.flatMap((landmark) => {
+				const clip = mapNormalizedLandmarkToClipSpace(landmark, surface);
+				return [clip.x, clip.y];
+			});
+			const byId = new Map(visible.map((landmark) => [landmark.id, landmark]));
+			/** @type {number[]} */ const lines = [];
+			for (const pair of options.connections ?? []) {
+				const a = byId.get(pair[0]);
+				const b = byId.get(pair[1]);
+				if (a && b) {
+					const ac = mapNormalizedLandmarkToClipSpace(a, surface);
+					const bc = mapNormalizedLandmarkToClipSpace(b, surface);
+					lines.push(ac.x, ac.y, bc.x, bc.y);
+				}
+			}
+			drawOverlay(gl, program, lines, gl.LINES, options);
+			drawOverlay(gl, program, points, gl.POINTS, options);
+			this.drawCount += 1;
+			this.state = "running";
+			return {
+				status: this.describe(),
+				pointCount: points.length / 2,
+				lineVertexCount: lines.length / 2
+			};
+		} catch (error) {
+			this.fail(error);
+			return {
+				status: this.describe(),
+				pointCount: 0,
+				lineVertexCount: 0
+			};
+		}
+	}
+	/** @returns {AeroWebGl2RendererCapabilities} */
+	getCapabilities() {
+		const degradations = [];
+		if (!this.gl) degradations.push("webgl2_unavailable");
+		if (!this.iconTexture) degradations.push(this.iconAtlasError ? "icon_atlas_invalid_fallback_shapes" : "icon_atlas_unavailable_fallback_shapes");
+		if (this.background.kind === "linear-gradient" && this.background.colors.length > 1) degradations.push("gradient_background_projected_to_primary_color");
+		return Object.freeze({
+			serviceId: aeroWebGl2RendererServiceId,
+			webgl2: Boolean(this.gl),
+			exactContainerResize: true,
+			dprAware: true,
+			contextLossRecovery: true,
+			alphaMaskIcons: Boolean(this.iconTexture),
+			liveTuning: true,
+			maxDevicePixelRatio: this.tuning.dprCap,
+			degradations: Object.freeze(degradations)
+		});
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	describe() {
+		return Object.freeze({
+			serviceId: aeroWebGl2RendererServiceId,
+			state: this.state,
+			supported: Boolean(this.gl),
+			attached: Boolean(this.canvas && this.gl),
+			contextLost: this.contextLost,
+			destroyed: this.destroyed,
+			frameCount: this.frameCount,
+			drawCount: this.drawCount,
+			viewportWidth: this.gl?.drawingBufferWidth ?? this.canvas?.width ?? 0,
+			viewportHeight: this.gl?.drawingBufferHeight ?? this.canvas?.height ?? 0,
+			widthCssPx: this.widthCssPx,
+			heightCssPx: this.heightCssPx,
+			devicePixelRatio: this.devicePixelRatio,
+			themeId: this.themeId,
+			themeVersion: this.themeVersion,
+			themeHash: this.themeHash,
+			tuningId: this.tuning.id,
+			tuningVersion: this.tuning.version,
+			tuningHash: this.tuning.hash,
+			tuningRequiresRegeneration: false,
+			visualProfile: this.visualProfile,
+			visualProfileIdentity: this.visualProfile.identity,
+			visualProfileSettings: this.visualProfile.settings,
+			experimental: true,
+			iconAtlasReady: Boolean(this.iconTexture),
+			iconAtlasError: this.iconAtlasError,
+			errorMessage: this.errorMessage
+		});
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	destroy() {
+		if (this.destroyed) return this.describe();
+		this.destroyed = true;
+		this.detach();
+		this.state = "destroyed";
+		this.iconEntries.clear();
+		this.iconAtlasData = null;
+		return this.describe();
+	}
+	acquireContext() {
+		if (!this.canvas || this.destroyed) return;
+		try {
+			const context = this.canvas.getContext("webgl2", this.contextAttributes);
+			if (!context) {
+				this.gl = null;
+				this.state = "unsupported";
+				this.errorMessage = "WebGL2 is unavailable for this canvas";
+				return;
+			}
+			this.gl = context;
+			this.state = "ready";
+			this.errorMessage = null;
+			this.contextLost = false;
+			context.enable(context.BLEND);
+			context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
+			this.configureViewport();
+			if (this.iconAtlasData) this.uploadIconAtlas(this.iconAtlasData);
+		} catch (error) {
+			this.gl = null;
+			this.fail(error);
+		}
+	}
+	configureViewport() {
+		if (this.gl) this.gl.viewport(0, 0, this.gl.drawingBufferWidth || this.canvas?.width || 1, this.gl.drawingBufferHeight || this.canvas?.height || 1);
+	}
+	/** @param {import("./gameplay-plan.js").AeroGameplayDrawCommand} draw */
+	drawCommand(draw) {
+		const color = draw.contrast ? this.cueContrastColor(draw.role, draw.alpha, draw.saturation) : this.roleColor(draw.role, draw.alpha, draw.saturation);
+		if (draw.kind === "icon" && draw.iconId && this.iconTexture && this.iconEntries.has(draw.iconId)) this.drawIcon(draw.rect, color, this.iconEntries.get(draw.iconId));
+		else this.drawShape(draw.rect, color, draw.kind === "circle" ? 1 : draw.kind === "ring" ? 2 : draw.kind === "hatch" ? 3 : 0, this.tuning.approachRingWidth);
+		this.drawCount += 1;
+	}
+	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
+	roleColor(role, alpha, saturation) {
+		const fallback = [
+			.85,
+			.95,
+			1,
+			alpha
+		];
+		const color = colorTokenToRgba(role === "left" ? this.theme.leftHandColor : role === "right" ? this.theme.rightHandColor : role === "guard" ? this.theme.guardColor : role === "obstacle" ? this.theme.obstacleColor : role === "safe" ? "#56d6c9" : this.theme.receptorColor, fallback);
+		const gray = color[0] * .2126 + color[1] * .7152 + color[2] * .0722;
+		return [
+			gray + (color[0] - gray) * saturation,
+			gray + (color[1] - gray) * saturation,
+			gray + (color[2] - gray) * saturation,
+			color[3] * alpha
+		];
+	}
+	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
+	cueContrastColor(role, alpha, saturation) {
+		const target = this.roleColor(role, alpha, saturation);
+		const luminance = relativeLuminance(target[0], target[1], target[2]);
+		const blackContrast = (luminance + .05) / .05;
+		const channel = 1.05 / (luminance + .05) > blackContrast ? 1 : 0;
+		return [
+			channel,
+			channel,
+			channel,
+			target[3]
+		];
+	}
+	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {number} shape @param {number} ringWidth */
+	drawShape(rect, color, shape, ringWidth) {
+		const gl = this.gl;
+		if (!gl) return;
+		const program = this.shapeProgram ?? createShapeProgram(gl);
+		this.shapeProgram = program;
+		uploadQuad(gl, program.buffer, program.positionLocation, program.localLocation, rect);
+		gl.useProgram(program.program);
+		gl.uniform4f(program.colorLocation, ...color);
+		gl.uniform1i(program.shapeLocation, shape);
+		gl.uniform1f(program.ringWidthLocation, ringWidth);
+		gl.drawArrays(gl.TRIANGLES, 0, 6);
+	}
+	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {import("./icon-atlas.js").AeroIconAtlasEntry|undefined} entry */
+	drawIcon(rect, color, entry) {
+		const gl = this.gl;
+		if (!gl || !entry || !this.iconTexture) return;
+		const program = this.iconProgram ?? createIconProgram(gl);
+		this.iconProgram = program;
+		uploadQuad(gl, program.buffer, program.positionLocation, program.localLocation, rect);
+		gl.useProgram(program.program);
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, this.iconTexture);
+		gl.uniform1i(program.samplerLocation, 0);
+		gl.uniform4f(program.colorLocation, ...color);
+		gl.uniform4f(program.uvRectLocation, entry.u0, entry.v0, entry.u1, entry.v1);
+		gl.drawArrays(gl.TRIANGLES, 0, 6);
+	}
+	/** @param {number} value */
+	drawCountdown(value) {
+		const segments = countdownSegments(value);
+		for (const rect of segments) this.drawShape(rect, [
+			1,
+			1,
+			1,
+			.94
+		], 0, .1);
+	}
+	deleteGpuResources() {
+		const gl = this.gl;
+		if (gl) {
+			for (const program of [
+				this.shapeProgram,
+				this.iconProgram,
+				this.overlayProgram
+			]) if (program) {
+				gl.deleteBuffer(program.buffer);
+				gl.deleteProgram(program.program);
+			}
+			if (this.iconTexture) gl.deleteTexture(this.iconTexture);
+		}
+		this.releaseGpuReferences(true);
+	}
+	/** @param {boolean} clearEntries */
+	releaseGpuReferences(clearEntries) {
+		this.shapeProgram = null;
+		this.iconProgram = null;
+		this.overlayProgram = null;
+		this.iconTexture = null;
+		if (clearEntries) this.iconEntries.clear();
+	}
+	/** @param {unknown} error */
+	fail(error) {
+		this.state = "error";
+		this.errorMessage = error instanceof Error ? error.message : "Renderer operation failed";
+	}
+};
+/** @param {{contextAttributes?:WebGLContextAttributes}} [options] @returns {AeroWebGl2Renderer} */
+function createAeroWebGl2Renderer(options) {
+	return new AeroWebGl2Renderer(options);
+}
+/** @param {WebGL2RenderingContext} gl @returns {ShapeProgram} */
+function createShapeProgram(gl) {
+	const program = linkProgram(gl, QUAD_VERTEX, SHAPE_FRAGMENT);
+	return {
+		program,
+		buffer: requiredBuffer(gl),
+		positionLocation: gl.getAttribLocation(program, "a_position"),
+		localLocation: gl.getAttribLocation(program, "a_local"),
+		colorLocation: gl.getUniformLocation(program, "u_color"),
+		shapeLocation: gl.getUniformLocation(program, "u_shape"),
+		ringWidthLocation: gl.getUniformLocation(program, "u_ringWidth")
+	};
+}
+/** @param {WebGL2RenderingContext} gl @returns {IconProgram} */
+function createIconProgram(gl) {
+	const program = linkProgram(gl, QUAD_VERTEX, ICON_FRAGMENT);
+	return {
+		program,
+		buffer: requiredBuffer(gl),
+		positionLocation: gl.getAttribLocation(program, "a_position"),
+		localLocation: gl.getAttribLocation(program, "a_local"),
+		colorLocation: gl.getUniformLocation(program, "u_color"),
+		uvRectLocation: gl.getUniformLocation(program, "u_uvRect"),
+		samplerLocation: gl.getUniformLocation(program, "u_mask")
+	};
+}
+/** @param {WebGL2RenderingContext} gl @returns {OverlayProgram} */
+function createOverlayProgram(gl) {
+	const program = linkProgram(gl, `#version 300 es\nin vec2 a_position; uniform float u_pointSize; void main(){gl_Position=vec4(a_position,0.,1.);gl_PointSize=u_pointSize;}`, `#version 300 es\nprecision mediump float; uniform vec4 u_color; out vec4 outColor; void main(){outColor=u_color;}`);
+	return {
+		program,
+		buffer: requiredBuffer(gl),
+		positionLocation: gl.getAttribLocation(program, "a_position"),
+		colorLocation: gl.getUniformLocation(program, "u_color"),
+		pointSizeLocation: gl.getUniformLocation(program, "u_pointSize")
+	};
+}
+/** @param {WebGL2RenderingContext} gl @param {string} vertex @param {string} fragment */
+function linkProgram(gl, vertex, fragment) {
+	const vs = compile(gl, gl.VERTEX_SHADER, vertex);
+	const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
+	const program = gl.createProgram();
+	if (!program) throw new Error("Unable to create renderer program");
+	gl.attachShader(program, vs);
+	gl.attachShader(program, fs);
+	gl.linkProgram(program);
+	gl.deleteShader(vs);
+	gl.deleteShader(fs);
+	if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "Unable to link renderer program");
+	return program;
+}
+/** @param {WebGL2RenderingContext} gl @param {number} type @param {string} source */
+function compile(gl, type, source) {
+	const shader = gl.createShader(type);
+	if (!shader) throw new Error("Unable to create renderer shader");
+	gl.shaderSource(shader, source);
+	gl.compileShader(shader);
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) ?? "Unable to compile renderer shader");
+	return shader;
+}
+/** @param {WebGL2RenderingContext} gl */
+function requiredBuffer(gl) {
+	const buffer = gl.createBuffer();
+	if (!buffer) throw new Error("Unable to create renderer buffer");
+	return buffer;
+}
+/** @param {WebGL2RenderingContext} gl @param {WebGLBuffer} buffer @param {number} positionLocation @param {number} localLocation @param {{x:number,y:number,width:number,height:number}} rect */
+function uploadQuad(gl, buffer, positionLocation, localLocation, rect) {
+	const x0 = rect.x * 2 - 1;
+	const x1 = (rect.x + rect.width) * 2 - 1;
+	const y0 = 1 - rect.y * 2;
+	const y1 = 1 - (rect.y + rect.height) * 2;
+	const values = new Float32Array([
+		x0,
+		y0,
+		0,
+		0,
+		x1,
+		y0,
+		1,
+		0,
+		x0,
+		y1,
+		0,
+		1,
+		x0,
+		y1,
+		0,
+		1,
+		x1,
+		y0,
+		1,
+		0,
+		x1,
+		y1,
+		1,
+		1
+	]);
+	gl.useProgram(null);
+	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, values, gl.STREAM_DRAW);
+	gl.enableVertexAttribArray(positionLocation);
+	gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0);
+	gl.enableVertexAttribArray(localLocation);
+	gl.vertexAttribPointer(localLocation, 2, gl.FLOAT, false, 16, 8);
+}
+/** @param {WebGL2RenderingContext} gl @param {OverlayProgram} program @param {number[]} vertices @param {number} primitive @param {AeroRendererOverlayOptions} options */
+function drawOverlay(gl, program, vertices, primitive, options) {
+	if (vertices.length === 0) return;
+	const color = options.color ?? [
+		.24,
+		.9,
+		.45,
+		.95
+	];
+	gl.useProgram(program.program);
+	gl.bindBuffer(gl.ARRAY_BUFFER, program.buffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
+	gl.enableVertexAttribArray(program.positionLocation);
+	gl.vertexAttribPointer(program.positionLocation, 2, gl.FLOAT, false, 0, 0);
+	gl.uniform4f(program.colorLocation, ...color);
+	gl.uniform1f(program.pointSizeLocation, options.pointSize ?? 6);
+	gl.drawArrays(primitive, 0, vertices.length / 2);
+}
+/** @param {number} value @returns {readonly {x:number,y:number,width:number,height:number}[]} */
+function countdownSegments(value) {
+	const horizontal = (y) => ({
+		x: .43,
+		y,
+		width: .14,
+		height: .025
+	});
+	const left = (y) => ({
+		x: .43,
+		y,
+		width: .025,
+		height: .12
+	});
+	const right = (y) => ({
+		x: .545,
+		y,
+		width: .025,
+		height: .12
+	});
+	if (value === 1) return [right(.36), right(.51)];
+	if (value === 2) return [
+		horizontal(.34),
+		right(.36),
+		horizontal(.49),
+		left(.51),
+		horizontal(.64)
+	];
+	return [
+		horizontal(.34),
+		right(.36),
+		horizontal(.49),
+		right(.51),
+		horizontal(.64)
+	];
+}
+/** @param {number} value */
+function finiteNonNegative(value) {
+	return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+/** @param {number} red @param {number} green @param {number} blue */
+function relativeLuminance(red, green, blue) {
+	const linear = (channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+	return linear(red) * .2126 + linear(green) * .7152 + linear(blue) * .0722;
+}
+var QUAD_VERTEX = `#version 300 es
+in vec2 a_position; in vec2 a_local; out vec2 v_local; void main(){v_local=a_local;gl_Position=vec4(a_position,0.,1.);}`;
+var SHAPE_FRAGMENT = `#version 300 es
+precision mediump float; in vec2 v_local; uniform vec4 u_color; uniform int u_shape; uniform float u_ringWidth; out vec4 outColor;
+void main(){float d=distance(v_local,vec2(.5)); if(u_shape==1 && d>.5) discard; if(u_shape==2 && abs(d-.43)>u_ringWidth*.5) discard; vec4 color=u_color; if(u_shape==3 && mod(floor((v_local.x+v_local.y)*18.),2.)<1.) color.rgb*=.48; outColor=color;}`;
+var ICON_FRAGMENT = `#version 300 es
+precision mediump float; in vec2 v_local; uniform sampler2D u_mask; uniform vec4 u_color; uniform vec4 u_uvRect; out vec4 outColor;
+void main(){vec2 uv=mix(u_uvRect.xy,u_uvRect.zw,v_local);float alpha=texture(u_mask,uv).a; if(alpha<.02) discard;outColor=vec4(u_color.rgb,u_color.a*alpha);}`;
+//#endregion
+//#region ../aerobeat-web-ui/src/elements/aero-media-pose-preview/aero-media-pose-preview.js
+/**
+* Pose landmark IDs used for the durable body skeleton overlay.
+*
+* @type {readonly (readonly [number, number])[]}
+*/
+var aeroPosePreviewSkeletonConnections = Object.freeze([
+	Object.freeze([0, 5]),
+	Object.freeze([0, 6]),
+	Object.freeze([5, 6]),
+	Object.freeze([5, 7]),
+	Object.freeze([7, 9]),
+	Object.freeze([6, 8]),
+	Object.freeze([8, 10])
+]);
+/**
+* Upper-body pose landmarks visible in the phone calibration checkpoint.
+*
+* @type {ReadonlyMap<string, number>}
+*/
+var aeroPosePreviewLandmarkIds = /* @__PURE__ */ new Map([
+	["nose", 0],
+	["left_shoulder", 5],
+	["right_shoulder", 6],
+	["left_elbow", 7],
+	["right_elbow", 8],
+	["left_wrist", 9],
+	["right_wrist", 10]
+]);
+/**
+* @type {readonly string[]}
+*/
+var aeroPosePreviewLandmarkOrder = Object.freeze([
+	"nose",
+	"left_wrist",
+	"left_elbow",
+	"left_shoulder",
+	"right_shoulder",
+	"right_elbow",
+	"right_wrist"
+]);
+/**
+* @typedef {"smoother" | "fast"} AeroMediaPosePreviewTrackingProfile
+*/
+/**
+* Preview tracking profiles for phone readability versus latency checks.
+*
+* @type {Readonly<Record<AeroMediaPosePreviewTrackingProfile, { alpha: number }>>}
+*/
+var aeroPosePreviewTrackingProfiles = Object.freeze({
+	smoother: Object.freeze({ alpha: .42 }),
+	fast: Object.freeze({ alpha: 1 })
+});
+/**
+* @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame
+* @typedef {import("@aerobeat/web-contracts").AeroPoseRoutingSample} AeroPoseRoutingSample
+* @typedef {import("@aerobeat/web-video").createBrowserVideoMediaFacade} CreateBrowserVideoMediaFacade
+*/
+/**
+* @typedef {ReturnType<CreateBrowserVideoMediaFacade>} BrowserVideoMediaFacade
+* @typedef {ReturnType<import("@aerobeat/web-renderer").createAeroWebGl2Renderer>} AeroWebGl2Renderer
+*/
+/**
+* @typedef {"contain" | "cover" | "stretch"} AeroMediaPosePreviewFitMode
+*/
+/**
+* @typedef {object} AeroMediaPosePreviewSource
+* @property {"live-camera" | "loaded-video" | "replay-video-feed"} kind Source kind owned by `@aerobeat/web-video`.
+* @property {string} sourceId Source identifier.
+* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
+* @property {boolean} mirrored Whether the player-facing preview is mirrored.
+*/
+/**
+* @typedef {AeroMediaPosePreviewSource & {
+*   url: string,
+*   loop: boolean,
+*   autoplay: boolean,
+*   muted: boolean,
+*   startTimeSeconds: number
+* }} AeroMediaPosePreviewVideoSource
+*/
+/**
+* @typedef {object} AeroMediaPosePreviewSurface
+* @property {string | undefined} sourceKind Current source kind.
+* @property {string | undefined} sourceId Current source identifier.
+* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
+* @property {boolean} mirrored Whether the player-facing preview is mirrored.
+* @property {number | undefined} intrinsicWidth Source media width.
+* @property {number | undefined} intrinsicHeight Source media height.
+* @property {number} currentTimeSeconds Current media time.
+*/
+/**
+* @typedef {object} AeroMediaPosePreviewSnapshot
+* @property {string | undefined} sourceKind Current source kind.
+* @property {string | undefined} sourceId Current source identifier.
+* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
+* @property {boolean} mirrored Whether the player-facing preview is mirrored.
+* @property {number} landmarkCount Number of landmarks submitted to the overlay.
+* @property {number} rendererDrawCount Current renderer draw count.
+* @property {AeroMediaPosePreviewTrackingProfile} trackingProfile Active preview smoothing profile.
+* @property {{x: number, y: number, width: number, height: number}} contentRect Fitted content rectangle.
+* @property {number | undefined} mediaPoseDeltaMs Media time minus latest real measurement timestamp, when comparable.
+* @property {number | undefined} presentationTargetDeltaMs Media time minus the routed presentation target, when comparable.
+* @property {import("@aerobeat/web-contracts").AeroPoseSampleProvenance | undefined} poseProvenance Measured or predicted overlay source.
+* @property {number | undefined} measurementTimestampMs Latest real measurement timestamp.
+* @property {number | undefined} predictionHorizonMs Current bounded prediction horizon.
+*/
+/**
+* @typedef {object} AeroMediaPosePreviewOverlaySurface
+* @property {number} viewportWidth Overlay canvas width.
+* @property {number} viewportHeight Overlay canvas height.
+* @property {number | undefined} intrinsicWidth Source media width.
+* @property {number | undefined} intrinsicHeight Source media height.
+* @property {AeroMediaPosePreviewFitMode} fitMode Visible media fit mode.
+* @property {boolean} mirrored Whether normalized x should be mirrored.
+* @property {{x: number, y: number, width: number, height: number} | undefined} contentRect Explicit fitted media rectangle.
+*/
+/**
+* @typedef {object} AeroMediaPosePreviewLandmark
+* @property {number} id Stable pose landmark identifier.
+* @property {string} name Stable AeroBeat landmark name.
+* @property {number} x Smoothed normalized horizontal position.
+* @property {number} y Smoothed normalized vertical position.
+* @property {number} v Detector confidence.
+*/
+/**
+* Web UI presenter that composes a video-owned media surface with the shared
+* WebGL2 renderer overlay path. CV and vendor adapters only provide pose data.
+*/
+var AeroMediaPosePreview = class extends HTMLElement {
+	/**
+	* Observed attributes for declarative scenes.
+	*
+	* @returns {string[]}
+	*/
+	static get observedAttributes() {
+		return [
+			"fit-mode",
+			"mirrored",
+			"source-id",
+			"source-kind",
+			"tracking-profile"
+		];
+	}
+	/**
+	* Creates the preview shadow DOM.
+	*/
+	constructor() {
+		super();
+		/** @type {BrowserVideoMediaFacade} */
+		this.videoMediaFacade = createBrowserVideoMediaFacade();
+		/** @type {AeroWebGl2Renderer} */
+		this.renderer = createAeroWebGl2Renderer();
+		/** @type {AeroMediaPosePreviewSurface | undefined} */
+		this.surface = void 0;
+		/** @type {NormalizedPoseFrame | undefined} */
+		this.poseFrame = void 0;
+		/** @type {AeroPoseRoutingSample | undefined} */
+		this.poseRoutingSample = void 0;
+		/** @type {Map<string, AeroMediaPosePreviewLandmark>} */
+		this.smoothedLandmarks = /* @__PURE__ */ new Map();
+		/** @type {string} */
+		this.lastSmoothedFrameKey = "";
+		/** @type {string} */
+		this.lastSmoothedSourceId = "";
+		/** @type {AeroMediaPosePreviewTrackingProfile} */
+		this.trackingProfile = "smoother";
+		/** @type {ResizeObserver | undefined} */
+		this.resizeObserver = void 0;
+		const root = this.attachShadow({ mode: "open" });
+		root.innerHTML = `
+      <style>
+        :host {
+          aspect-ratio: 16 / 9;
+          background: #06151a;
+          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
+          border-radius: var(--aero-radius-panel, 8px);
+          box-shadow: var(--aero-shadow-panel, 0 16px 38px rgba(16, 52, 71, 0.18));
+          box-sizing: border-box;
+          display: block;
+          inline-size: 100%;
+          max-inline-size: 720px;
+          min-block-size: 180px;
+          overflow: hidden;
+        }
+
+        .preview {
+          block-size: 100%;
+          display: grid;
+          inline-size: 100%;
+          overflow: hidden;
+          position: relative;
+        }
+
+        video,
+        canvas {
+          block-size: 100%;
+          grid-area: 1 / 1;
+          inline-size: 100%;
+        }
+
+        video {
+          background: #06151a;
+        }
+
+        video[data-fit-mode="contain"] {
+          object-fit: contain;
+        }
+
+        video[data-fit-mode="cover"] {
+          object-fit: cover;
+        }
+
+        video[data-fit-mode="stretch"] {
+          object-fit: fill;
+        }
+
+        video[data-mirrored="true"] {
+          transform: scaleX(-1);
+        }
+
+        canvas {
+          pointer-events: none;
+          position: relative;
+          z-index: 1;
+        }
+      </style>
+      <section class="preview" part="preview">
+        <video muted playsinline data-fit-mode="contain" data-mirrored="false"></video>
+        <canvas aria-hidden="true"></canvas>
+      </section>
+    `;
+	}
+	/**
+	* Attaches renderer and size observers when connected.
+	*/
+	connectedCallback() {
+		this.#syncAttributesToSurface();
+		this.#attachRenderer();
+		this.resizeObserver = new ResizeObserver(() => {
+			this.#sizeOverlayCanvas();
+			this.renderPreview();
+		});
+		this.resizeObserver.observe(this);
+		this.renderPreview();
+	}
+	/**
+	* Releases local observers and renderer attachment.
+	*/
+	disconnectedCallback() {
+		this.resizeObserver?.disconnect();
+		this.resizeObserver = void 0;
+		this.renderer.detach();
+	}
+	/**
+	* Syncs declarative attributes.
+	*/
+	attributeChangedCallback() {
+		this.#syncAttributesToSurface();
+		this.renderPreview();
+	}
+	/**
+	* Injects the video facade owned by `@aerobeat/web-video`.
+	*
+	* @param {BrowserVideoMediaFacade} videoMediaFacade
+	* @returns {void}
+	*/
+	setVideoMediaFacade(videoMediaFacade) {
+		this.videoMediaFacade = videoMediaFacade;
+	}
+	/**
+	* Injects the WebGL2 overlay renderer owned by `@aerobeat/web-renderer`.
+	*
+	* @param {AeroWebGl2Renderer} renderer
+	* @returns {void}
+	*/
+	setRenderer(renderer) {
+		this.renderer.detach();
+		this.renderer = renderer;
+		this.#attachRenderer();
+		this.renderPreview();
+	}
+	/**
+	* Attaches a retained or supplied live camera stream to the media surface.
+	*
+	* @param {MediaStream | undefined} stream
+	* @param {AeroMediaPosePreviewSource | undefined} source
+	* @returns {AeroMediaPosePreviewSurface}
+	*/
+	attachCameraStream(stream, source) {
+		const surface = this.videoMediaFacade.attachCameraStream(this.#videoElement(), stream, { source });
+		this.setSurfaceDescriptor(surface);
+		return this.#surfaceSnapshot();
+	}
+	/**
+	* Attaches a loaded video or replay feed descriptor to the media surface.
+	*
+	* @param {AeroMediaPosePreviewVideoSource} source
+	* @returns {AeroMediaPosePreviewSurface}
+	*/
+	attachVideoSource(source) {
+		const surface = this.videoMediaFacade.attachVideoSource(this.#videoElement(), source);
+		this.setSurfaceDescriptor(surface);
+		return this.#surfaceSnapshot();
+	}
+	/**
+	* Updates public surface metadata already described by the video facade.
+	*
+	* @param {Partial<AeroMediaPosePreviewSurface>} surface
+	* @param {{ render?: boolean }} [options]
+	* @returns {void}
+	*/
+	setSurfaceDescriptor(surface, options = {}) {
+		const previousSurface = this.surface;
+		this.surface = normalizeSurface({
+			...this.surface,
+			...surface
+		});
+		if (hasPresentationSurfaceChanged(previousSurface, this.surface)) this.#resetSmoothingState();
+		this.#applySurfaceToMedia();
+		if (options.render !== false) this.renderPreview();
+	}
+	/**
+	* Updates the pose frame drawn by the renderer overlay.
+	*
+	* @param {NormalizedPoseFrame | undefined} poseFrame
+	* @param {{ render?: boolean }} [options]
+	* @returns {void}
+	*/
+	setPoseFrame(poseFrame, options = {}) {
+		const previousSourceId = this.poseRoutingSample?.sourceId ?? this.poseFrame?.sourceId;
+		const crossedRoutingBoundary = Boolean(this.poseRoutingSample);
+		this.poseRoutingSample = void 0;
+		this.poseFrame = poseFrame;
+		if (!poseFrame || crossedRoutingBoundary || previousSourceId !== poseFrame.sourceId) this.#resetSmoothingState();
+		if (options.render !== false) this.renderPreview();
+	}
+	/**
+	* Updates the overlay from a truthfully tagged gameplay-routing sample without
+	* exposing the estimate as measured adapter output.
+	*
+	* @param {AeroPoseRoutingSample | undefined} sample
+	* @param {{ render?: boolean }} [options]
+	* @returns {void}
+	*/
+	setPoseRoutingSample(sample, options = {}) {
+		const previousSample = this.poseRoutingSample;
+		const crossedMeasuredFrameBoundary = Boolean(this.poseFrame);
+		this.poseFrame = void 0;
+		this.poseRoutingSample = sample;
+		if (!sample || crossedMeasuredFrameBoundary || previousSample?.sourceId !== sample.sourceId || previousSample?.routeEpoch !== sample.routeEpoch || previousSample?.provenance !== sample.provenance) this.#resetSmoothingState();
+		if (options.render !== false) this.renderPreview();
+	}
+	/**
+	* Selects how aggressively preview landmarks smooth incoming pose frames.
+	*
+	* @param {AeroMediaPosePreviewTrackingProfile | string | undefined} profile
+	* @returns {void}
+	*/
+	setTrackingProfile(profile) {
+		const nextProfile = normalizeTrackingProfile(profile);
+		if (nextProfile === this.trackingProfile) return;
+		this.trackingProfile = nextProfile;
+		this.#resetSmoothingState();
+		this.setAttribute("tracking-profile", nextProfile);
+		this.renderPreview();
+	}
+	/**
+	* Renders the current pose frame over the current media content rect.
+	*
+	* @returns {AeroMediaPosePreviewSnapshot}
+	*/
+	renderPreview() {
+		this.#sizeOverlayCanvas();
+		this.#applySurfaceToMedia();
+		this.renderer.clear({ color: [
+			0,
+			0,
+			0,
+			0
+		] });
+		const surface = this.#overlaySurface();
+		const landmarks = this.#visiblePoseLandmarks();
+		const result = this.renderer.renderLandmarkOverlay(landmarks, {
+			surface,
+			connections: aeroPosePreviewSkeletonConnections,
+			minVisibility: .25,
+			color: [
+				.24,
+				.9,
+				.45,
+				.95
+			],
+			pointSize: 7
+		});
+		const canvas = this.#canvasElement();
+		canvas.dataset.landmarkCount = String(landmarks.length);
+		canvas.dataset.rendererDrawCount = String(result.status.drawCount);
+		canvas.dataset.trackingProfile = this.trackingProfile;
+		canvas.dataset.contentRect = JSON.stringify(computeMediaContentRect(surface));
+		canvas.dataset.mediaPoseDeltaMs = String(this.#mediaPoseDeltaMs() ?? "");
+		canvas.dataset.presentationTargetDeltaMs = String(this.#presentationTargetDeltaMs() ?? "");
+		canvas.dataset.poseProvenance = this.poseRoutingSample?.provenance ?? (this.poseFrame ? "measured" : "");
+		canvas.dataset.measurementTimestampMs = String(this.#measurementTimestampMs() ?? "");
+		canvas.dataset.predictionHorizonMs = String(this.poseRoutingSample?.predictionHorizonMs ?? (this.poseFrame ? 0 : ""));
+		return this.describePreview();
+	}
+	/**
+	* Reports the current preview composition state for validation and assembly.
+	*
+	* @returns {AeroMediaPosePreviewSnapshot}
+	*/
+	describePreview() {
+		const surface = this.#overlaySurface();
+		const rendererStatus = this.renderer.describe();
+		return {
+			sourceKind: this.surface?.sourceKind,
+			sourceId: this.surface?.sourceId,
+			fitMode: surface.fitMode,
+			mirrored: surface.mirrored ?? false,
+			landmarkCount: this.#visiblePoseLandmarks().length,
+			rendererDrawCount: rendererStatus.drawCount,
+			trackingProfile: this.trackingProfile,
+			contentRect: computeMediaContentRect(surface),
+			mediaPoseDeltaMs: this.#mediaPoseDeltaMs(),
+			presentationTargetDeltaMs: this.#presentationTargetDeltaMs(),
+			poseProvenance: this.poseRoutingSample?.provenance ?? (this.poseFrame ? "measured" : void 0),
+			measurementTimestampMs: this.#measurementTimestampMs(),
+			predictionHorizonMs: this.poseRoutingSample?.predictionHorizonMs ?? (this.poseFrame ? 0 : void 0)
+		};
+	}
+	/**
+	* @returns {HTMLVideoElement}
+	*/
+	#videoElement() {
+		const video = this.shadowRoot?.querySelector("video");
+		if (!(video instanceof HTMLVideoElement)) throw new Error("Aero media preview video element is unavailable.");
+		return video;
+	}
+	/**
+	* @returns {HTMLCanvasElement}
+	*/
+	#canvasElement() {
+		const canvas = this.shadowRoot?.querySelector("canvas");
+		if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Aero media preview canvas element is unavailable.");
+		return canvas;
+	}
+	/**
+	* @returns {void}
+	*/
+	#attachRenderer() {
+		if (!this.isConnected) return;
+		this.#sizeOverlayCanvas();
+		this.renderer.attach(this.#canvasElement(), {
+			alpha: true,
+			antialias: true
+		});
+	}
+	/**
+	* @returns {void}
+	*/
+	#sizeOverlayCanvas() {
+		const canvas = this.#canvasElement();
+		const rect = this.getBoundingClientRect();
+		const width = Math.max(1, Math.round(rect.width || this.clientWidth || 640));
+		const height = Math.max(1, Math.round(rect.height || this.clientHeight || 360));
+		if (canvas.width !== width) canvas.width = width;
+		if (canvas.height !== height) canvas.height = height;
+	}
+	/**
+	* @returns {void}
+	*/
+	#syncAttributesToSurface() {
+		const previousSurface = this.surface;
+		const nextTrackingProfile = normalizeTrackingProfile(this.getAttribute("tracking-profile") ?? this.trackingProfile);
+		if (nextTrackingProfile !== this.trackingProfile) {
+			this.trackingProfile = nextTrackingProfile;
+			this.#resetSmoothingState();
+		}
+		this.surface = normalizeSurface({
+			...this.surface,
+			sourceKind: this.getAttribute("source-kind") ?? this.surface?.sourceKind,
+			sourceId: this.getAttribute("source-id") ?? this.surface?.sourceId,
+			fitMode: normalizeFitMode(this.getAttribute("fit-mode") ?? this.surface?.fitMode),
+			mirrored: this.hasAttribute("mirrored") ? this.getAttribute("mirrored") !== "false" : this.surface?.mirrored
+		});
+		if (hasPresentationSurfaceChanged(previousSurface, this.surface)) this.#resetSmoothingState();
+		this.#applySurfaceToMedia();
+	}
+	/**
+	* @returns {void}
+	*/
+	#applySurfaceToMedia() {
+		const video = this.#videoElement();
+		const fitMode = this.surface?.fitMode ?? "contain";
+		video.dataset.fitMode = fitMode;
+		video.dataset.mirrored = String(this.surface?.mirrored ?? false);
+		video.dataset.sourceKind = this.surface?.sourceKind ?? "";
+		video.dataset.sourceId = this.surface?.sourceId ?? "";
+	}
+	/**
+	* @returns {AeroMediaPosePreviewOverlaySurface}
+	*/
+	#overlaySurface() {
+		const canvas = this.#canvasElement();
+		const video = this.#videoElement();
+		return {
+			viewportWidth: canvas.width,
+			viewportHeight: canvas.height,
+			intrinsicWidth: this.surface?.intrinsicWidth ?? positiveNumberOrUndefined(video.videoWidth),
+			intrinsicHeight: this.surface?.intrinsicHeight ?? positiveNumberOrUndefined(video.videoHeight),
+			fitMode: this.surface?.fitMode ?? "contain",
+			mirrored: this.surface?.mirrored ?? false,
+			contentRect: this.#measuredVideoContentRect()
+		};
+	}
+	/**
+	* @returns {AeroMediaPosePreviewLandmark[]}
+	*/
+	#visiblePoseLandmarks() {
+		const presentation = this.poseRoutingSample ?? this.poseFrame;
+		const sourceId = presentation?.sourceId ?? "none";
+		const presentationSourceKey = this.poseRoutingSample ? `routing:${this.poseRoutingSample.routeEpoch}:${this.poseRoutingSample.provenance}:${sourceId}` : `measured-frame:${sourceId}`;
+		const frameKey = this.poseRoutingSample ? `${presentationSourceKey}:${this.poseRoutingSample.targetTimestampMs}` : `${presentationSourceKey}:${this.poseFrame?.timestampMs ?? -1}`;
+		if (frameKey !== this.lastSmoothedFrameKey) {
+			if (presentationSourceKey !== this.lastSmoothedSourceId) this.smoothedLandmarks = /* @__PURE__ */ new Map();
+			const rawLandmarks = normalizePoseLandmarks(presentation);
+			/** @type {Map<string, AeroMediaPosePreviewLandmark>} */
+			const nextSmoothed = /* @__PURE__ */ new Map();
+			const smoothingAlpha = aeroPosePreviewTrackingProfiles[this.trackingProfile].alpha;
+			for (const landmark of rawLandmarks) {
+				const previous = this.smoothedLandmarks.get(landmark.name);
+				nextSmoothed.set(landmark.name, previous ? smoothLandmark(previous, landmark, smoothingAlpha) : landmark);
+			}
+			this.smoothedLandmarks = nextSmoothed;
+			this.lastSmoothedFrameKey = frameKey;
+			this.lastSmoothedSourceId = presentationSourceKey;
+		}
+		return aeroPosePreviewLandmarkOrder.map((name) => this.smoothedLandmarks.get(name)).filter(isPreviewLandmark);
+	}
+	/**
+	* Drops filter history at source, lifecycle, tracking, and provenance boundaries.
+	*
+	* @returns {void}
+	*/
+	#resetSmoothingState() {
+		this.smoothedLandmarks = /* @__PURE__ */ new Map();
+		this.lastSmoothedFrameKey = "";
+		this.lastSmoothedSourceId = "";
+	}
+	/**
+	* @returns {{x: number, y: number, width: number, height: number} | undefined}
+	*/
+	#measuredVideoContentRect() {
+		const canvas = this.#canvasElement();
+		const video = this.#videoElement();
+		const canvasRect = canvas.getBoundingClientRect();
+		const videoRect = video.getBoundingClientRect();
+		if (canvasRect.width <= 0 || canvasRect.height <= 0 || videoRect.width <= 0 || videoRect.height <= 0) return;
+		const fitRect = computeMediaContentRect({
+			viewportWidth: videoRect.width,
+			viewportHeight: videoRect.height,
+			intrinsicWidth: this.surface?.intrinsicWidth ?? positiveNumberOrUndefined(video.videoWidth),
+			intrinsicHeight: this.surface?.intrinsicHeight ?? positiveNumberOrUndefined(video.videoHeight),
+			fitMode: this.surface?.fitMode ?? "contain",
+			mirrored: this.surface?.mirrored ?? false
+		});
+		const scaleX = canvas.width / canvasRect.width;
+		const scaleY = canvas.height / canvasRect.height;
+		return {
+			x: (videoRect.left - canvasRect.left + fitRect.x) * scaleX,
+			y: (videoRect.top - canvasRect.top + fitRect.y) * scaleY,
+			width: fitRect.width * scaleX,
+			height: fitRect.height * scaleY
+		};
+	}
+	/**
+	* @returns {number | undefined}
+	*/
+	#mediaPoseDeltaMs() {
+		const measurementTimestampMs = this.#measurementTimestampMs();
+		if (measurementTimestampMs === void 0 || this.surface?.sourceKind !== "live-camera") return;
+		const mediaTimeMs = this.surface.currentTimeSeconds * 1e3;
+		if (!Number.isFinite(mediaTimeMs)) return;
+		return Math.round(mediaTimeMs - measurementTimestampMs);
+	}
+	/**
+	* @returns {number | undefined}
+	*/
+	#presentationTargetDeltaMs() {
+		if (!this.poseRoutingSample || this.surface?.sourceKind !== "live-camera") return;
+		const mediaTimeMs = this.surface.currentTimeSeconds * 1e3;
+		if (!Number.isFinite(mediaTimeMs) || !Number.isFinite(this.poseRoutingSample.targetTimestampMs)) return;
+		return Math.round(mediaTimeMs - this.poseRoutingSample.targetTimestampMs);
+	}
+	/**
+	* @returns {number | undefined}
+	*/
+	#measurementTimestampMs() {
+		return this.poseRoutingSample?.measurementTimestampMs ?? this.poseFrame?.timestampMs;
+	}
+	/**
+	* @returns {AeroMediaPosePreviewSurface}
+	*/
+	#surfaceSnapshot() {
+		return normalizeSurface(this.surface);
+	}
+};
+/**
+* Defines `aero-media-pose-preview` when it is not already registered.
+*
+* @returns {void}
+*/
+function defineAeroMediaPosePreview() {
+	if (!customElements.get("aero-media-pose-preview")) customElements.define("aero-media-pose-preview", AeroMediaPosePreview);
+}
+/**
+* @param {Partial<AeroMediaPosePreviewSurface> | undefined} surface
+* @returns {AeroMediaPosePreviewSurface}
+*/
+function normalizeSurface(surface) {
+	return {
+		sourceKind: surface?.sourceKind,
+		sourceId: surface?.sourceId,
+		fitMode: normalizeFitMode(surface?.fitMode),
+		mirrored: surface?.mirrored ?? false,
+		intrinsicWidth: positiveNumberOrUndefined(surface?.intrinsicWidth),
+		intrinsicHeight: positiveNumberOrUndefined(surface?.intrinsicHeight),
+		currentTimeSeconds: typeof surface?.currentTimeSeconds === "number" ? surface.currentTimeSeconds : 0
+	};
+}
+/**
+* @param {AeroMediaPosePreviewSurface | undefined} previous
+* @param {AeroMediaPosePreviewSurface | undefined} next
+* @returns {boolean}
+*/
+function hasPresentationSurfaceChanged(previous, next) {
+	return previous?.sourceKind !== next?.sourceKind || previous?.sourceId !== next?.sourceId || previous?.mirrored !== next?.mirrored;
+}
+/**
+* @param {string | undefined} value
+* @returns {AeroMediaPosePreviewFitMode}
+*/
+function normalizeFitMode(value) {
+	return value === "cover" || value === "stretch" || value === "contain" ? value : "contain";
+}
+/**
+* @param {string | undefined} value
+* @returns {AeroMediaPosePreviewTrackingProfile}
+*/
+function normalizeTrackingProfile(value) {
+	return value === "fast" ? "fast" : "smoother";
+}
+/**
+* @param {number | undefined} value
+* @returns {number | undefined}
+*/
+function positiveNumberOrUndefined(value) {
+	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
+}
+/**
+* @param {NormalizedPoseFrame | AeroPoseRoutingSample | undefined} poseSample
+* @returns {AeroMediaPosePreviewLandmark[]}
+*/
+function normalizePoseLandmarks(poseSample) {
+	/** @type {Map<string, AeroMediaPosePreviewLandmark>} */
+	const landmarksByName = /* @__PURE__ */ new Map();
+	for (const landmark of poseSample?.landmarks ?? []) {
+		const id = aeroPosePreviewLandmarkIds.get(landmark.name);
+		if (id === void 0) continue;
+		landmarksByName.set(landmark.name, {
+			id,
+			name: landmark.name,
+			x: landmark.x,
+			y: landmark.y,
+			v: landmark.confidence
+		});
+	}
+	return aeroPosePreviewLandmarkOrder.map((name) => landmarksByName.get(name)).filter(isPreviewLandmark);
+}
+/**
+* @param {AeroMediaPosePreviewLandmark | undefined} landmark
+* @returns {landmark is AeroMediaPosePreviewLandmark}
+*/
+function isPreviewLandmark(landmark) {
+	return Boolean(landmark);
+}
+/**
+* @param {AeroMediaPosePreviewLandmark} previous
+* @param {AeroMediaPosePreviewLandmark} next
+* @param {number} alpha
+* @returns {AeroMediaPosePreviewLandmark}
+*/
+function smoothLandmark(previous, next, alpha) {
+	return {
+		id: next.id,
+		name: next.name,
+		x: lerp(previous.x, next.x, alpha),
+		y: lerp(previous.y, next.y, alpha),
+		v: next.v
+	};
+}
+/**
+* @param {number} start
+* @param {number} end
+* @param {number} alpha
+* @returns {number}
+*/
+function lerp(start, end, alpha) {
+	return start + (end - start) * alpha;
+}
+//#endregion
+//#region ../aerobeat-web-ui/src/elements/aero-pose-flow-panel/aero-pose-flow-panel.js
+/**
+* @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame
+*/
+/**
+* @typedef {Object} PoseFlowDraftEventView
+* @property {string} mode Gameplay mode.
+* @property {string} eventName Browser event name.
+* @property {string} summary Short event summary.
+*/
+/**
+* @typedef {Object} PoseFlowPanelState
+* @property {NormalizedPoseFrame | undefined} poseFrame Current normalized pose frame.
+* @property {readonly PoseFlowDraftEventView[]} inputEvents Gameplay-facing draft input events.
+*/
+/**
+* Proving panel for deterministic pose-frame and input-router runtime state.
+*/
+var AeroPoseFlowPanel = class extends HTMLElement {
+	/**
+	* Observed attributes for declarative scenes.
+	*
+	* @returns {string[]}
+	*/
+	static get observedAttributes() {
+		return [
+			"source-id",
+			"timestamp-ms",
+			"input-summary"
+		];
+	}
+	/**
+	* Creates the panel shadow DOM.
+	*/
+	constructor() {
+		super();
+		/** @type {PoseFlowPanelState} */
+		this.state = {
+			poseFrame: void 0,
+			inputEvents: []
+		};
+		const root = this.attachShadow({ mode: "open" });
+		root.innerHTML = `
+      <style>
+        :host {
+          display: block;
+        }
+
+        .panel {
+          background: var(--aero-color-surface, rgba(244, 252, 255, 0.9));
+          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
+          border-radius: var(--aero-radius-panel, 8px);
+          box-shadow: var(--aero-shadow-panel, 0 16px 38px rgba(16, 52, 71, 0.18));
+          color: var(--aero-color-ink, #103447);
+          display: grid;
+          gap: var(--aero-space-3, 12px);
+          padding: var(--aero-space-4, 16px);
+        }
+
+        .heading {
+          font: 700 1rem var(--aero-font-family, system-ui, sans-serif);
+        }
+
+        .grid {
+          display: grid;
+          gap: var(--aero-space-2, 8px);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .metric,
+        .events {
+          border-block-start: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.28));
+          display: grid;
+          gap: 4px;
+          padding-block-start: var(--aero-space-2, 8px);
+        }
+
+        .label {
+          font: 700 0.72rem var(--aero-font-family, system-ui, sans-serif);
+          text-transform: uppercase;
+        }
+
+        .value {
+          font: 500 0.9rem var(--aero-font-family, system-ui, sans-serif);
+          overflow-wrap: anywhere;
+        }
+
+        .events {
+          grid-column: 1 / -1;
+        }
+      </style>
+      <section class="panel" part="panel">
+        <span class="heading">Runtime pose flow</span>
+        <div class="grid">
+          <span class="metric">
+            <span class="label">Source</span>
+            <span class="value source">No frame</span>
+          </span>
+          <span class="metric">
+            <span class="label">Timestamp</span>
+            <span class="value timestamp">0 ms</span>
+          </span>
+          <span class="metric">
+            <span class="label">Landmarks</span>
+            <span class="value landmarks">0</span>
+          </span>
+          <span class="metric">
+            <span class="label">Input events</span>
+            <span class="value event-count">0</span>
+          </span>
+          <span class="events">
+            <span class="label">Draft event data</span>
+            <span class="value event-summary">Waiting for replay input</span>
+          </span>
+        </div>
+      </section>
+    `;
+	}
+	/**
+	* Syncs state into the shadow DOM.
+	*/
+	connectedCallback() {
+		this.#render();
+	}
+	/**
+	* Syncs attributes into the panel content.
+	*/
+	attributeChangedCallback() {
+		this.#render();
+	}
+	/**
+	* @param {NormalizedPoseFrame | undefined} poseFrame
+	* @returns {void}
+	*/
+	setPoseFrame(poseFrame) {
+		this.state = {
+			poseFrame,
+			inputEvents: this.state.inputEvents
+		};
+		this.#render();
+	}
+	/**
+	* @param {readonly PoseFlowDraftEventView[]} inputEvents
+	* @returns {void}
+	*/
+	setInputEvents(inputEvents) {
+		this.state = {
+			poseFrame: this.state.poseFrame,
+			inputEvents
+		};
+		this.#render();
+	}
+	/**
+	* @param {PoseFlowPanelState} state
+	* @returns {void}
+	*/
+	setProvingState(state) {
+		this.state = {
+			poseFrame: state.poseFrame,
+			inputEvents: [...state.inputEvents]
+		};
+		this.#render();
+	}
+	/**
+	* Updates visible panel content from state or declarative attributes.
+	*/
+	#render() {
+		const poseFrame = this.state.poseFrame;
+		const sourceId = poseFrame?.sourceId ?? this.getAttribute("source-id") ?? "No frame";
+		const timestampMs = poseFrame?.timestampMs ?? Number(this.getAttribute("timestamp-ms") ?? 0);
+		const landmarkCount = poseFrame?.landmarks.length ?? 0;
+		const inputEvents = this.state.inputEvents;
+		const fallbackSummary = this.getAttribute("input-summary") ?? "Waiting for replay input";
+		const eventSummary = inputEvents.length > 0 ? inputEvents.map((event) => `${event.mode} ${event.summary}`).join(" | ") : fallbackSummary;
+		this.#setText(".source", sourceId);
+		this.#setText(".timestamp", `${timestampMs} ms`);
+		this.#setText(".landmarks", String(landmarkCount));
+		this.#setText(".event-count", String(inputEvents.length));
+		this.#setText(".event-summary", eventSummary);
+	}
+	/**
+	* @param {string} selector
+	* @param {string} text
+	* @returns {void}
+	*/
+	#setText(selector, text) {
+		const target = this.shadowRoot?.querySelector(selector);
+		if (target) target.textContent = text;
+	}
+};
+/**
+* Defines `aero-pose-flow-panel` when it is not already registered.
+*
+* @returns {void}
+*/
+function defineAeroPoseFlowPanel() {
+	if (!customElements.get("aero-pose-flow-panel")) customElements.define("aero-pose-flow-panel", AeroPoseFlowPanel);
+}
+//#endregion
+//#region ../aerobeat-web-ui/src/elements/aero-product-presenters.js
+/** Public composed UI-intent event name. @type {"aero:ui:intent"} */
+var aeroUiIntentEventName = "aero:ui:intent";
+/**
+* @typedef {Object} AeroUiIntentDetail
+* @property {string} type Stable intent type.
+* @property {Readonly<Record<string, string | number | boolean | null>>} payload Serializable metadata only; never files or bytes.
+*/
+/** @typedef {Readonly<Record<string, unknown>>} AeroPresenterSnapshot */
+var sharedStyles = `
+  :host { box-sizing: border-box; color: var(--aero-color-ink, #103447); display: block; font-family: var(--aero-font-family, system-ui, sans-serif); min-inline-size: 0; }
+  *, *::before, *::after { box-sizing: border-box; }
+  .panel { background: linear-gradient(145deg, rgba(255,255,255,.94), rgba(207,241,255,.84)); border: 1px solid var(--aero-color-border, rgba(53,141,175,.42)); border-radius: var(--aero-radius-panel, 14px); box-shadow: 0 10px 28px rgba(16,52,71,.16); display: grid; gap: var(--aero-space-3, 12px); min-inline-size: 0; padding: var(--aero-space-4, 16px); }
+  h2, h3, p { margin: 0; }
+  h2 { font-size: clamp(1rem, 3.5vw, 1.35rem); }
+  h3 { font-size: .94rem; }
+  .muted { color: var(--aero-color-muted, #486c7d); font-size: .82rem; min-inline-size: 0; overflow-wrap: anywhere; }
+  .row { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+  .stack { display: grid; gap: 8px; }
+  .control, button, input, select { border: 1px solid var(--aero-color-border, rgba(53,141,175,.5)); border-radius: 8px; color: inherit; font: inherit; min-block-size: 42px; }
+  button { background: linear-gradient(180deg, #fff, #bcecff); color: var(--aero-color-ink, #103447); cursor: pointer; font-weight: 750; padding: 8px 13px; touch-action: manipulation; }
+  button[aria-pressed="true"], button[role="radio"][aria-checked="true"] { background: linear-gradient(180deg, #0a84ff, #086ccf); border-color: #fff; box-shadow: 0 0 0 3px var(--aero-color-focus, #0a84ff), inset 0 0 0 2px rgba(255,255,255,.72); color: #fff; }
+  button[disabled], input[disabled], select[disabled] { cursor: not-allowed; opacity: .55; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--aero-color-focus, #0a84ff); outline-offset: 2px; }
+  input, select { background: rgba(255,255,255,.92); inline-size: 100%; padding: 8px 10px; }
+  label { display: grid; font-size: .78rem; font-weight: 750; gap: 4px; }
+  .live { min-block-size: 1.25em; }
+  .pill { background: rgba(43,142,183,.12); border-radius: 999px; display: inline-flex; font-size: .74rem; font-weight: 800; padding: 4px 8px; }
+  .error { color: var(--aero-color-error, #9f1d24); }
+  .cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+  .card { background: rgba(255,255,255,.72); border: 1px solid rgba(53,141,175,.3); border-radius: 10px; display: grid; gap: 6px; padding: 10px; text-align: start; }
+  .cards > article > .card { inline-size: 100%; }
+  .choice-radio { align-items: center; cursor: pointer; display: flex; font-size: 1rem; gap: 10px; min-block-size: 42px; }
+  .choice-radio:has(input:checked) { background: rgba(10,132,255,.14); border-color: var(--aero-color-focus, #0a84ff); box-shadow: inset 0 0 0 1px var(--aero-color-focus, #0a84ff); }
+  .choice-radio input[type="radio"] { accent-color: var(--aero-color-focus, #0a84ff); block-size: 42px; flex: 0 0 42px; inline-size: 42px; margin: 0 8px 0 0; padding: 0; }
+  .card > .choice-radio { border: 1px solid transparent; border-radius: 8px; padding: 0 8px; }
+  .choice-copy { display: grid; gap: 4px; min-inline-size: 0; }
+  progress { accent-color: var(--aero-color-focus, #0a84ff); inline-size: 100%; }
+  .visually-hidden { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) .panel { background: transparent; border: 0; border-radius: 0; box-shadow: none; gap: 8px; padding: 0; }
+  :host([compact]) h1, :host([compact]) h2, :host([compact]) h3, :host([compact]) .compact-field-label, :host([compact]) .compact-converter-truth { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) .compact-explanatory, :host([compact]) .compact-identity, :host([compact]) .compact-telemetry, :host([compact]) .muted:not(.live):not(.compact-critical):not(.compact-converter-truth), :host([compact]) .pill:not(.error) { display: none; }
+  :host([compact]) .compact-status:not(.error) { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) [part="storage"], :host([compact]) [part="detail"] > p, :host([compact]) .choice-copy > .muted { display: none; }
+  :host([compact]) [part="items"] span[role="status"] { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) .cards { grid-template-columns: minmax(0, 1fr); }
+  :host([compact]) .card { padding: 8px; }
+  :host([compact]) label { gap: 0; }
+  :host([compact]) .compact-hide-when-clear { display: none; }
+  :host([compact]) .compact-library-choices { display: grid; gap: 6px; }
+  :host([compact]) .compact-library-choice { align-items: center; background: rgba(255,255,255,.88); border: 1px solid rgba(53,141,175,.42); border-radius: 10px; cursor: pointer; display: flex; font-size: 1rem; gap: 10px; min-block-size: 42px; padding: 0 10px; }
+  :host([compact]) .compact-library-choice:has(input:checked) { background: rgba(10,132,255,.18); border-color: var(--aero-color-focus,#0a84ff); box-shadow: inset 0 0 0 1px var(--aero-color-focus,#0a84ff); }
+  :host([compact]) .compact-library-choice input[type="radio"] { accent-color: var(--aero-color-focus,#0a84ff); block-size: 42px; flex: 0 0 42px; inline-size: 42px; margin: 0; padding: 0; }
+  :host([compact]) .compact-library-choice span { font-weight: 750; min-inline-size: 0; overflow-wrap: anywhere; }
+  :host([compact]) .compact-library-actions { border-block-start: 1px solid rgba(53,141,175,.32); margin-block-start: 2px; padding-block-start: 8px; }
+  @media (max-width: 430px) { .panel { border-radius: 10px; padding: 12px; } .row > button { flex: 1 1 auto; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+`;
+/**
+* Presenter base with deferred DOM setup and reconnect-safe delegated listeners.
+*/
+var AeroPresenterElement = class extends HTMLElement {
+	constructor() {
+		super();
+		/** @type {AeroPresenterSnapshot} */
+		this.presenterSnapshot = Object.freeze({});
+		this.boundClick = (event) => this.handleDelegatedClick(event);
+		this.boundChange = (event) => this.handleDelegatedChange(event);
+		this.boundSubmit = (event) => this.handleDelegatedSubmit(event);
+		this.boundKeydown = (event) => this.handleDelegatedKeydown(event);
+	}
+	/** Boolean compact rendering mode; equivalent to the provider-neutral `[compact]` attribute. @returns {boolean} */
+	get compact() {
+		return this.hasAttribute("compact");
+	}
+	/** @param {boolean} value */
+	set compact(value) {
+		this.toggleAttribute("compact", value === true);
+	}
+	connectedCallback() {
+		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+		this.shadowRoot?.addEventListener("click", this.boundClick);
+		this.shadowRoot?.addEventListener("change", this.boundChange);
+		this.shadowRoot?.addEventListener("submit", this.boundSubmit);
+		this.shadowRoot?.addEventListener("keydown", this.boundKeydown);
+		this.render();
+	}
+	disconnectedCallback() {
+		this.shadowRoot?.removeEventListener("click", this.boundClick);
+		this.shadowRoot?.removeEventListener("change", this.boundChange);
+		this.shadowRoot?.removeEventListener("submit", this.boundSubmit);
+		this.shadowRoot?.removeEventListener("keydown", this.boundKeydown);
+	}
+	/** @param {AeroPresenterSnapshot} snapshot */
+	setSnapshot(snapshot) {
+		this.presenterSnapshot = narrowAeroPresenterSnapshot(snapshot);
+		this.render();
+	}
+	/** @returns {void} */
+	render() {}
+	/** @param {Event} event @returns {void} */
+	handleDelegatedClick(event) {
+		const target = event.composedPath()[0];
+		if (!(target instanceof HTMLElement)) return;
+		const type = target.dataset.intent;
+		if (!type || target.getAttribute("aria-disabled") === "true" || target instanceof HTMLButtonElement && target.disabled) return;
+		this.onIntent(type, target);
+	}
+	/** @param {Event} event @returns {void} */
+	handleDelegatedChange(event) {
+		const target = event.composedPath()[0];
+		if (!(target instanceof HTMLInputElement || target instanceof HTMLSelectElement)) return;
+		const type = target.dataset.intent;
+		if (type) this.onIntent(type, target);
+	}
+	/** @param {Event} event @returns {void} */
+	handleDelegatedSubmit(event) {
+		const target = event.composedPath()[0];
+		if (!(target instanceof HTMLFormElement) || target.dataset.form !== "search") return;
+		event.preventDefault();
+		const input = this.shadowRoot?.querySelector("input[data-field='query']");
+		this.emitIntent("beatsaver-search", { query: input instanceof HTMLInputElement ? input.value.trim().slice(0, 256) : "" });
+	}
+	/** @param {KeyboardEvent} event @returns {void} */
+	handleDelegatedKeydown(event) {}
+	/** @param {string} type @param {HTMLElement} target @returns {void} */
+	onIntent(type, target) {
+		const value = target instanceof HTMLInputElement || target instanceof HTMLSelectElement ? target.value : target.dataset.value ?? "";
+		this.emitIntent(type, value === "" ? {} : { value });
+	}
+	/** @param {string} type @param {Record<string, string | number | boolean | null>} [payload] @returns {void} */
+	emitIntent(type, payload = {}) {
+		/** @type {AeroUiIntentDetail} */
+		const detail = Object.freeze({
+			type,
+			payload: Object.freeze({ ...payload })
+		});
+		this.dispatchEvent(new CustomEvent(aeroUiIntentEventName, {
+			bubbles: true,
+			composed: true,
+			detail
+		}));
+	}
+	/** @param {string} markup @returns {void} */
+	renderMarkup(markup) {
+		if (!this.shadowRoot || !this.isConnected) return;
+		const focused = this.shadowRoot.activeElement;
+		const focusIdentity = focused instanceof HTMLElement ? Object.freeze({
+			intent: focused.dataset.intent ?? "",
+			value: focused.dataset.value ?? "",
+			field: focused.dataset.field ?? ""
+		}) : null;
+		this.shadowRoot.innerHTML = `<style>${sharedStyles}</style>${markup}`;
+		if (focusIdentity && (focusIdentity.intent || focusIdentity.field)) {
+			const controls = this.shadowRoot.querySelectorAll("button,input,select");
+			for (const control of controls) if (control instanceof HTMLElement && (control.dataset.intent ?? "") === focusIdentity.intent && (control.dataset.value ?? "") === focusIdentity.value && (control.dataset.field ?? "") === focusIdentity.field) {
+				control.focus();
+				break;
+			}
+		}
+	}
+};
+/** BeatSaver discovery, detail, version, difficulty and local-import intent presenter. */
+var AeroBeatSaverBrowser = class extends AeroPresenterElement {
+	render() {
+		const state = readString(this.presenterSnapshot, "state", "idle");
+		const query = readString(this.presenterSnapshot, "query", "");
+		const results = readRecordList(this.presenterSnapshot, "results").slice(0, 50);
+		const selected = readRecord(this.presenterSnapshot, "selectedMap");
+		const selectedMapId = selected ? readString(selected, "mapId", "") : "";
+		const selectedResultIndex = results.findIndex((result) => readString(result, "mapId", "") === selectedMapId);
+		const checkedResultIndex = results.length ? Math.max(0, selectedResultIndex) : -1;
+		const versions = readRecordList(this.presenterSnapshot, "versions");
+		const difficulties = readStringList(this.presenterSnapshot, "difficulties");
+		const selectedVersion = readString(this.presenterSnapshot, "selectedVersionHash", "");
+		const selectedDifficulty = readString(this.presenterSnapshot, "selectedDifficulty", "");
+		const error = readString(this.presenterSnapshot, "errorMessage", "");
+		const busy = state === "loading";
+		this.renderMarkup(`
+      <section class="panel" part="panel" aria-labelledby="beatsaver-heading">
+        <h2 id="beatsaver-heading">Find BeatSaver maps</h2>
+        <form class="row" part="search" data-form="search">
+          <label style="flex:1 1 14rem"><span class="compact-field-label">Search maps</span><input part="search-input" data-field="query" aria-label="Search maps" value="${escapeAttribute(query)}" autocomplete="off" ${busy ? "disabled" : ""}></label>
+          <button part="search-button" type="submit" ${busy ? "disabled" : ""}>Search</button>
+          <button part="latest-button" type="button" data-intent="beatsaver-latest" ${busy ? "disabled" : ""}>Latest</button>
+          <button part="local-import-button" type="button" data-intent="local-zip-request">Choose local ZIP</button>
+        </form>
+        <p class="live compact-status ${error ? "error" : "muted"}" role="status" aria-live="polite">${escapeHtml(error || statusText(state, results.length))}</p>
+        <div class="cards choice-radios" part="results" role="radiogroup" aria-label="BeatSaver results">
+          ${results.map((result, index) => mapResultMarkup(result, index === checkedResultIndex)).join("") || `<p class="muted">${state === "empty" ? "No compatible maps found." : "Search or browse latest maps."}</p>`}
+        </div>
+        ${selected ? `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(readString(selected, "name", "Selected map"))}</h3><p class="muted">${escapeHtml(readString(selected, "songAuthorName", ""))} · mapped by ${escapeHtml(readString(selected, "levelAuthorName", "Unknown"))}</p>
+          <label><span class="compact-field-label">Version</span><select aria-label="Version" part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
+          <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
+          <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>` : ""}
+      </section>`);
+	}
+	/** Map radios commit on `change`; action buttons retain the inherited click path. @param {Event} event */
+	handleDelegatedClick(event) {
+		const target = event.composedPath()[0];
+		if (target instanceof HTMLInputElement && target.type === "radio") return;
+		super.handleDelegatedClick(event);
+	}
+	/** @param {string} type @param {HTMLElement} target */
+	onIntent(type, target) {
+		const selectedMap = readRecord(this.presenterSnapshot, "selectedMap");
+		const mapId = selectedMap ? readString(selectedMap, "mapId", "") : "";
+		const versionHash = readString(this.presenterSnapshot, "selectedVersionHash", "");
+		const difficultyId = readString(this.presenterSnapshot, "selectedDifficulty", "");
+		if (type === "beatsaver-select-map") {
+			this.emitIntent(type, { mapId: target.dataset.value ?? "" });
+			return;
+		}
+		if (type === "beatsaver-search") {
+			const input = this.shadowRoot?.querySelector("input[data-field='query']");
+			this.emitIntent(type, { query: input instanceof HTMLInputElement ? input.value.trim() : "" });
+			return;
+		}
+		if (type === "beatsaver-version-select") {
+			this.emitIntent(type, {
+				mapId,
+				versionHash: target instanceof HTMLSelectElement ? target.value : ""
+			});
+			return;
+		}
+		if (type === "beatsaver-difficulty-select") {
+			this.emitIntent(type, {
+				mapId,
+				versionHash,
+				difficultyId: target instanceof HTMLSelectElement ? target.value : ""
+			});
+			return;
+		}
+		if (type === "beatsaver-import") {
+			const versionSelect = this.shadowRoot?.querySelector("select[data-intent='beatsaver-version-select']");
+			const difficultySelect = this.shadowRoot?.querySelector("select[data-intent='beatsaver-difficulty-select']");
+			this.emitIntent(type, {
+				mapId,
+				versionHash: versionSelect instanceof HTMLSelectElement ? versionSelect.value : versionHash,
+				difficultyId: difficultySelect instanceof HTMLSelectElement ? difficultySelect.value : difficultyId
+			});
+			return;
+		}
+		this.emitIntent(type);
+	}
+};
+/** Worker conversion progress and cancellation presenter. */
+var AeroContentImportProgress = class extends AeroPresenterElement {
+	render() {
+		const state = readString(this.presenterSnapshot, "state", "queued");
+		const progress = clamp$1(readNumber(this.presenterSnapshot, "progress", 0), 0, 1);
+		const jobId = readString(this.presenterSnapshot, "jobId", "");
+		const error = readString(this.presenterSnapshot, "errorMessage", "");
+		const cancellable = ![
+			"complete",
+			"cancelled",
+			"failed"
+		].includes(state);
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="import-heading"><h2 id="import-heading">Content import</h2><p class="live ${error ? "error" : ""}" role="status" aria-live="polite">${escapeHtml(error || `${titleCase(state)} · ${Math.round(progress * 100)}%`)}</p><progress part="progress" max="1" value="${progress}" aria-label="Import progress"></progress><button part="cancel-button" type="button" data-intent="content-import-cancel" data-value="${escapeAttribute(jobId)}" ${cancellable ? "" : "disabled"}>Cancel import</button></section>`);
+	}
+	/** @param {string} type @param {HTMLElement} target */
+	onIntent(type, target) {
+		this.emitIntent(type, { jobId: target.dataset.value ?? "" });
+	}
+};
+/** Locally authored package and quota presenter. */
+var AeroContentLibrary = class extends AeroPresenterElement {
+	static observedAttributes = ["compact"];
+	constructor() {
+		super();
+		this.pendingDeletePackageId = "";
+		this.pendingSelectedPackageId = "";
+	}
+	/** A host snapshot settles any optimistic compact radio selection. @param {AeroPresenterSnapshot} snapshot */
+	setSnapshot(snapshot) {
+		this.pendingSelectedPackageId = "";
+		super.setSnapshot(snapshot);
+	}
+	/** Compact changes the product composition, while removing it restores the default development markup. @param {string} name @param {string | null} oldValue @param {string | null} newValue */
+	attributeChangedCallback(name, oldValue, newValue) {
+		if (name === "compact" && oldValue !== newValue && this.isConnected) this.render();
+	}
+	render() {
+		const packages = readRecordList(this.presenterSnapshot, "packages").slice(0, 100);
+		const used = readStorageBytes(this.presenterSnapshot, "usedBytes");
+		const quota = readStorageBytes(this.presenterSnapshot, "quotaBytes");
+		const error = readString(this.presenterSnapshot, "errorMessage", "");
+		const snapshotSelectedPackageId = readString(this.presenterSnapshot, "selectedPackageId", "");
+		const selectedPackageId = this.pendingSelectedPackageId && packages.some((item) => readString(item, "packageId", "") === this.pendingSelectedPackageId) ? this.pendingSelectedPackageId : snapshotSelectedPackageId;
+		const selectedPackageIndex = packages.findIndex((item) => readString(item, "packageId", "") === selectedPackageId);
+		const checkedPackageIndex = packages.length ? Math.max(0, selectedPackageIndex) : -1;
+		if (this.pendingDeletePackageId && !packages.some((item) => readString(item, "packageId", "") === this.pendingDeletePackageId)) this.pendingDeletePackageId = "";
+		if (this.compact) {
+			this.renderMarkup(compactLibraryMarkup(packages, checkedPackageIndex, this.pendingDeletePackageId, error));
+			return;
+		}
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards choice-radios" part="items" role="radiogroup" aria-label="Available library packages">${packages.map((item, index) => libraryItemMarkup(item, this.pendingDeletePackageId, index === checkedPackageIndex)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
+	}
+	/** Package radios commit on `change`; package actions retain the inherited click path. @param {Event} event */
+	handleDelegatedClick(event) {
+		const target = event.composedPath()[0];
+		if (target instanceof HTMLInputElement && target.type === "radio") return;
+		super.handleDelegatedClick(event);
+	}
+	/** @param {string} type @param {HTMLElement} target */
+	onIntent(type, target) {
+		const packageId = target.dataset.value ?? "";
+		if (type === "library-select") {
+			this.emitIntent(type, { packageId });
+			if (this.compact) {
+				this.pendingSelectedPackageId = packageId;
+				this.pendingDeletePackageId = "";
+				this.render();
+				queueMicrotask(() => [...this.shadowRoot?.querySelectorAll("input[name='library-package-choice']") ?? []].find((input) => input instanceof HTMLInputElement && input.value === packageId)?.focus());
+			}
+			return;
+		}
+		if (type === "library-delete-request") {
+			this.pendingDeletePackageId = packageId;
+			this.render();
+			queueMicrotask(() => {
+				const confirm = this.shadowRoot?.querySelector("button[data-intent='library-delete']");
+				if (confirm instanceof HTMLElement) confirm.focus();
+			});
+			return;
+		}
+		if (type === "library-delete-cancel") {
+			this.pendingDeletePackageId = "";
+			this.render();
+			return;
+		}
+		if (type === "library-delete") {
+			this.pendingDeletePackageId = "";
+			this.emitIntent(type, { packageId });
+			this.render();
+			return;
+		}
+		this.emitIntent(type, { packageId });
+	}
+};
+/** T-pose hold/cooldown/success badge. */
+var AeroCalibrationBadge = class extends AeroPresenterElement {
+	render() {
+		const state = readString(this.presenterSnapshot, "state", "waiting");
+		const progress = clamp$1(readNumber(this.presenterSnapshot, "progress", 0), 0, 1);
+		const message = readString(this.presenterSnapshot, "message", calibrationMessage(state));
+		const calibrationId = readString(this.presenterSnapshot, "calibrationId", "");
+		this.renderMarkup(`<section class="panel" part="badge" aria-labelledby="calibration-badge-heading"><div class="row"><h2 id="calibration-badge-heading">T-pose calibration</h2><span class="pill" part="state">${escapeHtml(titleCase(state))}</span></div><p class="live" role="status" aria-live="polite">${escapeHtml(message)}</p><progress part="hold-progress" max="1" value="${progress}" aria-label="T-pose hold progress"></progress><p class="muted">${calibrationId ? `Calibration ${escapeHtml(calibrationId)}` : "Session calibration required"}</p><button part="reset-button" type="button" data-intent="calibration-reset">Reset calibration</button></section>`);
+	}
+};
+/** Renderer-owned surface host for Flow and Spatial Grid. */
+var AeroGridPlayfield = class extends AeroPresenterElement {
+	render() {
+		const mode = readString(this.presenterSnapshot, "mode", "flow");
+		const dimmed = readBoolean(this.presenterSnapshot, "dimmed", false);
+		const label = readString(this.presenterSnapshot, "label", `${titleCase(mode)} playfield`);
+		if (!this.shadowRoot?.querySelector(".playfield")) this.renderMarkup(`<section class="playfield" part="playfield"><div class="surface" part="render-surface" data-render-surface></div><div class="receptors" aria-hidden="true">${Array.from({ length: 12 }, (_, index) => `<i data-cell="${index}"></i>`).join("")}</div></section><style>:host{block-size:100%;inline-size:100%;min-block-size:12rem}.playfield{background:linear-gradient(180deg,var(--aero-playfield-background-start,#071426),var(--aero-playfield-background-end,#153b5d));block-size:100%;border-radius:12px;inline-size:100%;overflow:hidden;position:relative}.playfield.dimmed{filter:brightness(.45)}.surface{inset:0;position:absolute}.receptors{display:grid;gap:2%;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);inset:8%;position:absolute}.receptors i{border:1px solid color-mix(in srgb,var(--aero-role-receptor,#d9f5ff) 32%,transparent);border-radius:8px}</style>`);
+		const playfield = this.shadowRoot?.querySelector(".playfield");
+		if (playfield instanceof HTMLElement) {
+			playfield.classList.toggle("dimmed", dimmed);
+			playfield.setAttribute("aria-label", label);
+		}
+	}
+	/** @returns {HTMLElement | null} Public renderer attachment surface. */
+	getRenderSurface() {
+		const surface = this.shadowRoot?.querySelector("[data-render-surface]");
+		return surface instanceof HTMLElement ? surface : null;
+	}
+};
+/** Flow HUD presenter. */
+var AeroFlowHud = class extends AeroPresenterElement {
+	render() {
+		const score = readNumber(this.presenterSnapshot, "score", 0);
+		const combo = readNumber(this.presenterSnapshot, "combo", 0);
+		const direction = readString(this.presenterSnapshot, "direction", "—");
+		this.renderMarkup(`<section class="panel row" part="hud" aria-label="Flow status"><strong>Flow</strong><span part="score">Score ${score}</span><span part="combo">Combo ${combo}</span><span part="direction">Direction ${escapeHtml(direction)}</span></section>`);
+	}
+};
+/** Semantic two-lane Boxing HUD presenter. */
+var AeroBoxingTrackHud = class extends AeroPresenterElement {
+	render() {
+		const left = readString(this.presenterSnapshot, "leftAction", "Ready");
+		const right = readString(this.presenterSnapshot, "rightAction", "Ready");
+		const defense = readString(this.presenterSnapshot, "defense", "Clear");
+		this.renderMarkup(`<section class="tracks" part="hud" aria-label="Semantic Track Boxing"><div class="lane left" part="left-lane"><strong>Athlete left</strong><span>${escapeHtml(left)}</span></div><div class="lane right" part="right-lane"><strong>Athlete right</strong><span>${escapeHtml(right)}</span></div><div class="defense" part="defense-layer">Defense: ${escapeHtml(defense)}</div></section><style>.tracks{display:grid;gap:8px;grid-template-columns:1fr 1fr}.lane,.defense{border-radius:10px;color:var(--aero-role-on-color,#071426);display:grid;gap:4px;min-block-size:64px;padding:12px}.left{background:var(--aero-role-left,#2693ff)}.right{background:var(--aero-role-right,#39c96b)}.defense{background:var(--aero-role-guard,#9a67ea);grid-column:1/-1;min-block-size:auto}</style>`);
+	}
+};
+/** Spatial Grid Boxing HUD presenter. */
+var AeroBoxingSpatialHud = class extends AeroPresenterElement {
+	render() {
+		const target = readString(this.presenterSnapshot, "target", "Ready");
+		const blockedCells = readNumberList(this.presenterSnapshot, "blockedCells");
+		const safeCell = readNumber(this.presenterSnapshot, "safeCell", -1);
+		this.renderMarkup(`<section class="panel" part="hud" aria-label="Spatial Grid Boxing"><div class="row"><strong>Spatial Grid</strong><span>${escapeHtml(target)}</span></div><p class="muted">Blocked cells: ${blockedCells.length ? blockedCells.join(", ") : "none"}${safeCell >= 0 ? ` · safe cell ${safeCell}` : ""}</p></section>`);
+	}
+};
+/** Tracking-loss pause presenter. */
+var AeroTrackingPause = class extends AeroPresenterElement {
+	constructor() {
+		super();
+		this.dialogActive = false;
+		/** @type {HTMLElement | null} */
+		this.returnFocus = null;
+	}
+	render() {
+		const active = readBoolean(this.presenterSnapshot, "active", false);
+		const message = readString(this.presenterSnapshot, "message", "Tracking paused. Recalibrate to continue.");
+		const reason = readString(this.presenterSnapshot, "reason", "tracking_lost");
+		if (active && !this.dialogActive) this.returnFocus = deepActiveElement$1();
+		const restoreFocus = !active && this.dialogActive ? this.returnFocus : null;
+		this.dialogActive = active;
+		this.toggleAttribute("hidden", !active);
+		this.renderMarkup(`<section class="overlay" part="overlay" role="alertdialog" aria-modal="true" aria-labelledby="tracking-heading" aria-describedby="tracking-message"><h2 id="tracking-heading">Workout paused</h2><p id="tracking-message">${escapeHtml(message)}</p><span class="pill">${escapeHtml(reason)}</span><button part="recalibrate-button" type="button" data-intent="calibration-reset">Recalibrate</button></section><style>:host{inset:0;position:absolute;z-index:20}:host([hidden]){display:none}.overlay{align-content:center;background:rgba(4,17,30,var(--aero-overlay-dim-opacity,.72));block-size:100%;color:#fff;display:grid;gap:14px;inline-size:100%;justify-items:center;padding:24px;text-align:center}</style>`);
+		queueMicrotask(() => {
+			if (active) {
+				const action = this.shadowRoot?.querySelector("button[data-intent='calibration-reset']");
+				if (action instanceof HTMLElement) action.focus();
+			} else if (restoreFocus?.isConnected) restoreFocus.focus();
+		});
+	}
+	disconnectedCallback() {
+		super.disconnectedCallback();
+		if (this.dialogActive && this.returnFocus?.isConnected) this.returnFocus.focus();
+	}
+};
+/** Frozen-time resume countdown presenter. */
+var AeroResumeCountdown = class extends AeroPresenterElement {
+	render() {
+		const active = readBoolean(this.presenterSnapshot, "active", false);
+		const value = readNumber(this.presenterSnapshot, "value", 3);
+		const frozen = readBoolean(this.presenterSnapshot, "frozen", true);
+		this.toggleAttribute("hidden", !active);
+		this.renderMarkup(`<div class="countdown" part="countdown" role="status" aria-live="assertive" aria-label="Resume countdown ${value}"><strong>${value}</strong><span>${frozen ? "Workout time frozen" : "Get ready"}</span></div><style>:host{display:grid;inset:0;place-items:center;pointer-events:none;position:absolute;z-index:19}:host([hidden]){display:none}.countdown{align-items:center;background:rgba(4,17,30,.82);border-radius:50%;color:#fff;display:grid;inline-size:8rem;justify-items:center;min-block-size:8rem;padding:12px;text-align:center}.countdown strong{font-size:3.6rem;line-height:1}</style>`);
+	}
+};
+/** Cosmetic environment presenter; loading/fallback policy remains outside UI. */
+var AeroBackgroundEnvironment = class extends AeroPresenterElement {
+	render() {
+		const label = readString(this.presenterSnapshot, "label", "AeroBeat environment");
+		const url = readString(this.presenterSnapshot, "url", "");
+		const fallback = readBoolean(this.presenterSnapshot, "fallback", false);
+		this.renderMarkup(`<div class="environment" part="environment" role="img" aria-label="${escapeAttribute(label)}"><span class="pill">${fallback ? "Fallback environment" : escapeHtml(label)}</span></div><style>:host{inset:0;position:absolute;z-index:-1}.environment{background:linear-gradient(160deg,var(--aero-playfield-background-start,#071426),var(--aero-playfield-background-end,#153b5d));block-size:100%;inline-size:100%;padding:12px}</style>`);
+		const environment = this.shadowRoot?.querySelector(".environment");
+		if (environment instanceof HTMLElement && isSafeVisualUrl(url)) environment.style.backgroundImage = `url(${JSON.stringify(url)})`;
+	}
+};
+/** Child-owned fullscreen request presenter. */
+var AeroFullscreenButton = class extends AeroPresenterElement {
+	render() {
+		const supported = readBoolean(this.presenterSnapshot, "supported", false);
+		const active = readBoolean(this.presenterSnapshot, "active", false);
+		const pending = readBoolean(this.presenterSnapshot, "requestPending", false);
+		const error = readString(this.presenterSnapshot, "errorCode", "");
+		this.renderMarkup(`<div class="stack"><button part="control" type="button" data-intent="${active ? "fullscreen-exit" : "fullscreen-request"}" aria-pressed="${active}" ${supported && !pending ? "" : "disabled"}>${active ? "Exit fullscreen" : "Enter fullscreen"}</button>${error ? `<span class="error" role="status">${escapeHtml(error)}</span>` : ""}</div>`);
+	}
+};
+/** Capability and limitation presenter. */
+var AeroCapabilitiesPanel = class extends AeroPresenterElement {
+	render() {
+		const limitations = readStringList(this.presenterSnapshot, "limitations");
+		this.renderMarkup(`<section class="panel ${limitations.length ? "" : "compact-hide-when-clear"}" part="panel" aria-labelledby="capabilities-heading"><h2 id="capabilities-heading">Device capabilities</h2><div class="cards compact-telemetry">${[
+			"camera",
+			"fullscreen",
+			"autoplay",
+			"webgl2",
+			"indexedDb",
+			"worker",
+			"directBeatSaverCors",
+			"localZipImport"
+		].map((name) => `<span class="pill">${escapeHtml(titleCase(name))}: ${readBoolean(this.presenterSnapshot, name, false) ? "available" : "unavailable"}</span>`).join("")}</div>${limitations.length ? `<ul part="limitations" aria-label="Device limitations">${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">No reported limitations.</p>`}</section>`);
+	}
+};
+/** User-safe error presenter. */
+var AeroErrorPanel = class extends AeroPresenterElement {
+	render() {
+		const code = readString(this.presenterSnapshot, "code", "unknown_error");
+		const message = readString(this.presenterSnapshot, "message", "An unexpected error occurred.");
+		const retryable = readBoolean(this.presenterSnapshot, "retryable", false);
+		this.renderMarkup(`<section class="panel" part="panel" role="alert"><h2>Something needs attention</h2><p class="error">${escapeHtml(message)}</p><span class="pill">${escapeHtml(code)}</span>${retryable ? `<button part="retry-button" type="button" data-intent="error-retry">Try again</button>` : ""}</section>`);
+	}
+};
+var prototypeOptions = Object.freeze([
+	Object.freeze({
+		id: "flow",
+		label: "Flow · Grid",
+		productLabel: "Flow",
+		rulesetId: rulesetIds[0],
+		recipeId: ""
+	}),
+	Object.freeze({
+		id: "semantic-row",
+		label: "Semantic Track · Row Family",
+		productLabel: "Semantic Row",
+		rulesetId: rulesetIds[1],
+		recipeId: conversionRecipeIds[0]
+	}),
+	Object.freeze({
+		id: "spatial-row",
+		label: "Spatial Grid · Row Family",
+		productLabel: "Spatial Row",
+		rulesetId: rulesetIds[2],
+		recipeId: conversionRecipeIds[0]
+	}),
+	Object.freeze({
+		id: "semantic-cut",
+		label: "Semantic Track · Cut Family",
+		productLabel: "Semantic Cut",
+		rulesetId: rulesetIds[1],
+		recipeId: conversionRecipeIds[1]
+	}),
+	Object.freeze({
+		id: "spatial-cut",
+		label: "Spatial Grid · Cut Family",
+		productLabel: "Spatial Cut",
+		rulesetId: rulesetIds[2],
+		recipeId: conversionRecipeIds[1]
+	})
+]);
+var profileClasses = Object.freeze([
+	"live_visual",
+	"between_run_ruleset",
+	"converter_regeneration"
+]);
+var scoringChangeStates = Object.freeze([
+	"idle",
+	"calibrating",
+	"paused_manual",
+	"paused_tracking",
+	"completed",
+	"stopped"
+]);
+/** Flow/four-Boxing prototype and three-class experimental profile presenter. Product embeds may narrow it to Gameplay or Visuals with `[scope]`. */
+var AeroPrototypeSelector = class extends AeroPresenterElement {
+	static get observedAttributes() {
+		return ["scope"];
+	}
+	/** Narrow product view, or the unchanged full development view when omitted. @returns {"gameplay" | "visuals" | "full"} */
+	get scope() {
+		const value = this.getAttribute("scope");
+		return value === "gameplay" || value === "visuals" ? value : "full";
+	}
+	/** @param {string | null} value */
+	set scope(value) {
+		if (value === "gameplay" || value === "visuals") this.setAttribute("scope", value);
+		else this.removeAttribute("scope");
+	}
+	/** @returns {void} */
+	attributeChangedCallback() {
+		this.render();
+	}
+	/** Atomically accept an exact public profile snapshot; malformed input preserves prior state. @param {AeroPresenterSnapshot} snapshot */
+	setSnapshot(snapshot) {
+		if (!isPlainRecord$2(snapshot) || Object.hasOwn(snapshot, "profileClasses") && !isValidProfilePresenterSnapshot(snapshot)) return;
+		super.setSnapshot(snapshot);
+	}
+	/** Deterministic, immutable host-readable profile state; never a bundle. @returns {Readonly<{selectedProfileId:string,sessionState:string,profileClasses:readonly ProfileClassState[]}>} */
+	getProfilePresenterState() {
+		const selectedSnapshot = readString(this.presenterSnapshot, "selectedProfileId", "flow");
+		return Object.freeze({
+			selectedProfileId: prototypeOptions.some((option) => option.id === selectedSnapshot) ? selectedSnapshot : "flow",
+			sessionState: readString(this.presenterSnapshot, "sessionState", "idle"),
+			profileClasses: normalizeProfileClassStates(this.presenterSnapshot)
+		});
+	}
+	render() {
+		const selectedSnapshot = readString(this.presenterSnapshot, "selectedProfileId", "flow");
+		const selected = prototypeOptions.some((option) => option.id === selectedSnapshot) ? selectedSnapshot : "flow";
+		if (this.scope === "gameplay") {
+			const options = prototypeOptions.map((option) => Object.freeze({
+				id: option.id,
+				label: option.productLabel,
+				profileClass: "",
+				profileVersion: "",
+				contentHash: ""
+			}));
+			this.renderMarkup(productRadioMarkup("Gameplay", "gameplay-choice", options, Math.max(0, options.findIndex((option) => option.id === selected)), "prototype-select"));
+			return;
+		}
+		if (this.scope === "visuals") {
+			const visualState = readRecordList(this.presenterSnapshot, "profileClasses").find((state) => readString(state, "class", "") === "live_visual");
+			const active = visualState ? readRecord(visualState, "active") : null;
+			const options = visualState ? readRecordList(visualState, "profiles").map((profile) => Object.freeze({
+				id: readString(profile, "profileId", ""),
+				label: visualProfileLabel(readString(profile, "profileId", "")),
+				profileClass: "live_visual",
+				profileVersion: readString(profile, "profileVersion", ""),
+				contentHash: readString(profile, "contentHash", "")
+			})).filter((option) => option.id !== "") : [];
+			const activeIndex = active ? options.findIndex((option) => option.id === readString(active, "profileId", "") && option.profileVersion === readString(active, "profileVersion", "") && option.contentHash === readString(active, "contentHash", "")) : -1;
+			this.renderMarkup(productRadioMarkup("Visuals", "visual-choice", options, Math.max(0, activeIndex), "prototype-profile-select"));
+			return;
+		}
+		const sessionState = readString(this.presenterSnapshot, "sessionState", "idle");
+		const scoringDisabled = !scoringChangeStates.includes(sessionState);
+		const scoringReason = scoringDisabled ? sessionState === "countdown" ? "Scoring profiles are locked during countdown." : "Pause or finish the run to change scoring profiles." : "Scoring profile changes apply between runs.";
+		const classStates = normalizeProfileClassStates(this.presenterSnapshot);
+		const statusText = classStates.length === 3 ? "Visual, scoring, and converter profile state loaded." : "Profile state is incomplete.";
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="profiles-heading"><h2 id="profiles-heading">Workout prototype</h2><div class="cards" part="profiles" role="radiogroup" aria-label="Prototype presentation">${prototypeOptions.map((option) => `<button type="button" part="profile" role="radio" aria-checked="${selected === option.id}" tabindex="${selected === option.id ? "0" : "-1"}" data-intent="prototype-select" data-value="${option.id}"><strong>${escapeHtml(option.label)}</strong><span class="muted">${escapeHtml(option.rulesetId)}${option.recipeId ? ` · ${escapeHtml(option.recipeId)}` : ""}</span></button>`).join("")}</div><p class="muted live compact-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><section class="stack" part="telemetry" aria-label="Experimental profile management">${classStates.map((state) => profileClassMarkup(state, scoringDisabled, scoringReason)).join("") || `<p class="muted">No valid experimental profile state loaded.</p>`}</section><div class="row" aria-label="Profile bundle actions"><button type="button" part="import-button" data-intent="tuning-import-request" aria-label="Import experimental profile bundle">Import profiles</button><button type="button" part="export-button" data-intent="tuning-export" aria-label="Export experimental profile bundle">Export profiles</button><button type="button" part="reset-button" data-intent="tuning-reset" aria-label="Reset experimental profiles">Reset profiles</button></div></section>`);
+	}
+	/** Native scoped radios commit on `change`; full-view buttons retain the inherited click path. @param {Event} event */
+	handleDelegatedClick(event) {
+		const target = event.composedPath()[0];
+		if (this.scope !== "full" && target instanceof HTMLInputElement && target.type === "radio") return;
+		super.handleDelegatedClick(event);
+	}
+	/** @param {string} type @param {HTMLElement} target */
+	onIntent(type, target) {
+		if (type === "prototype-select") {
+			for (const radio of this.shadowRoot?.querySelectorAll("button[role='radio']") ?? []) if (radio instanceof HTMLButtonElement) {
+				const selected = radio === target;
+				radio.tabIndex = selected ? 0 : -1;
+				radio.setAttribute("aria-checked", selected ? "true" : "false");
+			}
+			this.emitIntent(type, { profileId: target.dataset.value ?? "" });
+		} else if (type === "prototype-profile-select") this.emitIntent(type, {
+			profileClass: target.dataset.profileClass ?? "",
+			profileId: target.dataset.value ?? "",
+			profileVersion: target.dataset.profileVersion ?? "",
+			contentHash: target.dataset.contentHash ?? ""
+		});
+		else this.emitIntent(type);
+	}
+	/** @param {KeyboardEvent} event */
+	handleDelegatedKeydown(event) {
+		const target = event.composedPath()[0];
+		if (!(target instanceof HTMLButtonElement) || target.getAttribute("role") !== "radio") return;
+		const radios = [...this.shadowRoot?.querySelectorAll("button[role='radio']") ?? []].filter((item) => item instanceof HTMLButtonElement);
+		const currentIndex = radios.indexOf(target);
+		if (currentIndex < 0) return;
+		let nextIndex = currentIndex;
+		if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % radios.length;
+		else if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (currentIndex - 1 + radios.length) % radios.length;
+		else if (event.key === "Home") nextIndex = 0;
+		else if (event.key === "End") nextIndex = radios.length - 1;
+		else return;
+		event.preventDefault();
+		for (const [index, radio] of radios.entries()) {
+			radio.tabIndex = index === nextIndex ? 0 : -1;
+			radio.setAttribute("aria-checked", index === nextIndex ? "true" : "false");
+		}
+		const next = radios[nextIndex];
+		next.focus();
+		this.emitIntent("prototype-select", { profileId: next.dataset.value ?? "" });
+	}
+};
+/** @type {Readonly<Record<string, CustomElementConstructor>>} */
+var aeroProductPresenterConstructors = Object.freeze({
+	[elementNames.beatSaverBrowser]: AeroBeatSaverBrowser,
+	[elementNames.contentImportProgress]: AeroContentImportProgress,
+	[elementNames.contentLibrary]: AeroContentLibrary,
+	[elementNames.calibrationBadge]: AeroCalibrationBadge,
+	[elementNames.gridPlayfield]: AeroGridPlayfield,
+	[elementNames.flowHud]: AeroFlowHud,
+	[elementNames.boxingTrackHud]: AeroBoxingTrackHud,
+	[elementNames.boxingSpatialHud]: AeroBoxingSpatialHud,
+	[elementNames.trackingPause]: AeroTrackingPause,
+	[elementNames.countdown]: AeroResumeCountdown,
+	[elementNames.prototypeSelector]: AeroPrototypeSelector,
+	[elementNames.fullscreenButton]: AeroFullscreenButton,
+	"aero-background-environment": AeroBackgroundEnvironment,
+	"aero-capabilities-panel": AeroCapabilitiesPanel,
+	"aero-error-panel": AeroErrorPanel
+});
+/** Defines all Task 9 product presenter elements idempotently. @returns {void} */
+function defineAeroProductPresenters() {
+	for (const [name, constructor] of Object.entries(aeroProductPresenterConstructors)) if (!customElements.get(name)) customElements.define(name, constructor);
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {string} fallback @returns {string} */
+function readString(record, key, fallback) {
+	const value = record[key];
+	return typeof value === "string" ? value : fallback;
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {number} fallback @returns {number} */
+function readNumber(record, key, fallback) {
+	const value = record[key];
+	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {number} */
+function readStorageBytes(record, key) {
+	return Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.trunc(readNumber(record, key, 0))));
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @param {boolean} fallback @returns {boolean} */
+function readBoolean(record, key, fallback) {
+	const value = record[key];
+	return typeof value === "boolean" ? value : fallback;
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {Readonly<Record<string, unknown>> | null} */
+function readRecord(record, key) {
+	const value = record[key];
+	return isPlainRecord$2(value) ? value : null;
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {Readonly<Record<string, unknown>>[]} */
+function readRecordList(record, key) {
+	const value = record[key];
+	return Array.isArray(value) ? value.filter(isPlainRecord$2) : [];
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {string[]} */
+function readStringList(record, key) {
+	const value = record[key];
+	return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+/** @param {Readonly<Record<string, unknown>>} record @param {string} key @returns {number[]} */
+function readNumberList(record, key) {
+	const value = record[key];
+	return Array.isArray(value) ? value.filter((item) => typeof item === "number" && Number.isFinite(item)) : [];
+}
+/** @param {unknown} value @returns {value is Readonly<Record<string, unknown>>} */
+function isPlainRecord$2(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	try {
+		const prototype = Object.getPrototypeOf(value);
+		return prototype === Object.prototype || prototype === null;
+	} catch {
+		return false;
+	}
+}
+/** Narrow an external presenter snapshot to immutable JSON-like data. @param {unknown} value @returns {AeroPresenterSnapshot} */
+function narrowAeroPresenterSnapshot(value) {
+	const narrowed = narrowSnapshotValue(value, /* @__PURE__ */ new Set(), 0);
+	return isPlainRecord$2(narrowed) ? narrowed : Object.freeze({});
+}
+/** @param {unknown} value @param {Set<object>} seen @param {number} depth @returns {unknown} */
+function narrowSnapshotValue(value, seen, depth) {
+	if (value === null || typeof value === "boolean") return value;
+	if (typeof value === "string") return value.slice(0, 4096);
+	if (typeof value === "number") return Number.isFinite(value) ? value : void 0;
+	if (depth >= 10 || typeof value !== "object" || value === null || seen.has(value)) return void 0;
+	if (Array.isArray(value)) {
+		seen.add(value);
+		const items = [];
+		const length = Math.min(500, value.length);
+		for (let index = 0; index < length; index += 1) {
+			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+			if (!descriptor || !("value" in descriptor)) continue;
+			const narrowed = narrowSnapshotValue(descriptor.value, seen, depth + 1);
+			if (narrowed !== void 0) items.push(narrowed);
+		}
+		seen.delete(value);
+		return Object.freeze(items);
+	}
+	if (!isPlainRecord$2(value)) return void 0;
+	seen.add(value);
+	/** @type {Record<string, unknown>} */
+	const record = {};
+	try {
+		for (const key of Reflect.ownKeys(value).slice(0, 500)) {
+			if (typeof key !== "string") continue;
+			const descriptor = Object.getOwnPropertyDescriptor(value, key);
+			if (!descriptor?.enumerable || !("value" in descriptor)) continue;
+			const narrowed = narrowSnapshotValue(descriptor.value, seen, depth + 1);
+			if (narrowed !== void 0) record[key] = narrowed;
+		}
+	} catch {
+		seen.delete(value);
+		return;
+	}
+	seen.delete(value);
+	return Object.freeze(record);
+}
+/** @returns {HTMLElement | null} */
+function deepActiveElement$1() {
+	let active = document.activeElement;
+	while (active instanceof HTMLElement && active.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+	return active instanceof HTMLElement ? active : null;
+}
+/** @param {string} value @returns {string} */
+function escapeHtml(value) {
+	return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll("\"", "&quot;").replaceAll("'", "&#39;");
+}
+/** @param {string} value @returns {string} */
+function escapeAttribute(value) {
+	return escapeHtml(value).replaceAll("`", "&#96;");
+}
+/** @param {number} value @param {number} min @param {number} max @returns {number} */
+function clamp$1(value, min, max) {
+	return Math.min(max, Math.max(min, value));
+}
+/** @param {string} value @returns {string} */
+function titleCase(value) {
+	return value.replaceAll(/[_-]/gu, " ").replaceAll(/\b\w/gu, (letter) => letter.toUpperCase());
+}
+/** @param {string} state @param {number} count @returns {string} */
+function statusText(state, count) {
+	if (state === "loading") return "Loading BeatSaver maps…";
+	if (state === "empty") return "No compatible maps found.";
+	if (count > 0) return `${count} map${count === 1 ? "" : "s"} available.`;
+	return "Search or browse latest maps.";
+}
+/** @param {Readonly<Record<string, unknown>>} result @param {boolean} checked @returns {string} */
+function mapResultMarkup(result, checked) {
+	const id = readString(result, "mapId", "");
+	const name = readString(result, "name", "Untitled map");
+	const author = readString(result, "songAuthorName", "Unknown artist");
+	return `<article><label class="card choice-radio" part="result"><input type="radio" name="beatsaver-map-choice" value="${escapeAttribute(id)}" data-intent="beatsaver-select-map" data-value="${escapeAttribute(id)}" ${checked ? "checked" : ""}><span class="choice-copy"><strong>${escapeHtml(name)}</strong><span class="muted">${escapeHtml(author)} · ${escapeHtml(id)}</span></span></label></article>`;
+}
+/** @param {string} value @param {string} label @param {string} selected @returns {string} */
+function optionMarkup(value, label, selected) {
+	return `<option value="${escapeAttribute(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
+}
+/** Compact quick-choice library using the real persistence-summary shape. @param {readonly Readonly<Record<string, unknown>>[]} packages @param {number} checkedIndex @param {string} pendingDeletePackageId @param {string} error @returns {string} */
+function compactLibraryMarkup(packages, checkedIndex, pendingDeletePackageId, error) {
+	const usable = packages.map((item, sourceIndex) => ({
+		item,
+		sourceIndex,
+		id: readString(item, "packageId", ""),
+		base: compactLibraryBaseLabel(item)
+	})).filter((entry) => entry.id !== "");
+	const checked = usable.findIndex((entry) => entry.sourceIndex === checkedIndex);
+	const checkedUsableIndex = usable.length ? Math.max(0, checked) : -1;
+	const totals = /* @__PURE__ */ new Map();
+	for (const entry of usable) totals.set(entry.base, (totals.get(entry.base) ?? 0) + 1);
+	const positions = /* @__PURE__ */ new Map();
+	/** @type {string[]} */
+	const labels = [];
+	const choices = usable.map((entry, index) => {
+		const position = (positions.get(entry.base) ?? 0) + 1;
+		positions.set(entry.base, position);
+		const label = (totals.get(entry.base) ?? 0) > 1 ? `${entry.base} · ${position}` : entry.base;
+		labels[index] = label;
+		return `<label class="compact-library-choice" part="item"><input type="radio" name="library-package-choice" value="${escapeAttribute(entry.id)}" data-intent="library-select" data-value="${escapeAttribute(entry.id)}" aria-label="Select ${escapeAttribute(label)}" ${index === checkedUsableIndex ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`;
+	}).join("");
+	const selected = checkedUsableIndex >= 0 ? usable[checkedUsableIndex] : null;
+	const actions = selected ? compactLibraryActions(selected.item, pendingDeletePackageId, labels[checkedUsableIndex] ?? selected.base) : "";
+	return `<section class="panel compact-library" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">Downloaded songs</h2>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="compact-library-choices" part="items" role="radiogroup" aria-label="Downloaded songs">${choices || `<p class="muted compact-critical">No downloaded songs.</p>`}</div>${actions}</section>`;
+}
+/** @param {Readonly<Record<string, unknown>>} item @returns {string} */
+function compactLibraryBaseLabel(item) {
+	const songName = readString(item, "songName", readString(item, "name", "Downloaded song"));
+	const difficulty = readString(item, "difficulty", "");
+	return difficulty ? `${songName} · ${difficulty}` : songName;
+}
+/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {string} label @returns {string} */
+function compactLibraryActions(item, pendingDeletePackageId, label) {
+	const id = readString(item, "packageId", "");
+	const accessibleLabel = escapeAttribute(label);
+	const deleteControls = id !== "" && id === pendingDeletePackageId ? `<span role="status">Delete ${escapeHtml(label)}?</span><button type="button" aria-label="Confirm delete ${accessibleLabel}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm</button><button type="button" aria-label="Cancel deleting ${accessibleLabel}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleLabel}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
+	return `<div class="row compact-library-actions" part="selected-actions" aria-label="Selected song actions"><button type="button" aria-label="Export ${accessibleLabel}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div>`;
+}
+/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {boolean} checked @returns {string} */
+function libraryItemMarkup(item, pendingDeletePackageId, checked) {
+	const id = readString(item, "packageId", "");
+	const name = readString(item, "name", "Untitled package");
+	const variantCount = readNumber(item, "variantCount", 0);
+	const pending = id !== "" && id === pendingDeletePackageId;
+	const accessibleName = escapeAttribute(name);
+	const deleteControls = pending ? `<span role="status">Delete ${escapeHtml(name)}?</span><button type="button" aria-label="Confirm delete ${accessibleName}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm delete</button><button type="button" aria-label="Cancel deleting ${accessibleName}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleName}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
+	return `<article class="card" part="item"><label class="choice-radio"><input type="radio" name="library-package-choice" value="${escapeAttribute(id)}" data-intent="library-select" data-value="${escapeAttribute(id)}" aria-label="Select ${accessibleName}" ${checked ? "checked" : ""}><span class="choice-copy"><strong>${escapeHtml(name)}</strong><span class="muted">${variantCount} playable variant${variantCount === 1 ? "" : "s"}</span></span></label><div class="row"><button type="button" aria-label="Export ${accessibleName}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div></article>`;
+}
+/** @param {number} used @param {number} quota @returns {string} */
+function formatStorage(used, quota) {
+	if (quota <= 0) return `${formatBytes(used)} stored · quota unavailable`;
+	if (used > quota) return `${formatBytes(used)} of ${formatBytes(quota)} used · over quota`;
+	return `${formatBytes(used)} of ${formatBytes(quota)} used (${Math.round(used / quota * 100)}%)`;
+}
+/** @param {number} bytes @returns {string} */
+function formatBytes(bytes) {
+	if (bytes < 1024) return `${Math.max(0, Math.round(bytes))} B`;
+	if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KiB`;
+	return `${(bytes / 1048576).toFixed(1)} MiB`;
+}
+/** @param {string} state @returns {string} */
+function calibrationMessage(state) {
+	return {
+		waiting: "Step back until your upper body is visible.",
+		holding: "Hold a steady T-pose for four seconds.",
+		cooldown: "Calibration captured. Relax your arms.",
+		calibrated: "Calibration ready.",
+		tracking_lost: "Tracking lost. A fresh calibration is required.",
+		error: "Calibration could not complete."
+	}[state] ?? "Calibration required.";
+}
+/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:string,regenerationRequired:boolean}>} ProfileIdentity */
+/** @typedef {Readonly<{class:string,active:ProfileIdentity,profiles:readonly ProfileIdentity[],experimental:boolean,selectedContentHash:string,appliedContentHash:string,pendingContentHash:string|null,regenerationRequired:boolean}>} ProfileClassState */
+/** @typedef {Readonly<{id:string,label:string,profileClass:string,profileVersion:string,contentHash:string}>} ProductRadioOption */
+/** Native product radio group with no development identity text. @param {string} heading @param {string} name @param {readonly ProductRadioOption[]} options @param {number} selectedIndex @param {string} intent @returns {string} */
+function productRadioMarkup(heading, name, options, selectedIndex, intent) {
+	return `<section class="panel product-selector" part="panel" aria-labelledby="product-selector-heading"><h2 id="product-selector-heading">${escapeHtml(heading)}</h2><fieldset part="choices"><legend class="visually-hidden">Choose ${escapeHtml(heading)}</legend><div class="product-radios">${options.map((option, index) => `<label class="product-radio"><input type="radio" name="${escapeAttribute(name)}" value="${escapeAttribute(option.id)}" data-intent="${escapeAttribute(intent)}" data-value="${escapeAttribute(option.id)}" data-profile-class="${escapeAttribute(option.profileClass)}" data-profile-version="${escapeAttribute(option.profileVersion)}" data-content-hash="${escapeAttribute(option.contentHash)}" ${index === selectedIndex ? "checked" : ""}><span>${escapeHtml(option.label)}</span></label>`).join("")}</div></fieldset></section><style>:host([scope]) .product-selector{gap:8px}:host([scope]) fieldset{border:0;margin:0;min-inline-size:0;padding:0}:host([scope]) .product-radios{display:grid;gap:6px}:host([scope]) .product-radio{align-items:center;background:rgba(255,255,255,.72);border:1px solid rgba(53,141,175,.3);border-radius:10px;cursor:pointer;display:flex;font-size:1rem;gap:10px;min-block-size:42px;padding:0 10px}:host([scope]) .product-radio:has(input:checked){background:rgba(10,132,255,.14);border-color:var(--aero-color-focus,#0a84ff);box-shadow:inset 0 0 0 1px var(--aero-color-focus,#0a84ff)}:host([scope]) .product-radio input[type="radio"]{accent-color:var(--aero-color-focus,#0a84ff);block-size:42px;flex:0 0 42px;inline-size:42px;margin:0;padding:0}:host([scope]) .product-radio span{font-weight:750}:host([scope][compact]) .product-selector h2{block-size:1px;clip:rect(0 0 0 0);clip-path:inset(50%);inline-size:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;white-space:nowrap}</style>`;
+}
+/** Human-facing live visual label. @param {string} profileId @returns {string} */
+function visualProfileLabel(profileId) {
+	return titleCase(profileId.replace(/^aero\.visual\./u, "").replaceAll(/(?:^|[._-])experimental(?:[._-]|$)/giu, " ").trim() || "Visual");
+}
+/** Validate one complete selector snapshot without invoking accessors. @param {unknown} value @returns {boolean} */
+function isValidProfilePresenterSnapshot(value) {
+	if (!hasExactKeys$1(value, [
+		"selectedProfileId",
+		"sessionState",
+		"profileClasses"
+	])) return false;
+	if (typeof value.selectedProfileId !== "string" || !prototypeOptions.some((option) => option.id === value.selectedProfileId) || typeof value.sessionState !== "string" || value.sessionState.length > 64 || !isExactDataArray(value.profileClasses, 3)) return false;
+	const seen = /* @__PURE__ */ new Set();
+	for (const state of value.profileClasses) {
+		const classDescriptor = typeof state === "object" && state !== null ? Object.getOwnPropertyDescriptor(state, "class") : void 0;
+		if (!classDescriptor?.enumerable || !("value" in classDescriptor) || typeof classDescriptor.value !== "string" || !profileClasses.includes(classDescriptor.value) || seen.has(classDescriptor.value)) return false;
+		const isConverter = classDescriptor.value === "converter_regeneration";
+		if (!hasExactKeys$1(state, isConverter ? [
+			"class",
+			"active",
+			"profiles",
+			"experimental",
+			"selectedContentHash",
+			"appliedContentHash",
+			"pendingContentHash",
+			"regenerationRequired"
+		] : [
+			"class",
+			"active",
+			"profiles",
+			"experimental"
+		]) || !isPrototypeTuningIdentity(state.active) || state.active.class !== state.class || typeof state.experimental !== "boolean" || !isExactDataArray(state.profiles, 64) || !state.profiles.every((identity) => isPrototypeTuningIdentity(identity) && identity.class === state.class)) return false;
+		if (isConverter) {
+			const selected = state.selectedContentHash;
+			const applied = state.appliedContentHash;
+			const pending = state.pendingContentHash;
+			if (!isBareHash(selected) || !isBareHash(applied) || pending !== null && !isBareHash(pending) || typeof state.regenerationRequired !== "boolean" || state.active.contentHash !== selected || state.active.regenerationRequired !== state.regenerationRequired) return false;
+			if (state.regenerationRequired ? pending !== selected || selected === applied : pending !== null || selected !== applied) return false;
+		}
+		seen.add(state.class);
+	}
+	return seen.size === 3;
+}
+/** @param {unknown} value @param {number} maximumLength @returns {value is readonly unknown[]} */
+function isExactDataArray(value, maximumLength) {
+	if (!Array.isArray(value) || value.length > maximumLength) return false;
+	const keys = Reflect.ownKeys(value);
+	if (keys.length !== value.length + 1 || keys.at(-1) !== "length") return false;
+	for (let index = 0; index < value.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+		if (!descriptor?.enumerable || !("value" in descriptor)) return false;
+	}
+	return true;
+}
+/** @param {unknown} value @returns {value is string} */
+function isBareHash(value) {
+	return typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
+}
+/** @param {Readonly<Record<string, unknown>>} snapshot @returns {readonly ProfileClassState[]} */
+function normalizeProfileClassStates(snapshot) {
+	const result = [];
+	for (const source of readRecordList(snapshot, "profileClasses")) {
+		const active = readRecord(source, "active");
+		const profiles = readRecordList(source, "profiles");
+		profiles.sort((left, right) => `${left.profileId}\u0000${left.profileVersion}\u0000${left.contentHash}`.localeCompare(`${right.profileId}\u0000${right.profileVersion}\u0000${right.contentHash}`));
+		const isConverter = active.class === "converter_regeneration";
+		result.push(Object.freeze({
+			class: active.class,
+			active,
+			profiles: Object.freeze(profiles),
+			experimental: readBoolean(source, "experimental", false),
+			selectedContentHash: isConverter ? readString(source, "selectedContentHash", "") : active.contentHash,
+			appliedContentHash: isConverter ? readString(source, "appliedContentHash", "") : active.contentHash,
+			pendingContentHash: isConverter ? source.pendingContentHash === null ? null : readString(source, "pendingContentHash", "") : null,
+			regenerationRequired: isConverter && readBoolean(source, "regenerationRequired", false)
+		}));
+	}
+	result.sort((left, right) => profileClasses.indexOf(left.class) - profileClasses.indexOf(right.class));
+	return Object.freeze(result);
+}
+/** @param {ProfileClassState} state @param {boolean} scoringDisabled @param {string} scoringReason @returns {string} */
+function profileClassMarkup(state, scoringDisabled, scoringReason) {
+	const isScoring = state.class === "between_run_ruleset";
+	const isConverter = state.class === "converter_regeneration";
+	const disabled = isScoring && scoringDisabled;
+	const policy = state.class === "live_visual" ? "Applies immediately." : isScoring ? scoringReason : state.regenerationRequired ? "Regenerate content to apply this converter profile." : "Selected converter profile matches generated content.";
+	const options = state.profiles.length ? `<div class="row" aria-label="${escapeAttribute(titleCase(state.class))} profile choices">${state.profiles.map((profile) => {
+		const active = profile.profileId === state.active.profileId && profile.profileVersion === state.active.profileVersion && profile.contentHash === state.active.contentHash;
+		return `<button type="button" data-intent="prototype-profile-select" data-profile-class="${escapeAttribute(profile.class)}" data-value="${escapeAttribute(profile.profileId)}" data-profile-version="${escapeAttribute(profile.profileVersion)}" data-content-hash="${escapeAttribute(profile.contentHash)}" aria-pressed="${active}" ${disabled ? "disabled" : ""} aria-label="Select ${escapeAttribute(profile.profileId)} ${escapeAttribute(titleCase(profile.class))} profile">${escapeHtml(profile.profileId)}</button>`;
+	}).join("")}</div>` : "";
+	const converterTruth = isConverter ? `<p class="muted compact-converter-truth" role="status" aria-live="polite">Selected ${escapeHtml(state.selectedContentHash)}<br>Applied ${escapeHtml(state.appliedContentHash)}<br>Pending ${escapeHtml(state.pendingContentHash ?? "none")}</p>` : "";
+	const policyClass = disabled ? "compact-critical" : "compact-explanatory";
+	return `<article class="card" data-profile-class="${escapeAttribute(state.class)}"><div class="row"><h3>${escapeHtml(titleCase(state.class))}</h3>${state.experimental ? `<span class="pill compact-telemetry">Experimental</span>` : ""}${state.regenerationRequired ? `<span class="pill error">Regeneration required</span>` : `<span class="pill">Applied</span>`}</div>${identityMarkup(state.active)}<p class="muted live ${policyClass}" role="status" aria-live="polite">${escapeHtml(policy)}</p>${converterTruth}${options}</article>`;
+}
+/** @param {ProfileIdentity} identity @returns {string} */
+function identityMarkup(identity) {
+	return `<div class="compact-identity" part="profile-identity"><strong>${escapeHtml(identity.profileId)}</strong><p class="muted">Version ${escapeHtml(identity.profileVersion)} · ${escapeHtml(identity.class)}<br>Hash ${escapeHtml(identity.contentHash)}</p></div>`;
+}
+/** @param {string} url @returns {boolean} */
+function isSafeVisualUrl(url) {
+	if (url === "") return false;
+	try {
+		const parsed = new URL(url, document.baseURI);
+		return parsed.protocol === "https:" || parsed.protocol === "blob:" || parsed.protocol === "http:" && parsed.hostname === "127.0.0.1";
+	} catch {
+		return false;
+	}
+}
+//#endregion
+//#region ../aerobeat-web-ui/src/elements/aero-select/aero-select.js
+/**
+* Public change event dispatched by `aero-select` after option selection.
+*
+* @type {"aero-select-change"}
+*/
+var aeroSelectChangeEventName = "aero-select-change";
+/**
+* @typedef {object} AeroSelectOption
+* @property {string} value Stable option value.
+* @property {string} label Visible option label.
+*/
+/**
+* Reusable select control for compact phone-test settings.
+*/
+var AeroSelect = class extends HTMLElement {
+	/**
+	* Observed attributes for the component.
+	*
+	* @returns {string[]}
+	*/
+	static get observedAttributes() {
+		return [
+			"disabled",
+			"label",
+			"value"
+		];
+	}
+	/**
+	* Creates the select shadow DOM.
+	*/
+	constructor() {
+		super();
+		/** @type {AeroSelectOption[]} */
+		this.options = [];
+		const root = this.attachShadow({ mode: "open" });
+		root.innerHTML = `
+      <style>
+        :host {
+          color: var(--aero-color-ink, #103447);
+          display: block;
+          font-family: var(--aero-font-family, system-ui, sans-serif);
+        }
+
+        .field {
+          display: grid;
+          gap: 4px;
+        }
+
+        .label {
+          font-size: 0.72rem;
+          font-weight: 800;
+          line-height: 1.1;
+        }
+
+        .control {
+          appearance: none;
+          background:
+            linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(218, 246, 255, 0.82)),
+            linear-gradient(90deg, transparent calc(100% - 34px), rgba(83, 163, 189, 0.18) calc(100% - 34px));
+          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
+          border-radius: 8px;
+          box-shadow: 0 8px 18px rgba(16, 52, 71, 0.13);
+          box-sizing: border-box;
+          color: var(--aero-color-ink, #103447);
+          font: 750 0.82rem var(--aero-font-family, system-ui, sans-serif);
+          inline-size: 100%;
+          min-block-size: 36px;
+          padding: 8px 34px 8px 10px;
+        }
+
+        .select-wrap {
+          display: grid;
+          position: relative;
+        }
+
+        .select-wrap::after {
+          block-size: 0;
+          border-left: 5px solid transparent;
+          border-right: 5px solid transparent;
+          border-top: 6px solid #245e77;
+          content: "";
+          inline-size: 0;
+          inset-block-start: 50%;
+          inset-inline-end: 12px;
+          pointer-events: none;
+          position: absolute;
+          transform: translateY(-35%);
+        }
+
+        :host([disabled]) .control {
+          cursor: not-allowed;
+          opacity: 0.58;
+        }
+      </style>
+      <label class="field">
+        <span class="label"></span>
+        <span class="select-wrap">
+          <select class="control" part="control"></select>
+        </span>
+      </label>
+    `;
+		this.#selectElement().addEventListener("change", () => this.#dispatchChange());
+	}
+	/**
+	* Syncs attributes and options.
+	*/
+	connectedCallback() {
+		this.#render();
+	}
+	/**
+	* Syncs attributes and options.
+	*/
+	attributeChangedCallback() {
+		this.#render();
+	}
+	/**
+	* Replaces the available option set.
+	*
+	* @param {readonly AeroSelectOption[]} options
+	* @returns {void}
+	*/
+	setOptions(options) {
+		this.options = options.map((option) => ({
+			value: option.value,
+			label: option.label
+		}));
+		this.#render();
+	}
+	/**
+	* @returns {string}
+	*/
+	get value() {
+		return this.#selectElement().value;
+	}
+	/**
+	* @param {string} value
+	*/
+	set value(value) {
+		this.setAttribute("value", value);
+	}
+	/**
+	* @returns {HTMLSelectElement}
+	*/
+	#selectElement() {
+		const select = this.shadowRoot?.querySelector("select.control");
+		if (!(select instanceof HTMLSelectElement)) throw new Error("Aero select control is unavailable.");
+		return select;
+	}
+	/**
+	* @returns {void}
+	*/
+	#render() {
+		const label = this.shadowRoot?.querySelector(".label");
+		if (label) label.textContent = this.getAttribute("label") ?? "Select";
+		const select = this.#selectElement();
+		const targetValue = this.getAttribute("value") ?? select.value;
+		select.disabled = this.hasAttribute("disabled");
+		select.replaceChildren(...this.options.map((option) => {
+			const element = document.createElement("option");
+			element.value = option.value;
+			element.textContent = option.label;
+			return element;
+		}));
+		if (this.options.some((option) => option.value === targetValue)) select.value = targetValue;
+	}
+	/**
+	* @returns {void}
+	*/
+	#dispatchChange() {
+		const select = this.#selectElement();
+		this.setAttribute("value", select.value);
+		this.dispatchEvent(new CustomEvent(aeroSelectChangeEventName, {
+			bubbles: true,
+			composed: true,
+			detail: {
+				value: select.value,
+				label: select.selectedOptions[0]?.textContent ?? select.value
+			}
+		}));
+	}
+};
+/**
+* Defines `aero-select` when it is not already registered.
+*
+* @returns {void}
+*/
+function defineAeroSelect() {
+	if (!customElements.get("aero-select")) customElements.define("aero-select", AeroSelect);
+}
+//#endregion
+//#region ../aerobeat-web-ui/src/elements/aero-status-panel/aero-status-panel.js
+/**
+* Status panel for calibration, CV, and input proving scenes.
+*/
+var AeroStatusPanel = class extends HTMLElement {
+	/**
+	* Observed attributes for the component.
+	*
+	* @returns {string[]}
+	*/
+	static get observedAttributes() {
+		return ["heading", "status"];
+	}
+	/**
+	* Creates the panel shadow DOM.
+	*/
+	constructor() {
+		super();
+		const root = this.attachShadow({ mode: "open" });
+		root.innerHTML = `
+      <style>
+        :host {
+          display: block;
+        }
+
+        .panel {
+          background: var(--aero-color-surface, rgba(244, 252, 255, 0.84));
+          border: 1px solid var(--aero-color-border, rgba(53, 141, 175, 0.42));
+          border-radius: var(--aero-radius-panel, 8px);
+          box-shadow: var(--aero-shadow-panel, 0 16px 38px rgba(16, 52, 71, 0.18));
+          color: var(--aero-color-ink, #103447);
+          display: grid;
+          gap: var(--aero-space-2, 8px);
+          padding: var(--aero-space-4, 16px);
+        }
+
+        .heading {
+          font: 700 1rem var(--aero-font-family, system-ui, sans-serif);
+        }
+
+        .status {
+          font: 500 0.9rem var(--aero-font-family, system-ui, sans-serif);
+        }
+      </style>
+      <section class="panel" part="panel">
+        <span class="heading"></span>
+        <span class="status"></span>
+      </section>
+    `;
+	}
+	/**
+	* Syncs attributes into the panel content.
+	*/
+	connectedCallback() {
+		this.#render();
+	}
+	/**
+	* Syncs attributes into the panel content.
+	*/
+	attributeChangedCallback() {
+		this.#render();
+	}
+	/**
+	* Updates the visible panel content.
+	*/
+	#render() {
+		const heading = this.shadowRoot?.querySelector(".heading");
+		const status = this.shadowRoot?.querySelector(".status");
+		if (heading) heading.textContent = this.getAttribute("heading") ?? "AeroBeat";
+		if (status) status.textContent = this.getAttribute("status") ?? "Ready";
+	}
+};
+/**
+* Defines `aero-status-panel` when it is not already registered.
+*
+* @returns {void}
+*/
+function defineAeroStatusPanel() {
+	if (!customElements.get("aero-status-panel")) customElements.define("aero-status-panel", AeroStatusPanel);
+}
+//#endregion
+//#region ../aerobeat-web-ui/src/screens/aero-calibration-screen/aero-calibration-screen.js
+/** @typedef {Readonly<Record<string, unknown>>} AeroCalibrationCompositionSnapshot */
+/**
+* Automatic-calibration composition screen. The screen presents snapshots only;
+* camera, pose math, calibration and capability policy stay with their owners.
+*/
+var AeroCalibrationScreen = class extends HTMLElement {
+	constructor() {
+		super();
+		/** @type {AeroCalibrationCompositionSnapshot} */
+		this.screenSnapshot = Object.freeze({});
+	}
+	connectedCallback() {
+		defineAeroMediaPosePreview();
+		defineAeroProductPresenters();
+		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+		this.#ensureDom();
+		this.#applySnapshot();
+	}
+	disconnectedCallback() {
+		const preview = this.shadowRoot?.querySelector("aero-media-pose-preview");
+		if (preview instanceof HTMLElement && "clearPoseFrame" in preview && typeof preview.clearPoseFrame === "function") preview.clearPoseFrame();
+	}
+	/** @param {AeroCalibrationCompositionSnapshot} snapshot @returns {void} */
+	setSnapshot(snapshot) {
+		this.screenSnapshot = narrowAeroPresenterSnapshot(snapshot);
+		this.#applySnapshot();
+	}
+	/** @returns {void} */
+	#ensureDom() {
+		if (!this.shadowRoot || this.shadowRoot.childElementCount > 0) return;
+		this.shadowRoot.innerHTML = `
+      <style>
+        :host { block-size: 100%; box-sizing: border-box; display: block; inline-size: 100%; min-block-size: 0; min-inline-size: 0; }
+        .layout { block-size: 100%; display: grid; gap: var(--aero-space-4, 16px); grid-template-columns: minmax(0, 1fr) minmax(18rem, .6fr); inline-size: 100%; padding: var(--aero-space-4, 16px); }
+        .preview { min-block-size: 16rem; min-inline-size: 0; position: relative; }
+        .preview > aero-media-pose-preview, .preview > aero-grid-playfield { block-size: 100%; inline-size: 100%; inset: 0; position: absolute; }
+        .status { align-content: start; display: grid; gap: var(--aero-space-3, 12px); min-inline-size: 0; overflow: auto; }
+        @media (max-width: 700px), (max-height: 440px) and (orientation: landscape) { .layout { grid-template-columns: 1fr; grid-template-rows: minmax(12rem, 1fr) auto; padding: 10px; } .status { grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); } }
+      </style>
+      <section class="layout" part="layout" aria-label="Camera calibration">
+        <div class="preview" part="preview"><aero-media-pose-preview></aero-media-pose-preview><aero-grid-playfield></aero-grid-playfield></div>
+        <div class="status" part="status"><aero-calibration-badge></aero-calibration-badge><aero-capabilities-panel></aero-capabilities-panel></div>
+      </section>`;
+	}
+	/** @returns {void} */
+	#applySnapshot() {
+		if (!this.shadowRoot || !this.isConnected) return;
+		const calibration = isRecord(this.screenSnapshot.calibration) ? this.screenSnapshot.calibration : Object.freeze({ state: "waiting" });
+		const capabilities = isRecord(this.screenSnapshot.capabilities) ? this.screenSnapshot.capabilities : Object.freeze({});
+		const grid = isRecord(this.screenSnapshot.grid) ? this.screenSnapshot.grid : Object.freeze({
+			mode: "calibration",
+			dimmed: true,
+			label: "Retained calibration grid"
+		});
+		const badge = this.shadowRoot.querySelector("aero-calibration-badge");
+		if (badge instanceof AeroCalibrationBadge) badge.setSnapshot(calibration);
+		const capabilityPanel = this.shadowRoot.querySelector("aero-capabilities-panel");
+		if (capabilityPanel instanceof AeroCapabilitiesPanel) capabilityPanel.setSnapshot(capabilities);
+		const playfield = this.shadowRoot.querySelector("aero-grid-playfield");
+		if (playfield instanceof AeroGridPlayfield) playfield.setSnapshot(grid);
+	}
+};
+/** Defines `aero-calibration-screen` idempotently. @returns {void} */
+function defineAeroCalibrationScreen() {
+	if (!customElements.get("aero-calibration-screen")) customElements.define("aero-calibration-screen", AeroCalibrationScreen);
+}
+/** @param {unknown} value @returns {value is Readonly<Record<string, unknown>>} */
+function isRecord(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+//#endregion
+//#region ../aerobeat-web-ui/src/index.js
+/** Defines every public AeroBeat UI component idempotently. @returns {void} */
+function defineAeroUiElements() {
+	defineAeroButton();
+	defineAeroMediaPosePreview();
+	defineAeroPoseFlowPanel();
+	defineAeroProductPresenters();
+	defineAeroSelect();
+	defineAeroStatusPanel();
+	defineAeroCalibrationScreen();
+}
+Object.freeze({
+	aeroButton: AeroButton,
+	aeroMediaPosePreview: AeroMediaPosePreview,
+	aeroPoseFlowPanel: AeroPoseFlowPanel,
+	aeroSelect: AeroSelect,
+	aeroStatusPanel: AeroStatusPanel,
+	aeroCalibrationScreen: AeroCalibrationScreen,
+	aeroBeatSaverBrowser: AeroBeatSaverBrowser,
+	aeroContentImportProgress: AeroContentImportProgress,
+	aeroContentLibrary: AeroContentLibrary,
+	aeroCalibrationBadge: AeroCalibrationBadge,
+	aeroGridPlayfield: AeroGridPlayfield,
+	aeroFlowHud: AeroFlowHud,
+	aeroBoxingTrackHud: AeroBoxingTrackHud,
+	aeroBoxingSpatialHud: AeroBoxingSpatialHud,
+	aeroTrackingPause: AeroTrackingPause,
+	aeroResumeCountdown: AeroResumeCountdown,
+	aeroBackgroundEnvironment: AeroBackgroundEnvironment,
+	aeroFullscreenButton: AeroFullscreenButton,
+	aeroCapabilitiesPanel: AeroCapabilitiesPanel,
+	aeroErrorPanel: AeroErrorPanel,
+	aeroPrototypeSelector: AeroPrototypeSelector
+});
+//#endregion
 //#region src/release-metadata.js
 /**
 * Vite-injected build stamp.
 *
 * @type {string}
 */
-var buildStamp = "source:6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97";
+var buildStamp = "source:fdb493e4b0c947b9af3e75b8dd742a5928f090bc4d92ea96b2fe9b3b339c2bde";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-6c913fcd1b17aa11";
+var cacheBust = "0.0.24-fdb493e4b0c947b9";
 /**
 * Vite-injected package version from package.json.
 *
@@ -10195,7 +8540,7 @@ function errorMessage$2(error) {
 	return descriptor && "value" in descriptor && typeof descriptor.value === "string" ? descriptor.value.slice(0, 2048) : "Production CV failed";
 }
 //#endregion
-//#region node_modules/@aerobeat/web-audio/src/audio-source.js
+//#region ../aerobeat-web-audio/src/audio-source.js
 /** @typedef {"url" | "object-url" | "blob" | "array-buffer" | "generated-silence"} AudioSourceKind */
 /** @typedef {"SHA-256"} AudioHashAlgorithm */
 /**
@@ -10301,7 +8646,7 @@ function requireText(value, errorMessage) {
 	return normalized;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-audio/src/playback-clock.js
+//#region ../aerobeat-web-audio/src/playback-clock.js
 /**
 * @typedef {Object} PlaybackClockSnapshot
 * @property {number} contextTimeSeconds Current audio-context time.
@@ -10396,7 +8741,7 @@ function normalizeContextTime(contextTimeSeconds) {
 	return Number.isFinite(contextTimeSeconds) ? Math.max(0, contextTimeSeconds) : 0;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-audio/src/audio-service.js
+//#region ../aerobeat-web-audio/src/audio-service.js
 /** @typedef {import("./audio-source.js").AudioSourceDescriptorInput} AudioSourceDescriptorInput */
 /** @typedef {import("./audio-source.js").AudioSourceDescriptor} AudioSourceDescriptor */
 /** @typedef {import("./playback-clock.js").PlaybackClockSnapshot} PlaybackClockSnapshot */
@@ -11234,7 +9579,7 @@ function createBrowserObjectUrlRevoker() {
 	return typeof URL.revokeObjectURL === "function" ? (url) => URL.revokeObjectURL(url) : void 0;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-audio/src/index.js
+//#region ../aerobeat-web-audio/src/index.js
 /**
 * @typedef {import("./audio-service.js").AudioServiceState} AudioServiceState
 * @typedef {import("./audio-service.js").AudioAutoplayState} AudioAutoplayState
@@ -11264,618 +9609,7 @@ function createBrowserObjectUrlRevoker() {
 * @typedef {import("./playback-clock.js").SongTimeline} SongTimeline
 */
 //#endregion
-//#region node_modules/@aerobeat/web-content/node_modules/@aerobeat/web-contracts/src/service-ids.js
-/**
-* Canonical AeroBeat web service IDs.
-*
-* @type {Readonly<{
-*   audioClock: "aero.audio.clock",
-*   videoMedia: "aero.video.media",
-*   cvPose: "aero.cv.pose",
-*   inputRouter: "aero.input.router",
-*   bodyGrid: "aero.input.body-grid",
-*   beatSaverVendor: "aero.vendor.beatsaver",
-*   contentAuthoring: "aero.content.authoring",
-*   contentLibrary: "aero.content.library",
-*   gameplaySession: "aero.gameplay.session",
-*   prototypeProfiles: "aero.gameplay.prototype-profiles",
-*   mediaLease: "aero.assembly.media-lease",
-*   rendererWebgl2: "aero.renderer.webgl2",
-*   uiRouter: "aero.ui.router",
-*   performancePolicy: "aero.performance.policy"
-* }>}
-*/
-var serviceIds$1 = Object.freeze({
-	audioClock: "aero.audio.clock",
-	videoMedia: "aero.video.media",
-	cvPose: "aero.cv.pose",
-	inputRouter: "aero.input.router",
-	bodyGrid: "aero.input.body-grid",
-	beatSaverVendor: "aero.vendor.beatsaver",
-	contentAuthoring: "aero.content.authoring",
-	contentLibrary: "aero.content.library",
-	gameplaySession: "aero.gameplay.session",
-	prototypeProfiles: "aero.gameplay.prototype-profiles",
-	mediaLease: "aero.assembly.media-lease",
-	rendererWebgl2: "aero.renderer.webgl2",
-	uiRouter: "aero.ui.router",
-	performancePolicy: "aero.performance.policy"
-});
-Object.freeze({
-	uiNavigate: "aero:ui:navigate",
-	cvPoseFrame: "aero:cv:pose-frame",
-	audioClockTick: "aero:audio:clock-tick",
-	inputBoxingIntent: "aero:input:boxing-intent",
-	inputFlowIntent: "aero:input:flow-intent",
-	bodyGridChanged: "aero:input:body-grid-changed",
-	calibrationChanged: "aero:input:calibration-changed",
-	trackingSafetyChanged: "aero:input:tracking-safety-changed",
-	beatSaverResults: "aero:beatsaver:results",
-	contentImportChanged: "aero:content:import-changed",
-	contentChartLoaded: "aero:content:chart-loaded",
-	contentVariantChanged: "aero:content:variant-changed",
-	gameplaySessionChanged: "aero:gameplay:session-changed",
-	gameplayScoreChange: "aero:gameplay:score-change",
-	gameplayJudgement: "aero:gameplay:judgement",
-	countdownChanged: "aero:gameplay:countdown-changed",
-	mediaLeaseChanged: "aero:assembly:media-lease-changed",
-	gameCommand: "aero:game:command",
-	gameEvent: "aero:game:event"
-});
-Object.freeze({
-	game: "aero-game",
-	iconButton: "aero-icon-button",
-	calibrationBadge: "aero-calibration-badge",
-	calibrationScreen: "aero-calibration-screen",
-	gridPlayfield: "aero-grid-playfield",
-	flowHud: "aero-flow-hud",
-	boxingTrackHud: "aero-boxing-track-hud",
-	boxingSpatialHud: "aero-boxing-spatial-hud",
-	trackingPause: "aero-tracking-pause",
-	countdown: "aero-resume-countdown",
-	prototypeSelector: "aero-prototype-selector",
-	beatSaverBrowser: "aero-beatsaver-browser",
-	contentImportProgress: "aero-content-import-progress",
-	contentLibrary: "aero-content-library",
-	fullscreenButton: "aero-fullscreen-button"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-content/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function isRecord$3(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Require a plain record to contain exactly the declared own enumerable keys.
-* Payload records remain the versioned extension point; contract envelopes do not.
-*
-* @param {unknown} value
-* @param {readonly string[]} expectedKeys
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function hasExactKeys$2(value, expectedKeys) {
-	if (!isRecord$3(value)) return false;
-	const keys = Reflect.ownKeys(value);
-	return keys.length === expectedKeys.length && keys.every((key) => {
-		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
-	});
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isFiniteNumber$2(value) {
-	return typeof value === "number" && Number.isFinite(value);
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNonNegativeFiniteNumber$1(value) {
-	return isFiniteNumber$2(value) && value >= 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is string}
-*/
-function isNonEmptyString$2(value) {
-	return typeof value === "string" && value.length > 0;
-}
-/**
-* @template {string} T
-* @param {unknown} value
-* @param {readonly T[]} allowed
-* @returns {value is T}
-*/
-function isOneOf(value, allowed) {
-	return typeof value === "string" && allowed.includes(value);
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-Object.freeze(["measured", "predicted"]);
-Object.freeze({
-	idle: "idle",
-	loading: "loading",
-	ready: "ready",
-	failed: "failed",
-	disposed: "disposed"
-});
-Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-Object.freeze([
-	"up",
-	"up-right",
-	"right",
-	"down-right",
-	"down",
-	"down-left",
-	"left",
-	"up-left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-Object.freeze([
-	"idle",
-	"selecting_content",
-	"calibrating",
-	"countdown",
-	"playing",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"error",
-	"destroyed"
-]);
-Object.freeze([
-	"initial_start",
-	"manual_resume",
-	"tracking_resume",
-	"content_change"
-]);
-Object.freeze(["camera", "audio"]);
-//#endregion
-//#region node_modules/@aerobeat/web-content/node_modules/@aerobeat/web-contracts/src/gameplay-contracts.js
-/**
-* @typedef {"flow_grid_v1" | "boxing_semantic_track_v1" | "boxing_spatial_grid_v1"} AeroRulesetId
-*/
-/**
-* @typedef {"row_family_balanced_height_v1" | "cut_family_source_height_v1"} AeroConversionRecipeId
-*/
-/**
-* @typedef {"straight_left" | "straight_right" | "hook_left" | "hook_right" | "uppercut_left" | "uppercut_right" | "guard" | "crossed_guard" | "squat" | "weave_left" | "weave_right"} AeroBoxingAction
-*/
-/**
-* @typedef {"no_input" | "stale_input" | "wrong_cell" | "wrong_subcell" | "wrong_direction" | "qualification_too_short" | "tracking_invalid" | "calibration_mismatch" | "timing_miss" | "blocked_overlap" | "action_consumed"} AeroJudgementDiagnosticCode
-*/
-/**
-* @typedef {Object} AeroGameplayEvidenceSnapshot
-* @property {"aerobeat/gameplay_evidence_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} calibrationId Calibration generation.
-* @property {string} measuredSourceFrameId Real source-frame identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
-* @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
-*/
-/**
-* @typedef {Object} AeroGameplayJudgement
-* @property {"aerobeat/gameplay_judgement"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} eventId Authored event identity.
-* @property {AeroRulesetId} rulesetId Ruleset identity.
-* @property {AeroConversionRecipeId | null} recipeId Recipe identity when generated.
-* @property {"hit" | "miss" | "ignored"} result Binary prototype result or non-scoring ignored event.
-* @property {number} beatCenterTimestampMs Event center timestamp.
-* @property {number | null} evidenceTimestampMs Consumed evidence timestamp.
-* @property {number | null} timingOffsetMs Evidence minus beat center.
-* @property {readonly AeroJudgementDiagnosticCode[]} diagnostics Detailed diagnostics.
-* @property {boolean} shadow Whether this judgement is diagnostic-only.
-*/
-/**
-* @typedef {Object} AeroPrototypeTuningIdentityBase
-* @property {"aerobeat/prototype_tuning_identity"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} profileId Stable bounded profile ID.
-* @property {string} profileVersion Stable bounded profile version.
-* @property {string} contentHash Bare lowercase SHA-256 content hash.
-*/
-/**
-* A converter identity is pending when `regenerationRequired` is true and
-* applied when the owning registry has matched generated-package provenance
-* and emits false. Visual and scoring identities are always live/applied.
-*
-* @typedef {(AeroPrototypeTuningIdentityBase & {class:"live_visual" | "between_run_ruleset", regenerationRequired:false}) | (AeroPrototypeTuningIdentityBase & {class:"converter_regeneration", regenerationRequired:boolean})} AeroPrototypeTuningIdentity
-*/
-/** @type {readonly AeroRulesetId[]} */
-var rulesetIds$2 = Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-/** @type {readonly AeroConversionRecipeId[]} */
-var conversionRecipeIds$2 = Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-//#endregion
-//#region node_modules/@aerobeat/web-content/node_modules/@aerobeat/web-contracts/src/content-contracts.js
-/**
-* @typedef {"no_squats" | "no_weaves" | "any_punch" | "crossed_guard" | "cross_body"} AeroMapModifierId
-*/
-/**
-* @typedef {Object} AeroContentHash
-* @property {"aerobeat/content_hash"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {"sha1" | "sha256"} algorithm Hash algorithm.
-* @property {string} value Lowercase hexadecimal hash.
-*/
-/**
-* @typedef {Object} AeroContentProvenance
-* @property {"aerobeat/content_provenance"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} sourceProvider Provider identity.
-* @property {string} sourceId Provider map/source identity.
-* @property {string} sourceVersionHash Selected source version hash.
-* @property {string} sourceDifficulty Source difficulty identity.
-* @property {string} recipeVersion Immutable recipe version.
-* @property {readonly string[]} sourceEventIds Stable source event lineage.
-*/
-/**
-* @typedef {Object} AeroContentVariantIdentity
-* @property {"aerobeat/content_variant_identity"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} packageId Package identity.
-* @property {string} chartId Chart identity.
-* @property {import("./gameplay-contracts.js").AeroRulesetId} rulesetId Ruleset identity.
-* @property {import("./gameplay-contracts.js").AeroConversionRecipeId | null} recipeId Conversion recipe.
-* @property {readonly AeroMapModifierId[]} modifierIds Ordered modifier identities.
-* @property {AeroContentHash} mapHash Canonical map hash.
-* @property {AeroContentHash} scoreIdentityHash Ruleset/recipe/map score partition hash.
-* @property {boolean} ranked Whether this immutable variant is ranked.
-*/
-/**
-* @typedef {Object} AeroPersistenceHandle
-* @property {"aerobeat/persistence_handle"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {"indexeddb" | "memory" | "external_url"} storage Storage class.
-* @property {string} namespace Stable storage namespace.
-* @property {string} key Opaque package key.
-* @property {string} packageId Public package identity.
-* @property {AeroContentHash} packageHash Package integrity hash.
-*/
-/** @type {readonly AeroMapModifierId[]} */
-var mapModifierIds$2 = Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroContentHash}
-*/
-function isContentHash$1(value) {
-	if (!hasExactKeys$2(value, [
-		"schema",
-		"version",
-		"algorithm",
-		"value"
-	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
-	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
-	if (typeof value.value !== "string") return false;
-	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
-	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
-}
-/**
-* @param {unknown} value
-* @returns {value is AeroPersistenceHandle}
-*/
-function isPersistenceHandle(value) {
-	return hasExactKeys$2(value, [
-		"schema",
-		"version",
-		"storage",
-		"namespace",
-		"key",
-		"packageId",
-		"packageHash"
-	]) && value.schema === "aerobeat/persistence_handle" && value.version === 1 && isOneOf(value.storage, [
-		"indexeddb",
-		"memory",
-		"external_url"
-	]) && isNonEmptyString$2(value.namespace) && isNonEmptyString$2(value.key) && isNonEmptyString$2(value.packageId) && isContentHash$1(value.packageHash);
-}
-Object.freeze([
-	"queued",
-	"acquiring",
-	"inspecting",
-	"converting",
-	"validating",
-	"persisting",
-	"complete",
-	"cancelled",
-	"failed"
-]);
-//#endregion
-//#region node_modules/@aerobeat/web-content/node_modules/@aerobeat/web-contracts/src/theme-contracts.js
-/**
-* @typedef {Object} AeroThemeTokens
-* @property {string} leftHandColor CSS color token value.
-* @property {string} rightHandColor CSS color token value.
-* @property {string} guardColor CSS color token value.
-* @property {string} obstacleColor CSS color token value.
-* @property {string} receptorColor CSS color token value.
-* @property {number} approachLeadMs Approach animation lead time.
-* @property {number} targetStartScale Target initial scale.
-* @property {number} targetHitScale Target beat-center scale.
-* @property {string} approachEasing Serializable easing token.
-* @property {string} hitEasing Serializable easing token.
-* @property {string} missEasing Serializable easing token.
-*/
-/**
-* @typedef {Object} AeroThemeDescriptor
-* @property {"aerobeat/theme_descriptor"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} id Stable theme ID.
-* @property {string} themeVersion Theme version.
-* @property {AeroThemeTokens} tokens Serializable approved tokens.
-* @property {import("./content-contracts.js").AeroContentHash} contentHash Canonical token hash.
-*/
-/**
-* @typedef {Object} AeroBackgroundSuggestion
-* @property {"aerobeat/background_suggestion"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {"default" | "playlist" | "song" | "athlete"} source Suggestion precedence source.
-* @property {"css" | "image" | "video"} kind Background kind.
-* @property {string | null} url External/package URL for media kinds.
-* @property {import("./content-contracts.js").AeroContentHash | null} hash Required media hash for gameplay package assets.
-* @property {string | null} themeId Optional associated theme.
-*/
-/** @type {readonly (keyof AeroThemeTokens)[]} */
-var serializableThemeTokenNames$2 = Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-/** @type {readonly ("default" | "playlist" | "song" | "athlete")[]} */
-var backgroundSuggestionPrecedence$2 = Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroThemeDescriptor}
-*/
-function isThemeDescriptor$1(value) {
-	if (!hasExactKeys$2(value, [
-		"schema",
-		"version",
-		"id",
-		"themeVersion",
-		"tokens",
-		"contentHash"
-	]) || !isRecord$3(value.tokens)) return false;
-	const tokens = value.tokens;
-	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames$2.length && Object.keys(tokens).every((key) => serializableThemeTokenNames$2.includes(key));
-	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString$2(value.id) && isNonEmptyString$2(value.themeVersion) && exactTokenKeys && isNonEmptyString$2(tokens.leftHandColor) && isNonEmptyString$2(tokens.rightHandColor) && isNonEmptyString$2(tokens.guardColor) && isNonEmptyString$2(tokens.obstacleColor) && isNonEmptyString$2(tokens.receptorColor) && isNonNegativeFiniteNumber$1(tokens.approachLeadMs) && isNonNegativeFiniteNumber$1(tokens.targetStartScale) && isNonNegativeFiniteNumber$1(tokens.targetHitScale) && isNonEmptyString$2(tokens.approachEasing) && isNonEmptyString$2(tokens.hitEasing) && isNonEmptyString$2(tokens.missEasing) && isContentHash$1(value.contentHash);
-}
-/**
-* @param {unknown} value
-* @returns {value is AeroBackgroundSuggestion}
-*/
-function isBackgroundSuggestion(value) {
-	if (!hasExactKeys$2(value, [
-		"schema",
-		"version",
-		"source",
-		"kind",
-		"url",
-		"hash",
-		"themeId"
-	])) return false;
-	const sources = [
-		"default",
-		"playlist",
-		"song",
-		"athlete"
-	];
-	const kinds = [
-		"css",
-		"image",
-		"video"
-	];
-	const mediaKind = value.kind === "image" || value.kind === "video";
-	return value.schema === "aerobeat/background_suggestion" && value.version === 1 && typeof value.source === "string" && sources.includes(value.source) && typeof value.kind === "string" && kinds.includes(value.kind) && (mediaKind ? isNonEmptyString$2(value.url) : value.url === null) && (value.hash === null || isContentHash$1(value.hash)) && (value.themeId === null || isNonEmptyString$2(value.themeId));
-}
-Object.freeze([
-	"configure",
-	"start",
-	"pause",
-	"resume",
-	"stop",
-	"reset_calibration",
-	"request_fullscreen",
-	"select_content",
-	"select_variant",
-	"browse_beatsaver",
-	"import_beatsaver",
-	"import_local_zip",
-	"cancel_import",
-	"delete_package",
-	"set_theme",
-	"destroy"
-]);
-Object.freeze([
-	"ready",
-	"capabilities_changed",
-	"calibration_changed",
-	"tracking_changed",
-	"session_changed",
-	"score_changed",
-	"content_changed",
-	"beatsaver_results",
-	"import_changed",
-	"fullscreen_changed",
-	"error",
-	"destroyed"
-]);
-Object.freeze({
-	schema: "aerobeat/asset_policy",
-	version: 1,
-	requireChartHash: true,
-	requireAudioHash: true,
-	requireExternalAudioCors: true,
-	requireSampledMediaCors: true,
-	cosmeticBackgroundFailure: "fallback",
-	criticalAssetFailure: "block_startup"
-});
-Object.freeze([
-	"handshake_request",
-	"handshake_ack",
-	"command",
-	"event",
-	"error",
-	"disconnect"
-]);
-Object.freeze({
-	schema: "aerobeat/iframe_message",
-	version: 1,
-	target: "immediate_parent",
-	rawMediaAllowed: false
-});
-Object.freeze([
-	"audioBytes",
-	"frame",
-	"frames",
-	"imageBitmap",
-	"mediaStream",
-	"mediaStreamTrack",
-	"pixels",
-	"rawAudio",
-	"rawFrame",
-	"rawFrames",
-	"screenshot",
-	"videoFrame",
-	"zipBytes"
-]);
-//#endregion
-//#region node_modules/@aerobeat/web-content/src/runtime-data.js
+//#region ../aerobeat-web-content/src/runtime-data.js
 /**
 * Return whether a value is a plain enumerable data record.
 *
@@ -12001,7 +9735,7 @@ function dataError(code, message) {
 	return error;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content/src/assets.js
+//#region ../aerobeat-web-content/src/assets.js
 /** @typedef {Readonly<{path: string, kind: "audio" | "background" | "chart" | "other", hash: string, critical: boolean, url: string | null, readable: boolean, status: "ready" | "fallback", errorCode: string | null}>} PublicAssetSnapshot */
 /** @typedef {{path: string, kind: "audio" | "background" | "chart" | "other", hash: string, critical: boolean, url: string | null, bytes: Uint8Array | null, readable: boolean, status: "ready" | "fallback", errorCode: string | null}} LoadedAsset */
 var audioExtensions = /* @__PURE__ */ new Set([
@@ -12336,7 +10070,7 @@ function errorCodeFor(cause) {
 	return diagnosticString(cause, "code") ?? "asset_failed";
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content/src/package-content.js
+//#region ../aerobeat-web-content/src/package-content.js
 /** @typedef {Readonly<Record<string, unknown>>} DataRecord */
 /** @typedef {Readonly<{variantId: string, chartId: string, mode: "flow" | "boxing", rulesetId: string, recipeId: string | null, modifierIds: readonly string[], ranked: boolean, mapHash: Readonly<Record<string, unknown>>, scoreIdentityHash: Readonly<Record<string, unknown>>, provenance: Readonly<Record<string, unknown>>, chart: DataRecord}>} RuntimeVariant */
 /**
@@ -12388,8 +10122,8 @@ async function validateRuntimePackage(packageValue, options = {}) {
 			requireHashString(prototype.rulesetHash, "ruleset_hash_invalid");
 			rulesetId = requireString(prototype.rulesetId, "ruleset_invalid");
 			recipeId = requireString(prototype.recipeId, "recipe_invalid");
-			if (!rulesetIds$2.includes(rulesetId) || rulesetId === "flow_grid_v1") throw dataError("ruleset_invalid", "Boxing ruleset is unsupported");
-			if (!conversionRecipeIds$2.includes(recipeId)) throw dataError("recipe_invalid", "Conversion recipe is unsupported");
+			if (!rulesetIds.includes(rulesetId) || rulesetId === "flow_grid_v1") throw dataError("ruleset_invalid", "Boxing ruleset is unsupported");
+			if (!conversionRecipeIds.includes(recipeId)) throw dataError("recipe_invalid", "Conversion recipe is unsupported");
 			if (options.supportedRulesetIds && !options.supportedRulesetIds.includes(rulesetId)) throw dataError("ruleset_unavailable", `Ruleset ${rulesetId} is unavailable`);
 			if (options.supportedRecipeIds && !options.supportedRecipeIds.includes(recipeId)) throw dataError("recipe_unavailable", `Recipe ${recipeId} is unavailable`);
 			modifierIds = normalizeModifiers$1(prototype.modifiers);
@@ -12431,7 +10165,7 @@ async function validateRuntimePackage(packageValue, options = {}) {
 		}));
 	}
 	if (flowCount !== 1) throw dataError("flow_variant_invalid", "Package must contain exactly one Flow chart");
-	if (!conversionRecipeIds$2.flatMap((recipe) => ["boxing_semantic_track_v1", "boxing_spatial_grid_v1"].map((ruleset) => `${recipe}|${ruleset}`)).every((identity) => matrix.has(identity))) throw dataError("boxing_matrix_incomplete", "Package does not contain all four Boxing prototype variants");
+	if (!conversionRecipeIds.flatMap((recipe) => ["boxing_semantic_track_v1", "boxing_spatial_grid_v1"].map((ruleset) => `${recipe}|${ruleset}`)).every((identity) => matrix.has(identity))) throw dataError("boxing_matrix_incomplete", "Package does not contain all four Boxing prototype variants");
 	validateSets(packageRecord.sets, chartIds);
 	const packageHashValue = await sha256Hex$1(canonicalJson$1(packageRecord));
 	const expectedPackageHash = normalizeDeclaredHash(options.declaredPackageHash);
@@ -12719,9 +10453,9 @@ function normalizeDeclaredHash(value) {
 }
 /** @param {unknown} value @returns {string[]} */
 function normalizeModifiers$1(value) {
-	if (!Array.isArray(value) || value.length > mapModifierIds$2.length || value.some((entry) => typeof entry !== "string")) throw dataError("modifiers_invalid", "Modifiers must be a bounded string array");
+	if (!Array.isArray(value) || value.length > mapModifierIds.length || value.some((entry) => typeof entry !== "string")) throw dataError("modifiers_invalid", "Modifiers must be a bounded string array");
 	const result = [...new Set(value)].sort();
-	if (result.some((entry) => !mapModifierIds$2.includes(entry))) throw dataError("modifier_invalid", "Modifier is unsupported");
+	if (result.some((entry) => !mapModifierIds.includes(entry))) throw dataError("modifier_invalid", "Modifier is unsupported");
 	return result;
 }
 /** @param {readonly unknown[]} beats @param {readonly string[]} identity */
@@ -12758,7 +10492,7 @@ function cloneMutable(value) {
 	return value;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content/src/content-runtime.js
+//#region ../aerobeat-web-content/src/content-runtime.js
 /** @typedef {ReturnType<typeof createAeroContentRuntime>} AeroContentRuntime */
 /** @typedef {Readonly<Record<string, unknown>>} DataRecord */
 /** @typedef {import("./package-content.js").RuntimeVariant} RuntimeVariant */
@@ -13140,7 +10874,7 @@ function createAeroContentRuntime(options = {}) {
 		return Object.freeze({
 			schema: "aerobeat/content_runtime_snapshot",
 			version: 1,
-			serviceId: serviceIds$1.contentLibrary,
+			serviceId: serviceIds.contentLibrary,
 			state,
 			generation,
 			source: sourceSnapshot,
@@ -13432,7 +11166,7 @@ function backgroundFromSuggestion(suggestion) {
 }
 /** @param {DataRecord | null} suggestion @param {RuntimeLoadOptions} options */
 function resolveTheme(suggestion, options) {
-	const songTheme = suggestion && isThemeDescriptor$1(suggestion.theme) ? suggestion.theme : null;
+	const songTheme = suggestion && isThemeDescriptor(suggestion.theme) ? suggestion.theme : null;
 	const candidates = [
 		options.defaultTheme,
 		options.playlistTheme,
@@ -13441,7 +11175,7 @@ function resolveTheme(suggestion, options) {
 		options.hostTheme
 	];
 	let selected = null;
-	for (const candidate of candidates) if (isThemeDescriptor$1(candidate)) selected = cloneFrozenData(candidate);
+	for (const candidate of candidates) if (isThemeDescriptor(candidate)) selected = cloneFrozenData(candidate);
 	return selected;
 }
 /** @param {DataRecord | null} suggestion @param {RuntimeLoadOptions} options @param {readonly LoadedAsset[]} loadedAssets */
@@ -13489,7 +11223,7 @@ function fallbackBackground() {
 	return Object.freeze({
 		schema: "aerobeat/background_suggestion",
 		version: 1,
-		source: backgroundSuggestionPrecedence$2[0],
+		source: backgroundSuggestionPrecedence[0],
 		kind: "css",
 		url: null,
 		hash: null,
@@ -13524,9 +11258,9 @@ function publicError(cause) {
 	});
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content/src/index.js
+//#region ../aerobeat-web-content/src/index.js
 /** @type {"aero.content.library"} */
-var aeroContentServiceId = serviceIds$1.contentLibrary;
+var aeroContentServiceId = serviceIds.contentLibrary;
 Object.freeze({
 	schema: "aero.content.runtime.descriptor",
 	version: 1,
@@ -13534,7 +11268,7 @@ Object.freeze({
 	implementationState: "implemented"
 });
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/canonical.js
+//#region ../aerobeat-web-content-authoring/src/canonical.js
 /**
 * Deterministically serialize JSON-compatible data with lexically sorted object keys.
 * Undefined, functions, symbols, accessors, cycles and non-finite numbers are rejected.
@@ -13637,7 +11371,7 @@ function deepFreeze$1(value) {
 	return value;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/beatmap.js
+//#region ../aerobeat-web-content-authoring/src/beatmap.js
 /** @typedef {"v2" | "v3" | "v4"} BeatMapFormat */
 /**
 * Parse and narrow one Beat Saber Standard difficulty document.
@@ -13916,7 +11650,7 @@ var AuthoringParseError = class extends Error {
 	}
 };
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/converter-profile.js
+//#region ../aerobeat-web-content-authoring/src/converter-profile.js
 var converterProfileClass = "converter_regeneration";
 deepFreeze$1({
 	schema: "aerobeat/prototype_profile",
@@ -14017,7 +11751,7 @@ function profileError(code, message) {
 	return error;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/definitions.js
+//#region ../aerobeat-web-content-authoring/src/definitions.js
 var boxingPrototypeContractId = "aerobeat.boxing.prototype.v1";
 var rowFamilyRecipeId = "row_family_balanced_height_v1";
 var cutFamilyRecipeId = "cut_family_source_height_v1";
@@ -14119,7 +11853,7 @@ var supportedModifiers = deepFreeze$1([
 	"cross_body"
 ]);
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/converter.js
+//#region ../aerobeat-web-content-authoring/src/converter.js
 /** @typedef {"Easy" | "Normal" | "Hard" | "Expert" | "ExpertPlus"} Difficulty */
 /** @typedef {Record<string, unknown>} DataRecord */
 /**
@@ -14597,20 +12331,20 @@ function obstaclesFor(obstacles, bpm) {
 }
 /** @param {Readonly<Record<string, unknown>>} obstacle */
 function cellsForObstacle(obstacle) {
-	const x = clamp$2(Number(obstacle.x ?? 0), 0, 3);
-	const width = clamp$2(Number(obstacle.width ?? 1), 1, 4 - x);
-	const y = clamp$2(Number(obstacle.y ?? 0), 0, 2);
-	const height = clamp$2(Number(obstacle.height ?? 3), 1, 3 - y);
+	const x = clamp(Number(obstacle.x ?? 0), 0, 3);
+	const width = clamp(Number(obstacle.width ?? 1), 1, 4 - x);
+	const y = clamp(Number(obstacle.y ?? 0), 0, 2);
+	const height = clamp(Number(obstacle.height ?? 3), 1, 3 - y);
 	const cells = [];
 	for (let sourceRow = y; sourceRow < y + height; sourceRow += 1) for (let column = x; column < x + width; column += 1) cells.push((2 - sourceRow) * 4 + column);
 	return cells.sort((a, b) => a - b);
 }
 /** @param {Readonly<Record<string, unknown>>} obstacle */
 function sourceCellsForObstacle(obstacle) {
-	const x = clamp$2(Number(obstacle.x ?? 0), 0, 3);
-	const width = clamp$2(Number(obstacle.width ?? 1), 1, 4 - x);
-	const y = clamp$2(Number(obstacle.y ?? 0), 0, 2);
-	const height = clamp$2(Number(obstacle.height ?? 3), 1, 3 - y);
+	const x = clamp(Number(obstacle.x ?? 0), 0, 3);
+	const width = clamp(Number(obstacle.width ?? 1), 1, 4 - x);
+	const y = clamp(Number(obstacle.y ?? 0), 0, 2);
+	const height = clamp(Number(obstacle.height ?? 3), 1, 3 - y);
 	const cells = [];
 	for (let row = y; row < y + height; row += 1) for (let column = x; column < x + width; column += 1) cells.push(row * 4 + column);
 	return cells.sort((a, b) => a - b);
@@ -14711,7 +12445,7 @@ function chooseGuardPair(sourcePair, crossed, blocked, start, wristSubcell, wris
 /** @param {string} family @param {string} hand @param {number} row */
 function spatialTarget(family, hand, row) {
 	let column = hand === "left" ? 1 : 2;
-	let targetRow = clamp$2(row, 0, 2);
+	let targetRow = clamp(row, 0, 2);
 	let direction = "";
 	let sourceCell = -1;
 	if (family === "hook") {
@@ -14752,7 +12486,7 @@ function acceptedSubcells(cell, family, hand) {
 function reachable(start, target, deltaBeats, rate, blocked) {
 	if (target < 0 || target >= 48 || blocked.has(target)) return false;
 	const distances = Array(48).fill(Infinity), visited = /* @__PURE__ */ new Set();
-	distances[clamp$2(start, 0, 47)] = 0;
+	distances[clamp(start, 0, 47)] = 0;
 	for (let step = 0; step < 48; step += 1) {
 		let current = -1, currentDistance = Infinity;
 		for (let candidate = 0; candidate < 48; candidate += 1) if (!visited.has(candidate) && distances[candidate] < currentDistance) {
@@ -15011,15 +12745,15 @@ async function eventId(recipeIdValue, sourceId, kind) {
 }
 /** @param {number} cell */
 function topLeftRow(cell) {
-	return 2 - clamp$2(Math.floor(cell / 4), 0, 2);
+	return 2 - clamp(Math.floor(cell / 4), 0, 2);
 }
 /** @param {number} cell */
 function topLeftCell(cell) {
-	return topLeftRow(cell) * 4 + clamp$2(cell % 4, 0, 3);
+	return topLeftRow(cell) * 4 + clamp(cell % 4, 0, 3);
 }
 /** @param {number} cell */
 function seedSubcell(cell) {
-	const row = clamp$2(Math.floor(cell / 4), 0, 2), column = clamp$2(cell % 4, 0, 3);
+	const row = clamp(Math.floor(cell / 4), 0, 2), column = clamp(cell % 4, 0, 3);
 	return (row * 2 + 1) * 8 + column * 2 + 1;
 }
 /** @param {number} left @param {number} right */
@@ -15031,7 +12765,7 @@ function beatToMs(beat, bpm) {
 	return beat * 6e4 / Math.max(bpm, 1);
 }
 /** @param {number} value @param {number} minimum @param {number} maximum */
-function clamp$2(value, minimum, maximum) {
+function clamp(value, minimum, maximum) {
 	return Math.max(minimum, Math.min(maximum, Math.trunc(value)));
 }
 /** @param {number} value @param {number} fallback */
@@ -15071,7 +12805,7 @@ function estimateDuration(charts, bpm) {
 	return Math.ceil(maxBeat * 60 / Math.max(bpm, 1));
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/export.js
+//#region ../aerobeat-web-content-authoring/src/export.js
 var magic = new TextEncoder().encode("AEROPKG1");
 var maximumMetadataBytes = 16777216;
 var maximumAssetBytes = 134217728;
@@ -15083,7 +12817,7 @@ var maximumAssets = 2048;
 * @param {{package: Record<string, unknown>, packageHash: string, assets: readonly {path: string, bytes: Uint8Array}[]}} record
 */
 async function exportAuthoredPackage(record) {
-	if (!hasExactKeys$1(record, [
+	if (!hasExactKeys(record, [
 		"package",
 		"packageHash",
 		"assets"
@@ -15102,7 +12836,7 @@ async function exportAuthoredPackage(record) {
 	const seen = /* @__PURE__ */ new Set();
 	const assets = [];
 	for (const value of assetValues) {
-		if (!hasExactKeys$1(value, ["path", "bytes"])) throw exportError("export_asset_invalid", "Authored package asset is invalid");
+		if (!hasExactKeys(value, ["path", "bytes"])) throw exportError("export_asset_invalid", "Authored package asset is invalid");
 		const rawPath = dataValue$1(value, "path");
 		const rawBytes = dataValue$1(value, "bytes");
 		if (typeof rawPath !== "string" || !(rawBytes instanceof Uint8Array)) throw exportError("export_asset_invalid", "Authored package asset is invalid");
@@ -15157,7 +12891,7 @@ async function exportAuthoredPackage(record) {
 	});
 }
 /** @param {unknown} value @param {readonly string[]} keys */
-function hasExactKeys$1(value, keys) {
+function hasExactKeys(value, keys) {
 	if (!isPlainRecord$1(value) || Reflect.ownKeys(value).length !== keys.length) return false;
 	return keys.every((key) => {
 		const descriptor = Object.getOwnPropertyDescriptor(value, key);
@@ -15212,7 +12946,7 @@ function exportError(code, message) {
 	return error;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/parity.js
+//#region ../aerobeat-web-content-authoring/src/parity.js
 /**
 * Cross-language semantic projection. Language-specific canonical hashes are excluded;
 * definitions, timing, lineage, ordering, targets, checkpoints, modifiers and traces are not.
@@ -15694,7 +13428,7 @@ function storageError(code, message) {
 	return error;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/source-material.js
+//#region ../aerobeat-web-content-authoring/src/source-material.js
 /** @typedef {{manifest: Record<string, unknown>, listEntryPaths: () => readonly string[], readEntry: (path: string) => Uint8Array}} SourceBundle */
 /** @type {Readonly<Record<string, number>>} */
 var defaultLimits = Object.freeze({
@@ -15961,7 +13695,7 @@ function sourceError(code, message) {
 	return error;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/validator.js
+//#region ../aerobeat-web-content-authoring/src/validator.js
 /**
 * Validate the canonical browser-authored package before persistence/export.
 *
@@ -16153,7 +13887,7 @@ function integerRange(value, minimum, maximum) {
 	return Number.isInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/worker-protocol.js
+//#region ../aerobeat-web-content-authoring/src/worker-protocol.js
 /** @typedef {Parameters<typeof convertDifficulty>[1]} WorkerConversionOptions */
 /** @typedef {"v2" | "v3" | "v4"} BeatMapFormat */
 /**
@@ -16216,7 +13950,7 @@ function createInlineAuthoringWorkerAdapter() {
 function createBrowserAuthoringWorkerAdapter(options = {}) {
 	const workerFactory = options.workerFactory ?? (() => new Worker(new URL(
 		/* @vite-ignore */
-		"/assets/conversion-worker-DPEmn8d7.js",
+		"/assets/conversion-worker-sPG0jOSc.js",
 		"" + import.meta.url
 	), {
 		type: "module",
@@ -16533,7 +14267,7 @@ function workerError(code, message) {
 	return error;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-content-authoring/src/service.js
+//#region ../aerobeat-web-content-authoring/src/service.js
 /** @typedef {ReturnType<typeof createMemoryPersistenceAdapter> | ReturnType<typeof createIndexedDbPersistenceAdapter>} PersistenceAdapter */
 /** @typedef {{kind: string, convert: (request: unknown, runtime?: {signal?: AbortSignal, onProgress?: (progress: number, phase: string) => void}) => Promise<unknown>, destroy: () => void}} WorkerAdapter */
 /** @typedef {{difficulty:string,modifiers:string[],sourceProvider?:string,sourceId?:string,sourceVersionHash?:string,expectedAudioContentHash?:string,expectedDifficultyContentHashes?:Record<string,string>,presentationSuggestion?:Record<string,unknown>,converterProfile?:Record<string,unknown>,limits?:Record<string,number>,cacheSourceEntries?:boolean,includeAudio?:boolean,signal?:AbortSignal}} NormalizedRequestOptions */
@@ -16991,443 +14725,8 @@ function authoringError(code, message) {
 	Object.assign(error, { code });
 	return error;
 }
-Object.freeze({
-	audioClock: "aero.audio.clock",
-	videoMedia: "aero.video.media",
-	cvPose: "aero.cv.pose",
-	inputRouter: "aero.input.router",
-	bodyGrid: "aero.input.body-grid",
-	beatSaverVendor: "aero.vendor.beatsaver",
-	contentAuthoring: "aero.content.authoring",
-	contentLibrary: "aero.content.library",
-	gameplaySession: "aero.gameplay.session",
-	prototypeProfiles: "aero.gameplay.prototype-profiles",
-	mediaLease: "aero.assembly.media-lease",
-	rendererWebgl2: "aero.renderer.webgl2",
-	uiRouter: "aero.ui.router",
-	performancePolicy: "aero.performance.policy"
-});
-Object.freeze({
-	uiNavigate: "aero:ui:navigate",
-	cvPoseFrame: "aero:cv:pose-frame",
-	audioClockTick: "aero:audio:clock-tick",
-	inputBoxingIntent: "aero:input:boxing-intent",
-	inputFlowIntent: "aero:input:flow-intent",
-	bodyGridChanged: "aero:input:body-grid-changed",
-	calibrationChanged: "aero:input:calibration-changed",
-	trackingSafetyChanged: "aero:input:tracking-safety-changed",
-	beatSaverResults: "aero:beatsaver:results",
-	contentImportChanged: "aero:content:import-changed",
-	contentChartLoaded: "aero:content:chart-loaded",
-	contentVariantChanged: "aero:content:variant-changed",
-	gameplaySessionChanged: "aero:gameplay:session-changed",
-	gameplayScoreChange: "aero:gameplay:score-change",
-	gameplayJudgement: "aero:gameplay:judgement",
-	countdownChanged: "aero:gameplay:countdown-changed",
-	mediaLeaseChanged: "aero:assembly:media-lease-changed",
-	gameCommand: "aero:game:command",
-	gameEvent: "aero:game:event"
-});
-Object.freeze({
-	game: "aero-game",
-	iconButton: "aero-icon-button",
-	calibrationBadge: "aero-calibration-badge",
-	calibrationScreen: "aero-calibration-screen",
-	gridPlayfield: "aero-grid-playfield",
-	flowHud: "aero-flow-hud",
-	boxingTrackHud: "aero-boxing-track-hud",
-	boxingSpatialHud: "aero-boxing-spatial-hud",
-	trackingPause: "aero-tracking-pause",
-	countdown: "aero-resume-countdown",
-	prototypeSelector: "aero-prototype-selector",
-	beatSaverBrowser: "aero-beatsaver-browser",
-	contentImportProgress: "aero-content-import-progress",
-	contentLibrary: "aero-content-library",
-	fullscreenButton: "aero-fullscreen-button"
-});
 //#endregion
-//#region node_modules/@aerobeat/web-input/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isFiniteNumber$1(value) {
-	return typeof value === "number" && Number.isFinite(value);
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-/** @type {AeroGridDescriptor} */
-var athleteBodyGrid4x3$1 = Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-/** @type {AeroGridDescriptor} */
-var athleteBodySubgrid8x6$1 = Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-/**
-* Convert an upstream camera point directly to public athlete space.
-*
-* @param {AeroNormalizedPoint} point
-* @returns {AeroNormalizedPoint}
-*/
-function cameraPreviewToAthlete(point) {
-	return Object.freeze({
-		x: 1 - point.x,
-		y: point.y
-	});
-}
-/**
-* Resolve a normalized point without clamping. Coordinates on or outside the far edge
-* are diagnostic-only and produce no scoring cell.
-*
-* @param {AeroNormalizedPoint} point
-* @param {AeroGridDescriptor} descriptor
-* @returns {AeroGridCellRef | null}
-*/
-function normalizedPointToGridCell(point, descriptor) {
-	if (!isFiniteNumber$1(point.x) || !isFiniteNumber$1(point.y) || point.x < 0 || point.x >= 1 || point.y < 0 || point.y >= 1) return null;
-	const column = point.x === 0 ? 0 : Math.floor(point.x * descriptor.columns);
-	const row = point.y === 0 ? 0 : Math.floor(point.y * descriptor.rows);
-	return Object.freeze({
-		id: row === 0 && column === 0 ? 0 : row * descriptor.columns + column,
-		row,
-		column
-	});
-}
-Object.freeze(["measured", "predicted"]);
-Object.freeze({
-	idle: "idle",
-	loading: "loading",
-	ready: "ready",
-	failed: "failed",
-	disposed: "disposed"
-});
-//#endregion
-//#region node_modules/@aerobeat/web-input/node_modules/@aerobeat/web-contracts/src/body-grid-contracts.js
-/**
-* @typedef {"nose" | "left_shoulder" | "right_shoulder" | "left_elbow" | "right_elbow" | "left_wrist" | "right_wrist"} AeroUpperBodyAnchorName
-*/
-/**
-* @typedef {"up" | "up-right" | "right" | "down-right" | "down" | "down-left" | "left" | "up-left"} AeroBodyGridDirection
-*/
-/**
-* Compatibility alias for consumers that previously named this cardinal-only contract.
-* The serialized direction field is now eight-way without changing its schema shape.
-* @deprecated Use AeroBodyGridDirection.
-* @typedef {AeroBodyGridDirection} AeroCardinalDirection
-*/
-/**
-* @typedef {"uncalibrated" | "holding" | "cooldown" | "calibrated" | "recalibrating" | "tracking_lost" | "invalidated"} AeroCalibrationState
-*/
-/**
-* @typedef {"not_ready" | "calibration_required" | "countdown" | "ready" | "paused_tracking" | "paused_manual" | "destroyed"} AeroReadinessState
-*/
-/**
-* @typedef {Object} AeroCalibratedBounds
-* @property {number} left Athlete-space left edge.
-* @property {number} top Athlete-space top edge.
-* @property {number} right Athlete-space right edge.
-* @property {number} bottom Athlete-space bottom edge.
-*/
-/**
-* @typedef {Object} AeroBodyGridAnchorSnapshot
-* @property {"aerobeat/body_grid_anchor_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
-* @property {string} calibrationId Calibration generation identity.
-* @property {number} measurementTimestampMs Latest real measurement timestamp.
-* @property {boolean} valid Whether this measured anchor is gameplay-valid.
-* @property {number} confidence Normalized measured confidence.
-* @property {number} rawX Unclamped athlete-space X.
-* @property {number} rawY Unclamped athlete-space Y.
-* @property {number | null} x Normalized athlete-space X when valid.
-* @property {number | null} y Normalized athlete-space Y when valid.
-* @property {number | null} cell Top-left row-major 4x3 scoring cell, or null outside the grid.
-* @property {number | null} subcell Top-left row-major 8x6 diagnostic/scoring subcell, or null outside the grid.
-*/
-/**
-* @typedef {Object} AeroBodyGridCellEntry
-* @property {"aerobeat/body_grid_cell_entry"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroUpperBodyAnchorName} anchor Anchor identity.
-* @property {string} calibrationId Calibration generation identity.
-* @property {number} measurementTimestampMs Real measurement timestamp.
-* @property {number} fromCell In-grid source cell.
-* @property {number} toCell In-grid destination cell.
-* @property {AeroBodyGridDirection} [direction] Eight-way athlete-space entry direction when recent motion is unambiguous. Omission records a measured cell entry without directional evidence.
-* @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
-*/
-/**
-* @typedef {Object} AeroCalibrationSnapshot
-* @property {"aerobeat/calibration_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {AeroCalibrationState} state Calibration lifecycle state.
-* @property {AeroReadinessState} readiness Gameplay readiness state.
-* @property {string | null} calibrationId Current calibration generation.
-* @property {number} timestampMs Snapshot timestamp.
-* @property {number} holdDurationMs Required qualified hold duration.
-* @property {number} holdProgressMs Current qualified hold progress.
-* @property {number} cooldownRemainingMs Cooldown remaining after completion.
-* @property {boolean} releaseRequired Whether T-pose release is required before refire.
-* @property {AeroCalibratedBounds | null} bounds Atomically published athlete-space bounds.
-* @property {import("./coordinate-spaces.js").AeroGridDescriptor} grid Public 4x3 athlete grid.
-* @property {import("./coordinate-spaces.js").AeroGridDescriptor} subgrid Public 8x6 athlete subgrid.
-* @property {string | null} invalidationReason Null or stable invalidation reason.
-*/
-/**
-* @typedef {Object} AeroTrackingSafetySnapshot
-* @property {"aerobeat/tracking_safety_snapshot"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {number} timestampMs Snapshot timestamp.
-* @property {number} lossThresholdMs Sustained loss duration that pauses gameplay.
-* @property {number} lossDurationMs Current sustained loss duration.
-* @property {boolean} allRequiredAnchorsVisible Whether all seven required anchors pass confidence.
-* @property {boolean} gameplayPaused Whether tracking safety currently pauses gameplay.
-* @property {boolean} freshCalibrationRequired Whether pause exit requires new calibration.
-*/
-/** @type {readonly AeroUpperBodyAnchorName[]} */
-var upperBodyAnchorNames$1 = Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-Object.freeze([
-	"up",
-	"up-right",
-	"right",
-	"down-right",
-	"down",
-	"down-left",
-	"left",
-	"up-left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-var calibrationDefaults$1 = Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-Object.freeze([
-	"idle",
-	"selecting_content",
-	"calibrating",
-	"countdown",
-	"playing",
-	"paused_manual",
-	"paused_tracking",
-	"completed",
-	"error",
-	"destroyed"
-]);
-Object.freeze([
-	"initial_start",
-	"manual_resume",
-	"tracking_resume",
-	"content_change"
-]);
-Object.freeze(["camera", "audio"]);
-Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-var prototypeJudgementDefaults$1 = Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-Object.freeze([
-	"queued",
-	"acquiring",
-	"inspecting",
-	"converting",
-	"validating",
-	"persisting",
-	"complete",
-	"cancelled",
-	"failed"
-]);
-Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-Object.freeze([
-	"configure",
-	"start",
-	"pause",
-	"resume",
-	"stop",
-	"reset_calibration",
-	"request_fullscreen",
-	"select_content",
-	"select_variant",
-	"browse_beatsaver",
-	"import_beatsaver",
-	"import_local_zip",
-	"cancel_import",
-	"delete_package",
-	"set_theme",
-	"destroy"
-]);
-Object.freeze([
-	"ready",
-	"capabilities_changed",
-	"calibration_changed",
-	"tracking_changed",
-	"session_changed",
-	"score_changed",
-	"content_changed",
-	"beatsaver_results",
-	"import_changed",
-	"fullscreen_changed",
-	"error",
-	"destroyed"
-]);
-Object.freeze({
-	schema: "aerobeat/asset_policy",
-	version: 1,
-	requireChartHash: true,
-	requireAudioHash: true,
-	requireExternalAudioCors: true,
-	requireSampledMediaCors: true,
-	cosmeticBackgroundFailure: "fallback",
-	criticalAssetFailure: "block_startup"
-});
-Object.freeze([
-	"handshake_request",
-	"handshake_ack",
-	"command",
-	"event",
-	"error",
-	"disconnect"
-]);
-Object.freeze({
-	schema: "aerobeat/iframe_message",
-	version: 1,
-	target: "immediate_parent",
-	rawMediaAllowed: false
-});
-Object.freeze([
-	"audioBytes",
-	"frame",
-	"frames",
-	"imageBitmap",
-	"mediaStream",
-	"mediaStreamTrack",
-	"pixels",
-	"rawAudio",
-	"rawFrame",
-	"rawFrames",
-	"screenshot",
-	"videoFrame",
-	"zipBytes"
-]);
-//#endregion
-//#region node_modules/@aerobeat/web-input/src/body-grid-service.js
+//#region ../aerobeat-web-input/src/body-grid-service.js
 /** @typedef {import("@aerobeat/web-contracts").AeroPoseRoutingSample} AeroPoseRoutingSample */
 /** @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame */
 /** @typedef {import("@aerobeat/web-contracts").NormalizedPoseLandmark} NormalizedPoseLandmark */
@@ -17562,7 +14861,7 @@ function createAeroBodyGridService(options = {}) {
 	let latestSnapshot = buildSnapshot();
 	/** @returns {AeroBodyGridServiceSnapshot} */
 	function buildSnapshot() {
-		const holdProgressMs = holdStartedAt === null ? 0 : Math.min(calibrationDefaults$1.holdDurationMs, Math.max(0, timestampMs - holdStartedAt));
+		const holdProgressMs = holdStartedAt === null ? 0 : Math.min(calibrationDefaults.holdDurationMs, Math.max(0, timestampMs - holdStartedAt));
 		const cooldownRemainingMs = Math.max(0, cooldownUntil - timestampMs);
 		const calibration = {
 			schema: "aerobeat/calibration_snapshot",
@@ -17571,20 +14870,20 @@ function createAeroBodyGridService(options = {}) {
 			readiness: destroyed ? "destroyed" : readiness,
 			calibrationId,
 			timestampMs,
-			holdDurationMs: calibrationDefaults$1.holdDurationMs,
+			holdDurationMs: calibrationDefaults.holdDurationMs,
 			holdProgressMs,
 			cooldownRemainingMs,
 			releaseRequired: !releaseObserved,
 			bounds,
-			grid: athleteBodyGrid4x3$1,
-			subgrid: athleteBodySubgrid8x6$1,
+			grid: athleteBodyGrid4x3,
+			subgrid: athleteBodySubgrid8x6,
 			invalidationReason
 		};
 		const tracking = {
 			schema: "aerobeat/tracking_safety_snapshot",
 			version: 1,
 			timestampMs,
-			lossThresholdMs: calibrationDefaults$1.trackingLossPauseMs,
+			lossThresholdMs: calibrationDefaults.trackingLossPauseMs,
 			lossDurationMs,
 			allRequiredAnchorsVisible,
 			gameplayPaused: trackingPaused,
@@ -17644,7 +14943,7 @@ function createAeroBodyGridService(options = {}) {
 	function triggerTrackingPause(sampleTimestamp) {
 		timestampMs = Math.max(timestampMs, sampleTimestamp);
 		trackingPaused = true;
-		lossDurationMs = Math.max(calibrationDefaults$1.trackingLossPauseMs, lossDurationMs);
+		lossDurationMs = Math.max(calibrationDefaults.trackingLossPauseMs, lossDurationMs);
 		invalidateCalibration("tracking_lost");
 	}
 	/** @param {AeroPoseRoutingSample | NormalizedPoseFrame} input @param {AeroBodyGridSampleContext} context */
@@ -17662,7 +14961,7 @@ function createAeroBodyGridService(options = {}) {
 			return latestSnapshot;
 		}
 		if (lastMeasuredAt !== null && sample.measurementTimestampMs === lastMeasuredAt || `${sample.sourceId}\u0000${sample.measuredSourceFrameId}` === lastMeasuredSourceFrameKey) return latestSnapshot;
-		if (lastMeasuredAt !== null && sample.measurementTimestampMs - lastMeasuredAt >= calibrationDefaults$1.trackingLossPauseMs) {
+		if (lastMeasuredAt !== null && sample.measurementTimestampMs - lastMeasuredAt >= calibrationDefaults.trackingLossPauseMs) {
 			lossStartedAt = lastMeasuredAt;
 			lossDurationMs = sample.measurementTimestampMs - lastMeasuredAt;
 			triggerTrackingPause(sample.measurementTimestampMs);
@@ -17682,7 +14981,7 @@ function createAeroBodyGridService(options = {}) {
 			invalidateCalibration("source_changed");
 		}
 		const landmarks = measuredLandmarkMap(sample);
-		allRequiredAnchorsVisible = upperBodyAnchorNames$1.every((name) => (landmarks.get(name)?.confidence ?? 0) >= calibrationDefaults$1.requiredConfidence);
+		allRequiredAnchorsVisible = upperBodyAnchorNames.every((name) => (landmarks.get(name)?.confidence ?? 0) >= calibrationDefaults.requiredConfidence);
 		if (allRequiredAnchorsVisible) {
 			lossStartedAt = null;
 			lossDurationMs = 0;
@@ -17691,7 +14990,7 @@ function createAeroBodyGridService(options = {}) {
 			lossDurationMs = Math.max(0, sample.measurementTimestampMs - lossStartedAt);
 			latestEntries = [];
 			resetWristMotionHistories();
-			if (lossDurationMs >= calibrationDefaults$1.trackingLossPauseMs) triggerTrackingPause(sample.measurementTimestampMs);
+			if (lossDurationMs >= calibrationDefaults.trackingLossPauseMs) triggerTrackingPause(sample.measurementTimestampMs);
 		}
 		updateCalibration(sample, landmarks);
 		if (calibrationId !== null && bounds !== null) mapMeasuredAnchors(sample, landmarks);
@@ -17736,7 +15035,7 @@ function createAeroBodyGridService(options = {}) {
 		holdFrames.push([...landmarks.values()].map((item) => ({ ...item })));
 		calibrationState = bounds === null ? "holding" : "recalibrating";
 		readiness = trackingPaused ? "paused_tracking" : "calibration_required";
-		if (sample.measurementTimestampMs - holdStartedAt < calibrationDefaults$1.holdDurationMs) return;
+		if (sample.measurementTimestampMs - holdStartedAt < calibrationDefaults.holdDurationMs) return;
 		const nextGeometry = calibratedGeometry(averageLandmarks(holdFrames), sourceAspect, padding);
 		if (nextGeometry === null) {
 			holdStartedAt = null;
@@ -17754,7 +15053,7 @@ function createAeroBodyGridService(options = {}) {
 		calibrationState = "cooldown";
 		readiness = "countdown";
 		releaseObserved = false;
-		cooldownUntil = sample.measurementTimestampMs + calibrationDefaults$1.cooldownDurationMs;
+		cooldownUntil = sample.measurementTimestampMs + calibrationDefaults.cooldownDurationMs;
 		holdStartedAt = null;
 		holdFrames = [];
 		resetMeasuredHistories();
@@ -17771,7 +15070,7 @@ function createAeroBodyGridService(options = {}) {
 		const byName = /* @__PURE__ */ new Map();
 		if (scoringValid) recordWristMotionSamples(sample.measurementTimestampMs, landmarks, bounds);
 		else resetWristMotionHistories();
-		for (const name of upperBodyAnchorNames$1) {
+		for (const name of upperBodyAnchorNames) {
 			const landmark = landmarks.get(name);
 			if (!landmark) continue;
 			const raw = normalizeAgainstBounds(cameraPreviewToAthlete(landmark), bounds);
@@ -17780,10 +15079,10 @@ function createAeroBodyGridService(options = {}) {
 				cell: null,
 				subcell: null
 			};
-			const signalValid = scoringValid && landmark.confidence >= calibrationDefaults$1.requiredConfidence;
-			const cell = signalValid ? hystereticGridCell(raw, athleteBodyGrid4x3$1, history.cell, hysteresisRatio) : null;
-			const subcell = signalValid ? hystereticGridCell(raw, athleteBodySubgrid8x6$1, history.subcell, hysteresisRatio) : null;
-			const inGrid = signalValid && normalizedPointToGridCell(raw, athleteBodyGrid4x3$1) !== null;
+			const signalValid = scoringValid && landmark.confidence >= calibrationDefaults.requiredConfidence;
+			const cell = signalValid ? hystereticGridCell(raw, athleteBodyGrid4x3, history.cell, hysteresisRatio) : null;
+			const subcell = signalValid ? hystereticGridCell(raw, athleteBodySubgrid8x6, history.subcell, hysteresisRatio) : null;
+			const inGrid = signalValid && normalizedPointToGridCell(raw, athleteBodyGrid4x3) !== null;
 			const anchor = {
 				schema: "aerobeat/body_grid_anchor_snapshot",
 				version: 1,
@@ -17791,7 +15090,7 @@ function createAeroBodyGridService(options = {}) {
 				calibrationId,
 				measurementTimestampMs: sample.measurementTimestampMs,
 				valid: inGrid,
-				confidence: clamp01$2(landmark.confidence),
+				confidence: clamp01$1(landmark.confidence),
 				rawX: raw.x,
 				rawY: raw.y,
 				x: inGrid ? raw.x : null,
@@ -17872,7 +15171,7 @@ function createAeroBodyGridService(options = {}) {
 			const athleteWrist = cameraPreviewToAthlete(wrist);
 			const dx = athleteWrist.x - athleteElbow.x;
 			const dy = athleteWrist.y - athleteElbow.y;
-			const straightPose = elbowAngle >= calibrationDefaults$1.minimumElbowAngleDeg;
+			const straightPose = elbowAngle >= calibrationDefaults.minimumElbowAngleDeg;
 			const acceptedColumns = hand === "left" ? [
 				2,
 				3,
@@ -17884,8 +15183,8 @@ function createAeroBodyGridService(options = {}) {
 			];
 			const spatialAccepted = straightPose && wristAnchor.subcell !== null && acceptedColumns.includes(wristAnchor.subcell % 8);
 			if (updateStraightHand(hand, sample.measurementTimestampMs, straightPose, spatialAccepted).semanticQualified) actions.push(hand === "left" ? "straight_left" : "straight_right");
-			else if (elbowAngle < calibrationDefaults$1.minimumElbowAngleDeg && Math.abs(dx) > Math.abs(dy) * 1.15) actions.push(hand === "left" ? "hook_left" : "hook_right");
-			else if (elbowAngle < calibrationDefaults$1.minimumElbowAngleDeg && dy < 0 && Math.abs(dy) > Math.abs(dx) * 1.05) actions.push(hand === "left" ? "uppercut_left" : "uppercut_right");
+			else if (elbowAngle < calibrationDefaults.minimumElbowAngleDeg && Math.abs(dx) > Math.abs(dy) * 1.15) actions.push(hand === "left" ? "hook_left" : "hook_right");
+			else if (elbowAngle < calibrationDefaults.minimumElbowAngleDeg && dy < 0 && Math.abs(dy) > Math.abs(dx) * 1.05) actions.push(hand === "left" ? "uppercut_left" : "uppercut_right");
 		}
 		const nose = anchors.get("nose");
 		const left = anchors.get("left_wrist");
@@ -17908,8 +15207,8 @@ function createAeroBodyGridService(options = {}) {
 		updateContinuity(state, "spatialStart", "spatialLast", now, spatial);
 		straightStates.set(hand, state);
 		return {
-			semanticQualified: state.semanticStart !== null && now - state.semanticStart >= prototypeJudgementDefaults$1.straightQualificationMs,
-			spatialQualified: state.spatialStart !== null && now - state.spatialStart >= prototypeJudgementDefaults$1.straightQualificationMs
+			semanticQualified: state.semanticStart !== null && now - state.semanticStart >= prototypeJudgementDefaults.straightQualificationMs,
+			spatialQualified: state.spatialStart !== null && now - state.spatialStart >= prototypeJudgementDefaults.straightQualificationMs
 		};
 	}
 	/** @param {"left" | "right"} hand */
@@ -17925,7 +15224,7 @@ function createAeroBodyGridService(options = {}) {
 		for (const hand of ["left", "right"]) {
 			const wrist = landmarks.get(`${hand}_wrist`);
 			const shoulder = landmarks.get(`${hand}_shoulder`);
-			if (!wrist || !shoulder || wrist.confidence < calibrationDefaults$1.requiredConfidence || shoulder.confidence < calibrationDefaults$1.requiredConfidence) {
+			if (!wrist || !shoulder || wrist.confidence < calibrationDefaults.requiredConfidence || shoulder.confidence < calibrationDefaults.requiredConfidence) {
 				wristMotionHistories.set(hand, []);
 				continue;
 			}
@@ -17934,8 +15233,8 @@ function createAeroBodyGridService(options = {}) {
 			const history = wristMotionHistories.get(hand) ?? [];
 			history.push({
 				timestampMs: atTimestampMs,
-				x: (wristRaw.x - shoulderRaw.x) * athleteBodyGrid4x3$1.columns,
-				y: (wristRaw.y - shoulderRaw.y) * athleteBodyGrid4x3$1.rows
+				x: (wristRaw.x - shoulderRaw.x) * athleteBodyGrid4x3.columns,
+				y: (wristRaw.y - shoulderRaw.y) * athleteBodyGrid4x3.rows
 			});
 			const cutoff = atTimestampMs - directionHistoryWindowMs;
 			while (history.length > 0 && history[0].timestampMs < cutoff) history.shift();
@@ -17996,7 +15295,7 @@ function createAeroBodyGridService(options = {}) {
 		if (lossStartedAt === null) lossStartedAt = lastMeasuredAt ?? timestampMs;
 		lossDurationMs = Math.max(0, timestampMs - lossStartedAt);
 		allRequiredAnchorsVisible = false;
-		if (lossDurationMs >= calibrationDefaults$1.trackingLossPauseMs) triggerTrackingPause(timestampMs);
+		if (lossDurationMs >= calibrationDefaults.trackingLossPauseMs) triggerTrackingPause(timestampMs);
 		return publish();
 	}
 	/** @param {string} reason */
@@ -18007,7 +15306,7 @@ function createAeroBodyGridService(options = {}) {
 		return publish();
 	}
 	/** @param {number} atTimestampMs @param {number} maximumAgeMs */
-	function getFreshEvidence(atTimestampMs, maximumAgeMs = prototypeJudgementDefaults$1.checkpointFreshnessMs) {
+	function getFreshEvidence(atTimestampMs, maximumAgeMs = prototypeJudgementDefaults.checkpointFreshnessMs) {
 		if (latestEvidence === null || trackingPaused || freshCalibrationRequired || !Number.isFinite(atTimestampMs)) return null;
 		const age = atTimestampMs - latestEvidence.measurementTimestampMs;
 		return age >= 0 && age <= Math.max(0, maximumAgeMs) ? latestEvidence : null;
@@ -18056,10 +15355,10 @@ function normalizeSample(input) {
 	try {
 		if (input === null || typeof input !== "object") return null;
 		if ("provenance" in input) {
-			if (input.provenance !== "measured" && input.provenance !== "predicted" || !isNonEmptyString$1(input.sourceId) || !isNonEmptyString$1(input.measuredSourceFrameId) || !isNonNegativeFinite(input.measurementTimestampMs) || !isNonNegativeFinite(input.targetTimestampMs) || !Array.isArray(input.landmarks) || typeof input.mirrored !== "boolean") return null;
+			if (input.provenance !== "measured" && input.provenance !== "predicted" || !isNonEmptyString(input.sourceId) || !isNonEmptyString(input.measuredSourceFrameId) || !isNonNegativeFinite(input.measurementTimestampMs) || !isNonNegativeFinite(input.targetTimestampMs) || !Array.isArray(input.landmarks) || typeof input.mirrored !== "boolean") return null;
 			return input;
 		}
-		if (!isNonEmptyString$1(input.sourceId) || !isNonNegativeFinite(input.timestampMs) || !Array.isArray(input.landmarks) || typeof input.mirrored !== "boolean") return null;
+		if (!isNonEmptyString(input.sourceId) || !isNonNegativeFinite(input.timestampMs) || !Array.isArray(input.landmarks) || typeof input.mirrored !== "boolean") return null;
 		return {
 			schema: "aerobeat/pose_routing_sample",
 			version: 1,
@@ -18085,7 +15384,7 @@ function measuredLandmarkMap(sample) {
 	for (const candidate of sample.landmarks) {
 		if (candidate === null || typeof candidate !== "object") continue;
 		const name = candidate.name;
-		if (!upperBodyAnchorNames$1.includes(name) || rejectedNames.has(name)) continue;
+		if (!upperBodyAnchorNames.includes(name) || rejectedNames.has(name)) continue;
 		if (map.has(name)) {
 			map.delete(name);
 			rejectedNames.add(name);
@@ -18115,7 +15414,7 @@ function qualifiesTPose(landmarks) {
 		Math.abs(rightWrist.y - rightShoulder.y) / shoulderWidth,
 		Math.abs(leftElbow.y - leftShoulder.y) / shoulderWidth,
 		Math.abs(rightElbow.y - rightShoulder.y) / shoulderWidth
-	].every((ratio) => ratio <= calibrationDefaults$1.wristElbowVerticalRatio) && angleDegrees(leftShoulder, leftElbow, leftWrist) >= calibrationDefaults$1.minimumElbowAngleDeg && angleDegrees(rightShoulder, rightElbow, rightWrist) >= calibrationDefaults$1.minimumElbowAngleDeg;
+	].every((ratio) => ratio <= calibrationDefaults.wristElbowVerticalRatio) && angleDegrees(leftShoulder, leftElbow, leftWrist) >= calibrationDefaults.minimumElbowAngleDeg && angleDegrees(rightShoulder, rightElbow, rightWrist) >= calibrationDefaults.minimumElbowAngleDeg;
 }
 /** @param {readonly NormalizedPoseLandmark[][]} frames */
 function averageLandmarks(frames) {
@@ -18158,7 +15457,7 @@ function calibratedGeometry(landmarks, aspect, padding) {
 	const athleteRightShoulder = cameraPreviewToAthlete(rightShoulder);
 	const athleteNose = cameraPreviewToAthlete(nose);
 	const baseWidth = Math.abs(athleteLeftWrist.x - athleteRightWrist.x);
-	const baseHeight = baseWidth * aspect * (athleteBodyGrid4x3$1.rows / athleteBodyGrid4x3$1.columns);
+	const baseHeight = baseWidth * aspect * (athleteBodyGrid4x3.rows / athleteBodyGrid4x3.columns);
 	if (!(baseWidth > Number.EPSILON) || !(baseHeight > Number.EPSILON)) return null;
 	const centerX = (athleteLeftWrist.x + athleteRightWrist.x) / 2;
 	const centerY = (athleteLeftShoulder.y + athleteRightShoulder.y) / 2;
@@ -18223,7 +15522,7 @@ function updateContinuity(state, startKey, lastKey, now, active) {
 		return;
 	}
 	const last = state[lastKey];
-	if (last === null || now - last > prototypeJudgementDefaults$1.straightContinuityGapMs || now < last) state[startKey] = now;
+	if (last === null || now - last > prototypeJudgementDefaults.straightContinuityGapMs || now < last) state[startKey] = now;
 	state[lastKey] = now;
 }
 /** @returns {StraightState} */
@@ -18246,10 +15545,10 @@ function qualificationSnapshots(now, states) {
 			hand,
 			semanticStartTimestampMs: state.semanticStart,
 			semanticDurationMs: semanticDuration,
-			semanticQualified: semanticDuration >= prototypeJudgementDefaults$1.straightQualificationMs,
+			semanticQualified: semanticDuration >= prototypeJudgementDefaults.straightQualificationMs,
 			spatialStartTimestampMs: state.spatialStart,
 			spatialDurationMs: spatialDuration,
-			spatialQualified: spatialDuration >= prototypeJudgementDefaults$1.straightQualificationMs,
+			spatialQualified: spatialDuration >= prototypeJudgementDefaults.straightQualificationMs,
 			acceptedSubcellColumns: Object.freeze(hand === "left" ? [
 				2,
 				3,
@@ -18299,11 +15598,11 @@ function bounded(value, fallback, minimum, maximum) {
 	return typeof value === "number" && Number.isFinite(value) ? Math.min(maximum, Math.max(minimum, value)) : fallback;
 }
 /** @param {number} value */
-function clamp01$2(value) {
+function clamp01$1(value) {
 	return Math.min(1, Math.max(0, value));
 }
 /** @param {unknown} value */
-function isNonEmptyString$1(value) {
+function isNonEmptyString(value) {
 	return typeof value === "string" && value.length > 0;
 }
 /** @param {unknown} value */
@@ -18346,1838 +15645,7 @@ Object.freeze({
 	maximumTreatmentTransitionTimingMeanErrorMs: 50
 });
 //#endregion
-//#region node_modules/@aerobeat/web-renderer/node_modules/@aerobeat/web-contracts/src/contract-guards.js
-/**
-* @param {unknown} value
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function isRecord$2(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-	const prototype = Object.getPrototypeOf(value);
-	return prototype === Object.prototype || prototype === null;
-}
-/**
-* Require a plain record to contain exactly the declared own enumerable keys.
-* Payload records remain the versioned extension point; contract envelopes do not.
-*
-* @param {unknown} value
-* @param {readonly string[]} expectedKeys
-* @returns {value is Readonly<Record<string, unknown>>}
-*/
-function hasExactKeys(value, expectedKeys) {
-	if (!isRecord$2(value)) return false;
-	const keys = Reflect.ownKeys(value);
-	return keys.length === expectedKeys.length && keys.every((key) => {
-		if (typeof key !== "string" || !expectedKeys.includes(key)) return false;
-		const descriptor = Object.getOwnPropertyDescriptor(value, key);
-		return descriptor !== void 0 && descriptor.enumerable && "value" in descriptor;
-	});
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isFiniteNumber(value) {
-	return typeof value === "number" && Number.isFinite(value);
-}
-/**
-* @param {unknown} value
-* @returns {value is number}
-*/
-function isNonNegativeFiniteNumber(value) {
-	return isFiniteNumber(value) && value >= 0;
-}
-/**
-* @param {unknown} value
-* @returns {value is string}
-*/
-function isNonEmptyString(value) {
-	return typeof value === "string" && value.length > 0;
-}
-Object.freeze([
-	"camera_preview_top_left",
-	"gameplay_camera_bottom_left",
-	"athlete_top_left",
-	"playfield_top_left"
-]);
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "athlete_body_8x6",
-	columns: 8,
-	rows: 6,
-	coordinateSpace: "athlete_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: true
-});
-Object.freeze({
-	schema: "aerobeat/grid_descriptor",
-	version: 1,
-	id: "gameplay_playfield_4x3",
-	columns: 4,
-	rows: 3,
-	coordinateSpace: "playfield_top_left",
-	indexing: "top_left_row_major",
-	horizontallyOpposedToCamera: false
-});
-Object.freeze([
-	"nose",
-	"left_shoulder",
-	"right_shoulder",
-	"left_elbow",
-	"right_elbow",
-	"left_wrist",
-	"right_wrist"
-]);
-Object.freeze([
-	"up",
-	"up-right",
-	"right",
-	"down-right",
-	"down",
-	"down-left",
-	"left",
-	"up-left"
-]);
-Object.freeze([
-	"uncalibrated",
-	"holding",
-	"cooldown",
-	"calibrated",
-	"recalibrating",
-	"tracking_lost",
-	"invalidated"
-]);
-Object.freeze([
-	"not_ready",
-	"calibration_required",
-	"countdown",
-	"ready",
-	"paused_tracking",
-	"paused_manual",
-	"destroyed"
-]);
-Object.freeze({
-	requiredConfidence: .5,
-	holdDurationMs: 4e3,
-	cooldownDurationMs: 4e3,
-	trackingLossPauseMs: 500,
-	wristElbowVerticalRatio: .35,
-	minimumElbowAngleDeg: 130
-});
-Object.freeze([
-	"flow_grid_v1",
-	"boxing_semantic_track_v1",
-	"boxing_spatial_grid_v1"
-]);
-Object.freeze(["row_family_balanced_height_v1", "cut_family_source_height_v1"]);
-Object.freeze([
-	"straight_left",
-	"straight_right",
-	"hook_left",
-	"hook_right",
-	"uppercut_left",
-	"uppercut_right",
-	"guard",
-	"crossed_guard",
-	"squat",
-	"weave_left",
-	"weave_right"
-]);
-Object.freeze([
-	"no_input",
-	"stale_input",
-	"wrong_cell",
-	"wrong_subcell",
-	"wrong_direction",
-	"qualification_too_short",
-	"tracking_invalid",
-	"calibration_mismatch",
-	"timing_miss",
-	"blocked_overlap",
-	"action_consumed"
-]);
-Object.freeze({
-	timingWindowBeforeMs: 180,
-	timingWindowAfterMs: 180,
-	checkpointFreshnessMs: 150,
-	straightQualificationMs: 100,
-	straightContinuityGapMs: 150,
-	minimumPunchSpacingMs: 360
-});
-Object.freeze([
-	"no_squats",
-	"no_weaves",
-	"any_punch",
-	"crossed_guard",
-	"cross_body"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroContentHash}
-*/
-function isContentHash(value) {
-	if (!hasExactKeys(value, [
-		"schema",
-		"version",
-		"algorithm",
-		"value"
-	]) || value.schema !== "aerobeat/content_hash" || value.version !== 1) return false;
-	if (value.algorithm !== "sha1" && value.algorithm !== "sha256") return false;
-	if (typeof value.value !== "string") return false;
-	const expectedLength = value.algorithm === "sha1" ? 40 : 64;
-	return value.value.length === expectedLength && /^[0-9a-f]+$/u.test(value.value);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-renderer/node_modules/@aerobeat/web-contracts/src/theme-contracts.js
-/**
-* @typedef {Object} AeroThemeTokens
-* @property {string} leftHandColor CSS color token value.
-* @property {string} rightHandColor CSS color token value.
-* @property {string} guardColor CSS color token value.
-* @property {string} obstacleColor CSS color token value.
-* @property {string} receptorColor CSS color token value.
-* @property {number} approachLeadMs Approach animation lead time.
-* @property {number} targetStartScale Target initial scale.
-* @property {number} targetHitScale Target beat-center scale.
-* @property {string} approachEasing Serializable easing token.
-* @property {string} hitEasing Serializable easing token.
-* @property {string} missEasing Serializable easing token.
-*/
-/**
-* @typedef {Object} AeroThemeDescriptor
-* @property {"aerobeat/theme_descriptor"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {string} id Stable theme ID.
-* @property {string} themeVersion Theme version.
-* @property {AeroThemeTokens} tokens Serializable approved tokens.
-* @property {import("./content-contracts.js").AeroContentHash} contentHash Canonical token hash.
-*/
-/**
-* @typedef {Object} AeroBackgroundSuggestion
-* @property {"aerobeat/background_suggestion"} schema Schema ID.
-* @property {1} version Schema version.
-* @property {"default" | "playlist" | "song" | "athlete"} source Suggestion precedence source.
-* @property {"css" | "image" | "video"} kind Background kind.
-* @property {string | null} url External/package URL for media kinds.
-* @property {import("./content-contracts.js").AeroContentHash | null} hash Required media hash for gameplay package assets.
-* @property {string | null} themeId Optional associated theme.
-*/
-/** @type {readonly (keyof AeroThemeTokens)[]} */
-var serializableThemeTokenNames = Object.freeze([
-	"leftHandColor",
-	"rightHandColor",
-	"guardColor",
-	"obstacleColor",
-	"receptorColor",
-	"approachLeadMs",
-	"targetStartScale",
-	"targetHitScale",
-	"approachEasing",
-	"hitEasing",
-	"missEasing"
-]);
-Object.freeze([
-	"default",
-	"playlist",
-	"song",
-	"athlete"
-]);
-/**
-* @param {unknown} value
-* @returns {value is AeroThemeDescriptor}
-*/
-function isThemeDescriptor(value) {
-	if (!hasExactKeys(value, [
-		"schema",
-		"version",
-		"id",
-		"themeVersion",
-		"tokens",
-		"contentHash"
-	]) || !isRecord$2(value.tokens)) return false;
-	const tokens = value.tokens;
-	const exactTokenKeys = Object.keys(tokens).length === serializableThemeTokenNames.length && Object.keys(tokens).every((key) => serializableThemeTokenNames.includes(key));
-	return value.schema === "aerobeat/theme_descriptor" && value.version === 1 && isNonEmptyString(value.id) && isNonEmptyString(value.themeVersion) && exactTokenKeys && isNonEmptyString(tokens.leftHandColor) && isNonEmptyString(tokens.rightHandColor) && isNonEmptyString(tokens.guardColor) && isNonEmptyString(tokens.obstacleColor) && isNonEmptyString(tokens.receptorColor) && isNonNegativeFiniteNumber(tokens.approachLeadMs) && isNonNegativeFiniteNumber(tokens.targetStartScale) && isNonNegativeFiniteNumber(tokens.targetHitScale) && isNonEmptyString(tokens.approachEasing) && isNonEmptyString(tokens.hitEasing) && isNonEmptyString(tokens.missEasing) && isContentHash(value.contentHash);
-}
-//#endregion
-//#region node_modules/@aerobeat/web-renderer/src/gameplay-plan.js
-/** @typedef {"flow" | "boxing_spatial_grid" | "boxing_semantic_track"} AeroGameplayPresentation */
-/** @typedef {"left" | "right" | "guard" | "obstacle" | "neutral" | "safe"} AeroVisualRole */
-/** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
-/** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
-/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, contrast:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
-/** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
-/** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
-/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
-/** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
-/** @typedef {{commands:readonly AeroGameplayDrawCommand[], overlay:Readonly<{kind:string,dim:number,countdown:number|null}>, presentation:AeroGameplayPresentation, grid:Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}} AeroGameplayRenderPlan */
-/** @type {AeroRendererTuning} */
-var defaultRendererTuning = Object.freeze({
-	id: "aero.renderer.prototype.default",
-	version: "1",
-	hash: "visual-538685f6",
-	gridInset: .055,
-	gridGap: .018,
-	receptorAlpha: .22,
-	approachRingScale: 1.55,
-	approachRingWidth: .08,
-	laneWidth: .22,
-	roleScale: 1,
-	dprCap: 2
-});
-/** @type {AeroRendererThemeTokens} */
-var defaultRendererThemeTokens = Object.freeze({
-	leftHandColor: "#2693ff",
-	rightHandColor: "#39c96b",
-	guardColor: "#9a67ea",
-	obstacleColor: "#e5484d",
-	receptorColor: "#d9f5ff",
-	approachLeadMs: 900,
-	targetStartScale: .48,
-	targetHitScale: 1,
-	approachEasing: "linear",
-	hitEasing: "ease-out",
-	missEasing: "ease-out"
-});
-/** Stable branding semantic IDs consumed by the alpha-mask atlas. */
-var gameplayIconIds = Object.freeze([
-	"boxing.glove",
-	"boxing.guard.crossed",
-	"boxing.guard.standard",
-	"boxing.hook.left",
-	"boxing.hook.right",
-	"boxing.squat",
-	"boxing.straight.left",
-	"boxing.straight.right",
-	"boxing.uppercut.left",
-	"boxing.uppercut.right",
-	"boxing.weave.left",
-	"boxing.weave.right",
-	"calibration.tpose"
-]);
-/**
-* Build a deterministic, screenshot-free renderer command plan. The visible playfield
-* is normalized screen space and never consumes camera/athlete-grid coordinates.
-*
-* @param {AeroGameplayFrame} frame
-* @param {AeroRendererThemeTokens} [theme]
-* @param {AeroRendererTuning} [tuning]
-* @returns {AeroGameplayRenderPlan}
-*/
-function buildGameplayRenderPlan(frame, theme = defaultRendererThemeTokens, tuning = defaultRendererTuning) {
-	if (!isPresentation(frame.presentation) || !Number.isFinite(frame.nowMs) || !Array.isArray(frame.targets)) throw new TypeError("Gameplay frame is invalid");
-	const grid = fitPlayfieldGrid(tuning.gridInset, frame.viewportAspect);
-	/** @type {AeroGameplayDrawCommand[]} */
-	const commands = [];
-	if (frame.presentation === "boxing_semantic_track") addTrack(commands, tuning, frame.viewportAspect);
-	else addGridReceptors(commands, grid, tuning);
-	for (const cell of frame.safeCells ?? []) {
-		const rect = cellRect(cell, grid, tuning.gridGap);
-		if (rect) commands.push(command("hatch", "safe", rect, .22, 1, null, true, 1, null));
-	}
-	for (const cell of frame.blockedCells ?? []) {
-		const rect = cellRect(cell, grid, tuning.gridGap);
-		if (rect) commands.push(command("hatch", "obstacle", rect, .72, 1, null, true, 3, null));
-	}
-	for (const target of frame.targets) addTarget(commands, frame, target, grid, theme, tuning);
-	const overlayKind = frame.overlay ?? "none";
-	const defaultDim = overlayKind === "none" ? 0 : .62;
-	return Object.freeze({
-		commands: Object.freeze(commands.sort((a, b) => a.layer - b.layer)),
-		overlay: Object.freeze({
-			kind: overlayKind,
-			dim: clamp$1(frame.calibrationDim ?? defaultDim, 0, 1),
-			countdown: normalizeCountdown(frame.countdown)
-		}),
-		presentation: frame.presentation,
-		grid
-	});
-}
-/**
-* Fit a physical 4:3 playfield into any normalized viewport. Normalized widths are
-* compensated by viewport aspect so 4x3 cells and icons remain physically square.
-*
-* @param {number} inset
-* @param {number|undefined} viewportAspect
-* @returns {Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}
-*/
-function fitPlayfieldGrid(inset, viewportAspect) {
-	const aspect = Number.isFinite(viewportAspect) && Number(viewportAspect) > 0 ? Number(viewportAspect) : 4 / 3;
-	const available = Math.max(.02, 1 - clamp$1(inset, 0, .25) * 2);
-	const playfieldAspect = 4 / 3;
-	const width = aspect >= playfieldAspect ? available * playfieldAspect / aspect : available;
-	const height = aspect >= playfieldAspect ? available : available * aspect / playfieldAspect;
-	return Object.freeze({
-		x: (1 - width) / 2,
-		y: (1 - height) / 2,
-		width,
-		height,
-		columns: 4,
-		rows: 3
-	});
-}
-/** @param {AeroGameplayDrawCommand[]} commands @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect */
-function addTrack(commands, tuning, viewportAspect) {
-	const track = trackGeometry(tuning, viewportAspect);
-	commands.push(command("rect", "left", {
-		x: track.leftX,
-		y: track.y,
-		width: track.width,
-		height: track.height
-	}, .12, 1, null, false, 0, null));
-	commands.push(command("rect", "right", {
-		x: track.rightX,
-		y: track.y,
-		width: track.width,
-		height: track.height
-	}, .12, 1, null, false, 0, null));
-	const lineHeight = Math.min(.008, track.targetHeight * .05);
-	commands.push(command("line", "neutral", {
-		x: track.leftX,
-		y: track.receptorY + track.targetHeight / 2,
-		width: track.width,
-		height: lineHeight
-	}, .68, 1, null, false, 1, null));
-	commands.push(command("line", "neutral", {
-		x: track.rightX,
-		y: track.receptorY + track.targetHeight / 2,
-		width: track.width,
-		height: lineHeight
-	}, .68, 1, null, false, 1, null));
-}
-/** @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect */
-function trackGeometry(tuning, viewportAspect) {
-	const aspect = Number.isFinite(viewportAspect) && Number(viewportAspect) > 0 ? Number(viewportAspect) : 4 / 3;
-	const gap = .1;
-	const y = .08;
-	const height = .84;
-	const width = Math.min(tuning.laneWidth, height * .32 / aspect);
-	const leftX = .5 - gap / 2 - width;
-	const rightX = .55;
-	const targetHeight = width * aspect;
-	return {
-		width,
-		leftX,
-		rightX,
-		y,
-		height,
-		targetHeight,
-		receptorY: .9199999999999999 - targetHeight
-	};
-}
-/** @param {AeroGameplayDrawCommand[]} commands @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererTuning} tuning */
-function addGridReceptors(commands, grid, tuning) {
-	for (let cell = 0; cell < 12; cell += 1) {
-		const rect = cellRect(cell, grid, tuning.gridGap);
-		if (rect) commands.push(command("rect", "neutral", rect, tuning.receptorAlpha, 1, null, false, 0, null));
-	}
-}
-/** @param {AeroGameplayDrawCommand[]} commands @param {AeroGameplayFrame} frame @param {AeroRenderableTarget} target @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererThemeTokens} theme @param {AeroRendererTuning} tuning */
-function addTarget(commands, frame, target, grid, theme, tuning) {
-	const role = target.hand === "left" ? "left" : target.hand === "right" ? "right" : target.kind === "obstacle" ? "obstacle" : target.kind === "safe" ? "safe" : target.kind === "guard" ? "guard" : "neutral";
-	const lead = Math.max(1, target.approachLeadMs ?? theme.approachLeadMs);
-	const progress = applyNamedEasing(clamp$1(1 - (target.beatCenterMs - frame.nowMs) / lead, 0, 1), theme.approachEasing);
-	const feedback = applyNamedEasing(clamp$1(target.feedbackProgress ?? 0, 0, 1), target.judgement === "miss" ? theme.missEasing : theme.hitEasing);
-	let scale = lerp(theme.targetStartScale, theme.targetHitScale, progress);
-	let alpha = lerp(.35, 1, progress);
-	if (target.judgement === "hit") {
-		scale *= 1 - feedback * .65;
-		alpha *= 1 - feedback;
-	} else if (target.judgement === "miss") {
-		scale *= 1 + feedback * .12;
-		alpha *= 1 - feedback * .9;
-	}
-	const rects = targetRects(frame.presentation, target, grid, tuning, frame.viewportAspect);
-	for (const targetRect of rects) {
-		const baseRect = scaledRect(targetRect, tuning.roleScale);
-		const rect = scaledRect(baseRect, scale);
-		const iconId = iconIdFor(target);
-		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
-		commands.push(command(kind, role, rect, alpha, scale, iconId, target.kind === "obstacle", 4, target.id, progress));
-		if (target.direction) for (const cue of directionCueRects(rect, target.direction)) commands.push(command(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress, true));
-		if (target.judgement === void 0 || target.judgement === "pending") commands.push(command("ring", role, scaledRect(baseRect, lerp(tuning.approachRingScale, 1, progress)), .85, lerp(tuning.approachRingScale, 1, progress), null, false, 5, target.id, progress));
-	}
-}
-/** @param {AeroGameplayPresentation} presentation @param {AeroRenderableTarget} target @param {{x:number,y:number,width:number,height:number}} grid @param {AeroRendererTuning} tuning @param {number|undefined} viewportAspect @returns {AeroNormalizedRect[]} */
-function targetRects(presentation, target, grid, tuning, viewportAspect) {
-	if (presentation === "boxing_semantic_track" && target.kind !== "obstacle") {
-		const track = trackGeometry(tuning, viewportAspect);
-		if (target.kind === "guard") return [{
-			x: track.leftX,
-			y: track.receptorY,
-			width: track.rightX + track.width - track.leftX,
-			height: track.targetHeight
-		}];
-		return [{
-			x: (target.lane ?? target.hand) === "left" ? track.leftX : track.rightX,
-			y: track.receptorY,
-			width: track.width,
-			height: track.targetHeight
-		}];
-	}
-	const cells = target.cells.length > 0 ? target.cells : target.cell === null ? [] : [target.cell];
-	if (target.kind === "guard" && cells.length >= 2) {
-		const first = cellRect(cells[0], grid, tuning.gridGap);
-		const second = cellRect(cells[1], grid, tuning.gridGap);
-		if (!first || !second) return [];
-		const left = Math.min(first.x, second.x);
-		const top = Math.min(first.y, second.y);
-		return [{
-			x: left,
-			y: top,
-			width: Math.max(first.x + first.width, second.x + second.width) - left,
-			height: Math.max(first.y + first.height, second.y + second.height) - top
-		}];
-	}
-	return cells.map((cell) => cellRect(cell, grid, tuning.gridGap)).filter((rect) => rect !== null);
-}
-/** @param {number} cell @param {{x:number,y:number,width:number,height:number}} grid @param {number} gap @returns {AeroNormalizedRect|null} */
-function cellRect(cell, grid, gap = 0) {
-	if (!Number.isInteger(cell) || cell < 0 || cell >= 12) return null;
-	const column = cell % 4;
-	const row = Math.floor(cell / 4);
-	const width = grid.width / 4;
-	const height = grid.height / 3;
-	return Object.freeze({
-		x: grid.x + column * width + gap / 2,
-		y: grid.y + row * height + gap / 2,
-		width: width - gap,
-		height: height - gap
-	});
-}
-/** @param {AeroRenderableTarget} target @returns {string|null} */
-function iconIdFor(target) {
-	if (target.kind === "guard") return target.family === "crossed_guard" ? "boxing.guard.crossed" : "boxing.guard.standard";
-	if (target.kind === "punch") return `boxing.${target.family}.${target.hand}`;
-	if (target.family === "squat") return "boxing.squat";
-	if (target.family === "weave" && (target.hand === "left" || target.hand === "right")) return `boxing.weave.${target.hand}`;
-	return null;
-}
-/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @param {boolean} [contrast] @returns {AeroGameplayDrawCommand} */
-function command(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1, contrast = false) {
-	return Object.freeze({
-		kind,
-		role,
-		rect: Object.freeze({ ...rect }),
-		alpha,
-		scale,
-		saturation: clamp$1(saturation, 0, 1),
-		iconId,
-		hatch,
-		contrast,
-		layer,
-		targetId
-	});
-}
-/** @param {AeroNormalizedRect} rect @param {import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection} direction @returns {readonly {kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
-function directionCueRects(rect, direction) {
-	if (![
-		"up",
-		"up-right",
-		"right",
-		"down-right",
-		"down",
-		"down-left",
-		"left",
-		"up-left"
-	].includes(direction)) throw new TypeError("Flow direction cue is unsupported");
-	const thickness = Math.min(rect.width, rect.height) * .09;
-	if (!direction.includes("-")) {
-		const shaft = direction === "left" || direction === "right" ? {
-			x: rect.x + rect.width * .25,
-			y: rect.y + rect.height * .5 - thickness / 2,
-			width: rect.width * .5,
-			height: thickness
-		} : {
-			x: rect.x + rect.width * .5 - thickness / 2,
-			y: rect.y + rect.height * .25,
-			width: thickness,
-			height: rect.height * .5
-		};
-		const size = thickness * 2.5;
-		const headX = direction === "left" ? rect.x + rect.width * .2 : direction === "right" ? rect.x + rect.width * .8 : rect.x + rect.width * .5;
-		const headY = direction === "up" ? rect.y + rect.height * .2 : direction === "down" ? rect.y + rect.height * .8 : rect.y + rect.height * .5;
-		return Object.freeze([{
-			kind: "line",
-			rect: Object.freeze(shaft)
-		}, {
-			kind: "circle",
-			rect: Object.freeze({
-				x: headX - size / 2,
-				y: headY - size / 2,
-				width: size,
-				height: size
-			})
-		}]);
-	}
-	const xSign = direction.endsWith("right") ? 1 : -1;
-	const ySign = direction.startsWith("down") ? 1 : -1;
-	const segments = 7;
-	/** @type {{kind:"line"|"circle",rect:AeroNormalizedRect}[]} */
-	const cues = [];
-	for (let index = 0; index < segments; index += 1) {
-		const offset = -.2 + index * (.4 / 6);
-		const centerX = rect.x + rect.width * (.5 + xSign * offset);
-		const centerY = rect.y + rect.height * (.5 + ySign * offset);
-		cues.push({
-			kind: "line",
-			rect: Object.freeze({
-				x: centerX - thickness / 2,
-				y: centerY - thickness / 2,
-				width: thickness,
-				height: thickness
-			})
-		});
-	}
-	const size = thickness * 2.5;
-	const headX = rect.x + rect.width * (.5 + xSign * .3);
-	const headY = rect.y + rect.height * (.5 + ySign * .3);
-	cues.push({
-		kind: "circle",
-		rect: Object.freeze({
-			x: headX - size / 2,
-			y: headY - size / 2,
-			width: size,
-			height: size
-		})
-	});
-	return Object.freeze(cues);
-}
-/** @param {AeroNormalizedRect} rect @param {number} scale @returns {AeroNormalizedRect} */
-function scaledRect(rect, scale) {
-	const width = rect.width * scale;
-	const height = rect.height * scale;
-	return {
-		x: rect.x + (rect.width - width) / 2,
-		y: rect.y + (rect.height - height) / 2,
-		width,
-		height
-	};
-}
-/** @param {unknown} value @returns {value is AeroGameplayPresentation} */
-function isPresentation(value) {
-	return value === "flow" || value === "boxing_spatial_grid" || value === "boxing_semantic_track";
-}
-/** @param {number|undefined|null} value @returns {number|null} */
-function normalizeCountdown(value) {
-	return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 3 ? Number(value) : null;
-}
-/** @param {number} value @param {number} minimum @param {number} maximum */
-function clamp$1(value, minimum, maximum) {
-	return Math.max(minimum, Math.min(maximum, value));
-}
-/** @param {number} progress @param {string} easing @returns {number} */
-function applyNamedEasing(progress, easing) {
-	const value = clamp$1(progress, 0, 1);
-	if (easing === "ease-in") return value * value;
-	if (easing === "ease-out") return 1 - (1 - value) * (1 - value);
-	if (easing === "ease-in-out") return value < .5 ? 2 * value * value : 1 - Math.pow(-2 * value + 2, 2) / 2;
-	return value;
-}
-/** @param {number} start @param {number} end @param {number} progress */
-function lerp(start, end, progress) {
-	return start + (end - start) * progress;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-renderer/src/icon-atlas.js
-/**
-* Narrow atlas bytes and UV metadata before they become private GPU state.
-* Every semantic icon is required; malformed or colored RGB inputs degrade to shapes.
-*
-* @param {unknown} value
-* @returns {AeroIconAtlasData}
-*/
-function normalizeIconAtlasData(value) {
-	if (!isRecord$1(value) || !Number.isInteger(value.width) || !Number.isInteger(value.height) || Number(value.width) <= 0 || Number(value.height) <= 0 || Number(value.width) > 4096 || Number(value.height) > 4096 || !(value.pixels instanceof Uint8Array) || !Array.isArray(value.entries)) throw new TypeError("Icon atlas data is invalid");
-	const width = Number(value.width);
-	const height = Number(value.height);
-	if (value.pixels.length !== width * height * 4) throw new TypeError("Icon atlas pixel length is invalid");
-	for (let index = 0; index < value.pixels.length; index += 4) if (value.pixels[index] !== 255 || value.pixels[index + 1] !== 255 || value.pixels[index + 2] !== 255) throw new TypeError("Icon atlas RGB must be normalized white");
-	/** @type {AeroIconAtlasEntry[]} */
-	const entries = [];
-	const seen = /* @__PURE__ */ new Set();
-	for (const raw of value.entries) {
-		if (!isRecord$1(raw) || typeof raw.id !== "string" || !gameplayIconIds.includes(raw.id) || seen.has(raw.id) || ![
-			raw.u0,
-			raw.v0,
-			raw.u1,
-			raw.v1
-		].every((entry) => typeof entry === "number" && Number.isFinite(entry) && entry >= 0 && entry <= 1) || Number(raw.u0) >= Number(raw.u1) || Number(raw.v0) >= Number(raw.v1)) throw new TypeError("Icon atlas entry is invalid");
-		seen.add(raw.id);
-		entries.push(Object.freeze({
-			id: raw.id,
-			u0: Number(raw.u0),
-			v0: Number(raw.v0),
-			u1: Number(raw.u1),
-			v1: Number(raw.v1)
-		}));
-	}
-	if (entries.length !== gameplayIconIds.length || gameplayIconIds.some((id) => !seen.has(id))) throw new TypeError("Icon atlas does not contain the expected semantic set");
-	return Object.freeze({
-		width,
-		height,
-		pixels: value.pixels.slice(),
-		entries: Object.freeze(entries)
-	});
-}
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord$1(value) {
-	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-renderer/src/landmark-mapping.js
-/**
-* Media fitting modes shared with `@aerobeat/web-video` descriptors.
-*
-* @typedef {"stretch" | "contain" | "cover"} AeroRendererFitMode
-*/
-/**
-* Normalized pose or hand landmark accepted by the renderer overlay path.
-*
-* @typedef {object} AeroNormalizedLandmark
-* @property {number | undefined} id Optional landmark identifier.
-* @property {number} x Normalized horizontal position in source media space.
-* @property {number} y Normalized vertical position in source media space.
-* @property {number | undefined} z Optional normalized depth.
-* @property {number | undefined} v Optional visibility/confidence.
-*/
-/**
-* Pixel rectangle occupied by fitted media content inside a render viewport.
-*
-* @typedef {object} AeroRendererContentRect
-* @property {number} x Left edge in viewport pixels.
-* @property {number} y Top edge in viewport pixels.
-* @property {number} width Width in viewport pixels.
-* @property {number} height Height in viewport pixels.
-*/
-/**
-* Surface metadata used to map normalized landmarks over media. It is designed
-* to accept public metadata from `@aerobeat/web-video` without importing that
-* package or owning its lifecycle.
-*
-* @typedef {object} AeroRendererOverlaySurfaceDescriptor
-* @property {number} viewportWidth Canvas drawing-buffer or viewport width.
-* @property {number} viewportHeight Canvas drawing-buffer or viewport height.
-* @property {number | undefined} intrinsicWidth Source media intrinsic width.
-* @property {number | undefined} intrinsicHeight Source media intrinsic height.
-* @property {AeroRendererFitMode} fitMode Presentation fit mode.
-* @property {boolean} mirrored Whether normalized x should be mirrored.
-* @property {AeroRendererContentRect | undefined} contentRect Explicit fitted media rectangle, when already known.
-*/
-/**
-* Viewport-space landmark after fitting and mirroring.
-*
-* @typedef {object} AeroViewportLandmark
-* @property {number | undefined} id Optional landmark identifier.
-* @property {number} x Pixel-space horizontal position.
-* @property {number} y Pixel-space vertical position.
-* @property {number | undefined} z Optional normalized depth.
-* @property {number | undefined} v Optional visibility/confidence.
-*/
-/**
-* Clip-space landmark suitable for direct WebGL2 drawing.
-*
-* @typedef {object} AeroClipSpaceLandmark
-* @property {number | undefined} id Optional landmark identifier.
-* @property {number} x Clip-space horizontal position.
-* @property {number} y Clip-space vertical position.
-* @property {number | undefined} z Optional normalized depth.
-* @property {number | undefined} v Optional visibility/confidence.
-*/
-/**
-* @typedef {object} AeroRendererOverlaySurfaceDescriptorInput
-* @property {number} [viewportWidth] Canvas drawing-buffer or viewport width.
-* @property {number} [viewportHeight] Canvas drawing-buffer or viewport height.
-* @property {number} [width] Alternate viewport width.
-* @property {number} [height] Alternate viewport height.
-* @property {number} [intrinsicWidth] Source media intrinsic width.
-* @property {number} [intrinsicHeight] Source media intrinsic height.
-* @property {number} [videoWidth] Alternate source media width.
-* @property {number} [videoHeight] Alternate source media height.
-* @property {AeroRendererFitMode} [fitMode] Presentation fit mode.
-* @property {boolean} [mirrored] Whether normalized x should be mirrored.
-* @property {boolean} [mirror] Alternate mirror flag.
-* @property {AeroRendererContentRect} [contentRect] Explicit fitted media rectangle.
-*/
-/**
-* Normalizes a partial descriptor into the renderer's mapping shape.
-*
-* @param {AeroRendererOverlaySurfaceDescriptorInput} [descriptor]
-* @returns {AeroRendererOverlaySurfaceDescriptor}
-*/
-function normalizeOverlaySurfaceDescriptor(descriptor = {}) {
-	return {
-		viewportWidth: positiveNumberOrZero(descriptor.viewportWidth ?? descriptor.width),
-		viewportHeight: positiveNumberOrZero(descriptor.viewportHeight ?? descriptor.height),
-		intrinsicWidth: positiveNumberOrUndefined(descriptor.intrinsicWidth ?? descriptor.videoWidth),
-		intrinsicHeight: positiveNumberOrUndefined(descriptor.intrinsicHeight ?? descriptor.videoHeight),
-		fitMode: normalizeFitMode(descriptor.fitMode),
-		mirrored: Boolean(descriptor.mirrored ?? descriptor.mirror ?? false),
-		contentRect: descriptor.contentRect
-	};
-}
-/**
-* Computes the fitted media rectangle inside a viewport.
-*
-* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
-* @returns {AeroRendererContentRect}
-*/
-function computeMediaContentRect(descriptor) {
-	const surface = normalizeOverlaySurfaceDescriptor(descriptor);
-	if (surface.contentRect) return sanitizeRect(surface.contentRect);
-	if (surface.viewportWidth <= 0 || surface.viewportHeight <= 0) return {
-		x: 0,
-		y: 0,
-		width: 0,
-		height: 0
-	};
-	if (surface.fitMode === "stretch" || !surface.intrinsicWidth || !surface.intrinsicHeight) return {
-		x: 0,
-		y: 0,
-		width: surface.viewportWidth,
-		height: surface.viewportHeight
-	};
-	const containScale = Math.min(surface.viewportWidth / surface.intrinsicWidth, surface.viewportHeight / surface.intrinsicHeight);
-	const coverScale = Math.max(surface.viewportWidth / surface.intrinsicWidth, surface.viewportHeight / surface.intrinsicHeight);
-	const scale = surface.fitMode === "cover" ? coverScale : containScale;
-	const width = surface.intrinsicWidth * scale;
-	const height = surface.intrinsicHeight * scale;
-	return {
-		x: (surface.viewportWidth - width) * .5,
-		y: (surface.viewportHeight - height) * .5,
-		width,
-		height
-	};
-}
-/**
-* Maps a normalized landmark to viewport pixels, respecting fit and mirror.
-*
-* @param {AeroNormalizedLandmark} landmark
-* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
-* @returns {AeroViewportLandmark}
-*/
-function mapNormalizedLandmarkToViewport(landmark, descriptor) {
-	const surface = normalizeOverlaySurfaceDescriptor(descriptor);
-	const rect = computeMediaContentRect(surface);
-	const normalizedX = clamp01$1(landmark.x);
-	const x = surface.mirrored ? 1 - normalizedX : normalizedX;
-	return {
-		id: landmark.id,
-		x: rect.x + x * rect.width,
-		y: rect.y + clamp01$1(landmark.y) * rect.height,
-		z: landmark.z,
-		v: landmark.v
-	};
-}
-/**
-* Maps a normalized landmark to WebGL clip space.
-*
-* @param {AeroNormalizedLandmark} landmark
-* @param {AeroRendererOverlaySurfaceDescriptorInput | AeroRendererOverlaySurfaceDescriptor} descriptor
-* @returns {AeroClipSpaceLandmark}
-*/
-function mapNormalizedLandmarkToClipSpace(landmark, descriptor) {
-	const surface = normalizeOverlaySurfaceDescriptor(descriptor);
-	const viewport = mapNormalizedLandmarkToViewport(landmark, surface);
-	return {
-		id: landmark.id,
-		x: surface.viewportWidth > 0 ? viewport.x / surface.viewportWidth * 2 - 1 : 0,
-		y: surface.viewportHeight > 0 ? 1 - viewport.y / surface.viewportHeight * 2 : 0,
-		z: landmark.z,
-		v: landmark.v
-	};
-}
-/**
-* @param {AeroRendererFitMode | undefined} value
-* @returns {AeroRendererFitMode}
-*/
-function normalizeFitMode(value) {
-	return value === "cover" || value === "stretch" || value === "contain" ? value : "contain";
-}
-/**
-* @param {number | undefined} value
-* @returns {number}
-*/
-function positiveNumberOrZero(value) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : 0;
-}
-/**
-* @param {number | undefined} value
-* @returns {number | undefined}
-*/
-function positiveNumberOrUndefined(value) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : void 0;
-}
-/**
-* @param {number} value
-* @returns {number}
-*/
-function clamp01$1(value) {
-	if (!Number.isFinite(value)) return 0;
-	return Math.min(Math.max(value, 0), 1);
-}
-/**
-* @param {AeroRendererContentRect} rect
-* @returns {AeroRendererContentRect}
-*/
-function sanitizeRect(rect) {
-	return {
-		x: finiteNumberOrZero(rect.x),
-		y: finiteNumberOrZero(rect.y),
-		width: positiveNumberOrZero(rect.width),
-		height: positiveNumberOrZero(rect.height)
-	};
-}
-/**
-* @param {number} value
-* @returns {number}
-*/
-function finiteNumberOrZero(value) {
-	return Number.isFinite(value) ? value : 0;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-renderer/src/visual-profiles.js
-/** @typedef {import("./gameplay-plan.js").AeroRendererThemeTokens} AeroRendererThemeTokens */
-/** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
-/** @typedef {{schema:"aerobeat/theme_descriptor",version:1,id:string,themeVersion:string,tokens:AeroRendererThemeTokens,contentHash:Readonly<{algorithm:string,value:string}>}} AeroThemeDescriptor */
-/** @typedef {{kind:"solid"|"linear-gradient",colors:readonly string[],angleDeg:number}} AeroRendererBackgroundProjection */
-/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:"live_visual",regenerationRequired:false}>} AeroRendererVisualIdentity */
-/** @typedef {Readonly<{motionIntensity:number,roleScale:number}>} AeroRendererVisualSettings */
-/** @typedef {Readonly<{identity:AeroRendererVisualIdentity,settings:AeroRendererVisualSettings}>} AeroRendererVisualProfileSelection */
-var DEFAULT_VISUAL_HASH = "fdcf478c91e21ef88970299e29fcc35d574bfe69e0d7d00d9f823ee9507f39a3";
-var COMPACT_VISUAL_HASH = "e65d53dfaafe8a859c08837acb3d447b10b03508bd5ae64677d273c93657d603";
-/** @type {AeroRendererVisualProfileSelection} */
-var defaultRendererVisualProfile = visualProfile("aero.visual.default", DEFAULT_VISUAL_HASH, 1, 1);
-/** @type {AeroRendererVisualProfileSelection} */
-var compactRendererVisualProfile = visualProfile("aero.visual.compact", COMPACT_VISUAL_HASH, .8, .86);
-/**
-* Narrow a public theme descriptor into renderer-owned immutable tokens.
-*
-* @param {unknown} value
-* @returns {AeroRendererThemeTokens}
-*/
-function normalizeRendererTheme(value) {
-	if (!isThemeDescriptor(value) || !isRecord(value.tokens)) return defaultRendererThemeTokens;
-	const tokens = value.tokens;
-	if (![
-		"leftHandColor",
-		"rightHandColor",
-		"guardColor",
-		"obstacleColor",
-		"receptorColor"
-	].every((name) => isRendererColorToken(tokens[name])) || ![
-		"approachEasing",
-		"hitEasing",
-		"missEasing"
-	].every((name) => isNamedEasing(tokens[name]))) return defaultRendererThemeTokens;
-	if (typeof tokens.approachLeadMs !== "number" || !Number.isFinite(tokens.approachLeadMs) || tokens.approachLeadMs < 1 || tokens.approachLeadMs > 1e4 || typeof tokens.targetStartScale !== "number" || !Number.isFinite(tokens.targetStartScale) || tokens.targetStartScale < .05 || tokens.targetStartScale > 3 || typeof tokens.targetHitScale !== "number" || !Number.isFinite(tokens.targetHitScale) || tokens.targetHitScale < .05 || tokens.targetHitScale > 3) return defaultRendererThemeTokens;
-	return Object.freeze({
-		leftHandColor: String(tokens.leftHandColor),
-		rightHandColor: String(tokens.rightHandColor),
-		guardColor: String(tokens.guardColor),
-		obstacleColor: String(tokens.obstacleColor),
-		receptorColor: String(tokens.receptorColor),
-		approachLeadMs: Number(tokens.approachLeadMs),
-		targetStartScale: Number(tokens.targetStartScale),
-		targetHitScale: Number(tokens.targetHitScale),
-		approachEasing: String(tokens.approachEasing),
-		hitEasing: String(tokens.hitEasing),
-		missEasing: String(tokens.missEasing)
-	});
-}
-/**
-* Normalize renderer-only visual tuning. Scoring/converter values are deliberately absent.
-*
-* @param {unknown} value
-* @returns {AeroRendererTuning}
-*/
-function normalizeRendererTuning(value) {
-	if (!isRecord(value)) return defaultRendererTuning;
-	const numberNames = [
-		"gridInset",
-		"gridGap",
-		"receptorAlpha",
-		"approachRingScale",
-		"approachRingWidth",
-		"laneWidth",
-		"roleScale",
-		"dprCap"
-	];
-	const requiredNames = [
-		"id",
-		"version",
-		...numberNames
-	];
-	const keys = Object.keys(value);
-	if (!keys.every((key) => requiredNames.includes(key) || key === "hash") || !requiredNames.every((key) => keys.includes(key)) || typeof value.id !== "string" || value.id.length === 0 || typeof value.version !== "string" || value.version.length === 0 || !numberNames.every((name) => typeof value[name] === "number" && Number.isFinite(value[name]))) return defaultRendererTuning;
-	const normalized = {
-		id: value.id,
-		version: value.version,
-		gridInset: clamp(Number(value.gridInset), 0, .25),
-		gridGap: clamp(Number(value.gridGap), 0, .08),
-		receptorAlpha: clamp(Number(value.receptorAlpha), 0, 1),
-		approachRingScale: clamp(Number(value.approachRingScale), 1, 3),
-		approachRingWidth: clamp(Number(value.approachRingWidth), .01, .3),
-		laneWidth: clamp(Number(value.laneWidth), .1, .4),
-		roleScale: clamp(Number(value.roleScale), .5, 1.5),
-		dprCap: clamp(Number(value.dprCap), 1, 4)
-	};
-	const hash = stableVisualHash(normalized);
-	if (value.hash !== void 0 && value.hash !== hash) return defaultRendererTuning;
-	return Object.freeze({
-		...normalized,
-		hash
-	});
-}
-/**
-* Strictly narrow one public gameplay visual selection without depending on the
-* gameplay package. Only the two content-hashed experimental Task 11 profiles
-* are renderer inputs; scoring/converter identities never cross this adapter.
-*
-* @param {unknown} value
-* @returns {AeroRendererVisualProfileSelection}
-*/
-function normalizeRendererVisualProfile(value) {
-	const outer = exactDataRecord(value, ["identity", "settings"], "Visual profile selection");
-	const identity = exactDataRecord(outer.identity, [
-		"schema",
-		"version",
-		"profileId",
-		"profileVersion",
-		"contentHash",
-		"class",
-		"regenerationRequired"
-	], "Visual profile identity");
-	const settings = exactDataRecord(outer.settings, ["motionIntensity", "roleScale"], "Visual profile settings");
-	if (identity.schema !== "aerobeat/prototype_tuning_identity" || identity.version !== 1 || identity.class !== "live_visual" || identity.regenerationRequired !== false) throw new TypeError("Visual profile identity is incompatible with live renderer tuning");
-	for (const name of [
-		"profileId",
-		"profileVersion",
-		"contentHash"
-	]) if (typeof identity[name] !== "string" || identity[name].length === 0 || identity[name].length > 128) throw new TypeError(`Visual profile ${name} is invalid`);
-	if (!/^[0-9a-f]{64}$/u.test(String(identity.contentHash))) throw new TypeError("Visual profile contentHash must be bare lowercase SHA-256");
-	if (typeof settings.motionIntensity !== "number" || !Number.isFinite(settings.motionIntensity) || settings.motionIntensity < 0 || settings.motionIntensity > 2 || typeof settings.roleScale !== "number" || !Number.isFinite(settings.roleScale) || settings.roleScale < .5 || settings.roleScale > 1.5) throw new TypeError("Visual profile settings are outside renderer bounds");
-	const normalized = visualProfile(String(identity.profileId), String(identity.contentHash), Number(settings.motionIntensity), Number(settings.roleScale), String(identity.profileVersion));
-	const expected = normalized.identity.profileId === "aero.visual.default" ? defaultRendererVisualProfile : normalized.identity.profileId === "aero.visual.compact" ? compactRendererVisualProfile : null;
-	if (!expected || !sameVisualSelection(normalized, expected)) throw new TypeError("Visual profile identity, settings, or content hash is not a supported experimental profile");
-	return expected;
-}
-/** @param {AeroRendererVisualProfileSelection} profile @returns {AeroRendererTuning} */
-function rendererTuningFromVisualProfile(profile) {
-	const motionIntensity = profile.settings.motionIntensity;
-	const roleScale = profile.settings.roleScale;
-	return normalizeRendererTuning({
-		id: profile.identity.profileId,
-		version: profile.identity.profileVersion,
-		gridInset: defaultRendererTuning.gridInset,
-		gridGap: defaultRendererTuning.gridGap,
-		receptorAlpha: defaultRendererTuning.receptorAlpha,
-		approachRingScale: 1 + (defaultRendererTuning.approachRingScale - 1) * motionIntensity,
-		approachRingWidth: defaultRendererTuning.approachRingWidth * Math.max(.5, motionIntensity),
-		laneWidth: defaultRendererTuning.laneWidth,
-		roleScale,
-		dprCap: defaultRendererTuning.dprCap
-	});
-}
-/**
-* @param {unknown} value
-* @returns {AeroRendererBackgroundProjection}
-*/
-function normalizeBackgroundProjection(value) {
-	if (!isRecord(value) || !Object.keys(value).every((key) => key === "kind" || key === "colors" || key === "angleDeg") || value.kind !== "solid" && value.kind !== "linear-gradient" || !Array.isArray(value.colors) || value.colors.length === 0 || !value.colors.every(isRendererColorToken)) return Object.freeze({
-		kind: "linear-gradient",
-		colors: Object.freeze(["#071426", "#153b5d"]),
-		angleDeg: 180
-	});
-	return Object.freeze({
-		kind: value.kind,
-		colors: Object.freeze(value.colors.map(String).slice(0, 4)),
-		angleDeg: typeof value.angleDeg === "number" && Number.isFinite(value.angleDeg) ? value.angleDeg : 180
-	});
-}
-/**
-* Convert supported CSS tokens to linear renderer RGBA. Unknown CSS variables degrade
-* to the supplied fallback instead of pretending WebGL can resolve the cascade.
-*
-* @param {string} token
-* @param {readonly [number,number,number,number]} fallback
-* @returns {readonly [number,number,number,number]}
-*/
-function colorTokenToRgba(token, fallback) {
-	const hex = token.trim().match(/^#([0-9a-f]{6}|[0-9a-f]{8})$/iu);
-	if (hex) {
-		const value = hex[1];
-		return Object.freeze([
-			parseInt(value.slice(0, 2), 16) / 255,
-			parseInt(value.slice(2, 4), 16) / 255,
-			parseInt(value.slice(4, 6), 16) / 255,
-			value.length === 8 ? parseInt(value.slice(6, 8), 16) / 255 : 1
-		]);
-	}
-	const rgb = token.trim().match(/^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*(\d*(?:\.\d+)?))?\s*\)$/iu);
-	if (rgb) return Object.freeze([
-		clamp(Number(rgb[1]) / 255, 0, 1),
-		clamp(Number(rgb[2]) / 255, 0, 1),
-		clamp(Number(rgb[3]) / 255, 0, 1),
-		clamp(rgb[4] === void 0 ? 1 : Number(rgb[4]), 0, 1)
-	]);
-	return fallback;
-}
-/** @param {Readonly<Record<string, string|number>>} value @returns {string} */
-function stableVisualHash(value) {
-	const canonical = Object.keys(value).sort().map((key) => `${key}:${String(value[key])}`).join("|");
-	let hash = 2166136261;
-	for (let index = 0; index < canonical.length; index += 1) {
-		hash ^= canonical.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
-	return `visual-${(hash >>> 0).toString(16).padStart(8, "0")}`;
-}
-/** @param {unknown} value @returns {value is string} */
-function isRendererColorToken(value) {
-	if (typeof value !== "string" || value.length === 0 || value.length > 128) return false;
-	return /^#(?:[0-9a-f]{6}|[0-9a-f]{8})$/iu.test(value.trim()) || /^rgba?\(\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?\s*,\s*\d+(?:\.\d+)?(?:\s*,\s*\d*(?:\.\d+)?)?\s*\)$/iu.test(value.trim());
-}
-/** @param {unknown} value @returns {value is string} */
-function isNamedEasing(value) {
-	return value === "linear" || value === "ease-in" || value === "ease-out" || value === "ease-in-out";
-}
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-function isRecord(value) {
-	return value !== null && typeof value === "object" && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
-}
-/** @param {number} value @param {number} minimum @param {number} maximum */
-function clamp(value, minimum, maximum) {
-	return Math.max(minimum, Math.min(maximum, value));
-}
-/** @param {string} profileId @param {string} contentHash @param {number} motionIntensity @param {number} roleScale @param {string} [profileVersion] @returns {AeroRendererVisualProfileSelection} */
-function visualProfile(profileId, contentHash, motionIntensity, roleScale, profileVersion = "1.0.0") {
-	return Object.freeze({
-		identity: Object.freeze({
-			schema: "aerobeat/prototype_tuning_identity",
-			version: 1,
-			profileId,
-			profileVersion,
-			contentHash,
-			class: "live_visual",
-			regenerationRequired: false
-		}),
-		settings: Object.freeze({
-			motionIntensity,
-			roleScale
-		})
-	});
-}
-/** @param {unknown} value @param {readonly string[]} keys @param {string} label @returns {Record<string,unknown>} */
-function exactDataRecord(value, keys, label) {
-	if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError(`${label} must be a plain data record`);
-	const descriptors = Object.getOwnPropertyDescriptors(value);
-	const names = Object.keys(descriptors);
-	if (names.length !== keys.length || !keys.every((key) => names.includes(key))) throw new TypeError(`${label} fields are invalid`);
-	/** @type {Record<string,unknown>} */ const result = {};
-	for (const key of keys) {
-		const descriptor = descriptors[key];
-		if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) throw new TypeError(`${label} must not contain accessors or hidden fields`);
-		result[key] = descriptor.value;
-	}
-	return result;
-}
-/** @param {AeroRendererVisualProfileSelection} left @param {AeroRendererVisualProfileSelection} right */
-function sameVisualSelection(left, right) {
-	return left.identity.profileId === right.identity.profileId && left.identity.profileVersion === right.identity.profileVersion && left.identity.contentHash === right.identity.contentHash && left.settings.motionIntensity === right.settings.motionIntensity && left.settings.roleScale === right.settings.roleScale;
-}
-//#endregion
-//#region node_modules/@aerobeat/web-renderer/src/renderer-facade.js
-/** @type {"aero.renderer.webgl2"} */
-var aeroWebGl2RendererServiceId = "aero.renderer.webgl2";
-/** @typedef {import("./gameplay-plan.js").AeroGameplayFrame} AeroGameplayFrame */
-/** @typedef {import("./gameplay-plan.js").AeroGameplayRenderPlan} AeroGameplayRenderPlan */
-/** @typedef {import("./gameplay-plan.js").AeroRendererThemeTokens} AeroRendererThemeTokens */
-/** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
-/** @typedef {import("./icon-atlas.js").AeroIconAtlasData} AeroIconAtlasData */
-/** @typedef {import("./landmark-mapping.js").AeroNormalizedLandmark} AeroNormalizedLandmark */
-/** @typedef {import("./landmark-mapping.js").AeroRendererOverlaySurfaceDescriptorInput} AeroRendererOverlaySurfaceDescriptorInput */
-/** @typedef {"unsupported"|"ready"|"running"|"context_lost"|"error"|"destroyed"} AeroRendererState */
-/** @typedef {{widthCssPx:number,heightCssPx:number,devicePixelRatio:number,maxDevicePixelRatio?:number}} AeroRendererResize */
-/** @typedef {{surface?:AeroRendererOverlaySurfaceDescriptorInput,connections?:readonly (readonly [number,number])[],minVisibility?:number,color?:readonly [number,number,number,number],pointSize?:number}} AeroRendererOverlayOptions */
-/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,visualProfile:import("./visual-profiles.js").AeroRendererVisualProfileSelection,visualProfileIdentity:import("./visual-profiles.js").AeroRendererVisualIdentity,visualProfileSettings:import("./visual-profiles.js").AeroRendererVisualSettings,experimental:true,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
-/** @typedef {{serviceId:"aero.renderer.webgl2",webgl2:boolean,exactContainerResize:true,dprAware:true,contextLossRecovery:true,alphaMaskIcons:boolean,liveTuning:true,maxDevicePixelRatio:number,degradations:readonly string[]}} AeroWebGl2RendererCapabilities */
-/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,shapeLocation:WebGLUniformLocation|null,ringWidthLocation:WebGLUniformLocation|null}} ShapeProgram */
-/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,uvRectLocation:WebGLUniformLocation|null,samplerLocation:WebGLUniformLocation|null}} IconProgram */
-/** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,colorLocation:WebGLUniformLocation|null,pointSizeLocation:WebGLUniformLocation|null}} OverlayProgram */
-/**
-* Per-game renderer. No process-global singleton exists: each connected aero-game owns
-* one instance and one canvas/context lifecycle.
-*/
-var AeroWebGl2Renderer = class {
-	/** @param {{contextAttributes?:WebGLContextAttributes}} [options] */
-	constructor(options = {}) {
-		this.serviceId = aeroWebGl2RendererServiceId;
-		this.contextAttributes = options.contextAttributes ?? {
-			alpha: true,
-			antialias: true,
-			premultipliedAlpha: true
-		};
-		/** @type {HTMLCanvasElement|null} */ this.canvas = null;
-		/** @type {WebGL2RenderingContext|null} */ this.gl = null;
-		/** @type {ShapeProgram|null} */ this.shapeProgram = null;
-		/** @type {IconProgram|null} */ this.iconProgram = null;
-		/** @type {OverlayProgram|null} */ this.overlayProgram = null;
-		/** @type {WebGLTexture|null} */ this.iconTexture = null;
-		/** @type {AeroIconAtlasData|null} */ this.iconAtlasData = null;
-		/** @type {Map<string, import("./icon-atlas.js").AeroIconAtlasEntry>} */ this.iconEntries = /* @__PURE__ */ new Map();
-		/** @type {AeroRendererState} */ this.state = "unsupported";
-		/** @type {AeroRendererThemeTokens} */ this.theme = defaultRendererThemeTokens;
-		this.visualProfile = defaultRendererVisualProfile;
-		/** @type {AeroRendererTuning} */ this.tuning = rendererTuningFromVisualProfile(this.visualProfile);
-		this.themeId = "aero.theme.default";
-		this.themeVersion = "1";
-		this.themeHash = "theme-default";
-		this.background = normalizeBackgroundProjection(null);
-		this.iconAtlasError = null;
-		this.errorMessage = null;
-		this.frameCount = 0;
-		this.drawCount = 0;
-		this.widthCssPx = 0;
-		this.heightCssPx = 0;
-		this.devicePixelRatio = 1;
-		this.contextLost = false;
-		this.destroyed = false;
-		this.onContextLost = (event) => {
-			event.preventDefault();
-			this.contextLost = true;
-			this.state = "context_lost";
-			this.releaseGpuReferences(false);
-		};
-		this.onContextRestored = () => {
-			if (!this.canvas || this.destroyed) return;
-			this.contextLost = false;
-			this.acquireContext();
-		};
-	}
-	/** @param {HTMLCanvasElement} canvas @param {WebGLContextAttributes} [options] @returns {AeroWebGl2RendererStatus} */
-	attach(canvas, options = this.contextAttributes) {
-		if (this.destroyed) return this.describe();
-		if (this.canvas !== canvas) this.detach();
-		this.canvas = canvas;
-		this.contextAttributes = options;
-		canvas.addEventListener("webglcontextlost", this.onContextLost);
-		canvas.addEventListener("webglcontextrestored", this.onContextRestored);
-		this.acquireContext();
-		return this.describe();
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	detach() {
-		if (this.canvas) {
-			this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
-			this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
-		}
-		this.deleteGpuResources();
-		this.canvas = null;
-		this.gl = null;
-		this.contextLost = false;
-		if (!this.destroyed) this.state = "unsupported";
-		return this.describe();
-	}
-	/** @param {AeroRendererResize} size @returns {AeroWebGl2RendererStatus} */
-	resize(size) {
-		if (!this.canvas || this.destroyed) return this.describe();
-		this.widthCssPx = finiteNonNegative(size.widthCssPx);
-		this.heightCssPx = finiteNonNegative(size.heightCssPx);
-		const cap = Math.max(1, Math.min(size.maxDevicePixelRatio ?? this.tuning.dprCap, this.tuning.dprCap));
-		this.devicePixelRatio = Math.max(.1, Math.min(Number.isFinite(size.devicePixelRatio) ? size.devicePixelRatio : 1, cap));
-		const width = Math.max(1, Math.round(this.widthCssPx * this.devicePixelRatio));
-		const height = Math.max(1, Math.round(this.heightCssPx * this.devicePixelRatio));
-		if (this.canvas.width !== width) this.canvas.width = width;
-		if (this.canvas.height !== height) this.canvas.height = height;
-		this.canvas.style.width = `${this.widthCssPx}px`;
-		this.canvas.style.height = `${this.heightCssPx}px`;
-		this.configureViewport();
-		return this.describe();
-	}
-	/** @param {unknown} descriptor @returns {AeroWebGl2RendererStatus} */
-	setTheme(descriptor) {
-		if (this.destroyed) return this.describe();
-		const normalized = normalizeRendererTheme(descriptor);
-		const accepted = isThemeDescriptor(descriptor) && normalized !== defaultRendererThemeTokens;
-		this.theme = normalized;
-		this.themeId = accepted ? descriptor.id : "aero.theme.default";
-		this.themeVersion = accepted ? descriptor.themeVersion : "1";
-		this.themeHash = accepted ? descriptor.contentHash.value : "theme-default";
-		return this.describe();
-	}
-	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
-	setTuning(selection) {
-		return this.importTuning(selection);
-	}
-	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
-	importTuning(selection) {
-		if (this.destroyed) return this.describe();
-		const visualProfile = normalizeRendererVisualProfile(selection);
-		const tuning = rendererTuningFromVisualProfile(visualProfile);
-		this.visualProfile = visualProfile;
-		this.tuning = tuning;
-		return this.describe();
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	resetTuning() {
-		if (!this.destroyed) {
-			this.visualProfile = defaultRendererVisualProfile;
-			this.tuning = rendererTuningFromVisualProfile(this.visualProfile);
-		}
-		return this.describe();
-	}
-	/** @returns {import("./visual-profiles.js").AeroRendererVisualProfileSelection} */
-	exportTuning() {
-		return this.visualProfile;
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	getSnapshot() {
-		return this.describe();
-	}
-	/** @param {unknown} background @returns {AeroWebGl2RendererStatus} */
-	setBackgroundProjection(background) {
-		if (!this.destroyed) this.background = normalizeBackgroundProjection(background);
-		return this.describe();
-	}
-	/** @param {AeroIconAtlasData} atlas @returns {AeroWebGl2RendererStatus} */
-	uploadIconAtlas(atlas) {
-		if (this.destroyed) return this.describe();
-		let normalized;
-		try {
-			normalized = normalizeIconAtlasData(atlas);
-		} catch (error) {
-			if (this.gl && this.iconTexture) this.gl.deleteTexture(this.iconTexture);
-			this.iconTexture = null;
-			this.iconAtlasData = null;
-			this.iconEntries.clear();
-			this.iconAtlasError = error instanceof Error ? error.message : "Icon atlas is invalid";
-			return this.describe();
-		}
-		this.iconAtlasData = normalized;
-		this.iconEntries = new Map(normalized.entries.map((entry) => [entry.id, entry]));
-		this.iconAtlasError = null;
-		const gl = this.gl;
-		if (!gl) return this.describe();
-		if (this.iconTexture) gl.deleteTexture(this.iconTexture);
-		const texture = gl.createTexture();
-		if (!texture) {
-			this.iconAtlasError = "Unable to create icon atlas texture";
-			return this.describe();
-		}
-		gl.bindTexture(gl.TEXTURE_2D, texture);
-		gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
-		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, normalized.width, normalized.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, normalized.pixels);
-		this.iconTexture = texture;
-		return this.describe();
-	}
-	/** @param {AeroGameplayFrame} frame @returns {{status:AeroWebGl2RendererStatus,plan:AeroGameplayRenderPlan}} */
-	renderGameplayFrame(frame) {
-		const width = this.widthCssPx > 0 ? this.widthCssPx : this.gl?.drawingBufferWidth ?? 0;
-		const height = this.heightCssPx > 0 ? this.heightCssPx : this.gl?.drawingBufferHeight ?? 0;
-		const viewportAspect = frame.viewportAspect ?? (width > 0 && height > 0 ? width / height : 4 / 3);
-		const plan = buildGameplayRenderPlan({
-			...frame,
-			viewportAspect
-		}, this.theme, this.tuning);
-		const gl = this.gl;
-		if (!gl || this.destroyed || this.contextLost) return {
-			status: this.describe(),
-			plan
-		};
-		try {
-			this.configureViewport();
-			const background = colorTokenToRgba(this.background.colors[0], [
-				.03,
-				.08,
-				.15,
-				1
-			]);
-			gl.clearColor(background[0], background[1], background[2], background[3]);
-			gl.clear(gl.COLOR_BUFFER_BIT);
-			for (const draw of plan.commands) this.drawCommand(draw);
-			if (plan.overlay.dim > 0) this.drawShape({
-				x: 0,
-				y: 0,
-				width: 1,
-				height: 1
-			}, [
-				0,
-				0,
-				0,
-				plan.overlay.dim
-			], 0, .08);
-			if (plan.overlay.countdown !== null) this.drawCountdown(plan.overlay.countdown);
-			this.frameCount += 1;
-			this.state = "running";
-		} catch (error) {
-			this.fail(error);
-		}
-		return {
-			status: this.describe(),
-			plan
-		};
-	}
-	/** @param {{color?:readonly [number,number,number,number]}} [options] */
-	clear(options = {}) {
-		const gl = this.gl;
-		if (!gl || this.destroyed) return { status: this.describe() };
-		const color = options.color ?? [
-			0,
-			0,
-			0,
-			0
-		];
-		this.configureViewport();
-		gl.clearColor(...color);
-		gl.clear(gl.COLOR_BUFFER_BIT);
-		this.frameCount += 1;
-		this.state = "running";
-		return { status: this.describe() };
-	}
-	/** @param {{color?:readonly [number,number,number,number]}} [options] */
-	renderFrame(options = {}) {
-		return this.clear(options);
-	}
-	/** @param {readonly AeroNormalizedLandmark[]} landmarks @param {AeroRendererOverlayOptions} [options] */
-	renderLandmarkOverlay(landmarks, options = {}) {
-		const gl = this.gl;
-		if (!gl || this.destroyed) return {
-			status: this.describe(),
-			pointCount: 0,
-			lineVertexCount: 0
-		};
-		try {
-			const program = this.overlayProgram ?? createOverlayProgram(gl);
-			this.overlayProgram = program;
-			const surface = normalizeOverlaySurfaceDescriptor({
-				viewportWidth: gl.drawingBufferWidth,
-				viewportHeight: gl.drawingBufferHeight,
-				...options.surface
-			});
-			const visible = landmarks.filter((landmark) => (typeof landmark.v === "number" ? landmark.v : 1) >= (options.minVisibility ?? 0));
-			const points = visible.flatMap((landmark) => {
-				const clip = mapNormalizedLandmarkToClipSpace(landmark, surface);
-				return [clip.x, clip.y];
-			});
-			const byId = new Map(visible.map((landmark) => [landmark.id, landmark]));
-			/** @type {number[]} */ const lines = [];
-			for (const pair of options.connections ?? []) {
-				const a = byId.get(pair[0]);
-				const b = byId.get(pair[1]);
-				if (a && b) {
-					const ac = mapNormalizedLandmarkToClipSpace(a, surface);
-					const bc = mapNormalizedLandmarkToClipSpace(b, surface);
-					lines.push(ac.x, ac.y, bc.x, bc.y);
-				}
-			}
-			drawOverlay(gl, program, lines, gl.LINES, options);
-			drawOverlay(gl, program, points, gl.POINTS, options);
-			this.drawCount += 1;
-			this.state = "running";
-			return {
-				status: this.describe(),
-				pointCount: points.length / 2,
-				lineVertexCount: lines.length / 2
-			};
-		} catch (error) {
-			this.fail(error);
-			return {
-				status: this.describe(),
-				pointCount: 0,
-				lineVertexCount: 0
-			};
-		}
-	}
-	/** @returns {AeroWebGl2RendererCapabilities} */
-	getCapabilities() {
-		const degradations = [];
-		if (!this.gl) degradations.push("webgl2_unavailable");
-		if (!this.iconTexture) degradations.push(this.iconAtlasError ? "icon_atlas_invalid_fallback_shapes" : "icon_atlas_unavailable_fallback_shapes");
-		if (this.background.kind === "linear-gradient" && this.background.colors.length > 1) degradations.push("gradient_background_projected_to_primary_color");
-		return Object.freeze({
-			serviceId: aeroWebGl2RendererServiceId,
-			webgl2: Boolean(this.gl),
-			exactContainerResize: true,
-			dprAware: true,
-			contextLossRecovery: true,
-			alphaMaskIcons: Boolean(this.iconTexture),
-			liveTuning: true,
-			maxDevicePixelRatio: this.tuning.dprCap,
-			degradations: Object.freeze(degradations)
-		});
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	describe() {
-		return Object.freeze({
-			serviceId: aeroWebGl2RendererServiceId,
-			state: this.state,
-			supported: Boolean(this.gl),
-			attached: Boolean(this.canvas && this.gl),
-			contextLost: this.contextLost,
-			destroyed: this.destroyed,
-			frameCount: this.frameCount,
-			drawCount: this.drawCount,
-			viewportWidth: this.gl?.drawingBufferWidth ?? this.canvas?.width ?? 0,
-			viewportHeight: this.gl?.drawingBufferHeight ?? this.canvas?.height ?? 0,
-			widthCssPx: this.widthCssPx,
-			heightCssPx: this.heightCssPx,
-			devicePixelRatio: this.devicePixelRatio,
-			themeId: this.themeId,
-			themeVersion: this.themeVersion,
-			themeHash: this.themeHash,
-			tuningId: this.tuning.id,
-			tuningVersion: this.tuning.version,
-			tuningHash: this.tuning.hash,
-			tuningRequiresRegeneration: false,
-			visualProfile: this.visualProfile,
-			visualProfileIdentity: this.visualProfile.identity,
-			visualProfileSettings: this.visualProfile.settings,
-			experimental: true,
-			iconAtlasReady: Boolean(this.iconTexture),
-			iconAtlasError: this.iconAtlasError,
-			errorMessage: this.errorMessage
-		});
-	}
-	/** @returns {AeroWebGl2RendererStatus} */
-	destroy() {
-		if (this.destroyed) return this.describe();
-		this.destroyed = true;
-		this.detach();
-		this.state = "destroyed";
-		this.iconEntries.clear();
-		this.iconAtlasData = null;
-		return this.describe();
-	}
-	acquireContext() {
-		if (!this.canvas || this.destroyed) return;
-		try {
-			const context = this.canvas.getContext("webgl2", this.contextAttributes);
-			if (!context) {
-				this.gl = null;
-				this.state = "unsupported";
-				this.errorMessage = "WebGL2 is unavailable for this canvas";
-				return;
-			}
-			this.gl = context;
-			this.state = "ready";
-			this.errorMessage = null;
-			this.contextLost = false;
-			context.enable(context.BLEND);
-			context.blendFunc(context.SRC_ALPHA, context.ONE_MINUS_SRC_ALPHA);
-			this.configureViewport();
-			if (this.iconAtlasData) this.uploadIconAtlas(this.iconAtlasData);
-		} catch (error) {
-			this.gl = null;
-			this.fail(error);
-		}
-	}
-	configureViewport() {
-		if (this.gl) this.gl.viewport(0, 0, this.gl.drawingBufferWidth || this.canvas?.width || 1, this.gl.drawingBufferHeight || this.canvas?.height || 1);
-	}
-	/** @param {import("./gameplay-plan.js").AeroGameplayDrawCommand} draw */
-	drawCommand(draw) {
-		const color = draw.contrast ? this.cueContrastColor(draw.role, draw.alpha, draw.saturation) : this.roleColor(draw.role, draw.alpha, draw.saturation);
-		if (draw.kind === "icon" && draw.iconId && this.iconTexture && this.iconEntries.has(draw.iconId)) this.drawIcon(draw.rect, color, this.iconEntries.get(draw.iconId));
-		else this.drawShape(draw.rect, color, draw.kind === "circle" ? 1 : draw.kind === "ring" ? 2 : draw.kind === "hatch" ? 3 : 0, this.tuning.approachRingWidth);
-		this.drawCount += 1;
-	}
-	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
-	roleColor(role, alpha, saturation) {
-		const fallback = [
-			.85,
-			.95,
-			1,
-			alpha
-		];
-		const color = colorTokenToRgba(role === "left" ? this.theme.leftHandColor : role === "right" ? this.theme.rightHandColor : role === "guard" ? this.theme.guardColor : role === "obstacle" ? this.theme.obstacleColor : role === "safe" ? "#56d6c9" : this.theme.receptorColor, fallback);
-		const gray = color[0] * .2126 + color[1] * .7152 + color[2] * .0722;
-		return [
-			gray + (color[0] - gray) * saturation,
-			gray + (color[1] - gray) * saturation,
-			gray + (color[2] - gray) * saturation,
-			color[3] * alpha
-		];
-	}
-	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
-	cueContrastColor(role, alpha, saturation) {
-		const target = this.roleColor(role, alpha, saturation);
-		const luminance = relativeLuminance(target[0], target[1], target[2]);
-		const blackContrast = (luminance + .05) / .05;
-		const channel = 1.05 / (luminance + .05) > blackContrast ? 1 : 0;
-		return [
-			channel,
-			channel,
-			channel,
-			target[3]
-		];
-	}
-	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {number} shape @param {number} ringWidth */
-	drawShape(rect, color, shape, ringWidth) {
-		const gl = this.gl;
-		if (!gl) return;
-		const program = this.shapeProgram ?? createShapeProgram(gl);
-		this.shapeProgram = program;
-		uploadQuad(gl, program.buffer, program.positionLocation, program.localLocation, rect);
-		gl.useProgram(program.program);
-		gl.uniform4f(program.colorLocation, ...color);
-		gl.uniform1i(program.shapeLocation, shape);
-		gl.uniform1f(program.ringWidthLocation, ringWidth);
-		gl.drawArrays(gl.TRIANGLES, 0, 6);
-	}
-	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {import("./icon-atlas.js").AeroIconAtlasEntry|undefined} entry */
-	drawIcon(rect, color, entry) {
-		const gl = this.gl;
-		if (!gl || !entry || !this.iconTexture) return;
-		const program = this.iconProgram ?? createIconProgram(gl);
-		this.iconProgram = program;
-		uploadQuad(gl, program.buffer, program.positionLocation, program.localLocation, rect);
-		gl.useProgram(program.program);
-		gl.activeTexture(gl.TEXTURE0);
-		gl.bindTexture(gl.TEXTURE_2D, this.iconTexture);
-		gl.uniform1i(program.samplerLocation, 0);
-		gl.uniform4f(program.colorLocation, ...color);
-		gl.uniform4f(program.uvRectLocation, entry.u0, entry.v0, entry.u1, entry.v1);
-		gl.drawArrays(gl.TRIANGLES, 0, 6);
-	}
-	/** @param {number} value */
-	drawCountdown(value) {
-		const segments = countdownSegments(value);
-		for (const rect of segments) this.drawShape(rect, [
-			1,
-			1,
-			1,
-			.94
-		], 0, .1);
-	}
-	deleteGpuResources() {
-		const gl = this.gl;
-		if (gl) {
-			for (const program of [
-				this.shapeProgram,
-				this.iconProgram,
-				this.overlayProgram
-			]) if (program) {
-				gl.deleteBuffer(program.buffer);
-				gl.deleteProgram(program.program);
-			}
-			if (this.iconTexture) gl.deleteTexture(this.iconTexture);
-		}
-		this.releaseGpuReferences(true);
-	}
-	/** @param {boolean} clearEntries */
-	releaseGpuReferences(clearEntries) {
-		this.shapeProgram = null;
-		this.iconProgram = null;
-		this.overlayProgram = null;
-		this.iconTexture = null;
-		if (clearEntries) this.iconEntries.clear();
-	}
-	/** @param {unknown} error */
-	fail(error) {
-		this.state = "error";
-		this.errorMessage = error instanceof Error ? error.message : "Renderer operation failed";
-	}
-};
-/** @param {{contextAttributes?:WebGLContextAttributes}} [options] @returns {AeroWebGl2Renderer} */
-function createAeroWebGl2Renderer(options) {
-	return new AeroWebGl2Renderer(options);
-}
-/** @param {WebGL2RenderingContext} gl @returns {ShapeProgram} */
-function createShapeProgram(gl) {
-	const program = linkProgram(gl, QUAD_VERTEX, SHAPE_FRAGMENT);
-	return {
-		program,
-		buffer: requiredBuffer(gl),
-		positionLocation: gl.getAttribLocation(program, "a_position"),
-		localLocation: gl.getAttribLocation(program, "a_local"),
-		colorLocation: gl.getUniformLocation(program, "u_color"),
-		shapeLocation: gl.getUniformLocation(program, "u_shape"),
-		ringWidthLocation: gl.getUniformLocation(program, "u_ringWidth")
-	};
-}
-/** @param {WebGL2RenderingContext} gl @returns {IconProgram} */
-function createIconProgram(gl) {
-	const program = linkProgram(gl, QUAD_VERTEX, ICON_FRAGMENT);
-	return {
-		program,
-		buffer: requiredBuffer(gl),
-		positionLocation: gl.getAttribLocation(program, "a_position"),
-		localLocation: gl.getAttribLocation(program, "a_local"),
-		colorLocation: gl.getUniformLocation(program, "u_color"),
-		uvRectLocation: gl.getUniformLocation(program, "u_uvRect"),
-		samplerLocation: gl.getUniformLocation(program, "u_mask")
-	};
-}
-/** @param {WebGL2RenderingContext} gl @returns {OverlayProgram} */
-function createOverlayProgram(gl) {
-	const program = linkProgram(gl, `#version 300 es\nin vec2 a_position; uniform float u_pointSize; void main(){gl_Position=vec4(a_position,0.,1.);gl_PointSize=u_pointSize;}`, `#version 300 es\nprecision mediump float; uniform vec4 u_color; out vec4 outColor; void main(){outColor=u_color;}`);
-	return {
-		program,
-		buffer: requiredBuffer(gl),
-		positionLocation: gl.getAttribLocation(program, "a_position"),
-		colorLocation: gl.getUniformLocation(program, "u_color"),
-		pointSizeLocation: gl.getUniformLocation(program, "u_pointSize")
-	};
-}
-/** @param {WebGL2RenderingContext} gl @param {string} vertex @param {string} fragment */
-function linkProgram(gl, vertex, fragment) {
-	const vs = compile(gl, gl.VERTEX_SHADER, vertex);
-	const fs = compile(gl, gl.FRAGMENT_SHADER, fragment);
-	const program = gl.createProgram();
-	if (!program) throw new Error("Unable to create renderer program");
-	gl.attachShader(program, vs);
-	gl.attachShader(program, fs);
-	gl.linkProgram(program);
-	gl.deleteShader(vs);
-	gl.deleteShader(fs);
-	if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(program) ?? "Unable to link renderer program");
-	return program;
-}
-/** @param {WebGL2RenderingContext} gl @param {number} type @param {string} source */
-function compile(gl, type, source) {
-	const shader = gl.createShader(type);
-	if (!shader) throw new Error("Unable to create renderer shader");
-	gl.shaderSource(shader, source);
-	gl.compileShader(shader);
-	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(shader) ?? "Unable to compile renderer shader");
-	return shader;
-}
-/** @param {WebGL2RenderingContext} gl */
-function requiredBuffer(gl) {
-	const buffer = gl.createBuffer();
-	if (!buffer) throw new Error("Unable to create renderer buffer");
-	return buffer;
-}
-/** @param {WebGL2RenderingContext} gl @param {WebGLBuffer} buffer @param {number} positionLocation @param {number} localLocation @param {{x:number,y:number,width:number,height:number}} rect */
-function uploadQuad(gl, buffer, positionLocation, localLocation, rect) {
-	const x0 = rect.x * 2 - 1;
-	const x1 = (rect.x + rect.width) * 2 - 1;
-	const y0 = 1 - rect.y * 2;
-	const y1 = 1 - (rect.y + rect.height) * 2;
-	const values = new Float32Array([
-		x0,
-		y0,
-		0,
-		0,
-		x1,
-		y0,
-		1,
-		0,
-		x0,
-		y1,
-		0,
-		1,
-		x0,
-		y1,
-		0,
-		1,
-		x1,
-		y0,
-		1,
-		0,
-		x1,
-		y1,
-		1,
-		1
-	]);
-	gl.useProgram(null);
-	gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, values, gl.STREAM_DRAW);
-	gl.enableVertexAttribArray(positionLocation);
-	gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 16, 0);
-	gl.enableVertexAttribArray(localLocation);
-	gl.vertexAttribPointer(localLocation, 2, gl.FLOAT, false, 16, 8);
-}
-/** @param {WebGL2RenderingContext} gl @param {OverlayProgram} program @param {number[]} vertices @param {number} primitive @param {AeroRendererOverlayOptions} options */
-function drawOverlay(gl, program, vertices, primitive, options) {
-	if (vertices.length === 0) return;
-	const color = options.color ?? [
-		.24,
-		.9,
-		.45,
-		.95
-	];
-	gl.useProgram(program.program);
-	gl.bindBuffer(gl.ARRAY_BUFFER, program.buffer);
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
-	gl.enableVertexAttribArray(program.positionLocation);
-	gl.vertexAttribPointer(program.positionLocation, 2, gl.FLOAT, false, 0, 0);
-	gl.uniform4f(program.colorLocation, ...color);
-	gl.uniform1f(program.pointSizeLocation, options.pointSize ?? 6);
-	gl.drawArrays(primitive, 0, vertices.length / 2);
-}
-/** @param {number} value @returns {readonly {x:number,y:number,width:number,height:number}[]} */
-function countdownSegments(value) {
-	const horizontal = (y) => ({
-		x: .43,
-		y,
-		width: .14,
-		height: .025
-	});
-	const left = (y) => ({
-		x: .43,
-		y,
-		width: .025,
-		height: .12
-	});
-	const right = (y) => ({
-		x: .545,
-		y,
-		width: .025,
-		height: .12
-	});
-	if (value === 1) return [right(.36), right(.51)];
-	if (value === 2) return [
-		horizontal(.34),
-		right(.36),
-		horizontal(.49),
-		left(.51),
-		horizontal(.64)
-	];
-	return [
-		horizontal(.34),
-		right(.36),
-		horizontal(.49),
-		right(.51),
-		horizontal(.64)
-	];
-}
-/** @param {number} value */
-function finiteNonNegative(value) {
-	return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-/** @param {number} red @param {number} green @param {number} blue */
-function relativeLuminance(red, green, blue) {
-	const linear = (channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
-	return linear(red) * .2126 + linear(green) * .7152 + linear(blue) * .0722;
-}
-var QUAD_VERTEX = `#version 300 es
-in vec2 a_position; in vec2 a_local; out vec2 v_local; void main(){v_local=a_local;gl_Position=vec4(a_position,0.,1.);}`;
-var SHAPE_FRAGMENT = `#version 300 es
-precision mediump float; in vec2 v_local; uniform vec4 u_color; uniform int u_shape; uniform float u_ringWidth; out vec4 outColor;
-void main(){float d=distance(v_local,vec2(.5)); if(u_shape==1 && d>.5) discard; if(u_shape==2 && abs(d-.43)>u_ringWidth*.5) discard; vec4 color=u_color; if(u_shape==3 && mod(floor((v_local.x+v_local.y)*18.),2.)<1.) color.rgb*=.48; outColor=color;}`;
-var ICON_FRAGMENT = `#version 300 es
-precision mediump float; in vec2 v_local; uniform sampler2D u_mask; uniform vec4 u_color; uniform vec4 u_uvRect; out vec4 outColor;
-void main(){vec2 uv=mix(u_uvRect.xy,u_uvRect.zw,v_local);float alpha=texture(u_mask,uv).a; if(alpha<.02) discard;outColor=vec4(u_color.rgb,u_color.a*alpha);}`;
-//#endregion
-//#region node_modules/@aerobeat/web-vendor-beatsaver/src/errors.js
+//#region ../aerobeat-web-vendor-beatsaver/src/errors.js
 /**
 * Stable vendor error categories suitable for UI and telemetry.
 *
@@ -20218,7 +15686,7 @@ function toBeatSaverVendorError(error) {
 	return new BeatSaverVendorError("transport", "Unknown BeatSaver operation failure");
 }
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-beatsaver/src/normalize.js
+//#region ../aerobeat-web-vendor-beatsaver/src/normalize.js
 /** @typedef {Readonly<{characteristic: string, difficulty: string, stars: number, notes: number, bombs: number, obstacles: number, njs: number, nps: number, durationSeconds: number, environment: string, chroma: boolean, cinema: boolean, mappingExtensions: boolean}>} BeatSaverDifficulty */
 /** @typedef {Readonly<{hash: string, key: string, state: string, createdAt: string, downloadUrl: string, coverUrl: string, previewUrl: string, sageScore: number, difficulties: readonly BeatSaverDifficulty[]}>} BeatSaverVersion */
 /** @typedef {Readonly<{providerId: "beatsaver", mapId: string, mapKey: string, mapName: string, description: string, tags: readonly string[], songName: string, songSubName: string, songAuthorName: string, levelAuthorName: string, bpm: number, durationSeconds: number, uploader: Readonly<{id: number, name: string, avatarUrl: string}>, stats: Readonly<{downloads: number, plays: number, upvotes: number, downvotes: number, score: number}>, versions: readonly BeatSaverVersion[], createdAt: string, updatedAt: string, uploadedAt: string, lastPublishedAt: string, ranked: boolean, qualified: boolean, automapper: boolean, declaredAi: boolean}>} BeatSaverMap */
@@ -20493,7 +15961,7 @@ function optionalHttpsUrl(value, context) {
 	return requireHttpsUrl(value, context);
 }
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-beatsaver/src/transport.js
+//#region ../aerobeat-web-vendor-beatsaver/src/transport.js
 /** @typedef {(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>} BeatSaverFetch */
 /** @typedef {(event: Readonly<{phase: "download", loadedBytes: number, totalBytes: number | undefined}>) => void} BeatSaverProgressCallback */
 /** @typedef {Readonly<{requests: number, retries: number, failures: number, downloadedBytes: number, lastStatus: number | undefined}>} BeatSaverTransportTelemetry */
@@ -20737,7 +16205,7 @@ function concatenate(chunks, length) {
 	return output;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-beatsaver/node_modules/fflate/esm/browser.js
+//#region ../aerobeat-web-vendor-beatsaver/node_modules/fflate/esm/browser.js
 var u8 = Uint8Array;
 var u16 = Uint16Array;
 var i32 = Int32Array;
@@ -21095,7 +16563,7 @@ try {
 	td.decode(et, { stream: true });
 } catch (e) {}
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-beatsaver/src/archive.js
+//#region ../aerobeat-web-vendor-beatsaver/src/archive.js
 /** @typedef {Readonly<{maxArchiveBytes: number, maxEntries: number, maxEntryBytes: number, maxExpandedBytes: number, maxCompressionRatio: number, maxInfoBytes: number}>} BeatSaverArchiveLimits */
 /** @typedef {Readonly<{path: string, basename: string, extension: string, directory: boolean, compressedBytes: number, expandedBytes: number, compressionMethod: number, infoDat: boolean, audioCandidate: boolean, coverCandidate: boolean, difficultyCandidate: boolean}>} BeatSaverArchiveEntry */
 /** @typedef {Readonly<{characteristic: "Standard", difficulty: string, difficultyRank: number, path: string, noteJumpMovementSpeed: number, noteJumpStartBeatOffset: number}>} BeatSaverSourceDifficulty */
@@ -21622,7 +17090,7 @@ function failArchive(message, details = {}) {
 	throw new BeatSaverVendorError("archive", message, { details });
 }
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-beatsaver/src/service.js
+//#region ../aerobeat-web-vendor-beatsaver/src/service.js
 /** @typedef {import("./normalize.js").BeatSaverMap} BeatSaverMap */
 /** @typedef {import("./normalize.js").BeatSaverVersion} BeatSaverVersion */
 /** @typedef {import("./archive.js").BeatSaverSourceBundle} BeatSaverSourceBundle */
@@ -21870,7 +17338,7 @@ function createAeroBeatSaverVendorService(options) {
 	return new AeroBeatSaverVendorService(options);
 }
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-mediapipe/src/mediapipe-normalize.js
+//#region ../aerobeat-web-vendor-mediapipe/src/mediapipe-normalize.js
 /** @typedef {import("@aerobeat/web-contracts/pose-shapes").NormalizedPoseLandmark} NormalizedLandmark */
 /** @typedef {import("@aerobeat/web-contracts/pose-shapes").NormalizedPoseFrame} NormalizedPoseFrame */
 /**
@@ -22053,7 +17521,7 @@ var __vitePreload = function preload(baseModule, deps, importerUrl) {
 	});
 };
 //#endregion
-//#region node_modules/@aerobeat/web-vendor-mediapipe/src/mediapipe-adapter.js
+//#region ../aerobeat-web-vendor-mediapipe/src/mediapipe-adapter.js
 /** @type {"mediapipe"} */
 var mediaPipeVendorId = "mediapipe";
 /** @type {"1.0.1"} */
@@ -22421,7 +17889,7 @@ function createMediaPipePoseAdapterFromRuntime(loadRuntime, options = {}) {
 * @returns {Promise<MediaPipeRuntime>}
 */
 async function loadDefaultMediaPipeRuntime() {
-	const tasksVision = await __vitePreload(() => import("./vision_bundle-CAb2dpSo.js"), []);
+	const tasksVision = await __vitePreload(() => import("./vision_bundle-CPgxPL03.js"), []);
 	return {
 		resolveVisionFiles: (wasmRootUrl) => tasksVision.FilesetResolver.forVisionTasks(wasmRootUrl),
 		async createPoseLandmarker(visionFiles, options) {
@@ -22672,7 +18140,7 @@ var AeroGame = class extends HTMLElement {
 			this.measureContainer();
 			this.renderPresenters();
 			queueMicrotask(() => {
-				if (this.isConnected && this.menuOpen) this.drawerElement()?.focus();
+				if (this.isConnected && this.menuOpen) this.menuButtonElement()?.focus();
 			});
 			this.publish("ready");
 			this.refreshLibrary(this.connectedGeneration);
@@ -22920,9 +18388,10 @@ var AeroGame = class extends HTMLElement {
 			const results = latest ? await graph.vendor.listLatestMaps(vendorQuery, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(vendorQuery, { signal: this.activeAbort.signal });
 			if (!this.isCurrent(generation, graph)) return results;
 			const previousMapId = this.beatSaverView.selectedMap?.mapId;
+			const compatibleMaps = Object.freeze(results.maps.filter((map) => playableVersions(map).length > 0).slice(0, 20));
 			this.browsedMaps.clear();
-			for (const map of results.maps.slice(0, 20)) this.browsedMaps.set(map.mapId.toUpperCase(), map);
-			const summaries = Object.freeze(results.maps.slice(0, 20).map(mapSummary));
+			for (const map of compatibleMaps) this.browsedMaps.set(map.mapId.toUpperCase(), map);
+			const summaries = Object.freeze(compatibleMaps.map(mapSummary));
 			this.beatSaverView = Object.freeze({
 				...emptyBeatSaverView(),
 				state: summaries.length ? "ready" : "empty",
@@ -22936,7 +18405,10 @@ var AeroGame = class extends HTMLElement {
 				resultCount: summaries.length,
 				maps: summaries
 			});
-			return results;
+			return Object.freeze({
+				...results,
+				maps: compatibleMaps
+			});
 		} catch (error) {
 			if (!this.isCurrent(generation, graph)) return null;
 			this.beatSaverView = Object.freeze({
@@ -23544,6 +19016,7 @@ var AeroGame = class extends HTMLElement {
 		if (button) {
 			button.setAttribute("aria-expanded", this.menuOpen ? "true" : "false");
 			button.setAttribute("aria-label", this.menuOpen ? "Close configuration menu" : "Open configuration menu");
+			button.textContent = this.menuOpen ? "×" : "☰";
 		}
 		if (drawer) {
 			drawer.hidden = !this.menuOpen;
@@ -23554,22 +19027,23 @@ var AeroGame = class extends HTMLElement {
 		const start = this.shadowRoot?.querySelector("[data-action='calibrate-start']");
 		if (start instanceof HTMLButtonElement) {
 			start.disabled = this.menuStarting;
-			start.textContent = this.menuStarting ? "Starting camera…" : "Calibrate / Start";
+			start.textContent = this.menuStarting ? "Preparing…" : "Calibrate / Start";
 		}
 	}
 	selectBrowsedMap(mapId) {
 		const map = this.browsedMaps.get(boundedIdentifier(mapId, "BeatSaver map ID").toUpperCase());
 		if (!map) throw new Error("Selected BeatSaver map is unavailable");
+		const version = playableVersions(map)[0];
+		if (!version) throw new Error("Selected BeatSaver map has no playable Standard difficulty");
 		const summary = mapSummary(map);
-		const version = map.versions[0];
 		const difficulties = standardDifficulties(version);
 		this.beatSaverView = Object.freeze({
 			...this.beatSaverView,
 			selectedMap: summary,
 			versions: summary.versions,
-			selectedVersionHash: version?.hash ?? "",
+			selectedVersionHash: version.hash,
 			difficulties,
-			selectedDifficulty: difficulties[0] ?? ""
+			selectedDifficulty: difficulties[0]
 		});
 		this.renderPresenters();
 		return summary;
@@ -23578,14 +19052,14 @@ var AeroGame = class extends HTMLElement {
 		const mapId = this.beatSaverView.selectedMap?.mapId;
 		const map = typeof mapId === "string" ? this.browsedMaps.get(mapId.toUpperCase()) : null;
 		if (!map) throw new Error("Select a BeatSaver map first");
-		const version = map.versions.find((entry) => entry.hash === versionHash);
-		if (!version) throw new Error("Selected BeatSaver version is unavailable");
+		const version = playableVersions(map).find((entry) => entry.hash === versionHash);
+		if (!version) throw new Error("Selected BeatSaver version has no playable Standard difficulty");
 		const difficulties = standardDifficulties(version);
 		this.beatSaverView = Object.freeze({
 			...this.beatSaverView,
 			selectedVersionHash: version.hash,
 			difficulties,
-			selectedDifficulty: difficulties[0] ?? ""
+			selectedDifficulty: difficulties[0]
 		});
 		this.renderPresenters();
 	}
@@ -23609,28 +19083,60 @@ var AeroGame = class extends HTMLElement {
 	async refreshLibrary(generation = this.connectedGeneration) {
 		const graph = this.graph;
 		if (!graph) return;
-		const [packages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
+		const [listedPackages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
 		if (!this.isCurrent(generation, graph)) return;
+		const packages = productLibraryPackages(listedPackages);
 		const current = graph.content.getSnapshot();
-		const first = packages[0] ?? null;
+		const currentRetained = playableContent(current) && packages.some((entry) => entry.packageId === current.packageId);
+		const retainedPackageId = currentRetained ? current.packageId : packages.some((entry) => entry.packageId === this.libraryView.selectedPackageId) ? this.libraryView.selectedPackageId : packages[0]?.packageId ?? null;
+		const selected = packages.find((entry) => entry.packageId === retainedPackageId) ?? null;
 		this.libraryView = Object.freeze({
 			packages,
-			selectedPackageId: playableContent(current) ? current.packageId : first?.packageId ?? null,
+			selectedPackageId: retainedPackageId,
 			usedBytes: storage.usageBytes,
 			quotaBytes: storage.quotaBytes,
 			storage
 		});
 		this.renderPresenters();
-		if (playableContent(current) || !first) return;
-		const selection = this.selectLibraryPackage(first);
+		if (currentRetained || !selected) return;
+		await this.beginLibrarySelection(selected);
+	}
+	async beginLibrarySelection(summary) {
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const selection = this.selectLibraryPackage(summary);
 		this.pendingLibrarySelection = selection;
 		try {
-			await selection;
+			return await selection;
 		} catch (error) {
 			if (this.isCurrent(generation, graph)) this.handleError(error);
+			return null;
 		} finally {
 			if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null;
 		}
+	}
+	async exportLibraryPackage(summary) {
+		this.assertConnected();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const exported = await graph.authoring.exportPackage(summary);
+		if (!this.isCurrent(generation, graph)) return null;
+		const url = URL.createObjectURL(new Blob([exported.bytes], { type: exported.mediaType }));
+		try {
+			const anchor = document.createElement("a");
+			anchor.href = url;
+			anchor.download = exported.fileName;
+			anchor.hidden = true;
+			this.shadowRoot?.append(anchor);
+			anchor.click();
+			anchor.remove();
+		} finally {
+			URL.revokeObjectURL(url);
+		}
+		return Object.freeze({
+			fileName: exported.fileName,
+			byteLength: exported.byteLength
+		});
 	}
 	async handleLocalZip(event) {
 		const input = event.currentTarget;
@@ -23662,13 +19168,9 @@ var AeroGame = class extends HTMLElement {
 		}
 		if (event.key !== "Tab" || !this.menuOpen) return;
 		const drawer = this.shadowRoot?.querySelector("[data-role='drawer']");
-		if (!(drawer instanceof HTMLElement)) return;
-		const focusable = deepFocusable(drawer);
-		if (focusable.length === 0) {
-			event.preventDefault();
-			drawer.focus();
-			return;
-		}
+		const menuButton = this.menuButtonElement();
+		if (!(drawer instanceof HTMLElement) || !menuButton) return;
+		const focusable = [menuButton, ...deepFocusable(drawer)];
 		const first = focusable[0];
 		const last = focusable[focusable.length - 1];
 		const active = deepActiveElement(this.shadowRoot);
@@ -23702,35 +19204,53 @@ var AeroGame = class extends HTMLElement {
 		this.publish("session_changed");
 		queueMicrotask(() => requestAnimationFrame(() => {
 			if (!this.isConnected) return;
-			if (this.menuOpen) this.drawerElement()?.focus();
+			if (this.menuOpen) this.menuButtonElement()?.focus();
 			else (this.menuFocusRestore?.isConnected ? this.menuFocusRestore : this.menuButtonElement())?.focus();
 		}));
 	}
 	async startFromMenu() {
 		if (!this.graph || this.menuStarting) return;
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
 		this.menuStarting = true;
 		this.lastError = null;
 		this.musicPrerequisite = "";
 		this.renderPresenters();
 		try {
 			if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
-			if (!await this.ensurePlayableMusicSelection()) {
-				this.musicPrerequisite = this.beatSaverView.selectedMap ? "Import selected song to start." : "Choose or import a song to start.";
+			let playable = await this.ensurePlayableMusicSelection();
+			if (!playable && this.beatSaverView.selectedMap) {
+				const mapId = this.beatSaverView.selectedMap.mapId;
+				const versionHash = this.beatSaverView.selectedVersionHash;
+				const difficulty = this.beatSaverView.selectedDifficulty;
+				if (!versionHash || !difficulty) throw new Error("Choose a playable song version and difficulty");
+				await this.importBeatSaverById(mapId, versionHash, {
+					difficulty,
+					sourceId: mapId
+				});
+				if (!this.isCurrent(generation, graph)) return;
+				playable = await this.ensurePlayableMusicSelection();
+			}
+			if (!playable) {
+				this.musicPrerequisite = "Choose or import a song to start.";
 				this.menuOpen = true;
 				this.renderPresenters();
 				this.focusMusicSection();
 				return;
 			}
 			await this.start();
-			if (!this.graph) return;
+			if (!this.isCurrent(generation, graph)) return;
 			this.menuPauseArmed = true;
-			this.graph.input.resetCalibration("menu_waiting_for_close");
-			this.renderPresenters();
+			this.setMenuOpen(false);
 		} catch (error) {
-			this.handleError(error);
+			if (this.isCurrent(generation, graph)) {
+				this.handleError(error);
+				this.menuOpen = true;
+				this.renderPresenters();
+			}
 		} finally {
 			this.menuStarting = false;
-			this.renderPresenters();
+			if (this.isCurrent(generation, graph)) this.renderPresenters();
 		}
 	}
 	async ensurePlayableMusicSelection() {
@@ -23800,7 +19320,18 @@ var AeroGame = class extends HTMLElement {
 		else if (detail.type === "library-select") {
 			const packageId = dataValue(detail.payload, "packageId");
 			const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId);
-			if (summary) this.selectLibraryPackage(summary).catch((error) => this.handleError(error));
+			if (summary) {
+				this.libraryView = Object.freeze({
+					...this.libraryView,
+					selectedPackageId: packageId
+				});
+				this.renderPresenters();
+				this.beginLibrarySelection(summary);
+			}
+		} else if (detail.type === "library-export") {
+			const packageId = dataValue(detail.payload, "packageId");
+			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
+			if (handle) this.exportLibraryPackage(handle).catch((error) => this.handleError(error));
 		} else if (detail.type === "library-delete") {
 			const packageId = dataValue(detail.payload, "packageId");
 			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
@@ -24005,15 +19536,15 @@ var AeroGame = class extends HTMLElement {
 };
 /** Define the public root without an aerobeat-app alias. */
 function defineAeroGame() {
-	if (!customElements.get(elementNames$4.game)) customElements.define(elementNames$4.game, AeroGame);
+	if (!customElements.get(elementNames.game)) customElements.define(elementNames.game, AeroGame);
 }
 defineAeroGame();
 function template() {
 	return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
-*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:.58}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.drawer-close,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;font-size:24px}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:rgba(4,17,29,.97);border-inline-start:1px solid rgba(255,255,255,.18);box-shadow:-12px 0 32px rgba(0,0,0,.42);padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-bar{position:absolute;inset-block-start:max(8px,env(safe-area-inset-top));inset-inline:12px;display:flex;align-items:center;justify-content:flex-end;gap:8px}.drawer-close{inline-size:48px;font-size:22px}.start-action{inline-size:100%;margin-block-end:10px;background:#0d6f86}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
-.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(255,255,255,.16);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:rgba(255,178,67,.18);color:#ffe0a6;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false">☰</button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div class="drawer-bar"><button data-action="menu-close" class="drawer-close" type="button" aria-label="Close configuration menu">×</button></div><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></section></div>`;
+*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:.58}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;font-size:24px}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
+.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false">☰</button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`;
 }
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) {
@@ -24168,13 +19699,14 @@ function actionableRuntimeMessage(error, limitations) {
 	return "";
 }
 function mapSummary(map) {
+	const versions = playableVersions(map);
 	return Object.freeze({
 		mapId: map.mapId,
 		name: map.mapName || map.songName,
 		songAuthorName: map.songAuthorName,
 		levelAuthorName: map.levelAuthorName,
-		versionCount: map.versions.length,
-		versions: Object.freeze(map.versions.slice(0, 8).map((version) => Object.freeze({
+		versionCount: versions.length,
+		versions: Object.freeze(versions.slice(0, 8).map((version) => Object.freeze({
 			versionHash: version.hash,
 			label: version.key || version.hash.slice(0, 8)
 		})))
@@ -24182,6 +19714,19 @@ function mapSummary(map) {
 }
 function standardDifficulties(version) {
 	return Object.freeze((version?.difficulties ?? []).filter((entry) => entry.characteristic === "Standard").map((entry) => entry.difficulty).filter((entry, index, all) => all.indexOf(entry) === index));
+}
+function playableVersions(map) {
+	return Object.freeze((map?.versions ?? []).filter((version) => standardDifficulties(version).length > 0));
+}
+function productLibraryPackages(packages) {
+	const byId = /* @__PURE__ */ new Map();
+	for (const summary of packages) {
+		const id = typeof summary?.packageId === "string" ? summary.packageId : "";
+		if (!id) continue;
+		const prior = byId.get(id);
+		if (!prior || Number(summary.createdAtMs ?? 0) >= Number(prior.createdAtMs ?? 0)) byId.set(id, summary);
+	}
+	return Object.freeze([...byId.values()].sort((left, right) => Number(right.createdAtMs ?? 0) - Number(left.createdAtMs ?? 0) || String(left.songName ?? "").localeCompare(String(right.songName ?? "")) || String(left.difficulty ?? "").localeCompare(String(right.difficulty ?? "")) || String(left.packageId ?? "").localeCompare(String(right.packageId ?? ""))));
 }
 function currentDpr() {
 	return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1;

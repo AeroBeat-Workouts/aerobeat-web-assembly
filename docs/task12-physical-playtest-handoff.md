@@ -238,6 +238,12 @@ Stop closure and do not use the automated green matrix as physical success. Derr
 
 The persisted full report is `docs/task12-physical-menu-content-start-debug.md`. Fresh-source and existing-route direct/real-iframe reproduction at 390×844 and 844×390 confirms the causal split: current source has simultaneous `☰`/`×`, ~1.454:1 dark-on-dark drawer text, repeated per-package actions, unfiltered unsupported versions with empty Difficulty, and Start refusing selected unimported content before camera; the existing long-running route additionally serves stale pre-`6bcdc95` UI markup with repeated Play buttons. Real authoring summaries also do not match the UI's tested `name`/`variantCount` shape. Assembly P0 `h8z` and UI P0 `evg` own the repairs. No code change or camera/play pass is part of this diagnosis commit. Keep the server running.
 
+### Physical menu repair ready for retest — QA pending
+
+UI P0 `evg` is QA-closed at `b777bdb`. Assembly `h8z` now provides one opaque high-contrast surface around Calibrate/Start and all four sections, one 48×48 `☰`/`×` control, real local-song quick radios with one selected Export/Delete area and wired export, playable-Standard-only BeatSaver maps/versions, and one-tap selected-map import→persist/select→camera→closed-menu T-pose. Import failure leaves the menu open with zero camera request; repeated taps serialize. The existing managed server process was not stopped or replaced: Vite auto-reloaded the linked-source configuration, both local and Tailscale routes return HTTP 200, and the actual served browser now shows no Play, one local radio/action area, and one close control.
+
+Fresh direct/real-iframe matrices at 390×844 and 844×390 measure ~15.65:1 surface contrast and assert failure/success transactions, exact text/actions, focus, lifecycle, privacy, and no-winner. Full unit/browser/build and live `53F26` pass. This remains automated evidence only. Derrick must refresh/reopen the phone page and verify the contrast, downloaded-song choices, nonempty Version/Difficulty, one menu control/action set, permission prompt, T-pose/hold/release/countdown, and play.
+
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
