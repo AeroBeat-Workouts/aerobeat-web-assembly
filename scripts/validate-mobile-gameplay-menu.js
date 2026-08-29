@@ -77,27 +77,49 @@ try {
 
   const selection = await game.evaluate(async (element) => {
     const makeVersion = (hash) => ({ hash, key: hash.slice(0, 6), difficulties: [{ characteristic: "Standard", difficulty: "Expert" }] });
+    const radioState = (presenter, intent) => { const radios = [...presenter.shadowRoot.querySelectorAll(`input[type='radio'][data-intent='${intent}']`)]; return { count: radios.length, checked: radios.filter((radio) => radio.checked).map((radio) => radio.value) }; };
+    const browser = element.shadowRoot.querySelector("aero-beatsaver-browser"); const library = element.shadowRoot.querySelector("aero-content-library");
     globalThis.__mobileState.maps = [
       { mapId: "FIRST", mapName: "First result", songName: "First result", songAuthorName: "Artist A", levelAuthorName: "Mapper A", versions: [makeVersion("1".repeat(40))] },
       { mapId: "SECOND", mapName: "Second result", songName: "Second result", songAuthorName: "Artist B", levelAuthorName: "Mapper B", versions: [makeVersion("2".repeat(40))] }
     ];
     await element.browseBeatSaver({ text: "result" });
-    const selectedSearch = element.beatSaverView.selectedMap?.mapId;
+    const firstMapRadios = radioState(browser, "beatsaver-select-map");
+    browser.shadowRoot.querySelector("input[data-intent='beatsaver-select-map'][value='SECOND']").click();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    const selectedSearch = element.beatSaverView.selectedMap?.mapId; const selectedMapRadios = radioState(browser, "beatsaver-select-map");
+    await element.browseBeatSaver({ text: "result" }); const preservedMapRadios = radioState(browser, "beatsaver-select-map");
     element.shadowRoot.querySelector("[data-action='calibrate-start']").click();
     await new Promise((resolve) => setTimeout(resolve, 30));
     const searchCameraRequests = globalThis.__cameraRequests; const searchPrerequisite = element.shadowRoot.querySelector("[data-role='music-prerequisite']").textContent;
     const packageSummary = (packageId, name) => ({ packageId, name, variantCount: 1 });
     globalThis.__mobileState.library = [packageSummary("package-first", "First library song"), packageSummary("package-current", "Current library song")];
     globalThis.__mobileState.contentSnapshot = { ...globalThis.__mobileState.contentSnapshot, ...{ state: "ready", packageId: "package-current", selectedVariant: { variantId: "package-current-flow", chartId: "package-current-chart", mode: "flow", rulesetId: "flow_grid_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: "a".repeat(64) }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: "a".repeat(64) }, provenance: { baseVariantId: "package-current-flow" } }, variants: [], resolvedEvents: [], song: { name: "Current" }, background: null, lineage: null } };
-    await element.refreshLibrary(); const preserved = element.graph.content.getSnapshot().packageId; const preservedLoads = globalThis.__mobileState.packageLoadCalls.length;
+    await element.refreshLibrary();
+    const preserved = element.graph.content.getSnapshot().packageId; const preservedLoads = globalThis.__mobileState.packageLoadCalls.length; const currentPackageRadios = radioState(library, "library-select");
+    library.shadowRoot.querySelector("input[data-intent='library-select'][value='package-first']").click();
+    const intentDeadline = performance.now() + 1000; while (element.graph.content.getSnapshot().packageId !== "package-first" && performance.now() < intentDeadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    const radioIntentPackage = element.graph.content.getSnapshot().packageId; const intentPackageRadios = radioState(library, "library-select");
+    globalThis.__mobileState.packageLoadCalls.length = 0;
     globalThis.__mobileState.contentSnapshot = { state: "idle", packageId: null, selectedVariant: null, variants: [], resolvedEvents: [], song: null, background: null, lineage: null };
     await element.refreshLibrary();
-    return { selectedSearch, searchCameraRequests, searchPrerequisite, preserved, preservedLoads, autoSelected: element.graph.content.getSnapshot().packageId, loadCalls: [...globalThis.__mobileState.packageLoadCalls] };
+    const fallbackPackageRadios = radioState(library, "library-select");
+    const browserActions = [...browser.shadowRoot.querySelectorAll("button")].map((button) => button.textContent.trim());
+    const libraryActions = [...library.shadowRoot.querySelectorAll("button")].map((button) => button.textContent.trim());
+    const progress = element.shadowRoot.querySelector("aero-content-import-progress"); const cancel = progress.shadowRoot.querySelector("[data-intent='content-import-cancel']");
+    const optionButtonCount = browser.shadowRoot.querySelectorAll("button[data-intent='beatsaver-select-map']").length + library.shadowRoot.querySelectorAll("button[data-intent='library-select']").length;
+    const version = browser.shadowRoot.querySelector("[aria-label='Version']"); const difficulty = browser.shadowRoot.querySelector("[aria-label='Difficulty']");
+    return { firstMapRadios, selectedSearch, selectedMapRadios, preservedMapRadios, searchCameraRequests, searchPrerequisite, preserved, preservedLoads, currentPackageRadios, radioIntentPackage, intentPackageRadios, autoSelected: element.graph.content.getSnapshot().packageId, fallbackPackageRadios, loadCalls: [...globalThis.__mobileState.packageLoadCalls], browserActions, libraryActions, optionButtonCount, cancelTag: cancel?.tagName, versionTag: version?.tagName, difficultyTag: difficulty?.tagName };
   });
-  assert(selection.selectedSearch === "FIRST", `first search result must be selected deterministically: ${JSON.stringify(selection)}`);
+  assert(selection.firstMapRadios.count === 2 && JSON.stringify(selection.firstMapRadios.checked) === JSON.stringify(["FIRST"]), `first search radio must be checked deterministically: ${JSON.stringify(selection)}`);
+  assert(selection.selectedSearch === "SECOND" && selection.selectedMapRadios.count === 2 && JSON.stringify(selection.selectedMapRadios.checked) === JSON.stringify(["SECOND"]), `map radio intent must update assembly and checked state: ${JSON.stringify(selection)}`);
+  assert(selection.preservedMapRadios.count === 2 && JSON.stringify(selection.preservedMapRadios.checked) === JSON.stringify(["SECOND"]), `valid current map radio must survive refreshed results: ${JSON.stringify(selection)}`);
   assert(selection.searchCameraRequests === 0 && /Import selected song/u.test(selection.searchPrerequisite), `unimported result must never be claimed playable: ${JSON.stringify(selection)}`);
-  assert(selection.preserved === "package-current" && selection.preservedLoads === 0, `valid current library package must be preserved: ${JSON.stringify(selection)}`);
-  assert(selection.autoSelected === "package-first" && JSON.stringify(selection.loadCalls) === JSON.stringify(["package-first"]), `first library package must auto-select deterministically: ${JSON.stringify(selection)}`);
+  assert(selection.preserved === "package-current" && selection.preservedLoads === 0 && selection.currentPackageRadios.count === 2 && JSON.stringify(selection.currentPackageRadios.checked) === JSON.stringify(["package-current"]), `valid current library radio must be preserved: ${JSON.stringify(selection)}`);
+  assert(selection.radioIntentPackage === "package-first" && selection.intentPackageRadios.count === 2 && JSON.stringify(selection.intentPackageRadios.checked) === JSON.stringify(["package-first"]), `library radio intent must update assembly and checked state: ${JSON.stringify(selection)}`);
+  assert(selection.autoSelected === "package-first" && selection.fallbackPackageRadios.count === 2 && JSON.stringify(selection.fallbackPackageRadios.checked) === JSON.stringify(["package-first"]) && JSON.stringify(selection.loadCalls) === JSON.stringify(["package-first"]), `first library radio must be checked as deterministic fallback: ${JSON.stringify(selection)}`);
+  assert(selection.versionTag === "SELECT" && selection.difficultyTag === "SELECT", `Version and Difficulty must remain selects: ${JSON.stringify(selection)}`);
+  assert(selection.optionButtonCount === 0 && selection.cancelTag === "BUTTON" && ["Search", "Latest", "Choose local ZIP", "Import selected map"].every((label) => selection.browserActions.includes(label)) && ["Export", "Delete"].every((label) => selection.libraryActions.includes(label)), `only Music actions may remain buttons: ${JSON.stringify(selection)}`);
 
   const focusCycle = await game.evaluate((element) => {
     const drawer = element.shadowRoot.querySelector("[data-role='drawer']");
@@ -151,11 +173,18 @@ try {
   await page.setViewportSize({ width: 844, height: 390 }); await page.waitForTimeout(100);
   const landscape = await shellSnapshot(game);
   assert(landscape.surfaceFill && landscape.buttonWidth >= 44 && landscape.buttonHeight >= 44, "landscape surfaces/menu must remain stable and accessible");
+  await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-toggle']").click()); await page.waitForTimeout(100);
+  const landscapeMusic = await game.evaluate((element) => {
+    const drawer = element.shadowRoot.querySelector("[data-role='drawer']"); const browser = drawer.querySelector("aero-beatsaver-browser"); const library = drawer.querySelector("aero-content-library");
+    const inspect = (presenter, intent) => { const radios = [...presenter.shadowRoot.querySelectorAll(`input[type='radio'][data-intent='${intent}']`)]; return { count: radios.length, checked: radios.filter((radio) => radio.checked).length, minimum: Math.min(...radios.map((radio) => Math.min(radio.getBoundingClientRect().width, radio.getBoundingClientRect().height))) }; };
+    return { map: inspect(browser, "beatsaver-select-map"), library: inspect(library, "library-select"), drawerWidth: drawer.getBoundingClientRect().width, gameWidth: element.getBoundingClientRect().width };
+  });
+  assert(landscapeMusic.map.count === 2 && landscapeMusic.map.checked === 1 && landscapeMusic.library.count === 2 && landscapeMusic.library.checked === 1 && landscapeMusic.map.minimum >= 42 && landscapeMusic.library.minimum >= 42 && landscapeMusic.drawerWidth <= landscapeMusic.gameWidth, `populated Music radios must remain checked and touch-sized at 844×390: ${JSON.stringify(landscapeMusic)}`);
 
   const reconnect = await game.evaluate(async (element) => { const video = element.shadowRoot.querySelector("video"); const canvas = element.shadowRoot.querySelector("canvas"); element.remove(); document.querySelector("main")?.append(element); await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))); return { menuOpen: element.getSnapshot().interaction.menuOpen, fresh: element.graph.input.getSnapshot().calibration.calibrationId === null, newVideo: element.shadowRoot.querySelector("video") === video, newCanvas: element.shadowRoot.querySelector("canvas") === canvas }; });
   assert(reconnect.menuOpen && reconnect.fresh && reconnect.newVideo && reconnect.newCanvas, "reconnect must create fresh interaction/service state while preserving stable surfaces");
   assert(noise.length === 0, `unexpected console noise: ${noise.join(" | ")}`);
-  console.log("Mobile gameplay-first drawer, camera start, T-pose/countdown, pose/menu pause, responsive stable-surface validation passed.");
+  console.log("Mobile four-section drawer, populated Music radios/actions, camera start, T-pose/countdown, pose/menu pause, and responsive stable-surface validation passed.");
 } finally { await browser.close(); await vite.close(); }
 
 async function shellSnapshot(game) { return game.evaluate((element) => { const root=element.shadowRoot,drawer=root.querySelector("[data-role='drawer']"),button=root.querySelector("[data-role='menu-button']"),video=root.querySelector("video"),canvas=root.querySelector("canvas"),gameRect=element.getBoundingClientRect(),videoRect=video.getBoundingClientRect(),canvasRect=canvas.getBoundingClientRect(),presenters=[...drawer.querySelectorAll("aero-prototype-selector,aero-beatsaver-browser,aero-content-import-progress,aero-content-library,aero-capabilities-panel,aero-error-panel,aero-fullscreen-button")],buttonRect=button.getBoundingClientRect(); return { menuOpen:element.getSnapshot().interaction.menuOpen,drawerVisible:!drawer.hidden,buttonWidth:buttonRect.width,buttonHeight:buttonRect.height,buttonTop:buttonRect.top-gameRect.top,presenterCount:presenters.length,compactCount:presenters.filter((item)=>item.hasAttribute("compact")).length,closedVisiblePresenterCount:presenters.filter((item)=>!drawer.hidden&&item.getClientRects().length>0).length,ariaExpanded:button.getAttribute("aria-expanded"),ariaControls:button.getAttribute("aria-controls"),drawerFocused:root.activeElement===drawer,buttonFocused:root.activeElement===button,activeRole:root.activeElement?.getAttribute?.("data-role")??root.activeElement?.tagName??null,videoStable:video===root.querySelector("video"),canvasStable:canvas===root.querySelector("canvas"),surfaceFill:Math.abs(videoRect.width-gameRect.width)<1&&Math.abs(videoRect.height-gameRect.height)<1&&Math.abs(canvasRect.width-gameRect.width)<1&&Math.abs(canvasRect.height-gameRect.height)<1}; }); }

@@ -22,7 +22,9 @@ The physical drawer now exposes exactly **Gameplay**, **Visuals**, **Music**, an
 
 On a fresh profile, pressing `Calibrate / Start` before playable imported content shows one short Music prerequisite, focuses Music, and makes zero camera requests. The first search result is selected without being represented as playable until import succeeds. A valid current playable package remains selected; otherwise the first local library package is selected deterministically. With playable package+variant selected, Calibrate configures it before camera start and preserves the existing drawer-close → fresh T-pose → cooldown/release → 3-2-1 → play path and menu-pause recalibration policy.
 
-Automated evidence passes two complete test/browser/build-release rounds, dry-run package/diff comparison, recursive deterministic release comparison, exact four-heading/forbidden-text/radio-default assertions, fresh zero-camera gating, valid-current and first-result/library selection, selected-content camera/T-pose/countdown/play, menu pause, direct/iframe privacy, release lock, and no-winner checks. UI scoped selector dependency is `b075797`. Assembly P0 `aerobeat-web-assembly-c36` intentionally remains open for independent QA and physical confirmation.
+Automated evidence passes two complete test/browser/build-release rounds, dry-run package/diff comparison, recursive deterministic release comparison, exact four-heading/forbidden-text/radio-default assertions, fresh zero-camera gating, valid-current and first-result/library selection, selected-content camera/T-pose/countdown/play, menu pause, direct/iframe privacy, release lock, and no-winner checks. UI scoped selector dependency is `b075797`.
+
+Populated Music semantics are now complete through UI `5e7ac29` and assembly Bead `aerobeat-web-assembly-3cw`: two-map and two-package fixtures at 390×844 and 844×390 each expose exactly one checked native radio, preserve a valid current choice, check the first fallback, and update assembly selection through scalar radio intents. Search, Latest, local ZIP, Import, Export, Delete, and Cancel remain buttons; Version and Difficulty remain selects. Two stable full release rounds are byte-identical (`83a0c645…`, proof `895b14cc…`, `3966471` pre-manifest bytes). `3cw` intentionally remains open for independent QA and physical confirmation.
 
 ## Host inventory
 
@@ -74,6 +76,8 @@ Playwright pierces the open component shadow roots.
 - Configuration drawer: `page.locator("aero-game").getByRole("dialog", { name: "Game configuration" })`
 - Camera permission/start: `page.locator("aero-game").getByRole("button", { name: "Calibrate / Start" })`
 - Direct BeatSaver presenter (inside the drawer): `page.locator("aero-game").locator("aero-beatsaver-browser")`
+- BeatSaver map choices: `page.locator("aero-game").locator("aero-beatsaver-browser").getByRole("radio")`
+- Local library choices: `page.locator("aero-game").locator("aero-content-library").getByRole("radio")`
 - Search field: `getByLabel("Search maps")`
 - Latest button: `getByRole("button", { name: "Latest" })`
 - Local fallback: `getByRole("button", { name: "Choose local ZIP" })`
@@ -189,7 +193,7 @@ For each Boxing run:
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
-- `scripts/validate-mobile-gameplay-menu.js` runs exact Chromium 390×844 portrait and 844×390 landscape coverage with mocked `getUserMedia` and injected measured pose frames. It proves stable viewport-filling video/canvas, >=44px hamburger, compact drawer, permission/start, no calibration behind the menu, initial T-pose/cooldown/countdown/play, sustained in-play T-pose pause/resume, menu pause retaining camera/CV/frame loop, close-stays-paused fresh calibration/countdown, audio gates, reconnect isolation, and zero unexpected product console noise.
+- `scripts/validate-mobile-gameplay-menu.js` runs exact Chromium 390×844 portrait and 844×390 landscape coverage with mocked `getUserMedia` and injected measured pose frames. It proves stable viewport-filling video/canvas, >=44px hamburger, compact drawer, populated current/fallback map and library radios, scalar selection intents, preserved Music action-button/select semantics, zero-camera missing-content gating, permission/start, no calibration behind the menu, initial T-pose/cooldown/countdown/play, sustained in-play T-pose pause/resume, menu pause retaining camera/CV/frame loop, close-stays-paused fresh calibration/countdown, audio gates, reconnect isolation, and zero unexpected product console noise.
 - Task 11 nine-path v2/v3/v4 × online/direct/local matrix reproduces all package hashes and loads Flow plus four Boxing variants.
 - Cross-origin Chromium verifies exact parent sizing, direct/iframe parity, fullscreen gesture path, reconnect/destructor silence, lease transfer, hidden/safety/audio policy, hostile payload limits, profile atomicity, and no raw-byte bridge leakage.
 - All web contracts/vendor/authoring/content/gameplay/input/video/audio/renderer/UI/style/CV/MediaPipe repos pass available check, test, browser, pack, and diff gates; all worktrees remain clean and synchronized.

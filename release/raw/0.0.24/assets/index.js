@@ -7319,6 +7319,11 @@ var sharedStyles = `
   .cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
   .card { background: rgba(255,255,255,.72); border: 1px solid rgba(53,141,175,.3); border-radius: 10px; display: grid; gap: 6px; padding: 10px; text-align: start; }
   .cards > article > .card { inline-size: 100%; }
+  .choice-radio { align-items: center; cursor: pointer; display: flex; font-size: 1rem; gap: 10px; min-block-size: 42px; }
+  .choice-radio:has(input:checked) { background: rgba(10,132,255,.14); border-color: var(--aero-color-focus, #0a84ff); box-shadow: inset 0 0 0 1px var(--aero-color-focus, #0a84ff); }
+  .choice-radio input[type="radio"] { accent-color: var(--aero-color-focus, #0a84ff); block-size: 42px; flex: 0 0 42px; inline-size: 42px; margin: 0 8px 0 0; padding: 0; }
+  .card > .choice-radio { border: 1px solid transparent; border-radius: 8px; padding: 0 8px; }
+  .choice-copy { display: grid; gap: 4px; min-inline-size: 0; }
   progress { accent-color: var(--aero-color-focus, #0a84ff); inline-size: 100%; }
   .visually-hidden { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
   :host([compact]) .panel { background: transparent; border: 0; border-radius: 0; box-shadow: none; gap: 8px; padding: 0; }
@@ -7443,6 +7448,9 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
 		const query = readString(this.presenterSnapshot, "query", "");
 		const results = readRecordList(this.presenterSnapshot, "results").slice(0, 50);
 		const selected = readRecord(this.presenterSnapshot, "selectedMap");
+		const selectedMapId = selected ? readString(selected, "mapId", "") : "";
+		const selectedResultIndex = results.findIndex((result) => readString(result, "mapId", "") === selectedMapId);
+		const checkedResultIndex = results.length ? Math.max(0, selectedResultIndex) : -1;
 		const versions = readRecordList(this.presenterSnapshot, "versions");
 		const difficulties = readStringList(this.presenterSnapshot, "difficulties");
 		const selectedVersion = readString(this.presenterSnapshot, "selectedVersionHash", "");
@@ -7459,14 +7467,20 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
           <button part="local-import-button" type="button" data-intent="local-zip-request">Choose local ZIP</button>
         </form>
         <p class="live compact-status ${error ? "error" : "muted"}" role="status" aria-live="polite">${escapeHtml(error || statusText(state, results.length))}</p>
-        <div class="cards" part="results" role="list" aria-label="BeatSaver results">
-          ${results.map((result) => mapResultMarkup(result)).join("") || `<p class="muted">${state === "empty" ? "No compatible maps found." : "Search or browse latest maps."}</p>`}
+        <div class="cards choice-radios" part="results" role="radiogroup" aria-label="BeatSaver results">
+          ${results.map((result, index) => mapResultMarkup(result, index === checkedResultIndex)).join("") || `<p class="muted">${state === "empty" ? "No compatible maps found." : "Search or browse latest maps."}</p>`}
         </div>
         ${selected ? `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(readString(selected, "name", "Selected map"))}</h3><p class="muted">${escapeHtml(readString(selected, "songAuthorName", ""))} · mapped by ${escapeHtml(readString(selected, "levelAuthorName", "Unknown"))}</p>
           <label><span class="compact-field-label">Version</span><select aria-label="Version" part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
           <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
           <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>` : ""}
       </section>`);
+	}
+	/** Map radios commit on `change`; action buttons retain the inherited click path. @param {Event} event */
+	handleDelegatedClick(event) {
+		const target = event.composedPath()[0];
+		if (target instanceof HTMLInputElement && target.type === "radio") return;
+		super.handleDelegatedClick(event);
 	}
 	/** @param {string} type @param {HTMLElement} target */
 	onIntent(type, target) {
@@ -7541,8 +7555,17 @@ var AeroContentLibrary = class extends AeroPresenterElement {
 		const used = readStorageBytes(this.presenterSnapshot, "usedBytes");
 		const quota = readStorageBytes(this.presenterSnapshot, "quotaBytes");
 		const error = readString(this.presenterSnapshot, "errorMessage", "");
+		const selectedPackageId = readString(this.presenterSnapshot, "selectedPackageId", "");
+		const selectedPackageIndex = packages.findIndex((item) => readString(item, "packageId", "") === selectedPackageId);
+		const checkedPackageIndex = packages.length ? Math.max(0, selectedPackageIndex) : -1;
 		if (this.pendingDeletePackageId && !packages.some((item) => readString(item, "packageId", "") === this.pendingDeletePackageId)) this.pendingDeletePackageId = "";
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards" part="items" role="list">${packages.map((item) => libraryItemMarkup(item, this.pendingDeletePackageId)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards choice-radios" part="items" role="radiogroup" aria-label="Available library packages">${packages.map((item, index) => libraryItemMarkup(item, this.pendingDeletePackageId, index === checkedPackageIndex)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
+	}
+	/** Package radios commit on `change`; package actions retain the inherited click path. @param {Event} event */
+	handleDelegatedClick(event) {
+		const target = event.composedPath()[0];
+		if (target instanceof HTMLInputElement && target.type === "radio") return;
+		super.handleDelegatedClick(event);
 	}
 	/** @param {string} type @param {HTMLElement} target */
 	onIntent(type, target) {
@@ -8018,26 +8041,26 @@ function statusText(state, count) {
 	if (count > 0) return `${count} map${count === 1 ? "" : "s"} available.`;
 	return "Search or browse latest maps.";
 }
-/** @param {Readonly<Record<string, unknown>>} result @returns {string} */
-function mapResultMarkup(result) {
+/** @param {Readonly<Record<string, unknown>>} result @param {boolean} checked @returns {string} */
+function mapResultMarkup(result, checked) {
 	const id = readString(result, "mapId", "");
 	const name = readString(result, "name", "Untitled map");
 	const author = readString(result, "songAuthorName", "Unknown artist");
-	return `<article role="listitem"><button class="card" part="result" type="button" data-intent="beatsaver-select-map" data-value="${escapeAttribute(id)}"><strong>${escapeHtml(name)}</strong><span class="muted">${escapeHtml(author)} · ${escapeHtml(id)}</span></button></article>`;
+	return `<article><label class="card choice-radio" part="result"><input type="radio" name="beatsaver-map-choice" value="${escapeAttribute(id)}" data-intent="beatsaver-select-map" data-value="${escapeAttribute(id)}" ${checked ? "checked" : ""}><span class="choice-copy"><strong>${escapeHtml(name)}</strong><span class="muted">${escapeHtml(author)} · ${escapeHtml(id)}</span></span></label></article>`;
 }
 /** @param {string} value @param {string} label @param {string} selected @returns {string} */
 function optionMarkup(value, label, selected) {
 	return `<option value="${escapeAttribute(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(label)}</option>`;
 }
-/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @returns {string} */
-function libraryItemMarkup(item, pendingDeletePackageId) {
+/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {boolean} checked @returns {string} */
+function libraryItemMarkup(item, pendingDeletePackageId, checked) {
 	const id = readString(item, "packageId", "");
 	const name = readString(item, "name", "Untitled package");
 	const variantCount = readNumber(item, "variantCount", 0);
 	const pending = id !== "" && id === pendingDeletePackageId;
 	const accessibleName = escapeAttribute(name);
 	const deleteControls = pending ? `<span role="status">Delete ${escapeHtml(name)}?</span><button type="button" aria-label="Confirm delete ${accessibleName}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm delete</button><button type="button" aria-label="Cancel deleting ${accessibleName}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleName}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
-	return `<article class="card" part="item" role="listitem"><h3>${escapeHtml(name)}</h3><p class="muted">${variantCount} playable variant${variantCount === 1 ? "" : "s"}</p><div class="row"><button type="button" aria-label="Play ${accessibleName}" data-intent="library-select" data-value="${escapeAttribute(id)}">Play</button><button type="button" aria-label="Export ${accessibleName}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div></article>`;
+	return `<article class="card" part="item"><label class="choice-radio"><input type="radio" name="library-package-choice" value="${escapeAttribute(id)}" data-intent="library-select" data-value="${escapeAttribute(id)}" aria-label="Select ${accessibleName}" ${checked ? "checked" : ""}><span class="choice-copy"><strong>${escapeHtml(name)}</strong><span class="muted">${variantCount} playable variant${variantCount === 1 ? "" : "s"}</span></span></label><div class="row"><button type="button" aria-label="Export ${accessibleName}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div></article>`;
 }
 /** @param {number} used @param {number} quota @returns {string} */
 function formatStorage(used, quota) {
@@ -9386,13 +9409,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:e15922ff6eb9e09f244d7e9a6443424206f992ee2c14b2c05b83695057e65817";
+var buildStamp = "source:83a0c64515fd9e2e80922f0f47875889ff383441c0078c78523dbe4c5582ea9d";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-e15922ff6eb9e09f";
+var cacheBust = "0.0.24-83a0c64515fd9e2e";
 /**
 * Vite-injected package version from package.json.
 *
@@ -23195,7 +23218,7 @@ var AeroGame = class extends HTMLElement {
 		setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
 		setPresenter(this, "aero-content-library", {
 			...this.libraryView,
-			selectedPackageId: content.packageId
+			selectedPackageId: content.packageId ?? this.libraryView.selectedPackageId
 		});
 		setPresenter(this, "aero-beatsaver-browser", this.beatSaverView);
 		setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });

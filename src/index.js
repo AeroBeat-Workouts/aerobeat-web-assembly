@@ -646,7 +646,7 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-prototype-selector[scope='gameplay']", selectorSnapshot);
     setPresenter(this, "aero-prototype-selector[scope='visuals']", selectorSnapshot);
     setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
-    setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: content.packageId });
+    setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: content.packageId ?? this.libraryView.selectedPackageId });
     setPresenter(this, "aero-beatsaver-browser", this.beatSaverView);
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
     setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
