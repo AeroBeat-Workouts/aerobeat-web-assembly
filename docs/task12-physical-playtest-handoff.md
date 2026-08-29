@@ -232,6 +232,12 @@ On final docs HEAD `99be070`, the exact clean linked heads are contracts `0c8fba
 
 Automated QA closed `ctp`, `9s6`, and `0n6`. `bzw` was explicitly reopened after the prior automated closure; leave both `bzw` and physical `kdf` open for independent QA. Do not close `3h7`: phone camera/calibration/play confirmation remains required.
 
+### New physical phone block — diagnosis only
+
+Stop closure and do not use the automated green matrix as physical success. Derrick reports unreadable dark-blue menu items, two menu buttons, missing useful downloaded-song quick choices, empty selected Version/Difficulty controls, duplicate Play/Export/Delete sets, and no successful `Calibrate / Start`. Attachment inspection returned no report; do not infer unseen pixels.
+
+The persisted full report is `docs/task12-physical-menu-content-start-debug.md`. Fresh-source and existing-route direct/real-iframe reproduction at 390×844 and 844×390 confirms the causal split: current source has simultaneous `☰`/`×`, ~1.454:1 dark-on-dark drawer text, repeated per-package actions, unfiltered unsupported versions with empty Difficulty, and Start refusing selected unimported content before camera; the existing long-running route additionally serves stale pre-`6bcdc95` UI markup with repeated Play buttons. Real authoring summaries also do not match the UI's tested `name`/`variantCount` shape. Assembly P0 `h8z` and UI P0 `evg` own the repairs. No code change or camera/play pass is part of this diagnosis commit. Keep the server running.
+
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
