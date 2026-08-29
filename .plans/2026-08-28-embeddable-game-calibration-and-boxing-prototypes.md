@@ -561,7 +561,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 6: Implement Gameplay Session, Rulesets, Scoring, Pause, and Prototype Telemetry
 
 **Bead ID:** `aerobeat-web-assembly-48w.3`
-**SubAgent:** Coder child `023ead05-e71f-41f1-b465-06bc04d35bf2`; QA pending
+**SubAgent:** Failed coder `023ead05-e71f-41f1-b465-06bc04d35bf2` (no changes); recovery coder `7d25a7bb-d1bf-4361-b11f-6fbcd4b225d5`; QA pending
 **Role:** `coder`
 **References:** `REF-01`, `REF-05`, `REF-06`, `REF-12`, `REF-13`
 **Prompt:** In the new `aerobeat-web-gameplay`, implement the minimal gameplay-session coordinator, audio-clock consumption, initial/pause recalibration gates, frozen 3..2..1 countdown, tracking-safety pause, media lease integration contract, positive-only evidence matching, one-action consumption, Flow cell/direction rules, Semantic Track Boxing, Spatial Grid Boxing, checkpoint sampling, straight qualification, binary diagnostics, simultaneous disjoint obstacle+punch handling, local prototype score partitions, recipe/ruleset provenance, and diagnostic shadow evaluation. No public leaderboards.
@@ -576,6 +576,8 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 - Exact files determined during implementation.
 
 **Status:** In Progress
+
+**Results:** Initial coder failed before changing the clean gameplay repo. A recovery coder is implementing the coordinator and deterministic ruleset/safety matrix from scratch.
 
 **Acceptance:** Deterministic clock tests cover all four candidates, +/-180ms windows, 150ms freshness, no-input misses, 100ms straight qualification, cardinal entries, checkpoint states, guard/punch exclusivity, disjoint concurrency, action consumption, tracking pause/countdown cancellation, variant swaps, local-only score identity, and diagnostic-only shadows.
 
