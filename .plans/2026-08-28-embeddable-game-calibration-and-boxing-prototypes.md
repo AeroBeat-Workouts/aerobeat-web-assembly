@@ -550,11 +550,11 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Files Created/Deleted/Modified:**
 - Exact files determined during implementation.
 
-**Status:** In Progress
+**Status:** Complete
 
-**Results:** Coder `1211827` implements per-game direct/external/authored package loading, AEROPKG1 verification, critical versus cosmetic asset policy, frozen five-variant catalog, modifier union/unranked provenance and paused future-only swaps preserving past/judged/active identity. Parent baseline gates pass and current authoring output loads with five variants. Security QA found unsafe getter/coercion reads at wrapper/modifier/resolver/playback seams, unbounded fetch/path/event inputs, non-exact AEROPKG ranges/records, missing event-modifier identity enforcement and locale-dependent ordering. QA is adding boundary-first descriptor narrowing, transport/archive bounds and adversarial swap/export integration.
+**Results:** Coder `1211827` implemented per-game direct/external/authored loading, AEROPKG1 verification, critical/cosmetic policy, five variants, modifier provenance and paused future swaps. Security audit `995f52d` added descriptor-safe boundaries, canonical hashes, bounded timeout/CORS transport, exact safe AEROPKG1 parsing, emitted-modifier/lineage validation, code-point ordering and adversarial swap/lifecycle coverage. Parent check/test/browser/pack and actual current authoring export integration pass; repo closure `ed4a2d6`. Assembly Bead `.2` remains mechanically blocked on Task 4C `.10` and will close with that dependency.
 
-**Acceptance:** Tests cover hashes, arbitrary URLs, external-audio CORS rejection, cosmetic fallback, packaged and locally authored handles, persistence reload/delete invalidation, modifier composition, stable lineage, immediate paused-position future swaps, active-event preservation, and unranked composite provenance.
+**Acceptance:** Satisfied; hashes, arbitrary URLs, CORS, fallback, authored handles, deletion, modifiers, lineage and identity-preserving paused future swaps are covered.
 
 ---
 
@@ -577,7 +577,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Initial coder failed cleanly; first recovery left a coherent dirty coordinator implementation whose parent check/test/browser gates pass but failed before reporting/committing. A completion recovery is preserving and auditing the full acceptance matrix before push.
+**Results:** Initial coder failed cleanly; first recovery left a coherent dirty coordinator implementation whose parent baseline gates pass. Completion recovery found the post-loss calibration latch could clear on the same calibration ID, countdown accepted a drifting paused audio position, candidate pairings were not exact, and shadow evaluation bypassed freshness/calibration gates. Recovery is fixing these safety invariants and expanding real Chromium state coverage before push.
 
 **Acceptance:** Deterministic clock tests cover all four candidates, +/-180ms windows, 150ms freshness, no-input misses, 100ms straight qualification, cardinal entries, checkpoint states, guard/punch exclusivity, disjoint concurrency, action consumption, tracking pause/countdown cancellation, variant swaps, local-only score identity, and diagnostic-only shadows.
 
