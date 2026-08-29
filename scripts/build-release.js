@@ -3,9 +3,11 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { build } from "vite";
+import { computeReleaseFingerprint } from "./release-fingerprint.js";
 
 const packageJson = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
 const proofVersion = packageJson.version;
+const sourceFingerprint = computeReleaseFingerprint();
 
 const releaseRoot = resolve("release", "raw", proofVersion);
 rmSync(releaseRoot, { force: true, recursive: true });
@@ -28,6 +30,7 @@ await build({
   configFile: "vite.config.js",
   mode: "release"
 });
+if (computeReleaseFingerprint() !== sourceFingerprint) throw new Error("Release inputs changed while the deterministic build was running");
 
 const absoluteArtifactFiles = walkFiles(releaseRoot);
 const artifactFiles = absoluteArtifactFiles.map((filePath) => relative(releaseRoot, filePath));
@@ -47,13 +50,12 @@ for (const requiredMarker of ["Pose Landmarker Lite float16 /1/", "mediapipe", "
     throw new Error(`Release omitted locked MediaPipe marker ${requiredMarker}.`);
   }
 }
-for (const forbiddenRuntimeMarker of [
-  "@tensorflow-models/pose-detection",
-  "onnxruntime-web",
-  "createMoveNetPoseAdapter",
-  "createOnnxRuntimePoseAdapter"
-]) {
-  if (assembledJavaScript.includes(forbiddenRuntimeMarker)) {
+const forbiddenRuntimeMarkersChecked = Object.freeze([
+  "tensorflow", "onnx", "movenet", "predictive", "predictedpose",
+  "responsive a/b", "direct-256", "experimental-worker-videoframe"
+]);
+for (const forbiddenRuntimeMarker of forbiddenRuntimeMarkersChecked) {
+  if (assembledJavaScript.toLowerCase().includes(forbiddenRuntimeMarker)) {
     throw new Error(`Release contains forbidden non-MediaPipe runtime marker ${forbiddenRuntimeMarker}.`);
   }
 }
@@ -67,7 +69,7 @@ writeFileSync(
       artifactKind: "raw-unminified-browser-proof",
       packageName: "@aerobeat/web-assembly",
       proofVersion,
-      createdAt: new Date().toISOString(),
+      sourceFingerprint,
       minified: false,
       basePath,
       productionPoseConfiguration: {
@@ -88,7 +90,8 @@ writeFileSync(
       runtimeJavaScriptAssets,
       runtimeWasmAssets,
       totalArtifactBytesBeforeManifest,
-      forbiddenRuntimeAssetPatternsChecked: ["movenet", "onnx", "ort-wasm", "pose-detection", "tensorflow"]
+      forbiddenRuntimeAssetPatternsChecked: ["movenet", "onnx", "ort-wasm", "pose-detection", "tensorflow"],
+      forbiddenRuntimeMarkersChecked
     },
     null,
     2

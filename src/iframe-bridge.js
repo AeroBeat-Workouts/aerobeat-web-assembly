@@ -4,7 +4,7 @@ import { isGameEvent, isIframeMessage, isSafeIframePayload } from "@aerobeat/web
 
 const MAX_BRIDGE_BYTES = 64 * 1024;
 
-/** @typedef {{parentWindow:Window,instanceId:string,expectedOrigin:string,onCommand:(command:import("@aerobeat/web-contracts").AeroGameCommand)=>void,onError?:(error:unknown)=>void}} IframeBridgeOptions */
+/** @typedef {{parentWindow:Window,instanceId:string,expectedOrigin:string,onConnect?:()=>void,onCommand:(command:import("@aerobeat/web-contracts").AeroGameCommand)=>void,onError?:(error:unknown)=>void}} IframeBridgeOptions */
 
 /** Strict immediate-parent protocol adapter owned by one connected game. */
 export function createAeroGameIframeBridge(options) {
@@ -18,8 +18,9 @@ export function createAeroGameIframeBridge(options) {
     if (destroyed || event.source !== parentWindow || event.origin !== expectedOrigin || !withinBridgeLimits(event.data) || encodedSize(event.data) > MAX_BRIDGE_BYTES || !isIframeMessage(event.data) || event.data.instanceId !== instanceId) return;
     const message = event.data;
     if (message.kind === "handshake_request") {
-      connected = true;
+      const firstConnection = !connected; connected = true;
       post("handshake_ack", { protocolVersion: 1, accepted: true }, message.messageId);
+      if (firstConnection) { try { options.onConnect?.(); } catch (error) { report(error); } }
       return;
     }
     if (!connected) return;
@@ -68,6 +69,9 @@ function withinBridgeLimits(value) {
     const prototype = Object.getPrototypeOf(entry);
     if (Array.isArray(entry)) {
       if (prototype !== Array.prototype || entry.length > 256) return false;
+      const keys = Reflect.ownKeys(entry); const expected = new Set(["length", ...Array.from({ length: entry.length }, (_, index) => String(index))]);
+      if (keys.length !== expected.size || keys.some((key) => typeof key !== "string" || !expected.has(key))) return false;
+      const lengthDescriptor = Object.getOwnPropertyDescriptor(entry, "length"); if (!lengthDescriptor || !("value" in lengthDescriptor) || lengthDescriptor.value !== entry.length) return false;
       seen.add(entry);
       for (let index = 0; index < entry.length; index += 1) { const descriptor = Object.getOwnPropertyDescriptor(entry, String(index)); if (!descriptor || !("value" in descriptor) || !descriptor.enumerable || !visit(descriptor.value, depth + 1)) { seen.delete(entry); return false; } }
       seen.delete(entry); return true;
@@ -83,5 +87,16 @@ function withinBridgeLimits(value) {
 
 /** @param {unknown} value */
 function encodedSize(value) {
-  try { return new TextEncoder().encode(JSON.stringify(value)).byteLength; } catch { return Number.POSITIVE_INFINITY; }
+  try { return new TextEncoder().encode(JSON.stringify(cloneForEncoding(value))).byteLength; } catch { return Number.POSITIVE_INFINITY; }
 }
+
+/** The preflight has already rejected accessors/classes/cycles. @param {unknown} value @returns {unknown} */
+function cloneForEncoding(value) {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map((entry) => cloneForEncoding(entry));
+  const clone = Object.create(null);
+  for (const key of Object.keys(value).sort(compareCodePoints)) clone[key] = cloneForEncoding(value[key]);
+  return clone;
+}
+/** @param {string} left @param {string} right */
+function compareCodePoints(left, right) { return left < right ? -1 : left > right ? 1 : 0; }

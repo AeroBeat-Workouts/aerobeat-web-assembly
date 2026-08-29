@@ -646,1597 +646,6 @@ function isIframeMessage(value) {
 	return true;
 }
 //#endregion
-//#region node_modules/@aerobeat/web-cv/src/replay-pose-adapter.js
-/**
-* Compatibility fixture ID retained so existing replay checkpoints keep the
-* same visible source while CV no longer depends on the MoveNet package.
-*
-* @type {"aero.movenet.replay.basic-upper-body"}
-*/
-var aeroCvReplayFixtureId = "aero.movenet.replay.basic-upper-body";
-/**
-* Stable CV-owned deterministic adapter identity.
-*
-* @type {"aero-cv-replay"}
-*/
-var aeroCvReplayVendorId = "aero-cv-replay";
-/**
-* @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame
-* @typedef {import("@aerobeat/web-contracts").AeroPoseAdapter} AeroPoseAdapter
-*/
-/**
-* @typedef {Object} AeroCvReplayPoseSource
-* @property {"replay-fixture"} sourceKind Deterministic replay source kind.
-* @property {string} sourceId Replay source identifier.
-* @property {readonly NormalizedPoseFrame[]} frames Normalized replay frames.
-*/
-/**
-* Creates the deterministic replay sequence historically used by CV proving.
-* The data is CV-owned so orchestration has no runtime vendor dependency.
-*
-* @returns {AeroCvReplayPoseSource}
-*/
-function createAeroCvReplayPoseSource() {
-	return {
-		sourceKind: "replay-fixture",
-		sourceId: aeroCvReplayFixtureId,
-		frames: [
-			createReplayFrame(0, {
-				nose: [
-					.5,
-					.2,
-					.96
-				],
-				leftWrist: [
-					.25,
-					.44,
-					.92
-				],
-				rightWrist: [
-					.74,
-					.45,
-					.91
-				]
-			}),
-			createReplayFrame(500, {
-				nose: [
-					.5,
-					.24,
-					.95
-				],
-				leftWrist: [
-					.2,
-					.35,
-					.93
-				],
-				rightWrist: [
-					.78,
-					.6,
-					.9
-				]
-			}),
-			createReplayFrame(1e3, {
-				nose: [
-					.48,
-					.56,
-					.94
-				],
-				leftWrist: [
-					.34,
-					.52,
-					.9
-				],
-				rightWrist: [
-					.68,
-					.5,
-					.9
-				]
-			})
-		]
-	};
-}
-/**
-* Creates a CV-owned replay adapter for deterministic fallback and tests.
-*
-* @param {{ source?: AeroCvReplayPoseSource }} [options]
-* @returns {AeroPoseAdapter}
-*/
-function createAeroCvMockPoseAdapter(options = {}) {
-	const source = options.source ?? createAeroCvReplayPoseSource();
-	let cursor = 0;
-	/** @type {import("@aerobeat/web-contracts").AeroPoseAdapterLifecycleStatus} */
-	let status = "idle";
-	return {
-		vendorId: aeroCvReplayVendorId,
-		model: {
-			vendorId: aeroCvReplayVendorId,
-			modelId: "basic-upper-body-replay",
-			modelVersion: "1",
-			runtimeId: "aerobeat-cv-replay",
-			runtimeVersion: "1"
-		},
-		capabilities: {
-			supportsMainThread: true,
-			supportsWorker: false,
-			supportsMirroring: true,
-			supportsFrameSizeOverride: true,
-			executionProviders: ["deterministic-replay"]
-		},
-		get status() {
-			return status;
-		},
-		async load() {
-			if (status === "disposed") throw new Error("CV replay pose adapter is disposed");
-			status = "ready";
-		},
-		async estimateNormalizedPoseFrame() {
-			if (status !== "ready") await this.load();
-			const frame = source.frames[cursor % source.frames.length];
-			cursor += 1;
-			return clonePoseFrame$1(frame);
-		},
-		getExecutionTelemetry() {
-			return {
-				location: "main-thread",
-				provider: "deterministic-replay",
-				detail: "CV-owned deterministic replay adapter",
-				fallback: false,
-				loadDurationMs: 0,
-				estimateDurationMs: 0
-			};
-		},
-		dispose() {
-			status = "disposed";
-		}
-	};
-}
-/**
-* @param {number} timestampMs
-* @param {Readonly<{
-*   nose: readonly [number, number, number],
-*   leftWrist: readonly [number, number, number],
-*   rightWrist: readonly [number, number, number]
-* }>} points
-* @returns {NormalizedPoseFrame}
-*/
-function createReplayFrame(timestampMs, points) {
-	return {
-		sourceId: aeroCvReplayFixtureId,
-		timestampMs,
-		mirrored: true,
-		landmarks: [
-			createLandmark("nose", points.nose),
-			createLandmark("left_wrist", points.leftWrist),
-			createLandmark("right_wrist", points.rightWrist)
-		]
-	};
-}
-/**
-* @param {string} name
-* @param {readonly [number, number, number]} point
-* @returns {{ name: string, x: number, y: number, confidence: number }}
-*/
-function createLandmark(name, point) {
-	return {
-		name,
-		x: point[0],
-		y: point[1],
-		confidence: point[2]
-	};
-}
-/**
-* @param {NormalizedPoseFrame} frame
-* @returns {NormalizedPoseFrame}
-*/
-function clonePoseFrame$1(frame) {
-	return {
-		sourceId: frame.sourceId,
-		timestampMs: frame.timestampMs,
-		mirrored: frame.mirrored,
-		landmarks: frame.landmarks.map((landmark) => ({ ...landmark }))
-	};
-}
-//#endregion
-//#region node_modules/@aerobeat/web-cv/src/index.js
-/**
-* AeroBeat-owned CV service ID consumed through assembly wiring.
-*
-* @type {"aero.cv.pose"}
-*/
-var aeroCvPoseServiceId = "aero.cv.pose";
-/**
-* Public CV lifecycle states.
-*
-* @type {Readonly<{
-*   idle: "idle",
-*   loading: "loading",
-*   running: "running",
-*   stopped: "stopped",
-*   error: "error"
-* }>}
-*/
-var aeroCvLifecycleStates = Object.freeze({
-	idle: "idle",
-	loading: "loading",
-	running: "running",
-	stopped: "stopped",
-	error: "error"
-});
-/**
-* Phone-testable CV workload presets. Direct full remains the default. The
-* direct downscale presets keep camera constraints and main-thread execution
-* constant so inference width is isolated; worker variants remain explicit
-* experimental controls.
-*
-* @type {Readonly<Record<AeroCvPerformancePresetId, AeroCvPerformancePreset>>}
-*/
-var aeroCvPerformancePresets = Object.freeze({
-	full: Object.freeze({
-		id: "full",
-		label: "Direct full (recommended)",
-		summary: "main thread / camera default / full input / no resize",
-		cameraWidth: void 0,
-		cameraHeight: void 0,
-		inferenceMaxWidth: void 0,
-		inferenceMaxHeight: void 0,
-		executionPolicy: "main-thread",
-		configuredResizePath: "none",
-		preferImageBitmap: false
-	}),
-	"direct-256": Object.freeze({
-		id: "direct-256",
-		label: "Direct downscale 256",
-		summary: "main thread / camera default / 256px canvas resize / no worker transfer",
-		cameraWidth: void 0,
-		cameraHeight: void 0,
-		inferenceMaxWidth: 256,
-		inferenceMaxHeight: 192,
-		executionPolicy: "main-thread",
-		configuredResizePath: "main-thread canvas",
-		preferImageBitmap: false
-	}),
-	"direct-192": Object.freeze({
-		id: "direct-192",
-		label: "Direct downscale 192",
-		summary: "main thread / camera default / 192px canvas resize / no worker transfer",
-		cameraWidth: void 0,
-		cameraHeight: void 0,
-		inferenceMaxWidth: 192,
-		inferenceMaxHeight: 144,
-		executionPolicy: "main-thread",
-		configuredResizePath: "main-thread canvas",
-		preferImageBitmap: false
-	}),
-	"direct-160": Object.freeze({
-		id: "direct-160",
-		label: "Direct downscale 160",
-		summary: "main thread / camera default / 160px canvas resize / no worker transfer",
-		cameraWidth: void 0,
-		cameraHeight: void 0,
-		inferenceMaxWidth: 160,
-		inferenceMaxHeight: 120,
-		executionPolicy: "main-thread",
-		configuredResizePath: "main-thread canvas",
-		preferImageBitmap: false
-	}),
-	balanced: Object.freeze({
-		id: "balanced",
-		label: "Experimental worker downscale 256",
-		summary: "worker preferred / 720p camera / 256px bitmap transfer control",
-		cameraWidth: 1280,
-		cameraHeight: 720,
-		inferenceMaxWidth: 256,
-		inferenceMaxHeight: 192,
-		executionPolicy: "worker-experimental",
-		configuredResizePath: "main-thread canvas to ImageBitmap",
-		preferImageBitmap: true
-	}),
-	fast: Object.freeze({
-		id: "fast",
-		label: "Experimental worker downscale 192",
-		summary: "worker preferred / 480p camera / 192px bitmap transfer control",
-		cameraWidth: 640,
-		cameraHeight: 480,
-		inferenceMaxWidth: 192,
-		inferenceMaxHeight: 144,
-		executionPolicy: "worker-experimental",
-		configuredResizePath: "main-thread canvas to ImageBitmap",
-		preferImageBitmap: true
-	}),
-	rescue: Object.freeze({
-		id: "rescue",
-		label: "Experimental worker downscale 160",
-		summary: "worker preferred / 360p camera / 160px bitmap transfer control",
-		cameraWidth: 480,
-		cameraHeight: 360,
-		inferenceMaxWidth: 160,
-		inferenceMaxHeight: 120,
-		executionPolicy: "worker-experimental",
-		configuredResizePath: "main-thread canvas to ImageBitmap",
-		preferImageBitmap: true,
-		preferVideoFrame: false
-	}),
-	"experimental-worker-videoframe": Object.freeze({
-		id: "experimental-worker-videoframe",
-		label: "Experimental worker transferable VideoFrame",
-		summary: "MediaPipe only / camera default / synchronous VideoFrame transfer / no canvas",
-		cameraWidth: void 0,
-		cameraHeight: void 0,
-		inferenceMaxWidth: void 0,
-		inferenceMaxHeight: void 0,
-		executionPolicy: "worker-videoframe-experimental",
-		configuredResizePath: "direct HTMLVideoElement to transferable VideoFrame",
-		preferImageBitmap: false,
-		preferVideoFrame: true
-	})
-});
-/**
-* @typedef {"live-camera" | "loaded-video" | "replay-video-feed" | "replay-fixture"} CvFrameSourceKind
-*/
-/**
-* @typedef {HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | ImageBitmap | ImageData | VideoFrame} AeroCvBrowserFrameSource
-*/
-/**
-* @typedef {Object} AeroCvFrameSample
-* @property {AeroCvBrowserFrameSource} frameSource Browser frame-like source used for adapter inference.
-* @property {string | undefined} sourceId Source identifier override for this exact sample.
-* @property {number | undefined} timestampMs Capture/media timestamp override in milliseconds.
-* @property {boolean | undefined} mirrored Mirrored override for this exact sample.
-* @property {number | undefined} frameWidth Frame width override.
-* @property {number | undefined} frameHeight Frame height override.
-* @property {number | undefined} preparationDurationMs Internal pre-capture/transferable preparation cost.
-* @property {string | undefined} preparedResizePath Internal truthful path for an already-prepared frame.
-* @property {number | undefined} presentationTimestampMs Exact requestVideoFrameCallback mediaTime paired with an immediately captured video frame.
-*/
-/**
-* @typedef {"full" | "direct-256" | "direct-192" | "direct-160" | "balanced" | "fast" | "rescue" | "experimental-worker-videoframe"} AeroCvPerformancePresetId
-*/
-/**
-* @typedef {"main-thread" | "worker-experimental" | "worker-videoframe-experimental"} AeroCvExecutionPolicy
-*/
-/**
-* @typedef {Object} AeroCvPerformancePreset
-* @property {AeroCvPerformancePresetId} id Stable preset identifier.
-* @property {string} label Visible preset label.
-* @property {string} summary Visible short workload summary.
-* @property {number | undefined} cameraWidth Camera width constraint target.
-* @property {number | undefined} cameraHeight Camera height constraint target.
-* @property {number | undefined} inferenceMaxWidth Maximum inference frame width.
-* @property {number | undefined} inferenceMaxHeight Maximum inference frame height.
-* @property {AeroCvExecutionPolicy} executionPolicy Declared adapter execution selection.
-* @property {string} configuredResizePath Declared resize path for visible comparisons.
-* @property {boolean} preferImageBitmap Whether to transfer a small ImageBitmap when supported.
-* @property {boolean} [preferVideoFrame] Whether this explicit lane requires synchronous transferable VideoFrame capture.
-*/
-/**
-* @typedef {Object} AeroCvFrameSourceDescriptor
-* @property {CvFrameSourceKind} kind Truthful source kind.
-* @property {string} sourceId Truthful source identifier from the owning video/replay source.
-* @property {boolean} mirrored Whether output should be mirrored for player-facing display.
-* @property {AeroCvBrowserFrameSource | undefined} frameSource Static browser frame-like source.
-* @property {(() => AeroCvBrowserFrameSource | undefined) | undefined} getFrameSource Reads the latest browser frame-like source.
-* @property {(() => number | undefined) | undefined} getTimestampMs Reads the latest capture/media timestamp in milliseconds.
-* @property {(() => boolean) | undefined} isFrameAvailable Returns whether the current source can be sampled.
-* @property {number | undefined} frameWidth Source width override.
-* @property {number | undefined} frameHeight Source height override.
-*/
-/**
-* @typedef {Object} AeroVideoSurfaceLike
-* @property {CvFrameSourceKind | undefined} sourceKind Current video source kind.
-* @property {string | undefined} sourceId Current video source identifier.
-* @property {boolean | undefined} mirrored Whether the surface is mirrored.
-* @property {number | undefined} intrinsicWidth Current video intrinsic width.
-* @property {number | undefined} intrinsicHeight Current video intrinsic height.
-* @property {number | undefined} currentTimeSeconds Current playback position.
-*/
-/**
-* @typedef {import("@aerobeat/web-contracts").NormalizedPoseFrame} NormalizedPoseFrame
-* @typedef {import("@aerobeat/web-contracts").AeroPoseAdapter} AeroPoseAdapter
-* @typedef {import("@aerobeat/web-contracts").AeroPoseModelIdentity} AeroPoseModelIdentity
-* @typedef {import("@aerobeat/web-contracts").AeroPoseAdapterCapabilities} AeroPoseAdapterCapabilities
-* @typedef {import("@aerobeat/web-contracts").AeroPoseExecutionTelemetry} AeroPoseExecutionTelemetry
-*/
-/**
-* @typedef {Object} AeroCameraCvServiceOptions
-* @property {AeroPoseAdapter | undefined} poseAdapter Optional normalized pose adapter.
-* @property {AeroPoseAdapter | undefined} fallbackPoseAdapter Optional deterministic fallback adapter.
-* @property {string | undefined} requestedBackendId Backend ID requested by assembly/query policy.
-* @property {string | undefined} selectedBackendId Backend ID selected by assembly after policy/capability resolution.
-* @property {CvFrameSourceKind | undefined} sourceKind Source kind reported by deterministic replay mode.
-* @property {string | undefined} sourceId Source identifier reported by deterministic replay mode.
-* @property {boolean | undefined} mirrored Mirrored flag reported by deterministic replay mode.
-* @property {boolean | undefined} useFallbackOnError Whether adapter errors should produce fallback replay frames.
-* @property {AeroCvScheduler | undefined} scheduler Optional video/display frame scheduler.
-* @property {AeroCvPerformancePreset | undefined} performancePreset Optional CV workload preset.
-* @property {number | undefined} submissionCadenceTargetFps Maximum video-frame sample submission rate.
-* @property {(() => number) | undefined} now Optional monotonic clock for deterministic validation.
-*/
-/**
-* @typedef {Object} AeroCvScheduler
-* @property {(callback: (metadata?: { mediaTimeMs: number }) => void, frameSource?: AeroCvBrowserFrameSource) => number} schedule Schedules the next video or display frame pump.
-* @property {(handle: number) => void} cancel Cancels a scheduled frame pump.
-* @property {(() => "video-frame-callback" | "animation-frame-fallback" | "timer-fallback") | undefined} getMode Reports the scheduling primitive used for the latest request.
-*/
-/**
-* @typedef {Object} AeroCvServiceStatus
-* @property {"aero.cv.pose"} serviceId Stable service ID.
-* @property {"idle" | "loading" | "running" | "stopped" | "error"} lifecycleState Current CV lifecycle state.
-* @property {boolean} running Whether frame production is active.
-* @property {boolean} disposed Whether terminal cleanup has been requested.
-* @property {import("@aerobeat/web-contracts").AeroPoseAdapterLifecycleStatus} modelStatus Current effective adapter model status.
-* @property {string} requestedBackendId Backend requested by assembly/query policy.
-* @property {string} selectedBackendId Backend selected by assembly policy.
-* @property {string} selectedVendorId Vendor that owns the selected adapter.
-* @property {string} effectiveBackendId Backend currently producing output, including fallback.
-* @property {string} effectiveVendorId Vendor currently producing output, including fallback.
-* @property {AeroPoseModelIdentity} selectedModel Selected adapter vendor/model/runtime identity.
-* @property {AeroPoseModelIdentity} effectiveModel Effective adapter vendor/model/runtime identity.
-* @property {AeroPoseAdapterCapabilities | undefined} adapterCapabilities Effective adapter capabilities.
-* @property {CvFrameSourceKind | undefined} sourceKind Current truthful source kind.
-* @property {string | undefined} sourceId Current truthful source identifier.
-* @property {boolean} mirrored Whether the current source is mirrored.
-* @property {number} submittedFrameCount Number of samples submitted to the scheduler.
-* @property {number} inferenceCount Number of adapter inference calls attempted.
-* @property {number} poseFrameCount Number of normalized pose frames produced.
-* @property {number} droppedFrameCount Number of superseded samples dropped by latest-frame-wins.
-* @property {number} workerCaptureReplacementCount Worker capture requests/results retired in favor of a newer frame.
-* @property {number} retiredTransferableFrameCount Transferable frames explicitly closed before/after ownership transfer.
-* @property {string | undefined} lastError Last lifecycle or inference error message.
-* @property {boolean} fallbackActive Whether the latest pose came from fallback replay.
-* @property {string | undefined} fallbackSourceId Fallback source identifier when active.
-* @property {AeroCvPerformancePresetId} performancePresetId Selected CV performance preset ID.
-* @property {string} performancePresetLabel Selected CV performance preset label.
-* @property {string} performancePresetSummary Selected CV performance preset summary.
-* @property {number | undefined} inferenceInputWidth Last frame width submitted to the adapter.
-* @property {number | undefined} inferenceInputHeight Last frame height submitted to the adapter.
-* @property {string} adapterExecution Compatibility alias for the actual execution location.
-* @property {"worker" | "main-thread" | "native" | "unknown"} adapterExecutionLocation Actual execution location.
-* @property {string | undefined} adapterExecutionProvider Actual provider/backend such as webgl, wasm, or webgpu.
-* @property {string} adapterExecutionDetail Adapter execution policy or fallback detail.
-* @property {boolean} adapterExecutionFallback Whether the requested adapter execution path fell back.
-* @property {number | undefined} adapterLoadDurationMs Adapter-reported model/runtime load duration.
-* @property {number | undefined} adapterEstimateDurationMs Adapter-reported latest estimate duration.
-* @property {number | undefined} adapterRuntimeInferenceDurationMs Adapter-reported vendor runtime/model invocation duration excluding postprocessing.
-* @property {number | undefined} adapterPostprocessDurationMs Adapter-reported decoding/normalization duration after runtime inference.
-* @property {string | undefined} adapterTransferFrameType Actual transferable frame type accepted by the adapter.
-* @property {AeroPoseExecutionTelemetry} adapterTelemetry Full normalized adapter execution telemetry.
-* @property {string} resizePath Actual resize path used for the latest inference input.
-* @property {number | undefined} framePrepMs Last frame preparation/downscale duration.
-* @property {number | undefined} averageFramePrepMs Average frame preparation/downscale duration.
-* @property {number | undefined} adapterInferenceMs Last adapter inference duration.
-* @property {number | undefined} averageAdapterInferenceMs Average adapter inference duration.
-* @property {number | undefined} totalCvMs Last end-to-end CV duration.
-* @property {number | undefined} averageTotalCvMs Average end-to-end CV duration.
-* @property {120} timingWindowCapacity Maximum completed estimates retained in the rolling window.
-* @property {number} timingWindowSampleCount Completed estimates currently retained in the rolling window.
-* @property {number} timingBudgetMs Per-estimate budget derived from the configured submission cadence.
-* @property {number | undefined} rollingFramePrepP50Ms Nearest-rank p50 capture/preparation duration in the rolling window.
-* @property {number | undefined} rollingFramePrepP95Ms Nearest-rank p95 capture/preparation duration in the rolling window.
-* @property {number | undefined} rollingFramePrepMaxMs Maximum capture/preparation duration in the rolling window.
-* @property {number | undefined} rollingAdapterInferenceP50Ms Nearest-rank p50 adapter duration in the rolling window.
-* @property {number | undefined} rollingAdapterInferenceP95Ms Nearest-rank p95 adapter duration in the rolling window.
-* @property {number | undefined} rollingAdapterInferenceMaxMs Maximum adapter duration in the rolling window.
-* @property {number | undefined} rollingRuntimeInferenceP50Ms Nearest-rank p50 worker/vendor runtime duration where reported.
-* @property {number | undefined} rollingRuntimeInferenceP95Ms Nearest-rank p95 worker/vendor runtime duration where reported.
-* @property {number | undefined} rollingRuntimeInferenceMaxMs Maximum worker/vendor runtime duration where reported.
-* @property {number | undefined} rollingWorkerRoundTripP50Ms Nearest-rank p50 worker request round-trip where reported.
-* @property {number | undefined} rollingWorkerRoundTripP95Ms Nearest-rank p95 worker request round-trip where reported.
-* @property {number | undefined} rollingWorkerRoundTripMaxMs Maximum worker request round-trip where reported.
-* @property {number | undefined} rollingTotalCvP50Ms Nearest-rank p50 total CV duration in the rolling window.
-* @property {number | undefined} rollingTotalCvP95Ms Nearest-rank p95 total CV duration in the rolling window.
-* @property {number | undefined} rollingTotalCvMaxMs Maximum total CV duration in the rolling window.
-* @property {number} timingWindowOverBudgetCount Retained estimates whose total CV duration strictly exceeds timingBudgetMs.
-* @property {number} timingWindowIncompletePoseCount Retained successful estimates that returned other than seven landmarks.
-* @property {number} samplingCallbackGapWindowSampleCount Browser sampling callback gaps retained for main-thread responsiveness evidence.
-* @property {number | undefined} samplingCallbackGapP50Ms Nearest-rank p50 sampling callback gap.
-* @property {number | undefined} samplingCallbackGapP95Ms Nearest-rank p95 sampling callback gap.
-* @property {number | undefined} samplingCallbackGapMaxMs Maximum sampling callback gap.
-* @property {number | undefined} lastSubmittedTimestampMs Latest submitted sample timestamp.
-* @property {number | undefined} lastSubmittedFrameAgeMs Wall-clock age of the latest submitted sample.
-* @property {number | undefined} latestOutputAgeMs Wall-clock age of the latest produced pose frame.
-* @property {"video-frame-callback" | "animation-frame-fallback" | "timer-fallback"} samplingMode Actual browser scheduling primitive used for sampling.
-* @property {number} submissionCadenceTargetFps Configured maximum video sample submission rate.
-* @property {number | undefined} effectiveSubmissionRateFps Effective rate of samples submitted since start.
-* @property {number | undefined} effectivePoseOutputRateFps Effective rate of pose outputs produced since start.
-*/
-/**
-* @typedef {Object} AeroCameraCvService
-* @property {"aero.cv.pose"} serviceId Stable service ID.
-* @property {readonly CvFrameSourceKind[]} supportedSources Supported frame-source kinds.
-* @property {CvFrameSourceKind} sourceKind Current frame source kind.
-* @property {boolean} running Whether frame production is active.
-* @property {(source?: AeroCvFrameSourceDescriptor) => Promise<void>} start Starts camera/CV frame production.
-* @property {() => Promise<void>} stop Pauses frame production while retaining adapters for restart.
-* @property {() => Promise<void>} dispose Permanently stops and releases adapter resources; later starts reject.
-* @property {(sample?: AeroCvFrameSample) => Promise<NormalizedPoseFrame>} nextPoseFrame Pulls the next normalized pose frame.
-* @property {(sample?: AeroCvFrameSample) => void} submitFrame Submits a frame with latest-frame-wins scheduling.
-* @property {() => NormalizedPoseFrame | undefined} getLatestPoseFrame Reads the latest normalized pose frame.
-* @property {() => AeroCvServiceStatus} getStatus Reads lifecycle, source, counter, and error metadata.
-*/
-/**
-* Creates a CV frame source from a browser video element and public video
-* surface metadata from `@aerobeat/web-video`.
-*
-* @param {AeroCvBrowserFrameSource} frameSource
-* @param {AeroVideoSurfaceLike} surface
-* @returns {AeroCvFrameSourceDescriptor}
-*/
-function createAeroCvFrameSourceFromVideoSurface(frameSource, surface) {
-	return {
-		kind: surface.sourceKind ?? "loaded-video",
-		sourceId: surface.sourceId ?? "aero.video.unknown",
-		mirrored: surface.mirrored ?? false,
-		frameSource,
-		getFrameSource: void 0,
-		getTimestampMs: () => typeof surface.currentTimeSeconds === "number" ? surface.currentTimeSeconds * 1e3 : void 0,
-		isFrameAvailable: () => true,
-		frameWidth: surface.intrinsicWidth,
-		frameHeight: surface.intrinsicHeight
-	};
-}
-/**
-* Returns a public CV performance preset, defaulting conservatively to full.
-*
-* @param {AeroCvPerformancePresetId | string | undefined} presetId
-* @returns {AeroCvPerformancePreset}
-*/
-function getAeroCvPerformancePreset(presetId) {
-	if (presetId === "full" || presetId === "direct-256" || presetId === "direct-192" || presetId === "direct-160" || presetId === "balanced" || presetId === "fast" || presetId === "rescue" || presetId === "experimental-worker-videoframe") return aeroCvPerformancePresets[presetId];
-	return aeroCvPerformancePresets.full;
-}
-/**
-* Creates the vendor-agnostic camera/CV singleton boundary.
-*
-* @param {AeroCameraCvServiceOptions} [options]
-* @returns {AeroCameraCvService}
-*/
-function createAeroCameraCvService(options = {}) {
-	const poseAdapter = options.poseAdapter ?? createAeroCvMockPoseAdapter();
-	const fallbackPoseAdapter = options.fallbackPoseAdapter ?? createAeroCvMockPoseAdapter();
-	const requestedBackendId = options.requestedBackendId ?? options.selectedBackendId ?? poseAdapter.vendorId;
-	const selectedBackendId = options.selectedBackendId ?? poseAdapter.vendorId;
-	const scheduler = options.scheduler ?? createAeroCvFrameScheduler();
-	const performancePreset = options.performancePreset ?? aeroCvPerformancePresets.full;
-	const clockNowMs = options.now ?? nowMs;
-	const submissionCadenceTargetFps = normalizeCadenceFps(options.submissionCadenceTargetFps, 15);
-	const submissionIntervalMs = 1e3 / submissionCadenceTargetFps;
-	/** @type {CvFrameSourceKind} */
-	let sourceKind = options.sourceKind ?? "replay-fixture";
-	let sourceId = options.sourceId ?? "aero.cv.replay-fixture";
-	let mirrored = options.mirrored ?? true;
-	/** @type {"idle" | "loading" | "running" | "stopped" | "error"} */
-	let lifecycleState = aeroCvLifecycleStates.idle;
-	/** @type {AeroCvFrameSourceDescriptor | undefined} */
-	let activeSource;
-	/** @type {NormalizedPoseFrame | undefined} */
-	let latestPoseFrame;
-	/** @type {AeroCvFrameSample | undefined} */
-	let latestSubmittedSample;
-	/** @type {Promise<void> | undefined} */
-	let inferenceTask;
-	/** @type {Set<Promise<NormalizedPoseFrame>>} */
-	const inFlightEstimates = /* @__PURE__ */ new Set();
-	let lifecycleGeneration = 0;
-	let stopping = false;
-	let disposed = false;
-	/** @type {number | undefined} */
-	let measuredAdapterLoadDurationMs;
-	/** @type {number | undefined} */
-	let measuredFallbackLoadDurationMs;
-	/** @type {number | undefined} */
-	let scheduleHandle;
-	let submittedFrameCount = 0;
-	let inferenceCount = 0;
-	let poseFrameCount = 0;
-	let droppedFrameCount = 0;
-	let workerCaptureReplacementCount = 0;
-	let retiredTransferableFrameCount = 0;
-	/** @type {AeroCvFrameSample | undefined} */
-	let latestWorkerCaptureRequest;
-	/** @type {Promise<void> | undefined} */
-	let workerCaptureTask;
-	/** @type {string | undefined} */
-	let lastError;
-	let fallbackActive = false;
-	/** @type {string | undefined} */
-	let fallbackSourceId;
-	/** @type {number | undefined} */
-	let inferenceInputWidth;
-	/** @type {number | undefined} */
-	let inferenceInputHeight;
-	let resizePath = performancePreset.configuredResizePath;
-	/** @type {number | undefined} */
-	let framePrepMs;
-	/** @type {number | undefined} */
-	let adapterInferenceMs;
-	/** @type {number | undefined} */
-	let totalCvMs;
-	/** @type {number} */
-	let framePrepTotalMs = 0;
-	/** @type {number} */
-	let adapterInferenceTotalMs = 0;
-	/** @type {number} */
-	let totalCvTotalMs = 0;
-	/** @type {number} */
-	let timingSampleCount = 0;
-	/** @type {{ framePrepMs: number, adapterInferenceMs: number, runtimeInferenceMs: number | undefined, workerRoundTripMs: number | undefined, totalCvMs: number, incompletePose: boolean }[]} */
-	const timingWindow = [];
-	/** @type {number[]} */
-	const samplingCallbackGapWindow = [];
-	/** @type {number | undefined} */
-	let lastSamplingCallbackAtMs;
-	/** @type {number | undefined} */
-	let lastSubmittedTimestampMs;
-	/** @type {number | undefined} */
-	let firstSubmittedAtMs;
-	/** @type {number | undefined} */
-	let lastSubmittedAtMs;
-	/** @type {number | undefined} */
-	let lastSamplingAtMs;
-	/** @type {number | undefined} */
-	let firstOutputAtMs;
-	/** @type {number | undefined} */
-	let latestOutputAtMs;
-	return {
-		serviceId: aeroCvPoseServiceId,
-		supportedSources: [
-			"live-camera",
-			"loaded-video",
-			"replay-video-feed",
-			"replay-fixture"
-		],
-		get sourceKind() {
-			return sourceKind;
-		},
-		get running() {
-			return !stopping && lifecycleState === aeroCvLifecycleStates.running;
-		},
-		async start(source) {
-			if (disposed) throw new Error("CV service is disposed");
-			if (stopping) throw new Error("CV service is stopping");
-			const generation = ++lifecycleGeneration;
-			lifecycleState = aeroCvLifecycleStates.loading;
-			lastError = void 0;
-			fallbackActive = false;
-			fallbackSourceId = void 0;
-			lastSamplingAtMs = void 0;
-			lastSamplingCallbackAtMs = void 0;
-			activeSource = source;
-			if (source) {
-				sourceKind = source.kind;
-				sourceId = source.sourceId;
-				mirrored = source.mirrored;
-			}
-			const loadStartedAtMs = clockNowMs();
-			try {
-				await poseAdapter.load();
-				measuredAdapterLoadDurationMs = roundMs(clockNowMs() - loadStartedAtMs);
-				if (generation !== lifecycleGeneration) return;
-				lifecycleState = aeroCvLifecycleStates.running;
-				if (activeSource) schedulePump();
-			} catch (error) {
-				measuredAdapterLoadDurationMs = roundMs(clockNowMs() - loadStartedAtMs);
-				if (generation !== lifecycleGeneration) return;
-				await handleInferenceError(error);
-			}
-		},
-		async stop() {
-			await stopService();
-		},
-		async dispose() {
-			if (disposed) return;
-			disposed = true;
-			await stopService(true);
-			await disposePoseAdapterSafely(poseAdapter);
-			if (fallbackPoseAdapter !== poseAdapter) await disposePoseAdapterSafely(fallbackPoseAdapter);
-		},
-		async nextPoseFrame(sample) {
-			if (lifecycleState !== aeroCvLifecycleStates.running) await this.start(activeSource);
-			const generation = lifecycleGeneration;
-			try {
-				const frame = await runTrackedEstimate(sample ?? readSampleFromSource(activeSource));
-				if (generation !== lifecycleGeneration || lifecycleState === aeroCvLifecycleStates.stopped) throw new Error("CV service stopped before pose inference completed");
-				latestPoseFrame = frame;
-				recordOutput(clockNowMs());
-				poseFrameCount += 1;
-				return clonePoseFrame(frame);
-			} catch (error) {
-				if (generation !== lifecycleGeneration || lifecycleState === aeroCvLifecycleStates.stopped) throw error;
-				await handleInferenceError(error, true);
-				if (generation !== lifecycleGeneration || lifecycleState === aeroCvLifecycleStates.stopped) throw error;
-				if (!latestPoseFrame) throw error;
-				return clonePoseFrame(latestPoseFrame);
-			}
-		},
-		submitFrame(sample) {
-			if (stopping || lifecycleState !== aeroCvLifecycleStates.running) return;
-			const resolvedSample = sample ?? readSampleFromSource(activeSource);
-			if (resolvedSample) {
-				if (performancePreset.executionPolicy !== "main-thread") queueWorkerCapture(resolvedSample);
-				else serviceSubmitFrame(resolvedSample);
-			}
-		},
-		getLatestPoseFrame() {
-			return latestPoseFrame ? clonePoseFrame(latestPoseFrame) : void 0;
-		},
-		getStatus() {
-			const effectiveAdapter = fallbackActive ? fallbackPoseAdapter : poseAdapter;
-			const selectedModel = readAdapterModel(poseAdapter);
-			const effectiveModel = readAdapterModel(effectiveAdapter);
-			const adapterTelemetry = readAdapterExecution(effectiveAdapter, performancePreset);
-			const timingDistribution = summarizeTimingWindow(timingWindow, submissionIntervalMs);
-			const samplingCallbackGapDistribution = summarizeSamplingCallbackGapWindow(samplingCallbackGapWindow);
-			return {
-				serviceId: aeroCvPoseServiceId,
-				lifecycleState,
-				running: !stopping && lifecycleState === aeroCvLifecycleStates.running,
-				disposed,
-				modelStatus: effectiveAdapter.status,
-				requestedBackendId,
-				selectedBackendId,
-				selectedVendorId: poseAdapter.vendorId,
-				effectiveBackendId: fallbackActive ? fallbackPoseAdapter.vendorId : selectedBackendId,
-				effectiveVendorId: effectiveAdapter.vendorId,
-				selectedModel,
-				effectiveModel,
-				adapterCapabilities: cloneCapabilities(effectiveAdapter.capabilities),
-				sourceKind,
-				sourceId,
-				mirrored,
-				submittedFrameCount,
-				inferenceCount,
-				poseFrameCount,
-				droppedFrameCount,
-				workerCaptureReplacementCount,
-				retiredTransferableFrameCount,
-				lastError,
-				fallbackActive,
-				fallbackSourceId,
-				performancePresetId: performancePreset.id,
-				performancePresetLabel: performancePreset.label,
-				performancePresetSummary: performancePreset.summary,
-				inferenceInputWidth,
-				inferenceInputHeight,
-				adapterExecution: adapterTelemetry.location,
-				adapterExecutionLocation: adapterTelemetry.location,
-				adapterExecutionProvider: adapterTelemetry.provider,
-				adapterExecutionDetail: adapterTelemetry.detail ?? (performancePreset.executionPolicy === "main-thread" ? "direct adapter" : "worker experimental adapter"),
-				adapterExecutionFallback: fallbackActive || adapterTelemetry.fallback === true,
-				adapterLoadDurationMs: adapterTelemetry.loadDurationMs ?? (fallbackActive ? measuredFallbackLoadDurationMs : measuredAdapterLoadDurationMs),
-				adapterEstimateDurationMs: adapterTelemetry.estimateDurationMs,
-				adapterRuntimeInferenceDurationMs: adapterTelemetry.runtimeInferenceDurationMs,
-				adapterPostprocessDurationMs: adapterTelemetry.postprocessDurationMs,
-				adapterTransferFrameType: readOptionalStringProperty(adapterTelemetry, "transferFrameType"),
-				adapterTelemetry: {
-					...adapterTelemetry,
-					fallback: fallbackActive || adapterTelemetry.fallback === true
-				},
-				resizePath,
-				framePrepMs,
-				averageFramePrepMs: averageMs(framePrepTotalMs, timingSampleCount),
-				adapterInferenceMs,
-				averageAdapterInferenceMs: averageMs(adapterInferenceTotalMs, timingSampleCount),
-				totalCvMs,
-				averageTotalCvMs: averageMs(totalCvTotalMs, timingSampleCount),
-				timingWindowCapacity: 120,
-				...timingDistribution,
-				...samplingCallbackGapDistribution,
-				lastSubmittedTimestampMs,
-				lastSubmittedFrameAgeMs: ageMs(lastSubmittedAtMs, clockNowMs()),
-				latestOutputAgeMs: ageMs(latestOutputAtMs, clockNowMs()),
-				samplingMode: scheduler.getMode?.() ?? "animation-frame-fallback",
-				submissionCadenceTargetFps,
-				effectiveSubmissionRateFps: effectiveRateFps(submittedFrameCount, firstSubmittedAtMs, lastSubmittedAtMs),
-				effectivePoseOutputRateFps: effectiveRateFps(poseFrameCount, firstOutputAtMs, latestOutputAtMs)
-			};
-		}
-	};
-	/**
-	* Pauses sampling without disposing adapters so camera/device restarts can
-	* start the same service instance again. A normal pause lets the one already
-	* accepted estimate commit before stopping; terminal disposal invalidates it.
-	*
-	* @param {boolean} [terminal]
-	* @returns {Promise<void>}
-	*/
-	async function stopService(terminal = false) {
-		stopping = true;
-		if (terminal) {
-			++lifecycleGeneration;
-			lifecycleState = aeroCvLifecycleStates.stopped;
-		}
-		if (scheduleHandle !== void 0) {
-			scheduler.cancel(scheduleHandle);
-			scheduleHandle = void 0;
-		}
-		retireSampleFrame(latestSubmittedSample);
-		latestSubmittedSample = void 0;
-		latestWorkerCaptureRequest = void 0;
-		await workerCaptureTask;
-		await inferenceTask;
-		await Promise.allSettled([...inFlightEstimates]);
-		if (!terminal) {
-			++lifecycleGeneration;
-			lifecycleState = aeroCvLifecycleStates.stopped;
-		}
-		stopping = false;
-	}
-	/**
-	* @returns {void}
-	*/
-	function schedulePump() {
-		if (stopping || lifecycleState !== aeroCvLifecycleStates.running || scheduleHandle !== void 0) return;
-		const frameSource = activeSource?.getFrameSource?.() ?? activeSource?.frameSource;
-		scheduleHandle = scheduler.schedule((frameMetadata) => {
-			scheduleHandle = void 0;
-			if (stopping || lifecycleState !== aeroCvLifecycleStates.running) return;
-			const sampledAtMs = clockNowMs();
-			recordSamplingCallbackGap(sampledAtMs);
-			if (lastSamplingAtMs === void 0 || sampledAtMs - lastSamplingAtMs >= submissionIntervalMs) {
-				const sample = readSampleFromSource(activeSource, frameMetadata?.mediaTimeMs);
-				if (sample) {
-					lastSamplingAtMs = sampledAtMs;
-					if (performancePreset.executionPolicy !== "main-thread") queueWorkerCapture(sample);
-					else serviceSubmitFrame(sample);
-				}
-			}
-			schedulePump();
-		}, frameSource);
-	}
-	/**
-	* Captures worker input while the main thread is responsive. Newer requests
-	* replace an uncaptured request, and a completed bitmap is retired if a newer
-	* camera frame arrived while createImageBitmap was pending.
-	*
-	* @param {AeroCvFrameSample} sample
-	* @returns {void}
-	*/
-	function queueWorkerCapture(sample) {
-		if (stopping || lifecycleState !== aeroCvLifecycleStates.running) return;
-		if (latestWorkerCaptureRequest) workerCaptureReplacementCount += 1;
-		latestWorkerCaptureRequest = workerCaptureTask ? {
-			...sample,
-			presentationTimestampMs: void 0,
-			timestampMs: void 0
-		} : sample;
-		if (!workerCaptureTask) workerCaptureTask = drainLatestWorkerCapture();
-	}
-	/** @returns {Promise<void>} */
-	async function drainLatestWorkerCapture() {
-		while (latestWorkerCaptureRequest && !stopping && lifecycleState === aeroCvLifecycleStates.running) {
-			const request = latestWorkerCaptureRequest;
-			latestWorkerCaptureRequest = void 0;
-			const startedAtMs = clockNowMs();
-			let prepared;
-			try {
-				prepared = await prepareInferenceSample(request, performancePreset);
-			} catch (error) {
-				if (!stopping && lifecycleState === aeroCvLifecycleStates.running) await handleInferenceError(error, false);
-				break;
-			}
-			const preparedAtMs = clockNowMs();
-			const preparedSample = {
-				...prepared.sample,
-				preparationDurationMs: preparedAtMs - startedAtMs,
-				preparedResizePath: prepared.resizePath
-			};
-			if (stopping || lifecycleState !== aeroCvLifecycleStates.running) {
-				retireSampleFrame(preparedSample);
-				break;
-			}
-			if (latestWorkerCaptureRequest) {
-				workerCaptureReplacementCount += 1;
-				droppedFrameCount += 1;
-				retireSampleFrame(preparedSample);
-				continue;
-			}
-			serviceSubmitFrame(preparedSample);
-		}
-		workerCaptureTask = void 0;
-		if (latestWorkerCaptureRequest && !stopping && lifecycleState === aeroCvLifecycleStates.running) workerCaptureTask = drainLatestWorkerCapture();
-	}
-	/**
-	* @param {AeroCvFrameSample | undefined} sample
-	* @returns {void}
-	*/
-	function retireSampleFrame(sample) {
-		const frameSource = sample?.frameSource;
-		if (!sample?.preparedResizePath || !frameSource || typeof frameSource !== "object" || !("close" in frameSource)) return;
-		const close = frameSource.close;
-		if (typeof close !== "function") return;
-		close.call(frameSource);
-		retiredTransferableFrameCount += 1;
-	}
-	/**
-	* @param {AeroCvFrameSample} sample
-	* @returns {void}
-	*/
-	function serviceSubmitFrame(sample) {
-		if (stopping || lifecycleState !== aeroCvLifecycleStates.running) return;
-		if (latestSubmittedSample) {
-			droppedFrameCount += 1;
-			retireSampleFrame(latestSubmittedSample);
-		}
-		submittedFrameCount += 1;
-		recordSubmittedSample(sample);
-		latestSubmittedSample = sample;
-		if (!inferenceTask) inferenceTask = drainLatestSubmittedSample();
-	}
-	/**
-	* @returns {Promise<void>}
-	*/
-	async function drainLatestSubmittedSample() {
-		while (latestSubmittedSample && lifecycleState === aeroCvLifecycleStates.running) {
-			const sample = latestSubmittedSample;
-			const generation = lifecycleGeneration;
-			latestSubmittedSample = void 0;
-			try {
-				const frame = await runTrackedEstimate(sample);
-				if (generation === lifecycleGeneration && lifecycleState === aeroCvLifecycleStates.running) {
-					latestPoseFrame = frame;
-					recordOutput(clockNowMs());
-					poseFrameCount += 1;
-				}
-			} catch (error) {
-				if (generation === lifecycleGeneration && lifecycleState === aeroCvLifecycleStates.running) await handleInferenceError(error, false);
-			}
-		}
-		inferenceTask = void 0;
-	}
-	/**
-	* @param {AeroCvFrameSample | undefined} sample
-	* @returns {Promise<NormalizedPoseFrame>}
-	*/
-	function runTrackedEstimate(sample) {
-		const estimate = estimateSample(sample);
-		inFlightEstimates.add(estimate);
-		estimate.finally(() => {
-			inFlightEstimates.delete(estimate);
-		}).catch(() => {});
-		return estimate;
-	}
-	/**
-	* @param {AeroCvFrameSample | undefined} sample
-	* @returns {Promise<NormalizedPoseFrame>}
-	*/
-	async function estimateSample(sample) {
-		inferenceCount += 1;
-		const totalStartMs = clockNowMs();
-		if (!sample) {
-			const adapterStartMs = clockNowMs();
-			const frame = await poseAdapter.estimateNormalizedPoseFrame();
-			const finishedAtMs = clockNowMs();
-			recordTiming(0, finishedAtMs - adapterStartMs, finishedAtMs - totalStartMs, frame);
-			return frame;
-		}
-		const prepStartMs = clockNowMs();
-		const prepared = sample.preparedResizePath ? {
-			sample,
-			resizePath: sample.preparedResizePath
-		} : await prepareInferenceSample(sample, performancePreset);
-		const preparedAtMs = clockNowMs();
-		const preparationDurationMs = (sample.preparationDurationMs ?? 0) + (preparedAtMs - prepStartMs);
-		resizePath = prepared.resizePath;
-		inferenceInputWidth = prepared.sample.frameWidth;
-		inferenceInputHeight = prepared.sample.frameHeight;
-		const frame = await poseAdapter.estimateNormalizedPoseFrame(prepared.sample.frameSource, {
-			sourceId: prepared.sample.sourceId ?? sourceId,
-			timestampMs: prepared.sample.timestampMs,
-			mirrored: prepared.sample.mirrored ?? mirrored,
-			frameWidth: prepared.sample.frameWidth,
-			frameHeight: prepared.sample.frameHeight
-		});
-		const adapterDurationMs = clockNowMs() - preparedAtMs;
-		recordTiming(preparationDurationMs, adapterDurationMs, preparationDurationMs + adapterDurationMs, frame);
-		return frame;
-	}
-	/**
-	* @param {AeroCvFrameSample} sample
-	* @returns {void}
-	*/
-	function recordSubmittedSample(sample) {
-		const submittedAtMs = clockNowMs();
-		lastSubmittedTimestampMs = sample.timestampMs;
-		firstSubmittedAtMs ??= submittedAtMs;
-		lastSubmittedAtMs = submittedAtMs;
-	}
-	/**
-	* @param {number} outputAtMs
-	* @returns {void}
-	*/
-	function recordOutput(outputAtMs) {
-		firstOutputAtMs ??= outputAtMs;
-		latestOutputAtMs = outputAtMs;
-	}
-	/**
-	* Browser callback gaps reveal main-thread starvation independently of the
-	* cadence ceiling. The first callback after each start establishes a new
-	* baseline so an intentional stop is never reported as jank.
-	*
-	* @param {number} callbackAtMs
-	* @returns {void}
-	*/
-	function recordSamplingCallbackGap(callbackAtMs) {
-		if (lastSamplingCallbackAtMs !== void 0) {
-			samplingCallbackGapWindow.push(roundMs(callbackAtMs - lastSamplingCallbackAtMs));
-			if (samplingCallbackGapWindow.length > 120) samplingCallbackGapWindow.shift();
-		}
-		lastSamplingCallbackAtMs = callbackAtMs;
-	}
-	/**
-	* @param {number} nextFramePrepMs
-	* @param {number} nextAdapterInferenceMs
-	* @param {number} nextTotalCvMs
-	* @param {NormalizedPoseFrame} frame
-	* @returns {void}
-	*/
-	function recordTiming(nextFramePrepMs, nextAdapterInferenceMs, nextTotalCvMs, frame) {
-		framePrepMs = roundMs(nextFramePrepMs);
-		adapterInferenceMs = roundMs(nextAdapterInferenceMs);
-		totalCvMs = roundMs(nextTotalCvMs);
-		framePrepTotalMs += framePrepMs;
-		adapterInferenceTotalMs += adapterInferenceMs;
-		totalCvTotalMs += totalCvMs;
-		timingSampleCount += 1;
-		const executionTelemetry = readAdapterExecution(poseAdapter, performancePreset);
-		timingWindow.push({
-			framePrepMs,
-			adapterInferenceMs,
-			runtimeInferenceMs: executionTelemetry.runtimeInferenceDurationMs,
-			workerRoundTripMs: executionTelemetry.workerRoundTripDurationMs,
-			totalCvMs,
-			incompletePose: frame.landmarks.length !== 7
-		});
-		if (timingWindow.length > 120) timingWindow.shift();
-	}
-	/**
-	* @param {unknown} error
-	* @param {boolean} throwOnError
-	* @returns {Promise<void>}
-	*/
-	async function handleInferenceError(error, throwOnError = true) {
-		const generation = lifecycleGeneration;
-		lastError = readErrorMessage$1(error);
-		if (!options.useFallbackOnError) {
-			lifecycleState = aeroCvLifecycleStates.error;
-			if (throwOnError) throw error;
-			return;
-		}
-		const fallbackLoadStartedAtMs = clockNowMs();
-		await fallbackPoseAdapter.load();
-		measuredFallbackLoadDurationMs = roundMs(clockNowMs() - fallbackLoadStartedAtMs);
-		if (generation !== lifecycleGeneration) return;
-		const fallbackFrame = await fallbackPoseAdapter.estimateNormalizedPoseFrame();
-		if (generation !== lifecycleGeneration) return;
-		latestPoseFrame = fallbackFrame;
-		recordOutput(clockNowMs());
-		fallbackActive = true;
-		fallbackSourceId = latestPoseFrame.sourceId;
-		sourceKind = "replay-fixture";
-		sourceId = latestPoseFrame.sourceId;
-		mirrored = latestPoseFrame.mirrored;
-		poseFrameCount += 1;
-		lifecycleState = aeroCvLifecycleStates.error;
-	}
-	/**
-	* @param {AeroPoseAdapter} adapter
-	* @returns {Promise<void>}
-	*/
-	async function disposePoseAdapterSafely(adapter) {
-		if (typeof adapter.dispose !== "function") return;
-		try {
-			await adapter.dispose();
-		} catch (error) {
-			lastError = `Adapter disposal failed: ${readErrorMessage$1(error)}`;
-		}
-	}
-}
-/**
-* @param {AeroCvFrameSample} sample
-* @param {AeroCvPerformancePreset} preset
-* @returns {Promise<{ sample: AeroCvFrameSample, resizePath: string }>}
-*/
-async function prepareInferenceSample(sample, preset) {
-	if (preset.executionPolicy === "worker-videoframe-experimental") return prepareVideoFrameSample(sample);
-	if (!preset.inferenceMaxWidth || !preset.inferenceMaxHeight) return {
-		sample,
-		resizePath: "none"
-	};
-	const sourceSize = readFrameSize(sample.frameSource, sample.frameWidth, sample.frameHeight);
-	const requiresTransferableBitmap = preset.executionPolicy === "worker-experimental";
-	const targetSize = fitWithin(sourceSize.width, sourceSize.height, preset.inferenceMaxWidth, preset.inferenceMaxHeight);
-	if (!sourceSize.width || !sourceSize.height) {
-		if (requiresTransferableBitmap) throw new Error("Worker frame capture requires finite source dimensions.");
-		return {
-			sample,
-			resizePath: "resize unavailable (unknown input dimensions)"
-		};
-	}
-	if (!requiresTransferableBitmap && targetSize.width >= sourceSize.width && targetSize.height >= sourceSize.height) return {
-		sample: {
-			...sample,
-			frameWidth: sourceSize.width || sample.frameWidth,
-			frameHeight: sourceSize.height || sample.frameHeight
-		},
-		resizePath: "none (input already within preset)"
-	};
-	const resized = await drawResizedFrame(sample.frameSource, targetSize.width, targetSize.height, preset);
-	if (!resized) {
-		if (requiresTransferableBitmap) throw new Error("Worker frame capture requires transferable ImageBitmap support.");
-		return {
-			sample,
-			resizePath: "resize unavailable (original input)"
-		};
-	}
-	return {
-		sample: {
-			...sample,
-			frameSource: resized.frameSource,
-			timestampMs: sample.presentationTimestampMs ?? resized.capturedTimestampMs ?? sample.timestampMs,
-			frameWidth: targetSize.width,
-			frameHeight: targetSize.height
-		},
-		resizePath: resized.resizePath
-	};
-}
-/**
-* Captures the currently presented HTMLVideoElement frame synchronously. The
-* rVFC mediaTime is both the source timestamp and the VideoFrame timestamp
-* (converted from milliseconds to the API's integer microseconds).
-*
-* @param {AeroCvFrameSample} sample
-* @returns {{ sample: AeroCvFrameSample, resizePath: string }}
-*/
-function prepareVideoFrameSample(sample) {
-	const VideoFrameConstructor = Reflect.get(globalThis, "VideoFrame");
-	if (typeof VideoFrameConstructor !== "function") throw new Error("Experimental VideoFrame worker capture requires global VideoFrame support.");
-	const HtmlVideoElementConstructor = Reflect.get(globalThis, "HTMLVideoElement");
-	if (typeof HtmlVideoElementConstructor !== "function" || !(sample.frameSource instanceof HtmlVideoElementConstructor)) throw new Error("Experimental VideoFrame worker capture requires a current HTMLVideoElement source.");
-	if (!Number.isFinite(sample.presentationTimestampMs)) throw new Error("Experimental VideoFrame worker capture requires exact requestVideoFrameCallback mediaTime.");
-	const timestampMs = sample.presentationTimestampMs;
-	const frameSource = new VideoFrameConstructor(sample.frameSource, { timestamp: Math.round(timestampMs * 1e3) });
-	const sourceSize = readFrameSize(sample.frameSource, sample.frameWidth, sample.frameHeight);
-	return {
-		sample: {
-			...sample,
-			frameSource,
-			timestampMs,
-			frameWidth: readNumericFrameProperty(frameSource, "displayWidth") ?? sourceSize.width,
-			frameHeight: readNumericFrameProperty(frameSource, "displayHeight") ?? sourceSize.height
-		},
-		resizePath: "direct HTMLVideoElement to transferable VideoFrame"
-	};
-}
-/**
-* @param {AeroCvBrowserFrameSource} frameSource
-* @param {number | undefined} fallbackWidth
-* @param {number | undefined} fallbackHeight
-* @returns {{ width: number, height: number }}
-*/
-function readFrameSize(frameSource, fallbackWidth, fallbackHeight) {
-	return {
-		width: readNumericFrameProperty(frameSource, "videoWidth") || readNumericFrameProperty(frameSource, "naturalWidth") || readNumericFrameProperty(frameSource, "width") || fallbackWidth || 0,
-		height: readNumericFrameProperty(frameSource, "videoHeight") || readNumericFrameProperty(frameSource, "naturalHeight") || readNumericFrameProperty(frameSource, "height") || fallbackHeight || 0
-	};
-}
-/**
-* @param {AeroCvBrowserFrameSource} frameSource
-* @param {"videoWidth" | "videoHeight" | "naturalWidth" | "naturalHeight" | "width" | "height" | "displayWidth" | "displayHeight"} property
-* @returns {number | undefined}
-*/
-function readNumericFrameProperty(frameSource, property) {
-	const value = frameSource[property];
-	return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-/**
-* @param {number} width
-* @param {number} height
-* @param {number} maxWidth
-* @param {number} maxHeight
-* @returns {{ width: number, height: number }}
-*/
-function fitWithin(width, height, maxWidth, maxHeight) {
-	if (!width || !height) return {
-		width: 0,
-		height: 0
-	};
-	const scale = Math.min(maxWidth / width, maxHeight / height, 1);
-	return {
-		width: Math.max(1, Math.round(width * scale)),
-		height: Math.max(1, Math.round(height * scale))
-	};
-}
-/**
-* @param {AeroCvBrowserFrameSource} frameSource
-* @param {number} width
-* @param {number} height
-* @param {AeroCvPerformancePreset} preset
-* @returns {Promise<{ frameSource: AeroCvBrowserFrameSource, resizePath: string, capturedTimestampMs: number | undefined } | undefined>}
-*/
-async function drawResizedFrame(frameSource, width, height, preset) {
-	const canvas = createResizeCanvas(width, height);
-	const context = canvas?.getContext("2d", { alpha: false });
-	if (!canvas || !context) return;
-	try {
-		context.drawImage(frameSource, 0, 0, width, height);
-		const capturedTimestampMs = readFrameTimestampMs(frameSource);
-		if (preset.preferImageBitmap) {
-			if (typeof globalThis.createImageBitmap !== "function") return void 0;
-			return {
-				frameSource: await globalThis.createImageBitmap(canvas),
-				resizePath: "main-thread canvas to ImageBitmap",
-				capturedTimestampMs
-			};
-		}
-		return {
-			frameSource: canvas,
-			resizePath: "main-thread canvas",
-			capturedTimestampMs
-		};
-	} catch {
-		return;
-	}
-}
-/**
-* @param {number} width
-* @param {number} height
-* @returns {(HTMLCanvasElement | OffscreenCanvas) | undefined}
-*/
-function createResizeCanvas(width, height) {
-	if (typeof globalThis.OffscreenCanvas === "function") return new globalThis.OffscreenCanvas(width, height);
-	const documentRef = globalThis.document;
-	if (!documentRef?.createElement) return;
-	const canvas = documentRef.createElement("canvas");
-	canvas.width = width;
-	canvas.height = height;
-	return canvas;
-}
-/**
-* Reads the generic execution contract first and temporarily accepts the old
-* MoveNet getExecutionStatus shape while that package lands its additive API.
-*
-* @param {AeroPoseAdapter} adapter
-* @param {AeroCvPerformancePreset} preset
-* @returns {AeroPoseExecutionTelemetry}
-*/
-function readAdapterExecution(adapter, preset) {
-	if (typeof adapter.getExecutionTelemetry === "function") return { ...adapter.getExecutionTelemetry() };
-	const legacyAdapter = adapter;
-	if (typeof legacyAdapter.getExecutionStatus === "function") {
-		const legacy = legacyAdapter.getExecutionStatus();
-		return {
-			location: normalizeExecutionLocation(legacy.mode),
-			detail: legacy.detail,
-			fallback: legacy.mode === "fallback"
-		};
-	}
-	return {
-		location: preset.executionPolicy === "main-thread" ? "main-thread" : "unknown",
-		detail: preset.executionPolicy === "main-thread" ? "direct adapter" : "worker experimental adapter",
-		fallback: false
-	};
-}
-/** @param {object} object @param {string} property @returns {string | undefined} */
-function readOptionalStringProperty(object, property) {
-	const value = Reflect.get(object, property);
-	return typeof value === "string" ? value : void 0;
-}
-/**
-* @param {string} mode
-* @returns {"worker" | "main-thread" | "native" | "unknown"}
-*/
-function normalizeExecutionLocation(mode) {
-	if (mode === "worker" || mode === "main-thread" || mode === "native") return mode;
-	return "unknown";
-}
-/**
-* @param {AeroPoseAdapter} adapter
-* @returns {AeroPoseModelIdentity}
-*/
-function readAdapterModel(adapter) {
-	const model = adapter.model;
-	if (model && model.vendorId && model.modelId) return { ...model };
-	return {
-		vendorId: adapter.vendorId,
-		modelId: "unknown",
-		runtimeId: "unknown"
-	};
-}
-/**
-* @param {AeroPoseAdapterCapabilities | undefined} capabilities
-* @returns {AeroPoseAdapterCapabilities | undefined}
-*/
-function cloneCapabilities(capabilities) {
-	if (!capabilities) return;
-	return {
-		...capabilities,
-		executionProviders: [...capabilities.executionProviders]
-	};
-}
-/**
-* @returns {number}
-*/
-function nowMs() {
-	return globalThis.performance?.now?.() ?? Date.now();
-}
-/**
-* @param {number} value
-* @returns {number}
-*/
-function roundMs(value) {
-	return Math.max(0, Math.round(value * 10) / 10);
-}
-/**
-* @param {number} totalMs
-* @param {number} count
-* @returns {number | undefined}
-*/
-function averageMs(totalMs, count) {
-	return count > 0 ? roundMs(totalMs / count) : void 0;
-}
-/**
-* Summarizes the bounded completed-estimate window. The window survives ordinary
-* stop/start and terminal disposal for final inspection; only constructing a new
-* service resets it. Failed estimates are absent because they never complete.
-* Durations and the budget are both retained/reported at 0.1ms precision, so the
-* strict over-budget classification compares those same disclosed values.
-*
-* @param {readonly { framePrepMs: number, adapterInferenceMs: number, runtimeInferenceMs: number | undefined, workerRoundTripMs: number | undefined, totalCvMs: number, incompletePose: boolean }[]} window
-* @param {number} timingBudgetMs
-* @returns {{
-*   timingWindowSampleCount: number,
-*   timingBudgetMs: number,
-*   rollingFramePrepP50Ms: number | undefined,
-*   rollingFramePrepP95Ms: number | undefined,
-*   rollingFramePrepMaxMs: number | undefined,
-*   rollingAdapterInferenceP50Ms: number | undefined,
-*   rollingAdapterInferenceP95Ms: number | undefined,
-*   rollingAdapterInferenceMaxMs: number | undefined,
-*   rollingRuntimeInferenceP50Ms: number | undefined,
-*   rollingRuntimeInferenceP95Ms: number | undefined,
-*   rollingRuntimeInferenceMaxMs: number | undefined,
-*   rollingWorkerRoundTripP50Ms: number | undefined,
-*   rollingWorkerRoundTripP95Ms: number | undefined,
-*   rollingWorkerRoundTripMaxMs: number | undefined,
-*   rollingTotalCvP50Ms: number | undefined,
-*   rollingTotalCvP95Ms: number | undefined,
-*   rollingTotalCvMaxMs: number | undefined,
-*   timingWindowOverBudgetCount: number,
-*   timingWindowIncompletePoseCount: number
-* }}
-*/
-function summarizeTimingWindow(window, timingBudgetMs) {
-	const prepDurations = window.map((sample) => sample.framePrepMs).sort(compareNumbers);
-	const adapterDurations = window.map((sample) => sample.adapterInferenceMs).sort(compareNumbers);
-	const runtimeDurations = window.flatMap((sample) => sample.runtimeInferenceMs === void 0 ? [] : [sample.runtimeInferenceMs]).sort(compareNumbers);
-	const roundTripDurations = window.flatMap((sample) => sample.workerRoundTripMs === void 0 ? [] : [sample.workerRoundTripMs]).sort(compareNumbers);
-	const totalDurations = window.map((sample) => sample.totalCvMs).sort(compareNumbers);
-	const reportedTimingBudgetMs = roundMs(timingBudgetMs);
-	return {
-		timingWindowSampleCount: window.length,
-		timingBudgetMs: reportedTimingBudgetMs,
-		rollingFramePrepP50Ms: nearestRankPercentile(prepDurations, .5),
-		rollingFramePrepP95Ms: nearestRankPercentile(prepDurations, .95),
-		rollingFramePrepMaxMs: prepDurations.at(-1),
-		rollingAdapterInferenceP50Ms: nearestRankPercentile(adapterDurations, .5),
-		rollingAdapterInferenceP95Ms: nearestRankPercentile(adapterDurations, .95),
-		rollingAdapterInferenceMaxMs: adapterDurations.at(-1),
-		rollingRuntimeInferenceP50Ms: nearestRankPercentile(runtimeDurations, .5),
-		rollingRuntimeInferenceP95Ms: nearestRankPercentile(runtimeDurations, .95),
-		rollingRuntimeInferenceMaxMs: runtimeDurations.at(-1),
-		rollingWorkerRoundTripP50Ms: nearestRankPercentile(roundTripDurations, .5),
-		rollingWorkerRoundTripP95Ms: nearestRankPercentile(roundTripDurations, .95),
-		rollingWorkerRoundTripMaxMs: roundTripDurations.at(-1),
-		rollingTotalCvP50Ms: nearestRankPercentile(totalDurations, .5),
-		rollingTotalCvP95Ms: nearestRankPercentile(totalDurations, .95),
-		rollingTotalCvMaxMs: totalDurations.at(-1),
-		timingWindowOverBudgetCount: window.filter((sample) => sample.totalCvMs > reportedTimingBudgetMs).length,
-		timingWindowIncompletePoseCount: window.filter((sample) => sample.incompletePose).length
-	};
-}
-/**
-* @param {readonly number[]} window
-* @returns {{
-*   samplingCallbackGapWindowSampleCount: number,
-*   samplingCallbackGapP50Ms: number | undefined,
-*   samplingCallbackGapP95Ms: number | undefined,
-*   samplingCallbackGapMaxMs: number | undefined
-* }}
-*/
-function summarizeSamplingCallbackGapWindow(window) {
-	const sortedGaps = [...window].sort(compareNumbers);
-	return {
-		samplingCallbackGapWindowSampleCount: sortedGaps.length,
-		samplingCallbackGapP50Ms: nearestRankPercentile(sortedGaps, .5),
-		samplingCallbackGapP95Ms: nearestRankPercentile(sortedGaps, .95),
-		samplingCallbackGapMaxMs: sortedGaps.at(-1)
-	};
-}
-/**
-* Uses the deterministic nearest-rank definition: ceil(percentile * n) - 1.
-*
-* @param {readonly number[]} sortedValues
-* @param {number} percentile
-* @returns {number | undefined}
-*/
-function nearestRankPercentile(sortedValues, percentile) {
-	if (sortedValues.length === 0) return;
-	return sortedValues[Math.max(0, Math.ceil(percentile * sortedValues.length) - 1)];
-}
-/**
-* @param {number} left
-* @param {number} right
-* @returns {number}
-*/
-function compareNumbers(left, right) {
-	return left - right;
-}
-/**
-* @param {number | undefined} timestampMs
-* @param {number} currentTimeMs
-* @returns {number | undefined}
-*/
-function ageMs(timestampMs, currentTimeMs) {
-	return timestampMs === void 0 ? void 0 : roundMs(currentTimeMs - timestampMs);
-}
-/**
-* @param {number} count
-* @param {number | undefined} firstAtMs
-* @param {number | undefined} latestAtMs
-* @returns {number | undefined}
-*/
-function effectiveRateFps(count, firstAtMs, latestAtMs) {
-	if (count < 2 || firstAtMs === void 0 || latestAtMs === void 0 || latestAtMs <= firstAtMs) return;
-	return Math.round((count - 1) * 1e3 / (latestAtMs - firstAtMs) * 10) / 10;
-}
-/**
-* @param {number | undefined} value
-* @param {number} fallback
-* @returns {number}
-*/
-function normalizeCadenceFps(value, fallback) {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-/**
-* @typedef {"granted" | "unsupported" | "blocked"} CameraPermissionStatus
-*/
-/**
-* @typedef {Object} CameraPermissionRequestResult
-* @property {CameraPermissionStatus} status Browser camera request result.
-* @property {MediaStream | undefined} stream Live camera stream when granted.
-* @property {string | undefined} errorName Browser error name when blocked.
-* @property {string | undefined} message Browser-facing diagnostic message.
-*/
-/**
-* @param {AeroCvFrameSourceDescriptor | undefined} source
-* @param {number | undefined} presentationTimestampMs Exact requestVideoFrameCallback mediaTime when available.
-* @returns {AeroCvFrameSample | undefined}
-*/
-function readSampleFromSource(source, presentationTimestampMs) {
-	if (!source || source.isFrameAvailable?.() === false) return;
-	const frameSource = source.getFrameSource?.() ?? source.frameSource;
-	if (!frameSource) return;
-	return {
-		frameSource,
-		sourceId: source.sourceId,
-		timestampMs: presentationTimestampMs ?? source.getTimestampMs?.() ?? readFrameTimestampMs(frameSource),
-		presentationTimestampMs,
-		mirrored: source.mirrored,
-		frameWidth: source.frameWidth,
-		frameHeight: source.frameHeight
-	};
-}
-/**
-* @param {AeroCvBrowserFrameSource} frameSource
-* @returns {number | undefined}
-*/
-function readFrameTimestampMs(frameSource) {
-	if ("currentTime" in frameSource && typeof frameSource.currentTime === "number") return frameSource.currentTime * 1e3;
-}
-/**
-* @param {NormalizedPoseFrame} frame
-* @returns {NormalizedPoseFrame}
-*/
-function clonePoseFrame(frame) {
-	return {
-		sourceId: frame.sourceId,
-		timestampMs: frame.timestampMs,
-		mirrored: frame.mirrored,
-		landmarks: frame.landmarks.map((landmark) => ({
-			name: landmark.name,
-			x: landmark.x,
-			y: landmark.y,
-			confidence: landmark.confidence
-		}))
-	};
-}
-/**
-* @returns {AeroCvScheduler}
-*/
-function createAeroCvFrameScheduler() {
-	/** @type {Map<number, { mode: "video-frame-callback" | "animation-frame-fallback" | "timer-fallback", frameSource: VideoFrameCallbackSource | undefined }>} */
-	const pending = /* @__PURE__ */ new Map();
-	/** @type {"video-frame-callback" | "animation-frame-fallback" | "timer-fallback"} */
-	let mode = "animation-frame-fallback";
-	return {
-		schedule(callback, frameSource) {
-			if (isVideoFrameCallbackSource(frameSource)) {
-				mode = "video-frame-callback";
-				const handle = frameSource.requestVideoFrameCallback((_now, metadata) => {
-					pending.delete(handle);
-					callback({ mediaTimeMs: metadata.mediaTime * 1e3 });
-				});
-				pending.set(handle, {
-					mode,
-					frameSource
-				});
-				return handle;
-			}
-			const requestFrame = globalThis.requestAnimationFrame;
-			if (typeof requestFrame === "function") {
-				mode = "animation-frame-fallback";
-				const handle = requestFrame(() => {
-					pending.delete(handle);
-					callback();
-				});
-				pending.set(handle, {
-					mode,
-					frameSource: void 0
-				});
-				return handle;
-			}
-			mode = "timer-fallback";
-			const handle = globalThis.setTimeout(() => {
-				pending.delete(handle);
-				callback();
-			}, 16);
-			pending.set(handle, {
-				mode,
-				frameSource: void 0
-			});
-			return handle;
-		},
-		cancel(handle) {
-			const request = pending.get(handle);
-			pending.delete(handle);
-			if (request?.mode === "video-frame-callback" && request.frameSource) {
-				request.frameSource.cancelVideoFrameCallback(handle);
-				return;
-			}
-			if (request?.mode === "animation-frame-fallback") {
-				globalThis.cancelAnimationFrame?.(handle);
-				return;
-			}
-			globalThis.clearTimeout(handle);
-		},
-		getMode() {
-			return mode;
-		}
-	};
-}
-/**
-* @typedef {AeroCvBrowserFrameSource & {
-*   requestVideoFrameCallback: (callback: (now: number, metadata: VideoFrameCallbackMetadata) => void) => number,
-*   cancelVideoFrameCallback: (handle: number) => void
-* }} VideoFrameCallbackSource
-*/
-/**
-* @param {AeroCvBrowserFrameSource | undefined} frameSource
-* @returns {frameSource is VideoFrameCallbackSource}
-*/
-function isVideoFrameCallbackSource(frameSource) {
-	return Boolean(frameSource && "requestVideoFrameCallback" in frameSource && typeof frameSource.requestVideoFrameCallback === "function" && "cancelVideoFrameCallback" in frameSource && typeof frameSource.cancelVideoFrameCallback === "function");
-}
-/**
-* @param {unknown} error
-* @returns {string}
-*/
-function readErrorMessage$1(error) {
-	if (error instanceof Error) return error.message;
-	if (typeof error === "string") return error;
-	return "CV pose inference failed";
-}
-//#endregion
 //#region node_modules/@aerobeat/web-ui/src/elements/aero-button/aero-button.js
 /**
 * @typedef {Object} AeroButtonActivateDetail
@@ -3442,20 +1851,21 @@ function isThemeDescriptor$2(value) {
 /** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
 /** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:"up"|"right"|"down"|"left"|null}} AeroRenderableTarget */
 /** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
-/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, dprCap:number}} AeroRendererTuning */
+/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
 /** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
 /** @typedef {{commands:readonly AeroGameplayDrawCommand[], overlay:Readonly<{kind:string,dim:number,countdown:number|null}>, presentation:AeroGameplayPresentation, grid:Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}} AeroGameplayRenderPlan */
 /** @type {AeroRendererTuning} */
 var defaultRendererTuning$1 = Object.freeze({
 	id: "aero.renderer.prototype.default",
 	version: "1",
-	hash: "visual-7dcc90bd",
+	hash: "visual-538685f6",
 	gridInset: .055,
 	gridGap: .018,
 	receptorAlpha: .22,
 	approachRingScale: 1.55,
 	approachRingWidth: .08,
 	laneWidth: .22,
+	roleScale: 1,
 	dprCap: 2
 });
 /** @type {AeroRendererThemeTokens} */
@@ -3621,7 +2031,8 @@ function addTarget$1(commands, frame, target, grid, theme, tuning) {
 		alpha *= 1 - feedback * .9;
 	}
 	const rects = targetRects$1(frame.presentation, target, grid, tuning, frame.viewportAspect);
-	for (const baseRect of rects) {
+	for (const targetRect of rects) {
+		const baseRect = scaledRect$1(targetRect, tuning.roleScale);
 		const rect = scaledRect$1(baseRect, scale);
 		const iconId = iconIdFor$1(target);
 		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
@@ -4028,6 +2439,15 @@ function finiteNumberOrZero$2(value) {
 /** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
 /** @typedef {{schema:"aerobeat/theme_descriptor",version:1,id:string,themeVersion:string,tokens:AeroRendererThemeTokens,contentHash:Readonly<{algorithm:string,value:string}>}} AeroThemeDescriptor */
 /** @typedef {{kind:"solid"|"linear-gradient",colors:readonly string[],angleDeg:number}} AeroRendererBackgroundProjection */
+/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:"live_visual",regenerationRequired:false}>} AeroRendererVisualIdentity */
+/** @typedef {Readonly<{motionIntensity:number,roleScale:number}>} AeroRendererVisualSettings */
+/** @typedef {Readonly<{identity:AeroRendererVisualIdentity,settings:AeroRendererVisualSettings}>} AeroRendererVisualProfileSelection */
+var DEFAULT_VISUAL_HASH$1 = "fdcf478c91e21ef88970299e29fcc35d574bfe69e0d7d00d9f823ee9507f39a3";
+var COMPACT_VISUAL_HASH$1 = "e65d53dfaafe8a859c08837acb3d447b10b03508bd5ae64677d273c93657d603";
+/** @type {AeroRendererVisualProfileSelection} */
+var defaultRendererVisualProfile$1 = visualProfile$1("aero.visual.default", DEFAULT_VISUAL_HASH$1, 1, 1);
+/** @type {AeroRendererVisualProfileSelection} */
+var compactRendererVisualProfile$1 = visualProfile$1("aero.visual.compact", COMPACT_VISUAL_HASH$1, .8, .86);
 /**
 * Narrow a public theme descriptor into renderer-owned immutable tokens.
 *
@@ -4078,6 +2498,7 @@ function normalizeRendererTuning$1(value) {
 		"approachRingScale",
 		"approachRingWidth",
 		"laneWidth",
+		"roleScale",
 		"dprCap"
 	];
 	const requiredNames = [
@@ -4096,6 +2517,7 @@ function normalizeRendererTuning$1(value) {
 		approachRingScale: clamp$4(Number(value.approachRingScale), 1, 3),
 		approachRingWidth: clamp$4(Number(value.approachRingWidth), .01, .3),
 		laneWidth: clamp$4(Number(value.laneWidth), .1, .4),
+		roleScale: clamp$4(Number(value.roleScale), .5, 1.5),
 		dprCap: clamp$4(Number(value.dprCap), 1, 4)
 	};
 	const hash = stableVisualHash$1(normalized);
@@ -4103,6 +2525,56 @@ function normalizeRendererTuning$1(value) {
 	return Object.freeze({
 		...normalized,
 		hash
+	});
+}
+/**
+* Strictly narrow one public gameplay visual selection without depending on the
+* gameplay package. Only the two content-hashed experimental Task 11 profiles
+* are renderer inputs; scoring/converter identities never cross this adapter.
+*
+* @param {unknown} value
+* @returns {AeroRendererVisualProfileSelection}
+*/
+function normalizeRendererVisualProfile$1(value) {
+	const outer = exactDataRecord$1(value, ["identity", "settings"], "Visual profile selection");
+	const identity = exactDataRecord$1(outer.identity, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	], "Visual profile identity");
+	const settings = exactDataRecord$1(outer.settings, ["motionIntensity", "roleScale"], "Visual profile settings");
+	if (identity.schema !== "aerobeat/prototype_tuning_identity" || identity.version !== 1 || identity.class !== "live_visual" || identity.regenerationRequired !== false) throw new TypeError("Visual profile identity is incompatible with live renderer tuning");
+	for (const name of [
+		"profileId",
+		"profileVersion",
+		"contentHash"
+	]) if (typeof identity[name] !== "string" || identity[name].length === 0 || identity[name].length > 128) throw new TypeError(`Visual profile ${name} is invalid`);
+	if (!/^[0-9a-f]{64}$/u.test(String(identity.contentHash))) throw new TypeError("Visual profile contentHash must be bare lowercase SHA-256");
+	if (typeof settings.motionIntensity !== "number" || !Number.isFinite(settings.motionIntensity) || settings.motionIntensity < 0 || settings.motionIntensity > 2 || typeof settings.roleScale !== "number" || !Number.isFinite(settings.roleScale) || settings.roleScale < .5 || settings.roleScale > 1.5) throw new TypeError("Visual profile settings are outside renderer bounds");
+	const normalized = visualProfile$1(String(identity.profileId), String(identity.contentHash), Number(settings.motionIntensity), Number(settings.roleScale), String(identity.profileVersion));
+	const expected = normalized.identity.profileId === "aero.visual.default" ? defaultRendererVisualProfile$1 : normalized.identity.profileId === "aero.visual.compact" ? compactRendererVisualProfile$1 : null;
+	if (!expected || !sameVisualSelection$1(normalized, expected)) throw new TypeError("Visual profile identity, settings, or content hash is not a supported experimental profile");
+	return expected;
+}
+/** @param {AeroRendererVisualProfileSelection} profile @returns {AeroRendererTuning} */
+function rendererTuningFromVisualProfile$1(profile) {
+	const motionIntensity = profile.settings.motionIntensity;
+	const roleScale = profile.settings.roleScale;
+	return normalizeRendererTuning$1({
+		id: profile.identity.profileId,
+		version: profile.identity.profileVersion,
+		gridInset: defaultRendererTuning$1.gridInset,
+		gridGap: defaultRendererTuning$1.gridGap,
+		receptorAlpha: defaultRendererTuning$1.receptorAlpha,
+		approachRingScale: 1 + (defaultRendererTuning$1.approachRingScale - 1) * motionIntensity,
+		approachRingWidth: defaultRendererTuning$1.approachRingWidth * Math.max(.5, motionIntensity),
+		laneWidth: defaultRendererTuning$1.laneWidth,
+		roleScale,
+		dprCap: defaultRendererTuning$1.dprCap
 	});
 }
 /**
@@ -4176,6 +2648,42 @@ function isRecord$6(value) {
 function clamp$4(value, minimum, maximum) {
 	return Math.max(minimum, Math.min(maximum, value));
 }
+/** @param {string} profileId @param {string} contentHash @param {number} motionIntensity @param {number} roleScale @param {string} [profileVersion] @returns {AeroRendererVisualProfileSelection} */
+function visualProfile$1(profileId, contentHash, motionIntensity, roleScale, profileVersion = "1.0.0") {
+	return Object.freeze({
+		identity: Object.freeze({
+			schema: "aerobeat/prototype_tuning_identity",
+			version: 1,
+			profileId,
+			profileVersion,
+			contentHash,
+			class: "live_visual",
+			regenerationRequired: false
+		}),
+		settings: Object.freeze({
+			motionIntensity,
+			roleScale
+		})
+	});
+}
+/** @param {unknown} value @param {readonly string[]} keys @param {string} label @returns {Record<string,unknown>} */
+function exactDataRecord$1(value, keys, label) {
+	if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError(`${label} must be a plain data record`);
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	const names = Object.keys(descriptors);
+	if (names.length !== keys.length || !keys.every((key) => names.includes(key))) throw new TypeError(`${label} fields are invalid`);
+	/** @type {Record<string,unknown>} */ const result = {};
+	for (const key of keys) {
+		const descriptor = descriptors[key];
+		if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) throw new TypeError(`${label} must not contain accessors or hidden fields`);
+		result[key] = descriptor.value;
+	}
+	return result;
+}
+/** @param {AeroRendererVisualProfileSelection} left @param {AeroRendererVisualProfileSelection} right */
+function sameVisualSelection$1(left, right) {
+	return left.identity.profileId === right.identity.profileId && left.identity.profileVersion === right.identity.profileVersion && left.identity.contentHash === right.identity.contentHash && left.settings.motionIntensity === right.settings.motionIntensity && left.settings.roleScale === right.settings.roleScale;
+}
 //#endregion
 //#region node_modules/@aerobeat/web-ui/node_modules/@aerobeat/web-renderer/src/renderer-facade.js
 /** @type {"aero.renderer.webgl2"} */
@@ -4190,7 +2698,7 @@ var aeroWebGl2RendererServiceId$1 = "aero.renderer.webgl2";
 /** @typedef {"unsupported"|"ready"|"running"|"context_lost"|"error"|"destroyed"} AeroRendererState */
 /** @typedef {{widthCssPx:number,heightCssPx:number,devicePixelRatio:number,maxDevicePixelRatio?:number}} AeroRendererResize */
 /** @typedef {{surface?:AeroRendererOverlaySurfaceDescriptorInput,connections?:readonly (readonly [number,number])[],minVisibility?:number,color?:readonly [number,number,number,number],pointSize?:number}} AeroRendererOverlayOptions */
-/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
+/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,visualProfile:import("./visual-profiles.js").AeroRendererVisualProfileSelection,visualProfileIdentity:import("./visual-profiles.js").AeroRendererVisualIdentity,visualProfileSettings:import("./visual-profiles.js").AeroRendererVisualSettings,experimental:true,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
 /** @typedef {{serviceId:"aero.renderer.webgl2",webgl2:boolean,exactContainerResize:true,dprAware:true,contextLossRecovery:true,alphaMaskIcons:boolean,liveTuning:true,maxDevicePixelRatio:number,degradations:readonly string[]}} AeroWebGl2RendererCapabilities */
 /** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,shapeLocation:WebGLUniformLocation|null,ringWidthLocation:WebGLUniformLocation|null}} ShapeProgram */
 /** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,uvRectLocation:WebGLUniformLocation|null,samplerLocation:WebGLUniformLocation|null}} IconProgram */
@@ -4218,7 +2726,8 @@ var AeroWebGl2Renderer$1 = class {
 		/** @type {Map<string, import("./icon-atlas.js").AeroIconAtlasEntry>} */ this.iconEntries = /* @__PURE__ */ new Map();
 		/** @type {AeroRendererState} */ this.state = "unsupported";
 		/** @type {AeroRendererThemeTokens} */ this.theme = defaultRendererThemeTokens$1;
-		/** @type {AeroRendererTuning} */ this.tuning = defaultRendererTuning$1;
+		this.visualProfile = defaultRendererVisualProfile$1;
+		/** @type {AeroRendererTuning} */ this.tuning = rendererTuningFromVisualProfile$1(this.visualProfile);
 		this.themeId = "aero.theme.default";
 		this.themeVersion = "1";
 		this.themeHash = "theme-default";
@@ -4295,23 +2804,34 @@ var AeroWebGl2Renderer$1 = class {
 		this.themeHash = accepted ? descriptor.contentHash.value : "theme-default";
 		return this.describe();
 	}
-	/** @param {unknown} tuning @returns {AeroWebGl2RendererStatus} */
-	setTuning(tuning) {
-		if (!this.destroyed) this.tuning = normalizeRendererTuning$1(tuning);
-		return this.describe();
+	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
+	setTuning(selection) {
+		return this.importTuning(selection);
 	}
-	/** @param {unknown} tuning @returns {AeroWebGl2RendererStatus} */
-	importTuning(tuning) {
-		return this.setTuning(tuning);
+	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
+	importTuning(selection) {
+		if (this.destroyed) return this.describe();
+		const visualProfile = normalizeRendererVisualProfile$1(selection);
+		const tuning = rendererTuningFromVisualProfile$1(visualProfile);
+		this.visualProfile = visualProfile;
+		this.tuning = tuning;
+		return this.describe();
 	}
 	/** @returns {AeroWebGl2RendererStatus} */
 	resetTuning() {
-		if (!this.destroyed) this.tuning = defaultRendererTuning$1;
+		if (!this.destroyed) {
+			this.visualProfile = defaultRendererVisualProfile$1;
+			this.tuning = rendererTuningFromVisualProfile$1(this.visualProfile);
+		}
 		return this.describe();
 	}
-	/** @returns {AeroRendererTuning} */
+	/** @returns {import("./visual-profiles.js").AeroRendererVisualProfileSelection} */
 	exportTuning() {
-		return Object.freeze({ ...this.tuning });
+		return this.visualProfile;
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	getSnapshot() {
+		return this.describe();
 	}
 	/** @param {unknown} background @returns {AeroWebGl2RendererStatus} */
 	setBackgroundProjection(background) {
@@ -4513,6 +3033,10 @@ var AeroWebGl2Renderer$1 = class {
 			tuningVersion: this.tuning.version,
 			tuningHash: this.tuning.hash,
 			tuningRequiresRegeneration: false,
+			visualProfile: this.visualProfile,
+			visualProfileIdentity: this.visualProfile.identity,
+			visualProfileSettings: this.visualProfile.settings,
+			experimental: true,
 			iconAtlasReady: Boolean(this.iconTexture),
 			iconAtlasError: this.iconAtlasError,
 			errorMessage: this.errorMessage
@@ -4838,7 +3362,7 @@ var aeroPosePreviewSkeletonConnections = Object.freeze([
 	Object.freeze([8, 10])
 ]);
 /**
-* MoveNet upper-body landmarks visible in the phone calibration checkpoint.
+* Upper-body pose landmarks visible in the phone calibration checkpoint.
 *
 * @type {ReadonlyMap<string, number>}
 */
@@ -4941,7 +3465,7 @@ var aeroPosePreviewTrackingProfiles = Object.freeze({
 */
 /**
 * @typedef {object} AeroMediaPosePreviewLandmark
-* @property {number} id Stable MoveNet landmark identifier.
+* @property {number} id Stable pose landmark identifier.
 * @property {string} name Stable AeroBeat landmark name.
 * @property {number} x Smoothed normalized horizontal position.
 * @property {number} y Smoothed normalized vertical position.
@@ -8007,13 +6531,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "2026-08-29T00:58:13.048Z";
+var buildStamp = "source:9ab91a38430320b62b0b4ef6a71ccc7489a30208de490c137be8b88a3ac0adac";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "mtdo9394-x2hup8";
+var cacheBust = "0.0.24-9ab91a38430320b6";
 /**
 * Vite-injected package version from package.json.
 *
@@ -8041,7 +6565,7 @@ var appMetadata = Object.freeze({
 //#endregion
 //#region src/iframe-bridge.js
 var MAX_BRIDGE_BYTES = 65536;
-/** @typedef {{parentWindow:Window,instanceId:string,expectedOrigin:string,onCommand:(command:import("@aerobeat/web-contracts").AeroGameCommand)=>void,onError?:(error:unknown)=>void}} IframeBridgeOptions */
+/** @typedef {{parentWindow:Window,instanceId:string,expectedOrigin:string,onConnect?:()=>void,onCommand:(command:import("@aerobeat/web-contracts").AeroGameCommand)=>void,onError?:(error:unknown)=>void}} IframeBridgeOptions */
 /** Strict immediate-parent protocol adapter owned by one connected game. */
 function createAeroGameIframeBridge(options) {
 	const { parentWindow, instanceId, expectedOrigin, onCommand } = options;
@@ -8053,11 +6577,17 @@ function createAeroGameIframeBridge(options) {
 		if (destroyed || event.source !== parentWindow || event.origin !== expectedOrigin || !withinBridgeLimits(event.data) || encodedSize(event.data) > MAX_BRIDGE_BYTES || !isIframeMessage(event.data) || event.data.instanceId !== instanceId) return;
 		const message = event.data;
 		if (message.kind === "handshake_request") {
+			const firstConnection = !connected;
 			connected = true;
 			post("handshake_ack", {
 				protocolVersion: 1,
 				accepted: true
 			}, message.messageId);
+			if (firstConnection) try {
+				options.onConnect?.();
+			} catch (error) {
+				report(error);
+			}
 			return;
 		}
 		if (!connected) return;
@@ -8126,6 +6656,11 @@ function withinBridgeLimits(value) {
 		const prototype = Object.getPrototypeOf(entry);
 		if (Array.isArray(entry)) {
 			if (prototype !== Array.prototype || entry.length > 256) return false;
+			const keys = Reflect.ownKeys(entry);
+			const expected = /* @__PURE__ */ new Set(["length", ...Array.from({ length: entry.length }, (_, index) => String(index))]);
+			if (keys.length !== expected.size || keys.some((key) => typeof key !== "string" || !expected.has(key))) return false;
+			const lengthDescriptor = Object.getOwnPropertyDescriptor(entry, "length");
+			if (!lengthDescriptor || !("value" in lengthDescriptor) || lengthDescriptor.value !== entry.length) return false;
 			seen.add(entry);
 			for (let index = 0; index < entry.length; index += 1) {
 				const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
@@ -8156,79 +6691,155 @@ function withinBridgeLimits(value) {
 /** @param {unknown} value */
 function encodedSize(value) {
 	try {
-		return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+		return new TextEncoder().encode(JSON.stringify(cloneForEncoding(value))).byteLength;
 	} catch {
 		return Number.POSITIVE_INFINITY;
 	}
 }
+/** The preflight has already rejected accessors/classes/cycles. @param {unknown} value @returns {unknown} */
+function cloneForEncoding(value) {
+	if (value === null || typeof value !== "object") return value;
+	if (Array.isArray(value)) return value.map((entry) => cloneForEncoding(entry));
+	const clone = Object.create(null);
+	for (const key of Object.keys(value).sort(compareCodePoints$2)) clone[key] = cloneForEncoding(value[key]);
+	return clone;
+}
+/** @param {string} left @param {string} right */
+function compareCodePoints$2(left, right) {
+	return left < right ? -1 : left > right ? 1 : 0;
+}
 //#endregion
 //#region src/media-lease-coordinator.js
 /** @typedef {{instanceId:string,pauseForLease:()=>void|Promise<void>,activateLease:()=>void|Promise<void>,releaseLease:()=>void|Promise<void>}} AeroGameMediaLeaseParticipant */
+/** @typedef {{source:AeroGameMediaLeaseParticipant,instanceId:string,pauseForLease:()=>void|Promise<void>,activateLease:()=>void|Promise<void>,releaseLease:()=>void|Promise<void>}} RegisteredParticipant */
 /**
 * Process-wide policy coordinator. Browser resources remain owned by per-game
 * audio/video services; transfer only pauses the previous participant.
 */
 var AeroGameMediaLeaseCoordinator = class {
 	constructor() {
-		/** @type {Map<string,AeroGameMediaLeaseParticipant>} */
-		this.participants = /* @__PURE__ */ new Map();
-		/** @type {AeroGameMediaLeaseParticipant|null} */
-		this.owner = null;
+		/** @type {Map<string,RegisteredParticipant>} */ this.participants = /* @__PURE__ */ new Map();
+		/** @type {WeakMap<object,RegisteredParticipant>} */ this.registrations = /* @__PURE__ */ new WeakMap();
+		/** @type {RegisteredParticipant|null} */ this.owner = null;
+		/** @type {RegisteredParticipant|null} */ this.candidate = null;
 		this.generation = 0;
 		this.transferring = false;
+		/** @type {RegisteredParticipant|null} */ this.callbackParticipant = null;
+		/** @type {WeakSet<RegisteredParticipant>} */ this.releasedDuringTransfer = /* @__PURE__ */ new WeakSet();
+		/** @type {Promise<unknown>} */ this.operationQueue = Promise.resolve();
 	}
 	/** @param {AeroGameMediaLeaseParticipant} participant */
 	register(participant) {
-		if (!participant || typeof participant.instanceId !== "string" || participant.instanceId.length === 0 || participant.instanceId.length > 256) throw new TypeError("Lease participant requires a bounded instanceId");
-		for (const operation of [
-			"pauseForLease",
-			"activateLease",
-			"releaseLease"
-		]) if (typeof participant[operation] !== "function") throw new TypeError(`Lease participant ${operation} must be a function`);
-		this.participants.set(participant.instanceId, participant);
+		const registered = normalizeParticipant(participant);
+		if (this.participants.has(registered.instanceId) || this.registrations.has(participant)) throw new Error(`Lease participant ID is already registered: ${registered.instanceId}`);
+		this.participants.set(registered.instanceId, registered);
+		this.registrations.set(participant, registered);
+		let active = true;
 		return () => {
-			this.unregister(participant);
+			if (!active) return;
+			active = false;
+			this.unregister(participant).catch(() => {});
 		};
 	}
 	/** @param {AeroGameMediaLeaseParticipant} participant */
 	async request(participant) {
-		if (this.participants.get(participant.instanceId) !== participant) throw new Error("Lease participant is not registered");
-		if (this.owner === participant) return this.snapshot();
-		const token = ++this.generation;
-		const previous = this.owner;
-		this.owner = null;
-		this.transferring = true;
-		if (previous) await previous.pauseForLease();
-		if (token !== this.generation || this.participants.get(participant.instanceId) !== participant) {
-			this.transferring = false;
-			return this.snapshot();
-		}
-		this.owner = participant;
-		try {
-			await participant.activateLease();
-		} catch (error) {
-			if (this.owner === participant) this.owner = null;
-			this.transferring = false;
-			throw error;
-		}
-		this.transferring = false;
-		return this.snapshot();
+		this.assertNotReentrant(participant);
+		this.requireRegistration(participant);
+		return this.enqueue(async () => {
+			const registered = this.requireRegistration(participant);
+			if (this.owner === registered && !this.transferring) return this.snapshot();
+			const token = ++this.generation;
+			const previous = this.owner ?? this.candidate;
+			let previousPaused = false;
+			this.owner = null;
+			this.candidate = registered;
+			this.transferring = true;
+			try {
+				if (previous && previous !== registered) {
+					await this.invoke(previous, previous.pauseForLease);
+					previousPaused = true;
+				}
+				if (this.participants.get(registered.instanceId) !== registered) {
+					const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
+					if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease);
+					this.owner = recoverable;
+					this.candidate = null;
+					this.transferring = false;
+					return this.snapshot();
+				}
+				await this.invoke(registered, registered.activateLease);
+				if (this.participants.get(registered.instanceId) !== registered) {
+					try {
+						await this.invoke(registered, registered.releaseLease);
+					} catch {} finally {
+						this.releasedDuringTransfer.add(registered);
+					}
+					const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
+					if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease).catch(() => {});
+					this.owner = recoverable;
+					this.candidate = null;
+					this.transferring = false;
+					return this.snapshot();
+				}
+				this.owner = registered;
+				this.candidate = null;
+				this.transferring = false;
+				return this.snapshot();
+			} catch (error) {
+				if (this.generation === token) {
+					const recoverable = previous && this.participants.get(previous.instanceId) === previous ? previous : null;
+					if (previousPaused && recoverable) await this.invoke(recoverable, recoverable.activateLease).catch(() => {});
+					this.candidate = null;
+					this.transferring = false;
+					this.owner = recoverable;
+				}
+				throw error;
+			}
+		});
 	}
 	/** @param {AeroGameMediaLeaseParticipant} participant */
 	async release(participant) {
-		if (this.owner !== participant) return this.snapshot();
-		++this.generation;
-		this.owner = null;
-		this.transferring = false;
-		await participant.releaseLease();
-		return this.snapshot();
+		this.assertNotReentrant(participant);
+		return this.enqueue(async () => {
+			const registered = this.registrations.get(participant);
+			if (!registered || this.owner !== registered && this.candidate !== registered) return this.snapshot();
+			const token = ++this.generation;
+			this.owner = null;
+			this.candidate = registered;
+			this.transferring = true;
+			try {
+				await this.invoke(registered, registered.releaseLease);
+			} finally {
+				if (this.generation === token) {
+					this.candidate = null;
+					this.transferring = false;
+				}
+			}
+			return this.snapshot();
+		});
 	}
 	/** @param {AeroGameMediaLeaseParticipant} participant */
 	async unregister(participant) {
-		if (this.participants.get(participant.instanceId) !== participant) return this.snapshot();
-		this.participants.delete(participant.instanceId);
-		if (this.owner === participant) await this.release(participant);
-		return this.snapshot();
+		const registered = this.registrations.get(participant);
+		if (!registered) return this.snapshot();
+		this.registrations.delete(participant);
+		this.participants.delete(registered.instanceId);
+		return this.enqueue(async () => {
+			const token = ++this.generation;
+			if (this.owner === registered) this.owner = null;
+			if (!this.candidate || this.candidate === registered) this.candidate = registered;
+			this.transferring = true;
+			try {
+				if (this.releasedDuringTransfer.has(registered)) this.releasedDuringTransfer.delete(registered);
+				else await this.invoke(registered, registered.releaseLease);
+			} finally {
+				if (this.generation === token) {
+					if (this.candidate === registered) this.candidate = null;
+					this.transferring = false;
+				}
+			}
+			return this.snapshot();
+		});
 	}
 	snapshot() {
 		return Object.freeze({
@@ -8243,9 +6854,250 @@ var AeroGameMediaLeaseCoordinator = class {
 	getParticipantCount() {
 		return this.participants.size;
 	}
+	/** @param {AeroGameMediaLeaseParticipant} participant */
+	requireRegistration(participant) {
+		const registered = this.registrations.get(participant);
+		if (!registered || this.participants.get(registered.instanceId) !== registered) throw new Error("Lease participant is not registered");
+		return registered;
+	}
+	/** @param {AeroGameMediaLeaseParticipant} participant */
+	assertNotReentrant(participant) {
+		if (this.callbackParticipant?.source === participant) throw new Error("Lease participant callbacks cannot reenter the coordinator");
+	}
+	/** @template T @param {()=>Promise<T>} operation @returns {Promise<T>} */
+	enqueue(operation) {
+		const queued = this.operationQueue.then(operation, operation);
+		this.operationQueue = queued.catch(() => {});
+		return queued;
+	}
+	/** @param {RegisteredParticipant} participant @param {()=>void|Promise<void>} callback */
+	async invoke(participant, callback) {
+		this.callbackParticipant = participant;
+		try {
+			await callback();
+		} finally {
+			if (this.callbackParticipant === participant) this.callbackParticipant = null;
+		}
+	}
 };
+/** @param {AeroGameMediaLeaseParticipant} participant @returns {RegisteredParticipant} */
+function normalizeParticipant(participant) {
+	if (!participant || typeof participant !== "object" || Object.getPrototypeOf(participant) !== Object.prototype) throw new TypeError("Lease participant must be a plain record");
+	const instanceId = dataProperty$3(participant, "instanceId");
+	if (typeof instanceId !== "string" || instanceId.length === 0 || instanceId.length > 256) throw new TypeError("Lease participant requires a bounded instanceId");
+	const pauseForLease = dataProperty$3(participant, "pauseForLease");
+	const activateLease = dataProperty$3(participant, "activateLease");
+	const releaseLease = dataProperty$3(participant, "releaseLease");
+	if (typeof pauseForLease !== "function" || typeof activateLease !== "function" || typeof releaseLease !== "function") throw new TypeError("Lease participant operations must be own enumerable functions");
+	return Object.freeze({
+		source: participant,
+		instanceId,
+		pauseForLease,
+		activateLease,
+		releaseLease
+	});
+}
+/** @param {object} value @param {string} key */
+function dataProperty$3(value, key) {
+	const descriptor = Object.getOwnPropertyDescriptor(value, key);
+	return descriptor && descriptor.enumerable && "value" in descriptor ? descriptor.value : void 0;
+}
 /** One coordinator for the browser process, not one per component. */
 var aeroGameMediaLeaseCoordinator = new AeroGameMediaLeaseCoordinator();
+//#endregion
+//#region src/production-cv-service.js
+/** @typedef {import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter} AeroPoseAdapter */
+/**
+* Narrow live-camera CV service used by the product root. It intentionally has
+* no replay, fallback, backend selector, resize, prediction, or worker route.
+*
+* @param {{poseAdapter:AeroPoseAdapter,submissionCadenceTargetFps?:number,now?:()=>number}} options
+*/
+function createLockedProductionCvService(options) {
+	const adapter = options.poseAdapter;
+	const targetFps = options.submissionCadenceTargetFps ?? 15;
+	if (!Number.isFinite(targetFps) || targetFps <= 0 || targetFps > 15) throw new TypeError("Production CV cadence must be within the 15fps ceiling");
+	const now = options.now ?? (() => performance.now());
+	let lifecycleState = "idle";
+	let generation = 0;
+	let timer = 0;
+	let activeSource = null;
+	let latestPoseFrame;
+	let lastError = null;
+	let submittedFrameCount = 0;
+	let poseFrameCount = 0;
+	let droppedFrameCount = 0;
+	/** @type {Promise<void>|null} */ let inFlight = null;
+	let lastTimestampMs = -1;
+	return Object.freeze({
+		serviceId: "aero.cv.pose",
+		supportedSources: Object.freeze(["live-camera"]),
+		get sourceKind() {
+			return "live-camera";
+		},
+		get running() {
+			return lifecycleState === "running";
+		},
+		async start(source) {
+			if (lifecycleState === "disposed") throw new Error("Production CV service is disposed");
+			const normalized = normalizeSource(source);
+			const token = ++generation;
+			stopTimer();
+			lifecycleState = "loading";
+			lastError = null;
+			await adapter.load();
+			if (token !== generation || lifecycleState === "disposed") return;
+			activeSource = normalized;
+			lifecycleState = "running";
+			timer = globalThis.setInterval(() => {
+				estimate(token);
+			}, Math.ceil(1e3 / targetFps));
+		},
+		async stop() {
+			if (lifecycleState === "disposed") return;
+			++generation;
+			stopTimer();
+			activeSource = null;
+			lifecycleState = "stopped";
+		},
+		async dispose() {
+			if (lifecycleState === "disposed") return;
+			++generation;
+			stopTimer();
+			activeSource = null;
+			latestPoseFrame = void 0;
+			lifecycleState = "disposed";
+			await inFlight?.catch(() => {});
+			await adapter.dispose?.();
+		},
+		async nextPoseFrame() {
+			if (!activeSource) throw new Error("Production CV source is not running");
+			await estimate(generation, true);
+			if (!latestPoseFrame) throw new Error("Production CV did not produce a pose frame");
+			return latestPoseFrame;
+		},
+		submitFrame() {
+			estimate(generation);
+		},
+		getLatestPoseFrame() {
+			return latestPoseFrame;
+		},
+		getStatus() {
+			const execution = adapter.getExecutionTelemetry?.();
+			return Object.freeze({
+				serviceId: "aero.cv.pose",
+				lifecycleState,
+				running: lifecycleState === "running",
+				sourceKind: "live-camera",
+				sourceId: activeSource?.sourceId ?? "aero.mediapipe.live",
+				mirrored: activeSource?.mirrored ?? true,
+				selectedVendorId: adapter.vendorId,
+				selectedBackendId: "mediapipe",
+				requestedBackendId: "mediapipe",
+				providerId: execution?.provider ?? "gpu-webgl",
+				gameplaySource: "measured",
+				resizePath: "none",
+				submissionCadenceTargetFps: targetFps,
+				submittedFrameCount,
+				poseFrameCount,
+				droppedFrameCount,
+				latestPoseTimestampMs: latestPoseFrame?.timestampMs ?? null,
+				error: lastError
+			});
+		}
+	});
+	/** @param {number} token @param {boolean} [waitForExisting] */
+	async function estimate(token, waitForExisting = false) {
+		if (inFlight) {
+			if (!waitForExisting) {
+				droppedFrameCount += 1;
+				return;
+			}
+			const pending = inFlight;
+			await pending;
+			if (inFlight === pending) inFlight = null;
+			return estimate(token, false);
+		}
+		const source = activeSource;
+		if (token !== generation || lifecycleState !== "running" || !source || !source.isFrameAvailable()) return;
+		submittedFrameCount += 1;
+		const operation = runEstimate(token, source);
+		inFlight = operation;
+		try {
+			await operation;
+		} finally {
+			if (inFlight === operation) inFlight = null;
+		}
+	}
+	/** @param {number} token @param {ReturnType<typeof normalizeSource>} source */
+	async function runEstimate(token, source) {
+		try {
+			const rawTimestamp = source.getTimestampMs();
+			const timestampMs = Math.max(lastTimestampMs + .001, Number.isFinite(rawTimestamp) ? rawTimestamp : now());
+			const frame = await adapter.estimateNormalizedPoseFrame(source.frameSource, {
+				sourceId: source.sourceId,
+				timestampMs,
+				mirrored: source.mirrored,
+				flipHorizontal: false,
+				frameWidth: source.frameWidth(),
+				frameHeight: source.frameHeight()
+			});
+			if (token !== generation || lifecycleState !== "running") return;
+			lastTimestampMs = timestampMs;
+			latestPoseFrame = frame;
+			poseFrameCount += 1;
+			lastError = null;
+		} catch (error) {
+			if (token === generation) {
+				lastError = errorMessage$2(error);
+				lifecycleState = "error";
+				stopTimer();
+			}
+		}
+	}
+	function stopTimer() {
+		if (timer) globalThis.clearInterval(timer);
+		timer = 0;
+	}
+}
+/** @param {HTMLVideoElement} video @param {{sourceId?:string,mirrored?:boolean}} surface */
+function createLockedVideoFrameSource(video, surface) {
+	if (!(video instanceof HTMLVideoElement)) throw new TypeError("Production CV requires an HTMLVideoElement");
+	return Object.freeze({
+		kind: "live-camera",
+		sourceId: typeof surface.sourceId === "string" && surface.sourceId ? surface.sourceId : "aero.mediapipe.live",
+		mirrored: surface.mirrored === true,
+		frameSource: video,
+		getTimestampMs: () => Number.isFinite(video.currentTime) ? video.currentTime * 1e3 : performance.now(),
+		isFrameAvailable: () => video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0,
+		frameWidth: () => video.videoWidth,
+		frameHeight: () => video.videoHeight
+	});
+}
+/** @param {unknown} source */
+function normalizeSource(source) {
+	if (!source || typeof source !== "object" || Object.getPrototypeOf(source) !== Object.prototype) throw new TypeError("Production CV source must be a plain record");
+	for (const key of [
+		"sourceId",
+		"mirrored",
+		"frameSource",
+		"getTimestampMs",
+		"isFrameAvailable",
+		"frameWidth",
+		"frameHeight"
+	]) {
+		const descriptor = Object.getOwnPropertyDescriptor(source, key);
+		if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw new TypeError(`Production CV source ${key} is invalid`);
+	}
+	if (typeof source.sourceId !== "string" || !source.sourceId || source.sourceId.length > 512 || typeof source.mirrored !== "boolean" || !(source.frameSource instanceof HTMLVideoElement) || typeof source.getTimestampMs !== "function" || typeof source.isFrameAvailable !== "function" || typeof source.frameWidth !== "function" || typeof source.frameHeight !== "function") throw new TypeError("Production CV source fields are invalid");
+	return source;
+}
+/** @param {unknown} error */
+function errorMessage$2(error) {
+	if (!error || typeof error !== "object") return "Production CV failed";
+	const descriptor = Object.getOwnPropertyDescriptor(error, "message");
+	return descriptor && "value" in descriptor && typeof descriptor.value === "string" ? descriptor.value.slice(0, 2048) : "Production CV failed";
+}
 //#endregion
 //#region node_modules/@aerobeat/web-audio/src/audio-source.js
 /** @typedef {"url" | "object-url" | "blob" | "array-buffer" | "generated-silence"} AudioSourceKind */
@@ -11862,6 +10714,107 @@ var AuthoringParseError = class extends Error {
 	}
 };
 //#endregion
+//#region node_modules/@aerobeat/web-content-authoring/src/converter-profile.js
+var converterProfileClass = "converter_regeneration";
+deepFreeze$1({
+	schema: "aerobeat/prototype_profile",
+	version: 1,
+	profileId: "aero.converter.canonical",
+	profileVersion: "1.0.0",
+	class: converterProfileClass,
+	label: "Canonical Converter (Experimental)",
+	experimental: true,
+	settings: {
+		guardRelocationRadius: 1,
+		reachAllowanceSubcells: 0
+	},
+	contentHash: "a43b53a39c13c9e9efe59854aee0fa16efdcd3c6a29bc09f678d94b3fd8f0202"
+});
+deepFreeze$1({
+	schema: "aerobeat/prototype_profile",
+	version: 1,
+	profileId: "aero.converter.prototype-reach",
+	profileVersion: "1.0.0",
+	class: converterProfileClass,
+	label: "Prototype Reach Converter (Experimental)",
+	experimental: true,
+	settings: {
+		guardRelocationRadius: 2,
+		reachAllowanceSubcells: 1
+	},
+	contentHash: "e37f8b527ed5ce86738ce22007fc963f83bccd737893fb4728d3b83eaa044eea"
+});
+/**
+* Normalize and cryptographically verify one exact experimental converter profile.
+* The label is display-only; identity hashes exact schema/version/id/version/class/settings.
+*
+* @param {unknown} value
+*/
+async function normalizeConverterProfile(value) {
+	if (!exactKeys(value, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"class",
+		"label",
+		"experimental",
+		"settings",
+		"contentHash"
+	])) throw profileError("converter_profile_invalid", "Converter profile must contain the exact bounded profile fields");
+	const record = value;
+	if (record.schema !== "aerobeat/prototype_profile" || record.version !== 1 || record.class !== "converter_regeneration" || record.experimental !== true) throw profileError("converter_profile_invalid", "Converter profile schema, version, class and experimental truth are required");
+	const profileId = boundedString$2(record.profileId, "profileId", 128);
+	const profileVersion = boundedString$2(record.profileVersion, "profileVersion", 64);
+	const label = boundedString$2(record.label, "label", 256);
+	if (!exactKeys(record.settings, ["guardRelocationRadius", "reachAllowanceSubcells"])) throw profileError("converter_profile_settings_invalid", "Converter profile settings must contain the exact supported fields");
+	const sourceSettings = record.settings;
+	const hashBody = deepFreeze$1({
+		schema: "aerobeat/prototype_profile",
+		version: 1,
+		profileId,
+		profileVersion,
+		class: converterProfileClass,
+		settings: deepFreeze$1({
+			guardRelocationRadius: boundedInteger$1(sourceSettings.guardRelocationRadius, "guardRelocationRadius", 0, 8),
+			reachAllowanceSubcells: boundedInteger$1(sourceSettings.reachAllowanceSubcells, "reachAllowanceSubcells", 0, 8)
+		})
+	});
+	const contentHash = await sha256Hex(canonicalJson(hashBody));
+	if (record.contentHash !== contentHash) throw profileError("converter_profile_hash_mismatch", "Converter profile content hash does not match its canonical identity and settings");
+	return deepFreeze$1({
+		...hashBody,
+		label,
+		experimental: true,
+		contentHash
+	});
+}
+/** @param {unknown} value @param {readonly string[]} keys */
+function exactKeys(value, keys) {
+	if (!isPlainRecord$2(value) || Reflect.ownKeys(value).length !== keys.length) return false;
+	return keys.every((key) => {
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		return descriptor && "value" in descriptor && descriptor.enumerable && descriptor.value !== void 0;
+	});
+}
+/** @param {unknown} value @param {string} field @param {number} maximum */
+function boundedString$2(value, field, maximum) {
+	if (typeof value !== "string" || !value || value.length > maximum) throw profileError("converter_profile_invalid", `${field} must be a bounded non-empty string`);
+	return value;
+}
+/** @param {unknown} value @param {string} field @param {number} minimum @param {number} maximum */
+function boundedInteger$1(value, field, minimum, maximum) {
+	if (!Number.isInteger(value) || Number(value) < minimum || Number(value) > maximum) throw profileError("converter_profile_settings_invalid", `${field} must be an integer from ${minimum} through ${maximum}`);
+	return Number(value);
+}
+/** @param {string} code @param {string} message */
+function profileError(code, message) {
+	const error = new Error(message);
+	error.name = "AeroConverterProfileError";
+	Object.assign(error, { code });
+	return error;
+}
+//#endregion
 //#region node_modules/@aerobeat/web-content-authoring/src/definitions.js
 var boxingPrototypeContractId = "aerobeat.boxing.prototype.v1";
 var rowFamilyRecipeId = "row_family_balanced_height_v1";
@@ -11971,7 +10924,7 @@ var supportedModifiers = deepFreeze$1([
 * Convert one normalized difficulty into Flow plus four Boxing charts.
 *
 * @param {Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>} sourceSummary
-* @param {{difficulty: Difficulty, songToken: string, songName: string, bpm: number, sourceProvider: string, sourceId: string, sourceVersionHash: string, sourceDifficultyPath: string, sourceBeatmapVersion: string, sourceDifficultyHash?: string, audioPath?: string, audioContentHash?: string, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>}} options
+* @param {{difficulty: Difficulty, songToken: string, songName: string, bpm: number, sourceProvider: string, sourceId: string, sourceVersionHash: string, sourceDifficultyPath: string, sourceBeatmapVersion: string, sourceDifficultyHash?: string, audioPath?: string, audioContentHash?: string, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>, converterProfile?: Readonly<Record<string, unknown>>}} options
 * @param {(progress: number, phase: string) => void} [onProgress]
 * @returns {Promise<Readonly<{package: DataRecord, packageHash: string, sourceHash: string, charts: DataRecord[], traces: DataRecord[], flowTrace: DataRecord}>>}
 */
@@ -11980,15 +10933,24 @@ async function convertDifficulty(sourceSummary, options, onProgress = () => void
 	const difficulty = normalizeDifficulty$2(options.difficulty);
 	const songToken = sanitizeToken(options.songToken || options.sourceId || "imported");
 	const modifiers = normalizeModifiers(options.modifiers ?? []);
+	const converterProfile = options.converterProfile ? await normalizeConverterProfile(options.converterProfile) : null;
+	const converterSettings = converterProfile ? {
+		...converterProfile.settings,
+		profileApplied: true
+	} : {
+		guardRelocationRadius: 8,
+		reachAllowanceSubcells: 0,
+		profileApplied: false
+	};
 	const sourceHash = await prefixedSha256(canonicalJson(sourceSummary));
 	const sourceDifficultyHash = options.sourceDifficultyHash ?? await prefixedSha256(canonicalJson(sourceSummary));
 	const charts = [];
 	const traces = [];
 	let matrixIndex = 0;
 	for (const recipe of recipeDefinitions) {
-		const generated = await generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers);
+		const generated = await generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers, converterSettings);
 		for (const rulesetId of [semanticTrackRulesetId, spatialGridRulesetId]) {
-			const chart = await chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, options.presentationSuggestion);
+			const chart = await chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, options.presentationSuggestion, converterProfile);
 			charts.push(chart);
 			traces.push({
 				chartId: chart.chartId,
@@ -12001,6 +10963,7 @@ async function convertDifficulty(sourceSummary, options, onProgress = () => void
 				sourceDifficultyPath: options.sourceDifficultyPath,
 				sourceBeatmapVersion: options.sourceBeatmapVersion,
 				sourceDifficultyHash,
+				...converterProfile ? { converterProfile: cloneData(converterProfile) } : {},
 				optimizer: cloneData(generated.optimizer),
 				events: cloneData(generated.trace)
 			});
@@ -12035,7 +10998,8 @@ async function convertDifficulty(sourceSummary, options, onProgress = () => void
 			sourceVersionHash: options.sourceVersionHash,
 			difficulty,
 			sourceDifficultyPath: options.sourceDifficultyPath,
-			sourceHash
+			sourceHash,
+			...converterProfile ? { converterProfile: cloneData(converterProfile) } : {}
 		},
 		song: {
 			schemaId: "aerobeat.song.v1",
@@ -12068,7 +11032,8 @@ async function convertDifficulty(sourceSummary, options, onProgress = () => void
 		rulesetDefinitions: cloneData(rulesetDefinitions),
 		conversionTrace: {
 			boxing: traces,
-			flow: [flow.trace]
+			flow: [flow.trace],
+			...converterProfile ? { converterProfile: cloneData(converterProfile) } : {}
 		},
 		presentationSuggestion: options.presentationSuggestion ? cloneData(options.presentationSuggestion) : null
 	};
@@ -12083,8 +11048,8 @@ async function convertDifficulty(sourceSummary, options, onProgress = () => void
 		flowTrace: flow.trace
 	});
 }
-/** @param {DataRecord} generated @param {Difficulty} difficulty @param {string} songToken @param {DataRecord} recipe @param {string} rulesetId @param {string} sourceHash @param {readonly string[]} modifiers @param {Readonly<Record<string, unknown>> | undefined} suggestion */
-async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, suggestion) {
+/** @param {DataRecord} generated @param {Difficulty} difficulty @param {string} songToken @param {DataRecord} recipe @param {string} rulesetId @param {string} sourceHash @param {readonly string[]} modifiers @param {Readonly<Record<string, unknown>> | undefined} suggestion @param {Readonly<Record<string, unknown>> | null} converterProfile */
+async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sourceHash, modifiers, suggestion, converterProfile) {
 	const recipeId = String(recipe.recipeId);
 	const recipeShort = recipeId === "row_family_balanced_height_v1" ? "row-family" : "cut-family";
 	const rulesetShort = rulesetId === "boxing_semantic_track_v1" ? "semantic-track" : "spatial-grid";
@@ -12095,7 +11060,8 @@ async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sou
 		beats,
 		recipeId,
 		rulesetId,
-		sourceHash
+		sourceHash,
+		...converterProfile ? { converterProfile } : {}
 	}));
 	const allModifiers = [...modifiers];
 	for (const beat of beats) if (typeof beat.modifier === "string" && !allModifiers.includes(beat.modifier)) allModifiers.push(beat.modifier);
@@ -12119,6 +11085,7 @@ async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sou
 			rulesetHash,
 			contentHash,
 			modifiers: allModifiers,
+			...converterProfile ? { converterProfile: cloneData(converterProfile) } : {},
 			regenerationRequiredFor: [
 				"punchMinSpacingMs",
 				"reachSubcellsPerBeat",
@@ -12131,8 +11098,8 @@ async function chartFor(generated, difficulty, songToken, recipe, rulesetId, sou
 	if (suggestion) Object.assign(chart, { presentationSuggestion: cloneData(suggestion) });
 	return chart;
 }
-/** @param {Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>} sourceSummary @param {Difficulty} difficulty @param {number} bpm @param {DataRecord} recipe @param {readonly string[]} modifiers */
-async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers) {
+/** @param {Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>} sourceSummary @param {Difficulty} difficulty @param {number} bpm @param {DataRecord} recipe @param {readonly string[]} modifiers @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers, converterSettings) {
 	const trace = [];
 	const obstacleWindows = obstaclesFor(sourceSummary.obstacles ?? [], bpm);
 	const groups = noteGroups(sourceSummary.colorNotes ?? []);
@@ -12178,7 +11145,7 @@ async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers)
 		});
 	}
 	candidates.sort(candidateOrder);
-	const optimizer = selectSpacingOptimizedPunches(candidates, bpm, obstacleWindows, difficulty);
+	const optimizer = selectSpacingOptimizedPunches(candidates, bpm, obstacleWindows, difficulty, converterSettings);
 	const beats = [];
 	let lastPunchMs = -1e9;
 	let previousHand = "";
@@ -12199,7 +11166,7 @@ async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers)
 		const start = Number(candidate.start);
 		const startMs = beatToMs(start, bpm);
 		if (candidate.kind === "guard") {
-			const emitted = await emitGuard(candidate, obstacleWindows, wristSubcell, wristBeat, difficulty, bpm, String(recipe.recipeId));
+			const emitted = await emitGuard(candidate, obstacleWindows, wristSubcell, wristBeat, difficulty, bpm, String(recipe.recipeId), converterSettings);
 			trace.push(emitted.trace);
 			if (emitted.ok && emitted.beat) {
 				beats.push(emitted.beat);
@@ -12227,7 +11194,7 @@ async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers)
 		}
 		spatial.acceptedSubcells = safe;
 		const deltaBeats = Math.max(start - wristBeat[hand], 0);
-		const target = safe.find((subcell) => reachable(wristSubcell[hand], subcell, deltaBeats, reachSubcellsPerBeat[difficulty], blocked));
+		const target = safe.find((subcell) => reachable(wristSubcell[hand], subcell, deltaBeats, reachSubcellsPerBeat[difficulty] + converterSettings.reachAllowanceSubcells, blocked));
 		if (target === void 0) {
 			trace.push(dropTrace(candidate, "unreachable_after_optimizer"));
 			continue;
@@ -12318,6 +11285,10 @@ async function generateEvents(sourceSummary, difficulty, bpm, recipe, modifiers)
 		optimizer: {
 			priorityOrder: optimizerPriority,
 			punchMinSpacingMs: 360,
+			...converterSettings.profileApplied ? {
+				guardRelocationRadius: converterSettings.guardRelocationRadius,
+				reachAllowanceSubcells: converterSettings.reachAllowanceSubcells
+			} : {},
 			selectedStableIds: [...optimizer.selected.keys()]
 		}
 	};
@@ -12329,15 +11300,15 @@ var optimizerPriority = [
 	"source_order",
 	"stable_event_id"
 ];
-/** @param {DataRecord[]} candidates @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty */
-function selectSpacingOptimizedPunches(candidates, bpm, obstacles, difficulty) {
+/** @param {DataRecord[]} candidates @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+function selectSpacingOptimizedPunches(candidates, bpm, obstacles, difficulty, converterSettings) {
 	const punches = [];
 	const infeasible = /* @__PURE__ */ new Map();
 	const guardTimesMs = candidates.filter((candidate) => candidate.kind === "guard").map((candidate) => beatToMs(Number(candidate.start), bpm));
 	for (const candidate of candidates) {
 		if (candidate.kind !== "punch") continue;
 		const punchMs = beatToMs(Number(candidate.start), bpm);
-		const reason = guardTimesMs.some((guardMs) => Math.abs(punchMs - guardMs) <= 180.0001) ? "guard_window_reserved_before_optimizer" : staticInfeasibility(candidate, bpm, obstacles, difficulty);
+		const reason = guardTimesMs.some((guardMs) => Math.abs(punchMs - guardMs) <= 180.0001) ? "guard_window_reserved_before_optimizer" : staticInfeasibility(candidate, bpm, obstacles, difficulty, converterSettings);
 		if (reason) infeasible.set(String(candidate.stableId), reason);
 		else punches.push(candidate);
 	}
@@ -12360,8 +11331,8 @@ function selectSpacingOptimizedPunches(candidates, bpm, obstacles, difficulty) {
 		infeasible
 	};
 }
-/** @param {DataRecord} candidate @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty */
-function staticInfeasibility(candidate, bpm, obstacles, difficulty) {
+/** @param {DataRecord} candidate @param {number} bpm @param {ObstacleWindow[]} obstacles @param {Difficulty} difficulty @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+function staticInfeasibility(candidate, bpm, obstacles, difficulty, converterSettings) {
 	const note = candidate.note;
 	const hand = String(note.hand);
 	const spatial = spatialTarget(String(candidate.family), hand, Number(candidate.targetRow));
@@ -12372,7 +11343,7 @@ function staticInfeasibility(candidate, bpm, obstacles, difficulty) {
 	for (const subcell of spatial.acceptedSubcells) {
 		if (blocked.has(subcell)) continue;
 		safe = true;
-		if (reachable(seedSubcell(seed), subcell, Number(candidate.start), reachSubcellsPerBeat[difficulty], blocked)) {
+		if (reachable(seedSubcell(seed), subcell, Number(candidate.start), reachSubcellsPerBeat[difficulty] + converterSettings.reachAllowanceSubcells, blocked)) {
 			reach = true;
 			break;
 		}
@@ -12455,15 +11426,15 @@ function obstacleType(cells) {
 	for (const cell of cells) cell % 4 <= 1 ? left += 1 : right += 1;
 	return left > right ? "weave_right" : right > left ? "weave_left" : "squat";
 }
-/** @param {DataRecord} candidate @param {ObstacleWindow[]} obstacles @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty @param {number} bpm @param {string} recipeIdValue */
-async function emitGuard(candidate, obstacles, wristSubcell, wristBeat, difficulty, bpm, recipeIdValue) {
+/** @param {DataRecord} candidate @param {ObstacleWindow[]} obstacles @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty @param {number} bpm @param {string} recipeIdValue @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+async function emitGuard(candidate, obstacles, wristSubcell, wristBeat, difficulty, bpm, recipeIdValue, converterSettings) {
 	const notes = candidate.notes;
 	const left = noteForHand(notes, "left");
 	const right = noteForHand(notes, "right");
 	const crossed = Number(left.cell) % 4 > Number(right.cell) % 4;
 	const sourcePair = [topLeftCell(Number(left.cell)), topLeftCell(Number(right.cell))];
 	const start = Number(candidate.start);
-	const pair = chooseGuardPair(sourcePair, crossed, blockedSubcellsAt(beatToMs(start, bpm), obstacles), start, wristSubcell, wristBeat, difficulty);
+	const pair = chooseGuardPair(sourcePair, crossed, blockedSubcellsAt(beatToMs(start, bpm), obstacles), start, wristSubcell, wristBeat, difficulty, converterSettings);
 	if (!pair.length) return {
 		ok: false,
 		trace: dropTrace(candidate, "guard_no_legal_pair")
@@ -12507,16 +11478,17 @@ async function emitGuard(candidate, obstacles, wristSubcell, wristBeat, difficul
 		}
 	};
 }
-/** @param {number[]} sourcePair @param {boolean} crossed @param {Set<number>} blocked @param {number} start @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty */
-function chooseGuardPair(sourcePair, crossed, blocked, start, wristSubcell, wristBeat, difficulty) {
+/** @param {number[]} sourcePair @param {boolean} crossed @param {Set<number>} blocked @param {number} start @param {{left:number,right:number}} wristSubcell @param {{left:number,right:number}} wristBeat @param {Difficulty} difficulty @param {{guardRelocationRadius:number,reachAllowanceSubcells:number,profileApplied:boolean}} converterSettings */
+function chooseGuardPair(sourcePair, crossed, blocked, start, wristSubcell, wristBeat, difficulty, converterSettings) {
 	const sourceSorted = [...sourcePair].sort((a, b) => a - b);
 	const candidates = [];
 	for (const pair of guardPairs) {
+		if (Math.max(cellDistance(sourceSorted[0], pair[0]), cellDistance(sourceSorted[1], pair[1])) > converterSettings.guardRelocationRadius) continue;
 		const subcells = [seedSubcell(pair[0]), seedSubcell(pair[1])];
 		if (blocked.has(subcells[0]) || blocked.has(subcells[1])) continue;
 		const leftTarget = crossed ? subcells[1] : subcells[0];
 		const rightTarget = crossed ? subcells[0] : subcells[1];
-		const rate = reachSubcellsPerBeat[difficulty];
+		const rate = reachSubcellsPerBeat[difficulty] + converterSettings.reachAllowanceSubcells;
 		if (!reachable(wristSubcell.left, leftTarget, Math.max(start - wristBeat.left, 0), rate, blocked) || !reachable(wristSubcell.right, rightTarget, Math.max(start - wristBeat.right, 0), rate, blocked)) continue;
 		const sourceRow = Math.floor(sourceSorted[0] / 4) === Math.floor(sourceSorted[1] / 4) ? Math.floor(sourceSorted[0] / 4) : 1;
 		const pairRow = Math.floor(pair[0] / 4);
@@ -12847,6 +11819,10 @@ function seedSubcell(cell) {
 	const row = clamp$2(Math.floor(cell / 4), 0, 2), column = clamp$2(cell % 4, 0, 3);
 	return (row * 2 + 1) * 8 + column * 2 + 1;
 }
+/** @param {number} left @param {number} right */
+function cellDistance(left, right) {
+	return Math.abs(Math.floor(left / 4) - Math.floor(right / 4)) + Math.abs(left % 4 - right % 4);
+}
 /** @param {number} beat @param {number} bpm */
 function beatToMs(beat, bpm) {
 	return beat * 6e4 / Math.max(bpm, 1);
@@ -13055,7 +12031,8 @@ function semanticParityProjection(packageValue) {
 			"sourceId",
 			"sourceVersionHash",
 			"difficulty",
-			"sourceDifficultyPath"
+			"sourceDifficultyPath",
+			"converterProfile"
 		]) : null,
 		song: isPlainRecord$2(packageValue.song) ? pick(packageValue.song, [
 			"schemaId",
@@ -13097,6 +12074,7 @@ function semanticParityProjection(packageValue) {
 					"rulesetId",
 					"rulesetVersion",
 					"modifiers",
+					"converterProfile",
 					"regenerationRequiredFor"
 				]) : null,
 				presentationSuggestion: Object.hasOwn(chart, "presentationSuggestion") ? chart.presentationSuggestion : null,
@@ -13129,12 +12107,14 @@ function projectTraces(value) {
 				"recipeId",
 				"rulesetId",
 				"sourceDifficultyPath",
-				"sourceBeatmapVersion"
+				"sourceBeatmapVersion",
+				"converterProfile"
 			]),
 			optimizer: trace.optimizer,
 			events: trace.events
 		} : null) : [],
-		flow: Array.isArray(value.flow) ? value.flow : null
+		flow: Array.isArray(value.flow) ? value.flow : null,
+		...value.converterProfile ? { converterProfile: value.converterProfile } : {}
 	};
 }
 /** @param {Record<string, unknown>} value @param {readonly string[]} keys */
@@ -13820,6 +12800,15 @@ async function validateAuthoredPackage(packageValue) {
 	} catch {
 		issue("definitions_invalid", "recipeDefinitions", "Definitions must be canonical plain data");
 	}
+	const sourceProfile = isPlainRecord$2(packageValue.source) ? packageValue.source.converterProfile : void 0;
+	const traceProfile = isPlainRecord$2(packageValue.conversionTrace) ? packageValue.conversionTrace.converterProfile : void 0;
+	/** @type {Readonly<Record<string,unknown>> | null} */ let converterProfile = null;
+	if (sourceProfile !== void 0 || traceProfile !== void 0) try {
+		converterProfile = await normalizeConverterProfile(sourceProfile);
+		if (canonicalJson(traceProfile) !== canonicalJson(converterProfile)) issue("converter_profile_trace_mismatch", "conversionTrace.converterProfile", "Conversion trace profile must exactly match package source provenance");
+	} catch (cause) {
+		issue("converter_profile_invalid", "source.converterProfile", cause instanceof Error ? cause.message : "Converter profile is invalid");
+	}
 	const charts = Array.isArray(packageValue.charts) ? packageValue.charts : [];
 	if (charts.length !== 5) issue("chart_count_invalid", "charts", "One difficulty must contain Flow plus four Boxing charts");
 	const chartIds = /* @__PURE__ */ new Set();
@@ -13860,6 +12849,20 @@ async function validateAuthoredPackage(packageValue) {
 			"rulesetHash",
 			"contentHash"
 		]) if (!validHash$1(prototype[hashName])) issue("prototype_hash_invalid", `${path}.prototype.${hashName}`, "Hash must be sha256 plus 64 lowercase hexadecimal digits");
+		if (converterProfile) try {
+			if (canonicalJson(prototype.converterProfile) !== canonicalJson(converterProfile)) issue("converter_profile_chart_mismatch", `${path}.prototype.converterProfile`, "Chart converter profile must exactly match package provenance");
+			const expectedContentHash = await prefixedSha256(canonicalJson({
+				beats: chart.beats,
+				recipeId: prototype.recipeId,
+				rulesetId: prototype.rulesetId,
+				sourceHash: prototype.sourceHash,
+				converterProfile
+			}));
+			if (prototype.contentHash !== expectedContentHash) issue("converter_profile_content_hash_mismatch", `${path}.prototype.contentHash`, "Chart content hash must bind converter profile identity and generated beats");
+		} catch {
+			issue("converter_profile_chart_mismatch", `${path}.prototype.converterProfile`, "Chart converter profile is invalid");
+		}
+		else if (prototype.converterProfile !== void 0) issue("converter_profile_unbound", `${path}.prototype.converterProfile`, "Chart converter profile requires package source provenance");
 		const modifiers = Array.isArray(prototype.modifiers) ? prototype.modifiers.map(String) : [];
 		const normalizedModifiers = [...new Set(modifiers)].sort();
 		const emittedModifiers = [...new Set(chart.beats.filter(isPlainRecord$2).map((beat) => beat.modifier).filter((value) => typeof value === "string"))];
@@ -13944,6 +12947,7 @@ function integerRange(value, minimum, maximum) {
 */
 async function executeWorkerConversion(request, runtime = {}) {
 	const normalized = narrowRequest(request);
+	if (normalized.options.converterProfile) normalized.options.converterProfile = await normalizeConverterProfile(normalized.options.converterProfile);
 	checkAbort(runtime.signal);
 	safeProgress(runtime.onProgress, .05, "parsing");
 	const sourceSummary = parseBeatMapDifficulty(normalized.difficultyBytes, normalized.format);
@@ -13995,7 +12999,7 @@ function createInlineAuthoringWorkerAdapter() {
 function createBrowserAuthoringWorkerAdapter(options = {}) {
 	const workerFactory = options.workerFactory ?? (() => new Worker(new URL(
 		/* @vite-ignore */
-		"/assets/conversion-worker-DCjt02nl.js",
+		"/assets/conversion-worker-B1lWXdzq.js",
 		"" + import.meta.url
 	), {
 		type: "module",
@@ -14139,7 +13143,7 @@ function narrowRequest(request) {
 		"audioContentHash",
 		"modifiers"
 	];
-	if (!hasOnlyDataKeys(record.options, requiredOptions, ["presentationSuggestion"]) || !requiredOptions.every((key) => Object.hasOwn(record.options, key))) throw workerError("worker_request_invalid", "Worker conversion options are invalid");
+	if (!hasOnlyDataKeys(record.options, requiredOptions, ["presentationSuggestion", "converterProfile"]) || !requiredOptions.every((key) => Object.hasOwn(record.options, key))) throw workerError("worker_request_invalid", "Worker conversion options are invalid");
 	const conversionOptions = record.options;
 	for (const field of [
 		"difficulty",
@@ -14167,6 +13171,7 @@ function narrowRequest(request) {
 		}
 		if (new TextEncoder().encode(encoded).byteLength > 65536) throw workerError("worker_request_invalid", "Worker presentation suggestion exceeds the size limit");
 	}
+	if (Object.hasOwn(conversionOptions, "converterProfile") && !converterProfileShape(conversionOptions.converterProfile)) throw workerError("worker_request_invalid", "Worker converter profile shape is invalid");
 	const major = Number(manifest.sourceFormatMajor);
 	const format = major === 2 ? "v2" : major === 3 ? "v3" : "v4";
 	return {
@@ -14175,6 +13180,25 @@ function narrowRequest(request) {
 		format,
 		options: cloneData(conversionOptions)
 	};
+}
+/** @param {unknown} value */
+function converterProfileShape(value) {
+	if (!hasExactDataKeys(value, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"class",
+		"label",
+		"experimental",
+		"settings",
+		"contentHash"
+	])) return false;
+	const profile = value;
+	if (profile.schema !== "aerobeat/prototype_profile" || profile.version !== 1 || profile.class !== "converter_regeneration" || profile.experimental !== true || !boundedString$1(profile.profileId, 128) || !profile.profileId || !boundedString$1(profile.profileVersion, 64) || !profile.profileVersion || !boundedString$1(profile.label, 256) || !profile.label || typeof profile.contentHash !== "string" || !/^[0-9a-f]{64}$/u.test(profile.contentHash)) return false;
+	if (!hasExactDataKeys(profile.settings, ["guardRelocationRadius", "reachAllowanceSubcells"])) return false;
+	const settings = profile.settings;
+	return Number.isInteger(settings.guardRelocationRadius) && Number(settings.guardRelocationRadius) >= 0 && Number(settings.guardRelocationRadius) <= 8 && Number.isInteger(settings.reachAllowanceSubcells) && Number(settings.reachAllowanceSubcells) >= 0 && Number(settings.reachAllowanceSubcells) <= 8;
 }
 /** @param {unknown} value @param {string} expectedJobId */
 function narrowWorkerMessage(value, expectedJobId) {
@@ -14295,7 +13319,7 @@ function workerError(code, message) {
 //#region node_modules/@aerobeat/web-content-authoring/src/service.js
 /** @typedef {ReturnType<typeof createMemoryPersistenceAdapter> | ReturnType<typeof createIndexedDbPersistenceAdapter>} PersistenceAdapter */
 /** @typedef {{kind: string, convert: (request: unknown, runtime?: {signal?: AbortSignal, onProgress?: (progress: number, phase: string) => void}) => Promise<unknown>, destroy: () => void}} WorkerAdapter */
-/** @typedef {{difficulty:string,modifiers:string[],sourceProvider?:string,sourceId?:string,sourceVersionHash?:string,expectedAudioContentHash?:string,expectedDifficultyContentHashes?:Record<string,string>,presentationSuggestion?:Record<string,unknown>,limits?:Record<string,number>,cacheSourceEntries?:boolean,includeAudio?:boolean,signal?:AbortSignal}} NormalizedRequestOptions */
+/** @typedef {{difficulty:string,modifiers:string[],sourceProvider?:string,sourceId?:string,sourceVersionHash?:string,expectedAudioContentHash?:string,expectedDifficultyContentHashes?:Record<string,string>,presentationSuggestion?:Record<string,unknown>,converterProfile?:Record<string,unknown>,limits?:Record<string,number>,cacheSourceEntries?:boolean,includeAudio?:boolean,signal?:AbortSignal}} NormalizedRequestOptions */
 /**
 * Create one reconnectable browser content-authoring service instance.
 *
@@ -14318,11 +13342,13 @@ function createAeroWebContentAuthoringService(options = {}) {
 		* Convert, validate and atomically persist one selected source difficulty.
 		*
 		* @param {unknown} acquired Provider-neutral vendor acquisition/source bundle.
-		* @param {{difficulty: string, sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>, cacheSourceEntries?: boolean, includeAudio?: boolean, limits?: Readonly<Record<string, number>>, signal?: AbortSignal}} requestOptions
+		* @param {{difficulty: string, sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>, converterProfile?: Readonly<Record<string, unknown>>, cacheSourceEntries?: boolean, includeAudio?: boolean, limits?: Readonly<Record<string, number>>, signal?: AbortSignal}} requestOptions
 		*/
 		async convertAndPersist(acquired, requestOptions) {
 			assertOpen();
 			const normalizedOptions = normalizeRequestOptions(requestOptions);
+			const converterProfile = normalizedOptions.converterProfile ? await normalizeConverterProfile(normalizedOptions.converterProfile) : null;
+			assertOpen();
 			active?.abort.abort();
 			const generation = ++sequence;
 			const jobId = `authoring-${generation}`;
@@ -14361,6 +13387,7 @@ function createAeroWebContentAuthoringService(options = {}) {
 						audioPath: normalizedOptions.includeAudio === false ? "" : manifest.audioPath,
 						audioContentHash: normalizedOptions.includeAudio === false ? "" : manifest.audioContentHash,
 						modifiers: [...normalizedOptions.modifiers],
+						...converterProfile ? { converterProfile: cloneData(converterProfile) } : {},
 						...normalizedOptions.presentationSuggestion ? { presentationSuggestion: cloneData(normalizedOptions.presentationSuggestion) } : {}
 					}
 				};
@@ -14380,7 +13407,7 @@ function createAeroWebContentAuthoringService(options = {}) {
 				const resultSourceHash = dataProperty(result, "sourceHash");
 				if (!isPlainRecord$2(resultPackage) || typeof resultPackageHash !== "string" || typeof resultParityHash !== "string" || typeof resultSourceHash !== "string") throw authoringError("worker_result_invalid", "Worker did not return a validated package");
 				const trustedValidation = await validateAuthoredPackage(resultPackage);
-				if (!trustedValidation.valid || trustedValidation.packageHash !== resultPackageHash || !workerResultMatchesManifest(resultPackage, manifest, normalizedOptions.includeAudio !== false)) throw authoringError("worker_result_invalid", "Worker package failed main-thread validation, source binding or hash verification");
+				if (!trustedValidation.valid || trustedValidation.packageHash !== resultPackageHash || !workerResultMatchesManifest(resultPackage, manifest, normalizedOptions.includeAudio !== false, converterProfile)) throw authoringError("worker_result_invalid", "Worker package failed main-thread validation, source/profile binding or hash verification");
 				checkCurrent(generation, abort.signal);
 				publish(makeSnapshot(jobId, "persisting", .94, String(manifest.sourceId), String(manifest.sourceVersionHash), String(manifest.selectedDifficulty.difficulty), null, null, null));
 				const packageRecord = resultPackage;
@@ -14622,8 +13649,8 @@ function errorMessage$1(cause) {
 	}
 	return "Content authoring failed";
 }
-/** @param {Record<string,unknown>} packageValue @param {Record<string,unknown>} manifest @param {boolean} includeAudio */
-function workerResultMatchesManifest(packageValue, manifest, includeAudio) {
+/** @param {Record<string,unknown>} packageValue @param {Record<string,unknown>} manifest @param {boolean} includeAudio @param {Readonly<Record<string,unknown>> | null} converterProfile */
+function workerResultMatchesManifest(packageValue, manifest, includeAudio, converterProfile) {
 	const source = dataProperty(packageValue, "source"), selected = dataProperty(manifest, "selectedDifficulty"), song = dataProperty(packageValue, "song");
 	if (!isPlainRecord$2(source) || !isPlainRecord$2(selected) || !isPlainRecord$2(song)) return false;
 	if (dataProperty(source, "provider") !== dataProperty(manifest, "sourceProvider") || dataProperty(source, "sourceId") !== dataProperty(manifest, "sourceId") || dataProperty(source, "sourceVersionHash") !== dataProperty(manifest, "sourceVersionHash") || dataProperty(source, "difficulty") !== dataProperty(selected, "difficulty") || dataProperty(source, "sourceDifficultyPath") !== dataProperty(selected, "path")) return false;
@@ -14631,6 +13658,14 @@ function workerResultMatchesManifest(packageValue, manifest, includeAudio) {
 	if (!Array.isArray(charts) || charts.some((chart) => !isPlainRecord$2(chart) || dataProperty(chart, "difficulty") !== dataProperty(selected, "difficulty"))) return false;
 	const conversionTrace = dataProperty(packageValue, "conversionTrace"), boxing = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "boxing") : null;
 	if (!Array.isArray(boxing) || boxing.length !== 4 || boxing.some((trace) => !isPlainRecord$2(trace) || dataProperty(trace, "sourceDifficultyPath") !== dataProperty(selected, "path") || dataProperty(trace, "sourceDifficultyHash") !== dataProperty(selected, "contentHash") || dataProperty(trace, "sourceBeatmapVersion") !== `v${String(dataProperty(manifest, "sourceFormatMajor"))}`)) return false;
+	const expectedProfile = converterProfile ? canonicalJson(converterProfile) : null;
+	const sourceProfile = dataProperty(source, "converterProfile"), traceProfile = isPlainRecord$2(conversionTrace) ? dataProperty(conversionTrace, "converterProfile") : void 0;
+	if (converterProfile) try {
+		if (canonicalJson(sourceProfile) !== expectedProfile || canonicalJson(traceProfile) !== expectedProfile) return false;
+	} catch {
+		return false;
+	}
+	else if (sourceProfile !== void 0 || traceProfile !== void 0) return false;
 	const audio = dataProperty(song, "audio"), audioPath = dataProperty(manifest, "audioPath"), audioHash = dataProperty(manifest, "audioContentHash");
 	if (includeAudio && typeof audioPath === "string" && audioPath && typeof audioHash === "string" && audioHash) return isPlainRecord$2(audio) && dataProperty(audio, "filePath") === audioPath && dataProperty(audio, "contentHash") === audioHash;
 	return audio === void 0;
@@ -14647,6 +13682,7 @@ function normalizeRequestOptions(value) {
 		"expectedDifficultyContentHashes",
 		"modifiers",
 		"presentationSuggestion",
+		"converterProfile",
 		"cacheSourceEntries",
 		"includeAudio",
 		"limits",
@@ -14689,7 +13725,8 @@ function normalizeRequestOptions(value) {
 	for (const field of [
 		"expectedDifficultyContentHashes",
 		"limits",
-		"presentationSuggestion"
+		"presentationSuggestion",
+		"converterProfile"
 	]) {
 		const entry = dataProperty(value, field);
 		if (entry !== void 0) {
@@ -15499,6 +14536,7 @@ var SUPPORTED_MODIFIERS = Object.freeze([
 * @property {DataRecord} selectedVariant
 * @property {readonly DataRecord[]} resolvedEvents
 * @property {DataRecord} [profileIdentity]
+* @property {DataRecord} [scoringSettings]
 * @property {readonly DataRecord[]} [shadowVariants]
 */
 /**
@@ -15521,9 +14559,11 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 	let packageId = null;
 	let variant = null;
 	let profileIdentity = defaultProfileIdentity();
+	let scoringSettings = defaultScoringSettings();
 	let events = Object.freeze([]);
 	const variantCatalog = /* @__PURE__ */ new Map();
 	const profileCatalog = /* @__PURE__ */ new Map();
+	const scoringSettingsCatalog = /* @__PURE__ */ new Map();
 	let shadowVariants = Object.freeze([]);
 	let calibrationId = null;
 	let safetyReady = false;
@@ -15574,15 +14614,19 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const nextVariant = normalizeVariant(source.selectedVariant);
 		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
 		const nextProfileIdentity = source.profileIdentity === void 0 ? defaultProfileIdentity() : normalizeProfile(source.profileIdentity);
+		const nextScoringSettings = source.scoringSettings === void 0 ? defaultScoringSettings() : normalizeScoringSettings(source.scoringSettings);
 		const nextShadowVariants = source.shadowVariants === void 0 ? Object.freeze([]) : normalizeShadowVariants(source.shadowVariants);
 		packageId = nextPackageId;
 		variant = nextVariant;
 		variantCatalog.clear();
 		profileCatalog.clear();
+		scoringSettingsCatalog.clear();
 		variantCatalog.set(String(nextVariant.variantId), nextVariant);
 		profileCatalog.set(String(nextVariant.variantId), nextProfileIdentity);
+		scoringSettingsCatalog.set(String(nextVariant.variantId), nextScoringSettings);
 		events = nextEvents;
 		profileIdentity = nextProfileIdentity;
+		scoringSettings = nextScoringSettings;
 		shadowVariants = nextShadowVariants;
 		clearRunTruth();
 		state = "calibrating";
@@ -15736,6 +14780,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		const nextVariant = normalizeVariant(source.selectedVariant);
 		const nextEvents = normalizeEvents(source.resolvedEvents, nextVariant);
 		const nextProfileIdentity = source.profileIdentity === void 0 ? profileIdentity : normalizeProfile(source.profileIdentity);
+		const nextScoringSettings = source.scoringSettings === void 0 ? scoringSettings : normalizeScoringSettings(source.scoringSettings);
 		const nextShadowVariants = source.shadowVariants === void 0 ? shadowVariants : normalizeShadowVariants(source.shadowVariants);
 		const preserve = new Map(events.filter((event) => shouldPreserveEvent(event)).map((event) => [String(event.eventId), event]));
 		const lineage = new Set([...preserve.values()].flatMap((event) => lineageIds(event)));
@@ -15752,7 +14797,9 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		variant = nextVariant;
 		variantCatalog.set(String(nextVariant.variantId), nextVariant);
 		profileCatalog.set(String(nextVariant.variantId), nextProfileIdentity);
+		scoringSettingsCatalog.set(String(nextVariant.variantId), nextScoringSettings);
 		profileIdentity = nextProfileIdentity;
+		scoringSettings = nextScoringSettings;
 		shadowVariants = nextShadowVariants;
 		generation += 1;
 		publish(null);
@@ -16015,12 +15062,12 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		else {
 			judgements.push(judgement);
 			judgedIds.add(String(event.eventId));
-			updateScore(result, eventVariant, eventProfile);
+			updateScore(result, eventVariant, eventProfile, scoringSettingsForEvent(event));
 		}
 	}
-	/** @param {"hit" | "miss" | "ignored"} result @param {DataRecord} scoreVariant @param {DataRecord} scoreProfile */
-	function updateScore(result, scoreVariant, scoreProfile) {
-		const key = scorePartitionKey(scoreVariant, scoreProfile);
+	/** @param {"hit" | "miss" | "ignored"} result @param {DataRecord} scoreVariant @param {DataRecord} scoreProfile @param {DataRecord} settings */
+	function updateScore(result, scoreVariant, scoreProfile, settings) {
+		const key = scorePartitionKey(scoreVariant, scoreProfile, settings);
 		const next = { ...partitions.get(key) ?? {
 			partitionId: key,
 			variantId: scoreVariant.variantId,
@@ -16034,6 +15081,8 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 			profileHash: scoreProfile.contentHash,
 			profileClass: scoreProfile.class,
 			regenerationRequired: scoreProfile.regenerationRequired,
+			scoringSettings: settings,
+			scoringSettingsIdentity: scoreSettingsIdentity(settings),
 			ranked: scoreVariant.ranked === true,
 			localOnly: true,
 			hits: 0,
@@ -16045,11 +15094,12 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		} };
 		if (result === "hit") {
 			next.hits += 1;
-			next.score += 1;
 			next.combo += 1;
+			next.score = finiteScore(next.score + Number(settings.hitPoints) + Math.max(0, next.combo - 1) * Number(settings.comboBonusPerHit));
 			next.maxCombo = Math.max(next.maxCombo, next.combo);
 		} else if (result === "miss") {
 			next.misses += 1;
+			next.score = finiteScore(Math.max(0, next.score - Number(settings.missPenalty)));
 			next.combo = 0;
 		} else next.ignored += 1;
 		partitions.set(key, Object.freeze(next));
@@ -16108,6 +15158,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 			lease: leaseSnapshot,
 			selectedVariant: variant ? publicVariant(variant) : null,
 			profileIdentity,
+			scoringSettings,
 			activeEventIds: Object.freeze([...activeIds].sort(compareCodePoints)),
 			judgedEventIds: Object.freeze([...judgedIds].sort(compareCodePoints)),
 			judgements: Object.freeze([...judgements]),
@@ -16146,6 +15197,10 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 	/** @param {DataRecord} event @returns {DataRecord} */
 	function profileForEvent(event) {
 		return profileCatalog.get(String(event.variantId)) ?? profileIdentity;
+	}
+	/** @param {DataRecord} event @returns {DataRecord} */
+	function scoringSettingsForEvent(event) {
+		return scoringSettingsCatalog.get(String(event.variantId)) ?? scoringSettings;
 	}
 	function assertOpen() {
 		if (destroyed) throw gameplayError("service_destroyed", "Gameplay coordinator is destroyed");
@@ -16326,8 +15381,27 @@ function validateEventForVariant(event, selectedVariant) {
 /** @param {unknown} value @returns {DataRecord} */
 function normalizeProfile(value) {
 	const record = requireRecord$1(value, "profile_identity_invalid");
-	if (!isPrototypeTuningIdentity(record)) throw gameplayError("profile_identity_invalid", "Profile identity does not satisfy the public tuning contract");
+	if (!isPrototypeTuningIdentity(record) || record.class !== "between_run_ruleset") throw gameplayError("profile_identity_invalid", "Profile identity does not satisfy the gameplay tuning contract for a between-run ruleset");
 	return record;
+}
+/** @param {unknown} value @returns {DataRecord} */
+function normalizeScoringSettings(value) {
+	const record = requireDataRecordFields(value, "scoring_settings_invalid", [
+		"comboBonusPerHit",
+		"hitPoints",
+		"missPenalty"
+	]);
+	if (Reflect.ownKeys(record).length !== 3) throw gameplayError("scoring_settings_invalid", "Scoring settings require every exact field");
+	return Object.freeze({
+		comboBonusPerHit: boundedScoreNumber(record.comboBonusPerHit),
+		hitPoints: boundedScoreNumber(record.hitPoints),
+		missPenalty: boundedScoreNumber(record.missPenalty)
+	});
+}
+/** @param {unknown} value */
+function boundedScoreNumber(value) {
+	if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100) throw gameplayError("scoring_settings_invalid", "Scoring settings must be finite values from 0 through 100");
+	return Object.is(value, -0) ? 0 : value;
 }
 /** @param {unknown} value @returns {readonly DataRecord[]} */
 function normalizeShadowVariants(value) {
@@ -16513,8 +15587,24 @@ function defaultProfileIdentity() {
 		regenerationRequired: false
 	});
 }
-/** @param {DataRecord} variant @param {DataRecord} profile */
-function scorePartitionKey(variant, profile) {
+function defaultScoringSettings() {
+	return Object.freeze({
+		comboBonusPerHit: 0,
+		hitPoints: 1,
+		missPenalty: 0
+	});
+}
+/** @param {DataRecord} settings */
+function scoreSettingsIdentity(settings) {
+	return `scoring-v1:${JSON.stringify(settings.hitPoints)},${JSON.stringify(settings.missPenalty)},${JSON.stringify(settings.comboBonusPerHit)}`;
+}
+/** @param {number} value */
+function finiteScore(value) {
+	if (!Number.isFinite(value) || value < 0) throw gameplayError("score_value_invalid", "Score arithmetic must remain finite and non-negative");
+	return Object.is(value, -0) ? 0 : value;
+}
+/** @param {DataRecord} variant @param {DataRecord} profile @param {DataRecord} settings */
+function scorePartitionKey(variant, profile, settings) {
 	const mapHash = isPlainRecord$1(variant.mapHash) && typeof variant.mapHash.value === "string" ? variant.mapHash.value : "unhashed";
 	const scoreHash = isPlainRecord$1(variant.scoreIdentityHash) && typeof variant.scoreIdentityHash.value === "string" ? variant.scoreIdentityHash.value : "unhashed";
 	return [
@@ -16531,7 +15621,8 @@ function scorePartitionKey(variant, profile) {
 		profile.profileVersion,
 		profile.contentHash,
 		profile.class,
-		profile.regenerationRequired ? "regenerate" : "live"
+		profile.regenerationRequired ? "regenerate" : "live",
+		scoreSettingsIdentity(settings)
 	].join("|");
 }
 /** @param {DataRecord} variant */
@@ -16602,6 +15693,88 @@ function randomToken() {
 	}
 	return `${bytes[0].toString(16)}${bytes[1].toString(16)}`;
 }
+Object.freeze([
+	"live_visual",
+	"between_run_ruleset",
+	"converter_regeneration"
+]);
+Object.freeze({
+	live_visual: "aero.visual.default",
+	between_run_ruleset: "aero.scoring.locked",
+	converter_regeneration: "aero.converter.canonical"
+});
+Object.freeze([
+	"idle",
+	"calibrating",
+	"paused_manual",
+	"paused_tracking",
+	"completed",
+	"stopped"
+]);
+Object.freeze([
+	Object.freeze({
+		profileId: "aero.visual.default",
+		profileVersion: "1.0.0",
+		class: "live_visual",
+		label: "Default Visual (Experimental)",
+		settings: Object.freeze({
+			motionIntensity: 1,
+			roleScale: 1
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.visual.compact",
+		profileVersion: "1.0.0",
+		class: "live_visual",
+		label: "Compact Visual (Experimental)",
+		settings: Object.freeze({
+			motionIntensity: .8,
+			roleScale: .86
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.scoring.locked",
+		profileVersion: "1.0.0",
+		class: "between_run_ruleset",
+		label: "Locked Scoring (Experimental)",
+		settings: Object.freeze({
+			comboBonusPerHit: 0,
+			hitPoints: 1,
+			missPenalty: 0
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.scoring.prototype-wide",
+		profileVersion: "1.0.0",
+		class: "between_run_ruleset",
+		label: "Prototype Wide Scoring (Experimental)",
+		settings: Object.freeze({
+			comboBonusPerHit: .05,
+			hitPoints: 1.25,
+			missPenalty: 0
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.converter.canonical",
+		profileVersion: "1.0.0",
+		class: "converter_regeneration",
+		label: "Canonical Converter (Experimental)",
+		settings: Object.freeze({
+			guardRelocationRadius: 1,
+			reachAllowanceSubcells: 0
+		})
+	}),
+	Object.freeze({
+		profileId: "aero.converter.prototype-reach",
+		profileVersion: "1.0.0",
+		class: "converter_regeneration",
+		label: "Prototype Reach Converter (Experimental)",
+		settings: Object.freeze({
+			guardRelocationRadius: 2,
+			reachAllowanceSubcells: 1
+		})
+	})
+]);
 serviceIds$1.gameplaySession;
 Object.freeze(["flow", "boxing"]);
 Object.freeze({
@@ -16615,6 +15788,8 @@ Object.freeze({
 	spatialGridBoxing: true,
 	futureVariantSwap: true,
 	diagnosticShadows: true,
+	prototypeProfileRegistry: true,
+	deterministicProfileBundles: true,
 	localPrototypeScoresOnly: true,
 	publicLeaderboards: false
 });
@@ -18134,20 +17309,21 @@ function isThemeDescriptor(value) {
 /** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
 /** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:"up"|"right"|"down"|"left"|null}} AeroRenderableTarget */
 /** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
-/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, dprCap:number}} AeroRendererTuning */
+/** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
 /** @typedef {{leftHandColor:string,rightHandColor:string,guardColor:string,obstacleColor:string,receptorColor:string,approachLeadMs:number,targetStartScale:number,targetHitScale:number,approachEasing:string,hitEasing:string,missEasing:string}} AeroRendererThemeTokens */
 /** @typedef {{commands:readonly AeroGameplayDrawCommand[], overlay:Readonly<{kind:string,dim:number,countdown:number|null}>, presentation:AeroGameplayPresentation, grid:Readonly<{x:number,y:number,width:number,height:number,columns:4,rows:3}>}} AeroGameplayRenderPlan */
 /** @type {AeroRendererTuning} */
 var defaultRendererTuning = Object.freeze({
 	id: "aero.renderer.prototype.default",
 	version: "1",
-	hash: "visual-7dcc90bd",
+	hash: "visual-538685f6",
 	gridInset: .055,
 	gridGap: .018,
 	receptorAlpha: .22,
 	approachRingScale: 1.55,
 	approachRingWidth: .08,
 	laneWidth: .22,
+	roleScale: 1,
 	dprCap: 2
 });
 /** @type {AeroRendererThemeTokens} */
@@ -18313,7 +17489,8 @@ function addTarget(commands, frame, target, grid, theme, tuning) {
 		alpha *= 1 - feedback * .9;
 	}
 	const rects = targetRects(frame.presentation, target, grid, tuning, frame.viewportAspect);
-	for (const baseRect of rects) {
+	for (const targetRect of rects) {
+		const baseRect = scaledRect(targetRect, tuning.roleScale);
 		const rect = scaledRect(baseRect, scale);
 		const iconId = iconIdFor(target);
 		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
@@ -18720,6 +17897,15 @@ function finiteNumberOrZero(value) {
 /** @typedef {import("./gameplay-plan.js").AeroRendererTuning} AeroRendererTuning */
 /** @typedef {{schema:"aerobeat/theme_descriptor",version:1,id:string,themeVersion:string,tokens:AeroRendererThemeTokens,contentHash:Readonly<{algorithm:string,value:string}>}} AeroThemeDescriptor */
 /** @typedef {{kind:"solid"|"linear-gradient",colors:readonly string[],angleDeg:number}} AeroRendererBackgroundProjection */
+/** @typedef {Readonly<{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:string,profileVersion:string,contentHash:string,class:"live_visual",regenerationRequired:false}>} AeroRendererVisualIdentity */
+/** @typedef {Readonly<{motionIntensity:number,roleScale:number}>} AeroRendererVisualSettings */
+/** @typedef {Readonly<{identity:AeroRendererVisualIdentity,settings:AeroRendererVisualSettings}>} AeroRendererVisualProfileSelection */
+var DEFAULT_VISUAL_HASH = "fdcf478c91e21ef88970299e29fcc35d574bfe69e0d7d00d9f823ee9507f39a3";
+var COMPACT_VISUAL_HASH = "e65d53dfaafe8a859c08837acb3d447b10b03508bd5ae64677d273c93657d603";
+/** @type {AeroRendererVisualProfileSelection} */
+var defaultRendererVisualProfile = visualProfile("aero.visual.default", DEFAULT_VISUAL_HASH, 1, 1);
+/** @type {AeroRendererVisualProfileSelection} */
+var compactRendererVisualProfile = visualProfile("aero.visual.compact", COMPACT_VISUAL_HASH, .8, .86);
 /**
 * Narrow a public theme descriptor into renderer-owned immutable tokens.
 *
@@ -18770,6 +17956,7 @@ function normalizeRendererTuning(value) {
 		"approachRingScale",
 		"approachRingWidth",
 		"laneWidth",
+		"roleScale",
 		"dprCap"
 	];
 	const requiredNames = [
@@ -18788,6 +17975,7 @@ function normalizeRendererTuning(value) {
 		approachRingScale: clamp(Number(value.approachRingScale), 1, 3),
 		approachRingWidth: clamp(Number(value.approachRingWidth), .01, .3),
 		laneWidth: clamp(Number(value.laneWidth), .1, .4),
+		roleScale: clamp(Number(value.roleScale), .5, 1.5),
 		dprCap: clamp(Number(value.dprCap), 1, 4)
 	};
 	const hash = stableVisualHash(normalized);
@@ -18795,6 +17983,56 @@ function normalizeRendererTuning(value) {
 	return Object.freeze({
 		...normalized,
 		hash
+	});
+}
+/**
+* Strictly narrow one public gameplay visual selection without depending on the
+* gameplay package. Only the two content-hashed experimental Task 11 profiles
+* are renderer inputs; scoring/converter identities never cross this adapter.
+*
+* @param {unknown} value
+* @returns {AeroRendererVisualProfileSelection}
+*/
+function normalizeRendererVisualProfile(value) {
+	const outer = exactDataRecord(value, ["identity", "settings"], "Visual profile selection");
+	const identity = exactDataRecord(outer.identity, [
+		"schema",
+		"version",
+		"profileId",
+		"profileVersion",
+		"contentHash",
+		"class",
+		"regenerationRequired"
+	], "Visual profile identity");
+	const settings = exactDataRecord(outer.settings, ["motionIntensity", "roleScale"], "Visual profile settings");
+	if (identity.schema !== "aerobeat/prototype_tuning_identity" || identity.version !== 1 || identity.class !== "live_visual" || identity.regenerationRequired !== false) throw new TypeError("Visual profile identity is incompatible with live renderer tuning");
+	for (const name of [
+		"profileId",
+		"profileVersion",
+		"contentHash"
+	]) if (typeof identity[name] !== "string" || identity[name].length === 0 || identity[name].length > 128) throw new TypeError(`Visual profile ${name} is invalid`);
+	if (!/^[0-9a-f]{64}$/u.test(String(identity.contentHash))) throw new TypeError("Visual profile contentHash must be bare lowercase SHA-256");
+	if (typeof settings.motionIntensity !== "number" || !Number.isFinite(settings.motionIntensity) || settings.motionIntensity < 0 || settings.motionIntensity > 2 || typeof settings.roleScale !== "number" || !Number.isFinite(settings.roleScale) || settings.roleScale < .5 || settings.roleScale > 1.5) throw new TypeError("Visual profile settings are outside renderer bounds");
+	const normalized = visualProfile(String(identity.profileId), String(identity.contentHash), Number(settings.motionIntensity), Number(settings.roleScale), String(identity.profileVersion));
+	const expected = normalized.identity.profileId === "aero.visual.default" ? defaultRendererVisualProfile : normalized.identity.profileId === "aero.visual.compact" ? compactRendererVisualProfile : null;
+	if (!expected || !sameVisualSelection(normalized, expected)) throw new TypeError("Visual profile identity, settings, or content hash is not a supported experimental profile");
+	return expected;
+}
+/** @param {AeroRendererVisualProfileSelection} profile @returns {AeroRendererTuning} */
+function rendererTuningFromVisualProfile(profile) {
+	const motionIntensity = profile.settings.motionIntensity;
+	const roleScale = profile.settings.roleScale;
+	return normalizeRendererTuning({
+		id: profile.identity.profileId,
+		version: profile.identity.profileVersion,
+		gridInset: defaultRendererTuning.gridInset,
+		gridGap: defaultRendererTuning.gridGap,
+		receptorAlpha: defaultRendererTuning.receptorAlpha,
+		approachRingScale: 1 + (defaultRendererTuning.approachRingScale - 1) * motionIntensity,
+		approachRingWidth: defaultRendererTuning.approachRingWidth * Math.max(.5, motionIntensity),
+		laneWidth: defaultRendererTuning.laneWidth,
+		roleScale,
+		dprCap: defaultRendererTuning.dprCap
 	});
 }
 /**
@@ -18868,6 +18106,42 @@ function isRecord(value) {
 function clamp(value, minimum, maximum) {
 	return Math.max(minimum, Math.min(maximum, value));
 }
+/** @param {string} profileId @param {string} contentHash @param {number} motionIntensity @param {number} roleScale @param {string} [profileVersion] @returns {AeroRendererVisualProfileSelection} */
+function visualProfile(profileId, contentHash, motionIntensity, roleScale, profileVersion = "1.0.0") {
+	return Object.freeze({
+		identity: Object.freeze({
+			schema: "aerobeat/prototype_tuning_identity",
+			version: 1,
+			profileId,
+			profileVersion,
+			contentHash,
+			class: "live_visual",
+			regenerationRequired: false
+		}),
+		settings: Object.freeze({
+			motionIntensity,
+			roleScale
+		})
+	});
+}
+/** @param {unknown} value @param {readonly string[]} keys @param {string} label @returns {Record<string,unknown>} */
+function exactDataRecord(value, keys, label) {
+	if (value === null || typeof value !== "object" || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype || Object.getOwnPropertySymbols(value).length !== 0) throw new TypeError(`${label} must be a plain data record`);
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	const names = Object.keys(descriptors);
+	if (names.length !== keys.length || !keys.every((key) => names.includes(key))) throw new TypeError(`${label} fields are invalid`);
+	/** @type {Record<string,unknown>} */ const result = {};
+	for (const key of keys) {
+		const descriptor = descriptors[key];
+		if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) throw new TypeError(`${label} must not contain accessors or hidden fields`);
+		result[key] = descriptor.value;
+	}
+	return result;
+}
+/** @param {AeroRendererVisualProfileSelection} left @param {AeroRendererVisualProfileSelection} right */
+function sameVisualSelection(left, right) {
+	return left.identity.profileId === right.identity.profileId && left.identity.profileVersion === right.identity.profileVersion && left.identity.contentHash === right.identity.contentHash && left.settings.motionIntensity === right.settings.motionIntensity && left.settings.roleScale === right.settings.roleScale;
+}
 //#endregion
 //#region node_modules/@aerobeat/web-renderer/src/renderer-facade.js
 /** @type {"aero.renderer.webgl2"} */
@@ -18882,7 +18156,7 @@ var aeroWebGl2RendererServiceId = "aero.renderer.webgl2";
 /** @typedef {"unsupported"|"ready"|"running"|"context_lost"|"error"|"destroyed"} AeroRendererState */
 /** @typedef {{widthCssPx:number,heightCssPx:number,devicePixelRatio:number,maxDevicePixelRatio?:number}} AeroRendererResize */
 /** @typedef {{surface?:AeroRendererOverlaySurfaceDescriptorInput,connections?:readonly (readonly [number,number])[],minVisibility?:number,color?:readonly [number,number,number,number],pointSize?:number}} AeroRendererOverlayOptions */
-/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
+/** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,visualProfile:import("./visual-profiles.js").AeroRendererVisualProfileSelection,visualProfileIdentity:import("./visual-profiles.js").AeroRendererVisualIdentity,visualProfileSettings:import("./visual-profiles.js").AeroRendererVisualSettings,experimental:true,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
 /** @typedef {{serviceId:"aero.renderer.webgl2",webgl2:boolean,exactContainerResize:true,dprAware:true,contextLossRecovery:true,alphaMaskIcons:boolean,liveTuning:true,maxDevicePixelRatio:number,degradations:readonly string[]}} AeroWebGl2RendererCapabilities */
 /** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,shapeLocation:WebGLUniformLocation|null,ringWidthLocation:WebGLUniformLocation|null}} ShapeProgram */
 /** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,uvRectLocation:WebGLUniformLocation|null,samplerLocation:WebGLUniformLocation|null}} IconProgram */
@@ -18910,7 +18184,8 @@ var AeroWebGl2Renderer = class {
 		/** @type {Map<string, import("./icon-atlas.js").AeroIconAtlasEntry>} */ this.iconEntries = /* @__PURE__ */ new Map();
 		/** @type {AeroRendererState} */ this.state = "unsupported";
 		/** @type {AeroRendererThemeTokens} */ this.theme = defaultRendererThemeTokens;
-		/** @type {AeroRendererTuning} */ this.tuning = defaultRendererTuning;
+		this.visualProfile = defaultRendererVisualProfile;
+		/** @type {AeroRendererTuning} */ this.tuning = rendererTuningFromVisualProfile(this.visualProfile);
 		this.themeId = "aero.theme.default";
 		this.themeVersion = "1";
 		this.themeHash = "theme-default";
@@ -18987,23 +18262,34 @@ var AeroWebGl2Renderer = class {
 		this.themeHash = accepted ? descriptor.contentHash.value : "theme-default";
 		return this.describe();
 	}
-	/** @param {unknown} tuning @returns {AeroWebGl2RendererStatus} */
-	setTuning(tuning) {
-		if (!this.destroyed) this.tuning = normalizeRendererTuning(tuning);
-		return this.describe();
+	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
+	setTuning(selection) {
+		return this.importTuning(selection);
 	}
-	/** @param {unknown} tuning @returns {AeroWebGl2RendererStatus} */
-	importTuning(tuning) {
-		return this.setTuning(tuning);
+	/** @param {unknown} selection @returns {AeroWebGl2RendererStatus} */
+	importTuning(selection) {
+		if (this.destroyed) return this.describe();
+		const visualProfile = normalizeRendererVisualProfile(selection);
+		const tuning = rendererTuningFromVisualProfile(visualProfile);
+		this.visualProfile = visualProfile;
+		this.tuning = tuning;
+		return this.describe();
 	}
 	/** @returns {AeroWebGl2RendererStatus} */
 	resetTuning() {
-		if (!this.destroyed) this.tuning = defaultRendererTuning;
+		if (!this.destroyed) {
+			this.visualProfile = defaultRendererVisualProfile;
+			this.tuning = rendererTuningFromVisualProfile(this.visualProfile);
+		}
 		return this.describe();
 	}
-	/** @returns {AeroRendererTuning} */
+	/** @returns {import("./visual-profiles.js").AeroRendererVisualProfileSelection} */
 	exportTuning() {
-		return Object.freeze({ ...this.tuning });
+		return this.visualProfile;
+	}
+	/** @returns {AeroWebGl2RendererStatus} */
+	getSnapshot() {
+		return this.describe();
 	}
 	/** @param {unknown} background @returns {AeroWebGl2RendererStatus} */
 	setBackgroundProjection(background) {
@@ -19205,6 +18491,10 @@ var AeroWebGl2Renderer = class {
 			tuningVersion: this.tuning.version,
 			tuningHash: this.tuning.hash,
 			tuningRequiresRegeneration: false,
+			visualProfile: this.visualProfile,
+			visualProfileIdentity: this.visualProfile.identity,
+			visualProfileSettings: this.visualProfile.settings,
+			experimental: true,
 			iconAtlasReady: Boolean(this.iconTexture),
 			iconAtlasError: this.iconAtlasError,
 			errorMessage: this.errorMessage
@@ -21544,7 +20834,7 @@ function createMediaPipePoseAdapter(options = {}) {
 function createMediaPipePoseAdapterFromRuntime(loadRuntime, options = {}) {
 	const sourceId = options.sourceId ?? "aero.mediapipe.live";
 	const mirrored = options.mirrored ?? true;
-	const delegate = validateDelegate$1(options.delegate ?? mediaPipeDelegates.cpuWasm);
+	const delegate = validateDelegate(options.delegate ?? mediaPipeDelegates.cpuWasm);
 	const executionProvider = delegate === mediaPipeDelegates.cpuWasm ? "wasm" : "webgl";
 	const modelUrl = options.modelUrl ?? "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
 	const usesDefaultModelIdentity = modelUrl === "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" && options.modelId === void 0 && options.modelVersion === void 0;
@@ -21563,7 +20853,7 @@ function createMediaPipePoseAdapterFromRuntime(loadRuntime, options = {}) {
 	const minPoseDetectionConfidence = validateConfidenceThreshold(options.minPoseDetectionConfidence ?? .5, "minPoseDetectionConfidence");
 	const minPosePresenceConfidence = validateConfidenceThreshold(options.minPosePresenceConfidence ?? .5, "minPosePresenceConfidence");
 	const minTrackingConfidence = validateConfidenceThreshold(options.minTrackingConfidence ?? .5, "minTrackingConfidence");
-	const now = options.now ?? defaultNow$1;
+	const now = options.now ?? defaultNow;
 	/** @type {"idle" | "loading" | "ready" | "failed" | "disposed"} */
 	let status = mediaPipeAdapterStatuses.idle;
 	/** @type {PoseLandmarkerLike | undefined} */
@@ -21773,7 +21063,7 @@ function readMediaCurrentTime(frameSource) {
 * @param {"cpu-wasm" | "gpu-webgl"} delegate
 * @returns {"cpu-wasm" | "gpu-webgl"}
 */
-function validateDelegate$1(delegate) {
+function validateDelegate(delegate) {
 	if (delegate !== mediaPipeDelegates.cpuWasm && delegate !== mediaPipeDelegates.gpuWebgl) throw new Error(`Unsupported MediaPipe delegate: ${delegate}`);
 	return delegate;
 }
@@ -21792,13 +21082,13 @@ function validateConfidenceThreshold(value, name) {
 * @returns {number}
 */
 function nextMonotonicTimestamp(candidate, previous) {
-	const safeCandidate = Number.isFinite(candidate) ? candidate : defaultNow$1();
+	const safeCandidate = Number.isFinite(candidate) ? candidate : defaultNow();
 	return safeCandidate > previous ? safeCandidate : previous + .001;
 }
 /**
 * @returns {number}
 */
-function defaultNow$1() {
+function defaultNow() {
 	return globalThis.performance?.now?.() ?? Date.now();
 }
 /**
@@ -21809,7 +21099,7 @@ function readErrorMessage(error) {
 	if (error instanceof Error) return error.message;
 	return typeof error === "string" ? error : "unknown MediaPipe error";
 }
-var mediaPipeWorkerCapabilities = Object.freeze({
+Object.freeze({
 	supportsMainThread: false,
 	supportsWorker: true,
 	supportsMirroring: true,
@@ -21832,452 +21122,6 @@ var mediaPipeWorkerCapabilities = Object.freeze({
 		"right_wrist"
 	])
 });
-/**
-* @typedef {Object} WorkerLike
-* @property {((event: MessageEvent) => void) | null} onmessage
-* @property {((event: ErrorEvent) => void) | null} onerror
-* @property {(message: unknown, transfer?: Transferable[]) => void} postMessage
-* @property {() => void} terminate
-*/
-/**
-* @typedef {Object} MediaPipeWorkerAdapterOptions
-* @property {string} [sourceId]
-* @property {boolean} [mirrored]
-* @property {"cpu-wasm" | "gpu-webgl"} [delegate]
-* @property {string} [modelUrl]
-* @property {string} [modelId]
-* @property {string} [modelVersion]
-* @property {string} [wasmRootUrl]
-* @property {string} [modelName]
-* @property {string} [modelSha256]
-* @property {number} [modelSizeBytes]
-* @property {number} [minPoseDetectionConfidence]
-* @property {number} [minPosePresenceConfidence]
-* @property {number} [minTrackingConfidence]
-* @property {() => number} [now]
-* @property {(url: URL, options: WorkerOptions) => WorkerLike} [workerFactory]
-* @property {URL} [workerUrl]
-* @property {string} [tasksVisionScriptUrl] Pinned classic-worker bundle URL; injectable for self-hosting/tests.
-*/
-/**
-* Creates an experimental real Worker adapter. The caller owns latest-frame
-* replacement; this adapter deliberately permits only one accepted request.
-*
-* @param {MediaPipeWorkerAdapterOptions} [options]
-*/
-function createMediaPipeWorkerPoseAdapter(options = {}) {
-	const sourceId = options.sourceId ?? "aero.mediapipe.live";
-	const mirrored = options.mirrored ?? true;
-	const delegate = validateDelegate(options.delegate ?? mediaPipeDelegates.cpuWasm);
-	const executionProvider = delegate === mediaPipeDelegates.cpuWasm ? "wasm" : "webgl";
-	const modelUrl = options.modelUrl ?? "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task";
-	const usesDefaultModel = modelUrl === "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" && options.modelId === void 0 && options.modelVersion === void 0;
-	const model = usesDefaultModel ? mediaPipeDefaultModel : Object.freeze({
-		vendorId: mediaPipeVendorId,
-		modelId: options.modelId ?? modelUrl,
-		...options.modelVersion === void 0 ? {} : { modelVersion: options.modelVersion },
-		runtimeId: "@mediapipe/tasks-vision",
-		runtimeVersion: mediaPipePackageVersion
-	});
-	const wasmRootUrl = options.wasmRootUrl ?? "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
-	const modelName = options.modelName ?? (usesDefaultModel ? "Pose Landmarker Lite float16 /1/" : model.modelId);
-	const modelSha256 = options.modelSha256 ?? (modelUrl === "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" ? "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a" : "");
-	const modelSizeBytes = options.modelSizeBytes ?? (modelUrl === "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" ? 5777746 : 0);
-	const minPoseDetectionConfidence = validateThreshold(options.minPoseDetectionConfidence ?? .5, "minPoseDetectionConfidence");
-	const minPosePresenceConfidence = validateThreshold(options.minPosePresenceConfidence ?? .5, "minPosePresenceConfidence");
-	const minTrackingConfidence = validateThreshold(options.minTrackingConfidence ?? .5, "minTrackingConfidence");
-	const now = options.now ?? defaultNow;
-	const workerFactory = options.workerFactory ?? defaultWorkerFactory;
-	const workerUrl = options.workerUrl ?? new URL("/assets/mediapipe-worker.js", "" + import.meta.url);
-	const tasksVisionScriptUrl = options.tasksVisionScriptUrl ?? "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.js";
-	/** @type {WorkerLike | undefined} */
-	let worker;
-	/** @type {"idle" | "loading" | "ready" | "failed" | "disposed"} */
-	let status = mediaPipeAdapterStatuses.idle;
-	let disposed = false;
-	let terminated = false;
-	let requestId = 0;
-	let generation = 0;
-	let estimatePreparing = false;
-	/** @type {Promise<void> | undefined} */
-	let loading;
-	/** @type {{ id: number, generation: number, startedAtMs: number, resolve: (frame: import("@aerobeat/web-contracts/pose-shapes").NormalizedPoseFrame) => void, reject: (error: Error) => void } | undefined} */
-	let activeEstimate;
-	/** @type {{ resolve: () => void, reject: (error: Error) => void } | undefined} */
-	let loadResolver;
-	/** @type {Promise<void> | undefined} */
-	let disposing;
-	/** @type {(() => void) | undefined} */
-	let disposeResolver;
-	/** @type {number | undefined} */
-	let disposeTimeoutHandle;
-	/** @type {"cpu-wasm" | "gpu-webgl" | undefined} */
-	let actualDelegate;
-	/** @type {number | undefined} */
-	let loadDurationMs;
-	/** @type {number | undefined} */
-	let estimateDurationMs;
-	/** @type {number | undefined} */
-	let runtimeInferenceDurationMs;
-	/** @type {number | undefined} */
-	let postprocessDurationMs;
-	/** @type {number | undefined} */
-	let workerRoundTripDurationMs;
-	/** @type {"ImageBitmap" | "VideoFrame" | undefined} */
-	let transferFrameType;
-	/** @type {string | undefined} */
-	let lastError;
-	const detail = `MediaPipe Tasks Vision ${delegate === mediaPipeDelegates.cpuWasm ? "CPU/WASM" : "GPU/WebGL"} in dedicated classic worker / thresholds detection ${minPoseDetectionConfidence} presence ${minPosePresenceConfidence} tracking ${minTrackingConfidence}`;
-	const adapter = {
-		vendorId: mediaPipeVendorId,
-		model,
-		get status() {
-			return status;
-		},
-		capabilities: mediaPipeWorkerCapabilities,
-		getExecutionTelemetry() {
-			return {
-				location: "worker",
-				provider: actualDelegate ? executionProvider : void 0,
-				detail: lastError ?? detail,
-				fallback: false,
-				loadDurationMs,
-				estimateDurationMs,
-				runtimeInferenceDurationMs,
-				postprocessDurationMs,
-				workerRoundTripDurationMs,
-				transferFrameType
-			};
-		},
-		getExecutionStatus() {
-			return {
-				mode: "worker",
-				delegate,
-				detail
-			};
-		},
-		getTelemetryStatus() {
-			return {
-				vendorId: mediaPipeVendorId,
-				provider: "@mediapipe/tasks-vision",
-				packageVersion: mediaPipePackageVersion,
-				model: modelName,
-				modelId: model.modelId,
-				modelVersion: model.modelVersion,
-				modelUrl,
-				modelSha256,
-				modelSizeBytes,
-				wasmRootUrl,
-				tasksVisionScriptUrl,
-				selectedDelegate: delegate,
-				actualDelegate,
-				loadState: status,
-				fallback: false,
-				disposed,
-				loadDurationMs,
-				lastInferenceDurationMs: estimateDurationMs,
-				runtimeInferenceDurationMs,
-				postprocessDurationMs,
-				workerRoundTripDurationMs,
-				transferFrameType,
-				minPoseDetectionConfidence,
-				minPosePresenceConfidence,
-				minTrackingConfidence,
-				confidenceSemantics: "MediaPipe landmark visibility (presence fallback), vendor-specific and uncalibrated",
-				error: lastError
-			};
-		},
-		async load() {
-			if (disposed) throw new Error("Disposed MediaPipe worker adapter cannot be loaded.");
-			if (status === mediaPipeAdapterStatuses.failed) throw new Error(lastError ?? "MediaPipe worker adapter failed to load.");
-			if (status === mediaPipeAdapterStatuses.ready) return;
-			if (loading) return loading;
-			status = mediaPipeAdapterStatuses.loading;
-			lastError = void 0;
-			actualDelegate = void 0;
-			const startedAtMs = now();
-			try {
-				worker = workerFactory(workerUrl, { name: "aerobeat-mediapipe" });
-				worker.onmessage = handleMessage;
-				worker.onerror = handleWorkerError;
-				loading = new Promise((resolve, reject) => {
-					loadResolver = {
-						resolve,
-						reject
-					};
-				});
-				worker.postMessage({
-					type: "load",
-					options: {
-						tasksVisionScriptUrl,
-						wasmRootUrl,
-						modelUrl,
-						delegate,
-						minPoseDetectionConfidence,
-						minPosePresenceConfidence,
-						minTrackingConfidence
-					}
-				});
-				await loading;
-				if (disposed) throw new Error("MediaPipe worker adapter was disposed while loading.");
-				loadDurationMs = Math.max(0, now() - startedAtMs);
-			} catch (error) {
-				if (!disposed) fail(readError(error));
-				terminateWorker();
-				throw error;
-			} finally {
-				loading = void 0;
-				loadResolver = void 0;
-			}
-		},
-		async estimateNormalizedPoseFrame(frameSource, estimateOptions = {}) {
-			if (disposed) throw new Error("Disposed MediaPipe worker adapter cannot estimate pose.");
-			if (!frameSource) throw new Error("MediaPipe worker estimation requires an ImageBitmap or VideoFrame frame source.");
-			const candidateTransferFrameType = readTransferFrameType(frameSource);
-			if (!candidateTransferFrameType) {
-				closeFrame(frameSource);
-				throw new Error("MediaPipe worker estimation requires a transferable ImageBitmap or VideoFrame frame source.");
-			}
-			if (!Number.isFinite(estimateOptions.timestampMs)) {
-				closeFrame(frameSource);
-				throw new Error("MediaPipe worker estimation requires the exact capture timestampMs.");
-			}
-			if (estimatePreparing || activeEstimate) {
-				closeFrame(frameSource);
-				throw new Error("MediaPipe worker adapter accepts only one loading or in-flight estimate.");
-			}
-			estimatePreparing = true;
-			let transferred = false;
-			try {
-				if (status !== mediaPipeAdapterStatuses.ready) await adapter.load();
-				if (!worker || status !== mediaPipeAdapterStatuses.ready) throw new Error("MediaPipe worker unavailable after load.");
-				const id = ++requestId;
-				const acceptedGeneration = generation;
-				const startedAtMs = now();
-				const promise = new Promise((resolve, reject) => {
-					activeEstimate = {
-						id,
-						generation: acceptedGeneration,
-						startedAtMs,
-						resolve,
-						reject
-					};
-				});
-				worker.postMessage({
-					type: "estimate",
-					requestId: id,
-					frameSource,
-					transferFrameType: candidateTransferFrameType,
-					metadata: {
-						sourceId: estimateOptions.sourceId ?? sourceId,
-						timestampMs: estimateOptions.timestampMs,
-						mirrored: estimateOptions.mirrored ?? mirrored
-					}
-				}, [frameSource]);
-				transferred = true;
-				transferFrameType = candidateTransferFrameType;
-				return promise;
-			} catch (error) {
-				activeEstimate = void 0;
-				if (!transferred) closeFrame(frameSource);
-				throw error;
-			} finally {
-				estimatePreparing = false;
-			}
-		},
-		async dispose() {
-			if (disposing) return disposing;
-			if (disposed) return;
-			disposed = true;
-			generation += 1;
-			status = mediaPipeAdapterStatuses.disposed;
-			actualDelegate = void 0;
-			loadResolver?.reject(/* @__PURE__ */ new Error("MediaPipe worker adapter disposed during load."));
-			activeEstimate?.reject(/* @__PURE__ */ new Error("MediaPipe worker adapter disposed during inference."));
-			activeEstimate = void 0;
-			if (!worker) return;
-			disposing = new Promise((resolve) => {
-				disposeResolver = resolve;
-			});
-			disposeTimeoutHandle = globalThis.setTimeout(finishDisposal, 5e3);
-			try {
-				worker.postMessage({ type: "dispose" });
-			} catch {
-				finishDisposal();
-			}
-			return disposing;
-		}
-	};
-	return adapter;
-	/** @param {MessageEvent} event */
-	function handleMessage(event) {
-		const message = event.data ?? {};
-		if (message.type === "loaded") {
-			if (disposed) return;
-			actualDelegate = message.actualDelegate;
-			status = mediaPipeAdapterStatuses.ready;
-			loadResolver?.resolve();
-			return;
-		}
-		if (message.type === "result") {
-			const request = activeEstimate;
-			if (!request || request.id !== message.requestId) return;
-			activeEstimate = void 0;
-			if (disposed || request.generation !== generation) return;
-			workerRoundTripDurationMs = Math.max(0, now() - request.startedAtMs);
-			runtimeInferenceDurationMs = message.runtimeInferenceDurationMs;
-			postprocessDurationMs = message.postprocessDurationMs;
-			estimateDurationMs = workerRoundTripDurationMs;
-			request.resolve(message.frame);
-			return;
-		}
-		if (message.type === "error") {
-			const error = new Error(message.error ?? "MediaPipe worker failed");
-			if (message.requestId && activeEstimate?.id === message.requestId) {
-				const request = activeEstimate;
-				activeEstimate = void 0;
-				if (!disposed) fail(error.message);
-				request.reject(error);
-			} else {
-				loadResolver?.reject(error);
-				if (!disposed) fail(error.message);
-			}
-			if (!disposed) terminateWorker();
-			return;
-		}
-		if (message.type === "disposed") finishDisposal();
-	}
-	/** @param {ErrorEvent} event */
-	function handleWorkerError(event) {
-		const error = new Error(event.message || "MediaPipe worker error");
-		loadResolver?.reject(error);
-		activeEstimate?.reject(error);
-		activeEstimate = void 0;
-		if (!disposed) fail(error.message);
-		terminateWorker();
-		disposeResolver?.();
-		disposeResolver = void 0;
-	}
-	/** @param {string} message */
-	function fail(message) {
-		status = mediaPipeAdapterStatuses.failed;
-		lastError = message;
-		actualDelegate = void 0;
-	}
-	function finishDisposal() {
-		if (disposeTimeoutHandle !== void 0) {
-			globalThis.clearTimeout(disposeTimeoutHandle);
-			disposeTimeoutHandle = void 0;
-		}
-		terminateWorker();
-		disposeResolver?.();
-		disposeResolver = void 0;
-	}
-	function terminateWorker() {
-		if (terminated) return;
-		terminated = true;
-		worker?.terminate();
-		worker = void 0;
-	}
-}
-/** @param {URL} url @param {WorkerOptions} options @returns {WorkerLike} */
-function defaultWorkerFactory(url, options) {
-	return new Worker(url, options);
-}
-/** @param {unknown} frame @returns {"ImageBitmap" | "VideoFrame" | undefined} */
-function readTransferFrameType(frame) {
-	if (!frame || typeof frame !== "object") return void 0;
-	const videoFrame = Reflect.get(globalThis, "VideoFrame");
-	if (typeof videoFrame === "function" && frame instanceof videoFrame) return "VideoFrame";
-	const imageBitmap = Reflect.get(globalThis, "ImageBitmap");
-	if (typeof imageBitmap === "function" && frame instanceof imageBitmap) return "ImageBitmap";
-	const constructorName = Reflect.get(frame, "constructor")?.name;
-	if (constructorName === "VideoFrame" || constructorName === "ImageBitmap") return constructorName;
-}
-/** @param {unknown} frame */
-function closeFrame(frame) {
-	if (frame && typeof frame === "object" && "close" in frame && typeof frame.close === "function") frame.close();
-}
-/** @param {unknown} error */
-function readError(error) {
-	return error instanceof Error ? error.message : String(error);
-}
-/** @param {"cpu-wasm" | "gpu-webgl"} delegate */
-function validateDelegate(delegate) {
-	if (delegate !== mediaPipeDelegates.cpuWasm && delegate !== mediaPipeDelegates.gpuWebgl) throw new Error(`Unsupported MediaPipe delegate: ${delegate}`);
-	return delegate;
-}
-/** @param {number} value @param {string} name */
-function validateThreshold(value, name) {
-	if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${name} must be a finite number in [0,1]`);
-	return value;
-}
-function defaultNow() {
-	return globalThis.performance?.now?.() ?? Date.now();
-}
-Object.freeze([Object.freeze({
-	value: "standard",
-	label: "Standard (0.5 / 0.5 / 0.5)"
-}), Object.freeze({
-	value: "responsive",
-	label: "Responsive A/B (0.5 / 0.4 / 0.3)"
-})]);
-var mediaPipeTuningDefinitions = Object.freeze({
-	standard: Object.freeze({
-		id: "standard",
-		label: "Standard",
-		minPoseDetectionConfidence: .5,
-		minPosePresenceConfidence: .5,
-		minTrackingConfidence: .5
-	}),
-	responsive: Object.freeze({
-		id: "responsive",
-		label: "Responsive A/B",
-		minPoseDetectionConfidence: .5,
-		minPosePresenceConfidence: .4,
-		minTrackingConfidence: .3
-	})
-});
-Object.freeze([Object.freeze({
-	value: "mediapipe",
-	label: "MediaPipe Pose Landmarker Lite"
-})]);
-Object.freeze([Object.freeze({
-	value: "gpu-webgl",
-	label: "MediaPipe GPU / WebGL"
-}), Object.freeze({
-	value: "cpu-wasm",
-	label: "MediaPipe CPU / WASM (diagnostic)"
-})]);
-/**
-* @param {MediaPipeTuningId} tuningId
-* @returns {{ id: MediaPipeTuningId, label: string, minPoseDetectionConfidence: number, minPosePresenceConfidence: number, minTrackingConfidence: number }}
-*/
-function getMediaPipeTuningDefinition(tuningId) {
-	return mediaPipeTuningDefinitions[tuningId];
-}
-/**
-* @param {PoseSelection} selection
-* @param {import("@aerobeat/web-cv").AeroCvPerformancePreset} performancePreset
-* @returns {{ poseAdapter: import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter, fallbackPoseAdapter: import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter, sourceId: string }}
-*/
-function createPoseBackendComposition(selection, performancePreset) {
-	const sourceId = mediaPipeLiveSourceId;
-	const tuning = getMediaPipeTuningDefinition(selection.selectedMediaPipeTuningId);
-	const mediaPipeOptions = {
-		sourceId,
-		mirrored: true,
-		delegate: selection.selectedProviderId === "gpu-webgl" ? mediaPipeDelegates.gpuWebgl : mediaPipeDelegates.cpuWasm,
-		minPoseDetectionConfidence: tuning.minPoseDetectionConfidence,
-		minPosePresenceConfidence: tuning.minPosePresenceConfidence,
-		minTrackingConfidence: tuning.minTrackingConfidence
-	};
-	return {
-		poseAdapter: performancePreset.executionPolicy !== "main-thread" ? createMediaPipeWorkerPoseAdapter(mediaPipeOptions) : createMediaPipePoseAdapter(mediaPipeOptions),
-		fallbackPoseAdapter: createAeroCvMockPoseAdapter(),
-		sourceId
-	};
-}
 //#endregion
 //#region src/production-cv-profile.js
 /** Immutable production CV route; diagnostics cannot change this selection. */
@@ -22311,29 +21155,18 @@ function createAeroGameServiceGraph(options = {}) {
 		readAsset: (handle, path) => authoring.readAsset(handle, path),
 		exportPackage: (handle) => authoring.exportPackage(handle)
 	} });
-	const performancePreset = getAeroCvPerformancePreset("full");
-	const composition = createPoseBackendComposition({
-		requestedBackendId: "mediapipe",
-		selectedBackendId: "mediapipe",
-		requestedProviderId: "gpu-webgl",
-		selectedProviderId: "gpu-webgl",
-		requestedMediaPipeTuningId: "standard",
-		selectedMediaPipeTuningId: "standard",
-		mediaPipeTuningApplicable: true,
-		warning: void 0
-	}, performancePreset);
+	const poseAdapter = createMediaPipePoseAdapter({
+		sourceId: mediaPipeLiveSourceId,
+		mirrored: true,
+		delegate: mediaPipeDelegates.gpuWebgl,
+		minPoseDetectionConfidence: .5,
+		minPosePresenceConfidence: .5,
+		minTrackingConfidence: .5
+	});
 	const video = createBrowserVideoMediaFacade();
 	const audio = createAeroWebAudioService({ initialLeaseActive: false });
-	const cv = createAeroCameraCvService({
-		poseAdapter: composition.poseAdapter,
-		fallbackPoseAdapter: composition.fallbackPoseAdapter,
-		requestedBackendId: "mediapipe",
-		selectedBackendId: "mediapipe",
-		sourceKind: "live-camera",
-		sourceId: composition.sourceId,
-		mirrored: true,
-		useFallbackOnError: false,
-		performancePreset,
+	const cv = createLockedProductionCvService({
+		poseAdapter,
 		submissionCadenceTargetFps: 15
 	});
 	return Object.freeze({
@@ -22371,9 +21204,17 @@ var AeroGame = class extends HTMLElement {
 		this.resizeObserver = null;
 		this.unsubscribe = [];
 		this.frameTimer = 0;
+		this.audioSyncPending = false;
 		this.latestPoseTimestampMs = -1;
 		this.activeCvSource = null;
-		this.lastSourceChangeId = -1;
+		this.lastCameraIdentity = "";
+		this.browsedMaps = /* @__PURE__ */ new Map();
+		this.beatSaverView = emptyBeatSaverView();
+		this.libraryView = Object.freeze({
+			packages: Object.freeze([]),
+			selectedPackageId: null,
+			storage: null
+		});
 		this.leaseParticipant = null;
 		this.unregisterLease = null;
 		this.fullscreenPending = false;
@@ -22390,8 +21231,16 @@ var AeroGame = class extends HTMLElement {
 			this.publish("fullscreen_changed");
 		};
 		this.boundUiIntent = (event) => this.handleUiIntent(event);
+		this.boundLocalZip = (event) => {
+			this.handleLocalZip(event);
+		};
 		const root = this.attachShadow({ mode: "open" });
 		root.innerHTML = template();
+		this.localZipPicker = document.createElement("input");
+		this.localZipPicker.type = "file";
+		this.localZipPicker.accept = ".zip,application/zip";
+		this.localZipPicker.hidden = true;
+		root.prepend(this.localZipPicker);
 	}
 	connectedCallback() {
 		if (this.lifecycle === "connected") return;
@@ -22399,15 +21248,29 @@ var AeroGame = class extends HTMLElement {
 		this.connectedGeneration += 1;
 		this.lifecycle = "connected";
 		this.activeAbort = new AbortController();
-		this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
-		this.attachStableSurfaces();
-		this.bindGraph();
-		this.bindLease();
-		this.bindHostLifecycle();
-		this.createBridge();
-		this.measureContainer();
-		this.renderPresenters();
-		this.publish("ready");
+		this.audioSyncPending = false;
+		this.browsedMaps.clear();
+		this.beatSaverView = emptyBeatSaverView();
+		this.libraryView = Object.freeze({
+			packages: Object.freeze([]),
+			selectedPackageId: null,
+			storage: null
+		});
+		try {
+			this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
+			this.attachStableSurfaces();
+			this.bindGraph();
+			this.bindLease();
+			this.bindHostLifecycle();
+			this.createBridge();
+			this.measureContainer();
+			this.renderPresenters();
+			this.publish("ready");
+			this.refreshLibrary(this.connectedGeneration);
+		} catch (error) {
+			this.handleError(error);
+			this.teardown("error");
+		}
 	}
 	disconnectedCallback() {
 		this.teardown("disconnected");
@@ -22439,63 +21302,83 @@ var AeroGame = class extends HTMLElement {
 	async start() {
 		this.assertConnected();
 		const generation = this.connectedGeneration;
-		await aeroGameMediaLeaseCoordinator.request(this.leaseParticipant);
-		if (!this.isCurrent(generation)) return this.getSnapshot();
-		if (!this.graph.video.getRetainedCameraStream()) {
-			const result = await this.graph.video.requestCamera(createLiveCameraSourceDescriptor({
+		const graph = this.graph;
+		const participant = this.leaseParticipant;
+		await aeroGameMediaLeaseCoordinator.request(participant);
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+		if (!graph.video.getRetainedCameraStream()) {
+			const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({
 				sourceId: "aero.mediapipe.live",
 				mirrored: true
 			}), { signal: this.activeAbort.signal });
-			if (!this.isCurrent(generation)) return this.getSnapshot();
+			if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 			if (result.status !== "granted") throw new Error(result.message);
 		}
 		this.attachRetainedCamera();
 		await this.startCv();
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
 		try {
-			this.graph.gameplay.requestStart(performance.now());
-		} catch {}
-		try {
-			await this.graph.audio.play();
+			graph.gameplay.requestStart(performance.now());
 		} catch {}
 		this.startFrameLoop();
+		this.syncAudioForGameplay();
+		this.syncContentPlayback();
 		this.publish("session_changed");
 		return this.getSnapshot();
 	}
 	async pause(reason = "manual") {
 		this.assertConnected();
-		await Promise.allSettled([this.graph.audio.pause(), this.graph.cv.stop()]);
-		this.graph.video.pause(this.videoElement());
-		try {
-			this.graph.gameplay.pause(performance.now(), boundedString(reason, "manual"));
-		} catch {}
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
 		this.stopFrameLoop();
+		await Promise.allSettled([graph.audio.pause(), graph.cv.stop()]);
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		graph.video.pause(this.videoElement());
+		try {
+			graph.gameplay.pause(performance.now(), boundedString(reason, "manual"));
+			this.synchronizePausedClock(graph);
+		} catch {}
+		this.syncContentPlayback();
 		this.publish("session_changed");
 		return this.getSnapshot();
 	}
 	async resume() {
 		this.assertConnected();
-		await aeroGameMediaLeaseCoordinator.request(this.leaseParticipant);
-		if (document.hidden) return this.getSnapshot();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const participant = this.leaseParticipant;
+		await aeroGameMediaLeaseCoordinator.request(participant);
+		if (!this.isCurrent(generation, graph) || document.hidden) return this.getSnapshot();
+		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
 		await this.startCv();
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		try {
-			this.graph.gameplay.resume(performance.now());
-		} catch {}
-		try {
-			await this.graph.audio.play();
+			graph.gameplay.resume(performance.now());
 		} catch {}
 		this.startFrameLoop();
+		this.syncAudioForGameplay();
+		this.syncContentPlayback();
 		this.publish("session_changed");
 		return this.getSnapshot();
 	}
 	async stop() {
 		this.assertConnected();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const participant = this.leaseParticipant;
 		this.stopFrameLoop();
-		await Promise.allSettled([this.graph.audio.stop(), this.graph.cv.stop()]);
-		this.graph.video.pause(this.videoElement());
+		await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		graph.video.pause(this.videoElement());
 		try {
-			this.graph.gameplay.stop(performance.now());
+			graph.gameplay.stop(performance.now());
 		} catch {}
-		await aeroGameMediaLeaseCoordinator.release(this.leaseParticipant);
+		await aeroGameMediaLeaseCoordinator.release(participant);
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+		this.syncContentPlayback();
 		this.publish("session_changed");
 		return this.getSnapshot();
 	}
@@ -22511,53 +21394,125 @@ var AeroGame = class extends HTMLElement {
 	/** @param {unknown} source */
 	async selectContent(source) {
 		this.assertConnected();
-		const normalized = safeData(source, 0, 64);
-		const kind = dataValue(normalized, "kind");
-		if (kind === "persistence") await this.graph.content.loadPersistenceHandle(dataValue(normalized, "handle"), this.contentLoadOptions());
-		else if (kind === "external") await this.graph.content.loadExternalPackage(boundedString(dataValue(normalized, "url"), ""), this.contentLoadOptions());
-		else if (kind === "direct") await this.graph.content.loadPackage(dataValue(normalized, "package"), this.contentLoadOptions());
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const normalized = contentSource(source);
+		const kind = normalized.kind;
+		if (kind === "persistence") await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions());
+		else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
+		else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
 		else throw new TypeError("Unsupported content source kind");
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		await this.loadSelectedAudio();
-		this.configureGameplayFromContent();
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		this.configureGameplayFromContent(false);
+		this.syncContentPlayback();
 		this.publish("content_changed");
 		return this.getSnapshot();
 	}
 	async selectVariant(variantId, modifierIds = []) {
 		this.assertConnected();
-		await this.graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
-		this.configureGameplayFromContent();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		this.syncContentPlayback();
+		const gameplay = graph.gameplay.getSnapshot();
+		const futureOnly = gameplay.session?.packageId === graph.content.getSnapshot().packageId && [
+			"calibrating",
+			"paused_manual",
+			"paused_tracking"
+		].includes(gameplay.session.state);
+		if (futureOnly) await graph.content.swapFutureVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+		else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
+		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+		this.configureGameplayFromContent(futureOnly);
+		this.syncContentPlayback();
 		this.publish("content_changed");
 		return this.getSnapshot();
 	}
 	async browseBeatSaver(query = {}) {
 		this.assertConnected();
-		const results = await this.graph.vendor.searchMaps(safeData(query, 0, 32), { signal: this.activeAbort.signal });
-		this.emitGameEvent("beatsaver_results", {
-			resultCount: results.maps.length,
-			maps: results.maps.slice(0, 50).map((map) => ({
-				mapId: map.mapId,
-				name: map.name,
-				versionCount: map.versions.length
-			}))
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const normalized = safeData(query, 0, 32);
+		const latest = dataValue(normalized, "latest") === true;
+		this.beatSaverView = Object.freeze({
+			...this.beatSaverView,
+			state: "loading",
+			query: boundedString(dataValue(normalized, "text"), ""),
+			errorMessage: ""
 		});
-		return results;
+		this.renderPresenters();
+		try {
+			const results = latest ? await graph.vendor.listLatestMaps(normalized, { signal: this.activeAbort.signal }) : await graph.vendor.searchMaps(normalized, { signal: this.activeAbort.signal });
+			if (!this.isCurrent(generation, graph)) return results;
+			this.browsedMaps.clear();
+			for (const map of results.maps.slice(0, 20)) this.browsedMaps.set(map.mapId.toUpperCase(), map);
+			const summaries = Object.freeze(results.maps.slice(0, 20).map(mapSummary));
+			this.beatSaverView = Object.freeze({
+				...emptyBeatSaverView(),
+				state: summaries.length ? "ready" : "empty",
+				query: boundedString(dataValue(normalized, "text"), ""),
+				results: summaries
+			});
+			this.renderPresenters();
+			this.emitGameEvent("beatsaver_results", {
+				resultCount: summaries.length,
+				maps: summaries
+			});
+			return results;
+		} catch (error) {
+			if (this.isCurrent(generation, graph)) {
+				this.beatSaverView = Object.freeze({
+					...this.beatSaverView,
+					state: "error",
+					errorMessage: errorMessage(error)
+				});
+				this.renderPresenters();
+			}
+			throw error;
+		}
+	}
+	async browseLatestBeatSaver(options = {}) {
+		return this.browseBeatSaver({
+			...safeData(options, 0, 32),
+			latest: true
+		});
 	}
 	async importBeatSaver(map, versionIdentifier, authoringOptions) {
 		this.assertConnected();
-		const acquired = await this.graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : void 0, {
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : void 0, {
 			signal: this.activeAbort.signal,
-			onProgress: (progress) => this.emitGameEvent("import_changed", {
-				phase: progress.phase,
-				loadedBytes: progress.loadedBytes,
-				totalBytes: progress.totalBytes ?? null
-			})
+			onProgress: (progress) => {
+				if (this.isCurrent(generation, graph)) this.emitGameEvent("import_changed", {
+					phase: progress.phase,
+					loadedBytes: progress.loadedBytes,
+					totalBytes: progress.totalBytes ?? null
+				});
+			}
 		});
+		if (!this.isCurrent(generation, graph)) return null;
 		return this.convertAcquired(acquired, authoringOptions);
+	}
+	async importBeatSaverById(mapId, versionIdentifier, authoringOptions, requireBrowsed = false) {
+		this.assertConnected();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const safeMapId = boundedIdentifier(mapId, "BeatSaver map ID");
+		let map = this.browsedMaps.get(safeMapId.toUpperCase());
+		if (!map && requireBrowsed) throw new Error("Iframe import must reference a child-browsed BeatSaver map");
+		if (!map) map = await graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal });
+		if (!this.isCurrent(generation, graph)) return null;
+		return this.importBeatSaver(map, versionIdentifier, authoringOptions);
 	}
 	async importLocalZip(input, authoringOptions) {
 		this.assertConnected();
 		if (!(input instanceof Blob || input instanceof ArrayBuffer || input instanceof Uint8Array)) throw new TypeError("Local import requires Blob, ArrayBuffer, or Uint8Array");
-		const acquired = await this.graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal });
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const acquired = await graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal });
+		if (!this.isCurrent(generation, graph)) return null;
 		return this.convertAcquired(acquired, authoringOptions);
 	}
 	cancelImport() {
@@ -22566,8 +21521,13 @@ var AeroGame = class extends HTMLElement {
 	}
 	async deletePackage(handle) {
 		this.assertConnected();
-		const deleted = await this.graph.authoring.deletePackage(safeData(handle, 0, 16));
-		this.publish("content_changed");
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const deleted = await graph.authoring.deletePackage(safeData(handle, 0, 16));
+		if (this.isCurrent(generation, graph)) {
+			await this.refreshLibrary(generation);
+			if (this.isCurrent(generation, graph)) this.publish("content_changed");
+		}
 		return deleted;
 	}
 	setTheme(theme) {
@@ -22632,7 +21592,11 @@ var AeroGame = class extends HTMLElement {
 			case "delete_package": return this.deletePackage(dataValue(payload, "handle"));
 			case "set_theme": return this.setTheme(dataValue(payload, "theme"));
 			case "destroy": return this.destroy();
-			case "import_beatsaver": throw new Error("Iframe import requires child-side selected map state");
+			case "import_beatsaver": return this.importBeatSaverById(dataValue(payload, "mapId"), dataValue(payload, "versionHash"), {
+				difficulty: dataValue(payload, "difficultyId"),
+				sourceId: dataValue(payload, "mapId"),
+				modifiers: dataValue(payload, "modifierIds") ?? []
+			}, true);
 			case "import_local_zip": throw new Error("Raw local archives cannot cross iframe commands");
 			default: throw new Error("Unsupported command");
 		}
@@ -22670,11 +21634,11 @@ var AeroGame = class extends HTMLElement {
 				cv: graph.cv.getStatus(),
 				input: graph.input.getSnapshot(),
 				audio: graph.audio.getStatus(),
-				gameplay: graph.gameplay.getSnapshot(),
+				gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()),
 				renderer: graph.renderer.describe()
 			} : null,
 			error: this.lastError
-		}, 0, 128);
+		}, 0, 2048);
 	}
 	/** Terminal until a disconnect/reconnect creates a fresh graph. */
 	destroy() {
@@ -22698,26 +21662,31 @@ var AeroGame = class extends HTMLElement {
 		}));
 	}
 	bindLease() {
+		const graph = this.graph;
+		const generation = this.connectedGeneration;
 		const participant = {
 			instanceId: this.instanceId,
 			pauseForLease: async () => {
-				if (!this.graph) return;
+				if (!this.isCurrent(generation, graph)) return;
 				this.stopFrameLoop();
-				await Promise.allSettled([this.graph.audio.pauseForLease(), this.graph.cv.stop()]);
-				this.graph.video.pauseForLease();
+				await Promise.allSettled([graph.audio.pauseForLease(), graph.cv.stop()]);
+				if (!this.isCurrent(generation, graph)) return;
+				graph.video.pauseForLease();
+				graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
 				try {
-					this.graph.gameplay.pause(performance.now(), "media_lease_transferred");
+					graph.gameplay.pause(performance.now(), "media_lease_transferred");
+					this.synchronizePausedClock(graph);
 				} catch {}
+				this.syncContentPlayback();
 			},
 			activateLease: async () => {
-				if (!this.graph) return;
-				this.graph.video.activateLease();
-				await this.graph.audio.activateLease();
+				if (!this.isCurrent(generation, graph)) return;
+				graph.video.activateLease();
+				await graph.audio.activateLease();
 			},
 			releaseLease: async () => {
-				if (!this.graph) return;
-				this.graph.video.releaseLease({ releaseStream: false });
-				await this.graph.audio.releaseLease();
+				graph.video.releaseLease({ releaseStream: false });
+				await graph.audio.releaseLease();
 			}
 		};
 		this.leaseParticipant = participant;
@@ -22727,6 +21696,7 @@ var AeroGame = class extends HTMLElement {
 		document.addEventListener("visibilitychange", this.boundVisibility);
 		document.addEventListener("fullscreenchange", this.boundFullscreen);
 		this.shadowRoot?.addEventListener(aeroUiIntentEventName, this.boundUiIntent);
+		this.localZipInput().addEventListener("change", this.boundLocalZip);
 		this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.measureContainer()) : null;
 		this.resizeObserver?.observe(this);
 		globalThis.addEventListener("resize", this.boundFullscreen);
@@ -22739,6 +21709,7 @@ var AeroGame = class extends HTMLElement {
 			parentWindow: globalThis.parent,
 			instanceId: this.instanceId,
 			expectedOrigin,
+			onConnect: () => this.emitGameEvent("ready", { snapshot: this.getSnapshot() }),
 			onCommand: (command) => {
 				Promise.resolve(this.executeCommand(command)).catch((error) => this.handleError(error));
 			},
@@ -22746,8 +21717,10 @@ var AeroGame = class extends HTMLElement {
 		});
 	}
 	async convertAcquired(acquired, options) {
-		const raw = safeData(options, 0, 32);
-		const result = await this.graph.authoring.convertAndPersist(acquired.source, {
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const raw = options === void 0 ? Object.freeze({}) : safeData(options, 0, 32);
+		const result = await graph.authoring.convertAndPersist(acquired.source, {
 			difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"),
 			sourceProvider: "beatsaver",
 			sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
@@ -22756,7 +21729,9 @@ var AeroGame = class extends HTMLElement {
 			includeAudio: dataValue(raw, "includeAudio") !== false,
 			signal: this.activeAbort.signal
 		});
+		if (!this.isCurrent(generation, graph)) return null;
 		this.emitGameEvent("import_changed", { snapshot: result.job });
+		await this.refreshLibrary(generation);
 		await this.selectContent({
 			kind: "persistence",
 			handle: result.handle
@@ -22793,10 +21768,10 @@ var AeroGame = class extends HTMLElement {
 			} } : {}
 		}, { signal: this.activeAbort.signal });
 	}
-	configureGameplayFromContent() {
+	configureGameplayFromContent(futureOnly) {
 		const content = this.graph.content.getSnapshot();
 		if (content.state !== "ready" || !content.selectedVariant) return;
-		this.graph.gameplay.configureContent({
+		const configuration = {
 			packageId: content.packageId,
 			selectedVariant: content.selectedVariant,
 			resolvedEvents: content.resolvedEvents,
@@ -22809,15 +21784,55 @@ var AeroGame = class extends HTMLElement {
 				class: "between_run_ruleset",
 				regenerationRequired: false
 			}
+		};
+		if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
+		else this.graph.gameplay.configureContent(configuration);
+	}
+	syncContentPlayback() {
+		if (!this.graph || this.graph.content.getSnapshot().state !== "ready") return;
+		const gameplay = this.graph.gameplay.getSnapshot();
+		const session = gameplay.session;
+		const state = session.state === "playing" ? "running" : session.state === "completed" || session.state === "destroyed" ? "stopped" : session.packageId ? "paused" : "idle";
+		this.graph.content.setPlaybackState({
+			state,
+			positionMs: session.timelinePositionMs,
+			judgedEventIds: gameplay.judgedEventIds,
+			activeEventIds: gameplay.activeEventIds
+		});
+	}
+	synchronizePausedClock(graph = this.graph) {
+		if (!graph) return;
+		graph.gameplay.synchronizePausedClock({
+			timestampMs: performance.now(),
+			clock: graph.audio.getClockSnapshot()
+		});
+	}
+	syncAudioForGameplay() {
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		if (!graph || this.audioSyncPending || document.hidden) return;
+		const shouldPlay = graph.gameplay.getSnapshot().session.state === "playing";
+		if (shouldPlay === (graph.audio.getStatus().state === "playing")) return;
+		this.audioSyncPending = true;
+		(shouldPlay ? graph.audio.play() : graph.audio.pause()).then(() => {
+			if (this.isCurrent(generation, graph) && !shouldPlay) this.synchronizePausedClock(graph);
+		}).catch((error) => {
+			if (this.isCurrent(generation, graph)) this.handleError(error);
+		}).finally(() => {
+			if (this.isCurrent(generation, graph)) this.audioSyncPending = false;
 		});
 	}
 	attachRetainedCamera() {
 		const surface = this.graph.video.attachCameraStream(this.videoElement());
-		if (surface.sourceChangeId !== this.lastSourceChangeId) {
-			this.lastSourceChangeId = surface.sourceChangeId;
-			this.graph.input.resetCalibration("media_source_changed");
-		}
-		this.activeCvSource = createAeroCvFrameSourceFromVideoSurface(this.videoElement(), surface);
+		this.updateCameraIdentity(surface);
+		this.activeCvSource = createLockedVideoFrameSource(this.videoElement(), surface);
+	}
+	updateCameraIdentity(surface) {
+		const aspect = Number.isFinite(surface.sourceAspectRatio) ? Number(surface.sourceAspectRatio).toFixed(8) : "unknown";
+		const identity = `${surface.sourceChangeId}|${surface.sourceId}|${surface.mirrored === true}|${aspect}`;
+		if (identity === this.lastCameraIdentity) return;
+		this.lastCameraIdentity = identity;
+		this.graph.input.resetCalibration("media_source_changed");
 	}
 	async startCv() {
 		if (this.activeCvSource && !document.hidden) await this.graph.cv.start(this.activeCvSource);
@@ -22825,26 +21840,32 @@ var AeroGame = class extends HTMLElement {
 	startFrameLoop() {
 		this.stopFrameLoop();
 		const generation = this.connectedGeneration;
+		const graph = this.graph;
 		this.frameTimer = globalThis.setInterval(() => {
-			if (!this.isCurrent(generation) || document.hidden) return;
+			if (!this.isCurrent(generation, graph) || document.hidden) return;
 			try {
-				const frame = this.graph.cv.getLatestPoseFrame();
+				const surface = graph.video.describeSurface(this.videoElement());
+				this.updateCameraIdentity(surface);
+				const frame = graph.cv.getLatestPoseFrame();
 				if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
 					this.latestPoseTimestampMs = frame.timestampMs;
-					this.graph.input.processPoseSample(frame, {
-						sourceAspectRatio: this.graph.video.describeSurface(this.videoElement()).sourceAspectRatio,
-						sourceChangeId: String(this.graph.video.describeStatus().sourceChangeId)
+					graph.input.processPoseSample(frame, {
+						sourceAspectRatio: surface.sourceAspectRatio,
+						sourceChangeId: this.lastCameraIdentity
 					});
-				} else this.graph.input.advanceTime(performance.now());
+				} else graph.input.advanceTime(performance.now());
 				try {
-					this.graph.gameplay.advance({
+					graph.gameplay.advance({
 						timestampMs: performance.now(),
-						clock: this.graph.audio.getClockSnapshot(),
-						input: this.graph.input.getSnapshot(),
+						clock: graph.audio.getClockSnapshot(),
+						input: graph.input.getSnapshot(),
 						lease: this.leaseSnapshotForGameplay()
 					});
+					this.syncAudioForGameplay();
+					this.syncContentPlayback();
 				} catch {}
-				this.graph.renderer.renderGameplayFrame(this.rendererFrame());
+				graph.renderer.renderGameplayFrame(this.rendererFrame());
+				if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
 				this.renderPresenters();
 			} catch (error) {
 				this.handleError(error);
@@ -22857,30 +21878,46 @@ var AeroGame = class extends HTMLElement {
 	}
 	async applyVisibility() {
 		if (!this.graph) return;
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
 		const hidden = document.hidden;
-		this.graph.video.setDocumentHidden(hidden);
-		await this.graph.audio.setDocumentHidden(hidden);
+		graph.video.setDocumentHidden(hidden);
+		await graph.audio.setDocumentHidden(hidden);
+		if (!this.isCurrent(generation, graph)) return;
 		if (hidden) {
 			this.stopFrameLoop();
-			await this.graph.cv.stop();
+			await graph.cv.stop();
+			if (!this.isCurrent(generation, graph)) return;
 			try {
-				this.graph.gameplay.pause(performance.now(), "document_hidden");
+				graph.gameplay.pause(performance.now(), "document_hidden");
+				this.synchronizePausedClock(graph);
 			} catch {}
 		} else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
+			graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
 			await this.startCv();
+			if (!this.isCurrent(generation, graph)) return;
+			try {
+				graph.gameplay.resume(performance.now());
+			} catch {}
 			this.startFrameLoop();
+			this.syncAudioForGameplay();
 		}
+		this.syncContentPlayback();
 		this.measureContainer();
 		this.publish("session_changed");
 	}
 	measureContainer() {
 		if (!this.isConnected) return;
-		const rect = this.getBoundingClientRect();
-		const dpr = Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1;
-		this.container = containerSnapshot(Math.max(0, rect.width), Math.max(0, rect.height), dpr, !document.hidden, document.fullscreenElement === this);
+		const style = getComputedStyle(this);
+		const horizontalPadding = cssPixels(style.paddingLeft) + cssPixels(style.paddingRight);
+		const verticalPadding = cssPixels(style.paddingTop) + cssPixels(style.paddingBottom);
+		const width = Math.max(0, this.clientWidth - horizontalPadding);
+		const height = Math.max(0, this.clientHeight - verticalPadding);
+		const dpr = currentDpr();
+		this.container = containerSnapshot(width, height, dpr, !document.hidden, document.fullscreenElement === this);
 		this.graph?.renderer.resize({
-			widthCssPx: this.container.widthCssPx,
-			heightCssPx: this.container.heightCssPx,
+			widthCssPx: width,
+			heightCssPx: height,
 			devicePixelRatio: dpr
 		});
 		this.renderPresenters();
@@ -22888,12 +21925,13 @@ var AeroGame = class extends HTMLElement {
 	rendererFrame() {
 		const content = this.graph.content.getSnapshot();
 		const gameplay = this.graph.gameplay.getSnapshot();
+		const session = gameplay.session;
 		const selected = content.selectedVariant;
-		const nowMs = Number(gameplay.timelinePositionMs ?? 0);
+		const nowMs = Number(session.timelinePositionMs ?? 0);
 		const ruleset = String(selected?.rulesetId ?? "");
 		const presentation = selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid";
 		const targets = (content.resolvedEvents ?? []).filter((event) => event.centerTimestampMs >= nowMs - 500 && event.centerTimestampMs <= nowMs + 2500).slice(0, 128).map(renderTarget);
-		const state = String(gameplay.state ?? "idle");
+		const state = String(session.state ?? "idle");
 		const overlay = state === "paused_tracking" ? "tracking_lost" : state === "calibrating" ? "calibrating" : state.startsWith("paused") ? "paused" : "none";
 		return {
 			presentation,
@@ -22909,48 +21947,143 @@ var AeroGame = class extends HTMLElement {
 		const content = this.graph.content.getSnapshot();
 		const gameplay = this.graph.gameplay.getSnapshot();
 		const input = this.graph.input.getSnapshot();
+		const session = gameplay.session;
 		setPresenter(this, "aero-calibration-badge", input.calibration);
 		setPresenter(this, "aero-tracking-pause", {
-			active: gameplay.state === "paused_tracking",
-			reason: gameplay.pauseReason,
+			active: session.state === "paused_tracking",
+			reason: session.pauseReason,
 			calibration: input.calibration
 		});
 		setPresenter(this, "aero-resume-countdown", gameplay.countdown ?? {});
 		setPresenter(this, "aero-prototype-selector", {
 			variants: content.variants,
 			selectedVariantId: content.selectedVariant?.variantId ?? null,
-			disabled: gameplay.state === "playing"
+			disabled: session.state === "playing"
 		});
 		setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
 		setPresenter(this, "aero-content-library", {
-			packages: [],
+			...this.libraryView,
 			selectedPackageId: content.packageId
 		});
-		setPresenter(this, "aero-beatsaver-browser", {
-			state: this.graph.vendor.snapshot().phase,
-			maps: []
-		});
+		setPresenter(this, "aero-beatsaver-browser", this.beatSaverView);
 		setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
 		setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
 		setPresenter(this, "aero-capabilities-panel", {
 			...this.capabilities(),
-			storage: null
+			storage: this.libraryView.storage
 		});
 		setPresenter(this, "aero-error-panel", this.lastError ? {
 			active: true,
 			...this.lastError
 		} : { active: false });
 		const status = this.shadowRoot?.querySelector("[data-role='status']");
-		if (status) status.textContent = `${content.state} · ${gameplay.state} · ${Math.round(this.container.widthCssPx)}×${Math.round(this.container.heightCssPx)}`;
+		if (status) status.textContent = `${content.state} · ${session.state} · ${Math.round(this.container.widthCssPx)}×${Math.round(this.container.heightCssPx)}`;
+	}
+	selectBrowsedMap(mapId) {
+		const map = this.browsedMaps.get(boundedIdentifier(mapId, "BeatSaver map ID").toUpperCase());
+		if (!map) throw new Error("Selected BeatSaver map is unavailable");
+		const summary = mapSummary(map);
+		const version = map.versions[0];
+		const difficulties = standardDifficulties(version);
+		this.beatSaverView = Object.freeze({
+			...this.beatSaverView,
+			selectedMap: summary,
+			versions: summary.versions,
+			selectedVersionHash: version?.hash ?? "",
+			difficulties,
+			selectedDifficulty: difficulties[0] ?? ""
+		});
+		this.renderPresenters();
+		return summary;
+	}
+	selectBrowsedVersion(versionHash) {
+		const mapId = this.beatSaverView.selectedMap?.mapId;
+		const map = typeof mapId === "string" ? this.browsedMaps.get(mapId.toUpperCase()) : null;
+		if (!map) throw new Error("Select a BeatSaver map first");
+		const version = map.versions.find((entry) => entry.hash === versionHash);
+		if (!version) throw new Error("Selected BeatSaver version is unavailable");
+		const difficulties = standardDifficulties(version);
+		this.beatSaverView = Object.freeze({
+			...this.beatSaverView,
+			selectedVersionHash: version.hash,
+			difficulties,
+			selectedDifficulty: difficulties[0] ?? ""
+		});
+		this.renderPresenters();
+	}
+	async refreshLibrary(generation = this.connectedGeneration) {
+		const graph = this.graph;
+		if (!graph) return;
+		const [packages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
+		if (!this.isCurrent(generation, graph)) return;
+		this.libraryView = Object.freeze({
+			packages,
+			selectedPackageId: graph.content.getSnapshot().packageId,
+			usedBytes: storage.usageBytes,
+			quotaBytes: storage.quotaBytes,
+			storage
+		});
+		this.renderPresenters();
+	}
+	async handleLocalZip(event) {
+		const input = event.currentTarget;
+		if (!(input instanceof HTMLInputElement) || !input.files?.[0]) return;
+		const file = input.files[0];
+		input.value = "";
+		const options = {
+			difficulty: this.beatSaverView.selectedDifficulty || "Expert",
+			sourceId: file.name.replace(/\.zip$/iu, "").slice(0, 256) || "local"
+		};
+		try {
+			await this.importLocalZip(file, options);
+		} catch (error) {
+			this.handleError(error);
+		}
 	}
 	handleUiIntent(event) {
 		const detail = event instanceof CustomEvent ? event.detail : null;
 		if (!detail || typeof detail.type !== "string") return;
 		if (detail.type === "fullscreen-request") this.enterFullscreen().catch((error) => this.handleError(error));
 		else if (detail.type === "fullscreen-exit") this.exitFullscreen().catch((error) => this.handleError(error));
-		else if (detail.type === "beatsaver-search") this.browseBeatSaver({ text: detail.payload?.query ?? "" }).catch((error) => this.handleError(error));
-		else if (detail.type === "import-cancel") this.cancelImport();
-		else if (detail.type === "prototype-select") this.selectVariant(detail.payload?.profileId ?? "").catch((error) => this.handleError(error));
+		else if (detail.type === "beatsaver-search") this.browseBeatSaver({ text: dataValue(detail.payload, "query") ?? "" }).catch((error) => this.handleError(error));
+		else if (detail.type === "beatsaver-latest") this.browseLatestBeatSaver().catch((error) => this.handleError(error));
+		else if (detail.type === "beatsaver-select-map") try {
+			this.selectBrowsedMap(dataValue(detail.payload, "mapId"));
+		} catch (error) {
+			this.handleError(error);
+		}
+		else if (detail.type === "beatsaver-version-select") try {
+			this.selectBrowsedVersion(dataValue(detail.payload, "versionHash"));
+		} catch (error) {
+			this.handleError(error);
+		}
+		else if (detail.type === "beatsaver-difficulty-select") {
+			const difficulty = dataValue(detail.payload, "difficultyId");
+			if (typeof difficulty === "string" && this.beatSaverView.difficulties.includes(difficulty)) {
+				this.beatSaverView = Object.freeze({
+					...this.beatSaverView,
+					selectedDifficulty: difficulty
+				});
+				this.renderPresenters();
+			}
+		} else if (detail.type === "beatsaver-import") this.importBeatSaverById(dataValue(detail.payload, "mapId"), dataValue(detail.payload, "versionHash"), {
+			difficulty: dataValue(detail.payload, "difficultyId"),
+			sourceId: dataValue(detail.payload, "mapId")
+		}).catch((error) => this.handleError(error));
+		else if (detail.type === "local-zip-request") this.localZipInput().click();
+		else if (detail.type === "content-import-cancel") this.cancelImport();
+		else if (detail.type === "library-select") {
+			const packageId = dataValue(detail.payload, "packageId");
+			const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId);
+			if (summary) this.graph.authoring.loadPackage(summary).then((loaded) => this.selectContent({
+				kind: "persistence",
+				handle: loaded.handle
+			})).catch((error) => this.handleError(error));
+		} else if (detail.type === "library-delete") {
+			const packageId = dataValue(detail.payload, "packageId");
+			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
+			if (handle) this.deletePackage(handle).catch((error) => this.handleError(error));
+		} else if (detail.type === "prototype-select") this.selectVariant(dataValue(detail.payload, "profileId") ?? "").catch((error) => this.handleError(error));
 		else if (detail.type === "calibration-reset") this.reset();
 	}
 	publish(type) {
@@ -23042,9 +22175,11 @@ var AeroGame = class extends HTMLElement {
 		document.removeEventListener("fullscreenchange", this.boundFullscreen);
 		globalThis.removeEventListener("resize", this.boundFullscreen);
 		this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent);
+		this.localZipInput().removeEventListener("change", this.boundLocalZip);
 		for (const stop of this.unsubscribe.splice(0)) try {
 			stop();
 		} catch {}
+		if (finalState === "destroyed") this.emitGameEvent("destroyed", { instanceId: this.instanceId });
 		this.bridge?.destroy();
 		this.bridge = null;
 		this.unregisterLease?.();
@@ -23074,14 +22209,14 @@ var AeroGame = class extends HTMLElement {
 			graph.audio.destroy().catch(() => {});
 		}
 		this.activeCvSource = null;
+		this.lastCameraIdentity = "";
 		this.leaseParticipant = null;
-		if (finalState === "destroyed") this.emitGameEvent("destroyed", { instanceId: this.instanceId });
 	}
 	assertConnected() {
 		if (this.lifecycle !== "connected" || !this.graph) throw new Error("aero-game is not connected");
 	}
-	isCurrent(generation) {
-		return this.lifecycle === "connected" && this.graph && this.connectedGeneration === generation;
+	isCurrent(generation, graph = this.graph) {
+		return this.lifecycle === "connected" && this.graph === graph && this.connectedGeneration === generation;
 	}
 	canvasElement() {
 		const value = this.shadowRoot?.querySelector("canvas[data-role='renderer']");
@@ -23092,6 +22227,9 @@ var AeroGame = class extends HTMLElement {
 		const value = this.shadowRoot?.querySelector("video[data-role='media']");
 		if (!(value instanceof HTMLVideoElement)) throw new Error("Media surface missing");
 		return value;
+	}
+	localZipInput() {
+		return this.localZipPicker;
 	}
 };
 /** Define the public root without an aerobeat-app alias. */
@@ -23133,14 +22271,44 @@ function dataValue(record, key) {
 	const descriptor = Object.getOwnPropertyDescriptor(record, key);
 	return descriptor && "value" in descriptor && descriptor.enumerable ? descriptor.value : void 0;
 }
+function contentSource(value) {
+	if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) throw new TypeError("Content source must be a plain record");
+	if (Reflect.ownKeys(value).some((key) => typeof key !== "string" || ![
+		"kind",
+		"package",
+		"url",
+		"handle"
+	].includes(key))) throw new TypeError("Content source contains unknown fields");
+	const kind = dataValue(value, "kind");
+	if (kind === "direct") return Object.freeze({
+		kind,
+		package: dataValue(value, "package")
+	});
+	if (kind === "external") return Object.freeze({
+		kind,
+		url: boundedString(dataValue(value, "url"), "")
+	});
+	if (kind === "persistence") return Object.freeze({
+		kind,
+		handle: safeData(dataValue(value, "handle"), 0, 32)
+	});
+	throw new TypeError("Unsupported content source kind");
+}
 function boundedString(value, fallback) {
 	return typeof value === "string" && value.length > 0 && value.length <= 1024 ? value : fallback;
 }
+function boundedIdentifier(value, label) {
+	if (typeof value !== "string" || !/^[0-9a-zA-Z_-]{1,256}$/u.test(value)) throw new TypeError(`${label} is invalid`);
+	return value;
+}
 function stringList(value, maximum) {
-	if (!Array.isArray(value) || value.length > maximum) throw new TypeError("Expected bounded string array");
-	return Object.freeze(value.map((entry) => {
-		if (typeof entry !== "string" || entry.length > 256) throw new TypeError("Invalid string entry");
-		return entry;
+	if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum) throw new TypeError("Expected bounded string array");
+	const keys = Reflect.ownKeys(value);
+	if (keys.length !== value.length + 1 || keys.some((key) => key !== "length" && (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key) || Number(key) >= value.length))) throw new TypeError("String arrays cannot contain extra fields");
+	return Object.freeze(Array.from({ length: value.length }, (_, index) => {
+		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+		if (!descriptor || !("value" in descriptor) || !descriptor.enumerable || typeof descriptor.value !== "string" || descriptor.value.length > 256) throw new TypeError("Invalid string entry");
+		return descriptor.value;
 	}));
 }
 function errorCode(error, fallback) {
@@ -23152,11 +22320,66 @@ function errorMessage(error) {
 	return typeof message === "string" && message.length <= 2048 ? message : "AeroBeat operation failed";
 }
 function contentTelemetry(snapshot) {
-	return {
-		...snapshot,
-		resolvedEvents: void 0,
-		resolvedEventCount: Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0
-	};
+	const result = {};
+	for (const key of Object.keys(snapshot)) if (key !== "resolvedEvents") result[key] = snapshot[key];
+	result.resolvedEventCount = Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0;
+	return Object.freeze(result);
+}
+function gameplayTelemetry(snapshot) {
+	return Object.freeze({
+		schema: snapshot.schema,
+		version: snapshot.version,
+		serviceId: snapshot.serviceId,
+		generation: snapshot.generation,
+		session: snapshot.session,
+		countdown: snapshot.countdown,
+		safety: snapshot.safety,
+		lease: snapshot.lease,
+		selectedVariant: snapshot.selectedVariant,
+		profileIdentity: snapshot.profileIdentity,
+		activeEventIds: snapshot.activeEventIds.slice(0, 128),
+		judgedEventCount: snapshot.judgedEventIds.length,
+		latestJudgement: snapshot.judgements.at(-1) ?? null,
+		latestShadowJudgement: snapshot.shadowJudgements.at(-1) ?? null,
+		scorePartitions: snapshot.scorePartitions,
+		error: snapshot.error
+	});
+}
+function emptyBeatSaverView() {
+	return Object.freeze({
+		state: "idle",
+		query: "",
+		results: Object.freeze([]),
+		selectedMap: null,
+		versions: Object.freeze([]),
+		difficulties: Object.freeze([]),
+		selectedVersionHash: "",
+		selectedDifficulty: "",
+		errorMessage: ""
+	});
+}
+function mapSummary(map) {
+	return Object.freeze({
+		mapId: map.mapId,
+		name: map.mapName || map.songName,
+		songAuthorName: map.songAuthorName,
+		levelAuthorName: map.levelAuthorName,
+		versionCount: map.versions.length,
+		versions: Object.freeze(map.versions.slice(0, 8).map((version) => Object.freeze({
+			versionHash: version.hash,
+			label: version.key || version.hash.slice(0, 8)
+		})))
+	});
+}
+function standardDifficulties(version) {
+	return Object.freeze((version?.difficulties ?? []).filter((entry) => entry.characteristic === "Standard").map((entry) => entry.difficulty).filter((entry, index, all) => all.indexOf(entry) === index));
+}
+function currentDpr() {
+	return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1;
+}
+function cssPixels(value) {
+	const parsed = Number.parseFloat(value);
+	return Number.isFinite(parsed) ? parsed : 0;
 }
 function renderTarget(event) {
 	const beat = event.authoredBeat ?? {};
@@ -23222,13 +22445,20 @@ function safeData(value, depth, maximumItems) {
 	if (depth >= 12) throw new TypeError("Public data exceeds depth limit");
 	if (Array.isArray(value)) {
 		if (Object.getPrototypeOf(value) !== Array.prototype || value.length > maximumItems) throw new TypeError("Invalid public array");
-		return Object.freeze(value.map((_, index) => {
+		const keys = Reflect.ownKeys(value);
+		if (keys.length !== value.length + 1 || keys.some((key) => key !== "length" && (typeof key !== "string" || !/^(?:0|[1-9][0-9]*)$/u.test(key) || Number(key) >= value.length))) throw new TypeError("Public arrays cannot contain extra fields");
+		return Object.freeze(Array.from({ length: value.length }, (_, index) => {
 			const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
 			if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) throw new TypeError("Sparse or accessor array");
 			return safeData(descriptor.value, depth + 1, maximumItems);
 		}));
 	}
-	if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) throw new TypeError("Public data must be plain serializable data");
+	if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype && Object.getPrototypeOf(value) !== null) {
+		const prototype = value && typeof value === "object" ? Object.getPrototypeOf(value) : null;
+		const constructor = prototype ? Object.getOwnPropertyDescriptor(prototype, "constructor") : null;
+		const name = constructor && "value" in constructor && typeof constructor.value?.name === "string" ? constructor.value.name : typeof value;
+		throw new TypeError(`Public data must be plain serializable data (${name})`);
+	}
 	const keys = Reflect.ownKeys(value);
 	if (keys.length > maximumItems || keys.some((key) => typeof key !== "string")) throw new TypeError("Public record exceeds limits");
 	const result = {};
@@ -23236,7 +22466,12 @@ function safeData(value, depth, maximumItems) {
 		if (key.length > 256) throw new TypeError("Public key exceeds limit");
 		const descriptor = Object.getOwnPropertyDescriptor(value, key);
 		if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) throw new TypeError("Public accessors are forbidden");
-		if (descriptor.value !== void 0) result[key] = safeData(descriptor.value, depth + 1, maximumItems);
+		if (descriptor.value !== void 0) Object.defineProperty(result, key, {
+			value: safeData(descriptor.value, depth + 1, maximumItems),
+			enumerable: true,
+			writable: true,
+			configurable: true
+		});
 	}
 	return Object.freeze(result);
 }
