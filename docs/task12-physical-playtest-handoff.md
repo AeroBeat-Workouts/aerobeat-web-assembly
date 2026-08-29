@@ -194,6 +194,7 @@ Fill this section during operator play. Do not infer results from automation.
 
 | Check | Desktop direct | Android HTTPS | Notes |
 | --- | --- | --- | --- |
+| Gameplay-first playfield, hamburger, compact drawer | pending | retest pending | Initial Android load exposed the dense-overlay/no-start P0; repairs `5c95ae8` plus UI `f8bd62b` pass independent automated/visual QA, but operator confirmation of the repaired phone view is still required. |
 | Camera prompt and live BRIO/phone camera | pending | pending | |
 | Four-second T-pose + cooldown/release | pending | pending | |
 | 4×3 grid and 8×6 subcells | pending | pending | |
