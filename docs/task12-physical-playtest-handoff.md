@@ -224,13 +224,13 @@ Vendor `l3h` implementation `7b14eec` and independent `u02` closure `b9d19a6` co
 
 The cross-repo automated boundary is now complete: contracts eight-way QA closure `c1e14f9` plus directionless entry implementation/closure `1673f13`/`0c8fba8`, gameplay eight-way closure `e0f194f`, input rolling/directionless implementation/QA closure `f23b372`/`829c85f`, renderer visible cues/evidence/QA closure `3cd09ce`/`a59d930`/`bc59641`, and assembly mapping `02a1671` are clean and synchronized. Automation proves acquisition, integrity, conversion, persistence, selection, Music readiness, exact eight-way data flow, privacy, and no-winner posture. It does **not** prove camera calibration or physical play; operator phone evidence for `kdf` remains pending.
 
-The frozen release fingerprint is `6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97`; proof SHA-256 is `dfdae0d909ee47b48f9c886e8210a0b133d5711a552b083bb5b4867bca165e31`; pre-manifest bytes are `4004042`. Proof, embedded build/cache stamps, two release rounds, recursive manifests, and final dry-run packs match.
+The frozen release fingerprint is `6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97`; proof SHA-256 is `dfdae0d909ee47b48f9c886e8210a0b133d5711a552b083bb5b4867bca165e31`; pre-manifest bytes are `4004042`. Proof, embedded build/cache stamps, two release rounds, recursive manifests, and final dry-run packs match. Each pack manifest reports `aerobeat-web-assembly-0.0.24.tgz`, 60 files, packed bytes `189146`, unpacked bytes `679878`; the matching JSON SHA-256 is `15a4a0e3adfbf8b3ef5051ac5f0a44b596abab5cc2e2ba445a8871c9f74af274`.
 
 ### Final independent automated QA passed
 
-Source/release target `3009910` and docs-only canonical-truth HEAD `1c34f85` pass independent QA on the exact frozen linked graph. The docs-only diff corrects stale cardinal wording and changes no fingerprint input. Assembly test, direct/real-iframe browser matrix, exact live `53F26`, build, two recursive release rounds, and two packs pass. Input, gameplay, renderer, and authoring full test/browser gates independently pass; renderer browser evidence proves all eight cues have distinct pixel distributions and required luminance contrast.
+On final docs HEAD `99be070`, the exact clean linked heads are contracts `0c8fba8`, input `829c85f`, gameplay `e0f194f`, renderer `bc59641`, vendor `b9d19a6`, and authoring `a34de05`. Assembly test, direct/real-iframe browser matrix, exact live `53F26`, build, two recursive release rounds, and two packs pass. Both recursive manifests are byte-identical; proof/build/cache identity remains exact. Renderer browser evidence proves all eight cues have distinct pixel distributions and required luminance contrast.
 
-Automated Beads `bzw`, `ctp`, `9s6`, and `0n6` are closed. Do not close physical `kdf` or `3h7`: phone camera/calibration/play confirmation remains required.
+Automated QA closed `ctp`, `9s6`, and `0n6`. `bzw` was explicitly reopened after the prior automated closure; leave both `bzw` and physical `kdf` open for independent QA. Do not close `3h7`: phone camera/calibration/play confirmation remains required.
 
 ## Automated evidence collected
 
