@@ -735,7 +735,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ### Task 11: Build Deterministic Prototype Fixtures and Integration Harnesses
 
-**Bead ID:** `aerobeat-web-assembly-48w.5`
+**Bead IDs:** `aerobeat-web-assembly-48w.5`; gameplay `aerobeat-web-gameplay-e2d`; vendor `aerobeat-web-vendor-beatsaver-5i6`; authoring `aerobeat-web-content-authoring-ptc`; renderer `aerobeat-web-renderer-mnm`; UI `aerobeat-web-ui-5hw`
 **SubAgent:** Research blueprint `4f1feb39-050f-4a4a-9705-a72d4aab06e3`; coders and QA pending Task 10 closure
 **Role:** `coder`
 **References:** `REF-06`, `REF-08`, `REF-12`, `REF-14`
