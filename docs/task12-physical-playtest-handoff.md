@@ -39,7 +39,7 @@ Open `http://127.0.0.1:5173/`. Localhost is a secure context for camera access.
 
 ### Android secure context
 
-The `:8443` Tailscale handler is already configured. Start only the existing Vite target:
+The `:8443` Tailscale handler is already configured. During active development and Derrick-owned physical testing, keep the existing Vite target running continuously; stop it only when Derrick explicitly asks. Start only this target:
 
 ```bash
 npm run dev:tailscale
