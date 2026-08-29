@@ -244,6 +244,14 @@ UI P0 `evg` is QA-closed at `b777bdb`. Assembly `h8z` now provides one opaque hi
 
 Fresh direct/real-iframe matrices at 390×844 and 844×390 measure ~15.65:1 surface contrast and assert failure/success transactions, exact text/actions, focus, lifecycle, privacy, and no-winner. Full unit/browser/build and live `53F26` pass. This remains automated evidence only. Derrick must refresh/reopen the phone page and verify the contrast, downloaded-song choices, nonempty Version/Difficulty, one menu control/action set, permission prompt, T-pose/hold/release/countdown, and play.
 
+### Superseded by physical close/camera diagnosis
+
+Derrick's current served-phone run confirms that K-pop Demon Hunters reaches the 4×3/T-pose view: import/start works far enough to request/attach camera and enter calibration. Do not repeat the prior claim that Start is still the physical blocker. The run instead exposes two new blocking product defects: the open `×` is physically unreadable, and the athlete sees no clear live mirrored preview for T-pose framing.
+
+The full pre-edit report is `docs/task12-physical-close-camera-preview-debug.md`. Existing-route framebuffer sampling in direct and real iframe at both phone sizes and DPR 1/3 proves the current `×` inherits `#103447` over `#03131f` (about 1.436:1); prior drawer-heading contrast never tested the glyph. Layer/state tracing proves mirrored video z1 is below WebGL z2 and every frame clears WebGL alpha-one, so the camera cannot appear; transparent clear immediately reveals a child-local synthetic stream. Start also never explicitly invokes video play. This is not stale served code.
+
+Assembly implementation P0 `p4p` owns a thick explicit close geometry, native Aero/Camera environment choice under Visuals, explicit video play, and the exact preview compositor lifecycle. Independent QA P0 `9y6` depends on it. Force live mirrored preview through initial calibration/T-pose and tracking-loss recalibration; hide at fresh ready/countdown/playing by default; keep it in calibrated play only after explicit Camera selection. Gameplay `live_visual` remains renderer tuning and must not absorb the environment contract. Preserve stream retention, one transient cue/control, child-local frames, privacy, lifecycle, and no-winner. No product code change or physical success is claimed in this diagnosis commit.
+
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
