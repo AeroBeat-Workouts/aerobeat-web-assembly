@@ -762,7 +762,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 ### Task 12: Cross-Repo Desktop, Android, Direct-Embed, and Iframe QA
 
-**Bead ID:** `aerobeat-web-assembly-48w.6`; Android gameplay-first repair `aerobeat-web-assembly-dvy` with QA `aerobeat-web-assembly-hd8`; compact drawer UI `aerobeat-web-ui-8px`, selected-state repair `aerobeat-web-ui-0gc`, with QA `aerobeat-web-ui-2kv`; four-section/start repair `aerobeat-web-assembly-c36` with QA `aerobeat-web-assembly-mwr`; scoped product radios `aerobeat-web-ui-rj5` with QA `aerobeat-web-ui-kp7`
+**Bead ID:** `aerobeat-web-assembly-48w.6`; Android gameplay-first repair `aerobeat-web-assembly-dvy` with QA `aerobeat-web-assembly-hd8`; compact drawer UI `aerobeat-web-ui-8px`, selected-state repair `aerobeat-web-ui-0gc`, with QA `aerobeat-web-ui-2kv`; four-section/start repair `aerobeat-web-assembly-c36` with QA `aerobeat-web-assembly-mwr` and audit `aerobeat-web-assembly-b9v`; scoped product radios `aerobeat-web-ui-rj5` with QA `aerobeat-web-ui-kp7`
 **SubAgent:** DSH QA subagents
 **Role:** `qa`
 **References:** `REF-01` through `REF-18`
@@ -810,7 +810,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress — Operator Pending
 
-**Audit Results:** Independent audit at assembly `fda6d23` verified all touched web repositories clean/synchronized on SSH `AeroBeat-Workouts` remotes; closed implementation/QA Beads through Task 11; public dependency direction; reconnect/lease/iframe/privacy contracts; experimental/local-score posture; locked MediaPipe production route; deterministic release proof; and the exact Task 12 launch URLs/selectors/operator script. Fresh `npm test`, `npm run build-release`, dry-run pack, diff and Git checks pass. `docs/task13-final-audit.md` records the full verdict. Task 13 cannot close because blocking Task 12 `.6` truthfully lacks human desktop calibration/play, Android camera/play, and two-map direct/local-ZIP physical evidence; therefore `.7`, umbrella `48w`, and this plan remain operator-pending without production promotion.
+**Audit Results:** Independent audit at assembly `fda6d23` verified all touched web repositories clean/synchronized on SSH `AeroBeat-Workouts` remotes; closed implementation/QA Beads through Task 11; public dependency direction; reconnect/lease/iframe/privacy contracts; experimental/local-score posture; locked MediaPipe production route; deterministic release proof; and the exact Task 12 launch URLs/selectors/operator script. Fresh `npm test`, `npm run build-release`, dry-run pack, diff and Git checks pass. `docs/task13-final-audit.md` records the full verdict. Post-repair audit `b9v` independently passed at `55bd6d0`: exact UI/assembly diffs and coder→QA evidence, four-section/native-radio defaults, Music zero-camera/playable-start ordering, lifecycle/privacy/release/no-winner posture, targeted mobile validator, synchronized repos, and live local/Android HTTP routes are recorded in the dated audit addendum. Task 13 cannot close because blocking Task 12 `.6` truthfully lacks human desktop calibration/play, Android camera/play, and two-map direct/local-ZIP physical evidence; therefore `.7`, umbrella `48w`, and this plan remain operator-pending without production promotion.
 
 **Acceptance:** Every intended change is committed and pushed, all worktrees are clean or explicitly explained, linked Beads are closed appropriately, and the plan is updated to Complete with prototype—not production-promotion—results.
 
@@ -849,6 +849,6 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Commits:**
 - Assembly implementation/QA through Task 11: `f0f2151`, `27dab79`, `957e661`; final handoff target `fda6d23`.
 - Cross-repo final heads are enumerated in `docs/task13-final-audit.md`.
-- Task 12 handoff baseline: `fda6d23`; four-section/start repair: UI `b075797` with QA closure `3c07000`, assembly `b02bf68`/handoff `cc1091f` with QA closure `5c15943`; physical retest pending.
+- Task 12 handoff baseline: `fda6d23`; four-section/start repair: UI `b075797` with QA closure `3c07000`, assembly `b02bf68`/handoff `cc1091f` with QA closure `5c15943` and audit `55bd6d0`; physical retest pending.
 
 **Lessons Learned:** Hash semantic projections must remain identical across authoring/content owners; deterministic ZIP/build evidence requires frozen dependencies; same `variantId` generation truth does not imply duplicate public event IDs; responsive evidence must compare the correct coordinate space; and physical camera-path automation must never be reported as human calibration/play.
