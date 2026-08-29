@@ -9411,13 +9411,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:d0d879d52e1b0d87831af4121b0082b7281c5effe69f31bc0b00a947d2a09f79";
+var buildStamp = "source:36cd13bd277b6c78210ba12ed63228ffadaf6ddd24f44417707ea897cd169cc6";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-d0d879d52e1b0d87";
+var cacheBust = "0.0.24-36cd13bd277b6c78";
 /**
 * Vite-injected package version from package.json.
 *
@@ -20878,8 +20878,10 @@ async function sha1Hex(bytes) {
 	return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 /**
-* Compute the BeatSaver/SongCore map hash: Info.dat bytes followed by every
-* referenced beatmap (and v4 lightshow) file in metadata order.
+* Compute the BeatSaver/SongCore map hash. The stream starts with the raw
+* downloaded Info.dat bytes. For v4 it then contains audioDataFilename bytes,
+* followed by each difficulty's beatmap and lightshow bytes in metadata order,
+* including repeated shared references. Legacy v2/v3 sequencing is unchanged.
 *
 * @param {BeatSaverSourceBundle} source Safe source bundle.
 * @returns {Promise<string>} Lowercase provider map hash.
@@ -21033,17 +21035,28 @@ function buildSourceManifest(info, infoPath, entries, archiveBytes) {
 	const difficultyPayloads = collectDifficultyPayloads(info);
 	/** @type {string[]} */
 	const hashInputPaths = [];
-	const seenHashPaths = /* @__PURE__ */ new Set();
-	for (const payload of difficultyPayloads) {
-		const beatmapPath = optionalString(payload.beatmapDataFilename) || optionalString(payload.beatmapFilename) || optionalString(payload._beatmapFilename);
-		const lightshowPath = optionalString(payload.lightshowDataFilename);
-		for (const candidate of [beatmapPath, lightshowPath]) {
-			if (!candidate) continue;
-			const resolved = resolveArchivePath(candidate, entries, "hash input");
-			const key = pathKey(resolved);
-			if (!seenHashPaths.has(key)) {
-				hashInputPaths.push(resolved);
-				seenHashPaths.add(key);
+	if (sourceFormatMajor === 4) {
+		const audioDataPath = optionalString(audio.audioDataFilename);
+		if (!audioDataPath) throw new BeatSaverVendorError("provider_payload", "v4 Info.dat does not reference audio data");
+		hashInputPaths.push(resolveArchivePath(audioDataPath, entries, "audio data hash input"));
+		for (const payload of difficultyPayloads) {
+			const beatmapPath = optionalString(payload.beatmapDataFilename);
+			const lightshowPath = optionalString(payload.lightshowDataFilename);
+			for (const candidate of [beatmapPath, lightshowPath]) if (candidate) hashInputPaths.push(resolveArchivePath(candidate, entries, "hash input"));
+		}
+	} else {
+		const seenHashPaths = /* @__PURE__ */ new Set();
+		for (const payload of difficultyPayloads) {
+			const beatmapPath = optionalString(payload.beatmapDataFilename) || optionalString(payload.beatmapFilename) || optionalString(payload._beatmapFilename);
+			const lightshowPath = optionalString(payload.lightshowDataFilename);
+			for (const candidate of [beatmapPath, lightshowPath]) {
+				if (!candidate) continue;
+				const resolved = resolveArchivePath(candidate, entries, "hash input");
+				const key = pathKey(resolved);
+				if (!seenHashPaths.has(key)) {
+					hashInputPaths.push(resolved);
+					seenHashPaths.add(key);
+				}
 			}
 		}
 	}

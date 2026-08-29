@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
 **Evidence date:** 2026-08-29  
-**Assembly implementation target:** `ed56f70` (sole DOM transient and exact direct/iframe shell matrix on `main`)
+**Assembly implementation target:** `f2858f9` (opaque menu and exhaustive direct/iframe shell acceptance on `main`)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
@@ -44,7 +44,7 @@ P0 `aerobeat-web-assembly-9s6`, QA Bead `aerobeat-web-assembly-0n6`, and physica
 
 The exact 48×48 corner menu now has a truly opaque `#03131f` background; computed alpha is exactly `1` in all four contexts and the raw release contains the same override. The hardened matrix traverses the entire rendered composed tree rather than selected roots, classifies every visible element/text, and rejects anything outside environment/video/canvas/menu plus the one state-authorized transient. Renderer input is exactly `countdown:null`, `overlay:"none"`, and `calibrationDim:0`.
 
-The real cross-origin iframe element, child viewport, main, and game bounds are measured at exact 390×844 and 844×390. Drawer text is compared as an exact normalized visible set for baseline and controlled progress/error/camera-limitation fixtures. Start, menu, recovery, lifecycle, reconnect, recursive privacy, and explicit production-winner rejection are locked. The matrix passes twice, full test/browser/build passes, and two release/pack recursive rounds are byte-identical (`d0d879d5…`, proof `6a9acbe1…`, `3968895` pre-manifest bytes).
+The real cross-origin iframe element, child viewport, main, and game bounds are measured at exact 390×844 and 844×390. Drawer text is compared as an exact normalized visible set for baseline and controlled progress/error/camera-limitation fixtures. Start, menu, recovery, lifecycle, reconnect, recursive privacy, and explicit production-winner rejection are locked. The matrix passes twice, full test/browser/build passes, and two release/pack recursive rounds are byte-identical (`36cd13bd…`, proof `b78f6f0d…`, `3971178` pre-manifest bytes).
 
 P0 `aerobeat-web-assembly-ctp`, `9s6`, QA `0n6`, and physical Bead `3h7` remain open for independent QA/physical confirmation.
 
