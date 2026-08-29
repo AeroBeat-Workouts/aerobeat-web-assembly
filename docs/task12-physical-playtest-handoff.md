@@ -62,7 +62,10 @@ It creates an ephemeral parent origin, an independent Vite child origin, and `if
 Playwright pierces the open component shadow roots.
 
 - Direct root: `page.locator("aero-game")`
-- Direct BeatSaver presenter: `page.locator("aero-game").locator("aero-beatsaver-browser")`
+- Hamburger: `page.locator("aero-game").getByRole("button", { name: /configuration menu/ })`
+- Configuration drawer: `page.locator("aero-game").getByRole("dialog", { name: "Game configuration" })`
+- Camera permission/start: `page.locator("aero-game").getByRole("button", { name: "Calibrate / Start" })`
+- Direct BeatSaver presenter (inside the drawer): `page.locator("aero-game").locator("aero-beatsaver-browser")`
 - Search field: `getByLabel("Search maps")`
 - Latest button: `getByRole("button", { name: "Latest" })`
 - Local fallback: `getByRole("button", { name: "Choose local ZIP" })`
@@ -106,11 +109,12 @@ Repeat on desktop direct embed and Android HTTPS. Run iframe behavior through th
 
 ### 1. Permissions and source truth
 
-1. Load the exact target and confirm there is one `<aero-game>` and no `<aerobeat-app>`.
-2. Grant camera permission. Audio and fullscreen must begin only after explicit gestures.
-3. Confirm the visible/source telemetry identifies MediaPipe Pose Landmarker Lite float16 `/1/`, tasks-vision `1.0.1`, GPU-WebGL, thresholds `0.5/0.5/0.5`, Fast tracking, direct full input, measured/current gameplay, and a 15fps submission ceiling.
-4. Confirm mirror/source/aspect changes invalidate calibration.
-5. Confirm the preview is top-left coordinates, gameplay camera is bottom-left, and the athlete public grid is horizontally opposed.
+1. Load the exact target and confirm there is one `<aero-game>` and no `<aerobeat-app>`. First run opens the compact configuration drawer over a viewport-filling camera/renderer surface.
+2. Choose content/gameplay in the drawer and press `Calibrate / Start`. Grant camera permission. The drawer remains open deterministically so configuration cannot accidentally complete a hidden T-pose; close it with ×, the backdrop, hamburger, or Escape to arm calibration.
+3. In the closed view, confirm only the stable playfield, status/calibration/countdown overlays, and top-right hamburger remain—no full selector/browser cards. Audio and fullscreen must begin only after explicit gestures.
+4. Confirm the visible/source telemetry identifies MediaPipe Pose Landmarker Lite float16 `/1/`, tasks-vision `1.0.1`, GPU-WebGL, thresholds `0.5/0.5/0.5`, Fast tracking, direct full input, measured/current gameplay, and a 15fps submission ceiling.
+5. Confirm mirror/source/aspect changes invalidate calibration.
+6. Confirm the preview is top-left coordinates, gameplay camera is bottom-left, and the athlete public grid is horizontally opposed.
 
 ### 2. Calibration
 
@@ -119,7 +123,9 @@ Repeat on desktop direct embed and Android HTTPS. Run iframe behavior through th
 3. Complete the four-second cooldown and release.
 4. Observe the frozen 3-2-1 countdown: gameplay and audio remain frozen until playing.
 5. Move through the calibrated 4×3 grid and verify no clamping; verify 8×6 subcell target placement for Boxing.
-6. Hide the page or cover/leave frame for at least 500ms. Gameplay, audio, and inference must pause immediately while camera retention follows policy; return requires a fresh calibration ID/countdown.
+6. During play, hold a fresh four-second T-pose. It must enter the same tracking/calibration pause, cooldown/release, frozen 3-2-1, and resume path rather than continuing to score.
+7. During play, open the hamburger. Gameplay/audio pause immediately while camera, CV, and frame processing remain active. Close the drawer: it must stay paused, never auto-resume, and require a fresh four-second T-pose plus cooldown and 3-2-1.
+8. Hide the page or cover/leave frame for at least 500ms. Gameplay, audio, and inference must pause immediately while camera retention follows policy; return requires a fresh calibration ID/countdown.
 
 ### 3. Content acquisition and persistence
 
@@ -174,6 +180,7 @@ For each Boxing run:
 ## Automated evidence collected
 
 - Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
+- `scripts/validate-mobile-gameplay-menu.js` runs exact Chromium 390×844 portrait and 844×390 landscape coverage with mocked `getUserMedia` and injected measured pose frames. It proves stable viewport-filling video/canvas, >=44px hamburger, compact drawer, permission/start, no calibration behind the menu, initial T-pose/cooldown/countdown/play, sustained in-play T-pose pause/resume, menu pause retaining camera/CV/frame loop, close-stays-paused fresh calibration/countdown, audio gates, reconnect isolation, and zero unexpected product console noise.
 - Task 11 nine-path v2/v3/v4 × online/direct/local matrix reproduces all package hashes and loads Flow plus four Boxing variants.
 - Cross-origin Chromium verifies exact parent sizing, direct/iframe parity, fullscreen gesture path, reconnect/destructor silence, lease transfer, hidden/safety/audio policy, hostile payload limits, profile atomicity, and no raw-byte bridge leakage.
 - All web contracts/vendor/authoring/content/gameplay/input/video/audio/renderer/UI/style/CV/MediaPipe repos pass available check, test, browser, pack, and diff gates; all worktrees remain clean and synchronized.

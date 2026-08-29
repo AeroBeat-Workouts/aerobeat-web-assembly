@@ -7308,6 +7308,7 @@ var sharedStyles = `
   .stack { display: grid; gap: 8px; }
   .control, button, input, select { border: 1px solid var(--aero-color-border, rgba(53,141,175,.5)); border-radius: 8px; color: inherit; font: inherit; min-block-size: 42px; }
   button { background: linear-gradient(180deg, #fff, #bcecff); color: var(--aero-color-ink, #103447); cursor: pointer; font-weight: 750; padding: 8px 13px; touch-action: manipulation; }
+  button[aria-pressed="true"], button[role="radio"][aria-checked="true"] { background: linear-gradient(180deg, #0a84ff, #086ccf); border-color: #fff; box-shadow: 0 0 0 3px var(--aero-color-focus, #0a84ff), inset 0 0 0 2px rgba(255,255,255,.72); color: #fff; }
   button[disabled], input[disabled], select[disabled] { cursor: not-allowed; opacity: .55; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--aero-color-focus, #0a84ff); outline-offset: 2px; }
   input, select { background: rgba(255,255,255,.92); inline-size: 100%; padding: 8px 10px; }
@@ -7319,6 +7320,15 @@ var sharedStyles = `
   .card { background: rgba(255,255,255,.72); border: 1px solid rgba(53,141,175,.3); border-radius: 10px; display: grid; gap: 6px; padding: 10px; text-align: start; }
   .cards > article > .card { inline-size: 100%; }
   progress { accent-color: var(--aero-color-focus, #0a84ff); inline-size: 100%; }
+  .visually-hidden { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) .panel { background: transparent; border: 0; border-radius: 0; box-shadow: none; gap: 8px; padding: 0; }
+  :host([compact]) h1, :host([compact]) h2, :host([compact]) h3, :host([compact]) .compact-field-label, :host([compact]) .compact-converter-truth { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) .compact-explanatory, :host([compact]) .compact-identity, :host([compact]) .compact-telemetry, :host([compact]) .muted:not(.live):not(.compact-critical):not(.compact-converter-truth), :host([compact]) .pill:not(.error) { display: none; }
+  :host([compact]) .compact-status:not(.error) { block-size: 1px; clip: rect(0 0 0 0); clip-path: inset(50%); inline-size: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; white-space: nowrap; }
+  :host([compact]) .cards { grid-template-columns: minmax(0, 1fr); }
+  :host([compact]) .card { padding: 8px; }
+  :host([compact]) label { gap: 0; }
+  :host([compact]) .compact-hide-when-clear { display: none; }
   @media (max-width: 430px) { .panel { border-radius: 10px; padding: 12px; } .row > button { flex: 1 1 auto; } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
 `;
@@ -7334,6 +7344,14 @@ var AeroPresenterElement = class extends HTMLElement {
 		this.boundChange = (event) => this.handleDelegatedChange(event);
 		this.boundSubmit = (event) => this.handleDelegatedSubmit(event);
 		this.boundKeydown = (event) => this.handleDelegatedKeydown(event);
+	}
+	/** Boolean compact rendering mode; equivalent to the provider-neutral `[compact]` attribute. @returns {boolean} */
+	get compact() {
+		return this.hasAttribute("compact");
+	}
+	/** @param {boolean} value */
+	set compact(value) {
+		this.toggleAttribute("compact", value === true);
 	}
 	connectedCallback() {
 		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
@@ -7435,18 +7453,18 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
       <section class="panel" part="panel" aria-labelledby="beatsaver-heading">
         <h2 id="beatsaver-heading">Find BeatSaver maps</h2>
         <form class="row" part="search" data-form="search">
-          <label style="flex:1 1 14rem">Search maps<input part="search-input" data-field="query" value="${escapeAttribute(query)}" autocomplete="off" ${busy ? "disabled" : ""}></label>
+          <label style="flex:1 1 14rem"><span class="compact-field-label">Search maps</span><input part="search-input" data-field="query" aria-label="Search maps" value="${escapeAttribute(query)}" autocomplete="off" ${busy ? "disabled" : ""}></label>
           <button part="search-button" type="submit" ${busy ? "disabled" : ""}>Search</button>
           <button part="latest-button" type="button" data-intent="beatsaver-latest" ${busy ? "disabled" : ""}>Latest</button>
           <button part="local-import-button" type="button" data-intent="local-zip-request">Choose local ZIP</button>
         </form>
-        <p class="live ${error ? "error" : "muted"}" role="status" aria-live="polite">${escapeHtml(error || statusText(state, results.length))}</p>
+        <p class="live compact-status ${error ? "error" : "muted"}" role="status" aria-live="polite">${escapeHtml(error || statusText(state, results.length))}</p>
         <div class="cards" part="results" role="list" aria-label="BeatSaver results">
           ${results.map((result) => mapResultMarkup(result)).join("") || `<p class="muted">${state === "empty" ? "No compatible maps found." : "Search or browse latest maps."}</p>`}
         </div>
         ${selected ? `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(readString(selected, "name", "Selected map"))}</h3><p class="muted">${escapeHtml(readString(selected, "songAuthorName", ""))} · mapped by ${escapeHtml(readString(selected, "levelAuthorName", "Unknown"))}</p>
-          <label>Version<select part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
-          <label>Difficulty<select part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
+          <label><span class="compact-field-label">Version</span><select aria-label="Version" part="version-select" data-intent="beatsaver-version-select">${versions.map((version) => optionMarkup(readString(version, "versionHash", ""), readString(version, "label", readString(version, "versionHash", "Version")), selectedVersion)).join("")}</select></label>
+          <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
           <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>` : ""}
       </section>`);
 	}
@@ -7620,7 +7638,7 @@ var AeroTrackingPause = class extends AeroPresenterElement {
 		const active = readBoolean(this.presenterSnapshot, "active", false);
 		const message = readString(this.presenterSnapshot, "message", "Tracking paused. Recalibrate to continue.");
 		const reason = readString(this.presenterSnapshot, "reason", "tracking_lost");
-		if (active && !this.dialogActive) this.returnFocus = deepActiveElement();
+		if (active && !this.dialogActive) this.returnFocus = deepActiveElement$1();
 		const restoreFocus = !active && this.dialogActive ? this.returnFocus : null;
 		this.dialogActive = active;
 		this.toggleAttribute("hidden", !active);
@@ -7672,7 +7690,7 @@ var AeroFullscreenButton = class extends AeroPresenterElement {
 var AeroCapabilitiesPanel = class extends AeroPresenterElement {
 	render() {
 		const limitations = readStringList(this.presenterSnapshot, "limitations");
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="capabilities-heading"><h2 id="capabilities-heading">Device capabilities</h2><div class="cards">${[
+		this.renderMarkup(`<section class="panel ${limitations.length ? "" : "compact-hide-when-clear"}" part="panel" aria-labelledby="capabilities-heading"><h2 id="capabilities-heading">Device capabilities</h2><div class="cards compact-telemetry">${[
 			"camera",
 			"fullscreen",
 			"autoplay",
@@ -7681,7 +7699,7 @@ var AeroCapabilitiesPanel = class extends AeroPresenterElement {
 			"worker",
 			"directBeatSaverCors",
 			"localZipImport"
-		].map((name) => `<span class="pill">${escapeHtml(titleCase(name))}: ${readBoolean(this.presenterSnapshot, name, false) ? "available" : "unavailable"}</span>`).join("")}</div>${limitations.length ? `<ul part="limitations">${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">No reported limitations.</p>`}</section>`);
+		].map((name) => `<span class="pill">${escapeHtml(titleCase(name))}: ${readBoolean(this.presenterSnapshot, name, false) ? "available" : "unavailable"}</span>`).join("")}</div>${limitations.length ? `<ul part="limitations" aria-label="Device limitations">${limitations.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="muted">No reported limitations.</p>`}</section>`);
 	}
 };
 /** User-safe error presenter. */
@@ -7762,7 +7780,7 @@ var AeroPrototypeSelector = class extends AeroPresenterElement {
 		const scoringReason = scoringDisabled ? sessionState === "countdown" ? "Scoring profiles are locked during countdown." : "Pause or finish the run to change scoring profiles." : "Scoring profile changes apply between runs.";
 		const classStates = normalizeProfileClassStates(this.presenterSnapshot);
 		const statusText = classStates.length === 3 ? "Visual, scoring, and converter profile state loaded." : "Profile state is incomplete.";
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="profiles-heading"><h2 id="profiles-heading">Workout prototype</h2><div class="cards" part="profiles" role="radiogroup" aria-label="Prototype presentation">${prototypeOptions.map((option) => `<button type="button" part="profile" role="radio" aria-checked="${selected === option.id}" tabindex="${selected === option.id ? "0" : "-1"}" data-intent="prototype-select" data-value="${option.id}"><strong>${escapeHtml(option.label)}</strong><span class="muted">${escapeHtml(option.rulesetId)}${option.recipeId ? ` · ${escapeHtml(option.recipeId)}` : ""}</span></button>`).join("")}</div><p class="muted live" role="status" aria-live="polite">${escapeHtml(statusText)}</p><section class="stack" part="telemetry" aria-label="Experimental profile management">${classStates.map((state) => profileClassMarkup(state, scoringDisabled, scoringReason)).join("") || `<p class="muted">No valid experimental profile state loaded.</p>`}</section><div class="row" aria-label="Profile bundle actions"><button type="button" part="import-button" data-intent="tuning-import-request" aria-label="Import experimental profile bundle">Import profiles</button><button type="button" part="export-button" data-intent="tuning-export" aria-label="Export experimental profile bundle">Export profiles</button><button type="button" part="reset-button" data-intent="tuning-reset" aria-label="Reset experimental profiles">Reset profiles</button></div></section>`);
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="profiles-heading"><h2 id="profiles-heading">Workout prototype</h2><div class="cards" part="profiles" role="radiogroup" aria-label="Prototype presentation">${prototypeOptions.map((option) => `<button type="button" part="profile" role="radio" aria-checked="${selected === option.id}" tabindex="${selected === option.id ? "0" : "-1"}" data-intent="prototype-select" data-value="${option.id}"><strong>${escapeHtml(option.label)}</strong><span class="muted">${escapeHtml(option.rulesetId)}${option.recipeId ? ` · ${escapeHtml(option.recipeId)}` : ""}</span></button>`).join("")}</div><p class="muted live compact-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><section class="stack" part="telemetry" aria-label="Experimental profile management">${classStates.map((state) => profileClassMarkup(state, scoringDisabled, scoringReason)).join("") || `<p class="muted">No valid experimental profile state loaded.</p>`}</section><div class="row" aria-label="Profile bundle actions"><button type="button" part="import-button" data-intent="tuning-import-request" aria-label="Import experimental profile bundle">Import profiles</button><button type="button" part="export-button" data-intent="tuning-export" aria-label="Export experimental profile bundle">Export profiles</button><button type="button" part="reset-button" data-intent="tuning-reset" aria-label="Reset experimental profiles">Reset profiles</button></div></section>`);
 	}
 	/** @param {string} type @param {HTMLElement} target */
 	onIntent(type, target) {
@@ -7919,7 +7937,7 @@ function narrowSnapshotValue(value, seen, depth) {
 	return Object.freeze(record);
 }
 /** @returns {HTMLElement | null} */
-function deepActiveElement() {
+function deepActiveElement$1() {
 	let active = document.activeElement;
 	while (active instanceof HTMLElement && active.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
 	return active instanceof HTMLElement ? active : null;
@@ -7963,8 +7981,10 @@ function libraryItemMarkup(item, pendingDeletePackageId) {
 	const id = readString(item, "packageId", "");
 	const name = readString(item, "name", "Untitled package");
 	const variantCount = readNumber(item, "variantCount", 0);
-	const deleteControls = id !== "" && id === pendingDeletePackageId ? `<span role="status">Delete ${escapeHtml(name)}?</span><button type="button" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm delete</button><button type="button" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
-	return `<article class="card" part="item" role="listitem"><h3>${escapeHtml(name)}</h3><p class="muted">${variantCount} playable variant${variantCount === 1 ? "" : "s"}</p><div class="row"><button type="button" data-intent="library-select" data-value="${escapeAttribute(id)}">Play</button><button type="button" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div></article>`;
+	const pending = id !== "" && id === pendingDeletePackageId;
+	const accessibleName = escapeAttribute(name);
+	const deleteControls = pending ? `<span role="status">Delete ${escapeHtml(name)}?</span><button type="button" aria-label="Confirm delete ${accessibleName}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm delete</button><button type="button" aria-label="Cancel deleting ${accessibleName}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleName}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
+	return `<article class="card" part="item" role="listitem"><h3>${escapeHtml(name)}</h3><p class="muted">${variantCount} playable variant${variantCount === 1 ? "" : "s"}</p><div class="row"><button type="button" aria-label="Play ${accessibleName}" data-intent="library-select" data-value="${escapeAttribute(id)}">Play</button><button type="button" aria-label="Export ${accessibleName}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div></article>`;
 }
 /** @param {number} used @param {number} quota @returns {string} */
 function formatStorage(used, quota) {
@@ -8073,13 +8093,17 @@ function profileClassMarkup(state, scoringDisabled, scoringReason) {
 	const isConverter = state.class === "converter_regeneration";
 	const disabled = isScoring && scoringDisabled;
 	const policy = state.class === "live_visual" ? "Applies immediately." : isScoring ? scoringReason : state.regenerationRequired ? "Regenerate content to apply this converter profile." : "Selected converter profile matches generated content.";
-	const options = state.profiles.length ? `<div class="row" aria-label="${escapeAttribute(titleCase(state.class))} profile choices">${state.profiles.map((profile) => `<button type="button" data-intent="prototype-profile-select" data-profile-class="${escapeAttribute(profile.class)}" data-value="${escapeAttribute(profile.profileId)}" data-profile-version="${escapeAttribute(profile.profileVersion)}" data-content-hash="${escapeAttribute(profile.contentHash)}" ${disabled ? "disabled" : ""} aria-label="Select ${escapeAttribute(profile.profileId)} ${escapeAttribute(titleCase(profile.class))} profile">${escapeHtml(profile.profileId)}</button>`).join("")}</div>` : "";
-	const converterTruth = isConverter ? `<p class="muted">Selected ${escapeHtml(state.selectedContentHash)}<br>Applied ${escapeHtml(state.appliedContentHash)}<br>Pending ${escapeHtml(state.pendingContentHash ?? "none")}</p>` : "";
-	return `<article class="card" data-profile-class="${escapeAttribute(state.class)}"><div class="row"><h3>${escapeHtml(titleCase(state.class))}</h3>${state.experimental ? `<span class="pill">Experimental</span>` : ""}${state.regenerationRequired ? `<span class="pill error">Regeneration required</span>` : `<span class="pill">Applied</span>`}</div>${identityMarkup(state.active)}<p class="muted live" role="status" aria-live="polite">${escapeHtml(policy)}</p>${converterTruth}${options}</article>`;
+	const options = state.profiles.length ? `<div class="row" aria-label="${escapeAttribute(titleCase(state.class))} profile choices">${state.profiles.map((profile) => {
+		const active = profile.profileId === state.active.profileId && profile.profileVersion === state.active.profileVersion && profile.contentHash === state.active.contentHash;
+		return `<button type="button" data-intent="prototype-profile-select" data-profile-class="${escapeAttribute(profile.class)}" data-value="${escapeAttribute(profile.profileId)}" data-profile-version="${escapeAttribute(profile.profileVersion)}" data-content-hash="${escapeAttribute(profile.contentHash)}" aria-pressed="${active}" ${disabled ? "disabled" : ""} aria-label="Select ${escapeAttribute(profile.profileId)} ${escapeAttribute(titleCase(profile.class))} profile">${escapeHtml(profile.profileId)}</button>`;
+	}).join("")}</div>` : "";
+	const converterTruth = isConverter ? `<p class="muted compact-converter-truth" role="status" aria-live="polite">Selected ${escapeHtml(state.selectedContentHash)}<br>Applied ${escapeHtml(state.appliedContentHash)}<br>Pending ${escapeHtml(state.pendingContentHash ?? "none")}</p>` : "";
+	const policyClass = disabled ? "compact-critical" : "compact-explanatory";
+	return `<article class="card" data-profile-class="${escapeAttribute(state.class)}"><div class="row"><h3>${escapeHtml(titleCase(state.class))}</h3>${state.experimental ? `<span class="pill compact-telemetry">Experimental</span>` : ""}${state.regenerationRequired ? `<span class="pill error">Regeneration required</span>` : `<span class="pill">Applied</span>`}</div>${identityMarkup(state.active)}<p class="muted live ${policyClass}" role="status" aria-live="polite">${escapeHtml(policy)}</p>${converterTruth}${options}</article>`;
 }
 /** @param {ProfileIdentity} identity @returns {string} */
 function identityMarkup(identity) {
-	return `<div part="profile-identity"><strong>${escapeHtml(identity.profileId)}</strong><p class="muted">Version ${escapeHtml(identity.profileVersion)} · ${escapeHtml(identity.class)}<br>Hash ${escapeHtml(identity.contentHash)}</p></div>`;
+	return `<div class="compact-identity" part="profile-identity"><strong>${escapeHtml(identity.profileId)}</strong><p class="muted">Version ${escapeHtml(identity.profileVersion)} · ${escapeHtml(identity.class)}<br>Hash ${escapeHtml(identity.contentHash)}</p></div>`;
 }
 /** @param {string} url @returns {boolean} */
 function isSafeVisualUrl(url) {
@@ -9300,13 +9324,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:17aa9a9e592b3ee8be531365850510b209bc4d008cbc3a20244d14ecf4fa2ea3";
+var buildStamp = "source:02be7bc24893800f4695b8feffbeab896a1f2d949cd584a7b61250b0dda08af3";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-17aa9a9e592b3ee8";
+var cacheBust = "0.0.24-02be7bc24893800f";
 /**
 * Vite-injected package version from package.json.
 *
@@ -22198,6 +22222,11 @@ var AeroGame = class extends HTMLElement {
 		this.fullscreenError = null;
 		this.container = containerSnapshot(0, 0, 1, true, false);
 		this.lastError = null;
+		this.menuOpen = false;
+		this.menuPauseArmed = false;
+		this.menuStarting = false;
+		this.sessionStartRequested = false;
+		this.menuFocusRestore = null;
 		this.boundVisibility = () => {
 			this.applyVisibility();
 		};
@@ -22211,6 +22240,10 @@ var AeroGame = class extends HTMLElement {
 		this.boundLocalZip = (event) => {
 			this.handleLocalZip(event);
 		};
+		this.boundInteractionClick = (event) => {
+			this.handleInteractionClick(event);
+		};
+		this.boundInteractionKeydown = (event) => this.handleInteractionKeydown(event);
 		const root = this.attachShadow({ mode: "open" });
 		root.innerHTML = template();
 		this.localZipPicker = document.createElement("input");
@@ -22226,6 +22259,11 @@ var AeroGame = class extends HTMLElement {
 		this.lifecycle = "connected";
 		this.activeAbort = new AbortController();
 		this.audioSyncPending = false;
+		this.menuOpen = true;
+		this.menuPauseArmed = false;
+		this.menuStarting = false;
+		this.sessionStartRequested = false;
+		this.menuFocusRestore = null;
 		this.browsedMaps.clear();
 		this.beatSaverView = emptyBeatSaverView();
 		this.libraryView = Object.freeze({
@@ -22242,6 +22280,9 @@ var AeroGame = class extends HTMLElement {
 			this.createBridge();
 			this.measureContainer();
 			this.renderPresenters();
+			queueMicrotask(() => {
+				if (this.isConnected && this.menuOpen) this.drawerElement()?.focus();
+			});
 			this.publish("ready");
 			this.refreshLibrary(this.connectedGeneration);
 		} catch (error) {
@@ -22296,6 +22337,7 @@ var AeroGame = class extends HTMLElement {
 		await this.startCv();
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
 		graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+		this.sessionStartRequested = true;
 		try {
 			graph.gameplay.requestStart(performance.now());
 		} catch {}
@@ -22345,6 +22387,7 @@ var AeroGame = class extends HTMLElement {
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		const participant = this.leaseParticipant;
+		this.sessionStartRequested = false;
 		this.stopFrameLoop();
 		await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
 		if (!this.isCurrent(generation, graph)) return this.getSnapshot();
@@ -22673,6 +22716,11 @@ var AeroGame = class extends HTMLElement {
 			container: this.container,
 			capabilities: this.capabilities(),
 			fullscreen: this.fullscreenSnapshot(),
+			interaction: {
+				menuOpen: this.menuOpen,
+				menuPauseArmed: this.menuPauseArmed,
+				menuStarting: this.menuStarting
+			},
 			iframe: this.bridge?.getSnapshot() ?? {
 				schema: "aerobeat/iframe_bridge_snapshot",
 				version: 1,
@@ -22758,6 +22806,8 @@ var AeroGame = class extends HTMLElement {
 		document.addEventListener("visibilitychange", this.boundVisibility);
 		document.addEventListener("fullscreenchange", this.boundFullscreen);
 		this.shadowRoot?.addEventListener(aeroUiIntentEventName, this.boundUiIntent);
+		this.shadowRoot?.addEventListener("click", this.boundInteractionClick);
+		this.shadowRoot?.addEventListener("keydown", this.boundInteractionKeydown);
 		this.localZipInput().addEventListener("change", this.boundLocalZip);
 		this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.measureContainer()) : null;
 		this.resizeObserver?.observe(this);
@@ -22958,18 +23008,22 @@ var AeroGame = class extends HTMLElement {
 				const frame = graph.cv.getLatestPoseFrame();
 				if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
 					this.latestPoseTimestampMs = frame.timestampMs;
-					graph.input.processPoseSample(frame, {
+					if (!this.menuOpen) graph.input.processPoseSample(frame, {
 						sourceAspectRatio: surface.sourceAspectRatio,
 						sourceChangeId: this.lastCameraIdentity
 					});
-				} else graph.input.advanceTime(performance.now());
+				} else if (!this.menuOpen) graph.input.advanceTime(performance.now());
 				try {
-					if (!(graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing")) graph.gameplay.advance({
-						timestampMs: performance.now(),
-						clock: graph.audio.getClockSnapshot(),
-						input: graph.input.getSnapshot(),
-						lease: this.leaseSnapshotForGameplay()
-					});
+					if (!(graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing")) {
+						const frameNow = performance.now();
+						graph.gameplay.advance({
+							timestampMs: frameNow,
+							clock: graph.audio.getClockSnapshot(),
+							input: graph.input.getSnapshot(),
+							lease: this.leaseSnapshotForGameplay()
+						});
+						if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
+					}
 					this.syncAudioForGameplay();
 					this.syncContentPlayback();
 				} catch {}
@@ -23054,6 +23108,7 @@ var AeroGame = class extends HTMLElement {
 	}
 	renderPresenters() {
 		if (!this.graph) return;
+		this.renderInteractionShell();
 		const content = this.graph.content.getSnapshot();
 		const gameplay = this.graph.gameplay.getSnapshot();
 		const input = this.graph.input.getSnapshot();
@@ -23084,6 +23139,26 @@ var AeroGame = class extends HTMLElement {
 		} : { active: false });
 		const status = this.shadowRoot?.querySelector("[data-role='status']");
 		if (status) status.textContent = `${content.state} · ${session.state} · ${Math.round(this.container.widthCssPx)}×${Math.round(this.container.heightCssPx)}`;
+	}
+	renderInteractionShell() {
+		const button = this.menuButtonElement();
+		const drawer = this.drawerElement();
+		const backdrop = this.shadowRoot?.querySelector("[data-role='menu-backdrop']");
+		if (button) {
+			button.setAttribute("aria-expanded", this.menuOpen ? "true" : "false");
+			button.setAttribute("aria-label", this.menuOpen ? "Close configuration menu" : "Open configuration menu");
+		}
+		if (drawer) {
+			drawer.hidden = !this.menuOpen;
+			drawer.setAttribute("aria-hidden", this.menuOpen ? "false" : "true");
+		}
+		if (backdrop instanceof HTMLElement) backdrop.hidden = !this.menuOpen;
+		for (const presenter of this.shadowRoot?.querySelectorAll("[data-role='drawer'] aero-prototype-selector,[data-role='drawer'] aero-beatsaver-browser,[data-role='drawer'] aero-content-import-progress,[data-role='drawer'] aero-content-library,[data-role='drawer'] aero-capabilities-panel,[data-role='drawer'] aero-error-panel,[data-role='drawer'] aero-fullscreen-button") ?? []) presenter.toggleAttribute("compact", this.menuOpen);
+		const start = this.shadowRoot?.querySelector("[data-action='calibrate-start']");
+		if (start instanceof HTMLButtonElement) {
+			start.disabled = this.menuStarting;
+			start.textContent = this.menuStarting ? "Starting camera…" : "Calibrate / Start";
+		}
 	}
 	selectBrowsedMap(mapId) {
 		const map = this.browsedMaps.get(boundedIdentifier(mapId, "BeatSaver map ID").toUpperCase());
@@ -23162,6 +23237,91 @@ var AeroGame = class extends HTMLElement {
 		} catch (error) {
 			this.handleError(error);
 		}
+	}
+	async handleInteractionClick(event) {
+		const action = (typeof event.composedPath === "function" ? event.composedPath() : []).find((entry) => entry instanceof HTMLElement && entry.dataset?.action)?.dataset?.action;
+		if (action === "menu-toggle") this.setMenuOpen(!this.menuOpen);
+		else if (action === "menu-close" || action === "menu-backdrop") this.setMenuOpen(false);
+		else if (action === "calibrate-start") await this.startFromMenu();
+	}
+	handleInteractionKeydown(event) {
+		if (!(event instanceof KeyboardEvent)) return;
+		if (event.key === "Escape" && this.menuOpen) {
+			event.preventDefault();
+			this.setMenuOpen(false);
+			return;
+		}
+		if (event.key !== "Tab" || !this.menuOpen) return;
+		const drawer = this.shadowRoot?.querySelector("[data-role='drawer']");
+		if (!(drawer instanceof HTMLElement)) return;
+		const focusable = deepFocusable(drawer);
+		if (focusable.length === 0) {
+			event.preventDefault();
+			drawer.focus();
+			return;
+		}
+		const first = focusable[0];
+		const last = focusable[focusable.length - 1];
+		const active = deepActiveElement(this.shadowRoot);
+		if (event.shiftKey && active === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && active === last) {
+			event.preventDefault();
+			first.focus();
+		}
+	}
+	setMenuOpen(open) {
+		if (!this.graph || this.menuOpen === open) return;
+		if (open) {
+			this.menuFocusRestore = this.menuButtonElement();
+			this.menuOpen = true;
+			this.menuPauseArmed = true;
+			const now = Math.max(performance.now(), Number(this.graph.gameplay.getSnapshot().session.timestampMs ?? 0));
+			this.graph.input.resetCalibration("menu_open");
+			try {
+				this.graph.gameplay.pause(now, "configuration_menu");
+				this.synchronizePausedClock(this.graph);
+			} catch {}
+			this.graph.audio.pause().catch((error) => this.handleError(error));
+		} else {
+			this.menuOpen = false;
+			this.menuPauseArmed = true;
+			this.graph.input.resetCalibration("menu_closed_recalibration_required");
+		}
+		this.renderPresenters();
+		this.publish("session_changed");
+		queueMicrotask(() => requestAnimationFrame(() => {
+			if (!this.isConnected) return;
+			if (this.menuOpen) this.drawerElement()?.focus();
+			else (this.menuFocusRestore?.isConnected ? this.menuFocusRestore : this.menuButtonElement())?.focus();
+		}));
+	}
+	async startFromMenu() {
+		if (!this.graph || this.menuStarting) return;
+		this.menuStarting = true;
+		this.lastError = null;
+		this.renderPresenters();
+		try {
+			await this.start();
+			if (!this.graph) return;
+			this.menuPauseArmed = true;
+			this.graph.input.resetCalibration("menu_waiting_for_close");
+			this.renderPresenters();
+		} catch (error) {
+			this.handleError(error);
+		} finally {
+			this.menuStarting = false;
+			this.renderPresenters();
+		}
+	}
+	drawerElement() {
+		const value = this.shadowRoot?.querySelector("[data-role='drawer']");
+		return value instanceof HTMLElement ? value : null;
+	}
+	menuButtonElement() {
+		const value = this.shadowRoot?.querySelector("[data-role='menu-button']");
+		return value instanceof HTMLButtonElement ? value : null;
 	}
 	handleUiIntent(event) {
 		const detail = event instanceof CustomEvent ? event.detail : null;
@@ -23339,6 +23499,8 @@ var AeroGame = class extends HTMLElement {
 		document.removeEventListener("fullscreenchange", this.boundFullscreen);
 		globalThis.removeEventListener("resize", this.boundFullscreen);
 		this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent);
+		this.shadowRoot?.removeEventListener("click", this.boundInteractionClick);
+		this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown);
 		this.localZipInput().removeEventListener("change", this.boundLocalZip);
 		for (const stop of this.unsubscribe.splice(0)) try {
 			stop();
@@ -23407,8 +23569,8 @@ defineAeroGame();
 function template() {
 	return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
-*,*::before,*::after{box-sizing:border-box}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.media{object-fit:cover;transform:scaleX(-1);opacity:.42}.renderer{z-index:2}.ui{position:absolute;z-index:3;inset:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,28%);grid-template-rows:auto 1fr auto;gap:8px;padding:8px;pointer-events:none}.ui>*{pointer-events:auto}.browser{grid-column:2;grid-row:1/3;overflow:auto}.hud{grid-column:1;grid-row:1;display:flex;gap:8px;flex-wrap:wrap}.footer{grid-column:1/-1;grid-row:3;display:flex;gap:8px;align-items:end;justify-content:space-between}.status{background:rgba(0,0,0,.68);border-radius:999px;padding:6px 10px;font:700 12px system-ui}.visually-optional{max-block-size:34vh;overflow:auto}@media(max-width:700px){.ui{grid-template-columns:1fr}.browser{grid-column:1;grid-row:2;max-block-size:30vh}.footer{grid-column:1}}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="ui"><div class="hud"><aero-calibration-badge></aero-calibration-badge><aero-tracking-pause></aero-tracking-pause><aero-resume-countdown></aero-resume-countdown><aero-prototype-selector></aero-prototype-selector></div><section class="browser visually-optional"><aero-beatsaver-browser></aero-beatsaver-browser><aero-content-import-progress></aero-content-import-progress><aero-content-library></aero-content-library><aero-capabilities-panel></aero-capabilities-panel><aero-error-panel></aero-error-panel></section><div class="footer"><span data-role="status" class="status" aria-live="polite">Connecting…</span><aero-fullscreen-button></aero-fullscreen-button></div></div></div>`;
+*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:.58}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.drawer-close,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;font-size:24px}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:rgba(4,17,29,.97);border-inline-start:1px solid rgba(255,255,255,.18);box-shadow:-12px 0 32px rgba(0,0,0,.42);padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-bar{position:absolute;inset-block-start:max(8px,env(safe-area-inset-top));inset-inline:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}.drawer-title{font:800 18px system-ui}.drawer-close{inline-size:48px;font-size:22px}.start-action{inline-size:100%;margin-block-end:10px;background:#0d6f86}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge></aero-calibration-badge><aero-tracking-pause></aero-tracking-pause><aero-resume-countdown></aero-resume-countdown></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false">☰</button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div class="drawer-bar"><span class="drawer-title">AeroBeat</span><button data-action="menu-close" class="drawer-close" type="button" aria-label="Close configuration menu">×</button></div><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><aero-prototype-selector></aero-prototype-selector><aero-beatsaver-browser></aero-beatsaver-browser><aero-content-import-progress></aero-content-import-progress><aero-content-library></aero-content-library><aero-capabilities-panel></aero-capabilities-panel><aero-error-panel></aero-error-panel><aero-fullscreen-button></aero-fullscreen-button></div></section></div>`;
 }
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) {
@@ -23725,6 +23887,22 @@ function packageCarriesConverterProfile(packageValue, profile) {
 	} catch {
 		return false;
 	}
+}
+/** Return keyboard-focusable controls in composed tree order, including open presenter roots. @param {Element | ShadowRoot} root @returns {HTMLElement[]} */
+function deepFocusable(root) {
+	const controls = [];
+	for (const element of root.querySelectorAll("*")) {
+		if (!(element instanceof HTMLElement) || element.hidden) continue;
+		if (element.matches("button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex='-1'])")) controls.push(element);
+		if (element.shadowRoot) controls.push(...deepFocusable(element.shadowRoot));
+	}
+	return controls;
+}
+/** Resolve the innermost focused element across open shadow roots. @param {ShadowRoot | null} root @returns {Element | null} */
+function deepActiveElement(root) {
+	let active = root?.activeElement ?? null;
+	while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+	return active;
 }
 /** Descriptor-safe bounded clone for public snapshots/commands. */
 function safeData(value, depth, maximumItems) {

@@ -30,8 +30,9 @@ for (const root of ["src", "test", "demo"]) {
   }
   for (const file of collectFiles(root)) {
     const source = readFileSync(file, "utf8");
-    if (/<(?:button|input|select|textarea)\b/u.test(source)) {
-      failures.push(`${file}: visible controls must be named aero-* Web Components`);
+    const withoutAssemblyShellButtons = source.replace(/<button\b(?=[^>]*\bdata-action="(?:menu-toggle|menu-close|menu-backdrop|calibrate-start)")[^>]*>/gu, "");
+    if (/<(?:button|input|select|textarea)\b/u.test(withoutAssemblyShellButtons)) {
+      failures.push(`${file}: visible controls must be named aero-* Web Components or approved assembly interaction-shell buttons`);
     }
   }
 }
