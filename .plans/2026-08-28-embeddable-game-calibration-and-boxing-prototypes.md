@@ -561,7 +561,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 ### Task 6: Implement Gameplay Session, Rulesets, Scoring, Pause, and Prototype Telemetry
 
 **Bead ID:** `aerobeat-web-assembly-48w.3`
-**SubAgent:** Failed coder `023ead05-e71f-41f1-b465-06bc04d35bf2`; failed recovery `7d25a7bb-d1bf-4361-b11f-6fbcd4b225d5` left passing dirty implementation; completion recovery `08b6b8b0-9503-4d20-b557-8a58f6769db9`; QA pending
+**SubAgent:** Failed coder `023ead05-e71f-41f1-b465-06bc04d35bf2`; failed recovery `7d25a7bb-d1bf-4361-b11f-6fbcd4b225d5`; completion recovery `08b6b8b0-9503-4d20-b557-8a58f6769db9`; QA/auditor `284a36bf-aecf-4ef7-8215-29ac0713e579`
 **Role:** `coder`
 **References:** `REF-01`, `REF-05`, `REF-06`, `REF-12`, `REF-13`
 **Prompt:** In the new `aerobeat-web-gameplay`, implement the minimal gameplay-session coordinator, audio-clock consumption, initial/pause recalibration gates, frozen 3..2..1 countdown, tracking-safety pause, media lease integration contract, positive-only evidence matching, one-action consumption, Flow cell/direction rules, Semantic Track Boxing, Spatial Grid Boxing, checkpoint sampling, straight qualification, binary diagnostics, simultaneous disjoint obstacle+punch handling, local prototype score partitions, recipe/ruleset provenance, and diagnostic shadow evaluation. No public leaderboards.
@@ -577,7 +577,7 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 
 **Status:** In Progress
 
-**Results:** Initial coder failed cleanly; first recovery left a coherent dirty coordinator implementation whose parent baseline gates pass. Completion recovery found the post-loss calibration latch could clear on the same calibration ID, countdown accepted a drifting paused audio position, candidate pairings were not exact, and shadow evaluation bypassed freshness/calibration gates. Recovery is fixing these safety invariants and expanding real Chromium state coverage before push.
+**Results:** After two failed delegates, completion recovery `b937435` preserved and finished the coordinator, fixing post-loss different-ID calibration latching, exact frozen countdown position, clock rollback, real resolved-content envelopes, candidate/modifier identity, spatial rules, current measured shadow gates, exact local score identity and descriptor bounds. Parent check/test/browser/pack pass; independent safety/judgement QA is in progress.
 
 **Acceptance:** Deterministic clock tests cover all four candidates, +/-180ms windows, 150ms freshness, no-input misses, 100ms straight qualification, cardinal entries, checkpoint states, guard/punch exclusivity, disjoint concurrency, action consumption, tracking pause/countdown cancellation, variant swaps, local-only score identity, and diagnostic-only shadows.
 
