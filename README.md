@@ -89,8 +89,11 @@ Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, 
 npm run check
 npm test
 npm run test:browser
+npm run test:v4-integration
 npm run build
 npm run build-release
+# Optional, network-dependent current-map proof:
+npm run test:live-v4-import
 ```
 
-Chromium validation covers direct embedding, exact parent sizing, stable surfaces, child fullscreen, all five variants, two-instance lease transfer, hidden policy, reconnect/teardown, strict cross-origin handshake/origin/source validation, unsafe payload rejection, and zero unexpected console warnings/errors. A final physical Chromium/Android secure-context camera/calibration/playability handoff remains part of the cross-repo QA task.
+Chromium validation covers direct embedding, exact parent sizing, stable surfaces, child fullscreen, all five variants, two-instance lease transfer, hidden policy, reconnect/teardown, strict cross-origin handshake/origin/source validation, unsafe payload rejection, and zero unexpected console warnings/errors. The normal network-independent gate also drives an independently hard-coded v4 provider-hash golden through the actual vendor, authoring, persistence, library, and selection path; rejects tampered v4 bytes; and preserves v2/v3 local ZIP imports. The optional live gate fetches exact current map/version `53F26` / `addd9d6f8e7340ad6f5633947136d8475a7a99b5`, persists and selects all five authored variants without requesting camera, verifies bounded public data, then deletes its ephemeral package. A final physical Chromium/Android secure-context camera/calibration/playability handoff remains part of the cross-repo QA task.
