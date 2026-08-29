@@ -42,7 +42,7 @@ if (forbiddenRuntimeAsset) {
 const assembledJavaScript = runtimeJavaScriptAssets
   .map((filePath) => readFileSync(resolve(releaseRoot, filePath), "utf8"))
   .join("\n");
-for (const requiredMarker of ["poseBackend", "mediapipe", "gpu-webgl", "standard"]) {
+for (const requiredMarker of ["Pose Landmarker Lite float16 /1/", "mediapipe", "gpu-webgl", "standard", "measured", "submissionCadenceTargetFps"]) {
   if (!assembledJavaScript.includes(requiredMarker)) {
     throw new Error(`Release omitted locked MediaPipe marker ${requiredMarker}.`);
   }

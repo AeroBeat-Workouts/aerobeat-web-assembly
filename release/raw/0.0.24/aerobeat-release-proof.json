@@ -1,0 +1,46 @@
+{
+  "artifactKind": "raw-unminified-browser-proof",
+  "packageName": "@aerobeat/web-assembly",
+  "proofVersion": "0.0.24",
+  "createdAt": "2026-08-29T00:58:13.502Z",
+  "minified": false,
+  "basePath": "/",
+  "productionPoseConfiguration": {
+    "backend": "mediapipe",
+    "provider": "gpu-webgl",
+    "model": "pose-landmarker-lite",
+    "modelVariant": "float16/1",
+    "tasksVisionVersion": "1.0.1",
+    "tuning": "standard",
+    "thresholds": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "tracking": "fast",
+    "performancePreset": "full",
+    "gameplaySource": "measured",
+    "submissionCadenceTargetFps": 15
+  },
+  "concretePoseVendors": [
+    "@aerobeat/web-vendor-mediapipe"
+  ],
+  "poseBackends": [
+    "mediapipe"
+  ],
+  "runtimeJavaScriptAssets": [
+    "assets/conversion-worker-DCjt02nl.js",
+    "assets/index.js",
+    "assets/mediapipe-worker.js",
+    "assets/vision_bundle-CAb2dpSo.js"
+  ],
+  "runtimeWasmAssets": [],
+  "totalArtifactBytesBeforeManifest": 3750094,
+  "forbiddenRuntimeAssetPatternsChecked": [
+    "movenet",
+    "onnx",
+    "ort-wasm",
+    "pose-detection",
+    "tensorflow"
+  ]
+}

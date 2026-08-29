@@ -1,8 +1,14 @@
 {
   "name": "@aerobeat/web-assembly",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./iframe-bridge": "./src/iframe-bridge.js",
+    "./media-lease": "./src/media-lease-coordinator.js",
+    "./service-graph": "./src/service-graph.js"
+  },
   "scripts": {
     "check": "npm run check:jsdoc && npm run check:imports && npm run check:components && npm run check:console",
     "check:jsdoc": "node scripts/validate-jsdoc-no-any.js",
@@ -10,7 +16,7 @@
     "check:components": "node scripts/validate-component-rules.js",
     "check:console": "node scripts/validate-playwright-console-noise.js",
     "test": "npm run check && npm run test:unit",
-    "test:unit": "node scripts/validate-runtime-cadence.js && node scripts/validate-pose-backend-registry.js && node scripts/validate-pose-gameplay-source.js && node scripts/validate-predictive-pose-routing.js",
+    "test:unit": "node scripts/validate-runtime-cadence.js && node scripts/validate-pose-backend-registry.js && node scripts/validate-pose-gameplay-source.js && node scripts/validate-predictive-pose-routing.js && node scripts/validate-aero-game-assembly.js",
     "test:browser": "npm run check:console",
     "test:mediapipe-videoframe-smoke": "node scripts/validate-real-mediapipe-videoframe-smoke.mjs",
     "dev": "vite --host 127.0.0.1",
@@ -24,12 +30,17 @@
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
   },
   "dependencies": {
+    "@aerobeat/web-audio": "file:../aerobeat-web-audio",
+    "@aerobeat/web-content": "file:../aerobeat-web-content",
+    "@aerobeat/web-content-authoring": "file:../aerobeat-web-content-authoring",
     "@aerobeat/web-contracts": "file:../aerobeat-web-contracts",
     "@aerobeat/web-cv": "file:../aerobeat-web-cv",
+    "@aerobeat/web-gameplay": "file:../aerobeat-web-gameplay",
     "@aerobeat/web-input": "file:../aerobeat-web-input",
     "@aerobeat/web-renderer": "file:../aerobeat-web-renderer",
     "@aerobeat/web-style": "file:../aerobeat-web-style",
     "@aerobeat/web-ui": "file:../aerobeat-web-ui",
+    "@aerobeat/web-vendor-beatsaver": "file:../aerobeat-web-vendor-beatsaver",
     "@aerobeat/web-vendor-mediapipe": "file:../aerobeat-web-vendor-mediapipe",
     "@aerobeat/web-video": "file:../aerobeat-web-video"
   },

@@ -11,7 +11,7 @@ const allowedConcreteVendor = "@aerobeat/web-vendor-mediapipe";
  * @returns {boolean}
  */
 function isForbiddenPoseRuntime(specifier) {
-  return (specifier.startsWith("@aerobeat/web-vendor-") && specifier !== allowedConcreteVendor)
+  return (["@aerobeat/web-vendor-movenet", "@aerobeat/web-vendor-onnxruntime"].some((name) => specifier === name || specifier.startsWith(`${name}/`)))
     || specifier === "onnxruntime-web"
     || specifier.startsWith("onnxruntime-web/")
     || specifier === "@tensorflow-models/pose-detection"
