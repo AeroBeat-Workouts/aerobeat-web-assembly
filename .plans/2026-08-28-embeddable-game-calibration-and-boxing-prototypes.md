@@ -853,6 +853,6 @@ For production-ready masters, keep explicit left/right punch files for optical Q
 **Commits:**
 - Assembly implementation/QA through Task 11: `f0f2151`, `27dab79`, `957e661`; final handoff target `fda6d23`.
 - Cross-repo final heads are enumerated in `docs/task13-final-audit.md`.
-- Task 12 handoff baseline: `fda6d23`; four-section/start repair: UI `b075797` with QA closure `3c07000`, assembly `b02bf68`/handoff `cc1091f` with QA closure `5c15943` and audit `55bd6d0`; physical retest pending.
+- Task 12 handoff baseline: `fda6d23`; four-section/start repair: UI `b075797` with QA closure `3c07000`, assembly `b02bf68`/handoff `cc1091f` with QA closure `5c15943` and audit `55bd6d0`; populated Music radios: UI `5e7ac29`, assembly `24c8dfc`; QA/physical retest pending.
 
 **Lessons Learned:** Hash semantic projections must remain identical across authoring/content owners; deterministic ZIP/build evidence requires frozen dependencies; same `variantId` generation truth does not imply duplicate public event IDs; responsive evidence must compare the correct coordinate space; and physical camera-path automation must never be reported as human calibration/play.
