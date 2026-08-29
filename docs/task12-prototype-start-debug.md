@@ -317,3 +317,13 @@ Related files/components: src/index.js; scripts/validate-product-shell-matrix.js
 Remaining uncertainty: Physical play only; deterministic opacity/test failure is established.
 ```
 
+## Repair: Alpha-One Control and Exhaustive Classifier
+
+The corner menu now overrides the shared translucent control background with `#03131f`; drawer-close and start styling remain unchanged. Chromium computes the menu background as `rgb(3, 19, 31)`, and the matrix parses RGB/RGBA syntax and requires alpha exactly `1` in every closed, transient, and drawer fixture.
+
+The matrix no longer enters a known overlay root before collecting evidence. It starts at the `<aero-game>` host, traverses the complete rendered light/shadow composed tree, and classifies every geometrically visible element and normalized direct text as host, structure, environment, video, canvas, menu, transient, backdrop, drawer, or unexpected. Closed states reject every category beyond environment/play surfaces, menu, and the one allowed transient. Renderer frame inspection locks all three inputs: `countdown:null`, `overlay:"none"`, and `calibrationDim:0`.
+
+Iframe acceptance measures the parent `iframe#game`, child `innerWidth`/`innerHeight`, parent main, and `<aero-game>` bounds at exact 390×844 and 844×390. Drawer acceptance compares exact normalized visible-text sets rather than forbidden words and exercises baseline plus controlled progress, error, and blocking limitation fixtures. Lifecycle proof records old service destruction, fresh graph/generation/state, stable video/canvas/legacy identities, and media-idle reconnect. Privacy recursively rejects forbidden keys and binary/media object types, and an explicit `production-winner` selection must fail as unregistered.
+
+During hardening, exhaustive output exposed two test-model assumptions: the corner button intentionally remains visible as a close control while the drawer is open, and clipped compact labels/options are not visible text. A later reconnect assertion incorrectly expected the frame timer to restart without media; reconnect correctly creates a fresh connected, media-idle graph with timer zero. The final classifier models those documented behaviors without weakening closed-shell acceptance.
+
