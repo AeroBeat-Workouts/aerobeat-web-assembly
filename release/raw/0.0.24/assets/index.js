@@ -886,7 +886,7 @@ Object.freeze({
 * @property {number} measurementTimestampMs Real measurement timestamp.
 * @property {number} fromCell In-grid source cell.
 * @property {number} toCell In-grid destination cell.
-* @property {AeroBodyGridDirection} direction Eight-way athlete-space entry direction.
+* @property {AeroBodyGridDirection} [direction] Eight-way athlete-space entry direction when recent motion is unambiguous. Omission records a measured cell entry without directional evidence.
 * @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
 */
 /**
@@ -983,7 +983,9 @@ function isBodyGridAnchorSnapshot(value) {
 * @returns {value is AeroBodyGridCellEntry}
 */
 function isBodyGridCellEntry(value) {
-	return isRecord$9(value) && value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && isOneOf$2(value.direction, bodyGridDirections$5) && value.provenance === "measured";
+	if (!isRecord$9(value)) return false;
+	const directionValid = !Object.hasOwn(value, "direction") || isOneOf$2(value.direction, bodyGridDirections$5);
+	return value.schema === "aerobeat/body_grid_cell_entry" && value.version === 1 && isOneOf$2(value.anchor, upperBodyAnchorNames$5) && isNonEmptyString$4(value.calibrationId) && isNonNegativeFiniteNumber$3(value.measurementTimestampMs) && Number.isInteger(value.fromCell) && Number(value.fromCell) >= 0 && Number(value.fromCell) < 12 && Number.isInteger(value.toCell) && Number(value.toCell) >= 0 && Number(value.toCell) < 12 && directionValid && value.provenance === "measured";
 }
 Object.freeze([
 	"idle",
@@ -1043,7 +1045,7 @@ function isMediaLeaseSnapshot(value) {
 * @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
 * @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
 * @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured eight-way cell entries.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
 */
 /**
 * @typedef {Object} AeroGameplayJudgement
@@ -4471,7 +4473,7 @@ function isThemeDescriptor$2(value) {
 /** @typedef {"left" | "right" | "guard" | "obstacle" | "neutral" | "safe"} AeroVisualRole */
 /** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
 /** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
-/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
+/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, contrast:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
 /** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
 /** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
 /** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
@@ -4660,7 +4662,7 @@ function addTarget$1(commands, frame, target, grid, theme, tuning) {
 		const iconId = iconIdFor$1(target);
 		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
 		commands.push(command$1(kind, role, rect, alpha, scale, iconId, target.kind === "obstacle", 4, target.id, progress));
-		if (target.direction) for (const cue of directionCueRects$1(rect, target.direction)) commands.push(command$1(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress));
+		if (target.direction) for (const cue of directionCueRects$1(rect, target.direction)) commands.push(command$1(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress, true));
 		if (target.judgement === void 0 || target.judgement === "pending") commands.push(command$1("ring", role, scaledRect$1(baseRect, lerp$2(tuning.approachRingScale, 1, progress)), .85, lerp$2(tuning.approachRingScale, 1, progress), null, false, 5, target.id, progress));
 	}
 }
@@ -4719,8 +4721,8 @@ function iconIdFor$1(target) {
 	if (target.family === "weave" && (target.hand === "left" || target.hand === "right")) return `boxing.weave.${target.hand}`;
 	return null;
 }
-/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @returns {AeroGameplayDrawCommand} */
-function command$1(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1) {
+/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @param {boolean} [contrast] @returns {AeroGameplayDrawCommand} */
+function command$1(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1, contrast = false) {
 	return Object.freeze({
 		kind,
 		role,
@@ -4730,6 +4732,7 @@ function command$1(kind, role, rect, alpha, scale, iconId, hatch, layer, targetI
 		saturation: clamp$5(saturation, 0, 1),
 		iconId,
 		hatch,
+		contrast,
 		layer,
 		targetId
 	});
@@ -5747,7 +5750,7 @@ var AeroWebGl2Renderer$1 = class {
 	}
 	/** @param {import("./gameplay-plan.js").AeroGameplayDrawCommand} draw */
 	drawCommand(draw) {
-		const color = this.roleColor(draw.role, draw.alpha, draw.saturation);
+		const color = draw.contrast ? this.cueContrastColor(draw.role, draw.alpha, draw.saturation) : this.roleColor(draw.role, draw.alpha, draw.saturation);
 		if (draw.kind === "icon" && draw.iconId && this.iconTexture && this.iconEntries.has(draw.iconId)) this.drawIcon(draw.rect, color, this.iconEntries.get(draw.iconId));
 		else this.drawShape(draw.rect, color, draw.kind === "circle" ? 1 : draw.kind === "ring" ? 2 : draw.kind === "hatch" ? 3 : 0, this.tuning.approachRingWidth);
 		this.drawCount += 1;
@@ -5767,6 +5770,19 @@ var AeroWebGl2Renderer$1 = class {
 			gray + (color[1] - gray) * saturation,
 			gray + (color[2] - gray) * saturation,
 			color[3] * alpha
+		];
+	}
+	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
+	cueContrastColor(role, alpha, saturation) {
+		const target = this.roleColor(role, alpha, saturation);
+		const luminance = relativeLuminance$1(target[0], target[1], target[2]);
+		const blackContrast = (luminance + .05) / .05;
+		const channel = 1.05 / (luminance + .05) > blackContrast ? 1 : 0;
+		return [
+			channel,
+			channel,
+			channel,
+			target[3]
 		];
 	}
 	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {number} shape @param {number} ringWidth */
@@ -6003,6 +6019,11 @@ function countdownSegments$1(value) {
 /** @param {number} value */
 function finiteNonNegative$3(value) {
 	return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+/** @param {number} red @param {number} green @param {number} blue */
+function relativeLuminance$1(red, green, blue) {
+	const linear = (channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+	return linear(red) * .2126 + linear(green) * .7152 + linear(blue) * .0722;
 }
 var QUAD_VERTEX$1 = `#version 300 es
 in vec2 a_position; in vec2 a_local; out vec2 v_local; void main(){v_local=a_local;gl_Position=vec4(a_position,0.,1.);}`;
@@ -7169,7 +7190,7 @@ Object.freeze(["camera", "audio"]);
 * @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
 * @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
 * @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured eight-way cell entries.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
 */
 /**
 * @typedef {Object} AeroGameplayJudgement
@@ -9498,13 +9519,13 @@ function readErrorField(value, field) {
 *
 * @type {string}
 */
-var buildStamp = "source:cce949c5a7452eac04b30cd81214dd6c6916771b60eecf6f53cd53fba4dca290";
+var buildStamp = "source:6c913fcd1b17aa115e2112c0dd76ff0b327fcf0089fd45267d17ccdeec28fa97";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-cce949c5a7452eac";
+var cacheBust = "0.0.24-6c913fcd1b17aa11";
 /**
 * Vite-injected package version from package.json.
 *
@@ -11508,7 +11529,7 @@ Object.freeze(["camera", "audio"]);
 * @property {"measured"} provenance Evidence used by calibrated prototype scoring is measured.
 * @property {readonly AeroBoxingAction[]} activeBoxingActions Positive semantic observations; overlapping actions are allowed.
 * @property {readonly import("./body-grid-contracts.js").AeroBodyGridAnchorSnapshot[]} anchors Measured anchor snapshots.
-* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured eight-way cell entries.
+* @property {readonly import("./body-grid-contracts.js").AeroBodyGridCellEntry[]} entries Measured cell entries with optional eight-way directional evidence.
 */
 /**
 * @typedef {Object} AeroGameplayJudgement
@@ -17161,7 +17182,7 @@ Object.freeze({
 * @property {number} measurementTimestampMs Real measurement timestamp.
 * @property {number} fromCell In-grid source cell.
 * @property {number} toCell In-grid destination cell.
-* @property {AeroBodyGridDirection} direction Eight-way athlete-space entry direction.
+* @property {AeroBodyGridDirection} [direction] Eight-way athlete-space entry direction when recent motion is unambiguous. Omission records a measured cell entry without directional evidence.
 * @property {"measured"} provenance Cell entries used for calibrated evidence are measured.
 */
 /**
@@ -17782,14 +17803,20 @@ function createAeroBodyGridService(options = {}) {
 			byName.set(name, anchor);
 			if ((name === "nose" || name === "left_wrist" || name === "right_wrist") && inGrid && history.cell !== null && cell !== null && history.cell.id !== cell.id && history.point !== null) {
 				const direction = name === "nose" ? cardinalDirection(history.point, raw) : rollingWristDirection(name === "left_wrist" ? "left" : "right", sample.measurementTimestampMs);
-				if (direction !== null) entries.push({
+				const entry = {
 					schema: "aerobeat/body_grid_cell_entry",
 					version: 1,
 					anchor: name,
 					calibrationId,
 					measurementTimestampMs: sample.measurementTimestampMs,
 					fromCell: history.cell.id,
-					toCell: cell.id,
+					toCell: cell.id
+				};
+				entries.push(direction === null ? {
+					...entry,
+					provenance: "measured"
+				} : {
+					...entry,
 					direction,
 					provenance: "measured"
 				});
@@ -18589,7 +18616,7 @@ function isThemeDescriptor(value) {
 /** @typedef {"left" | "right" | "guard" | "obstacle" | "neutral" | "safe"} AeroVisualRole */
 /** @typedef {"rect" | "circle" | "ring" | "hatch" | "icon" | "line"} AeroDrawKind */
 /** @typedef {{x:number,y:number,width:number,height:number}} AeroNormalizedRect */
-/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
+/** @typedef {{kind:AeroDrawKind, role:AeroVisualRole, rect:AeroNormalizedRect, alpha:number, scale:number, saturation:number, iconId:string|null, hatch:boolean, contrast:boolean, layer:number, targetId:string|null}} AeroGameplayDrawCommand */
 /** @typedef {{id:string, kind:"flow"|"punch"|"guard"|"obstacle"|"safe", hand:"left"|"right"|"both"|"neutral", family:"straight"|"hook"|"uppercut"|"flow"|"guard"|"crossed_guard"|"squat"|"weave"|"obstacle"|"safe", cell:number|null, cells:readonly number[], lane:"left"|"right"|null, beatCenterMs:number, approachLeadMs?:number, judgement?:"pending"|"hit"|"miss", feedbackProgress?:number, direction?:import("@aerobeat/web-contracts/body-grid-contracts").AeroBodyGridDirection|null}} AeroRenderableTarget */
 /** @typedef {{presentation:AeroGameplayPresentation, nowMs:number, targets:readonly AeroRenderableTarget[], blockedCells?:readonly number[], safeCells?:readonly number[], countdown?:number|null, overlay?:"none"|"paused"|"calibrating"|"tracking_lost", calibrationDim?:number, viewportAspect?:number, theme?:Readonly<Record<string, unknown>>, tuning?:Readonly<Record<string, unknown>>}} AeroGameplayFrame */
 /** @typedef {{id:string, version:string, hash:string, gridInset:number, gridGap:number, receptorAlpha:number, approachRingScale:number, approachRingWidth:number, laneWidth:number, roleScale:number, dprCap:number}} AeroRendererTuning */
@@ -18778,7 +18805,7 @@ function addTarget(commands, frame, target, grid, theme, tuning) {
 		const iconId = iconIdFor(target);
 		const kind = target.kind === "obstacle" ? "hatch" : iconId ? "icon" : "circle";
 		commands.push(command(kind, role, rect, alpha, scale, iconId, target.kind === "obstacle", 4, target.id, progress));
-		if (target.direction) for (const cue of directionCueRects(rect, target.direction)) commands.push(command(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress));
+		if (target.direction) for (const cue of directionCueRects(rect, target.direction)) commands.push(command(cue.kind, role, cue.rect, alpha, scale, null, false, 5, target.id, progress, true));
 		if (target.judgement === void 0 || target.judgement === "pending") commands.push(command("ring", role, scaledRect(baseRect, lerp(tuning.approachRingScale, 1, progress)), .85, lerp(tuning.approachRingScale, 1, progress), null, false, 5, target.id, progress));
 	}
 }
@@ -18837,8 +18864,8 @@ function iconIdFor(target) {
 	if (target.family === "weave" && (target.hand === "left" || target.hand === "right")) return `boxing.weave.${target.hand}`;
 	return null;
 }
-/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @returns {AeroGameplayDrawCommand} */
-function command(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1) {
+/** @param {AeroDrawKind} kind @param {AeroVisualRole} role @param {AeroNormalizedRect} rect @param {number} alpha @param {number} scale @param {string|null} iconId @param {boolean} hatch @param {number} layer @param {string|null} targetId @param {number} [saturation] @param {boolean} [contrast] @returns {AeroGameplayDrawCommand} */
+function command(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId, saturation = 1, contrast = false) {
 	return Object.freeze({
 		kind,
 		role,
@@ -18848,6 +18875,7 @@ function command(kind, role, rect, alpha, scale, iconId, hatch, layer, targetId,
 		saturation: clamp$1(saturation, 0, 1),
 		iconId,
 		hatch,
+		contrast,
 		layer,
 		targetId
 	});
@@ -19865,7 +19893,7 @@ var AeroWebGl2Renderer = class {
 	}
 	/** @param {import("./gameplay-plan.js").AeroGameplayDrawCommand} draw */
 	drawCommand(draw) {
-		const color = this.roleColor(draw.role, draw.alpha, draw.saturation);
+		const color = draw.contrast ? this.cueContrastColor(draw.role, draw.alpha, draw.saturation) : this.roleColor(draw.role, draw.alpha, draw.saturation);
 		if (draw.kind === "icon" && draw.iconId && this.iconTexture && this.iconEntries.has(draw.iconId)) this.drawIcon(draw.rect, color, this.iconEntries.get(draw.iconId));
 		else this.drawShape(draw.rect, color, draw.kind === "circle" ? 1 : draw.kind === "ring" ? 2 : draw.kind === "hatch" ? 3 : 0, this.tuning.approachRingWidth);
 		this.drawCount += 1;
@@ -19885,6 +19913,19 @@ var AeroWebGl2Renderer = class {
 			gray + (color[1] - gray) * saturation,
 			gray + (color[2] - gray) * saturation,
 			color[3] * alpha
+		];
+	}
+	/** @param {string} role @param {number} alpha @param {number} saturation @returns {readonly [number,number,number,number]} */
+	cueContrastColor(role, alpha, saturation) {
+		const target = this.roleColor(role, alpha, saturation);
+		const luminance = relativeLuminance(target[0], target[1], target[2]);
+		const blackContrast = (luminance + .05) / .05;
+		const channel = 1.05 / (luminance + .05) > blackContrast ? 1 : 0;
+		return [
+			channel,
+			channel,
+			channel,
+			target[3]
 		];
 	}
 	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {number} shape @param {number} ringWidth */
@@ -20121,6 +20162,11 @@ function countdownSegments(value) {
 /** @param {number} value */
 function finiteNonNegative(value) {
 	return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+/** @param {number} red @param {number} green @param {number} blue */
+function relativeLuminance(red, green, blue) {
+	const linear = (channel) => channel <= .04045 ? channel / 12.92 : ((channel + .055) / 1.055) ** 2.4;
+	return linear(red) * .2126 + linear(green) * .7152 + linear(blue) * .0722;
 }
 var QUAD_VERTEX = `#version 300 es
 in vec2 a_position; in vec2 a_local; out vec2 v_local; void main(){v_local=a_local;gl_Position=vec4(a_position,0.,1.);}`;
@@ -24195,8 +24241,19 @@ function renderTarget(event) {
 		direction: beat.spatialTarget?.entryDirection ?? null
 	};
 }
+var beatSaberFlowDirections = Object.freeze([
+	"up",
+	"down",
+	"left",
+	"right",
+	"up-left",
+	"up-right",
+	"down-left",
+	"down-right"
+]);
 function flowDirection(value) {
-	return value === 0 || value === "up" ? "up" : value === 1 || value === "right" ? "right" : value === 2 || value === "down" ? "down" : value === 3 || value === "left" ? "left" : null;
+	if (Number.isInteger(value) && Number(value) >= 0 && Number(value) < beatSaberFlowDirections.length) return beatSaberFlowDirections[Number(value)] ?? null;
+	return typeof value === "string" && beatSaberFlowDirections.includes(value) ? value : null;
 }
 function profileSessionState(gameplay) {
 	const countdown = dataValue(gameplay, "countdown");
