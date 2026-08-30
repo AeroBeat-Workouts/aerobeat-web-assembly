@@ -13,7 +13,7 @@ assert.equal(pending.length,2); assert.equal(pending[0].judgement,"pending"); as
 
 const hit = Object.freeze({ eventId:"flow-1",result:"hit",shadow:false,committedTimelinePositionMs:1000 });
 const playHit = Object.freeze({ ...playSession, judgements:Object.freeze([hit]) });
-assert.equal(projectSessionTargets(events,playHit,999)[0].feedbackProgress,0,"feedback clamps before exact commit");
+const hitBeforeCommit=projectSessionTargets(events,playHit,999)[0]; assert.equal(hitBeforeCommit.judgement,"pending","real hit remains pending before exact authoritative commit"); assert.equal(hitBeforeCommit.feedbackProgress,undefined);
 const hitStart=projectSessionTargets(events,playHit,1000)[0]; assert.equal(hitStart.judgement,"hit"); assert.equal(hitStart.feedbackProgress,0,"hit feedback starts at exact committed timeline");
 assert.equal(projectSessionTargets(events,playHit,1175)[0].feedbackProgress,.5);
 assert.equal(projectSessionTargets(events,playHit,1350)[0].feedbackProgress,1);
@@ -21,7 +21,7 @@ assert.equal(projectSessionTargets(events,playHit,1351).some((entry)=>entry.id==
 
 const miss = Object.freeze({ eventId:"flow-1",result:"miss",shadow:false,committedTimelinePositionMs:1181 });
 const playMiss = Object.freeze({ ...playSession, judgements:Object.freeze([miss]) });
-assert.equal(projectSessionTargets(events,playMiss,1180)[0].feedbackProgress,0);
+const missBeforeCommit=projectSessionTargets(events,playMiss,1180)[0]; assert.equal(missBeforeCommit.judgement,"pending","real miss remains pending before exact authoritative commit"); assert.equal(missBeforeCommit.feedbackProgress,undefined);
 const missStart=projectSessionTargets(events,playMiss,1181)[0]; assert.equal(missStart.judgement,"miss"); assert.equal(missStart.feedbackProgress,0,"miss feedback starts at exact committed timeline");
 assert.equal(projectSessionTargets(events,playMiss,1531)[0].feedbackProgress,1);
 assert.equal(projectSessionTargets(events,playMiss,1532).some((entry)=>entry.id==="flow-1"),false);

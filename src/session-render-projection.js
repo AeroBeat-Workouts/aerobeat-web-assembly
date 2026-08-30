@@ -26,7 +26,8 @@ export function projectSessionTargets(events, gameplay, nowMs) {
     const syntheticCommitMs = visualTest ? centerMs + (index % 2 === 0 ? 0 : SYNTHETIC_MISS_COMMIT_OFFSET_MS) : null;
     const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
     const realResult = real?.result;
-    const result = realResult === "hit" || realResult === "miss" ? realResult : visualTest && commitMs !== null && nowMs >= commitMs ? index % 2 === 0 ? "hit" : "miss" : null;
+    const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
+    const result = realCommitted ? realResult : visualTest && commitMs !== null && nowMs >= commitMs ? index % 2 === 0 ? "hit" : "miss" : null;
     const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs <= Number(commitMs) + FEEDBACK_DURATION_MS;
     const pendingVisible = result !== "hit" && result !== "miss" && centerMs >= nowMs - 500 && centerMs <= nowMs + 2500;
     if (!pendingVisible && !feedbackActive) return [];
