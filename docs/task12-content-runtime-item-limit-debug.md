@@ -93,16 +93,44 @@ Add focused tests proving:
 
 Potential regressions: higher worst-case clone/validation CPU and memory for direct in-memory packages. Retain byte bounds for external packages and the finite item ceiling; measure/cover browser behavior.
 
+## Follow-up after package-validator repair `f9ad383`
+
+The first bounded repair correctly gave `validateRuntimePackage()` a 500,000-item package-only allowance while retaining the 100,000 generic default. Content unit/security/browser/pack validation passed, but exact assembly `npm run test:live-catalyst` still failed with the same error before selection.
+
+### New exact observed path
+
+The live stack still ends at `runtime-data.js:70`, but inspection reveals an earlier persistence-export boundary:
+
+1. `loadPersistenceHandle()` prefers authoring `exportPackage(handle)`.
+2. Content `parseAeroPackage()` decodes `AEROPKG1` metadata.
+3. `assets.js:30` calls generic `cloneFrozenData(metadataValue)` on the entire metadata record.
+4. That metadata contains the full canonical package plus asset table.
+5. The embedded package crosses 100,000 values before `validateRuntimePackage()` receives it, so the new package-validator allowance is never reached.
+
+This confirms the package-specific allowance was necessary but applied too late for the preferred persistence/export path. Direct package validation is repaired; AEROPKG metadata parsing remains the active failure.
+
+### Revised verification
+
+- Direct `validateRuntimePackage()` above 100,000 must remain passing.
+- Generic clone default must remain 100,000.
+- Exact AEROPKG persistence parsing with a >100,000-value valid embedded package must pass under a finite package-specific allowance.
+- Oversized metadata envelope, asset table, and >500,000 embedded package must still fail closed.
+- Exact assembly Catalyst persistence load and Preview must pass.
+
+### Revised recommended fix
+
+Do not raise the generic metadata clone limit for all fields. In `parseAeroPackage()`, validate the JSON-parsed exact metadata envelope and bounded scalar fields, clone the embedded `package` with the same internal 500,000 package allowance, and clone/validate the small asset table under the existing generic/default or its own bound. Return only these separately narrowed/frozen values. This preserves the 16 MiB metadata byte bound, 2,048-asset bound, descriptor/path/range/hash checks, and 100,000 generic limit without letting the full package consume the generic envelope budget.
+
 ## Debugging Record
 
 ```text
 Problem: Valid canonical Catalyst packages cannot enter content runtime.
 Observed symptom: data_too_large at cloneFrozenData default 100,000-item threshold.
-Root cause: Generic clone default is incorrectly acting as the top-level package capacity bound.
-Evidence: Expert=154,636 items/2.29 MiB; ExpertPlus=194,912 items/2.88 MiB; both valid five-chart packages; only item-limit throw matches.
-Failed approaches: Assembly selection/Preview repairs and small fixtures cannot change or cross the content-runtime bound.
-Corrective action: Keep generic default; apply a finite 500,000 package-specific clone allowance in package-content validation.
-Verification test: >100k valid package passes, >500k fails, content security/browser pass, exact Catalyst load/Preview passes.
-Related files/components: aerobeat-web-content/src/runtime-data.js, package-content.js, content-runtime persistence loading; assembly downloaded selection/Preview.
+Root cause: Generic clone default is incorrectly applied both to the top-level package validator and earlier to the whole AEROPKG metadata wrapper containing that package.
+Evidence: Expert=154,636 items/2.29 MiB; ExpertPlus=194,912 items/2.88 MiB; direct package-specific validation passes after f9ad383, while exact persistence still fails at assets.js whole-metadata clone before validation.
+Failed approaches: Assembly selection/Preview repairs and small fixtures did not cross the bound; f9ad383 fixed direct validation but not the preferred AEROPKG parser boundary.
+Corrective action: Keep generic default; use the finite 500,000 allowance at both package boundaries while separately narrowing the small exact metadata envelope and asset table.
+Verification test: >100k direct and AEROPKG packages pass, >500k fails, content security/browser pass, exact Catalyst load/Preview passes.
+Related files/components: aerobeat-web-content/src/runtime-data.js, package-content.js, assets.js, content-runtime persistence loading; assembly downloaded selection/Preview.
 Remaining uncertainty: Maximum future canonical package size and browser memory cost near the revised ceiling.
 ```
