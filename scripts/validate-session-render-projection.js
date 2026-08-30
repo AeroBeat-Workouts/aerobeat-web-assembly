@@ -30,6 +30,7 @@ const shadowOnly=Object.freeze({ ...playSession, judgements:Object.freeze([{...h
 const testTruth=Object.freeze({ session:Object.freeze({purpose:"visual_test"}),judgements:Object.freeze([]),shadowJudgements:Object.freeze([]),scorePartitions:Object.freeze([]) });
 const truthBefore=JSON.stringify(testTruth);
 const syntheticFirst=projectSessionTargets(events,testTruth,1100); assert.equal(syntheticFirst[0].judgement,"hit"); assert.equal(syntheticFirst[1].judgement,"pending");
+const syntheticUnsorted=projectSessionTargets(Object.freeze([events[1],events[0]]),testTruth,1100); assert.equal(syntheticUnsorted[0].id,"flow-1"); assert.equal(syntheticUnsorted[0].judgement,"hit","stable timeline sort owns parity and always begins hit-first"); assert.equal(syntheticUnsorted[1].id,"flow-2"); assert.equal(syntheticUnsorted[1].judgement,"pending");
 const syntheticSecond=projectSessionTargets(events,testTruth,2181); assert.equal(syntheticSecond.length,1); assert.equal(syntheticSecond[0].id,"flow-2"); assert.equal(syntheticSecond[0].judgement,"miss"); assert.equal(syntheticSecond[0].feedbackProgress,0);
 assert.equal(JSON.stringify(testTruth),truthBefore,"synthetic projection must not mutate gameplay judgement or score truth");
 assert.equal(projectSessionTargets(events,testTruth,2531)[0].feedbackProgress,1); assert.equal(projectSessionTargets(events,testTruth,2532).length,0);

@@ -18,7 +18,8 @@ export function projectSessionTargets(events, gameplay, nowMs) {
   const judgementsValue = recordValue(gameplay, "judgements");
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
-  return events.flatMap((event, index) => {
+  const orderedEvents = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort((left, right) => { const time = finiteNumber(recordValue(left.event, "centerTimestampMs")) - finiteNumber(recordValue(right.event, "centerTimestampMs")); if (time !== 0) return time; const leftId = String(recordValue(left.event, "eventId") ?? ""), rightId = String(recordValue(right.event, "eventId") ?? ""); return leftId < rightId ? -1 : leftId > rightId ? 1 : left.sourceIndex - right.sourceIndex; });
+  return orderedEvents.flatMap(({ event }, index) => {
     const eventId = String(recordValue(event, "eventId") ?? "");
     const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
     const real = visualTest ? null : realJudgements.get(eventId) ?? null;

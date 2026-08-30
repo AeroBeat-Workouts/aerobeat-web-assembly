@@ -205,7 +205,7 @@ export class AeroGame extends HTMLElement {
       graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
       this.sessionStartRequested = true; this.activeSessionAction = action;
       graph.gameplay.requestStart(performance.now(), purpose === "visual_test" ? VISUAL_TEST_START_REQUEST : PLAY_START_REQUEST);
-      this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback();
+      this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback();
       this.publish("session_changed");
       return this.getSnapshot();
     } finally {
@@ -239,7 +239,7 @@ export class AeroGame extends HTMLElement {
       if (!this.isCurrent(generation, graph)) return this.getSnapshot();
     }
     try { graph.gameplay.resume(performance.now()); } catch { /* not configured */ }
-    this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback(); this.publish("session_changed");
+    this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback(); this.publish("session_changed");
     return this.getSnapshot();
   }
 
@@ -269,7 +269,7 @@ export class AeroGame extends HTMLElement {
   /** @param {unknown} source */
   async selectContent(source) {
     this.assertConnected();
-    this.stopPreview();
+    this.invalidatePendingSessionStart(); this.stopPreview();
     const generation = this.connectedGeneration; const graph = this.graph;
     const normalized = contentSource(source); const kind = normalized.kind;
     let profilePackage = kind === "direct" ? packageFromEnvelope(normalized.package) : null;
@@ -289,7 +289,7 @@ export class AeroGame extends HTMLElement {
   }
 
   async selectVariant(variantId, modifierIds = []) {
-    this.assertConnected();
+    this.assertConnected(); this.invalidatePendingSessionStart();
     const generation = this.connectedGeneration; const graph = this.graph;
     this.syncContentPlayback();
     const gameplay = graph.gameplay.getSnapshot();
@@ -307,7 +307,7 @@ export class AeroGame extends HTMLElement {
 
   /** Select one registered experimental profile by bounded ID. */
   selectPrototypeProfile(profileId) {
-    this.assertConnected();
+    this.assertConnected(); this.invalidatePendingSessionStart();
     const id = boundedProfileIdentifier(profileId);
     const before = this.graph.profiles.getSnapshot();
     const target = before.profiles.find((profile) => profile.profileId === id);
@@ -321,7 +321,7 @@ export class AeroGame extends HTMLElement {
 
   /** Atomically import one direct-host profile bundle. Bundles never cross iframe messaging. */
   importPrototypeProfiles(bundle) {
-    this.assertConnected();
+    this.assertConnected(); this.invalidatePendingSessionStart();
     const before = this.graph.profiles.getSnapshot();
     this.graph.profiles.importProfiles(bundle, { sessionState: profileSessionState(this.graph.gameplay.getSnapshot()) });
     const after = this.graph.profiles.getSnapshot();
@@ -334,7 +334,7 @@ export class AeroGame extends HTMLElement {
   exportPrototypeProfiles() { this.assertConnected(); return this.graph.profiles.exportProfiles(); }
 
   resetPrototypeProfiles() {
-    this.assertConnected();
+    this.assertConnected(); this.invalidatePendingSessionStart();
     const state = profileSessionState(this.graph.gameplay.getSnapshot());
     if (!["idle", "calibrating", "paused_manual", "paused_tracking", "completed", "stopped"].includes(state)) throw new Error("Profile reset requires an idle, paused, or between-run session");
     const appliedHash = this.graph.profiles.getSnapshot().appliedConverterHash;
@@ -443,7 +443,7 @@ export class AeroGame extends HTMLElement {
     const payload = command.payload ?? {};
     switch (command.type) {
       case "configure": return this.configure(payload);
-      case "start": return command.payload === null ? this.start() : this.startSession(dataValue(payload, "purpose") === "visual_test" ? "visual_test" : "play", { requireDownloaded: dataValue(payload, "purpose") === "visual_test" });
+      case "start": return command.payload === null ? this.start() : this.startSession(dataValue(payload, "purpose") === "visual_test" ? "visual_test" : "play", { requireDownloaded: false });
       case "pause": return this.pause("host_command");
       case "resume": return this.resume();
       case "stop": return this.stop();
@@ -781,7 +781,7 @@ export class AeroGame extends HTMLElement {
       if (!visualTest) await this.startCv();
       if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
       try { graph.gameplay.resume(performance.now()); } catch { /* content or calibration may still be pending */ }
-      this.startFrameLoop(); this.syncAudioForGameplay();
+      this.syncAudioForGameplay(); this.startFrameLoop();
     }
     this.syncContentPlayback(); this.measureContainer(); this.publish("session_changed");
   }
@@ -911,7 +911,7 @@ export class AeroGame extends HTMLElement {
   }
 
   requestLibrarySelection(collectionIdValue, packageIdValue) {
-    this.assertConnected();
+    this.assertConnected(); this.invalidatePendingSessionStart();
     const target = librarySelectionTarget(this.libraryView.collections, collectionIdValue, packageIdValue);
     if (!target) return Promise.reject(new Error("Downloaded difficulty is unavailable"));
     const selectionGeneration = ++this.librarySelectionGeneration;
@@ -1087,7 +1087,7 @@ export class AeroGame extends HTMLElement {
     else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus(); }
   }
 
-  setMenuOpen(open) {
+  setMenuOpen(open, options = {}) {
     if (!this.graph || this.menuOpen === open) return;
     const graph = this.graph; const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
     if (open) {
@@ -1100,8 +1100,10 @@ export class AeroGame extends HTMLElement {
     } else {
       this.stopPreview();
       this.menuOpen = false; this.menuPauseArmed = true;
-      if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph); }
-      else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)); }
+      if (options.freshSession !== true) {
+        if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph); }
+        else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)); }
+      }
     }
     this.renderPresenters(); this.publish("session_changed");
     queueMicrotask(() => requestAnimationFrame(() => {
@@ -1117,7 +1119,7 @@ export class AeroGame extends HTMLElement {
       graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
       graph.gameplay.resume(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)));
       if (!this.isCurrent(generation, graph) || this.menuOpen) return;
-      this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback(); this.publish("session_changed");
+      this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback(); this.publish("session_changed");
     } catch (error) { if (this.isCurrent(generation, graph)) this.handleError(error); }
   }
 
@@ -1133,9 +1135,10 @@ export class AeroGame extends HTMLElement {
         return;
       }
       await this.startSession(purpose, { requireDownloaded: true });
-      if (!this.isCurrent(generation, graph)) return;
+      const expectedAction = purpose === "visual_test" ? "test" : "start";
+      if (!this.isCurrent(generation, graph) || !this.sessionStartRequested || this.activeSessionAction !== expectedAction) return;
       this.menuPauseArmed = true;
-      this.setMenuOpen(false);
+      this.setMenuOpen(false, { freshSession: true });
     } catch (error) { if (this.isCurrent(generation, graph)) { this.handleError(error); this.menuOpen = true; this.renderPresenters(); } }
   }
 
@@ -1160,6 +1163,7 @@ export class AeroGame extends HTMLElement {
   }
 
   sessionActionsSnapshot() { return Object.freeze({ downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction }); }
+  invalidatePendingSessionStart() { if (!this.pendingSessionAction && !this.menuStarting) return false; this.sessionGeneration += 1; this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = ""; this.menuStarting = false; this.stopFrameLoop(); this.renderPresenters(); return true; }
   isSessionCurrent(sessionGeneration, connectionGeneration, graph) { return this.sessionGeneration === sessionGeneration && this.isCurrent(connectionGeneration, graph); }
 
   focusMusicSection() {
