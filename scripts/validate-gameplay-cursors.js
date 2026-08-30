@@ -1,6 +1,7 @@
 // @ts-check
 
 import { createServer as createHttpServer } from "node:http";
+import { cameraPreviewToAthlete } from "@aerobeat/web-contracts";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 
@@ -42,7 +43,8 @@ async function runContext(context) {
   if (context.kind === "direct") { await page.goto(childUrl, { waitUntil:"networkidle" }); game = page.locator("aero-game"); }
   else { await page.goto(`${parentUrl}?width=${context.width}&height=${context.height}`, { waitUntil:"networkidle" }); game = page.frameLocator("#game").locator("aero-game"); }
   await game.waitFor();
-  const result = await game.evaluate((element) => {
+  const athleteLeftWrist = cameraPreviewToAthlete({ x: 0.1, y: 0.47 });
+  const result = await game.evaluate((element, athleteLeftWrist) => {
     const originalGraph = element.graph; const renderer = originalGraph.renderer; const originalFrame = renderer.renderGameplayFrame.bind(renderer); const originalCursors = renderer.renderGameplayCursors.bind(renderer);
     const calls = []; let lastPlan = null; let latestCursorCall = null;
     renderer.renderGameplayFrame = (frame) => { calls.push("gameplay"); const value = originalFrame(frame); lastPlan = value.plan; return value; };
@@ -51,7 +53,7 @@ async function runContext(context) {
       tracking:{ gameplayPaused:false,freshCalibrationRequired:false,allRequiredAnchorsVisible:true }, retainedGeometryDimmed:false,countdownFrozen:false,
       anchors:[
         { anchor:"nose",valid:true,x:.17,y:.23,confidence:.99 },
-        { anchor:"left_wrist",valid:true,x:.9,y:.47,confidence:.98 },
+        { anchor:"left_wrist",valid:true,x:athleteLeftWrist.x,y:athleteLeftWrist.y,confidence:.98 },
         { anchor:"right_wrist",valid:true,x:.53,y:.71,confidence:.97 }
       ], ...overrides
     });
@@ -78,7 +80,7 @@ async function runContext(context) {
     renderer.renderGameplayFrame = originalFrame; renderer.renderGameplayCursors = originalCursors; element.graph = originalGraph;
     const snapshotText = JSON.stringify(element.getSnapshot());
     return { dark,light,stale,lowConfidence,menu,calibrating,countdown,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels/u.test(snapshotText),canvas:{ width:renderer.widthCssPx,height:renderer.heightCssPx },devicePixelRatio };
-  });
+  }, athleteLeftWrist);
   const label = `${context.kind}:${context.width}x${context.height}@${context.dpr}`;
   for (const frame of [result.dark,result.light,result.countdown]) {
     assert(JSON.stringify(frame.order) === JSON.stringify(["gameplay","cursors"]), `${label} draw order must be gameplay then cursors: ${JSON.stringify(frame.order)}`);
