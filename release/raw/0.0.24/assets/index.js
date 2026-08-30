@@ -4915,6 +4915,10 @@ var aeroWebGl2RendererServiceId = "aero.renderer.webgl2";
 /** @typedef {"unsupported"|"ready"|"running"|"context_lost"|"error"|"destroyed"} AeroRendererState */
 /** @typedef {{widthCssPx:number,heightCssPx:number,devicePixelRatio:number,maxDevicePixelRatio?:number}} AeroRendererResize */
 /** @typedef {{surface?:AeroRendererOverlaySurfaceDescriptorInput,connections?:readonly (readonly [number,number])[],minVisibility?:number,color?:readonly [number,number,number,number],pointSize?:number}} AeroRendererOverlayOptions */
+/** @typedef {"nose"|"left_wrist"|"right_wrist"} AeroGameplayCursorRole */
+/** @typedef {{role:AeroGameplayCursorRole,x:number,y:number,confidence:number}} AeroGameplayCursor */
+/** @typedef {{grid:Readonly<{x:number,y:number,width:number,height:number}>,minConfidence?:number,sizeCssPx?:number}} AeroGameplayCursorOptions */
+/** @typedef {{status:AeroWebGl2RendererStatus,cursorCount:number,roles:readonly AeroGameplayCursorRole[]}} AeroGameplayCursorResult */
 /** @typedef {{serviceId:"aero.renderer.webgl2",state:AeroRendererState,supported:boolean,attached:boolean,contextLost:boolean,destroyed:boolean,frameCount:number,drawCount:number,viewportWidth:number,viewportHeight:number,widthCssPx:number,heightCssPx:number,devicePixelRatio:number,themeId:string,themeVersion:string,themeHash:string,tuningId:string,tuningVersion:string,tuningHash:string,tuningRequiresRegeneration:false,visualProfile:import("./visual-profiles.js").AeroRendererVisualProfileSelection,visualProfileIdentity:import("./visual-profiles.js").AeroRendererVisualIdentity,visualProfileSettings:import("./visual-profiles.js").AeroRendererVisualSettings,experimental:true,iconAtlasReady:boolean,iconAtlasError:string|null,errorMessage:string|null}} AeroWebGl2RendererStatus */
 /** @typedef {{serviceId:"aero.renderer.webgl2",webgl2:boolean,exactContainerResize:true,dprAware:true,contextLossRecovery:true,alphaMaskIcons:boolean,liveTuning:true,maxDevicePixelRatio:number,degradations:readonly string[]}} AeroWebGl2RendererCapabilities */
 /** @typedef {{program:WebGLProgram,buffer:WebGLBuffer,positionLocation:number,localLocation:number,colorLocation:WebGLUniformLocation|null,shapeLocation:WebGLUniformLocation|null,ringWidthLocation:WebGLUniformLocation|null}} ShapeProgram */
@@ -5209,6 +5213,71 @@ var AeroWebGl2Renderer = class {
 			};
 		}
 	}
+	/**
+	* Draws bounded semantic gameplay cursors after a gameplay frame. Coordinates are
+	* already-calibrated athlete positions normalized within the supplied playfield grid.
+	* The method is deliberately stateless: callers redraw current cursors after every
+	* `renderGameplayFrame`, which keeps stale tracking evidence off the canvas.
+	*
+	* @param {readonly AeroGameplayCursor[]} cursors
+	* @param {AeroGameplayCursorOptions} options
+	* @returns {AeroGameplayCursorResult}
+	*/
+	renderGameplayCursors(cursors, options) {
+		const normalizedOptions = normalizeGameplayCursorOptions(options);
+		const grid = normalizeGameplayCursorGrid(normalizedOptions.grid);
+		const minConfidence = Math.max(0, Math.min(1, finitePositiveOrZero(normalizedOptions.minConfidence, .5)));
+		const sizeCssPx = Math.max(12, Math.min(64, finitePositive(normalizedOptions.sizeCssPx, 18)));
+		const current = normalizeGameplayCursors(cursors, minConfidence);
+		if (!this.gl || this.destroyed || this.contextLost || this.widthCssPx <= 0 || this.heightCssPx <= 0) return Object.freeze({
+			status: this.describe(),
+			cursorCount: 0,
+			roles: Object.freeze([])
+		});
+		const roles = [];
+		try {
+			for (const role of gameplayCursorRoles) {
+				const cursor = current.get(role);
+				if (!cursor) continue;
+				const centerX = grid.x + cursor.x * grid.width;
+				const centerY = grid.y + cursor.y * grid.height;
+				const centerColor = role === "nose" ? [
+					1,
+					.76,
+					.04,
+					1
+				] : this.roleColor(role === "left_wrist" ? "left" : "right", 1, 1);
+				this.drawCursorLayer(centerX, centerY, sizeCssPx, [
+					0,
+					0,
+					0,
+					1
+				]);
+				this.drawCursorLayer(centerX, centerY, sizeCssPx * .76, [
+					1,
+					1,
+					1,
+					1
+				]);
+				this.drawCursorLayer(centerX, centerY, sizeCssPx * .48, centerColor);
+				roles.push(role);
+				this.drawCount += 3;
+			}
+			if (roles.length > 0) this.state = "running";
+			return Object.freeze({
+				status: this.describe(),
+				cursorCount: roles.length,
+				roles: Object.freeze(roles)
+			});
+		} catch (error) {
+			this.fail(error);
+			return Object.freeze({
+				status: this.describe(),
+				cursorCount: 0,
+				roles: Object.freeze([])
+			});
+		}
+	}
 	/** @returns {AeroWebGl2RendererCapabilities} */
 	getCapabilities() {
 		const degradations = [];
@@ -5332,6 +5401,17 @@ var AeroWebGl2Renderer = class {
 			target[3]
 		];
 	}
+	/** @param {number} centerX @param {number} centerY @param {number} diameterCssPx @param {readonly [number,number,number,number]} color */
+	drawCursorLayer(centerX, centerY, diameterCssPx, color) {
+		const width = diameterCssPx / this.widthCssPx;
+		const height = diameterCssPx / this.heightCssPx;
+		this.drawShape({
+			x: centerX - width / 2,
+			y: centerY - height / 2,
+			width,
+			height
+		}, color, 1, 0);
+	}
 	/** @param {{x:number,y:number,width:number,height:number}} rect @param {readonly [number,number,number,number]} color @param {number} shape @param {number} ringWidth */
 	drawShape(rect, color, shape, ringWidth) {
 		const gl = this.gl;
@@ -5402,6 +5482,121 @@ var AeroWebGl2Renderer = class {
 /** @param {{contextAttributes?:WebGLContextAttributes}} [options] @returns {AeroWebGl2Renderer} */
 function createAeroWebGl2Renderer(options) {
 	return new AeroWebGl2Renderer(options);
+}
+/** Canonical draw order also makes returned role evidence deterministic. @type {readonly AeroGameplayCursorRole[]} */
+var gameplayCursorRoles = Object.freeze([
+	"nose",
+	"left_wrist",
+	"right_wrist"
+]);
+var gameplayCursorRoleSet = new Set(gameplayCursorRoles);
+var maxGameplayCursorCandidates = 12;
+/**
+* @param {unknown} value
+* @returns {AeroGameplayCursorOptions}
+*/
+function normalizeGameplayCursorOptions(value) {
+	if (!isPlainDataRecord$1(value)) throw new TypeError("Gameplay cursor options are required");
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	if (Object.keys(descriptors).some((key) => ![
+		"grid",
+		"minConfidence",
+		"sizeCssPx"
+	].includes(key))) throw new TypeError("Gameplay cursor options contain unsupported fields");
+	if (!isDataDescriptor(descriptors.grid)) throw new TypeError("Gameplay cursor grid is required");
+	for (const key of ["minConfidence", "sizeCssPx"]) if (descriptors[key] && !isDataDescriptor(descriptors[key])) throw new TypeError(`Gameplay cursor ${key} must be data`);
+	return {
+		grid: descriptors.grid.value,
+		minConfidence: descriptors.minConfidence?.value,
+		sizeCssPx: descriptors.sizeCssPx?.value
+	};
+}
+/**
+* Invalid and repeated semantic candidates are intentionally omitted. Candidate count is
+* bounded before inspection so malformed callers cannot turn a three-cursor draw into
+* unbounded work. Accessor-bearing records are never invoked.
+* @param {unknown} value
+* @param {number} minConfidence
+* @returns {ReadonlyMap<AeroGameplayCursorRole,AeroGameplayCursor>}
+*/
+function normalizeGameplayCursors(value, minConfidence) {
+	if (!Array.isArray(value)) throw new TypeError("Gameplay cursors must be an array");
+	if (value.length > maxGameplayCursorCandidates) throw new TypeError(`Gameplay cursors cannot exceed ${maxGameplayCursorCandidates} candidates`);
+	/** @type {Map<AeroGameplayCursorRole,AeroGameplayCursor>} */ const normalized = /* @__PURE__ */ new Map();
+	for (const candidate of value) {
+		if (!isPlainDataRecord$1(candidate)) continue;
+		const descriptors = Object.getOwnPropertyDescriptors(candidate);
+		if (Object.keys(descriptors).length !== 4 || [
+			"role",
+			"x",
+			"y",
+			"confidence"
+		].some((key) => !isDataDescriptor(descriptors[key]))) continue;
+		const role = descriptors.role.value;
+		if (!gameplayCursorRoleSet.has(role) || normalized.has(role)) continue;
+		const cursor = {
+			role,
+			x: descriptors.x.value,
+			y: descriptors.y.value,
+			confidence: descriptors.confidence.value
+		};
+		if (validGameplayCursor(cursor, minConfidence)) normalized.set(role, Object.freeze(cursor));
+	}
+	return normalized;
+}
+/** @param {unknown} value @returns {{x:number,y:number,width:number,height:number}} */
+function normalizeGameplayCursorGrid(value) {
+	if (!isPlainDataRecord$1(value)) throw new TypeError("Gameplay cursor grid is required");
+	const descriptors = Object.getOwnPropertyDescriptors(value);
+	const keys = [
+		"x",
+		"y",
+		"width",
+		"height"
+	];
+	const allowed = [
+		...keys,
+		"columns",
+		"rows"
+	];
+	if (Object.keys(descriptors).some((key) => !allowed.includes(key)) || keys.some((key) => !isDataDescriptor(descriptors[key])) || ["columns", "rows"].some((key) => descriptors[key] && !isDataDescriptor(descriptors[key]))) throw new TypeError("Gameplay cursor grid must contain exact data coordinates");
+	if (descriptors.columns && descriptors.columns.value !== 4 || descriptors.rows && descriptors.rows.value !== 3) throw new TypeError("Gameplay cursor grid dimensions must remain 4x3");
+	const [x, y, width, height] = keys.map((key) => descriptors[key].value);
+	if (![
+		x,
+		y,
+		width,
+		height
+	].every((entry) => typeof entry === "number" && Number.isFinite(entry))) throw new TypeError("Gameplay cursor grid must contain finite coordinates");
+	if (x < 0 || y < 0 || width <= 0 || height <= 0 || x + width > 1 || y + height > 1) throw new TypeError("Gameplay cursor grid must remain inside normalized viewport space");
+	return {
+		x,
+		y,
+		width,
+		height
+	};
+}
+/** @param {AeroGameplayCursor|undefined} cursor @param {number} minConfidence @returns {cursor is AeroGameplayCursor} */
+function validGameplayCursor(cursor, minConfidence) {
+	return Boolean(cursor && Number.isFinite(cursor.x) && Number.isFinite(cursor.y) && cursor.x >= 0 && cursor.x <= 1 && cursor.y >= 0 && cursor.y <= 1 && Number.isFinite(cursor.confidence) && cursor.confidence >= minConfidence);
+}
+/** @param {unknown} value @returns {value is Record<string,unknown>} */
+function isPlainDataRecord$1(value) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const prototype = Object.getPrototypeOf(value);
+	return prototype === Object.prototype || prototype === null;
+}
+/** @param {PropertyDescriptor|undefined} descriptor @returns {descriptor is PropertyDescriptor & {value:unknown}} */
+function isDataDescriptor(descriptor) {
+	return Boolean(descriptor && Object.hasOwn(descriptor, "value") && descriptor.get === void 0 && descriptor.set === void 0);
+}
+/** @param {number|undefined} value @param {number} fallback */
+function finitePositive(value, fallback) {
+	return Number.isFinite(value) && Number(value) > 0 ? Number(value) : fallback;
+}
+/** @param {number|undefined} value @param {number} fallback */
+function finitePositiveOrZero(value, fallback) {
+	return Number.isFinite(value) && Number(value) >= 0 ? Number(value) : fallback;
 }
 /** @param {WebGL2RenderingContext} gl @returns {ShapeProgram} */
 function createShapeProgram(gl) {
@@ -7947,13 +8142,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:634fca0e18ac08a696cd5284d8ff7c1e42b0ca1c1ab70d4a9e087ac37d42039a";
+var buildStamp = "source:98a3b7372a9179a4b8a26d747c52e897891f1a1e97e9543d982692c354b75e28";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-634fca0e18ac08a6";
+var cacheBust = "0.0.24-98a3b7372a9179a4";
 /**
 * Vite-injected package version from package.json.
 *
@@ -8621,6 +8816,95 @@ function errorMessage$2(error) {
 	if (!error || typeof error !== "object") return "Production CV failed";
 	const descriptor = Object.getOwnPropertyDescriptor(error, "message");
 	return descriptor && "value" in descriptor && typeof descriptor.value === "string" ? descriptor.value.slice(0, 2048) : "Production CV failed";
+}
+//#endregion
+//#region src/runtime-cadence.js
+/**
+* @typedef {Object} AeroCadenceScheduler
+* @property {(callback: () => void) => number} schedule Schedules a cadence opportunity.
+* @property {(handle: number) => void} cancel Cancels a cadence opportunity.
+*/
+/**
+* @typedef {Object} AeroCadenceLoopOptions
+* @property {number} targetRateFps Maximum callback rate.
+* @property {() => void} callback Work performed at the paced cadence.
+* @property {AeroCadenceScheduler | undefined} scheduler Optional deterministic scheduler.
+* @property {(() => number) | undefined} now Optional monotonic clock.
+*/
+/**
+* @typedef {Object} AeroCadenceLoopStatus
+* @property {number} targetRateFps Configured maximum callback rate.
+* @property {number} tickCount Number of callbacks actually performed.
+* @property {number | undefined} effectiveRateFps Effective callback rate since the first tick.
+* @property {number | undefined} latestTickAgeMs Monotonic age since the latest callback.
+*/
+/**
+* @typedef {Object} AeroCadenceLoop
+* @property {() => void} start Starts the independent cadence loop.
+* @property {() => void} stop Stops the independent cadence loop.
+* @property {() => AeroCadenceLoopStatus} getStatus Reads truthful cadence telemetry.
+*/
+/**
+* Creates an unthrottled display-driven lane. Each scheduler opportunity produces
+* exactly one callback and schedules exactly one successor until stopped.
+*
+* @param {{callback: () => void, scheduler?: AeroCadenceScheduler}} options
+* @returns {{start: () => void, stop: () => void, getStatus: () => {active:boolean,tickCount:number}}}
+*/
+function createAeroDisplayLoop(options) {
+	const scheduler = options.scheduler ?? createAnimationFrameScheduler();
+	let running = false;
+	/** @type {number | undefined} */
+	let handle;
+	let tickCount = 0;
+	return {
+		start() {
+			if (running) return;
+			running = true;
+			scheduleNext();
+		},
+		stop() {
+			running = false;
+			if (handle !== void 0) {
+				scheduler.cancel(handle);
+				handle = void 0;
+			}
+		},
+		getStatus() {
+			return {
+				active: running,
+				tickCount
+			};
+		}
+	};
+	function scheduleNext() {
+		if (!running || handle !== void 0) return;
+		handle = scheduler.schedule(() => {
+			handle = void 0;
+			if (!running) return;
+			tickCount += 1;
+			options.callback();
+			scheduleNext();
+		});
+	}
+}
+/**
+* @returns {AeroCadenceScheduler}
+*/
+function createAnimationFrameScheduler() {
+	return {
+		schedule(callback) {
+			if (typeof globalThis.requestAnimationFrame === "function") return globalThis.requestAnimationFrame(callback);
+			return globalThis.setTimeout(callback, 16);
+		},
+		cancel(handle) {
+			if (typeof globalThis.cancelAnimationFrame === "function") {
+				globalThis.cancelAnimationFrame(handle);
+				return;
+			}
+			globalThis.clearTimeout(handle);
+		}
+	};
 }
 //#endregion
 //#region ../aerobeat-web-audio/src/audio-source.js
@@ -18152,9 +18436,21 @@ var AeroGame = class extends HTMLElement {
 		this.resizeObserver = null;
 		this.unsubscribe = [];
 		this.frameTimer = 0;
+		this.frameLoop = null;
 		this.visibilityGeneration = 0;
 		this.audioSyncPending = false;
 		this.latestPoseTimestampMs = -1;
+		this.lastFreshPoseAtMs = -Infinity;
+		this.lastInputAdvanceAtMs = -Infinity;
+		this.lastContentSyncAtMs = -Infinity;
+		this.cadenceStartedAtMs = 0;
+		this.cadenceLatestFrameAtMs = 0;
+		this.displayFrameCount = 0;
+		this.freshPoseConsumptionCount = 0;
+		this.inputAdvanceCount = 0;
+		this.presenterCommitCount = 0;
+		this.runtimeUiCommitCount = 0;
+		this.runtimeUiSignature = "";
 		this.activeCvSource = null;
 		this.lastCameraIdentity = "";
 		this.browsedMaps = /* @__PURE__ */ new Map();
@@ -18216,6 +18512,11 @@ var AeroGame = class extends HTMLElement {
 		this.lifecycle = "connected";
 		this.activeAbort = new AbortController();
 		this.audioSyncPending = false;
+		this.latestPoseTimestampMs = -1;
+		this.lastFreshPoseAtMs = -Infinity;
+		this.lastInputAdvanceAtMs = -Infinity;
+		this.lastContentSyncAtMs = -Infinity;
+		this.runtimeUiSignature = "";
 		this.menuOpen = true;
 		this.menuPauseArmed = false;
 		this.menuStarting = false;
@@ -18722,7 +19023,8 @@ var AeroGame = class extends HTMLElement {
 				audio: graph.audio.getStatus(),
 				profiles: profileTelemetry(graph.profiles.getSnapshot()),
 				gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()),
-				renderer: rendererTelemetry(graph.renderer.describe())
+				renderer: rendererTelemetry(graph.renderer.describe()),
+				cadence: this.cadenceSnapshot()
 			} : null,
 			error: this.lastError
 		}, 0, 2048);
@@ -18739,17 +19041,19 @@ var AeroGame = class extends HTMLElement {
 		video.playsInline = true;
 	}
 	bindGraph() {
-		for (const [service, type] of [
-			[this.graph.input, "calibration_changed"],
-			[this.graph.content, "content_changed"],
-			[this.graph.authoring, "import_changed"]
-		]) if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => {
-			this.renderPresenters();
+		if (typeof this.graph.input.subscribe === "function") this.unsubscribe.push(this.graph.input.subscribe(() => {
+			this.renderRuntimePresentation();
+			this.emitGameEvent("calibration_changed", { snapshot: this.snapshotForType("calibration_changed") });
+		}));
+		for (const [service, type] of [[this.graph.content, "content_changed"], [this.graph.authoring, "import_changed"]]) if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => {
+			if (this.menuOpen) this.renderPresenters();
+			else this.renderRuntimePresentation();
 			this.emitGameEvent(type, { snapshot: this.snapshotForType(type) });
 		}));
 		this.unsubscribe.push(this.graph.profiles.subscribe(() => {
 			this.applyActiveVisualProfile();
-			this.renderPresenters();
+			if (this.menuOpen) this.renderPresenters();
+			else this.renderRuntimePresentation();
 			this.emitGameEvent("profiles_changed", { snapshot: profileTelemetry(this.graph.profiles.getSnapshot()) });
 		}));
 	}
@@ -19007,45 +19311,75 @@ var AeroGame = class extends HTMLElement {
 		this.stopFrameLoop();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
-		this.frameTimer = globalThis.setInterval(() => {
-			if (!this.isCurrent(generation, graph) || document.hidden) return;
-			try {
-				const surface = graph.video.describeSurface(this.videoElement());
-				this.updateCameraIdentity(surface);
-				const frame = graph.cv.getLatestPoseFrame();
-				if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
-					this.latestPoseTimestampMs = frame.timestampMs;
-					if (!this.menuOpen) graph.input.processPoseSample(frame, {
-						sourceAspectRatio: surface.sourceAspectRatio,
-						sourceChangeId: this.lastCameraIdentity
-					});
-				} else if (!this.menuOpen) graph.input.advanceTime(performance.now());
-				try {
-					if (!(graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing")) {
-						const frameNow = performance.now();
-						graph.gameplay.advance({
-							timestampMs: frameNow,
-							clock: graph.audio.getClockSnapshot(),
-							input: graph.input.getSnapshot(),
-							lease: this.leaseSnapshotForGameplay()
-						});
-						if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
-					}
-					this.syncAudioForGameplay();
-					this.syncContentPlayback();
-				} catch {}
-				this.syncCameraPresentation();
-				graph.renderer.renderGameplayFrame(this.rendererFrame());
-				if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
-				this.renderPresenters();
-			} catch (error) {
-				this.handleError(error);
+		this.cadenceStartedAtMs = performance.now();
+		this.cadenceLatestFrameAtMs = 0;
+		this.displayFrameCount = 0;
+		this.freshPoseConsumptionCount = 0;
+		this.inputAdvanceCount = 0;
+		const loop = createAeroDisplayLoop({ callback: () => {
+			if (!this.isCurrent(generation, graph) || document.hidden) {
+				if (this.frameLoop === loop) this.stopFrameLoop();
+				else loop.stop();
+				return;
 			}
-		}, 67);
+			this.runDisplayFrame(graph);
+		} });
+		this.frameLoop = loop;
+		this.frameTimer = 1;
+		loop.start();
+	}
+	runDisplayFrame(graph = this.graph) {
+		if (!graph) return;
+		try {
+			const frameNow = performance.now();
+			const surface = graph.video.describeSurface(this.videoElement());
+			this.updateCameraIdentity(surface);
+			const frame = graph.cv.getLatestPoseFrame();
+			if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
+				this.latestPoseTimestampMs = frame.timestampMs;
+				this.lastFreshPoseAtMs = frameNow;
+				this.lastInputAdvanceAtMs = frameNow;
+				this.freshPoseConsumptionCount += 1;
+				if (!this.menuOpen) graph.input.processPoseSample(frame, {
+					sourceAspectRatio: surface.sourceAspectRatio,
+					sourceChangeId: this.lastCameraIdentity
+				});
+			} else if (!this.menuOpen && frameNow - this.lastFreshPoseAtMs >= 100 && frameNow - this.lastInputAdvanceAtMs >= 1e3 / 15) {
+				this.lastInputAdvanceAtMs = frameNow;
+				this.inputAdvanceCount += 1;
+				graph.input.advanceTime(frameNow);
+			}
+			try {
+				if (!(graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing")) {
+					graph.gameplay.advance({
+						timestampMs: frameNow,
+						clock: graph.audio.getClockSnapshot(),
+						input: graph.input.getSnapshot(),
+						lease: this.leaseSnapshotForGameplay()
+					});
+					if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
+				}
+				this.syncAudioForGameplay();
+				if (frameNow - this.lastContentSyncAtMs >= 1e3 / 15) {
+					this.lastContentSyncAtMs = frameNow;
+					this.syncContentPlayback();
+				}
+			} catch {}
+			this.syncCameraPresentation();
+			graph.renderer.renderGameplayFrame(this.rendererFrame());
+			this.displayFrameCount += 1;
+			this.cadenceLatestFrameAtMs = frameNow;
+			if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
+			this.renderRuntimePresentation();
+		} catch (error) {
+			this.handleError(error);
+		}
 	}
 	stopFrameLoop() {
-		if (this.frameTimer) globalThis.clearInterval(this.frameTimer);
+		const loop = this.frameLoop;
+		this.frameLoop = null;
 		this.frameTimer = 0;
+		loop?.stop();
 	}
 	async applyVisibility() {
 		if (!this.graph) return;
@@ -19141,24 +19475,44 @@ var AeroGame = class extends HTMLElement {
 		});
 		setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
 		setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
+		this.presenterCommitCount += 10;
+		this.runtimeUiSignature = "";
+		this.renderRuntimePresentation();
+	}
+	renderRuntimePresentation() {
+		if (!this.graph) return;
+		this.syncCameraPresentation();
+		const content = this.graph.content.getSnapshot();
+		const gameplay = this.graph.gameplay.getSnapshot();
+		const input = this.graph.input.getSnapshot();
+		const session = gameplay.session;
 		const runtimeMessage = runtimeStatus(content, session, input);
+		const cueMessage = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input);
+		const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
+		const signature = JSON.stringify([
+			runtimeMessage,
+			cueMessage,
+			action,
+			this.musicPrerequisite
+		]);
+		if (signature === this.runtimeUiSignature) return;
+		this.runtimeUiSignature = signature;
+		this.runtimeUiCommitCount += 1;
 		const status = this.shadowRoot?.querySelector("[data-role='status']");
-		if (status) status.textContent = runtimeMessage;
+		if (status && status.textContent !== runtimeMessage) status.textContent = runtimeMessage;
 		const cue = this.shadowRoot?.querySelector("[data-role='transient-cue']");
 		if (cue instanceof HTMLElement) {
-			const message = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input);
-			cue.textContent = message;
-			cue.hidden = message === "";
+			if (cue.textContent !== cueMessage) cue.textContent = cueMessage;
+			cue.hidden = cueMessage === "";
 		}
 		const infoAction = this.shadowRoot?.querySelector("[data-role='info-action']");
 		if (infoAction instanceof HTMLElement) {
-			const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
-			infoAction.textContent = action;
+			if (infoAction.textContent !== action) infoAction.textContent = action;
 			infoAction.hidden = action === "";
 		}
 		const prerequisite = this.shadowRoot?.querySelector("[data-role='music-prerequisite']");
 		if (prerequisite instanceof HTMLElement) {
-			prerequisite.textContent = this.musicPrerequisite;
+			if (prerequisite.textContent !== this.musicPrerequisite) prerequisite.textContent = this.musicPrerequisite;
 			prerequisite.hidden = this.musicPrerequisite === "";
 		}
 	}
@@ -19745,6 +20099,21 @@ var AeroGame = class extends HTMLElement {
 	}
 	leaseSnapshotForGameplay() {
 		return aeroGameMediaLeaseCoordinator.snapshot();
+	}
+	cadenceSnapshot() {
+		const elapsedMs = this.displayFrameCount > 1 && this.cadenceLatestFrameAtMs > this.cadenceStartedAtMs ? this.cadenceLatestFrameAtMs - this.cadenceStartedAtMs : 0;
+		const displayRateFps = elapsedMs > 0 ? Math.round((this.displayFrameCount - 1) * 1e4 / elapsedMs) / 10 : null;
+		return Object.freeze({
+			schema: "aerobeat/runtime_cadence",
+			version: 1,
+			active: this.frameTimer !== 0,
+			displayFrameCount: this.displayFrameCount,
+			displayRateFps,
+			freshPoseConsumptionCount: this.freshPoseConsumptionCount,
+			inputAdvanceCount: this.inputAdvanceCount,
+			presenterCommitCount: this.presenterCommitCount,
+			runtimeUiCommitCount: this.runtimeUiCommitCount
+		});
 	}
 	capabilities() {
 		const webgl2 = Boolean(this.graph?.renderer.getCapabilities().webgl2);

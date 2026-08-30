@@ -13,6 +13,7 @@ import { appMetadata } from "./release-metadata.js";
 import { createAeroGameIframeBridge } from "./iframe-bridge.js";
 import { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
 import { createLockedVideoFrameSource } from "./production-cv-service.js";
+import { createAeroDisplayLoop } from "./runtime-cadence.js";
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
@@ -43,9 +44,21 @@ export class AeroGame extends HTMLElement {
     this.resizeObserver = null;
     this.unsubscribe = [];
     this.frameTimer = 0;
+    this.frameLoop = null;
     this.visibilityGeneration = 0;
     this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1;
+    this.lastFreshPoseAtMs = -Infinity;
+    this.lastInputAdvanceAtMs = -Infinity;
+    this.lastContentSyncAtMs = -Infinity;
+    this.cadenceStartedAtMs = 0;
+    this.cadenceLatestFrameAtMs = 0;
+    this.displayFrameCount = 0;
+    this.freshPoseConsumptionCount = 0;
+    this.inputAdvanceCount = 0;
+    this.presenterCommitCount = 0;
+    this.runtimeUiCommitCount = 0;
+    this.runtimeUiSignature = "";
     this.activeCvSource = null;
     this.lastCameraIdentity = "";
     this.browsedMaps = new Map();
@@ -88,6 +101,7 @@ export class AeroGame extends HTMLElement {
     this.connectedGeneration += 1;
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
+    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = "";
     this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null;
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ packages: Object.freeze([]), selectedPackageId: null, storage: null });
@@ -414,7 +428,7 @@ export class AeroGame extends HTMLElement {
       services: graph ? {
         vendor: graph.vendor.snapshot(), authoring: graph.authoring.getSnapshot(), content: contentTelemetry(graph.content.getSnapshot()),
         video: graph.video.describeStatus(), cv: graph.cv.getStatus(), input: graph.input.getSnapshot(), audio: graph.audio.getStatus(),
-        profiles: profileTelemetry(graph.profiles.getSnapshot()), gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()), renderer: rendererTelemetry(graph.renderer.describe())
+        profiles: profileTelemetry(graph.profiles.getSnapshot()), gameplay: gameplayTelemetry(graph.gameplay.getSnapshot()), renderer: rendererTelemetry(graph.renderer.describe()), cadence: this.cadenceSnapshot()
       } : null,
       error: this.lastError
     }, 0, 2048);
@@ -430,10 +444,11 @@ export class AeroGame extends HTMLElement {
   }
 
   bindGraph() {
-    for (const [service, type] of [[this.graph.input, "calibration_changed"], [this.graph.content, "content_changed"], [this.graph.authoring, "import_changed"]]) {
-      if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => { this.renderPresenters(); this.emitGameEvent(type, { snapshot: this.snapshotForType(type) }); }));
+    if (typeof this.graph.input.subscribe === "function") this.unsubscribe.push(this.graph.input.subscribe(() => { this.renderRuntimePresentation(); this.emitGameEvent("calibration_changed", { snapshot: this.snapshotForType("calibration_changed") }); }));
+    for (const [service, type] of [[this.graph.content, "content_changed"], [this.graph.authoring, "import_changed"]]) {
+      if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => { if (this.menuOpen) this.renderPresenters(); else this.renderRuntimePresentation(); this.emitGameEvent(type, { snapshot: this.snapshotForType(type) }); }));
     }
-    this.unsubscribe.push(this.graph.profiles.subscribe(() => { this.applyActiveVisualProfile(); this.renderPresenters(); this.emitGameEvent("profiles_changed", { snapshot: profileTelemetry(this.graph.profiles.getSnapshot()) }); }));
+    this.unsubscribe.push(this.graph.profiles.subscribe(() => { this.applyActiveVisualProfile(); if (this.menuOpen) this.renderPresenters(); else this.renderRuntimePresentation(); this.emitGameEvent("profiles_changed", { snapshot: profileTelemetry(this.graph.profiles.getSnapshot()) }); }));
   }
 
   bindLease() {
@@ -615,24 +630,40 @@ export class AeroGame extends HTMLElement {
   startFrameLoop() {
     this.stopFrameLoop();
     const generation = this.connectedGeneration; const graph = this.graph;
-    this.frameTimer = globalThis.setInterval(() => {
-      if (!this.isCurrent(generation, graph) || document.hidden) return;
-      try {
-        const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface);
-        const frame = graph.cv.getLatestPoseFrame();
-        if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
-          this.latestPoseTimestampMs = frame.timestampMs;
-          if (!this.menuOpen) graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity });
-        } else if (!this.menuOpen) graph.input.advanceTime(performance.now());
-        try { const awaitingAudioStart = graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing"; if (!awaitingAudioStart) { const frameNow = performance.now(); graph.gameplay.advance({ timestampMs: frameNow, clock: graph.audio.getClockSnapshot(), input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() }); if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow); } this.syncAudioForGameplay(); this.syncContentPlayback(); } catch { /* unconfigured session */ }
-        this.syncCameraPresentation(); graph.renderer.renderGameplayFrame(this.rendererFrame());
-        if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
-        this.renderPresenters();
-      } catch (error) { this.handleError(error); }
-    }, 67);
+    this.cadenceStartedAtMs = performance.now(); this.cadenceLatestFrameAtMs = 0; this.displayFrameCount = 0; this.freshPoseConsumptionCount = 0; this.inputAdvanceCount = 0;
+    const loop = createAeroDisplayLoop({ callback: () => { if (!this.isCurrent(generation, graph) || document.hidden) { if (this.frameLoop === loop) this.stopFrameLoop(); else loop.stop(); return; } this.runDisplayFrame(graph); } });
+    this.frameLoop = loop; this.frameTimer = 1; loop.start();
   }
 
-  stopFrameLoop() { if (this.frameTimer) globalThis.clearInterval(this.frameTimer); this.frameTimer = 0; }
+  runDisplayFrame(graph = this.graph) {
+    if (!graph) return;
+    try {
+      const frameNow = performance.now();
+      const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface);
+      const frame = graph.cv.getLatestPoseFrame();
+      if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
+        this.latestPoseTimestampMs = frame.timestampMs; this.lastFreshPoseAtMs = frameNow; this.lastInputAdvanceAtMs = frameNow; this.freshPoseConsumptionCount += 1;
+        if (!this.menuOpen) graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity });
+      } else if (!this.menuOpen && frameNow - this.lastFreshPoseAtMs >= 100 && frameNow - this.lastInputAdvanceAtMs >= 1000 / 15) {
+        this.lastInputAdvanceAtMs = frameNow; this.inputAdvanceCount += 1; graph.input.advanceTime(frameNow);
+      }
+      try {
+        const awaitingAudioStart = graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing";
+        if (!awaitingAudioStart) {
+          graph.gameplay.advance({ timestampMs: frameNow, clock: graph.audio.getClockSnapshot(), input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() });
+          if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
+        }
+        this.syncAudioForGameplay();
+        if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
+      } catch { /* unconfigured session */ }
+      this.syncCameraPresentation(); graph.renderer.renderGameplayFrame(this.rendererFrame());
+      this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
+      if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
+      this.renderRuntimePresentation();
+    } catch (error) { this.handleError(error); }
+  }
+
+  stopFrameLoop() { const loop = this.frameLoop; this.frameLoop = null; this.frameTimer = 0; loop?.stop(); }
 
   async applyVisibility() {
     if (!this.graph) return;
@@ -692,18 +723,28 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-beatsaver-browser", { ...this.beatSaverView, preview: this.previewView });
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
     setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
+    this.presenterCommitCount += 10;
+    this.runtimeUiSignature = ""; this.renderRuntimePresentation();
+  }
+
+  renderRuntimePresentation() {
+    if (!this.graph) return;
+    this.syncCameraPresentation();
+    const content = this.graph.content.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const input = this.graph.input.getSnapshot(); const session = gameplay.session;
     const runtimeMessage = runtimeStatus(content, session, input);
+    const cueMessage = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input);
+    const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
+    const signature = JSON.stringify([runtimeMessage, cueMessage, action, this.musicPrerequisite]);
+    if (signature === this.runtimeUiSignature) return;
+    this.runtimeUiSignature = signature; this.runtimeUiCommitCount += 1;
     const status = this.shadowRoot?.querySelector("[data-role='status']");
-    if (status) status.textContent = runtimeMessage;
+    if (status && status.textContent !== runtimeMessage) status.textContent = runtimeMessage;
     const cue = this.shadowRoot?.querySelector("[data-role='transient-cue']");
-    if (cue instanceof HTMLElement) { const message = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input); cue.textContent = message; cue.hidden = message === ""; }
+    if (cue instanceof HTMLElement) { if (cue.textContent !== cueMessage) cue.textContent = cueMessage; cue.hidden = cueMessage === ""; }
     const infoAction = this.shadowRoot?.querySelector("[data-role='info-action']");
-    if (infoAction instanceof HTMLElement) {
-      const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
-      infoAction.textContent = action; infoAction.hidden = action === "";
-    }
+    if (infoAction instanceof HTMLElement) { if (infoAction.textContent !== action) infoAction.textContent = action; infoAction.hidden = action === ""; }
     const prerequisite = this.shadowRoot?.querySelector("[data-role='music-prerequisite']");
-    if (prerequisite instanceof HTMLElement) { prerequisite.textContent = this.musicPrerequisite; prerequisite.hidden = this.musicPrerequisite === ""; }
+    if (prerequisite instanceof HTMLElement) { if (prerequisite.textContent !== this.musicPrerequisite) prerequisite.textContent = this.musicPrerequisite; prerequisite.hidden = this.musicPrerequisite === ""; }
   }
 
   renderInteractionShell() {
@@ -1050,6 +1091,12 @@ export class AeroGame extends HTMLElement {
   }
 
   leaseSnapshotForGameplay() { return aeroGameMediaLeaseCoordinator.snapshot(); }
+
+  cadenceSnapshot() {
+    const elapsedMs = this.displayFrameCount > 1 && this.cadenceLatestFrameAtMs > this.cadenceStartedAtMs ? this.cadenceLatestFrameAtMs - this.cadenceStartedAtMs : 0;
+    const displayRateFps = elapsedMs > 0 ? Math.round(((this.displayFrameCount - 1) * 10000) / elapsedMs) / 10 : null;
+    return Object.freeze({ schema: "aerobeat/runtime_cadence", version: 1, active: this.frameTimer !== 0, displayFrameCount: this.displayFrameCount, displayRateFps, freshPoseConsumptionCount: this.freshPoseConsumptionCount, inputAdvanceCount: this.inputAdvanceCount, presenterCommitCount: this.presenterCommitCount, runtimeUiCommitCount: this.runtimeUiCommitCount });
+  }
 
   capabilities() {
     const webgl2 = Boolean(this.graph?.renderer.getCapabilities().webgl2);

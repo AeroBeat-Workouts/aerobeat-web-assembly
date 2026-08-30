@@ -54,7 +54,7 @@ Production startup has one route:
 - measured/current gameplay input
 - 15fps inference submission ceiling
 
-Assembly has no backend selector and does not route prediction into production gameplay. Release proof rejects MoveNet, TensorFlow pose, ONNX Runtime, and ONNX model assets.
+Assembly has no backend selector and does not route prediction into production gameplay. Release proof rejects MoveNet, TensorFlow pose, ONNX Runtime, and ONNX model assets. CV inference remains independently capped at 15fps while gameplay clocks, target interpolation, and WebGL rendering advance on the browser display cadence. Bounded cadence telemetry reports aggregate display/input/presenter counts and rates without exposing pose frames or media.
 
 ## Experimental prototype profiles
 

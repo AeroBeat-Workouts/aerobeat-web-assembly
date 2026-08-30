@@ -1,7 +1,7 @@
 // @ts-check
 
 import assert from "node:assert/strict";
-import { createAeroCadenceLoop } from "../src/runtime-cadence.js";
+import { createAeroCadenceLoop, createAeroDisplayLoop } from "../src/runtime-cadence.js";
 
 let currentTimeMs = 0;
 const overlayScheduler = createManualScheduler();
@@ -48,6 +48,20 @@ overlayLoop.stop();
 statusLoop.stop();
 assert.equal(overlayScheduler.pendingCount(), 0);
 assert.equal(statusScheduler.pendingCount(), 0);
+
+const displayScheduler = createManualScheduler();
+let displayTicks = 0;
+let displayLoop;
+displayLoop = createAeroDisplayLoop({ scheduler: displayScheduler, callback: () => { displayTicks += 1; if (displayTicks === 4) displayLoop.stop(); } });
+displayLoop.start();
+for (const irregularTimestampMs of [0, 7, 25, 26]) { currentTimeMs = irregularTimestampMs; displayScheduler.fireNext(); }
+assert.deepEqual(displayLoop.getStatus(), { active: false, tickCount: 4 });
+assert.equal(displayScheduler.pendingCount(), 0);
+displayLoop.start(); currentTimeMs = 90; displayScheduler.fireNext();
+assert.deepEqual(displayLoop.getStatus(), { active: true, tickCount: 5 });
+assert.equal(displayScheduler.pendingCount(), 1);
+displayLoop.stop();
+assert.equal(displayScheduler.pendingCount(), 0);
 
 console.log("Independent runtime cadence validation passed.");
 

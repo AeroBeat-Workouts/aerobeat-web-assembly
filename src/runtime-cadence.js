@@ -30,6 +30,37 @@
  */
 
 /**
+ * Creates an unthrottled display-driven lane. Each scheduler opportunity produces
+ * exactly one callback and schedules exactly one successor until stopped.
+ *
+ * @param {{callback: () => void, scheduler?: AeroCadenceScheduler}} options
+ * @returns {{start: () => void, stop: () => void, getStatus: () => {active:boolean,tickCount:number}}}
+ */
+export function createAeroDisplayLoop(options) {
+  const scheduler = options.scheduler ?? createAnimationFrameScheduler();
+  let running = false;
+  /** @type {number | undefined} */
+  let handle;
+  let tickCount = 0;
+  const loop = {
+    start() { if (running) return; running = true; scheduleNext(); },
+    stop() { running = false; if (handle !== undefined) { scheduler.cancel(handle); handle = undefined; } },
+    getStatus() { return { active: running, tickCount }; }
+  };
+  return loop;
+
+  function scheduleNext() {
+    if (!running || handle !== undefined) return;
+    handle = scheduler.schedule(() => {
+      handle = undefined;
+      if (!running) return;
+      tickCount += 1; options.callback();
+      scheduleNext();
+    });
+  }
+}
+
+/**
  * Creates one independently paced browser-runtime lane.
  *
  * @param {AeroCadenceLoopOptions} options
