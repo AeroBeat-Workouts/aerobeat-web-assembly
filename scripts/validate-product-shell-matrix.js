@@ -116,7 +116,7 @@ async function runContext(context) {
   for (let offset = 500; offset <= 4000; offset += 250) await pushPose(game, 10000 + offset, false);
   const countdownProof = await countdownProofPromise;
   assert(JSON.stringify(countdownProof.values) === JSON.stringify([3,2,1]) && countdownProof.dwells.every((value) => value >= 800), `${label(context)} countdown must present ordered full-dwell 3,2,1: ${JSON.stringify(countdownProof)}`);
-  assert(countdownProof.proofs.every((proof) => proof.statusCount === 1 && proof.cursorCount >= 1 && proof.aero.pixelRange >= 90 && proof.cameraDark.pixelRange >= 90 && proof.cameraLight.pixelRange >= 90), `${label(context)} one countdown cue and current calibrated cursors must remain pixel-visible over Aero and bright/dark Camera: ${JSON.stringify(countdownProof)}`);
+  assert(countdownProof.proofs.every((proof) => proof.statusCount === 1 && proof.cursorCount >= 1 && [proof.aero,proof.cameraDark,proof.cameraLight].every((pixels) => pixels.pixelRange >= 90 && pixels.contrast >= 4.5)), `${label(context)} one countdown cue and current calibrated cursors must remain AA-contrast pixel-visible over Aero and bright/dark Camera: ${JSON.stringify(countdownProof)}`);
   const countdown = countdownProof.firstSnapshot; assertTransient(countdown, context, "3", "countdown");
   assert(!countdown.previewVisible && countdown.previewOpacity === "0" && countdown.rendererBackground === "#071426", `${label(context)} fresh ready/countdown must immediately hide default preview: ${JSON.stringify(countdown)}`);
   assert(countdown.canvasCountdown === null && countdown.canvasOverlay === "none" && countdown.canvasCalibrationDim === 0, `${label(context)} countdown must not reach renderer frame: ${JSON.stringify(countdown)}`);
@@ -206,11 +206,11 @@ async function captureCountdownPresentation(page, game, context) {
     const snapshot=await shellSnapshot(game); if(!firstSnapshot) firstSnapshot=snapshot;
     const status=await game.evaluate((element) => ({ statusCount:[...element.shadowRoot.querySelectorAll("[role='status']")].filter((item)=>!item.hidden&&item.getClientRects().length>0).length,cursorCount:globalThis.__shellMatrixState.cursorCalls.at(-1)?.cursors?.length??0 }));
     const cue=game.locator("[data-role='transient-cue']");
-    const aero={pixelRange:await screenshotPixelRange(page,await cue.screenshot())};
+    const aero=await screenshotContrast(page,await cue.screenshot());
     await game.evaluate((element) => { element.shadowRoot.querySelector("input[value='camera'][data-action='environment-select']").click(); element.shadowRoot.querySelector("video").style.background="#000"; });
-    const cameraDark={pixelRange:await screenshotPixelRange(page,await cue.screenshot())};
+    const cameraDark=await screenshotContrast(page,await cue.screenshot());
     await game.evaluate((element) => { element.shadowRoot.querySelector("video").style.background="#fff"; });
-    const cameraLight={pixelRange:await screenshotPixelRange(page,await cue.screenshot())};
+    const cameraLight=await screenshotContrast(page,await cue.screenshot());
     await game.evaluate((element) => { element.shadowRoot.querySelector("video").style.background=""; element.shadowRoot.querySelector("input[value='aero'][data-action='environment-select']").click(); });
     proofs.push({...status,aero,cameraDark,cameraLight});
     await waitFor(page, async () => Number((await shellSnapshot(game)).countdown?.value) !== expected, 2500);
@@ -219,7 +219,7 @@ async function captureCountdownPresentation(page, game, context) {
   const end=await game.evaluate(() => performance.now()); const dwells=starts.map((value,index)=>Math.round((starts[index+1]??end)-value));
   return {values,dwells,proofs,firstSnapshot,context};
 }
-async function screenshotPixelRange(page, png) { return page.evaluate(async (base64) => { const blob=await (await fetch(`data:image/png;base64,${base64}`)).blob(); const bitmap=await createImageBitmap(blob); const canvas=document.createElement("canvas"); canvas.width=bitmap.width; canvas.height=bitmap.height; const context=canvas.getContext("2d"); context.drawImage(bitmap,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; let minimum=255,maximum=0; for(let index=0;index<data.length;index+=4){if(data[index+3]===0)continue;const luminance=.2126*data[index]+.7152*data[index+1]+.0722*data[index+2];minimum=Math.min(minimum,luminance);maximum=Math.max(maximum,luminance);} return maximum-minimum; },png.toString("base64")); }
+async function screenshotContrast(page, png) { return page.evaluate(async (base64) => { const blob=await (await fetch(`data:image/png;base64,${base64}`)).blob(); const bitmap=await createImageBitmap(blob); const canvas=document.createElement("canvas"); canvas.width=bitmap.width; canvas.height=bitmap.height; const context=canvas.getContext("2d"); context.drawImage(bitmap,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; const linear=(channel)=>{const value=channel/255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4;}; let minimum=1,maximum=0,minimumGamma=255,maximumGamma=0,pixelCount=0; for(let index=0;index<data.length;index+=4){if(data[index+3]===0)continue;const gamma=.2126*data[index]+.7152*data[index+1]+.0722*data[index+2];const luminance=.2126*linear(data[index])+.7152*linear(data[index+1])+.0722*linear(data[index+2]);minimum=Math.min(minimum,luminance);maximum=Math.max(maximum,luminance);minimumGamma=Math.min(minimumGamma,gamma);maximumGamma=Math.max(maximumGamma,gamma);pixelCount+=1;} return {pixelCount,pixelRange:maximumGamma-minimumGamma,contrast:(maximum+.05)/(minimum+.05)}; },png.toString("base64")); }
 /** @param {import("playwright").Locator} game */
 async function shellSnapshot(game) { return game.evaluate((element) => {
   const root = element.shadowRoot; const shell = root.querySelector(".game"); const environment = root.querySelector("aero-background-environment"); const video = root.querySelector("video"); const canvas = root.querySelector("canvas"); const hud = root.querySelector(".hud"); const menu = root.querySelector("[data-role='menu-button']"); const backdrop = root.querySelector("[data-role='menu-backdrop']"); const drawer = root.querySelector("[data-role='drawer']"); const cue = root.querySelector("[data-role='transient-cue']"); const status = root.querySelector("[data-role='status']");
