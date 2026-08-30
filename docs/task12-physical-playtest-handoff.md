@@ -1,7 +1,7 @@
 # Task 12 Desktop and Android Physical-Playtest Handoff
 
-**Evidence date:** 2026-08-29  
-**Assembly implementation target:** `0894c35` (isolated remote/local song preview over the corrected live-v4, eight-way Flow, compact Music, and camera-compositor stack)
+**Evidence date:** 2026-08-30
+**Assembly implementation target:** `e3d087a` (audited atomic Standard collections and exact downloaded Preview over the corrected live-v4, eight-way Flow, compact Music, cadence/countdown/cursor, and camera-compositor stack)
 **Bead:** `aerobeat-web-assembly-48w.6` — remains open and operator-pending  
 **Scope stop:** evaluate Flow and all four experimental Boxing candidates; do not select or promote a production winner.
 
@@ -276,7 +276,24 @@ Assembly `0894c35` owns one hidden child-local preview audio element. Remote pla
 
 Independent QA closure `03ed9aa` exercised the unchanged managed local/Tailscale routes and fresh direct/real-cross-origin iframe children at exact 390×844 and 844×390. The live remote `4BE5E` MP3 played and toggled Preview→Stop→Preview in all served/direct/iframe checks. A real managed-route import authored `SODA POP.egg`, selected Flow, created one child-local Blob preview with an active 10-second bound, then stopped, cleared its source, and deleted the ephemeral package; gameplay audio/session/camera/lease stayed byte-for-byte equivalent across preview start. Full check/test/browser, product shell/camera matrices, build, two recursive releases, two dry packs, and diff checks pass. Frozen release source fingerprint is `634fca0e18ac08a696cd5284d8ff7c1e42b0ca1c1ab70d4a9e087ac37d42039a`, proof SHA-256 is `0b85bd831af90d27228286edef5eaaaf7197c7cb3f6a5c43c1ae0d0bd314ec79`, and pre-manifest bytes are `3327157`.
 
-Phone retest: search `kpop demon hunters soda pop song`; choose `Saja Boys - Soda Pop`; confirm the two labeled singleton values; tap Preview and hear the clip while the same action reads Stop; tap Stop and confirm silence. Import Hard, then use the downloaded song's Preview/Stop and confirm it does not request camera or begin calibration. Finally press Calibrate / Start and confirm any preview stops before the existing camera/T-pose flow. Repeat once with a map exposing multiple difficulties and confirm the real Difficulty select opens and changes the selected difficulty. These checks are operator-owned; automation is not physical success.
+Phone retest: search `kpop demon hunters soda pop song`; choose `Saja Boys - Soda Pop`; confirm the two labeled singleton values; tap Preview and hear the clip while the same action reads Stop; tap Stop and confirm silence. Import Hard, then use the downloaded song's Preview/Stop and confirm it does not request camera or begin calibration. Finally press Calibrate / Start and confirm any preview stops before the existing camera/T-pose flow. Repeat once with a map exposing multiple versions and confirm the real Version select opens. Remote compact Music intentionally has no Difficulty because Download acquires every playable Standard chart in that chosen version. These checks are operator-owned; automation is not physical success.
+
+### Atomic Standard collection and exact downloaded Difficulty Preview ready for phone retest
+
+Exact fixture `1AE3A` / `1348bac90dd94d7299bda388bd101a2b967e28b3` now downloads once and authors Standard Expert plus ExpertPlus sequentially as two unchanged one-difficulty v1 packages (five charts each), then persists both atomically as one downloaded-song collection with one shared content-addressed audio asset. Lightshow and all non-Standard characteristics remain provider-hash input only and never become playable choices.
+
+Compact remote Music shows Preview/Stop, a human-numbered Version, and Download—never pre-download Difficulty or a provider hash. After Download, `The Catalyst` appears once as one native song radio. Its action area owns one native Difficulty select containing `Expert` and `ExpertPlus`, one Preview/Stop, selected-package Export, and whole-collection Delete. Changing Difficulty makes that desired package the presenter truth immediately; the serial generation-bound loader skips stale intermediate requests, preserves the equivalent Flow or one of the four experimental Boxing presentations plus requested modifiers, and falls back only to Flow when no equivalent exists. Preview waits for and reads audio from that exact selected package generation. Archive, package, and audio bytes plus Blob/object URLs stay child-local.
+
+Phone retest:
+
+1. Search/download exact `1AE3A`; confirm one downloaded `The Catalyst` row and one Difficulty select with Expert and ExpertPlus.
+2. Select Expert, tap Preview, hear it, and tap Stop. Select ExpertPlus and repeat; confirm the selection stays ExpertPlus.
+3. Rapidly switch Expert→ExpertPlus→Expert (or the reverse) and confirm the final requested Difficulty remains selected and previews exactly.
+4. Select one experimental Gameplay radio and, if used through the host API, a runtime modifier; switch Difficulty and confirm the equivalent gameplay label/modifier remains active. Do not rank or promote it.
+5. Export the current difficulty once, then Delete once and confirm the entire song row disappears. Do not retain or commit the exported community package.
+6. Re-download for physical play, choose either difficulty, press Calibrate / Start, and confirm Preview stops before camera/T-pose. Continue the cadence/countdown/cursor checklist below.
+
+Automated and audit evidence at assembly `e3d087a` plus live closure `60ced45` proves one row, two packages, ten charts, both exact Preview/Stop paths, generation-bound A→B→C latest-wins, presentation/modifier preservation, selected export/collection delete, zero camera during Preview, and no public media. Linked audited heads are vendor `5db692c`, authoring `2264b97`, UI `fb22bc5`, and content `489e828`. Final source fingerprint is `4f0eeab6fbe30219c535d5a49d6989bcbeb29c5afd63989f7655d74aabda1cd1`; two release trees are byte-identical at 3,509,013 pre-manifest bytes, and two dry-pack manifests share SHA-256 `c93c5f1108a773cbd0533fe362a5ac29c2b759c0b75d1e5b9b663c0e980a59f2`.
 
 ### Cadence, countdown, and gameplay cursors ready for Android retest
 
@@ -330,7 +347,7 @@ Fill this section during operator play. Do not infer results from automation.
 | Spatial Cut physical play | pending | pending | |
 | Two current maps direct acquisition | pending | pending | |
 | Two current maps local ZIP fallback | pending | pending | |
-| Remote and downloaded Preview/Stop; singleton/multiple choice clarity | pending | retest pending | Use `4BE5E` for one Version/Hard and another map with multiple Standard difficulties; preview must stop before Calibrate / Start. |
+| Remote and downloaded Preview/Stop; singleton/multiple choice clarity | pending | retest pending | Use `4BE5E` for singleton Version/Hard, then exact `1AE3A` for one downloaded row with Expert/ExpertPlus Difficulty. Both exact local packages must Preview/Stop; Preview must stop before Calibrate / Start. |
 | Fullscreen/autoplay gestures | pending | pending | |
 | Tracking loss/recalibration/hidden | pending | pending | |
 | Comfort/clarity observations | pending | pending | Experimental notes only; no winner. |
