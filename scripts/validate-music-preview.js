@@ -41,7 +41,7 @@ try {
     return { hasButton: button instanceof HTMLButtonElement, label: button?.textContent, singletonValues, versionSelect: Boolean(versionSelect), difficultySelect: Boolean(difficultySelect), graphAudio: element.graph.audio.getStatus().state, camera: element.graph.video.describeStatus().state, session: element.graph.gameplay.getSnapshot().session.state };
   });
   assert(setup.hasButton && setup.label === "Preview", `remote Preview action missing: ${JSON.stringify(setup)}`);
-  assert(!setup.versionSelect && !setup.difficultySelect && JSON.stringify(setup.singletonValues) === JSON.stringify(["bd4eb4e8", "Hard"]), `singleton fields must not expose false selects: ${JSON.stringify(setup)}`);
+  assert(!setup.versionSelect && !setup.difficultySelect && JSON.stringify(setup.singletonValues) === JSON.stringify(["1"]), `remote compact fields must show a human-numbered Version and no Difficulty: ${JSON.stringify(setup)}`);
 
   await game.evaluate((element) => element.shadowRoot.querySelector("aero-beatsaver-browser").shadowRoot.querySelector("button[data-intent='beatsaver-preview-toggle']").click());
   await waitFor(page, async () => (await game.evaluate((element) => element.previewView.state)) === "playing");
@@ -57,7 +57,10 @@ try {
 
   const localSetup = await game.evaluate((element) => {
     const packageId = "package-soda-pop-hard";
-    element.libraryView = { packages: [{ packageId, songName: "Soda Pop", difficulty: "Hard", createdAtMs: 1 }], selectedPackageId: packageId, storage: null };
+    const collectionId = "collection-soda-pop"; const collection = { collectionId, songName: "Soda Pop", activePackageId: packageId, difficulties: [{ packageKey: "soda-pop-hard", packageId, difficultyId: "Hard", label: "Hard" }] };
+    const song = { collectionId, songName: "Soda Pop", activePackageId: packageId, difficulties: [{ packageId, difficultyId: "Hard", label: "Hard" }] };
+    element.libraryView = { packages: [{ key: "soda-pop-hard", packageId, songName: "Soda Pop", difficulty: "Hard", createdAtMs: 1 }], collections: [collection], songs: [song], selectedCollectionId: collectionId, selectedPackageId: packageId, storage: null };
+    element.desiredLibrarySelection = { collectionId, packageId, generation: element.librarySelectionGeneration };
     const originalGraph = element.graph; const originalContent = originalGraph.content;
     const localContent = Object.freeze({ ...originalContent, getSnapshot: () => ({ state: "ready", packageId, selectedVariant: { variantId: "flow", mode: "flow" }, variants: [], resolvedEvents: [], song: { name: "Soda Pop", audio: { filePath: "SODA POP.egg", contentHash: `sha256:${"a".repeat(64)}` } }, background: null }), readAsset: () => new Uint8Array([79, 103, 103, 83, 0, 1, 2, 3]) });
     element.graph = Object.freeze({ ...originalGraph, content: localContent }); element.renderPresenters();

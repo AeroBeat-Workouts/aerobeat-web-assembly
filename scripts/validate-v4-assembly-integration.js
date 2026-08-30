@@ -62,11 +62,11 @@ try {
   assert.equal(v4Evidence.cameraRequests, 0); assert.equal(v4Evidence.libraryCount, 1); assert.equal(v4Evidence.selectedSourceVersionHash, goldenV4Hash); assert.equal(v4Evidence.selectedDifficulty, "ExpertPlus"); assert.ok(v4Evidence.variantCount >= 5); assert.equal(v4Evidence.checkedLibraryRadios, 1); assert.equal(v4Evidence.musicReady, true); assert.equal(v4Evidence.rawExposure.length, 0);
 
   const legacyEvidence = await game.evaluate(async (element, fixture) => {
-    const v2 = await element.importLocalZip(Uint8Array.from(fixture.v2), { difficulty: "Expert", sourceId: "LOCAL-V2" });
-    const v2Source = v2.package.source.sourceVersionHash; const v2Major = v2.package.conversionTrace.boxing[0].sourceBeatmapVersion;
-    const v3 = await element.importLocalZip(Uint8Array.from(fixture.v3), { difficulty: "Expert", sourceId: "LOCAL-V3" });
-    const packages = await element.graph.authoring.listPackages(); const content = element.graph.content.getSnapshot();
-    return { v2Source, v2Major, v3Source: v3.package.source.sourceVersionHash, v3Major: v3.package.conversionTrace.boxing[0].sourceBeatmapVersion, packageCount: packages.length, selectedPackageId: content.packageId, selectedVariantId: content.selectedVariant?.variantId, cameraRequests: globalThis.__v4CameraRequests };
+    const v2 = await element.importLocalZip(Uint8Array.from(fixture.v2), { sourceId: "LOCAL-V2" });
+    const v2Loaded = await element.graph.authoring.loadPackage(v2.defaultPackage.handle); const v2Source = v2Loaded.package.source.sourceVersionHash; const v2Major = v2Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion;
+    const v3 = await element.importLocalZip(Uint8Array.from(fixture.v3), { sourceId: "LOCAL-V3" });
+    const v3Loaded = await element.graph.authoring.loadPackage(v3.defaultPackage.handle); const packages = await element.graph.authoring.listPackages(); const content = element.graph.content.getSnapshot();
+    return { v2Source, v2Major, v3Source: v3Loaded.package.source.sourceVersionHash, v3Major: v3Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion, packageCount: packages.length, selectedPackageId: content.packageId, selectedVariantId: content.selectedVariant?.variantId, cameraRequests: globalThis.__v4CameraRequests };
   }, { v2: [...archives.v2], v3: [...archives.v3] });
   assert.equal(legacyEvidence.v2Source, v2Hash); assert.equal(legacyEvidence.v3Source, v3Hash); assert.equal(legacyEvidence.v2Major, "v2"); assert.equal(legacyEvidence.v3Major, "v3"); assert.equal(legacyEvidence.packageCount, 3); assert.ok(legacyEvidence.selectedPackageId); assert.ok(legacyEvidence.selectedVariantId); assert.equal(legacyEvidence.cameraRequests, 0);
 

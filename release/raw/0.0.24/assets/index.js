@@ -6897,7 +6897,7 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
 	/** Map radios commit on `change`; action buttons retain the inherited click path. @param {Event} event */
 	handleDelegatedClick(event) {
 		const target = event.composedPath()[0];
-		if (target instanceof HTMLInputElement && target.type === "radio") return;
+		if (target instanceof HTMLInputElement && target.type === "radio" || target instanceof HTMLSelectElement) return;
 		super.handleDelegatedClick(event);
 	}
 	/** @param {string} type @param {HTMLElement} target */
@@ -6939,10 +6939,14 @@ var AeroBeatSaverBrowser = class extends AeroPresenterElement {
 		}
 		if (type === "beatsaver-import") {
 			const versionSelect = this.shadowRoot?.querySelector("select[data-intent='beatsaver-version-select']");
+			const selectedVersionHash = versionSelect instanceof HTMLSelectElement ? versionSelect.value : versionHash;
 			const difficultySelect = this.shadowRoot?.querySelector("select[data-intent='beatsaver-difficulty-select']");
-			this.emitIntent(type, {
+			this.emitIntent(type, this.compact ? {
 				mapId,
-				versionHash: versionSelect instanceof HTMLSelectElement ? versionSelect.value : versionHash,
+				versionHash: selectedVersionHash
+			} : {
+				mapId,
+				versionHash: selectedVersionHash,
 				difficultyId: difficultySelect instanceof HTMLSelectElement ? difficultySelect.value : difficultyId
 			});
 			return;
@@ -6974,11 +6978,13 @@ var AeroContentLibrary = class extends AeroPresenterElement {
 	static observedAttributes = ["compact"];
 	constructor() {
 		super();
-		this.pendingDeletePackageId = "";
+		this.pendingDeleteCollectionId = "";
+		this.pendingSelectedCollectionId = "";
 		this.pendingSelectedPackageId = "";
 	}
-	/** A host snapshot settles any optimistic compact radio selection. @param {AeroPresenterSnapshot} snapshot */
+	/** A host snapshot settles any optimistic compact song/difficulty selection. @param {AeroPresenterSnapshot} snapshot */
 	setSnapshot(snapshot) {
+		this.pendingSelectedCollectionId = "";
 		this.pendingSelectedPackageId = "";
 		super.setSnapshot(snapshot);
 	}
@@ -6995,38 +7001,57 @@ var AeroContentLibrary = class extends AeroPresenterElement {
 		const selectedPackageId = this.pendingSelectedPackageId && packages.some((item) => readString(item, "packageId", "") === this.pendingSelectedPackageId) ? this.pendingSelectedPackageId : snapshotSelectedPackageId;
 		const selectedPackageIndex = packages.findIndex((item) => readString(item, "packageId", "") === selectedPackageId);
 		const checkedPackageIndex = packages.length ? Math.max(0, selectedPackageIndex) : -1;
-		if (this.pendingDeletePackageId && !packages.some((item) => readString(item, "packageId", "") === this.pendingDeletePackageId)) this.pendingDeletePackageId = "";
 		if (this.compact) {
-			this.renderMarkup(compactLibraryMarkup(packages, checkedPackageIndex, this.pendingDeletePackageId, error, previewSnapshot(this.presenterSnapshot)));
+			const songs = compactDownloadedSongs(this.presenterSnapshot, packages);
+			const selectedCollectionId = compactSelectedCollectionId(this.presenterSnapshot, songs, this.pendingSelectedCollectionId, this.pendingSelectedPackageId);
+			if (this.pendingDeleteCollectionId && !songs.some((song) => song.collectionId === this.pendingDeleteCollectionId)) this.pendingDeleteCollectionId = "";
+			this.renderMarkup(compactLibraryMarkup(songs, selectedCollectionId, this.pendingSelectedPackageId, this.pendingDeleteCollectionId, error, previewSnapshot(this.presenterSnapshot)));
 			return;
 		}
-		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards choice-radios" part="items" role="radiogroup" aria-label="Available library packages">${packages.map((item, index) => libraryItemMarkup(item, this.pendingDeletePackageId, index === checkedPackageIndex)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
+		if (this.pendingDeleteCollectionId && !packages.some((item) => readString(item, "packageId", "") === this.pendingDeleteCollectionId)) this.pendingDeleteCollectionId = "";
+		this.renderMarkup(`<section class="panel" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">My AeroBeat library</h2><p class="muted" part="storage">${escapeHtml(formatStorage(used, quota))}</p>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="cards choice-radios" part="items" role="radiogroup" aria-label="Available library packages">${packages.map((item, index) => libraryItemMarkup(item, this.pendingDeleteCollectionId, index === checkedPackageIndex)).join("") || `<p class="muted">No locally authored packages yet.</p>`}</div></section>`);
 	}
 	/** Package radios commit on `change`; package actions retain the inherited click path. @param {Event} event */
 	handleDelegatedClick(event) {
 		const target = event.composedPath()[0];
-		if (target instanceof HTMLInputElement && target.type === "radio") return;
+		if (target instanceof HTMLInputElement && target.type === "radio" || target instanceof HTMLSelectElement) return;
 		super.handleDelegatedClick(event);
 	}
 	/** @param {string} type @param {HTMLElement} target */
 	onIntent(type, target) {
-		const packageId = target.dataset.value ?? "";
+		const value = target.dataset.value ?? (target instanceof HTMLSelectElement ? target.value : "");
 		if (type === "library-select") {
-			this.emitIntent(type, { packageId });
-			if (this.compact) {
-				this.pendingSelectedPackageId = packageId;
-				this.pendingDeletePackageId = "";
-				this.render();
-				queueMicrotask(() => [...this.shadowRoot?.querySelectorAll("input[name='library-package-choice']") ?? []].find((input) => input instanceof HTMLInputElement && input.value === packageId)?.focus());
+			if (!this.compact) {
+				this.emitIntent(type, { packageId: value });
+				return;
 			}
+			this.emitIntent(type, { collectionId: value });
+			this.pendingSelectedCollectionId = value;
+			this.pendingSelectedPackageId = "";
+			this.pendingDeleteCollectionId = "";
+			this.render();
+			queueMicrotask(() => [...this.shadowRoot?.querySelectorAll("input[name='library-song-choice']") ?? []].find((input) => input instanceof HTMLInputElement && input.value === value)?.focus());
 			return;
 		}
-		if (type === "library-preview-toggle") {
-			this.emitIntent(type, { packageId });
+		if (type === "library-difficulty-select") {
+			const packageId = target instanceof HTMLSelectElement ? target.value : "";
+			const collectionId = target.dataset.collectionId ?? "";
+			this.emitIntent(type, {
+				collectionId,
+				packageId
+			});
+			this.pendingSelectedCollectionId = collectionId;
+			this.pendingSelectedPackageId = packageId;
+			this.pendingDeleteCollectionId = "";
+			this.render();
+			return;
+		}
+		if (type === "library-preview-toggle" || type === "library-export") {
+			this.emitIntent(type, { packageId: value });
 			return;
 		}
 		if (type === "library-delete-request") {
-			this.pendingDeletePackageId = packageId;
+			this.pendingDeleteCollectionId = value;
 			this.render();
 			queueMicrotask(() => {
 				const confirm = this.shadowRoot?.querySelector("button[data-intent='library-delete']");
@@ -7035,17 +7060,17 @@ var AeroContentLibrary = class extends AeroPresenterElement {
 			return;
 		}
 		if (type === "library-delete-cancel") {
-			this.pendingDeletePackageId = "";
+			this.pendingDeleteCollectionId = "";
 			this.render();
 			return;
 		}
 		if (type === "library-delete") {
-			this.pendingDeletePackageId = "";
-			this.emitIntent(type, { packageId });
+			this.pendingDeleteCollectionId = "";
+			this.emitIntent(type, this.compact ? { collectionId: value } : { packageId: value });
 			this.render();
 			return;
 		}
-		this.emitIntent(type, { packageId });
+		this.emitIntent(type, { packageId: value });
 	}
 };
 /** T-pose hold/cooldown/success badge. */
@@ -7515,27 +7540,21 @@ function defaultBeatSaverDetailMarkup(selected, versions, difficulties, selected
           <label><span class="compact-field-label">Difficulty</span><select aria-label="Difficulty" part="difficulty-select" data-intent="beatsaver-difficulty-select">${difficulties.map((difficulty) => optionMarkup(difficulty, difficulty, selectedDifficulty)).join("")}</select></label>
           <button part="import-button" type="button" data-intent="beatsaver-import" ${selectedVersion && selectedDifficulty ? "" : "disabled"}>Import selected map</button></section>`;
 }
-/** Compact selected-map markup exposes preview and only real choices as select controls. @param {Readonly<Record<string, unknown>>} selected @param {readonly Readonly<Record<string, unknown>>[]} versionRecords @param {readonly string[]} difficultyValues @param {string} selectedVersion @param {string} selectedDifficulty @param {PreviewSnapshot} preview @returns {string} */
-function compactBeatSaverDetailMarkup(selected, versionRecords, difficultyValues, selectedVersion, selectedDifficulty, preview) {
+/** Compact selected-map markup exposes version-level Preview and Download only. Difficulty belongs to downloaded songs. @param {Readonly<Record<string, unknown>>} selected @param {readonly Readonly<Record<string, unknown>>[]} versionRecords @param {readonly string[]} _difficultyValues @param {string} selectedVersion @param {string} _selectedDifficulty @param {PreviewSnapshot} preview @returns {string} */
+function compactBeatSaverDetailMarkup(selected, versionRecords, _difficultyValues, selectedVersion, _selectedDifficulty, preview) {
 	const mapId = readBoundedString(selected, "mapId", "", 256);
 	const mapName = readBoundedString(selected, "name", "Selected map", 256);
-	const versions = versionRecords.filter((version) => readBoundedString(version, "versionHash", "", 256) !== "");
-	const difficulties = difficultyValues.filter((difficulty) => difficulty.length > 0).map((difficulty) => difficulty.slice(0, 128));
+	const versions = versionRecords.filter((version) => readBoundedString(version, "versionHash", "", 256) !== "").slice(0, 32);
 	const effectiveVersion = versions.some((version) => readString(version, "versionHash", "") === selectedVersion) ? selectedVersion : readString(versions[0] ?? {}, "versionHash", "");
-	const effectiveDifficulty = difficulties.includes(selectedDifficulty) ? selectedDifficulty : difficulties[0] ?? "";
 	const exactPreview = preview.mapId === mapId && preview.versionHash === effectiveVersion;
 	const previewActive = exactPreview && (preview.state === "loading" || preview.state === "playing");
 	const previewError = exactPreview && preview.state === "error" ? preview.errorMessage : "";
 	const previewLabel = previewActive ? "Stop" : "Preview";
 	const versionField = compactChoiceFieldMarkup("Version", "version-select", "beatsaver-version-select", versions.map((version) => ({
-		value: readString(version, "versionHash", ""),
-		label: readString(version, "label", readString(version, "versionHash", "Version"))
+		value: readBoundedString(version, "versionHash", "", 256),
+		label: readBoundedString(version, "label", readBoundedString(version, "versionHash", "Version", 256), 256)
 	})), effectiveVersion);
-	const difficultyField = compactChoiceFieldMarkup("Difficulty", "difficulty-select", "beatsaver-difficulty-select", difficulties.map((difficulty) => ({
-		value: difficulty,
-		label: difficulty
-	})), effectiveDifficulty);
-	return `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(mapName)}</h3><button class="compact-preview-action" part="preview-button" type="button" data-intent="beatsaver-preview-toggle" aria-label="${previewLabel} ${escapeAttribute(mapName)}" aria-pressed="${previewActive}" aria-busy="${preview.state === "loading" && exactPreview}" ${effectiveVersion ? "" : "disabled"}>${previewLabel}</button>${previewError ? `<p class="error" role="status" aria-live="polite">${escapeHtml(previewError)}</p>` : ""}${versionField}${difficultyField}<button part="import-button" type="button" data-intent="beatsaver-import" ${effectiveVersion && effectiveDifficulty ? "" : "disabled"}>Import selected map</button></section>`;
+	return `<section class="card" part="detail" aria-label="Selected map"><h3>${escapeHtml(mapName)}</h3><button class="compact-preview-action" part="preview-button" type="button" data-intent="beatsaver-preview-toggle" aria-label="${previewLabel} ${escapeAttribute(mapName)}" aria-pressed="${previewActive}" aria-busy="${preview.state === "loading" && exactPreview}" ${effectiveVersion ? "" : "disabled"}>${previewLabel}</button>${previewError ? `<p class="error" role="status" aria-live="polite">${escapeHtml(previewError)}</p>` : ""}${versionField}<button part="import-button" type="button" data-intent="beatsaver-import" ${effectiveVersion ? "" : "disabled"}>Download</button></section>`;
 }
 /** @typedef {Readonly<{value:string,label:string}>} CompactChoice */
 /** A compact field is static for one value, a native select for real choice, and an error for none. @param {string} label @param {string} part @param {string} intent @param {readonly CompactChoice[]} choices @param {string} selected @returns {string} */
@@ -7567,49 +7586,112 @@ function previewSnapshot(snapshot) {
 function readBoundedString(record, key, fallback, maximumLength) {
 	return readString(record, key, fallback).slice(0, maximumLength);
 }
-/** Compact quick-choice library using the real persistence-summary shape. @param {readonly Readonly<Record<string, unknown>>[]} packages @param {number} checkedIndex @param {string} pendingDeletePackageId @param {string} error @param {PreviewSnapshot} preview @returns {string} */
-function compactLibraryMarkup(packages, checkedIndex, pendingDeletePackageId, error, preview) {
-	const usable = packages.map((item, sourceIndex) => ({
-		item,
-		sourceIndex,
-		id: readString(item, "packageId", ""),
-		base: compactLibraryBaseLabel(item)
-	})).filter((entry) => entry.id !== "");
-	const checked = usable.findIndex((entry) => entry.sourceIndex === checkedIndex);
-	const checkedUsableIndex = usable.length ? Math.max(0, checked) : -1;
+/** @typedef {Readonly<{difficultyId:string,label:string,packageId:string}>} CompactDownloadedDifficulty */
+/** @typedef {Readonly<{collectionId:string,songName:string,activePackageId:string,difficulties:readonly CompactDownloadedDifficulty[]}>} CompactDownloadedSong */
+/** Read exact bounded collection summaries, or adapt old package summaries into singleton songs. @param {AeroPresenterSnapshot} snapshot @param {readonly Readonly<Record<string, unknown>>[]} packages @returns {readonly CompactDownloadedSong[]} */
+function compactDownloadedSongs(snapshot, packages) {
+	if (Array.isArray(snapshot.songs)) return Object.freeze(readRecordList(snapshot, "songs").slice(0, 100).map(normalizeDownloadedSong).filter((song) => song !== null));
+	return Object.freeze(packages.slice(0, 100).map((item) => {
+		const packageId = readBoundedString(item, "packageId", "", 1024);
+		if (!packageId) return null;
+		const difficulty = readBoundedString(item, "difficulty", "Downloaded", 128);
+		return Object.freeze({
+			collectionId: packageId,
+			songName: readBoundedString(item, "songName", readBoundedString(item, "name", "Downloaded song", 256), 256),
+			activePackageId: packageId,
+			difficulties: Object.freeze([Object.freeze({
+				difficultyId: difficulty,
+				label: difficulty,
+				packageId
+			})])
+		});
+	}).filter((song) => song !== null));
+}
+/** @param {Readonly<Record<string, unknown>>} record @returns {CompactDownloadedSong | null} */
+function normalizeDownloadedSong(record) {
+	if (!hasExactKeys$1(record, [
+		"collectionId",
+		"songName",
+		"activePackageId",
+		"difficulties"
+	])) return null;
+	const collectionId = readBoundedString(record, "collectionId", "", 1024);
+	const songName = readBoundedString(record, "songName", "", 256);
+	const rawDifficulties = readRecordList(record, "difficulties");
+	if (!collectionId || !songName || rawDifficulties.length === 0 || rawDifficulties.length > 8) return null;
+	/** @type {CompactDownloadedDifficulty[]} */
+	const difficulties = [];
+	const packageIds = /* @__PURE__ */ new Set();
+	const difficultyIds = /* @__PURE__ */ new Set();
+	for (const difficulty of rawDifficulties) {
+		if (!hasExactKeys$1(difficulty, [
+			"difficultyId",
+			"label",
+			"packageId"
+		])) return null;
+		const difficultyId = readBoundedString(difficulty, "difficultyId", "", 128);
+		const label = readBoundedString(difficulty, "label", "", 128);
+		const packageId = readBoundedString(difficulty, "packageId", "", 1024);
+		if (!difficultyId || !label || !packageId || packageIds.has(packageId) || difficultyIds.has(difficultyId)) return null;
+		packageIds.add(packageId);
+		difficultyIds.add(difficultyId);
+		difficulties.push(Object.freeze({
+			difficultyId,
+			label,
+			packageId
+		}));
+	}
+	const declaredActive = readBoundedString(record, "activePackageId", "", 1024);
+	const activePackageId = packageIds.has(declaredActive) ? declaredActive : difficulties[0].packageId;
+	return Object.freeze({
+		collectionId,
+		songName,
+		activePackageId,
+		difficulties: Object.freeze(difficulties)
+	});
+}
+/** @param {AeroPresenterSnapshot} snapshot @param {readonly CompactDownloadedSong[]} songs @param {string} pendingCollectionId @param {string} pendingPackageId @returns {string} */
+function compactSelectedCollectionId(snapshot, songs, pendingCollectionId, pendingPackageId) {
+	if (songs.some((song) => song.collectionId === pendingCollectionId)) return pendingCollectionId;
+	const selectedCollectionId = readBoundedString(snapshot, "selectedCollectionId", "", 1024);
+	if (songs.some((song) => song.collectionId === selectedCollectionId)) return selectedCollectionId;
+	const selectedPackageId = pendingPackageId || readBoundedString(snapshot, "selectedPackageId", "", 1024);
+	return songs.find((song) => song.difficulties.some((difficulty) => difficulty.packageId === selectedPackageId))?.collectionId ?? songs[0]?.collectionId ?? "";
+}
+/** @param {readonly CompactDownloadedSong[]} songs @param {string} selectedCollectionId @param {string} pendingPackageId @param {string} pendingDeleteCollectionId @param {string} error @param {PreviewSnapshot} preview @returns {string} */
+function compactLibraryMarkup(songs, selectedCollectionId, pendingPackageId, pendingDeleteCollectionId, error, preview) {
+	const selectedIndex = songs.findIndex((song) => song.collectionId === selectedCollectionId);
+	const checkedIndex = songs.length ? Math.max(0, selectedIndex) : -1;
 	const totals = /* @__PURE__ */ new Map();
-	for (const entry of usable) totals.set(entry.base, (totals.get(entry.base) ?? 0) + 1);
+	for (const song of songs) totals.set(song.songName, (totals.get(song.songName) ?? 0) + 1);
 	const positions = /* @__PURE__ */ new Map();
 	/** @type {string[]} */
 	const labels = [];
-	const choices = usable.map((entry, index) => {
-		const position = (positions.get(entry.base) ?? 0) + 1;
-		positions.set(entry.base, position);
-		const label = (totals.get(entry.base) ?? 0) > 1 ? `${entry.base} · ${position}` : entry.base;
+	const choices = songs.map((song, index) => {
+		const position = (positions.get(song.songName) ?? 0) + 1;
+		positions.set(song.songName, position);
+		const label = (totals.get(song.songName) ?? 0) > 1 ? `${song.songName} · ${position}` : song.songName;
 		labels[index] = label;
-		return `<label class="compact-library-choice" part="item"><input type="radio" name="library-package-choice" value="${escapeAttribute(entry.id)}" data-intent="library-select" data-value="${escapeAttribute(entry.id)}" aria-label="Select ${escapeAttribute(label)}" ${index === checkedUsableIndex ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`;
+		return `<label class="compact-library-choice" part="item"><input type="radio" name="library-song-choice" value="${escapeAttribute(song.collectionId)}" data-intent="library-select" data-value="${escapeAttribute(song.collectionId)}" aria-label="Select ${escapeAttribute(label)}" ${index === checkedIndex ? "checked" : ""}><span>${escapeHtml(label)}</span></label>`;
 	}).join("");
-	const selected = checkedUsableIndex >= 0 ? usable[checkedUsableIndex] : null;
-	const actions = selected ? compactLibraryActions(selected.item, pendingDeletePackageId, labels[checkedUsableIndex] ?? selected.base, preview) : "";
+	const selected = checkedIndex >= 0 ? songs[checkedIndex] : null;
+	const actions = selected ? compactLibraryActions(selected, pendingPackageId, pendingDeleteCollectionId, labels[checkedIndex] ?? selected.songName, preview) : "";
 	return `<section class="panel compact-library" part="panel" aria-labelledby="library-heading"><h2 id="library-heading">Downloaded songs</h2>${error ? `<p class="error" role="alert">${escapeHtml(error)}</p>` : ""}<div class="compact-library-choices" part="items" role="radiogroup" aria-label="Downloaded songs">${choices || `<p class="muted compact-critical">No downloaded songs.</p>`}</div>${actions}</section>`;
 }
-/** @param {Readonly<Record<string, unknown>>} item @returns {string} */
-function compactLibraryBaseLabel(item) {
-	const songName = readString(item, "songName", readString(item, "name", "Downloaded song"));
-	const difficulty = readString(item, "difficulty", "");
-	return difficulty ? `${songName} · ${difficulty}` : songName;
-}
-/** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {string} label @param {PreviewSnapshot} preview @returns {string} */
-function compactLibraryActions(item, pendingDeletePackageId, label, preview) {
-	const id = readString(item, "packageId", "");
+/** @param {CompactDownloadedSong} song @param {string} pendingPackageId @param {string} pendingDeleteCollectionId @param {string} label @param {PreviewSnapshot} preview @returns {string} */
+function compactLibraryActions(song, pendingPackageId, pendingDeleteCollectionId, label, preview) {
+	const selectedPackageId = song.difficulties.some((difficulty) => difficulty.packageId === pendingPackageId) ? pendingPackageId : song.activePackageId;
 	const accessibleLabel = escapeAttribute(label);
-	const pending = id !== "" && id === pendingDeletePackageId;
-	const exactPreview = preview.packageId === id;
+	const pendingDelete = song.collectionId === pendingDeleteCollectionId;
+	const exactPreview = preview.packageId === selectedPackageId;
 	const previewActive = exactPreview && (preview.state === "loading" || preview.state === "playing");
 	const previewLabel = previewActive ? "Stop" : "Preview";
 	const previewError = exactPreview && preview.state === "error" ? preview.errorMessage : "";
-	const deleteControls = pending ? `<span role="status">Delete ${escapeHtml(label)}?</span><button type="button" aria-label="Confirm delete ${accessibleLabel}" data-intent="library-delete" data-value="${escapeAttribute(id)}">Confirm</button><button type="button" aria-label="Cancel deleting ${accessibleLabel}" data-intent="library-delete-cancel" data-value="${escapeAttribute(id)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleLabel}" data-intent="library-delete-request" data-value="${escapeAttribute(id)}">Delete</button>`;
-	return `<div class="row compact-library-actions" part="selected-actions" aria-label="Selected song actions"><button class="compact-preview-action" part="preview-button" type="button" aria-label="${previewLabel} ${accessibleLabel}" aria-pressed="${previewActive}" aria-busy="${exactPreview && preview.state === "loading"}" data-intent="library-preview-toggle" data-value="${escapeAttribute(id)}">${previewLabel}</button>${previewError ? `<p class="error" role="status" aria-live="polite">${escapeHtml(previewError)}</p>` : ""}<button type="button" aria-label="Export ${accessibleLabel}" data-intent="library-export" data-value="${escapeAttribute(id)}">Export</button>${deleteControls}</div>`;
+	const difficulty = song.difficulties.find((entry) => entry.packageId === selectedPackageId) ?? song.difficulties[0];
+	const difficultyLabel = `Difficulty for ${label}`;
+	const difficultyField = song.difficulties.length === 1 ? `<div class="compact-singleton-field" part="difficulty-select"><span>Difficulty</span><output aria-label="${escapeAttribute(difficultyLabel)}">${escapeHtml(difficulty.label)}</output></div>` : `<label><span class="compact-field-label">Difficulty</span><select aria-label="${escapeAttribute(difficultyLabel)}" part="difficulty-select" data-intent="library-difficulty-select" data-collection-id="${escapeAttribute(song.collectionId)}">${song.difficulties.map((entry) => optionMarkup(entry.packageId, entry.label, selectedPackageId)).join("")}</select></label>`;
+	const deleteControls = pendingDelete ? `<span role="status">Delete ${escapeHtml(label)}?</span><button type="button" aria-label="Confirm delete ${accessibleLabel}" data-intent="library-delete" data-value="${escapeAttribute(song.collectionId)}">Confirm</button><button type="button" aria-label="Cancel deleting ${accessibleLabel}" data-intent="library-delete-cancel" data-value="${escapeAttribute(song.collectionId)}">Cancel</button>` : `<button type="button" aria-label="Delete ${accessibleLabel}" data-intent="library-delete-request" data-value="${escapeAttribute(song.collectionId)}">Delete</button>`;
+	return `<div class="row compact-library-actions" part="selected-actions" aria-label="Selected song actions"><button class="compact-preview-action" part="preview-button" type="button" aria-label="${previewLabel} ${accessibleLabel}" aria-pressed="${previewActive}" aria-busy="${exactPreview && preview.state === "loading"}" data-intent="library-preview-toggle" data-value="${escapeAttribute(selectedPackageId)}">${previewLabel}</button>${previewError ? `<p class="error" role="status" aria-live="polite">${escapeHtml(previewError)}</p>` : ""}${difficultyField}<button type="button" aria-label="Export ${accessibleLabel}" data-intent="library-export" data-value="${escapeAttribute(selectedPackageId)}">Export</button>${deleteControls}</div>`;
 }
 /** @param {Readonly<Record<string, unknown>>} item @param {string} pendingDeletePackageId @param {boolean} checked @returns {string} */
 function libraryItemMarkup(item, pendingDeletePackageId, checked) {
@@ -8145,13 +8227,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:0d2e02878174396f7dfeb7e1a161d3e5499f77ce17d46fdb78e115109a2beaf0";
+var buildStamp = "source:64f0cf8fc61596f712571ab59b1f02223c92d317c31c9650d82bc1d07a73df95";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-0d2e02878174396f";
+var cacheBust = "0.0.24-64f0cf8fc61596f7";
 /**
 * Vite-injected package version from package.json.
 *
@@ -13466,7 +13548,9 @@ async function semanticParityHash(packageValue) {
 	return prefixedSha256(canonicalJson(semanticParityProjection(packageValue)));
 }
 var authoringPersistenceNamespace = "aerobeat.authored-packages.v2";
-/** @typedef {{key: string, package: Record<string, unknown>, packageHash: string, assets: readonly {path: string, bytes: Uint8Array}[], sourceCache: readonly {path: string, bytes: Uint8Array}[], createdAtMs: number, schemaVersion: number, writeToken: string}} StoredPackageRecord */
+/** @typedef {{key: string, package: Record<string, unknown>, packageHash: string, assets: readonly {path: string, bytes: Uint8Array}[], sourceCache: readonly {path: string, bytes: Uint8Array}[], createdAtMs: number, schemaVersion: number, writeToken: string, assetRefs?: readonly {path: string, contentHash: string}[]}} StoredPackageRecord */
+/** @typedef {{contentHash: string, bytes: Uint8Array, byteLength: number}} SharedAssetRecord */
+/** @typedef {{collectionId: string, songName: string, sourceProvider: string, sourceId: string, sourceVersionHash: string, converterProfileId: string, converterProfileHash: string, modifierIds: readonly string[], packageKeys: readonly string[], packages: readonly {packageKey: string, packageId: string, difficultyId: string, difficultyLabel: string}[], createdAtMs: number, schemaVersion: number, writeToken: string}} StoredCollectionRecord */
 /**
 * Deterministic in-memory persistence adapter for tests/unsupported browsers.
 *
@@ -13474,66 +13558,127 @@ var authoringPersistenceNamespace = "aerobeat.authored-packages.v2";
 */
 function createMemoryPersistenceAdapter(options = {}) {
 	const records = /* @__PURE__ */ new Map();
+	const sharedAssets = /* @__PURE__ */ new Map();
+	const collections = /* @__PURE__ */ new Map();
 	const quotaBytes = options.quotaBytes ?? 536870912;
 	let destroyed = false;
 	return Object.freeze({
 		kind: "memory",
-		schemaVersion: 2,
+		schemaVersion: 3,
 		/** @param {StoredPackageRecord} record */
 		async put(record) {
 			assertOpen();
 			const copy = copyRecord(record);
-			if (usage(records) - (records.has(record.key) ? recordSize(records.get(record.key)) : 0) + recordSize(copy) > quotaBytes) throw storageError("quota_exceeded", "Authored package exceeds local quota");
-			records.set(record.key, copy);
+			const staged = new Map(records);
+			staged.set(copy.key, copy);
+			assertQuota(staged, sharedAssets, collections);
+			records.set(copy.key, copy);
 		},
 		/** @param {string} key */
 		async get(key) {
 			assertOpen();
 			const value = records.get(key);
-			return value ? copyRecord(value) : null;
+			return value ? resolveRecordAssets(value, sharedAssets) : null;
 		},
 		async list() {
 			assertOpen();
 			return [...records.values()].sort((a, b) => a.key.localeCompare(b.key)).map(summaryFor);
 		},
+		/** @param {unknown} batch @param {{signal?: AbortSignal}} [batchOptions] */
+		async putCollection(batch, batchOptions = {}) {
+			assertOpen();
+			assertNotAborted(batchOptions.signal);
+			const copy = copyCollectionBatch(batch);
+			const stagedRecords = new Map(records), stagedAssets = new Map(sharedAssets), stagedCollections = new Map(collections);
+			for (const asset of copy.assets) stagedAssets.set(asset.contentHash, asset);
+			for (const record of copy.packages) stagedRecords.set(record.key, record);
+			stagedCollections.set(copy.collection.collectionId, copy.collection);
+			assertNotAborted(batchOptions.signal);
+			assertQuota(stagedRecords, stagedAssets, stagedCollections);
+			replaceMap(records, stagedRecords);
+			replaceMap(sharedAssets, stagedAssets);
+			replaceMap(collections, stagedCollections);
+			return collectionSummary(copy.collection);
+		},
+		async listCollections() {
+			assertOpen();
+			return collectionSummaries(records, collections);
+		},
+		/** @param {string} collectionId */
+		async getCollection(collectionId) {
+			assertOpen();
+			const stored = collections.get(collectionId);
+			if (stored) return copyCollection(stored);
+			return legacyCollectionForId(records, collectionId);
+		},
+		/** @param {string} collectionId */
+		async deleteCollection(collectionId) {
+			assertOpen();
+			const stored = collections.get(collectionId);
+			if (!stored) {
+				const legacy = legacyCollectionForId(records, collectionId);
+				if (!legacy) return false;
+				records.delete(legacy.packageKeys[0]);
+				collectUnusedAssets(records, sharedAssets);
+				return true;
+			}
+			for (const key of stored.packageKeys) records.delete(key);
+			collections.delete(collectionId);
+			collectUnusedAssets(records, sharedAssets);
+			return true;
+		},
 		/** @param {string} key */
 		async delete(key) {
 			assertOpen();
-			return records.delete(key);
+			const deleted = records.delete(key);
+			if (deleted) {
+				removePackageFromCollections(collections, key);
+				collectUnusedAssets(records, sharedAssets);
+			}
+			return deleted;
 		},
 		/** @param {string} key @param {string} writeToken */
 		async deleteIfToken(key, writeToken) {
 			assertOpen();
 			const current = records.get(key);
 			if (!current || current.writeToken !== writeToken) return false;
-			return records.delete(key);
+			records.delete(key);
+			removePackageFromCollections(collections, key);
+			collectUnusedAssets(records, sharedAssets);
+			return true;
 		},
 		async estimate() {
 			assertOpen();
+			const usageBytes = totalUsage(records, sharedAssets, collections);
 			return deepFreeze$1({
-				usageBytes: usage(records),
+				usageBytes,
 				quotaBytes,
-				availableBytes: Math.max(quotaBytes - usage(records), 0),
+				availableBytes: Math.max(quotaBytes - usageBytes, 0),
 				persistent: false,
-				schemaVersion: 2
+				schemaVersion: 3
 			});
 		},
 		async migrate() {
 			assertOpen();
 			return deepFreeze$1({
-				fromVersion: 2,
-				toVersion: 2,
+				fromVersion: 3,
+				toVersion: 3,
 				migratedRecords: 0
 			});
 		},
 		destroy() {
 			destroyed = true;
 			records.clear();
+			sharedAssets.clear();
+			collections.clear();
 		},
 		assertOpen
 	});
 	function assertOpen() {
 		if (destroyed) throw storageError("storage_destroyed", "Persistence adapter is destroyed");
+	}
+	function assertQuota(nextRecords, nextAssets, nextCollections) {
+		if (totalUsage(nextRecords, nextAssets, nextCollections) > quotaBytes) throw storageError("quota_exceeded", "Authored collection exceeds local quota");
 	}
 }
 /**
@@ -13551,15 +13696,17 @@ function createIndexedDbPersistenceAdapter(options = {}) {
 	const open = () => {
 		if (closed) return Promise.reject(storageError("storage_destroyed", "Persistence adapter is destroyed"));
 		if (!databasePromise) databasePromise = new Promise((resolve, reject) => {
-			const request = factory.open(databaseName, 2);
+			const request = factory.open(databaseName, 3);
 			request.onupgradeneeded = (event) => {
 				const database = request.result;
 				if (!database.objectStoreNames.contains("packages")) database.createObjectStore("packages", { keyPath: "key" });
+				if (!database.objectStoreNames.contains("assets")) database.createObjectStore("assets", { keyPath: "contentHash" });
+				if (!database.objectStoreNames.contains("collections")) database.createObjectStore("collections", { keyPath: "collectionId" });
 				if (!database.objectStoreNames.contains("meta")) database.createObjectStore("meta", { keyPath: "key" });
 				if (request.transaction) {
 					request.transaction.objectStore("meta").put({
 						key: "schema",
-						version: 2
+						version: 3
 					});
 					if (event.oldVersion > 0 && event.oldVersion < 2) {
 						const cursorRequest = request.transaction.objectStore("packages").openCursor();
@@ -13571,7 +13718,7 @@ function createIndexedDbPersistenceAdapter(options = {}) {
 								...value,
 								sourceCache: Array.isArray(value.sourceCache) ? value.sourceCache : [],
 								writeToken: typeof value.writeToken === "string" ? value.writeToken : "",
-								schemaVersion: 2
+								schemaVersion: 3
 							});
 							cursor.continue();
 						};
@@ -13589,18 +13736,35 @@ function createIndexedDbPersistenceAdapter(options = {}) {
 	};
 	return Object.freeze({
 		kind: "indexeddb",
-		schemaVersion: 2,
+		schemaVersion: 3,
 		/** @param {StoredPackageRecord} record */
 		async put(record) {
 			await transaction(await open(), "packages", "readwrite", (store) => store.put(copyRecord(record)));
 		},
 		/** @param {string} key */
 		async get(key) {
-			const value = await transaction(await open(), "packages", "readonly", (store) => store.get(key));
-			return value ? copyRecord(value) : null;
+			return getIndexedDbPackage(await open(), key);
 		},
 		async list() {
-			return (await transaction(await open(), "packages", "readonly", (store) => store.getAll())).map(summaryFor).sort((a, b) => a.key.localeCompare(b.key));
+			return (await transaction(await open(), "packages", "readonly", (store) => store.getAll())).map((value) => summaryFor(copyRecord(value))).sort((a, b) => a.key.localeCompare(b.key));
+		},
+		/** @param {unknown} batch @param {{signal?: AbortSignal}} [batchOptions] */
+		async putCollection(batch, batchOptions = {}) {
+			const copy = copyCollectionBatch(batch);
+			assertNotAborted(batchOptions.signal);
+			await putIndexedDbCollection(await open(), copy, batchOptions.signal);
+			return collectionSummary(copy.collection);
+		},
+		async listCollections() {
+			return listIndexedDbCollections(await open());
+		},
+		/** @param {string} collectionId */
+		async getCollection(collectionId) {
+			return getIndexedDbCollection(await open(), collectionId);
+		},
+		/** @param {string} collectionId */
+		async deleteCollection(collectionId) {
+			return deleteIndexedDbCollection(await open(), collectionId);
 		},
 		/** @param {string} key */
 		async delete(key) {
@@ -13617,14 +13781,14 @@ function createIndexedDbPersistenceAdapter(options = {}) {
 				quotaBytes: finite(estimate.quota),
 				availableBytes: Math.max(finite(estimate.quota) - finite(estimate.usage), 0),
 				persistent: true,
-				schemaVersion: 2
+				schemaVersion: 3
 			});
 		},
 		async migrate() {
 			await open();
 			return deepFreeze$1({
-				fromVersion: 2,
-				toVersion: 2,
+				fromVersion: 3,
+				toVersion: 3,
 				migratedRecords: 0
 			});
 		},
@@ -13636,14 +13800,203 @@ function createIndexedDbPersistenceAdapter(options = {}) {
 	});
 }
 /** @param {IDBDatabase} database @param {string} key */
+function getIndexedDbPackage(database, key) {
+	return new Promise((resolve, reject) => {
+		const tx = database.transaction(["packages", "assets"], "readonly"), request = tx.objectStore("packages").get(key);
+		let result = null;
+		request.onsuccess = () => {
+			if (!request.result) return;
+			const record = copyRecord(request.result);
+			if (!record.assetRefs?.length) {
+				result = record;
+				return;
+			}
+			const resolved = /* @__PURE__ */ new Map();
+			for (const ref of record.assetRefs) {
+				const assetRequest = tx.objectStore("assets").get(ref.contentHash);
+				assetRequest.onsuccess = () => {
+					if (assetRequest.result) resolved.set(ref.contentHash, copySharedAssetRecord(assetRequest.result));
+				};
+			}
+			tx.oncomplete = () => {
+				try {
+					result = resolveRecordAssets(record, resolved);
+					resolve(result);
+				} catch (error) {
+					reject(error);
+				}
+			};
+		};
+		request.onerror = () => reject(idbStorageError(request.error, "indexeddb_request_failed", "IndexedDB package lookup failed"));
+		tx.oncomplete = () => resolve(result);
+		tx.onerror = () => reject(idbStorageError(tx.error, "indexeddb_transaction_failed", "IndexedDB package transaction failed"));
+		tx.onabort = () => reject(idbStorageError(tx.error, "indexeddb_transaction_aborted", "IndexedDB package transaction aborted"));
+	});
+}
+/** @param {IDBDatabase} database @param {{collection:StoredCollectionRecord,packages:StoredPackageRecord[],assets:SharedAssetRecord[]}} batch @param {AbortSignal | undefined} signal */
+function putIndexedDbCollection(database, batch, signal) {
+	return new Promise((resolve, reject) => {
+		const tx = database.transaction([
+			"assets",
+			"packages",
+			"collections"
+		], "readwrite"), abort = () => tx.abort();
+		signal?.addEventListener("abort", abort, { once: true });
+		for (const asset of batch.assets) tx.objectStore("assets").put(asset);
+		for (const record of batch.packages) tx.objectStore("packages").put(record);
+		tx.objectStore("collections").put(batch.collection);
+		tx.oncomplete = () => {
+			signal?.removeEventListener("abort", abort);
+			resolve(void 0);
+		};
+		tx.onerror = () => {
+			signal?.removeEventListener("abort", abort);
+			reject(idbStorageError(tx.error, "indexeddb_transaction_failed", "IndexedDB collection transaction failed"));
+		};
+		tx.onabort = () => {
+			signal?.removeEventListener("abort", abort);
+			reject(signal?.aborted ? storageError("operation_aborted", "Persistence operation was cancelled") : idbStorageError(tx.error, "indexeddb_transaction_aborted", "IndexedDB collection transaction aborted"));
+		};
+	});
+}
+/** @param {IDBDatabase} database */
+function listIndexedDbCollections(database) {
+	return new Promise((resolve, reject) => {
+		const tx = database.transaction(["packages", "collections"], "readonly"), packageRequest = tx.objectStore("packages").getAll(), collectionRequest = tx.objectStore("collections").getAll();
+		let records = [], stored = [];
+		packageRequest.onsuccess = () => {
+			records = packageRequest.result.map((value) => copyRecord(value));
+		};
+		collectionRequest.onsuccess = () => {
+			stored = collectionRequest.result.map((value) => copyCollection(value));
+		};
+		tx.oncomplete = () => resolve(collectionSummaries(new Map(records.map((record) => [record.key, record])), new Map(stored.map((collection) => [collection.collectionId, collection]))));
+		tx.onerror = () => reject(idbStorageError(tx.error, "indexeddb_transaction_failed", "IndexedDB collection list failed"));
+		tx.onabort = () => reject(idbStorageError(tx.error, "indexeddb_transaction_aborted", "IndexedDB collection list aborted"));
+	});
+}
+/** @param {IDBDatabase} database @param {string} collectionId */
+function getIndexedDbCollection(database, collectionId) {
+	return new Promise((resolve, reject) => {
+		const tx = database.transaction(["packages", "collections"], "readonly"), collectionRequest = tx.objectStore("collections").get(collectionId);
+		let result = null;
+		collectionRequest.onsuccess = () => {
+			if (collectionRequest.result) {
+				result = copyCollection(collectionRequest.result);
+				return;
+			}
+			if (!collectionId.startsWith("legacy:")) return;
+			const packageRequest = tx.objectStore("packages").get(collectionId.slice(7));
+			packageRequest.onsuccess = () => {
+				if (packageRequest.result) result = legacyCollection(copyRecord(packageRequest.result));
+			};
+		};
+		tx.oncomplete = () => resolve(result);
+		tx.onerror = () => reject(idbStorageError(tx.error, "indexeddb_transaction_failed", "IndexedDB collection lookup failed"));
+		tx.onabort = () => reject(idbStorageError(tx.error, "indexeddb_transaction_aborted", "IndexedDB collection lookup aborted"));
+	});
+}
+/** @param {IDBDatabase} database @param {string} collectionId */
+function deleteIndexedDbCollection(database, collectionId) {
+	return new Promise((resolve, reject) => {
+		const tx = database.transaction([
+			"packages",
+			"assets",
+			"collections"
+		], "readwrite"), packages = tx.objectStore("packages"), collections = tx.objectStore("collections"), request = collections.get(collectionId);
+		let deleted = false;
+		request.onsuccess = () => {
+			if (request.result) {
+				const collection = copyCollection(request.result);
+				for (const key of collection.packageKeys) packages.delete(key);
+				collections.delete(collectionId);
+				deleted = true;
+				garbageCollectIndexedDbAssets(tx);
+				return;
+			}
+			if (collectionId.startsWith("legacy:")) {
+				const key = collectionId.slice(7), legacyRequest = packages.getKey(key);
+				legacyRequest.onsuccess = () => {
+					if (legacyRequest.result !== void 0) {
+						packages.delete(key);
+						deleted = true;
+						garbageCollectIndexedDbAssets(tx);
+					}
+				};
+			}
+		};
+		tx.oncomplete = () => resolve(deleted);
+		tx.onerror = () => reject(idbStorageError(tx.error, "indexeddb_transaction_failed", "IndexedDB collection delete failed"));
+		tx.onabort = () => reject(idbStorageError(tx.error, "indexeddb_transaction_aborted", "IndexedDB collection delete aborted"));
+	});
+}
+/** @param {IDBTransaction} tx */
+function garbageCollectIndexedDbAssets(tx) {
+	const packageRequest = tx.objectStore("packages").getAll();
+	packageRequest.onsuccess = () => {
+		const used = /* @__PURE__ */ new Set();
+		for (const value of packageRequest.result) {
+			const record = copyRecord(value);
+			for (const ref of record.assetRefs ?? []) used.add(ref.contentHash);
+		}
+		const cursorRequest = tx.objectStore("assets").openCursor();
+		cursorRequest.onsuccess = () => {
+			const cursor = cursorRequest.result;
+			if (!cursor) return;
+			if (typeof cursor.key === "string" && !used.has(cursor.key)) cursor.delete();
+			cursor.continue();
+		};
+	};
+}
+/** @param {IDBTransaction} tx @param {string} key */
+function removeIndexedDbPackageFromCollections(tx, key) {
+	const store = tx.objectStore("collections"), request = store.getAll();
+	request.onsuccess = () => {
+		for (const value of request.result) {
+			const collection = copyCollection(value);
+			if (!collection.packageKeys.includes(key)) continue;
+			if (collection.packageKeys.length === 1) {
+				store.delete(collection.collectionId);
+				continue;
+			}
+			store.put({
+				...collection,
+				packageKeys: collection.packageKeys.filter((item) => item !== key),
+				packages: collection.packages.filter((entry) => entry.packageKey !== key)
+			});
+		}
+	};
+}
+/** @param {unknown} value */
+function copySharedAssetRecord(value) {
+	if (!exactRecord(value, [
+		"contentHash",
+		"bytes",
+		"byteLength"
+	])) throw storageError("storage_record_invalid", "Stored shared asset shape is invalid");
+	const contentHash = valueFor(value, "contentHash"), bytes = valueFor(value, "bytes"), byteLength = valueFor(value, "byteLength");
+	if (typeof contentHash !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(contentHash) || !(bytes instanceof Uint8Array) || byteLength !== bytes.byteLength) throw storageError("storage_record_invalid", "Stored shared asset values are invalid");
+	return {
+		contentHash,
+		bytes: Uint8Array.from(bytes),
+		byteLength
+	};
+}
+/** @param {IDBDatabase} database @param {string} key */
 function deleteExisting(database, key) {
 	return new Promise((resolve, reject) => {
-		const tx = database.transaction("packages", "readwrite"), store = tx.objectStore("packages"), request = store.getKey(key);
+		const tx = database.transaction([
+			"packages",
+			"assets",
+			"collections"
+		], "readwrite"), store = tx.objectStore("packages"), request = store.getKey(key);
 		let deleted = false;
 		request.onsuccess = () => {
 			if (request.result !== void 0) {
 				store.delete(key);
 				deleted = true;
+				removeIndexedDbPackageFromCollections(tx, key);
+				garbageCollectIndexedDbAssets(tx);
 			}
 		};
 		request.onerror = () => reject(idbStorageError(request.error, "indexeddb_request_failed", "IndexedDB delete lookup failed"));
@@ -13655,7 +14008,11 @@ function deleteExisting(database, key) {
 /** @param {IDBDatabase} database @param {string} key @param {string} writeToken */
 function conditionalDelete(database, key, writeToken) {
 	return new Promise((resolve, reject) => {
-		const tx = database.transaction("packages", "readwrite");
+		const tx = database.transaction([
+			"packages",
+			"assets",
+			"collections"
+		], "readwrite");
 		const store = tx.objectStore("packages");
 		const request = store.get(key);
 		let deleted = false;
@@ -13663,6 +14020,8 @@ function conditionalDelete(database, key, writeToken) {
 			const value = request.result;
 			if (value && value.writeToken === writeToken) {
 				store.delete(key);
+				removeIndexedDbPackageFromCollections(tx, key);
+				garbageCollectIndexedDbAssets(tx);
 				deleted = true;
 			}
 		};
@@ -13691,7 +14050,7 @@ function transaction(database, storeName, mode, operation) {
 }
 /** @param {StoredPackageRecord} record */
 function copyRecord(record) {
-	if (!exactRecord(record, [
+	const legacyKeys = [
 		"key",
 		"package",
 		"packageHash",
@@ -13700,7 +14059,8 @@ function copyRecord(record) {
 		"createdAtMs",
 		"schemaVersion",
 		"writeToken"
-	])) throw storageError("storage_record_invalid", "Stored package record shape is invalid");
+	], v3Keys = [...legacyKeys, "assetRefs"];
+	if (!exactRecord(record, legacyKeys) && !exactRecord(record, v3Keys)) throw storageError("storage_record_invalid", "Stored package record shape is invalid");
 	const key = valueFor(record, "key"), packageValue = valueFor(record, "package"), packageHash = valueFor(record, "packageHash"), createdAtMs = valueFor(record, "createdAtMs"), writeToken = valueFor(record, "writeToken");
 	if (typeof key !== "string" || !key || key.length > 1024 || !isPlainRecord$1(packageValue) || typeof packageHash !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(packageHash) || !Number.isSafeInteger(createdAtMs) || Number(createdAtMs) < 0 || typeof writeToken !== "string" || writeToken.length > 128) throw storageError("storage_record_invalid", "Stored package record values are invalid");
 	let encoded;
@@ -13710,15 +14070,20 @@ function copyRecord(record) {
 		throw storageError("storage_record_invalid", "Stored package must contain canonical plain data");
 	}
 	if (new TextEncoder().encode(encoded).byteLength > 67108864) throw storageError("storage_record_invalid", "Stored package exceeds the size limit");
-	return {
+	const result = {
 		key,
 		package: cloneData(packageValue),
 		packageHash,
 		assets: copyAssets(valueFor(record, "assets")),
 		sourceCache: copyAssets(valueFor(record, "sourceCache")),
 		createdAtMs,
-		schemaVersion: 2,
+		schemaVersion: 3,
 		writeToken
+	};
+	const refs = valueFor(record, "assetRefs");
+	return refs === void 0 ? result : {
+		...result,
+		assetRefs: copyAssetRefs(refs)
 	};
 }
 /** @param {StoredPackageRecord} record */
@@ -13754,8 +14119,9 @@ function exactRecord(value, keys) {
 		return descriptor && "value" in descriptor && descriptor.enumerable && descriptor.value !== void 0;
 	});
 }
-/** @param {Record<string,unknown>} value @param {string} key */
+/** @param {unknown} value @param {string} key */
 function valueFor(value, key) {
+	if (!isPlainRecord$1(value)) return void 0;
 	const descriptor = Object.getOwnPropertyDescriptor(value, key);
 	return descriptor && "value" in descriptor ? descriptor.value : void 0;
 }
@@ -13781,6 +14147,235 @@ function copyAssets(value) {
 		});
 	}
 	return result;
+}
+/** @param {unknown} value */
+function copyAssetRefs(value) {
+	if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > 2048) throw storageError("storage_record_invalid", "Stored asset references are invalid");
+	const result = [];
+	const paths = /* @__PURE__ */ new Set();
+	for (let index = 0; index < value.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+		if (!descriptor || !("value" in descriptor) || !exactRecord(descriptor.value, ["path", "contentHash"])) throw storageError("storage_record_invalid", "Stored asset reference is invalid");
+		const path = valueFor(descriptor.value, "path"), contentHash = valueFor(descriptor.value, "contentHash");
+		if (typeof path !== "string" || !path || path.length > 1024 || paths.has(path) || typeof contentHash !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(contentHash)) throw storageError("storage_record_invalid", "Stored asset reference values are invalid");
+		paths.add(path);
+		result.push({
+			path,
+			contentHash
+		});
+	}
+	return result;
+}
+/** @param {unknown} value */
+function copySharedAssets(value) {
+	if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > 64) throw storageError("storage_record_invalid", "Shared assets are invalid");
+	const result = [];
+	const hashes = /* @__PURE__ */ new Set();
+	for (let index = 0; index < value.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+		if (!descriptor || !("value" in descriptor) || !exactRecord(descriptor.value, ["contentHash", "bytes"])) throw storageError("storage_record_invalid", "Shared asset entry is invalid");
+		const contentHash = valueFor(descriptor.value, "contentHash"), bytes = valueFor(descriptor.value, "bytes");
+		if (typeof contentHash !== "string" || !/^sha256:[0-9a-f]{64}$/u.test(contentHash) || hashes.has(contentHash) || !(bytes instanceof Uint8Array) || bytes.byteLength > 134217728) throw storageError("storage_record_invalid", "Shared asset values are invalid");
+		hashes.add(contentHash);
+		result.push({
+			contentHash,
+			bytes: Uint8Array.from(bytes),
+			byteLength: bytes.byteLength
+		});
+	}
+	return result;
+}
+/** @param {unknown} value */
+function copyCollection(value) {
+	const keys = [
+		"collectionId",
+		"songName",
+		"sourceProvider",
+		"sourceId",
+		"sourceVersionHash",
+		"converterProfileId",
+		"converterProfileHash",
+		"modifierIds",
+		"packageKeys",
+		"packages",
+		"createdAtMs",
+		"schemaVersion",
+		"writeToken"
+	];
+	if (!exactRecord(value, keys)) throw storageError("storage_record_invalid", "Stored collection shape is invalid");
+	const stringKeys = keys.slice(0, 7);
+	const strings = Object.fromEntries(stringKeys.map((key) => [key, valueFor(value, key)]));
+	if (stringKeys.some((key) => typeof strings[key] !== "string" || !strings[key] || strings[key].length > 1024) || !Number.isSafeInteger(valueFor(value, "createdAtMs")) || Number(valueFor(value, "createdAtMs")) < 0 || typeof valueFor(value, "writeToken") !== "string" || String(valueFor(value, "writeToken")).length > 128) throw storageError("storage_record_invalid", "Stored collection values are invalid");
+	const modifierIds = copyStringArray(valueFor(value, "modifierIds"), 64), packageKeys = copyStringArray(valueFor(value, "packageKeys"), 8);
+	if (packageKeys.length === 0 || new Set(packageKeys).size !== packageKeys.length) throw storageError("storage_record_invalid", "Stored collection package keys are invalid");
+	const entries = valueFor(value, "packages");
+	if (!Array.isArray(entries) || entries.length !== packageKeys.length || Object.getPrototypeOf(entries) !== Array.prototype) throw storageError("storage_record_invalid", "Stored collection packages are invalid");
+	const packages = [];
+	const difficultyIds = /* @__PURE__ */ new Set();
+	for (let index = 0; index < entries.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(entries, String(index));
+		if (!descriptor || !("value" in descriptor) || !exactRecord(descriptor.value, [
+			"packageKey",
+			"packageId",
+			"difficultyId",
+			"difficultyLabel"
+		])) throw storageError("storage_record_invalid", "Stored collection package entry is invalid");
+		const entry = {
+			packageKey: valueFor(descriptor.value, "packageKey"),
+			packageId: valueFor(descriptor.value, "packageId"),
+			difficultyId: valueFor(descriptor.value, "difficultyId"),
+			difficultyLabel: valueFor(descriptor.value, "difficultyLabel")
+		};
+		if (Object.values(entry).some((item) => typeof item !== "string" || !item || item.length > 1024) || entry.packageKey !== packageKeys[index] || difficultyIds.has(entry.difficultyId)) throw storageError("storage_record_invalid", "Stored collection package values are invalid");
+		difficultyIds.add(entry.difficultyId);
+		packages.push(entry);
+	}
+	return {
+		...strings,
+		modifierIds,
+		packageKeys,
+		packages,
+		createdAtMs: valueFor(value, "createdAtMs"),
+		schemaVersion: 3,
+		writeToken: valueFor(value, "writeToken")
+	};
+}
+/** @param {unknown} value @param {number} maximum */
+function copyStringArray(value, maximum) {
+	if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype || value.length > maximum) throw storageError("storage_record_invalid", "Stored string array is invalid");
+	const result = [];
+	for (let index = 0; index < value.length; index += 1) {
+		const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+		if (!descriptor || !("value" in descriptor) || typeof descriptor.value !== "string" || !descriptor.value || descriptor.value.length > 1024) throw storageError("storage_record_invalid", "Stored string array value is invalid");
+		result.push(descriptor.value);
+	}
+	return result;
+}
+/** @param {unknown} batch */
+function copyCollectionBatch(batch) {
+	if (!exactRecord(batch, [
+		"collection",
+		"packages",
+		"assets"
+	])) throw storageError("storage_record_invalid", "Collection batch shape is invalid");
+	const collection = copyCollection(valueFor(batch, "collection")), assets = copySharedAssets(valueFor(batch, "assets")), packageValue = valueFor(batch, "packages");
+	if (!Array.isArray(packageValue) || Object.getPrototypeOf(packageValue) !== Array.prototype || packageValue.length !== collection.packageKeys.length) throw storageError("storage_record_invalid", "Collection batch packages are invalid");
+	const packages = packageValue.map((record) => copyRecord(record));
+	const hashes = new Set(assets.map((asset) => asset.contentHash));
+	for (let index = 0; index < packages.length; index += 1) if (packages[index].key !== collection.packageKeys[index] || !packages[index].assetRefs?.length || packages[index].assetRefs.some((ref) => !hashes.has(ref.contentHash))) throw storageError("storage_record_invalid", "Collection batch references are invalid");
+	return {
+		collection,
+		packages,
+		assets
+	};
+}
+/** @param {AbortSignal | undefined} signal */
+function assertNotAborted(signal) {
+	if (signal?.aborted) throw storageError("operation_aborted", "Persistence operation was cancelled");
+}
+/** @param {StoredPackageRecord} record @param {Map<string, SharedAssetRecord>} assets */
+function resolveRecordAssets(record, assets) {
+	const copy = copyRecord(record);
+	if (!copy.assetRefs?.length) return copy;
+	const resolved = [...copy.assets];
+	const paths = new Set(resolved.map((entry) => entry.path));
+	for (const ref of copy.assetRefs) {
+		const asset = assets.get(ref.contentHash);
+		if (!asset || paths.has(ref.path)) throw storageError("storage_record_invalid", "Stored shared asset is unavailable");
+		paths.add(ref.path);
+		resolved.push({
+			path: ref.path,
+			bytes: Uint8Array.from(asset.bytes)
+		});
+	}
+	return {
+		...copy,
+		assets: resolved
+	};
+}
+/** @param {StoredCollectionRecord} collection */
+function collectionSummary(collection) {
+	return deepFreeze$1({
+		collectionId: collection.collectionId,
+		songName: collection.songName,
+		createdAtMs: collection.createdAtMs,
+		packages: collection.packages.map((entry) => ({
+			packageKey: entry.packageKey,
+			packageId: entry.packageId,
+			difficultyId: entry.difficultyId,
+			difficultyLabel: entry.difficultyLabel
+		}))
+	});
+}
+/** @param {Map<string, StoredPackageRecord>} records @param {Map<string, StoredCollectionRecord>} collections */
+function collectionSummaries(records, collections) {
+	const result = [...collections.values()].map(collectionSummary);
+	const referenced = new Set([...collections.values()].flatMap((collection) => collection.packageKeys));
+	for (const [key, record] of records) if (!referenced.has(key)) result.push(collectionSummary(legacyCollection(record)));
+	return result.sort((a, b) => a.collectionId.localeCompare(b.collectionId));
+}
+/** @param {StoredPackageRecord} record */
+function legacyCollection(record) {
+	const summary = summaryFor(record);
+	return {
+		collectionId: `legacy:${record.key}`,
+		songName: summary.songName || "Downloaded song",
+		sourceProvider: "legacy",
+		sourceId: record.key,
+		sourceVersionHash: "legacy",
+		converterProfileId: "legacy",
+		converterProfileHash: "legacy",
+		modifierIds: [],
+		packageKeys: [record.key],
+		packages: [{
+			packageKey: record.key,
+			packageId: summary.packageId || record.key,
+			difficultyId: summary.difficulty || "default",
+			difficultyLabel: summary.difficulty || "Default"
+		}],
+		createdAtMs: record.createdAtMs,
+		schemaVersion: 3,
+		writeToken: record.writeToken
+	};
+}
+/** @param {Map<string, StoredPackageRecord>} records @param {string} collectionId */
+function legacyCollectionForId(records, collectionId) {
+	if (!collectionId.startsWith("legacy:")) return null;
+	const record = records.get(collectionId.slice(7));
+	return record ? copyCollection(legacyCollection(record)) : null;
+}
+/** @param {Map<string, unknown>} target @param {Map<string, unknown>} source */
+function replaceMap(target, source) {
+	target.clear();
+	for (const [key, value] of source) target.set(key, value);
+}
+/** @param {Map<string, StoredPackageRecord>} records @param {Map<string, SharedAssetRecord>} assets @param {Map<string, StoredCollectionRecord>} collections */
+function totalUsage(records, assets, collections) {
+	let total = usage(records);
+	for (const asset of assets.values()) total += asset.bytes.byteLength;
+	for (const collection of collections.values()) total += new TextEncoder().encode(canonicalJson(collection)).byteLength;
+	return total;
+}
+/** @param {Map<string, StoredPackageRecord>} records @param {Map<string, SharedAssetRecord>} assets */
+function collectUnusedAssets(records, assets) {
+	const used = /* @__PURE__ */ new Set();
+	for (const record of records.values()) for (const ref of record.assetRefs ?? []) used.add(ref.contentHash);
+	for (const hash of assets.keys()) if (!used.has(hash)) assets.delete(hash);
+}
+/** @param {Map<string, StoredCollectionRecord>} collections @param {string} key */
+function removePackageFromCollections(collections, key) {
+	for (const [id, collection] of [...collections]) {
+		if (collection.packageKeys.indexOf(key) < 0) continue;
+		if (collection.packageKeys.length === 1) {
+			collections.delete(id);
+			continue;
+		}
+		collections.set(id, {
+			...collection,
+			packageKeys: collection.packageKeys.filter((item) => item !== key),
+			packages: collection.packages.filter((entry) => entry.packageKey !== key)
+		});
+	}
 }
 /** @param {unknown} value */
 function finite(value) {
@@ -13811,36 +14406,83 @@ var defaultLimits = Object.freeze({
 });
 var maximumDifficulties = 100;
 var maximumIdentityChars = 512;
+/** Canonical Standard difficulty order shared by batch authoring and product presentation. */
+var standardDifficultyOrder$1 = Object.freeze([
+	"Easy",
+	"Normal",
+	"Hard",
+	"Expert",
+	"ExpertPlus"
+]);
 /**
-* Adapt the vendor bundle closure into a structured-clone-safe Worker request plus
-* child-local assets. Only selected entry copies are read and integrity-checked.
-*
+* Adapt one selected Standard difficulty into a Worker-safe request plus child-local assets.
 * @param {unknown} acquired
-* @param {{difficulty: string, sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, cacheSourceEntries?: boolean, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, limits?: Partial<typeof defaultLimits>}} options
+* @param {{difficulty: string, sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, cacheSourceEntries?: boolean, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, limits?: Partial<typeof defaultLimits>, signal?: AbortSignal}} options
 */
 async function prepareSourceMaterial(acquired, options) {
+	return (await prepareSourceMaterialSet(acquired, options, false)).materials[0];
+}
+/**
+* Adapt every exact Standard difficulty in canonical order. Audio is read and hashed once.
+* @param {unknown} acquired
+* @param {{sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, cacheSourceEntries?: boolean, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, limits?: Partial<typeof defaultLimits>, signal?: AbortSignal}} options
+*/
+async function prepareAllStandardSourceMaterials(acquired, options) {
+	return prepareSourceMaterialSet(acquired, options, true);
+}
+/** @param {unknown} acquired @param {Record<string, unknown>} options @param {boolean} all */
+async function prepareSourceMaterialSet(acquired, options, all) {
 	if (!isPlainRecord$1(acquired) || !isPlainRecord$1(options)) throw sourceError("source_invalid", "Source acquisition and options must be plain records");
 	const nestedSource = dataProperty$1(acquired, "source");
 	const source = isPlainRecord$1(nestedSource) ? nestedSource : acquired;
 	if (!isSourceBundle(source)) throw sourceError("source_bundle_invalid", "Source must expose manifest, listEntryPaths and readEntry as data properties");
 	const manifest = dataProperty$1(source, "manifest");
 	const limits = normalizeLimits$1(dataProperty$1(options, "limits"));
-	const difficulties = arrayData(dataProperty$1(manifest, "difficulties"), maximumDifficulties, "source_manifest_invalid");
-	const difficultyValue = dataProperty$1(options, "difficulty");
-	if (typeof difficultyValue !== "string" || difficultyValue.length > 64) throw sourceError("difficulty_invalid", "Difficulty must be a bounded string");
-	const wanted = normalizeDifficulty$1(difficultyValue);
+	const signalValue = dataProperty$1(options, "signal");
+	const signal = signalValue instanceof AbortSignal ? signalValue : void 0;
+	if (signalValue !== void 0 && !signal) throw sourceError("source_options_invalid", "signal must be an AbortSignal");
+	checkAbort$1(signal);
+	const advertised = arrayData(dataProperty$1(manifest, "difficulties"), maximumDifficulties, "source_manifest_invalid");
+	/** @type {{difficulty: string, path: string}[]} */
 	let selected;
-	for (const entry of difficulties) {
-		if (!isPlainRecord$1(entry) || dataProperty$1(entry, "characteristic") !== "Standard") continue;
-		const candidate = dataProperty$1(entry, "difficulty");
-		if (typeof candidate === "string" && candidate.length <= 64 && normalizeDifficulty$1(candidate) === wanted) {
-			selected = entry;
-			break;
+	if (all) {
+		const byDifficulty = /* @__PURE__ */ new Map();
+		for (const entry of advertised) {
+			if (!isPlainRecord$1(entry) || dataProperty$1(entry, "characteristic") !== "Standard") continue;
+			const candidate = dataProperty$1(entry, "difficulty");
+			if (typeof candidate !== "string" || candidate.length > 64) throw sourceError("difficulty_invalid", "Standard difficulty must be a bounded supported string");
+			const difficulty = normalizeDifficulty$1(candidate);
+			if (byDifficulty.has(difficulty)) throw sourceError("difficulty_duplicate", `Standard ${difficulty} is advertised more than once`);
+			byDifficulty.set(difficulty, entry);
+		}
+		selected = standardDifficultyOrder$1.filter((difficulty) => byDifficulty.has(difficulty)).map((difficulty) => {
+			const pathValue = dataProperty$1(byDifficulty.get(difficulty), "path");
+			if (typeof pathValue !== "string" || !pathValue) throw sourceError("difficulty_unavailable", `Standard ${difficulty} has no source path`);
+			return {
+				difficulty,
+				path: normalizePath(pathValue, limits.pathChars)
+			};
+		});
+	} else {
+		const difficultyValue = dataProperty$1(options, "difficulty");
+		if (typeof difficultyValue !== "string" || difficultyValue.length > 64) throw sourceError("difficulty_invalid", "Difficulty must be a bounded string");
+		const wanted = normalizeDifficulty$1(difficultyValue);
+		selected = [];
+		for (const entry of advertised) {
+			if (!isPlainRecord$1(entry) || dataProperty$1(entry, "characteristic") !== "Standard") continue;
+			const candidate = dataProperty$1(entry, "difficulty");
+			if (typeof candidate === "string" && candidate.length <= 64 && normalizeDifficulty$1(candidate) === wanted) {
+				const pathValue = dataProperty$1(entry, "path");
+				if (typeof pathValue !== "string" || !pathValue) break;
+				selected = [{
+					difficulty: wanted,
+					path: normalizePath(pathValue, limits.pathChars)
+				}];
+				break;
+			}
 		}
 	}
-	const selectedPathValue = selected ? dataProperty$1(selected, "path") : void 0;
-	if (typeof selectedPathValue !== "string" || !selectedPathValue) throw sourceError("difficulty_unavailable", `Standard ${wanted} is not available in this source`);
-	const selectedPath = normalizePath(selectedPathValue, limits.pathChars);
+	if (!selected.length) throw sourceError("difficulty_unavailable", all ? "No supported Standard difficulty is available in this source" : "Selected Standard difficulty is not available in this source");
 	const listEntryPaths = dataProperty$1(source, "listEntryPaths");
 	const readEntry = dataProperty$1(source, "readEntry");
 	let listedValue;
@@ -13857,27 +14499,45 @@ async function prepareSourceMaterial(acquired, options) {
 		if (listedByNormalized.has(normalized)) throw sourceError("source_paths_duplicate", "Source entry paths collide after case and Unicode normalization");
 		listedByNormalized.set(normalized, original);
 	}
-	const difficultyOriginal = listedByNormalized.get(selectedPath);
-	if (!difficultyOriginal) throw sourceError("source_entry_missing", "Selected difficulty is absent from the advertised source entries");
-	const difficultyBytes = readBounded(readEntry, source, difficultyOriginal, limits.difficultyBytes, "difficulty");
-	const difficultyContentHash = await verifyExpectedHash(difficultyBytes, expectedPathHash(dataProperty$1(options, "expectedDifficultyContentHashes"), selectedPath, limits.pathChars), "difficulty_hash_mismatch");
+	const prepared = [];
+	let selectedByteCount = 0;
+	for (const item of selected) {
+		checkAbort$1(signal);
+		const original = listedByNormalized.get(item.path);
+		if (!original) throw sourceError("source_entry_missing", `Standard ${item.difficulty} is absent from the advertised source entries`);
+		const bytes = readBounded(readEntry, source, original, limits.difficultyBytes, "difficulty");
+		selectedByteCount += bytes.byteLength;
+		if (!Number.isSafeInteger(selectedByteCount) || selectedByteCount > limits.selectedBytes) throw sourceError("source_selected_bytes_exceeded", "Selected source data exceeds the authoring byte limit");
+		const contentHash = await verifyExpectedHash(bytes, expectedPathHash(dataProperty$1(options, "expectedDifficultyContentHashes"), item.path, limits.pathChars), "difficulty_hash_mismatch");
+		checkAbort$1(signal);
+		prepared.push({
+			...item,
+			bytes,
+			contentHash
+		});
+	}
 	const audioPathValue = dataProperty$1(manifest, "audioPath");
 	const audioPath = typeof audioPathValue === "string" && audioPathValue ? normalizePath(audioPathValue, limits.pathChars) : "";
 	const audioOriginal = audioPath ? listedByNormalized.get(audioPath) : void 0;
 	if (audioPath && !audioOriginal) throw sourceError("source_entry_missing", "Audio is absent from the advertised source entries");
+	checkAbort$1(signal);
 	const audioBytes = audioOriginal ? readBounded(readEntry, source, audioOriginal, limits.audioBytes, "audio") : /* @__PURE__ */ new Uint8Array();
-	if (difficultyBytes.byteLength + audioBytes.byteLength > limits.selectedBytes) throw sourceError("source_selected_bytes_exceeded", "Selected source data exceeds the authoring byte limit");
+	if (!Number.isSafeInteger(selectedByteCount + audioBytes.byteLength) || selectedByteCount + audioBytes.byteLength > limits.selectedBytes) throw sourceError("source_selected_bytes_exceeded", "Selected source data exceeds the authoring byte limit");
 	const expectedAudio = optionalExpectedHash(dataProperty$1(options, "expectedAudioContentHash"), "expectedAudioContentHash");
 	if (expectedAudio && !audioBytes.byteLength) throw sourceError("audio_hash_mismatch", "Expected audio is absent from the selected source");
 	const audioContentHash = audioBytes.byteLength ? await verifyExpectedHash(audioBytes, expectedAudio, "audio_hash_mismatch") : "";
+	checkAbort$1(signal);
 	const cache = [];
 	if (dataProperty$1(options, "cacheSourceEntries") === true) {
 		const infoPathValue = dataProperty$1(manifest, "infoPath");
 		const infoPath = typeof infoPathValue === "string" && infoPathValue ? normalizePath(infoPathValue, limits.pathChars) : "";
-		for (const path of [infoPath, selectedPath].filter(Boolean)) {
+		const requiredCachePaths = [...new Set([infoPath, ...prepared.map((item) => item.path)].filter(Boolean))];
+		for (const path of requiredCachePaths) {
+			checkAbort$1(signal);
 			const original = listedByNormalized.get(path);
 			if (!original) throw sourceError("source_entry_missing", "Requested cache entry is absent");
-			const cachedBytes = path === selectedPath ? Uint8Array.from(difficultyBytes) : readBounded(readEntry, source, original, limits.cacheEntryBytes, "cache");
+			const preparedEntry = prepared.find((item) => item.path === path);
+			const cachedBytes = preparedEntry ? Uint8Array.from(preparedEntry.bytes) : readBounded(readEntry, source, original, limits.cacheEntryBytes, "cache");
 			if (cachedBytes.byteLength > limits.cacheEntryBytes) throw sourceError("source_entry_too_large", "cache entry exceeds the byte limit");
 			cache.push({
 				path,
@@ -13903,33 +14563,47 @@ async function prepareSourceMaterial(acquired, options) {
 		4
 	].includes(Number(major))) throw sourceError("source_format_unsupported", "Only Beat Saber v2, v3 and v4 are supported");
 	const bpmValue = dataProperty$1(manifest, "bpm");
+	const common = {
+		schemaId: "aerobeat.authoring-source.v1",
+		sourceFormatMajor: major,
+		infoPath: boundedDataString(dataProperty$1(manifest, "infoPath"), limits.pathChars),
+		songName: boundedDataString(dataProperty$1(manifest, "songName")) || "Imported Song",
+		songAuthorName: boundedDataString(dataProperty$1(manifest, "songAuthorName")),
+		levelAuthorName: boundedDataString(dataProperty$1(manifest, "levelAuthorName")),
+		bpm: typeof bpmValue === "number" ? positive$1(bpmValue, 120) : 120,
+		audioPath,
+		audioContentHash,
+		sourceProvider,
+		sourceId,
+		sourceVersionHash
+	};
+	const audio = audioPath ? [{
+		path: audioPath,
+		bytes: Uint8Array.from(audioBytes),
+		contentHash: audioContentHash
+	}] : [];
 	return deepFreeze$1({
-		requestManifest: deepFreeze$1({
-			schemaId: "aerobeat.authoring-source.v1",
-			sourceFormatMajor: major,
-			infoPath: boundedDataString(dataProperty$1(manifest, "infoPath"), limits.pathChars),
-			songName: boundedDataString(dataProperty$1(manifest, "songName")) || "Imported Song",
-			songAuthorName: boundedDataString(dataProperty$1(manifest, "songAuthorName")),
-			levelAuthorName: boundedDataString(dataProperty$1(manifest, "levelAuthorName")),
-			bpm: typeof bpmValue === "number" ? positive$1(bpmValue, 120) : 120,
-			audioPath,
-			audioContentHash,
-			selectedDifficulty: {
-				difficulty: wanted,
-				path: selectedPath,
-				contentHash: difficultyContentHash
-			},
-			sourceProvider,
-			sourceId,
-			sourceVersionHash
-		}),
-		difficultyBytes: Uint8Array.from(difficultyBytes),
-		audio: audioPath ? [{
-			path: audioPath,
-			bytes: Uint8Array.from(audioBytes),
-			contentHash: audioContentHash
-		}] : [],
-		sourceCache: cache
+		materials: prepared.map((item) => deepFreeze$1({
+			requestManifest: deepFreeze$1({
+				...common,
+				selectedDifficulty: {
+					difficulty: item.difficulty,
+					path: item.path,
+					contentHash: item.contentHash
+				}
+			}),
+			difficultyBytes: Uint8Array.from(item.bytes),
+			audio,
+			sourceCache: cache
+		})),
+		audio,
+		sourceCache: cache,
+		sourceProvider,
+		sourceId,
+		sourceVersionHash,
+		songName: common.songName,
+		audioPath,
+		audioContentHash
 	});
 }
 /** @param {unknown} value @returns {value is SourceBundle} */
@@ -14044,6 +14718,10 @@ async function verifyExpectedHash(bytes, expected, mismatchCode) {
 	const actual = await prefixedSha256(bytes);
 	if (expected && actual !== expected) throw sourceError(mismatchCode, `Expected ${expected} but received ${actual}`);
 	return actual;
+}
+/** @param {AbortSignal | undefined} signal */
+function checkAbort$1(signal) {
+	if (signal?.aborted) throw sourceError("operation_aborted", "Source preparation was cancelled");
 }
 /** @param {number} value @param {number} fallback */
 function positive$1(value, fallback) {
@@ -14772,6 +15450,172 @@ function createAeroWebContentAuthoringService(options = {}) {
 				normalizedOptions.signal?.removeEventListener("abort", externalAbort);
 			}
 		},
+		/**
+		* Convert every exact Standard difficulty sequentially and atomically persist one collection.
+		* @param {unknown} acquired
+		* @param {{sourceProvider?: string, sourceId?: string, sourceVersionHash?: string, expectedAudioContentHash?: string, expectedDifficultyContentHashes?: Readonly<Record<string, string>>, modifiers?: readonly string[], presentationSuggestion?: Readonly<Record<string, unknown>>, converterProfile?: Readonly<Record<string, unknown>>, cacheSourceEntries?: boolean, includeAudio?: boolean, limits?: Readonly<Record<string, number>>, signal?: AbortSignal}} requestOptions
+		*/
+		async convertAllStandardAndPersist(acquired, requestOptions) {
+			assertOpen();
+			const normalizedOptions = normalizeBatchRequestOptions(requestOptions);
+			if (normalizedOptions.includeAudio === false) throw authoringError("request_invalid", "Batch conversion requires shared audio");
+			const converterProfile = normalizedOptions.converterProfile ? await normalizeConverterProfile(normalizedOptions.converterProfile) : null;
+			assertOpen();
+			active?.abort.abort();
+			const generation = ++sequence;
+			const jobId = `authoring-${generation}`;
+			const abort = new AbortController();
+			active = {
+				jobId,
+				generation,
+				abort
+			};
+			const externalAbort = () => abort.abort();
+			normalizedOptions.signal?.addEventListener("abort", externalAbort, { once: true });
+			let persistedCollectionId = "";
+			try {
+				publish(makeSnapshot(jobId, "inspecting", .04, normalizedOptions.sourceId ?? null, normalizedOptions.sourceVersionHash ?? null, null, null, null, null));
+				const prepared = await prepareAllStandardSourceMaterials(acquired, normalizedOptions);
+				checkCurrent(generation, abort.signal);
+				if (!prepared.audioPath || !prepared.audioContentHash || prepared.audio.length !== 1) throw authoringError("audio_required", "Batch conversion requires one verified audio asset");
+				const packageRows = [];
+				const resultRows = [];
+				const packageHashes = [];
+				for (let index = 0; index < prepared.materials.length; index += 1) {
+					checkCurrent(generation, abort.signal);
+					const material = prepared.materials[index];
+					const manifest = material.requestManifest;
+					const difficulty = String(manifest.selectedDifficulty.difficulty);
+					const workerRequest = {
+						schema: "aerobeat/authoring_worker_request",
+						version: 1,
+						kind: "convert",
+						jobId: `${jobId}-${index + 1}`,
+						manifest: cloneData(manifest),
+						difficultyBytes: Uint8Array.from(material.difficultyBytes),
+						options: {
+							difficulty,
+							songToken: slug(String(manifest.songName || manifest.sourceId)),
+							songName: manifest.songName,
+							bpm: manifest.bpm,
+							sourceProvider: manifest.sourceProvider,
+							sourceId: manifest.sourceId,
+							sourceVersionHash: manifest.sourceVersionHash,
+							sourceDifficultyPath: manifest.selectedDifficulty.path,
+							sourceBeatmapVersion: `v${manifest.sourceFormatMajor}`,
+							sourceDifficultyHash: manifest.selectedDifficulty.contentHash,
+							audioPath: manifest.audioPath,
+							audioContentHash: manifest.audioContentHash,
+							modifiers: [...normalizedOptions.modifiers],
+							...converterProfile ? { converterProfile: cloneData(converterProfile) } : {},
+							...normalizedOptions.presentationSuggestion ? { presentationSuggestion: cloneData(normalizedOptions.presentationSuggestion) } : {}
+						}
+					};
+					publish(makeSnapshot(jobId, "converting", .1 + index / prepared.materials.length * .8, prepared.sourceId, prepared.sourceVersionHash, difficulty, null, null, null));
+					const result = await worker.convert(workerRequest, {
+						signal: abort.signal,
+						onProgress(progress, phase) {
+							if (!isCurrent(generation)) return;
+							publish(makeSnapshot(jobId, phase === "validating" ? "validating" : "converting", .1 + (index + bounded$1(progress)) / prepared.materials.length * .8, prepared.sourceId, prepared.sourceVersionHash, difficulty, null, null, null));
+						}
+					});
+					checkCurrent(generation, abort.signal);
+					if (!isPlainRecord$1(result)) throw authoringError("worker_result_invalid", "Worker did not return a validated package");
+					const resultPackage = dataProperty(result, "package"), resultPackageHash = dataProperty(result, "packageHash"), resultParityHash = dataProperty(result, "semanticParityHash"), resultSourceHash = dataProperty(result, "sourceHash");
+					if (!isPlainRecord$1(resultPackage) || typeof resultPackageHash !== "string" || typeof resultParityHash !== "string" || typeof resultSourceHash !== "string") throw authoringError("worker_result_invalid", "Worker did not return a validated package");
+					const trustedValidation = await validateAuthoredPackage(resultPackage);
+					if (!trustedValidation.valid || trustedValidation.packageHash !== resultPackageHash || !await workerResultMatchesManifest(resultPackage, manifest, true, converterProfile, resultParityHash, resultSourceHash)) throw authoringError("worker_result_invalid", "Worker batch package failed validation or source/profile binding");
+					const packageIdValue = dataProperty(resultPackage, "packageId");
+					if (typeof packageIdValue !== "string") throw authoringError("worker_result_invalid", "Worker package identity is invalid");
+					const key = `${packageIdValue}@${resultPackageHash.slice(7, 19)}`;
+					packageRows.push({
+						key,
+						package: cloneData(resultPackage),
+						packageHash: resultPackageHash,
+						assets: [],
+						sourceCache: material.sourceCache,
+						createdAtMs: now(),
+						schemaVersion: persistence.schemaVersion,
+						writeToken: jobId,
+						assetRefs: [{
+							path: prepared.audioPath,
+							contentHash: prepared.audioContentHash
+						}]
+					});
+					packageHashes.push(resultPackageHash);
+					resultRows.push({
+						difficultyId: difficulty,
+						difficultyLabel: difficulty,
+						packageId: packageIdValue,
+						handle: persistenceHandle(persistence.kind, key, packageIdValue, resultPackageHash)
+					});
+				}
+				checkCurrent(generation, abort.signal);
+				const profileId = converterProfile ? String(converterProfile.profileId) : "aero.converter.legacy";
+				const profileHash = converterProfile ? String(converterProfile.contentHash) : "unprofiled";
+				persistedCollectionId = `collection:${(await prefixedSha256(canonicalJson({
+					sourceProvider: prepared.sourceProvider,
+					sourceId: prepared.sourceId,
+					sourceVersionHash: prepared.sourceVersionHash,
+					converterProfileId: profileId,
+					converterProfileHash: profileHash,
+					modifierIds: [...normalizedOptions.modifiers],
+					packageHashes
+				}))).slice(7)}`;
+				const collectionRecord = {
+					collectionId: persistedCollectionId,
+					songName: prepared.songName,
+					sourceProvider: prepared.sourceProvider,
+					sourceId: prepared.sourceId,
+					sourceVersionHash: prepared.sourceVersionHash,
+					converterProfileId: profileId,
+					converterProfileHash: profileHash,
+					modifierIds: [...normalizedOptions.modifiers],
+					packageKeys: packageRows.map((row) => row.key),
+					packages: resultRows.map((row, index) => ({
+						packageKey: packageRows[index].key,
+						packageId: row.packageId,
+						difficultyId: row.difficultyId,
+						difficultyLabel: row.difficultyLabel
+					})),
+					createdAtMs: now(),
+					schemaVersion: persistence.schemaVersion,
+					writeToken: jobId
+				};
+				publish(makeSnapshot(jobId, "persisting", .94, prepared.sourceId, prepared.sourceVersionHash, null, null, null, null));
+				const collection = await persistence.putCollection({
+					collection: collectionRecord,
+					packages: packageRows,
+					assets: [{
+						contentHash: prepared.audioContentHash,
+						bytes: prepared.audio[0].bytes
+					}]
+				}, { signal: abort.signal });
+				checkCurrent(generation, abort.signal);
+				const packages = resultRows.map((row) => deepFreeze$1(row));
+				const defaultPackage = packages[0];
+				publish(makeSnapshot(jobId, "complete", 1, prepared.sourceId, prepared.sourceVersionHash, null, null, null, defaultPackage.handle));
+				active = null;
+				return deepFreeze$1({
+					collection,
+					packages,
+					defaultPackage
+				});
+			} catch (cause) {
+				if (persistedCollectionId) {
+					if ((await persistence.getCollection(persistedCollectionId).catch(() => null))?.writeToken === jobId) await persistence.deleteCollection(persistedCollectionId).catch(() => false);
+				}
+				const cancelled = abort.signal.aborted || errorCode$1(cause) === "operation_aborted" || !isCurrent(generation);
+				const failed = makeSnapshot(jobId, cancelled ? "cancelled" : "failed", cancelled ? snapshot.progress : 1, snapshot.sourceId, snapshot.sourceVersionHash, null, cancelled ? "operation_aborted" : errorCode$1(cause), cancelled ? "Conversion was cancelled" : errorMessage$1(cause), null);
+				if (isCurrent(generation)) {
+					publish(failed);
+					active = null;
+				}
+				throw cause;
+			} finally {
+				normalizedOptions.signal?.removeEventListener("abort", externalAbort);
+			}
+		},
 		/** @param {string} [jobId] */
 		cancel(jobId) {
 			if (active && (!jobId || active.jobId === jobId)) {
@@ -14794,6 +15638,23 @@ function createAeroWebContentAuthoringService(options = {}) {
 		async listPackages() {
 			assertOpen();
 			return deepFreeze$1(await persistence.list());
+		},
+		async listCollections() {
+			assertOpen();
+			return deepFreeze$1(await persistence.listCollections());
+		},
+		/** @param {string} collectionId */
+		async getCollection(collectionId) {
+			assertOpen();
+			const id = collectionKey(collectionId);
+			const collections = await persistence.listCollections();
+			assertOpen();
+			return collections.find((collection) => collection.collectionId === id) ?? null;
+		},
+		/** @param {string} collectionId */
+		async deleteCollection(collectionId) {
+			assertOpen();
+			return persistence.deleteCollection(collectionKey(collectionId));
 		},
 		/** @param {Readonly<Record<string, unknown>> | string} handle */
 		async loadPackage(handle) {
@@ -14946,6 +15807,11 @@ function keyFor(handle) {
 	}
 	throw authoringError("handle_invalid", "Persistence handle is invalid");
 }
+/** @param {unknown} value */
+function collectionKey(value) {
+	if (typeof value !== "string" || !value || value.length > 1024) throw authoringError("collection_invalid", "Collection identity must be a bounded string");
+	return value;
+}
 /** @param {number} value */
 function bounded$1(value) {
 	return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
@@ -15070,6 +15936,32 @@ function normalizeRequestOptions(value) {
 		Object.assign(result, { signal });
 	}
 	return Object.freeze(result);
+}
+/** @param {unknown} value @returns {Readonly<NormalizedRequestOptions>} */
+function normalizeBatchRequestOptions(value) {
+	if (!isPlainRecord$1(value)) throw authoringError("request_invalid", "Batch authoring options must be a plain record");
+	const allowed = /* @__PURE__ */ new Set([
+		"sourceProvider",
+		"sourceId",
+		"sourceVersionHash",
+		"expectedAudioContentHash",
+		"expectedDifficultyContentHashes",
+		"modifiers",
+		"presentationSuggestion",
+		"converterProfile",
+		"cacheSourceEntries",
+		"includeAudio",
+		"limits",
+		"signal"
+	]);
+	/** @type {Record<string, unknown>} */ const narrowed = { difficulty: "Easy" };
+	for (const key of Reflect.ownKeys(value)) {
+		if (typeof key !== "string" || !allowed.has(key)) throw authoringError("request_invalid", "Batch authoring options contain an unknown field");
+		const descriptor = Object.getOwnPropertyDescriptor(value, key);
+		if (!descriptor || !("value" in descriptor) || !descriptor.enumerable || descriptor.value === void 0) throw authoringError("request_invalid", "Batch authoring options must contain enumerable data properties");
+		narrowed[key] = descriptor.value;
+	}
+	return normalizeRequestOptions(narrowed);
 }
 /** @param {Record<string, unknown>} record @param {string} key */
 function dataProperty(record, key) {
@@ -16948,6 +17840,21 @@ var defaultBeatSaverArchiveLimits = Object.freeze({
 	maxCompressionRatio: 200,
 	maxInfoBytes: 2097152
 });
+/** Canonical playable order for exact Standard characteristic entries. */
+var standardDifficultyOrder = Object.freeze([
+	"Easy",
+	"Normal",
+	"Hard",
+	"Expert",
+	"ExpertPlus"
+]);
+var standardDifficultyByToken = Object.freeze({
+	easy: "Easy",
+	normal: "Normal",
+	hard: "Hard",
+	expert: "Expert",
+	expertplus: "ExpertPlus"
+});
 /**
 * Inspect untrusted BeatSaver ZIP bytes and expose provider-neutral source data.
 *
@@ -17187,11 +18094,15 @@ function buildSourceManifest(info, infoPath, entries, archiveBytes) {
 	}
 	/** @type {BeatSaverSourceDifficulty[]} */
 	const difficulties = [];
+	const seenStandardDifficulties = /* @__PURE__ */ new Set();
 	for (const payload of difficultyPayloads) {
 		if ((optionalString(payload.characteristic) || optionalString(payload.beatmapCharacteristicName) || optionalString(payload._beatmapCharacteristicName)) !== "Standard") continue;
-		const difficulty = optionalString(payload.difficulty) || optionalString(payload._difficulty);
+		const difficultyValue = optionalString(payload.difficulty) || optionalString(payload._difficulty);
 		const path = optionalString(payload.beatmapDataFilename) || optionalString(payload.beatmapFilename) || optionalString(payload._beatmapFilename);
-		if (!difficulty || !path) throw new BeatSaverVendorError("provider_payload", "Standard difficulty entry is missing difficulty or path");
+		if (!difficultyValue || !path) throw new BeatSaverVendorError("provider_payload", "Standard difficulty entry is missing difficulty or path");
+		const difficulty = canonicalStandardDifficulty(difficultyValue);
+		if (seenStandardDifficulties.has(difficulty)) throw new BeatSaverVendorError("provider_payload", `Standard difficulty ${difficulty} is duplicated`);
+		seenStandardDifficulties.add(difficulty);
 		const resolvedPath = resolveArchivePath(path, entries, "difficulty");
 		difficulties.push(Object.freeze({
 			characteristic: "Standard",
@@ -17203,6 +18114,7 @@ function buildSourceManifest(info, infoPath, entries, archiveBytes) {
 		}));
 	}
 	if (difficulties.length === 0) throw new BeatSaverVendorError("unsupported", "BeatSaver archive has no supported Standard difficulties");
+	difficulties.sort((left, right) => standardDifficultyOrder.indexOf(left.difficulty) - standardDifficultyOrder.indexOf(right.difficulty));
 	const audioName = optionalString(audio.songFilename) || optionalString(info.songFilename) || optionalString(info._songFilename);
 	if (!audioName) throw new BeatSaverVendorError("provider_payload", "Info.dat does not reference song audio");
 	const coverName = optionalString(info.coverImageFilename) || optionalString(info._coverImageFilename);
@@ -17247,6 +18159,19 @@ function collectDifficultyPayloads(info) {
 		}
 	}
 	return results;
+}
+/**
+* Normalize only the five supported Beat Saber Standard difficulty identities.
+* Separators and a literal plus sign are accepted solely to reject aliases as
+* duplicate canonical identities instead of making archive order meaningful.
+*
+* @param {string} value Raw Standard difficulty label.
+* @returns {string} Canonical difficulty.
+*/
+function canonicalStandardDifficulty(value) {
+	const difficulty = standardDifficultyByToken[value.toLowerCase().replace(/\+/gu, "plus").replace(/[^a-z]/gu, "")];
+	if (!difficulty) throw new BeatSaverVendorError("unsupported", "Standard difficulty label is unsupported");
+	return difficulty;
 }
 /** @param {string} version @param {Record<string, unknown>} info @returns {2 | 3 | 4} */
 function detectFormatMajor(version, info) {
@@ -18459,10 +19384,14 @@ var AeroGame = class extends HTMLElement {
 		this.browsedMaps = /* @__PURE__ */ new Map();
 		this.beatSaverView = emptyBeatSaverView();
 		this.libraryView = Object.freeze({
-			packages: Object.freeze([]),
+			collections: Object.freeze([]),
+			selectedCollectionId: null,
 			selectedPackageId: null,
 			storage: null
 		});
+		this.librarySelectionGeneration = 0;
+		this.librarySelectionTail = Promise.resolve(null);
+		this.desiredLibrarySelection = null;
 		this.leaseParticipant = null;
 		this.unregisterLease = null;
 		this.fullscreenPending = false;
@@ -18533,10 +19462,14 @@ var AeroGame = class extends HTMLElement {
 		this.browsedMaps.clear();
 		this.beatSaverView = emptyBeatSaverView();
 		this.libraryView = Object.freeze({
-			packages: Object.freeze([]),
+			collections: Object.freeze([]),
+			selectedCollectionId: null,
 			selectedPackageId: null,
 			storage: null
 		});
+		this.librarySelectionGeneration += 1;
+		this.librarySelectionTail = Promise.resolve(null);
+		this.desiredLibrarySelection = null;
 		try {
 			this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
 			this.attachStableSurfaces();
@@ -18910,6 +19843,27 @@ var AeroGame = class extends HTMLElement {
 		const graph = this.graph;
 		const deleted = await graph.authoring.deletePackage(safeData(handle, 0, 16));
 		if (this.isCurrent(generation, graph)) {
+			this.desiredLibrarySelection = null;
+			await this.refreshLibrary(generation);
+			if (this.isCurrent(generation, graph)) this.publish("content_changed");
+		}
+		return deleted;
+	}
+	async deleteLibraryCollection(collectionIdValue) {
+		this.assertConnected();
+		this.stopPreview();
+		const generation = this.connectedGeneration;
+		const graph = this.graph;
+		const collectionId = boundedString(collectionIdValue, "");
+		if (!collectionId) throw new Error("Downloaded song is unavailable");
+		this.librarySelectionGeneration += 1;
+		this.desiredLibrarySelection = null;
+		const legacyTarget = this.libraryView.collections.find((entry) => entry.collectionId === collectionId)?.difficulties[0];
+		const deleted = typeof graph.authoring.deleteCollection === "function" ? await graph.authoring.deleteCollection(collectionId) : legacyTarget ? await graph.authoring.deletePackage({
+			key: legacyTarget.packageKey,
+			packageId: legacyTarget.packageId
+		}) : false;
+		if (this.isCurrent(generation, graph)) {
 			await this.refreshLibrary(generation);
 			if (this.isCurrent(generation, graph)) this.publish("content_changed");
 		}
@@ -19130,13 +20084,12 @@ var AeroGame = class extends HTMLElement {
 		const converter = graph.profiles.getActive("converter_regeneration");
 		let result;
 		try {
-			result = await graph.authoring.convertAndPersist(acquired.source, {
-				difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"),
+			result = await graph.authoring.convertAllStandardAndPersist(acquired.source, {
 				sourceProvider: "beatsaver",
 				sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
 				sourceVersionHash: acquired.sourceHash,
 				modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5),
-				includeAudio: dataValue(raw, "includeAudio") !== false,
+				includeAudio: true,
 				converterProfile: converter.profile,
 				signal: this.activeAbort.signal
 			});
@@ -19145,16 +20098,20 @@ var AeroGame = class extends HTMLElement {
 			throw error;
 		}
 		if (!this.isCurrent(generation, graph)) return null;
-		if (!packageCarriesConverterProfile(result.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
+		const defaultLoaded = await graph.authoring.loadPackage(result.defaultPackage.handle);
+		if (!this.isCurrent(generation, graph)) return null;
+		if (!packageCarriesConverterProfile(defaultLoaded.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
 		graph.profiles.select(converter.profile.profileId, {
 			sessionState: profileSessionState(graph.gameplay.getSnapshot()),
 			regeneratedPackageProfileHash: converter.profile.contentHash
 		});
-		this.emitGameEvent("import_changed", { snapshot: result.job });
-		await this.refreshLibrary(generation);
-		await this.selectContent({
-			kind: "persistence",
-			handle: result.handle
+		this.emitGameEvent("import_changed", {
+			collectionId: result.collection.collectionId,
+			packageCount: result.packages.length
+		});
+		await this.refreshLibrary(generation, {
+			preferredCollectionId: result.collection.collectionId,
+			preferredPackageId: result.defaultPackage.packageId
 		});
 		return result;
 	}
@@ -19512,7 +20469,7 @@ var AeroGame = class extends HTMLElement {
 		setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
 		setPresenter(this, "aero-content-library", {
 			...this.libraryView,
-			selectedPackageId: content.packageId ?? this.libraryView.selectedPackageId,
+			selectedPackageId: this.libraryView.selectedPackageId,
 			preview: this.previewView
 		});
 		setPresenter(this, "aero-beatsaver-browser", {
@@ -19619,63 +20576,112 @@ var AeroGame = class extends HTMLElement {
 		});
 		this.renderPresenters();
 	}
-	async selectLibraryPackage(summary) {
+	async selectLibraryPackage(target, selectionGeneration) {
 		this.assertConnected();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
+		if (selectionGeneration !== this.librarySelectionGeneration) return null;
+		const before = graph.content.getSnapshot();
+		const presentationId = before.selectedVariant ? profilePresentationId(before.selectedVariant) : "flow";
+		const modifierIds = stringList(before.selectedVariant?.modifierIds ?? [], 16);
 		let loaded;
 		try {
-			loaded = await graph.authoring.loadPackage(summary);
+			loaded = await graph.authoring.loadPackage({
+				key: target.packageKey,
+				packageId: target.packageId
+			});
 		} catch (error) {
-			if (!this.isCurrent(generation, graph)) return null;
+			if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
 			throw error;
 		}
-		if (!this.isCurrent(generation, graph)) return null;
-		return this.selectContent({
+		if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+		await this.selectContent({
 			kind: "persistence",
 			handle: loaded.handle
 		});
+		if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+		const content = graph.content.getSnapshot();
+		const equivalent = content.variants.find((variant) => profilePresentationId(variant) === presentationId);
+		const fallback = content.variants.find((variant) => profilePresentationId(variant) === "flow") ?? content.variants[0];
+		const selected = equivalent ?? fallback;
+		if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.selectVariant(selected.variantId, modifierIds);
+		if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+		return Object.freeze({
+			collectionId: target.collectionId,
+			packageId: target.packageId,
+			generation: selectionGeneration
+		});
 	}
-	async refreshLibrary(generation = this.connectedGeneration) {
+	requestLibrarySelection(collectionIdValue, packageIdValue) {
+		this.assertConnected();
+		const target = librarySelectionTarget(this.libraryView.collections, collectionIdValue, packageIdValue);
+		if (!target) return Promise.reject(/* @__PURE__ */ new Error("Downloaded difficulty is unavailable"));
+		const selectionGeneration = ++this.librarySelectionGeneration;
+		this.desiredLibrarySelection = Object.freeze({
+			collectionId: target.collectionId,
+			packageId: target.packageId,
+			generation: selectionGeneration
+		});
+		const activatedCollections = activateLibraryCollection(this.libraryView.collections, target.collectionId, target.packageId);
+		this.libraryView = Object.freeze({
+			...this.libraryView,
+			selectedCollectionId: target.collectionId,
+			selectedPackageId: target.packageId,
+			collections: activatedCollections,
+			songs: publicLibrarySongs(activatedCollections)
+		});
+		this.stopPreview();
+		this.renderPresenters();
+		const selection = this.librarySelectionTail.catch(() => null).then(() => this.selectLibraryPackage(target, selectionGeneration));
+		this.librarySelectionTail = selection;
+		this.pendingLibrarySelection = selection;
+		selection.catch((error) => {
+			if (selectionGeneration === this.librarySelectionGeneration) this.handleError(error);
+		}).finally(() => {
+			if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null;
+		});
+		return selection;
+	}
+	async refreshLibrary(generation = this.connectedGeneration, preferences = {}) {
 		const graph = this.graph;
 		if (!graph) return;
-		const [listedPackages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
+		const collectionsRequest = typeof graph.authoring.listCollections === "function" ? graph.authoring.listCollections() : Promise.resolve(null);
+		const [listedPackages, listedCollectionsValue, storage] = await Promise.all([
+			graph.authoring.listPackages(),
+			collectionsRequest,
+			graph.authoring.estimateStorage()
+		]);
 		if (!this.isCurrent(generation, graph)) return;
 		const packages = productLibraryPackages(listedPackages);
-		const current = graph.content.getSnapshot();
-		const currentRetained = playableContent(current) && packages.some((entry) => entry.packageId === current.packageId);
-		const retainedPackageId = currentRetained ? current.packageId : packages.some((entry) => entry.packageId === this.libraryView.selectedPackageId) ? this.libraryView.selectedPackageId : packages[0]?.packageId ?? null;
-		const selected = packages.find((entry) => entry.packageId === retainedPackageId) ?? null;
+		const listedCollections = listedCollectionsValue ?? legacyLibraryCollections(packages);
+		const requestedPackageId = boundedString(preferences.preferredPackageId, this.desiredLibrarySelection?.packageId ?? this.libraryView.selectedPackageId ?? "");
+		const requestedCollectionId = boundedString(preferences.preferredCollectionId, this.desiredLibrarySelection?.collectionId ?? this.libraryView.selectedCollectionId ?? "");
+		const collections = productLibraryCollections(listedCollections, requestedCollectionId, requestedPackageId);
+		const selectedCollection = collections.find((entry) => entry.collectionId === requestedCollectionId) ?? collections.find((entry) => entry.difficulties.some((difficulty) => difficulty.packageId === requestedPackageId)) ?? collections[0] ?? null;
+		const selectedPackageId = selectedCollection?.difficulties.some((entry) => entry.packageId === requestedPackageId) ? requestedPackageId : selectedCollection?.activePackageId ?? null;
 		this.libraryView = Object.freeze({
 			packages,
-			selectedPackageId: retainedPackageId,
+			collections,
+			songs: publicLibrarySongs(collections),
+			selectedCollectionId: selectedCollection?.collectionId ?? null,
+			selectedPackageId,
 			usedBytes: storage.usageBytes,
 			quotaBytes: storage.quotaBytes,
 			storage
 		});
 		this.renderPresenters();
-		if (currentRetained || !selected) return;
-		await this.beginLibrarySelection(selected);
+		if (!selectedCollection || !selectedPackageId) return;
+		if (graph.content.getSnapshot().packageId === selectedPackageId) return;
+		return this.requestLibrarySelection(selectedCollection.collectionId, selectedPackageId);
 	}
-	async beginLibrarySelection(summary) {
-		const generation = this.connectedGeneration;
-		const graph = this.graph;
-		const selection = this.selectLibraryPackage(summary);
-		this.pendingLibrarySelection = selection;
-		try {
-			return await selection;
-		} catch (error) {
-			if (this.isCurrent(generation, graph)) this.handleError(error);
-			return null;
-		} finally {
-			if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null;
-		}
-	}
-	async exportLibraryPackage(summary) {
+	async exportLibraryPackage(target) {
 		this.assertConnected();
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
-		const exported = await graph.authoring.exportPackage(summary);
+		const exported = await graph.authoring.exportPackage({
+			key: target.packageKey,
+			packageId: target.packageId
+		});
 		if (!this.isCurrent(generation, graph)) return null;
 		const url = URL.createObjectURL(new Blob([exported.bytes], { type: exported.mediaType }));
 		try {
@@ -19722,8 +20728,9 @@ var AeroGame = class extends HTMLElement {
 	async toggleLibraryPreview(packageIdValue) {
 		this.assertConnected();
 		const packageId = boundedString(packageIdValue, "");
-		if (!packageId || this.libraryView.selectedPackageId !== packageId) throw new Error("Select this downloaded song before previewing it");
-		if (!this.libraryView.packages.find((entry) => entry.packageId === packageId)) throw new Error("Downloaded song is unavailable");
+		const collectionId = this.libraryView.selectedCollectionId;
+		const selectionTarget = librarySelectionTarget(this.libraryView.collections, collectionId, packageId);
+		if (!selectionTarget || this.libraryView.selectedPackageId !== packageId) throw new Error("Select this downloaded song before previewing it");
 		const target = Object.freeze({
 			mapId: "",
 			versionHash: "",
@@ -19733,19 +20740,21 @@ var AeroGame = class extends HTMLElement {
 			this.stopPreview();
 			return;
 		}
+		const desired = this.desiredLibrarySelection;
+		if (!desired || desired.collectionId !== selectionTarget.collectionId || desired.packageId !== packageId || this.graph.content.getSnapshot().packageId !== packageId) await this.requestLibrarySelection(selectionTarget.collectionId, packageId);
+		const exactGeneration = this.librarySelectionGeneration;
+		if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
+		if (exactGeneration !== this.librarySelectionGeneration || this.desiredLibrarySelection?.packageId !== packageId || this.graph.content.getSnapshot().packageId !== packageId) return;
 		this.stopPreview({ render: false });
 		const token = this.previewGeneration;
 		this.setPreviewView("loading", target, "");
 		try {
-			if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
-			if (token !== this.previewGeneration || this.lifecycle !== "connected" || !this.graph) return;
-			const content = this.graph.content.getSnapshot();
-			const audio = content.song?.audio;
-			if (content.packageId !== packageId || !audio || typeof audio.filePath !== "string") throw new Error("Downloaded song is still loading");
+			const audio = this.graph.content.getSnapshot().song?.audio;
+			if (!audio || typeof audio.filePath !== "string") throw new Error("Downloaded song is still loading");
 			const bytes = this.graph.content.readAsset(audio.filePath);
 			const mimeType = previewMimeType(audio.filePath);
 			const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-			if (token !== this.previewGeneration) {
+			if (token !== this.previewGeneration || exactGeneration !== this.librarySelectionGeneration) {
 				URL.revokeObjectURL(objectUrl);
 				return;
 			}
@@ -20039,27 +21048,19 @@ var AeroGame = class extends HTMLElement {
 			this.localZipInput().click();
 		} else if (detail.type === "content-import-cancel") this.cancelImport();
 		else if (detail.type === "library-select") {
+			const collectionId = dataValue(detail.payload, "collectionId");
+			const collection = this.libraryView.collections.find((entry) => entry.collectionId === collectionId);
+			if (collection) this.requestLibrarySelection(collection.collectionId, collection.activePackageId);
+		} else if (detail.type === "library-difficulty-select") {
+			const collectionId = dataValue(detail.payload, "collectionId");
 			const packageId = dataValue(detail.payload, "packageId");
-			const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId);
-			if (summary) {
-				this.stopPreview();
-				this.libraryView = Object.freeze({
-					...this.libraryView,
-					selectedPackageId: packageId
-				});
-				this.renderPresenters();
-				this.beginLibrarySelection(summary);
-			}
+			this.requestLibrarySelection(collectionId, packageId);
 		} else if (detail.type === "library-preview-toggle") this.toggleLibraryPreview(dataValue(detail.payload, "packageId")).catch((error) => this.handleError(error));
 		else if (detail.type === "library-export") {
-			const packageId = dataValue(detail.payload, "packageId");
-			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
-			if (handle) this.exportLibraryPackage(handle).catch((error) => this.handleError(error));
-		} else if (detail.type === "library-delete") {
-			const packageId = dataValue(detail.payload, "packageId");
-			const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId);
-			if (handle) this.deletePackage(handle).catch((error) => this.handleError(error));
-		} else if (detail.type === "prototype-select") {
+			const target = librarySelectionTarget(this.libraryView.collections, this.libraryView.selectedCollectionId, dataValue(detail.payload, "packageId"));
+			if (target) this.exportLibraryPackage(target).catch((error) => this.handleError(error));
+		} else if (detail.type === "library-delete") this.deleteLibraryCollection(dataValue(detail.payload, "collectionId")).catch((error) => this.handleError(error));
+		else if (detail.type === "prototype-select") {
 			const target = this.variantForPresentation(dataValue(detail.payload, "profileId"));
 			if (target) this.selectVariant(target.variantId).catch((error) => this.handleError(error));
 		} else if (detail.type === "prototype-profile-select") try {
@@ -20486,9 +21487,9 @@ function mapSummary(map) {
 		songAuthorName: map.songAuthorName,
 		levelAuthorName: map.levelAuthorName,
 		versionCount: versions.length,
-		versions: Object.freeze(versions.slice(0, 8).map((version) => Object.freeze({
+		versions: Object.freeze(versions.slice(0, 8).map((version, index) => Object.freeze({
 			versionHash: version.hash,
-			label: version.key || version.hash.slice(0, 8)
+			label: String(index + 1)
 		})))
 	});
 }
@@ -20507,6 +21508,73 @@ function productLibraryPackages(packages) {
 		if (!prior || Number(summary.createdAtMs ?? 0) >= Number(prior.createdAtMs ?? 0)) byId.set(id, summary);
 	}
 	return Object.freeze([...byId.values()].sort((left, right) => Number(right.createdAtMs ?? 0) - Number(left.createdAtMs ?? 0) || String(left.songName ?? "").localeCompare(String(right.songName ?? "")) || String(left.difficulty ?? "").localeCompare(String(right.difficulty ?? "")) || String(left.packageId ?? "").localeCompare(String(right.packageId ?? ""))));
+}
+function legacyLibraryCollections(packages) {
+	return Object.freeze(packages.map((entry) => Object.freeze({
+		collectionId: `legacy:${boundedString(entry?.key, boundedString(entry?.packageId, ""))}`,
+		songName: boundedString(entry?.songName, "Downloaded song"),
+		packages: Object.freeze([Object.freeze({
+			packageKey: boundedString(entry?.key, ""),
+			packageId: boundedString(entry?.packageId, ""),
+			difficultyId: boundedString(entry?.difficulty, "Downloaded"),
+			difficultyLabel: boundedString(entry?.difficulty, "Downloaded")
+		})])
+	})));
+}
+function productLibraryCollections(collections, selectedCollectionId, selectedPackageId) {
+	const normalized = [];
+	for (const collection of Array.isArray(collections) ? collections : []) {
+		const collectionId = boundedString(collection?.collectionId, "");
+		const songName = boundedString(collection?.songName, "Downloaded song");
+		const difficulties = [];
+		for (const entry of Array.isArray(collection?.packages) ? collection.packages : []) {
+			const packageKey = boundedString(entry?.packageKey, ""), packageId = boundedString(entry?.packageId, ""), difficultyId = boundedString(entry?.difficultyId, ""), label = boundedString(entry?.difficultyLabel, difficultyId);
+			if (packageKey && packageId && difficultyId && label) difficulties.push(Object.freeze({
+				packageKey,
+				packageId,
+				difficultyId,
+				label
+			}));
+		}
+		if (!collectionId || difficulties.length === 0) continue;
+		const retained = collectionId === selectedCollectionId && difficulties.some((entry) => entry.packageId === selectedPackageId) ? selectedPackageId : difficulties[0].packageId;
+		normalized.push(Object.freeze({
+			collectionId,
+			songName,
+			activePackageId: retained,
+			difficulties: Object.freeze(difficulties)
+		}));
+	}
+	return Object.freeze(normalized);
+}
+function publicLibrarySongs(collections) {
+	return Object.freeze(collections.map((collection) => Object.freeze({
+		collectionId: collection.collectionId,
+		songName: collection.songName,
+		activePackageId: collection.activePackageId,
+		difficulties: Object.freeze(collection.difficulties.map((entry) => Object.freeze({
+			difficultyId: entry.difficultyId,
+			label: entry.label,
+			packageId: entry.packageId
+		})))
+	})));
+}
+function librarySelectionTarget(collections, collectionIdValue, packageIdValue) {
+	const collectionId = boundedString(collectionIdValue, ""), packageId = boundedString(packageIdValue, "");
+	const collection = collections.find((entry) => entry.collectionId === collectionId);
+	const difficulty = collection?.difficulties.find((entry) => entry.packageId === packageId);
+	return collection && difficulty ? Object.freeze({
+		collectionId,
+		packageId,
+		packageKey: difficulty.packageKey,
+		difficultyId: difficulty.difficultyId
+	}) : null;
+}
+function activateLibraryCollection(collections, collectionId, packageId) {
+	return Object.freeze(collections.map((collection) => collection.collectionId === collectionId && collection.difficulties.some((entry) => entry.packageId === packageId) ? Object.freeze({
+		...collection,
+		activePackageId: packageId
+	}) : collection));
 }
 function currentDpr() {
 	return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1;

@@ -24,6 +24,8 @@ Each connected game exposes serializable `getSnapshot()` state and these direct 
 - `selectContent(source)`, `selectVariant(variantId, modifierIds?)`
 - `browseBeatSaver(query)`, `importBeatSaver(map, version, options)`
 - `importLocalZip(blobOrBytes, options)`, `cancelImport()`, `deletePackage(handle)`
+
+Whole-version imports author every exact `Standard` difficulty sequentially into unchanged one-difficulty v1 packages, then commit one atomic downloaded-song collection with content-addressed shared audio. Compact remote rows own Preview/Stop, Version, and Download only. A downloaded collection owns one song radio plus singleton/static or multi/native Difficulty, selected-difficulty Preview/Stop and Export, and whole-collection Delete. Difficulty changes use a serial generation-bound latest-wins drain; presenter truth follows the desired collection/package, preview waits for that exact package generation, and equivalent Flow/experimental Boxing presentation plus requested runtime modifiers are retained with Flow as the only fallback.
 - `setTheme(theme)`
 - `selectPrototypeProfile(profileId)`, `importPrototypeProfiles(bundle)`, `exportPrototypeProfiles()`, `resetPrototypeProfiles()`
 - `enterFullscreen()`, `exitFullscreen()`
@@ -94,6 +96,8 @@ npm run build
 npm run build-release
 # Optional, network-dependent current-map proof:
 npm run test:live-v4-import
+# Optional exact multi-difficulty download/preview proof:
+npm run test:live-catalyst
 ```
 
 Chromium validation covers direct embedding, exact parent sizing, stable surfaces, child fullscreen, all five variants, two-instance lease transfer, hidden policy, reconnect/teardown, strict cross-origin handshake/origin/source validation, unsafe payload rejection, and zero unexpected console warnings/errors. The normal network-independent gate also drives an independently hard-coded v4 provider-hash golden through the actual vendor, authoring, persistence, library, and selection path; rejects tampered v4 bytes; and preserves v2/v3 local ZIP imports. The optional live gate fetches exact current map/version `53F26` / `addd9d6f8e7340ad6f5633947136d8475a7a99b5`, persists and selects all five authored variants without requesting camera, verifies bounded public data, then deletes its ephemeral package. A final physical Chromium/Android secure-context camera/calibration/playability handoff remains part of the cross-repo QA task.

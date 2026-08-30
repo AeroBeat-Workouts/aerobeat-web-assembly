@@ -63,7 +63,10 @@ export class AeroGame extends HTMLElement {
     this.lastCameraIdentity = "";
     this.browsedMaps = new Map();
     this.beatSaverView = emptyBeatSaverView();
-    this.libraryView = Object.freeze({ packages: Object.freeze([]), selectedPackageId: null, storage: null });
+    this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
+    this.librarySelectionGeneration = 0;
+    this.librarySelectionTail = Promise.resolve(null);
+    this.desiredLibrarySelection = null;
     this.leaseParticipant = null;
     this.unregisterLease = null;
     this.fullscreenPending = false;
@@ -104,7 +107,8 @@ export class AeroGame extends HTMLElement {
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = "";
     this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null;
     this.stopPreview({ render: false });
-    this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ packages: Object.freeze([]), selectedPackageId: null, storage: null });
+    this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
+    this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
     try {
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
       this.attachStableSurfaces();
@@ -359,7 +363,8 @@ export class AeroGame extends HTMLElement {
   }
 
   cancelImport() { this.assertConnected(); return this.graph.authoring.cancel(); }
-  async deletePackage(handle) { this.assertConnected(); this.stopPreview(); const generation = this.connectedGeneration; const graph = this.graph; const deleted = await graph.authoring.deletePackage(safeData(handle, 0, 16)); if (this.isCurrent(generation, graph)) { await this.refreshLibrary(generation); if (this.isCurrent(generation, graph)) this.publish("content_changed"); } return deleted; }
+  async deletePackage(handle) { this.assertConnected(); this.stopPreview(); const generation = this.connectedGeneration; const graph = this.graph; const deleted = await graph.authoring.deletePackage(safeData(handle, 0, 16)); if (this.isCurrent(generation, graph)) { this.desiredLibrarySelection = null; await this.refreshLibrary(generation); if (this.isCurrent(generation, graph)) this.publish("content_changed"); } return deleted; }
+  async deleteLibraryCollection(collectionIdValue) { this.assertConnected(); this.stopPreview(); const generation = this.connectedGeneration; const graph = this.graph; const collectionId = boundedString(collectionIdValue, ""); if (!collectionId) throw new Error("Downloaded song is unavailable"); this.librarySelectionGeneration += 1; this.desiredLibrarySelection = null; const legacyTarget = this.libraryView.collections.find((entry) => entry.collectionId === collectionId)?.difficulties[0]; const deleted = typeof graph.authoring.deleteCollection === "function" ? await graph.authoring.deleteCollection(collectionId) : legacyTarget ? await graph.authoring.deletePackage({ key: legacyTarget.packageKey, packageId: legacyTarget.packageId }) : false; if (this.isCurrent(generation, graph)) { await this.refreshLibrary(generation); if (this.isCurrent(generation, graph)) this.publish("content_changed"); } return deleted; }
 
   setTheme(theme) {
     this.assertConnected();
@@ -487,20 +492,21 @@ export class AeroGame extends HTMLElement {
     const raw = options === undefined ? Object.freeze({}) : safeData(options, 0, 32);
     const converter = graph.profiles.getActive("converter_regeneration");
     let result;
-    try { result = await graph.authoring.convertAndPersist(acquired.source, {
-      difficulty: boundedString(dataValue(raw, "difficulty"), "Expert"), sourceProvider: "beatsaver",
+    try { result = await graph.authoring.convertAllStandardAndPersist(acquired.source, {
+      sourceProvider: "beatsaver",
       sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
       sourceVersionHash: acquired.sourceHash,
-      modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: dataValue(raw, "includeAudio") !== false,
+      modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: true,
       converterProfile: converter.profile,
       signal: this.activeAbort.signal
     }); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
     if (!this.isCurrent(generation, graph)) return null;
-    if (!packageCarriesConverterProfile(result.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
+    const defaultLoaded = await graph.authoring.loadPackage(result.defaultPackage.handle);
+    if (!this.isCurrent(generation, graph)) return null;
+    if (!packageCarriesConverterProfile(defaultLoaded.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
     graph.profiles.select(converter.profile.profileId, { sessionState: profileSessionState(graph.gameplay.getSnapshot()), regeneratedPackageProfileHash: converter.profile.contentHash });
-    this.emitGameEvent("import_changed", { snapshot: result.job });
-    await this.refreshLibrary(generation);
-    await this.selectContent({ kind: "persistence", handle: result.handle });
+    this.emitGameEvent("import_changed", { collectionId: result.collection.collectionId, packageCount: result.packages.length });
+    await this.refreshLibrary(generation, { preferredCollectionId: result.collection.collectionId, preferredPackageId: result.defaultPackage.packageId });
     return result;
   }
 
@@ -747,7 +753,7 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-prototype-selector[scope='gameplay']", selectorSnapshot);
     setPresenter(this, "aero-prototype-selector[scope='visuals']", selectorSnapshot);
     setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
-    setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: content.packageId ?? this.libraryView.selectedPackageId, preview: this.previewView });
+    setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: this.libraryView.selectedPackageId, preview: this.previewView });
     setPresenter(this, "aero-beatsaver-browser", { ...this.beatSaverView, preview: this.previewView });
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
     setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
@@ -808,39 +814,63 @@ export class AeroGame extends HTMLElement {
     this.beatSaverView = Object.freeze({ ...this.beatSaverView, selectedVersionHash: version.hash, difficulties, selectedDifficulty: difficulties[0] }); this.renderPresenters();
   }
 
-  async selectLibraryPackage(summary) {
-    this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph; let loaded;
-    try { loaded = await graph.authoring.loadPackage(summary); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
-    if (!this.isCurrent(generation, graph)) return null;
-    return this.selectContent({ kind: "persistence", handle: loaded.handle });
-  }
-
-  async refreshLibrary(generation = this.connectedGeneration) {
-    const graph = this.graph; if (!graph) return;
-    const [listedPackages, storage] = await Promise.all([graph.authoring.listPackages(), graph.authoring.estimateStorage()]);
-    if (!this.isCurrent(generation, graph)) return;
-    const packages = productLibraryPackages(listedPackages);
-    const current = graph.content.getSnapshot(); const currentRetained = playableContent(current) && packages.some((entry) => entry.packageId === current.packageId);
-    const retainedPackageId = currentRetained
-      ? current.packageId
-      : packages.some((entry) => entry.packageId === this.libraryView.selectedPackageId) ? this.libraryView.selectedPackageId : packages[0]?.packageId ?? null;
-    const selected = packages.find((entry) => entry.packageId === retainedPackageId) ?? null;
-    this.libraryView = Object.freeze({ packages, selectedPackageId: retainedPackageId, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
-    if (currentRetained || !selected) return;
-    await this.beginLibrarySelection(selected);
-  }
-
-  async beginLibrarySelection(summary) {
-    const generation = this.connectedGeneration; const graph = this.graph; const selection = this.selectLibraryPackage(summary);
-    this.pendingLibrarySelection = selection;
-    try { return await selection; }
-    catch (error) { if (this.isCurrent(generation, graph)) this.handleError(error); return null; }
-    finally { if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null; }
-  }
-
-  async exportLibraryPackage(summary) {
+  async selectLibraryPackage(target, selectionGeneration) {
     this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph;
-    const exported = await graph.authoring.exportPackage(summary);
+    if (selectionGeneration !== this.librarySelectionGeneration) return null;
+    const before = graph.content.getSnapshot();
+    const presentationId = before.selectedVariant ? profilePresentationId(before.selectedVariant) : "flow";
+    const modifierIds = stringList(before.selectedVariant?.modifierIds ?? [], 16);
+    let loaded;
+    try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); } catch (error) { if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null; throw error; }
+    if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+    await this.selectContent({ kind: "persistence", handle: loaded.handle });
+    if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+    const content = graph.content.getSnapshot();
+    const equivalent = content.variants.find((variant) => profilePresentationId(variant) === presentationId);
+    const fallback = content.variants.find((variant) => profilePresentationId(variant) === "flow") ?? content.variants[0];
+    const selected = equivalent ?? fallback;
+    if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.selectVariant(selected.variantId, modifierIds);
+    if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+    return Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
+  }
+
+  requestLibrarySelection(collectionIdValue, packageIdValue) {
+    this.assertConnected();
+    const target = librarySelectionTarget(this.libraryView.collections, collectionIdValue, packageIdValue);
+    if (!target) return Promise.reject(new Error("Downloaded difficulty is unavailable"));
+    const selectionGeneration = ++this.librarySelectionGeneration;
+    this.desiredLibrarySelection = Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
+    const activatedCollections = activateLibraryCollection(this.libraryView.collections, target.collectionId, target.packageId);
+    this.libraryView = Object.freeze({ ...this.libraryView, selectedCollectionId: target.collectionId, selectedPackageId: target.packageId, collections: activatedCollections, songs: publicLibrarySongs(activatedCollections) });
+    this.stopPreview(); this.renderPresenters();
+    const selection = this.librarySelectionTail.catch(() => null).then(() => this.selectLibraryPackage(target, selectionGeneration));
+    this.librarySelectionTail = selection;
+    this.pendingLibrarySelection = selection;
+    selection.catch((error) => { if (selectionGeneration === this.librarySelectionGeneration) this.handleError(error); }).finally(() => { if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null; });
+    return selection;
+  }
+
+  async refreshLibrary(generation = this.connectedGeneration, preferences = {}) {
+    const graph = this.graph; if (!graph) return;
+    const collectionsRequest = typeof graph.authoring.listCollections === "function" ? graph.authoring.listCollections() : Promise.resolve(null);
+    const [listedPackages, listedCollectionsValue, storage] = await Promise.all([graph.authoring.listPackages(), collectionsRequest, graph.authoring.estimateStorage()]);
+    if (!this.isCurrent(generation, graph)) return;
+    const packages = productLibraryPackages(listedPackages); const listedCollections = listedCollectionsValue ?? legacyLibraryCollections(packages);
+    const requestedPackageId = boundedString(preferences.preferredPackageId, this.desiredLibrarySelection?.packageId ?? this.libraryView.selectedPackageId ?? "");
+    const requestedCollectionId = boundedString(preferences.preferredCollectionId, this.desiredLibrarySelection?.collectionId ?? this.libraryView.selectedCollectionId ?? "");
+    const collections = productLibraryCollections(listedCollections, requestedCollectionId, requestedPackageId);
+    const selectedCollection = collections.find((entry) => entry.collectionId === requestedCollectionId) ?? collections.find((entry) => entry.difficulties.some((difficulty) => difficulty.packageId === requestedPackageId)) ?? collections[0] ?? null;
+    const selectedPackageId = selectedCollection?.difficulties.some((entry) => entry.packageId === requestedPackageId) ? requestedPackageId : selectedCollection?.activePackageId ?? null;
+    this.libraryView = Object.freeze({ packages, collections, songs: publicLibrarySongs(collections), selectedCollectionId: selectedCollection?.collectionId ?? null, selectedPackageId, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
+    if (!selectedCollection || !selectedPackageId) return;
+    const current = graph.content.getSnapshot();
+    if (current.packageId === selectedPackageId) return;
+    return this.requestLibrarySelection(selectedCollection.collectionId, selectedPackageId);
+  }
+
+  async exportLibraryPackage(target) {
+    this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph;
+    const exported = await graph.authoring.exportPackage({ key: target.packageKey, packageId: target.packageId });
     if (!this.isCurrent(generation, graph)) return null;
     const url = URL.createObjectURL(new Blob([exported.bytes], { type: exported.mediaType }));
     try { const anchor = document.createElement("a"); anchor.href = url; anchor.download = exported.fileName; anchor.hidden = true; this.shadowRoot?.append(anchor); anchor.click(); anchor.remove(); }
@@ -866,22 +896,25 @@ export class AeroGame extends HTMLElement {
   async toggleLibraryPreview(packageIdValue) {
     this.assertConnected();
     const packageId = boundedString(packageIdValue, "");
-    if (!packageId || this.libraryView.selectedPackageId !== packageId) throw new Error("Select this downloaded song before previewing it");
-    const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId);
-    if (!summary) throw new Error("Downloaded song is unavailable");
+    const collectionId = this.libraryView.selectedCollectionId;
+    const selectionTarget = librarySelectionTarget(this.libraryView.collections, collectionId, packageId);
+    if (!selectionTarget || this.libraryView.selectedPackageId !== packageId) throw new Error("Select this downloaded song before previewing it");
     const target = Object.freeze({ mapId: "", versionHash: "", packageId });
     if (activePreview(this.previewView, target)) { this.stopPreview(); return; }
+    const desired = this.desiredLibrarySelection;
+    if (!desired || desired.collectionId !== selectionTarget.collectionId || desired.packageId !== packageId || this.graph.content.getSnapshot().packageId !== packageId) await this.requestLibrarySelection(selectionTarget.collectionId, packageId);
+    const exactGeneration = this.librarySelectionGeneration;
+    if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
+    if (exactGeneration !== this.librarySelectionGeneration || this.desiredLibrarySelection?.packageId !== packageId || this.graph.content.getSnapshot().packageId !== packageId) return;
     this.stopPreview({ render: false });
     const token = this.previewGeneration;
     this.setPreviewView("loading", target, "");
     try {
-      if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
-      if (token !== this.previewGeneration || this.lifecycle !== "connected" || !this.graph) return;
       const content = this.graph.content.getSnapshot(); const audio = content.song?.audio;
-      if (content.packageId !== packageId || !audio || typeof audio.filePath !== "string") throw new Error("Downloaded song is still loading");
+      if (!audio || typeof audio.filePath !== "string") throw new Error("Downloaded song is still loading");
       const bytes = this.graph.content.readAsset(audio.filePath); const mimeType = previewMimeType(audio.filePath);
       const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
-      if (token !== this.previewGeneration) { URL.revokeObjectURL(objectUrl); return; }
+      if (token !== this.previewGeneration || exactGeneration !== this.librarySelectionGeneration) { URL.revokeObjectURL(objectUrl); return; }
       this.previewObjectUrl = objectUrl;
       await this.playPreview(objectUrl, target, token, 10_000);
     } catch (error) { if (token === this.previewGeneration) this.failPreview(token, target, error); }
@@ -1066,10 +1099,11 @@ export class AeroGame extends HTMLElement {
     else if (detail.type === "beatsaver-import") void this.importBeatSaverById(dataValue(detail.payload, "mapId"), dataValue(detail.payload, "versionHash"), { difficulty: dataValue(detail.payload, "difficultyId"), sourceId: dataValue(detail.payload, "mapId") }).catch((error) => this.handleError(error));
     else if (detail.type === "local-zip-request") { this.stopPreview(); this.localZipInput().click(); }
     else if (detail.type === "content-import-cancel") this.cancelImport();
-    else if (detail.type === "library-select") { const packageId = dataValue(detail.payload, "packageId"); const summary = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (summary) { this.stopPreview(); this.libraryView = Object.freeze({ ...this.libraryView, selectedPackageId: packageId }); this.renderPresenters(); void this.beginLibrarySelection(summary); } }
+    else if (detail.type === "library-select") { const collectionId = dataValue(detail.payload, "collectionId"); const collection = this.libraryView.collections.find((entry) => entry.collectionId === collectionId); if (collection) void this.requestLibrarySelection(collection.collectionId, collection.activePackageId); }
+    else if (detail.type === "library-difficulty-select") { const collectionId = dataValue(detail.payload, "collectionId"); const packageId = dataValue(detail.payload, "packageId"); void this.requestLibrarySelection(collectionId, packageId); }
     else if (detail.type === "library-preview-toggle") void this.toggleLibraryPreview(dataValue(detail.payload, "packageId")).catch((error) => this.handleError(error));
-    else if (detail.type === "library-export") { const packageId = dataValue(detail.payload, "packageId"); const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (handle) void this.exportLibraryPackage(handle).catch((error) => this.handleError(error)); }
-    else if (detail.type === "library-delete") { const packageId = dataValue(detail.payload, "packageId"); const handle = this.libraryView.packages.find((entry) => entry.packageId === packageId); if (handle) void this.deletePackage(handle).catch((error) => this.handleError(error)); }
+    else if (detail.type === "library-export") { const target = librarySelectionTarget(this.libraryView.collections, this.libraryView.selectedCollectionId, dataValue(detail.payload, "packageId")); if (target) void this.exportLibraryPackage(target).catch((error) => this.handleError(error)); }
+    else if (detail.type === "library-delete") void this.deleteLibraryCollection(dataValue(detail.payload, "collectionId")).catch((error) => this.handleError(error));
     else if (detail.type === "prototype-select") { const target = this.variantForPresentation(dataValue(detail.payload, "profileId")); if (target) void this.selectVariant(target.variantId).catch((error) => this.handleError(error)); }
     else if (detail.type === "prototype-profile-select") { try { this.selectProfileFromIntent(detail.payload); } catch (error) { this.handleError(error); } }
     else if (detail.type === "tuning-import-request") this.emitGameEvent("profile_bundle_import_requested", {});
@@ -1221,7 +1255,7 @@ function actionableRuntimeMessage(error, limitations) {
   if (limitations.includes("fullscreen_unavailable")) return "Fullscreen is unavailable here.";
   return "";
 }
-function mapSummary(map) { const versions = playableVersions(map); return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: versions.length, versions: Object.freeze(versions.slice(0, 8).map((version) => Object.freeze({ versionHash: version.hash, label: version.key || version.hash.slice(0, 8) }))) }); }
+function mapSummary(map) { const versions = playableVersions(map); return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: versions.length, versions: Object.freeze(versions.slice(0, 8).map((version, index) => Object.freeze({ versionHash: version.hash, label: String(index + 1) }))) }); }
 function standardDifficulties(version) { return Object.freeze((version?.difficulties ?? []).filter((entry) => entry.characteristic === "Standard").map((entry) => entry.difficulty).filter((entry, index, all) => all.indexOf(entry) === index)); }
 function playableVersions(map) { return Object.freeze((map?.versions ?? []).filter((version) => standardDifficulties(version).length > 0)); }
 function productLibraryPackages(packages) {
@@ -1229,6 +1263,30 @@ function productLibraryPackages(packages) {
   for (const summary of packages) { const id = typeof summary?.packageId === "string" ? summary.packageId : ""; if (!id) continue; const prior = byId.get(id); if (!prior || Number(summary.createdAtMs ?? 0) >= Number(prior.createdAtMs ?? 0)) byId.set(id, summary); }
   return Object.freeze([...byId.values()].sort((left, right) => Number(right.createdAtMs ?? 0) - Number(left.createdAtMs ?? 0) || String(left.songName ?? "").localeCompare(String(right.songName ?? "")) || String(left.difficulty ?? "").localeCompare(String(right.difficulty ?? "")) || String(left.packageId ?? "").localeCompare(String(right.packageId ?? ""))));
 }
+function legacyLibraryCollections(packages) { return Object.freeze(packages.map((entry) => Object.freeze({ collectionId: `legacy:${boundedString(entry?.key, boundedString(entry?.packageId, ""))}`, songName: boundedString(entry?.songName, "Downloaded song"), packages: Object.freeze([Object.freeze({ packageKey: boundedString(entry?.key, ""), packageId: boundedString(entry?.packageId, ""), difficultyId: boundedString(entry?.difficulty, "Downloaded"), difficultyLabel: boundedString(entry?.difficulty, "Downloaded") })]) }))); }
+function productLibraryCollections(collections, selectedCollectionId, selectedPackageId) {
+  const normalized = [];
+  for (const collection of Array.isArray(collections) ? collections : []) {
+    const collectionId = boundedString(collection?.collectionId, ""); const songName = boundedString(collection?.songName, "Downloaded song");
+    const difficulties = [];
+    for (const entry of Array.isArray(collection?.packages) ? collection.packages : []) {
+      const packageKey = boundedString(entry?.packageKey, ""), packageId = boundedString(entry?.packageId, ""), difficultyId = boundedString(entry?.difficultyId, ""), label = boundedString(entry?.difficultyLabel, difficultyId);
+      if (packageKey && packageId && difficultyId && label) difficulties.push(Object.freeze({ packageKey, packageId, difficultyId, label }));
+    }
+    if (!collectionId || difficulties.length === 0) continue;
+    const retained = collectionId === selectedCollectionId && difficulties.some((entry) => entry.packageId === selectedPackageId) ? selectedPackageId : difficulties[0].packageId;
+    normalized.push(Object.freeze({ collectionId, songName, activePackageId: retained, difficulties: Object.freeze(difficulties) }));
+  }
+  return Object.freeze(normalized);
+}
+function publicLibrarySongs(collections) { return Object.freeze(collections.map((collection) => Object.freeze({ collectionId: collection.collectionId, songName: collection.songName, activePackageId: collection.activePackageId, difficulties: Object.freeze(collection.difficulties.map((entry) => Object.freeze({ difficultyId: entry.difficultyId, label: entry.label, packageId: entry.packageId }))) }))); }
+function librarySelectionTarget(collections, collectionIdValue, packageIdValue) {
+  const collectionId = boundedString(collectionIdValue, ""), packageId = boundedString(packageIdValue, "");
+  const collection = collections.find((entry) => entry.collectionId === collectionId);
+  const difficulty = collection?.difficulties.find((entry) => entry.packageId === packageId);
+  return collection && difficulty ? Object.freeze({ collectionId, packageId, packageKey: difficulty.packageKey, difficultyId: difficulty.difficultyId }) : null;
+}
+function activateLibraryCollection(collections, collectionId, packageId) { return Object.freeze(collections.map((collection) => collection.collectionId === collectionId && collection.difficulties.some((entry) => entry.packageId === packageId) ? Object.freeze({ ...collection, activePackageId: packageId }) : collection)); }
 function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1; }
 function audioClockAlignedWithGameplay(session, clock) { return clock?.playing === false && Number(clock.positionSeconds) * 1000 === Number(session?.timelinePositionMs ?? 0); }
 function cssPixels(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? parsed : 0; }
