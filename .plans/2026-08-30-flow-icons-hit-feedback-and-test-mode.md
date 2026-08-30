@@ -1,10 +1,10 @@
 # AeroBeat Flow Icons, Judgement Feedback, and Test Mode
 
 **Date:** 2026-08-30  
-**Status:** Approved — In Progress  
+**Status:** Automated Complete — Derrick Physical Validation Pending
 **Owner:** `aerobeat-web-assembly`  
 **Parent plan:** `.plans/2026-08-28-embeddable-game-calibration-and-boxing-prototypes.md`  
-**Release target:** next web assembly release after `0.0.24`  
+**Release target:** `0.0.25`
 
 ---
 
@@ -271,6 +271,10 @@ The renderer does not decide whether a real input was a hit. Gameplay does not o
 **Owner:** assembly coordination  
 **Work:** coder → independent QA → auditor loop for every owner; deterministic release/pack; bump next release; update parent plan and physical handoff; keep server running.  
 **Acceptance:** all owner tests; assembly check/unit/browser/build; direct/iframe mobile matrix; live Catalyst downloaded difficulty proof; deterministic release; no public media; no Boxing winner; Derrick can physically test both normal Play and Test Mode.
+
+**Independent QA/audit status (2026-08-30):** PASS at assembly `33c90c6`. All linked owner tests and available browser suites passed. Assembly test/browser/build/live Catalyst/live v4/diff gates passed; direct and iframe portrait/landscape DPR 1/3 evidence covers canonical Flow pixels, exact real-feedback timing, unscored audio-only Test, menu/restart generations, privacy, cadence, cursors, countdown, Preview, leases, and atlas lifecycle. Three additional product-shell matrix runs did not reproduce the isolated onset-late `796 ms` first-countdown measurement. Implementation Bead `aerobeat-web-assembly-vf5` is audited and closed.
+
+**Release coder status (2026-08-30):** bumped the repo-owned version surfaces from `0.0.24` to `0.0.25`; generated the MediaPipe-only raw release with exactly the directional/directionless Flow SVGs and no PNG files/references; updated README, this plan, the parent plan, and `docs/task14-flow-feedback-test-mode-physical-handoff.md`. Final automated release validation, duplicate raw-build comparison, duplicate dry-pack proof, route checks, Git push, and independent release audit are required before `aerobeat-web-assembly-9if` closes. Human phone observations remain pending and cannot be inferred from automation.
 
 ---
 

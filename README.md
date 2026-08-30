@@ -89,6 +89,8 @@ Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, 
 
 ## Validation
 
+The current deterministic raw release proof is `0.0.25`. Automated gates do not replace the operator-owned phone checks in `docs/task14-flow-feedback-test-mode-physical-handoff.md`.
+
 ```bash
 npm run check
 npm test
