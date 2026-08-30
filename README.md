@@ -35,7 +35,7 @@ Events use the composed `aero-game-event` event and the finalized `aerobeat/game
 
 ## Per-instance graph
 
-Every connection creates isolated BeatSaver vendor, browser authoring Worker/IndexedDB, content runtime, video, CV, calibrated input, Web Audio clock, gameplay coordinator, WebGL renderer, and UI presenter instances. Stable canvas/video/presenter nodes survive ordinary state updates. A `ResizeObserver` measures the actual component content box and passes CSS width, CSS height, and current DPR to the renderer.
+Every connection creates isolated BeatSaver vendor, browser authoring Worker/IndexedDB, content runtime, video, CV, calibrated input, Web Audio clock, gameplay coordinator, WebGL renderer, and UI presenter instances. Stable canvas/video/presenter nodes survive ordinary state updates. A `ResizeObserver` measures the actual component content box and passes CSS width, CSS height, and current DPR to the renderer. During countdown and active play, the canvas redraws exactly three current calibrated athlete-space cursors—nose, left wrist, and right wrist—after every gameplay frame. They map through the renderer plan’s 4×3 grid without a second mirror, and disappear on the next clear for invalid confidence, tracking loss, menu pause, source invalidation, or lifecycle teardown; raw camera landmarks and skeleton connections are never used for this overlay.
 
 `AeroGameMediaLeaseCoordinator` is the sole process-wide policy object. Exactly one game owns camera/audio activity. Transfer pauses the previous owner before activating the next; resources remain in their domain services and host-owned streams are never stopped by transfer or teardown.
 

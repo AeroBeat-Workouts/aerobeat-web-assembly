@@ -1287,7 +1287,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 	let freshCalibrationRequired = true;
 	let pauseReason = null;
 	let countdown = inactiveCountdown(0);
-	let countdownStartedAtMs = 0;
+	let countdownStepStartedAtMs = 0;
 	let countdownTimelinePositionMs = 0;
 	let countdownReason = null;
 	let invalidatedCalibrationId = null;
@@ -1682,7 +1682,7 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 		state = "countdown";
 		pauseReason = null;
 		countdownReason = reason;
-		countdownStartedAtMs = timestampMs;
+		countdownStepStartedAtMs = timestampMs;
 		countdownTimelinePositionMs = timelinePositionMs;
 		countdown = countdownSnapshot("three", reason, 3, timestampMs, calibrationId);
 		publish(null);
@@ -1696,10 +1696,13 @@ function createAeroGameplaySessionCoordinator(options = {}) {
 			pauseReason = "countdown_audio_not_frozen";
 			return;
 		}
-		const elapsed = timestampMs - countdownStartedAtMs;
-		if (elapsed < countdownStepMs) countdown = countdownSnapshot("three", countdownReason, 3, timestampMs, calibrationId);
-		else if (elapsed < countdownStepMs * 2) countdown = countdownSnapshot("two", countdownReason, 2, timestampMs, calibrationId);
-		else if (elapsed < countdownStepMs * 3) countdown = countdownSnapshot("one", countdownReason, 1, timestampMs, calibrationId);
+		if (timestampMs - countdownStepStartedAtMs < countdownStepMs) {
+			countdown = countdownSnapshot(countdown.state, countdownReason, countdown.value, timestampMs, calibrationId);
+			return;
+		}
+		countdownStepStartedAtMs = timestampMs;
+		if (countdown.state === "three") countdown = countdownSnapshot("two", countdownReason, 2, timestampMs, calibrationId);
+		else if (countdown.state === "two") countdown = countdownSnapshot("one", countdownReason, 1, timestampMs, calibrationId);
 		else {
 			countdown = countdownSnapshot("complete", countdownReason, null, timestampMs, calibrationId);
 			state = "playing";
@@ -8142,13 +8145,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:98a3b7372a9179a4b8a26d747c52e897891f1a1e97e9543d982692c354b75e28";
+var buildStamp = "source:2743ce0397221e0ada1b5ecc0775e6acea65ced51fc7d003af566c0eee78def4";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-98a3b7372a9179a4";
+var cacheBust = "0.0.24-2743ce0397221e0a";
 /**
 * Vite-injected package version from package.json.
 *
@@ -19036,6 +19039,12 @@ var AeroGame = class extends HTMLElement {
 	}
 	attachStableSurfaces() {
 		this.graph.renderer.attach(this.canvasElement());
+		this.graph.renderer.clear({ color: [
+			0,
+			0,
+			0,
+			0
+		] });
 		const video = this.videoElement();
 		video.muted = true;
 		video.playsInline = true;
@@ -19366,7 +19375,7 @@ var AeroGame = class extends HTMLElement {
 				}
 			} catch {}
 			this.syncCameraPresentation();
-			graph.renderer.renderGameplayFrame(this.rendererFrame());
+			this.renderGameplay(graph);
 			this.displayFrameCount += 1;
 			this.cadenceLatestFrameAtMs = frameNow;
 			if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
@@ -19448,6 +19457,19 @@ var AeroGame = class extends HTMLElement {
 			overlay: "none",
 			calibrationDim: 0
 		};
+	}
+	renderGameplay(graph = this.graph) {
+		if (!graph) return null;
+		const result = graph.renderer.renderGameplayFrame(this.rendererFrame());
+		const grid = result?.plan?.grid;
+		if (!grid || typeof graph.renderer.renderGameplayCursors !== "function") return result;
+		const cursors = gameplayCursorRecords(this.menuOpen, graph.gameplay.getSnapshot().session, graph.input.getSnapshot());
+		graph.renderer.renderGameplayCursors(cursors, {
+			grid,
+			minConfidence: .5,
+			sizeCssPx: 18
+		});
+		return result;
 	}
 	renderPresenters() {
 		if (!this.graph) return;
@@ -20468,6 +20490,27 @@ function currentDpr() {
 function cssPixels(value) {
 	const parsed = Number.parseFloat(value);
 	return Number.isFinite(parsed) ? parsed : 0;
+}
+function gameplayCursorRecords(menuOpen, session, input) {
+	if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
+	const tracking = input?.tracking;
+	if (!tracking || tracking.gameplayPaused === true || tracking.freshCalibrationRequired === true || tracking.allRequiredAnchorsVisible !== true || input?.retainedGeometryDimmed === true || input?.countdownFrozen === true) return Object.freeze([]);
+	const roles = [
+		"nose",
+		"left_wrist",
+		"right_wrist"
+	];
+	const byRole = new Map((Array.isArray(input?.anchors) ? input.anchors : []).map((anchor) => [anchor?.anchor, anchor]));
+	return Object.freeze(roles.flatMap((role) => {
+		const anchor = byRole.get(role);
+		if (anchor?.valid !== true || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || !Number.isFinite(anchor.confidence) || anchor.confidence < .5) return [];
+		return [Object.freeze({
+			role,
+			x: anchor.x,
+			y: anchor.y,
+			confidence: anchor.confidence
+		})];
+	}));
 }
 function renderTarget(event) {
 	const beat = event.authoredBeat ?? {};

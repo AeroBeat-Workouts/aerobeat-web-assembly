@@ -438,7 +438,7 @@ export class AeroGame extends HTMLElement {
   destroy() { this.teardown("destroyed"); return this.getSnapshot(); }
 
   attachStableSurfaces() {
-    this.graph.renderer.attach(this.canvasElement());
+    this.graph.renderer.attach(this.canvasElement()); this.graph.renderer.clear({ color: [0, 0, 0, 0] });
     const video = this.videoElement();
     video.muted = true; video.playsInline = true;
   }
@@ -656,7 +656,7 @@ export class AeroGame extends HTMLElement {
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
       } catch { /* unconfigured session */ }
-      this.syncCameraPresentation(); graph.renderer.renderGameplayFrame(this.rendererFrame());
+      this.syncCameraPresentation(); this.renderGameplay(graph);
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
       if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
       this.renderRuntimePresentation();
@@ -703,6 +703,16 @@ export class AeroGame extends HTMLElement {
     const presentation = selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid";
     const targets = (content.resolvedEvents ?? []).filter((event) => event.centerTimestampMs >= nowMs - 500 && event.centerTimestampMs <= nowMs + 2500).slice(0, 128).map(renderTarget);
     return { presentation, nowMs, targets, countdown: null, overlay: "none", calibrationDim: 0 };
+  }
+
+  renderGameplay(graph = this.graph) {
+    if (!graph) return null;
+    const result = graph.renderer.renderGameplayFrame(this.rendererFrame());
+    const grid = result?.plan?.grid;
+    if (!grid || typeof graph.renderer.renderGameplayCursors !== "function") return result;
+    const cursors = gameplayCursorRecords(this.menuOpen, graph.gameplay.getSnapshot().session, graph.input.getSnapshot());
+    graph.renderer.renderGameplayCursors(cursors, { grid, minConfidence: 0.5, sizeCssPx: 18 });
+    return result;
   }
 
   renderPresenters() {
@@ -1203,6 +1213,18 @@ function productLibraryPackages(packages) {
 }
 function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1; }
 function cssPixels(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? parsed : 0; }
+function gameplayCursorRecords(menuOpen, session, input) {
+  if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
+  const tracking = input?.tracking;
+  if (!tracking || tracking.gameplayPaused === true || tracking.freshCalibrationRequired === true || tracking.allRequiredAnchorsVisible !== true || input?.retainedGeometryDimmed === true || input?.countdownFrozen === true) return Object.freeze([]);
+  const roles = ["nose", "left_wrist", "right_wrist"];
+  const byRole = new Map((Array.isArray(input?.anchors) ? input.anchors : []).map((anchor) => [anchor?.anchor, anchor]));
+  return Object.freeze(roles.flatMap((role) => {
+    const anchor = byRole.get(role);
+    if (anchor?.valid !== true || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || !Number.isFinite(anchor.confidence) || anchor.confidence < 0.5) return [];
+    return [Object.freeze({ role, x: anchor.x, y: anchor.y, confidence: anchor.confidence })];
+  }));
+}
 function renderTarget(event) {
   const beat = event.authoredBeat ?? {}; const type = String(beat.type ?? "note");
   if (type === "note") return { id: event.eventId, kind: "flow", hand: beat.hand === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(beat.placement) ? beat.placement : null, cells: [], lane: null, beatCenterMs: event.centerTimestampMs, direction: flowDirection(beat.direction) };
