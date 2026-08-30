@@ -21,7 +21,8 @@ try {
     const library = element.shadowRoot.querySelector("aero-content-library"); const difficulty = library.shadowRoot.querySelector("select[data-intent='library-difficulty-select']");
     const firstPackageId = difficulty.options[0].value; const secondPackageId = difficulty.options[1].value;
     await element.toggleLibraryPreview(firstPackageId); const firstPreview = { state: element.previewView.state, packageId: element.previewView.packageId }; element.stopPreview();
-    difficulty.value = secondPackageId; difficulty.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+    const currentDifficulty = library.shadowRoot.querySelector("select[data-intent='library-difficulty-select']");
+    currentDifficulty.value = secondPackageId; currentDifficulty.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
     const deadline = performance.now() + 20_000; while (element.graph.content.getSnapshot().packageId !== secondPackageId && performance.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 20));
     await element.toggleLibraryPreview(secondPackageId); const secondPreview = { state: element.previewView.state, packageId: element.previewView.packageId }; element.stopPreview();
     const publicText = JSON.stringify(element.getSnapshot());

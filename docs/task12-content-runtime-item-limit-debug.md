@@ -121,6 +121,19 @@ This confirms the package-specific allowance was necessary but applied too late 
 
 Do not raise the generic metadata clone limit for all fields. In `parseAeroPackage()`, validate the JSON-parsed exact metadata envelope and bounded scalar fields, clone the embedded `package` with the same internal 500,000 package allowance, and clone/validate the small asset table under the existing generic/default or its own bound. Return only these separately narrowed/frozen values. This preserves the 16 MiB metadata byte bound, 2,048-asset bound, descriptor/path/range/hash checks, and 100,000 generic limit without letting the full package consume the generic envelope budget.
 
+## Exact live gate after content repair `7450c30`
+
+After the direct and AEROPKG bounds were fixed, the live gate advanced through package loading and the first Expert Preview successfully. It then failed the second Preview with `Select this downloaded song before previewing it`.
+
+A timing/identity probe showed:
+
+- Import completed in about 4.3 seconds with Expert selected in library, desired selection, and content runtime.
+- Expert Preview reached `playing`.
+- The test then dispatched `change` on its previously captured Difficulty `<select>`, but library/desired/content state all remained Expert for 60 seconds.
+- Preview state updates rerender the presenter shadow tree, so the previously captured select was detached. Dispatching on that stale node cannot reach the live presenter listener.
+
+This is a live-test harness defect, not a selection/runtime defect. The gate must reacquire the current Difficulty select after stopping the first Preview, then dispatch the ExpertPlus change. Production users necessarily interact with the current DOM. The focused grouped-library test already proves live-node A→B→C latest-wins behavior.
+
 ## Debugging Record
 
 ```text
