@@ -181,9 +181,10 @@ try {
   await game.evaluate((element) => element.shadowRoot.querySelector("input[value='aero'][data-action='environment-select']").click());
   const aeroPlaying = await visualShellSnapshot(game); assert(aeroPlaying.environmentMode === "aero" && !aeroPlaying.previewVisible && aeroPlaying.rendererBackground === "#071426" && await page.evaluate(() => globalThis.__cameraRequests === 1), `Aero selection must immediately restore opaque play without camera reacquire: ${JSON.stringify(aeroPlaying)}`);
 
-  await game.evaluate(() => { globalThis.__mobileState.delayNextPause = true; globalThis.__mobileState.audioPositionSeconds = .25; });
+  await game.evaluate(() => { globalThis.__mobileState.delayNextPause = true; });
   await pushPose(game, 15000, true); await pushPose(game, 15250, true);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "paused_tracking");
+  await game.evaluate(() => { globalThis.__mobileState.audioPositionSeconds = .25; });
   state = await stateSnapshot(game);
   assert(state.audioState === "playing" && state.audioSyncPending && state.pauseResolverReady, `delayed tracking pause must remain truthfully pending: ${JSON.stringify(state)}`);
   const trackingVisual = await visualShellSnapshot(game);

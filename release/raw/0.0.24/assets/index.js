@@ -8227,13 +8227,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:64f0cf8fc61596f712571ab59b1f02223c92d317c31c9650d82bc1d07a73df95";
+var buildStamp = "source:4f0eeab6fbe30219c535d5a49d6989bcbeb29c5afd63989f7655d74aabda1cd1";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-64f0cf8fc61596f7";
+var cacheBust = "0.0.24-4f0eeab6fbe30219";
 /**
 * Vite-injected package version from package.json.
 *
@@ -10062,6 +10062,8 @@ function createBrowserObjectUrlRevoker() {
 */
 //#endregion
 //#region ../aerobeat-web-content/src/runtime-data.js
+/** Internal clone limit shared only by canonical song-package boundaries. */
+var runtimePackageDataLimits = Object.freeze({ maximumItems: 5e5 });
 /**
 * Return whether a value is a plain enumerable data record.
 *
@@ -10216,6 +10218,11 @@ var videoExtensions = /* @__PURE__ */ new Set([
 ]);
 var maximumMetadataBytes$1 = 16777216;
 var maximumAssets$1 = 2048;
+var assetTableDataLimits = Object.freeze({
+	maximumDepth: 8,
+	maximumItems: 12289,
+	maximumStringLength: 1024
+});
 var maximumAssetBytes$1 = 134217728;
 var maximumTotalAssetBytes$1 = 536870912;
 var defaultTimeoutMs = 15e3;
@@ -10236,7 +10243,7 @@ async function parseAeroPackage(bytes) {
 	} catch {
 		throw dataError("aeropkg_metadata_invalid", "AEROPKG1 metadata is not valid UTF-8 JSON");
 	}
-	const metadata = requireRecord$2(cloneFrozenData(metadataValue), "aeropkg_metadata_invalid");
+	const metadata = requireRecord$2(metadataValue, "aeropkg_metadata_invalid");
 	if (!hasExactDataKeys$1(metadata, [
 		"schema",
 		"version",
@@ -10245,7 +10252,8 @@ async function parseAeroPackage(bytes) {
 		"assets"
 	]) || metadata.schema !== "aerobeat/authored_package_export" || metadata.version !== 1) throw dataError("aeropkg_schema_invalid", "AEROPKG1 metadata schema is unsupported");
 	const packageHash = requireHash(metadata.packageHash, "aeropkg_package_hash_invalid");
-	const table = requireArray$1(metadata.assets, "aeropkg_assets_invalid");
+	const packageRecord = cloneFrozenData(metadata.package, runtimePackageDataLimits);
+	const table = requireArray$1(cloneFrozenData(metadata.assets, assetTableDataLimits), "aeropkg_assets_invalid");
 	if (table.length > maximumAssets$1) throw dataError("aeropkg_assets_invalid", "AEROPKG1 contains too many assets");
 	const payloadStart = 12 + metadataLength;
 	const seen = /* @__PURE__ */ new Set();
@@ -10285,7 +10293,7 @@ async function parseAeroPackage(bytes) {
 	}
 	if (payloadStart + expectedOffset !== bytes.byteLength) throw dataError("aeropkg_trailing_bytes", "AEROPKG1 contains unclaimed trailing bytes");
 	return Object.freeze({
-		package: metadata.package,
+		package: packageRecord,
 		packageHash,
 		assets: Object.freeze(assets)
 	});
@@ -10532,7 +10540,7 @@ function errorCodeFor(cause) {
 * @param {{declaredPackageHash?: string | Readonly<Record<string, unknown>> | null, supportedRulesetIds?: readonly string[], supportedRecipeIds?: readonly string[]}} [options]
 */
 async function validateRuntimePackage(packageValue, options = {}) {
-	const packageRecord = cloneFrozenData(packageValue);
+	const packageRecord = cloneFrozenData(packageValue, runtimePackageDataLimits);
 	requireString(packageRecord.schemaId, "package_schema_invalid");
 	if (packageRecord.schemaId !== "aerobeat.song-package.v1" || packageRecord.schemaVersion !== 1) throw dataError("package_schema_invalid", "Song package schema/version is unsupported");
 	const packageId = requireString(packageRecord.packageId, "package_identity_invalid");
