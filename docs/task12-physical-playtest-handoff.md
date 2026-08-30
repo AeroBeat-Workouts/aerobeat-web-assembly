@@ -278,9 +278,28 @@ Independent QA closure `03ed9aa` exercised the unchanged managed local/Tailscale
 
 Phone retest: search `kpop demon hunters soda pop song`; choose `Saja Boys - Soda Pop`; confirm the two labeled singleton values; tap Preview and hear the clip while the same action reads Stop; tap Stop and confirm silence. Import Hard, then use the downloaded song's Preview/Stop and confirm it does not request camera or begin calibration. Finally press Calibrate / Start and confirm any preview stops before the existing camera/T-pose flow. Repeat once with a map exposing multiple difficulties and confirm the real Difficulty select opens and changes the selected difficulty. These checks are operator-owned; automation is not physical success.
 
+### Cadence, countdown, and gameplay cursors ready for Android retest
+
+Final automated integrated QA at assembly `e7b92e4` and the subsequent `qr8` handoff verifies the repairs for Derrick's latest phone blockers. Gameplay/WebGL now follows display `requestAnimationFrame` cadence instead of the old 67ms loop while CV submissions remain independently capped at 15fps. Current calibrated athlete-space nose, left-wrist, and right-wrist cursors are drawn after every healthy countdown/play frame through the exact 4×3 renderer grid, with no raw-camera overlay or second mirror. Exactly one DOM countdown cue now gives numeric 3/2/1 precedence over lingering `Release`; each numeral has a full dwell and a compact high-contrast dark backplate. Tracking recovery waits for truthful audio pause and seek alignment before countdown, and audio starts only after `playing`.
+
+Use the existing secure route `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/` and perform this short operator-owned retest:
+
+1. Select an already downloaded song, tap Preview, hear it, then tap Stop.
+2. Tap Calibrate / Start; confirm preview audio stops, accept camera, frame yourself, and hold the T-pose for four seconds.
+3. Release the T-pose and confirm one clearly visible ordered `3`, `2`, `1` cue—no lingering `Release` in place of `3`.
+4. During countdown/play, confirm three outlined markers follow your nose, left wrist, and right wrist on the correct sides of the 4×3 grid.
+5. In Aero, confirm beats approach smoothly rather than in the former ~15fps steps. Open Visuals, select Camera, close the menu/recalibrate, and confirm the same markers remain legible and correctly aligned over the live mirrored feed.
+6. Move out of frame once and confirm gameplay/cursors stop for tracking recovery; recalibrate and confirm 3/2/1 returns before audio resumes.
+7. Open the menu during play and confirm play/cursors stop; close/recalibrate, then use the downloaded-song Stop/menu actions normally.
+
+Record only physical observations in the table below. Automated matrices do not constitute a human Android pass, and Flow remains the fallback without selecting a Boxing winner.
+
 ## Automated evidence collected
 
-- Assembly `check`, `test`, browser, two `build` + `build-release` rounds, pack, and diff pass. Recursive release manifests are byte-identical.
+- Final integrated assembly `check`, `test`, full browser suite, build, two `build-release` rounds, two dry packs, recursive manifest comparison, and diff pass. The final release proof SHA-256 is `caf0f05ffb3f40b7ba21268b801ae20c2f275383b31b004ea9ac38887d6106e7`, source fingerprint is `0d2e02878174396f7dfeb7e1a161d3e5499f77ce17d46fdb78e115109a2beaf0`, and pre-manifest bytes are `3374717`. The two packs are identical at 251,200 packed / 894,501 unpacked bytes, 70 files, integrity `sha512-P8c0lgIVPDEP8lxDAjBDrSOBcLrpPrNAlIgKaXEhsflZEtwMjdDwtwy7QtNTxM0pBipmF1hsob3nSNuPqP8qpQ==`.
+- The final direct/real-cross-origin iframe product matrix covers 390×844 and 844×390 at requested DPR1/3. Sustained play requires >=90 gameplay/cursor frames over 2.1 seconds and >=45fps; authoritative timeline p90 is <40ms with >=80 distinct positions; fresh pose consumption and closed-menu presenter commits do not increase. It proves exact gameplay-then-cursor order, calibrated correct-side nose/wrist records, tracking/menu clearing, privacy/reconnect, Flow plus four experimental Boxing variants, and explicit winner rejection.
+- The same eight-context matrix captures one ordered `3`,`2`,`1` DOM cue with each dwell >=800ms, current countdown cursors, no renderer duplicate, and screenshot contrast >=4.5:1 over Aero and bright/dark Camera. Delayed recovery audio tests hold pause pending with a 250ms mismatch and prove pause+seek alignment precedes countdown and audio starts only after `playing`.
+- The existing managed local and Tailscale routes both return HTTP 200 and load `<aero-game>` in Chromium without console/page errors at version 0.0.24 with exactly Gameplay, Visuals, Music, and Info. The Tailscale server remains running; this is live-route automation, not a phone play claim.
 - `scripts/validate-mobile-gameplay-menu.js` runs exact Chromium 390×844 portrait and 844×390 landscape coverage with mocked `getUserMedia` and injected measured pose frames. It proves composed-tree exact visibility/text for idle, calibration, hold, countdown, playing, tracking pause, open-menu pause, Escape recovery, and resumed play; one-control steady play; one-cue transient states; clipped aria-live status; hidden legacy HUD cards; drawer text allowlist; stable viewport-filling video/canvas; >=44px corner control; populated current/fallback Music radios and scalar intents; zero-camera missing-content gating; full permission/start/T-pose/countdown/play; retained camera/CV menu pause; audio gates; reconnect isolation; and zero unexpected console noise.
 - `scripts/validate-product-shell-matrix.js` is the strict product acceptance matrix. It repeats the full real-start flow in direct and real cross-origin iframe embeds at both 390×844 and 844×390, exhaustively classifies every rendered element/direct text across the complete open-shadow composed tree, and inspects all renderer overlay inputs. It samples Release explicitly and proves exact 48×48 alpha-one menu geometry, one DOM transient or none, zero canvas countdown/overlay/dim, measured iframe/child/game bounds, stable hidden+aria-hidden legacy identities, clipped polite status, exact baseline/progress/error/limitation drawer sets, Music/focus, camera preview readiness/recovery/environment transitions, service destruction/media-idle reconnect, recursive privacy, and explicit production-winner rejection.
 - `scripts/validate-camera-compositor-pixels.js` samples the geometric close mask in direct/real-iframe portrait/landscape at DPR 1/3 and drives a moving mirrored child-local MediaStream through forced calibration, default countdown hide, Camera selection, Aero restoration, pause/resume, and document visibility without reacquisition or serialization.
@@ -299,7 +318,10 @@ Fill this section during operator play. Do not infer results from automation.
 | --- | --- | --- | --- |
 | Gameplay-first playfield, corner control, minimal drawer | pending | retest pending | Initial Android loads exposed dense-overlay/no-start/copy P0s. Gameplay-first `5c95ae8`, scoped UI `b075797`, four-section/start `b02bf68`, compact copy `641fd0a`, and minimal shell Bead `3h7` pass coder gates; independent QA and operator confirmation remain required. |
 | Camera prompt and live BRIO/phone camera | pending | pending | |
-| Four-second T-pose + cooldown/release | pending | pending | |
+| Four-second T-pose + cooldown/release | pending | retest pending | Confirm `Release` yields one ordered 3/2/1 rather than masking 3. |
+| Visible ordered 3/2/1 countdown | pending | retest pending | Each numeral must be clearly visible; audio remains frozen until play. |
+| Nose/left-wrist/right-wrist gameplay cursors | pending | retest pending | Confirm correct sides and legibility in both Aero and Camera. |
+| Smooth display-cadence beat motion | pending | retest pending | Confirm the former visibly stepped ~15fps motion is gone. |
 | 4×3 grid and 8×6 subcells | pending | pending | |
 | Flow physical play | pending | pending | |
 | Semantic Row physical play | pending | pending | |
