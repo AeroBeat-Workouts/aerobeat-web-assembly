@@ -39,7 +39,7 @@ Every connection creates isolated BeatSaver vendor, browser authoring Worker/Ind
 
 `AeroGameMediaLeaseCoordinator` is the sole process-wide policy object. Exactly one game owns camera/audio activity. Transfer pauses the previous owner before activating the next; resources remain in their domain services and host-owned streams are never stopped by transfer or teardown.
 
-Hidden documents pause gameplay, audio and CV inference while retaining the camera. A visible active lease owner restarts inference through a frozen countdown/calibration gate. Camera source/mirror/aspect generation changes explicitly invalidate session calibration.
+Hidden documents pause gameplay, audio and CV inference while retaining the camera. A visible active lease owner restarts inference through a frozen countdown/calibration gate. Initial and recovery countdowns use exactly one high-contrast DOM cue in ordered full-dwell `3`, `2`, `1`; the cue takes precedence over calibration-release copy once countdown begins. Recovery cannot enter or advance countdown until asynchronous audio pause and seek have truthfully frozen the audio clock at the coordinator timeline, and audio starts only after gameplay enters `playing`. Camera source/mirror/aspect generation changes explicitly invalidate session calibration.
 
 ## Locked production CV
 

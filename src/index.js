@@ -605,11 +605,27 @@ export class AeroGame extends HTMLElement {
   syncAudioForGameplay() {
     const generation = this.connectedGeneration; const graph = this.graph;
     if (!graph || this.audioSyncPending || document.hidden) return;
-    const shouldPlay = graph.gameplay.getSnapshot().session.state === "playing"; const isPlaying = graph.audio.getStatus().state === "playing";
-    if (shouldPlay === isPlaying) return;
+    const session = graph.gameplay.getSnapshot().session; const shouldPlay = session.state === "playing"; const isPlaying = graph.audio.getStatus().state === "playing";
+    const freezeAtGameplayTimeline = ["calibrating", "paused_tracking", "countdown"].includes(session.state);
+    const clockAligned = audioClockAlignedWithGameplay(session, graph.audio.getClockSnapshot());
+    if (shouldPlay === isPlaying && (!freezeAtGameplayTimeline || clockAligned)) return;
     this.audioSyncPending = true;
-    const operation = shouldPlay ? graph.audio.play() : graph.audio.pause();
-    void operation.then(() => { if (this.isCurrent(generation, graph) && !shouldPlay) this.synchronizePausedClock(graph); }).catch((error) => { if (this.isCurrent(generation, graph)) this.handleError(error); }).finally(() => { if (this.isCurrent(generation, graph)) this.audioSyncPending = false; });
+    const operation = shouldPlay
+      ? graph.audio.play()
+      : this.pauseAudioForGameplay(graph, session, freezeAtGameplayTimeline);
+    void operation.then(() => {
+      if (!this.isCurrent(generation, graph) || shouldPlay || freezeAtGameplayTimeline) return;
+      if (graph.gameplay.getSnapshot().session.state === "paused_manual") this.synchronizePausedClock(graph);
+    }).catch((error) => { if (this.isCurrent(generation, graph)) this.handleError(error); }).finally(() => { if (this.isCurrent(generation, graph)) this.audioSyncPending = false; });
+  }
+
+  async pauseAudioForGameplay(graph, session, freezeAtGameplayTimeline) {
+    if (graph.audio.getStatus().state === "playing") await graph.audio.pause();
+    if (!freezeAtGameplayTimeline || !this.isCurrent(this.connectedGeneration, graph)) return;
+    const clock = graph.audio.getClockSnapshot();
+    if (audioClockAlignedWithGameplay(session, clock)) return;
+    if (typeof graph.audio.seek !== "function") throw new Error("Audio service cannot align a frozen gameplay countdown");
+    await graph.audio.seek(Number(session.timelinePositionMs ?? 0) / 1000);
   }
 
   attachRetainedCamera() {
@@ -648,9 +664,11 @@ export class AeroGame extends HTMLElement {
         this.lastInputAdvanceAtMs = frameNow; this.inputAdvanceCount += 1; graph.input.advanceTime(frameNow);
       }
       try {
-        const awaitingAudioStart = graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing";
-        if (!awaitingAudioStart) {
-          graph.gameplay.advance({ timestampMs: frameNow, clock: graph.audio.getClockSnapshot(), input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() });
+        const beforeAdvance = graph.gameplay.getSnapshot().session; const audioClock = graph.audio.getClockSnapshot();
+        const awaitingAudioStart = beforeAdvance.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing";
+        const awaitingAudioFreeze = ["calibrating", "paused_tracking", "countdown"].includes(beforeAdvance.state) && (this.audioSyncPending || !audioClockAlignedWithGameplay(beforeAdvance, audioClock));
+        if (!awaitingAudioStart && !awaitingAudioFreeze) {
+          graph.gameplay.advance({ timestampMs: frameNow, clock: audioClock, input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() });
           if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
         }
         this.syncAudioForGameplay();
@@ -1190,8 +1208,8 @@ function runtimeStatus(content, session, input) {
 function transientCue(menuOpen, sessionStartRequested, session, gameplay, input) {
   if (menuOpen || !sessionStartRequested) return "";
   if (session.state === "paused_tracking") return "Tracking lost";
-  if (input.calibration?.state === "cooldown") return "Release";
   if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
+  if (input.calibration?.state === "cooldown") return "Release";
   if (session.state !== "calibrating") return "";
   if (input.calibration?.state === "holding") return "Hold T-pose";
   return "T-pose";
@@ -1212,6 +1230,7 @@ function productLibraryPackages(packages) {
   return Object.freeze([...byId.values()].sort((left, right) => Number(right.createdAtMs ?? 0) - Number(left.createdAtMs ?? 0) || String(left.songName ?? "").localeCompare(String(right.songName ?? "")) || String(left.difficulty ?? "").localeCompare(String(right.difficulty ?? "")) || String(left.packageId ?? "").localeCompare(String(right.packageId ?? ""))));
 }
 function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1; }
+function audioClockAlignedWithGameplay(session, clock) { return clock?.playing === false && Number(clock.positionSeconds) * 1000 === Number(session?.timelinePositionMs ?? 0); }
 function cssPixels(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? parsed : 0; }
 function gameplayCursorRecords(menuOpen, session, input) {
   if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);

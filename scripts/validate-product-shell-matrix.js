@@ -20,23 +20,25 @@ if (!address || typeof address === "string") throw new Error("Parent server unav
 const parentUrl = `http://127.0.0.1:${address.port}/`;
 const browser = await chromium.launch();
 const contexts = [
-  { kind: "direct", width: 390, height: 844 }, { kind: "direct", width: 844, height: 390 },
-  { kind: "iframe", width: 390, height: 844 }, { kind: "iframe", width: 844, height: 390 }
+  { kind: "direct", width: 390, height: 844, dpr: 1 }, { kind: "direct", width: 390, height: 844, dpr: 3 },
+  { kind: "direct", width: 844, height: 390, dpr: 1 }, { kind: "direct", width: 844, height: 390, dpr: 3 },
+  { kind: "iframe", width: 390, height: 844, dpr: 1 }, { kind: "iframe", width: 390, height: 844, dpr: 3 },
+  { kind: "iframe", width: 844, height: 390, dpr: 1 }, { kind: "iframe", width: 844, height: 390, dpr: 3 }
 ];
 const baseDrawerText = Object.freeze(["Calibrate / Start", "Gameplay", "Flow", "Semantic Row", "Spatial Row", "Semantic Cut", "Spatial Cut", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Choose or import a song to start.", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "111111", "Difficulty", "Expert", "Import selected map", "Idle · 0%", "Cancel import", "First library song · Expert", "Second library song · ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [];
 try {
   for (const context of contexts) evidence.push(await runContext(context));
-  console.log(`Product shell matrix passed: ${evidence.map((item) => `${item.kind}:${item.width}x${item.height}`).join(", ")}`);
+  console.log(`Product shell matrix passed: ${evidence.map((item) => `${item.kind}:${item.width}x${item.height}@${item.dpr}`).join(", ")}`);
 } finally {
   await browser.close(); await vite.close(); await new Promise((resolve) => parentServer.close(resolve));
 }
 
-/** @param {{kind:string,width:number,height:number}} context */
+/** @param {{kind:string,width:number,height:number,dpr:number}} context */
 async function runContext(context) {
   const noise = [];
-  const page = await browser.newPage({ viewport: context.kind === "direct" ? { width: context.width, height: context.height } : { width: context.width + 24, height: context.height + 24 } });
+  const page = await browser.newPage({ viewport: context.kind === "direct" ? { width: context.width, height: context.height } : { width: context.width + 24, height: context.height + 24 }, deviceScaleFactor: context.dpr });
   page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}:${message.text()}`); });
   page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
   await page.addInitScript(() => {
@@ -107,13 +109,17 @@ async function runContext(context) {
   const hold = await shellSnapshot(game); assertTransient(hold, context, "Hold T-pose", "hold"); assert(hold.previewVisible && hold.rendererBackground === "#00000000", `${label(context)} T-pose hold must keep transparent mirrored preview: ${JSON.stringify(hold)}`);
   for (let offset = 2250; offset <= 4000; offset += 250) await pushPose(game, 6000 + offset, true);
   await pushPose(game, 10250, false);
-  assertTransient(await shellSnapshot(game), context, "Release", "release");
+  const releaseSnapshot = await shellSnapshot(game); const releaseCue = Number.isFinite(releaseSnapshot.countdown?.value) ? String(releaseSnapshot.countdown.value) : "Release";
+  assertTransient(releaseSnapshot, context, releaseCue, "release/countdown boundary");
+  assert(!Number.isFinite(releaseSnapshot.countdown?.value) || releaseCue === "3", `${label(context)} numeric countdown must take precedence once countdown begins: ${JSON.stringify(releaseSnapshot)}`);
+  const countdownProofPromise = captureCountdownPresentation(page, game, context);
   for (let offset = 500; offset <= 4000; offset += 250) await pushPose(game, 10000 + offset, false);
-  await waitFor(page, async () => /^[123]$/u.test((await shellSnapshot(game)).cueText), 2500);
-  const countdown = await shellSnapshot(game); assertTransient(countdown, context, countdown.cueText, "countdown");
+  const countdownProof = await countdownProofPromise;
+  assert(JSON.stringify(countdownProof.values) === JSON.stringify([3,2,1]) && countdownProof.dwells.every((value) => value >= 800), `${label(context)} countdown must present ordered full-dwell 3,2,1: ${JSON.stringify(countdownProof)}`);
+  assert(countdownProof.proofs.every((proof) => proof.statusCount === 1 && proof.cursorCount >= 1 && proof.aero.pixelRange >= 90 && proof.cameraDark.pixelRange >= 90 && proof.cameraLight.pixelRange >= 90), `${label(context)} one countdown cue and current calibrated cursors must remain pixel-visible over Aero and bright/dark Camera: ${JSON.stringify(countdownProof)}`);
+  const countdown = countdownProof.firstSnapshot; assertTransient(countdown, context, "3", "countdown");
   assert(!countdown.previewVisible && countdown.previewOpacity === "0" && countdown.rendererBackground === "#071426", `${label(context)} fresh ready/countdown must immediately hide default preview: ${JSON.stringify(countdown)}`);
   assert(countdown.canvasCountdown === null && countdown.canvasOverlay === "none" && countdown.canvasCalibrationDim === 0, `${label(context)} countdown must not reach renderer frame: ${JSON.stringify(countdown)}`);
-  await waitFor(page, async () => (await shellSnapshot(game)).sessionState === "playing", 6000);
   const steadyPlay = await shellSnapshot(game); assertSteady(steadyPlay, context, "steady play"); assert(!steadyPlay.previewVisible && steadyPlay.rendererBackground === "#071426", `${label(context)} default calibrated play must hide camera: ${JSON.stringify(steadyPlay)}`);
   const cadenceBefore = await game.evaluate((element) => { const state = globalThis.__shellMatrixState; state.renderWallTimes.length = 0; state.renderTimeline.length = 0; state.cursorCalls.length = 0; state.renderSequence.length = 0; return element.cadenceSnapshot(); });
   await page.waitForTimeout(2100);
@@ -173,7 +179,7 @@ async function installFixture(game) {
       const variant = (packageId) => ({ variantId: `${packageId}-flow`, chartId: `${packageId}-chart`, mode: "flow", rulesetId: "flow_grid_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: `${packageId}-flow` } });
       const idle = () => ({ state: "idle", packageId: null, selectedVariant: null, variants: [], resolvedEvents: [], song: null, background: null, lineage: null });
       const ready = (packageId) => { const selectedVariant = variant(packageId); return { state: "ready", packageId, selectedVariant, variants: [selectedVariant], resolvedEvents: [], song: { name: packageId }, background: null, lineage: null }; };
-      const state = globalThis.__shellMatrixState = { pose: undefined, retained: null, library: [], maps: [], contentSnapshot: idle(), authoringSnapshot: { state: "idle", progress: 0 }, audioState: "paused", audioStartedAtMs: 0, audioPositionMs: 0, renderWallTimes: [], renderTimeline: [], cursorCalls: [], renderSequence: [], videoPlayCalls: 0, videoPauseCalls: 0, importCalls: [], failImport: false, destroyCalls: [] };
+      const state = globalThis.__shellMatrixState = { pose: undefined, retained: null, library: [], maps: [], contentSnapshot: idle(), authoringSnapshot: { state: "idle", progress: 0 }, audioState: "paused", audioStartedAtMs: 0, audioPositionMs: 0, audioSeekCalls: 0, renderWallTimes: [], renderTimeline: [], cursorCalls: [], renderSequence: [], videoPlayCalls: 0, videoPauseCalls: 0, importCalls: [], failImport: false, destroyCalls: [] };
       const renderGameplayFrame = original.renderer.renderGameplayFrame.bind(original.renderer); const renderGameplayCursors = original.renderer.renderGameplayCursors.bind(original.renderer);
       original.renderer.renderGameplayFrame = (frame) => { state.renderWallTimes.push(performance.now()); state.renderTimeline.push(frame.nowMs); state.renderSequence.push("gameplay"); if (state.renderWallTimes.length > 256) { state.renderWallTimes.shift(); state.renderTimeline.shift(); } if (state.renderSequence.length > 512) state.renderSequence.shift(); return renderGameplayFrame(frame); };
       original.renderer.renderGameplayCursors = (cursors, options) => { state.cursorCalls.push({ cursors: structuredClone(cursors), options: structuredClone(options) }); state.renderSequence.push("cursors"); if (state.cursorCalls.length > 256) state.cursorCalls.shift(); if (state.renderSequence.length > 512) state.renderSequence.shift(); return renderGameplayCursors(cursors, options); };
@@ -183,14 +189,37 @@ async function installFixture(game) {
       const video = { getRetainedCameraStream: () => state.retained, async requestCamera() { state.retained = await navigator.mediaDevices.getUserMedia({ video: true }); return { status: "granted", message: "ok" }; }, attachCameraStream: () => ({ sourceKind: "live-camera", sourceId: "matrix-camera", mirrored: true, currentTimeSeconds: 0, intrinsicWidth: 640, intrinsicHeight: 480, sourceAspectRatio: 4 / 3, sourceChangeId: 1 }), injectCameraStream(stream) { state.retained = stream; }, async play() { state.videoPlayCalls += 1; }, activateLease() {}, pauseForLease() {}, releaseLease() {}, describeStatus: () => ({ state: "ready", sourceChangeId: 1 }), describeSurface: () => ({ sourceId: "matrix-camera", mirrored: true, sourceChangeId: 1, sourceAspectRatio: 4 / 3 }), pause() { state.videoPauseCalls += 1; }, setDocumentHidden() {}, destroy() { state.destroyCalls.push("video"); } };
       const cv = { async start() {}, async stop() {}, async dispose() { state.destroyCalls.push("cv"); }, getLatestPoseFrame: () => state.pose, getStatus: () => ({ lifecycleState: "running" }) };
       const quantizedAudioMs = (value) => Math.round(value * 64 / 1000) * 1000 / 64;
-      const pauseAudio = () => { if (state.audioState === "playing") state.audioPositionMs = original.gameplay.getSnapshot().session.timelinePositionMs; state.audioState = "paused"; };
-      const audio = { async activateLease() {}, async releaseLease() {}, async pauseForLease() { pauseAudio(); }, async play() { if (state.audioState !== "playing") state.audioStartedAtMs = performance.now(); state.audioState = "playing"; }, async pause() { pauseAudio(); }, async stop() { state.audioState = "stopped"; state.audioPositionMs = 0; }, async setDocumentHidden(hidden) { if (hidden) pauseAudio(); }, async destroy() { state.destroyCalls.push("audio"); }, getStatus: () => ({ state: state.audioState, autoplayState: "allowed" }), getClockSnapshot: () => { const positionMs = quantizedAudioMs(state.audioPositionMs + (state.audioState === "playing" ? performance.now() - state.audioStartedAtMs : 0)); return { contextTimeSeconds: performance.now() / 1000, positionSeconds: positionMs / 1000, playing: state.audioState === "playing" }; } };
+      const currentAudioPosition = () => quantizedAudioMs(state.audioPositionMs + (state.audioState === "playing" ? performance.now() - state.audioStartedAtMs : 0));
+      const pauseAudio = () => { state.audioPositionMs = currentAudioPosition(); state.audioState = "paused"; };
+      const audio = { async activateLease() {}, async releaseLease() {}, async pauseForLease() { pauseAudio(); }, async play() { if (state.audioState !== "playing") state.audioStartedAtMs = performance.now(); state.audioState = "playing"; }, async pause() { pauseAudio(); }, async seek(positionSeconds) { state.audioPositionMs = Number(positionSeconds) * 1000; state.audioStartedAtMs = performance.now(); state.audioSeekCalls += 1; }, async stop() { state.audioState = "stopped"; state.audioPositionMs = 0; }, async setDocumentHidden(hidden) { if (hidden) pauseAudio(); }, async destroy() { state.destroyCalls.push("audio"); }, getStatus: () => ({ state: state.audioState, autoplayState: "allowed" }), getClockSnapshot: () => { const positionMs = currentAudioPosition(); return { contextTimeSeconds: performance.now() / 1000, positionSeconds: positionMs / 1000, playing: state.audioState === "playing" }; } };
       return Object.freeze({ ...original, vendor, authoring, content, video, cv, audio });
     };
     document.querySelector("main")?.append(element);
   });
 }
 
+async function captureCountdownPresentation(page, game, context) {
+  const values=[]; const starts=[]; const proofs=[]; let firstSnapshot=null;
+  for (const expected of [3,2,1]) {
+    await waitFor(page, async () => Number((await shellSnapshot(game)).countdown?.value) === expected, 4000);
+    starts.push(await game.evaluate(() => performance.now())); values.push(expected);
+    const snapshot=await shellSnapshot(game); if(!firstSnapshot) firstSnapshot=snapshot;
+    const status=await game.evaluate((element) => ({ statusCount:[...element.shadowRoot.querySelectorAll("[role='status']")].filter((item)=>!item.hidden&&item.getClientRects().length>0).length,cursorCount:globalThis.__shellMatrixState.cursorCalls.at(-1)?.cursors?.length??0 }));
+    const cue=game.locator("[data-role='transient-cue']");
+    const aero={pixelRange:await screenshotPixelRange(page,await cue.screenshot())};
+    await game.evaluate((element) => { element.shadowRoot.querySelector("input[value='camera'][data-action='environment-select']").click(); element.shadowRoot.querySelector("video").style.background="#000"; });
+    const cameraDark={pixelRange:await screenshotPixelRange(page,await cue.screenshot())};
+    await game.evaluate((element) => { element.shadowRoot.querySelector("video").style.background="#fff"; });
+    const cameraLight={pixelRange:await screenshotPixelRange(page,await cue.screenshot())};
+    await game.evaluate((element) => { element.shadowRoot.querySelector("video").style.background=""; element.shadowRoot.querySelector("input[value='aero'][data-action='environment-select']").click(); });
+    proofs.push({...status,aero,cameraDark,cameraLight});
+    await waitFor(page, async () => Number((await shellSnapshot(game)).countdown?.value) !== expected, 2500);
+  }
+  await waitFor(page, async () => (await shellSnapshot(game)).sessionState === "playing", 2500);
+  const end=await game.evaluate(() => performance.now()); const dwells=starts.map((value,index)=>Math.round((starts[index+1]??end)-value));
+  return {values,dwells,proofs,firstSnapshot,context};
+}
+async function screenshotPixelRange(page, png) { return page.evaluate(async (base64) => { const blob=await (await fetch(`data:image/png;base64,${base64}`)).blob(); const bitmap=await createImageBitmap(blob); const canvas=document.createElement("canvas"); canvas.width=bitmap.width; canvas.height=bitmap.height; const context=canvas.getContext("2d"); context.drawImage(bitmap,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; let minimum=255,maximum=0; for(let index=0;index<data.length;index+=4){if(data[index+3]===0)continue;const luminance=.2126*data[index]+.7152*data[index+1]+.0722*data[index+2];minimum=Math.min(minimum,luminance);maximum=Math.max(maximum,luminance);} return maximum-minimum; },png.toString("base64")); }
 /** @param {import("playwright").Locator} game */
 async function shellSnapshot(game) { return game.evaluate((element) => {
   const root = element.shadowRoot; const shell = root.querySelector(".game"); const environment = root.querySelector("aero-background-environment"); const video = root.querySelector("video"); const canvas = root.querySelector("canvas"); const hud = root.querySelector(".hud"); const menu = root.querySelector("[data-role='menu-button']"); const backdrop = root.querySelector("[data-role='menu-backdrop']"); const drawer = root.querySelector("[data-role='drawer']"); const cue = root.querySelector("[data-role='transient-cue']"); const status = root.querySelector("[data-role='status']");
@@ -233,5 +262,5 @@ async function pushPose(game, timestampMs, tPose) { await game.evaluate((_elemen
 /** @param {import("playwright").Locator} game @param {number} start */
 async function calibrateAndRelease(game, start) { for (let offset=0;offset<=4000;offset+=250) await pushPose(game,start+offset,true); for(let offset=0;offset<=4000;offset+=250) await pushPose(game,start+4250+offset,false); }
 async function waitFor(page, predicate, timeout=3500) { const started=Date.now(); while(Date.now()-started<timeout){ if(await predicate()) return; await page.waitForTimeout(40); } throw new Error("Timed out waiting for shell matrix state"); }
-function label(context) { return `${context.kind}:${context.width}x${context.height}`; }
+function label(context) { return `${context.kind}:${context.width}x${context.height}@${context.dpr}`; }
 function assert(value, message) { if (!value) throw new Error(message); }

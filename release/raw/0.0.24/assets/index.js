@@ -8145,13 +8145,13 @@ Object.freeze({
 *
 * @type {string}
 */
-var buildStamp = "source:2743ce0397221e0ada1b5ecc0775e6acea65ced51fc7d003af566c0eee78def4";
+var buildStamp = "source:f8867f701d803b66425287e829879d0b57cdec5b88cf561ae63a8e3889678f23";
 /**
 * Vite-injected cache-bust token.
 *
 * @type {string}
 */
-var cacheBust = "0.0.24-2743ce0397221e0a";
+var cacheBust = "0.0.24-f8867f701d803b66";
 /**
 * Vite-injected package version from package.json.
 *
@@ -19290,16 +19290,32 @@ var AeroGame = class extends HTMLElement {
 		const generation = this.connectedGeneration;
 		const graph = this.graph;
 		if (!graph || this.audioSyncPending || document.hidden) return;
-		const shouldPlay = graph.gameplay.getSnapshot().session.state === "playing";
-		if (shouldPlay === (graph.audio.getStatus().state === "playing")) return;
+		const session = graph.gameplay.getSnapshot().session;
+		const shouldPlay = session.state === "playing";
+		const isPlaying = graph.audio.getStatus().state === "playing";
+		const freezeAtGameplayTimeline = [
+			"calibrating",
+			"paused_tracking",
+			"countdown"
+		].includes(session.state);
+		const clockAligned = audioClockAlignedWithGameplay(session, graph.audio.getClockSnapshot());
+		if (shouldPlay === isPlaying && (!freezeAtGameplayTimeline || clockAligned)) return;
 		this.audioSyncPending = true;
-		(shouldPlay ? graph.audio.play() : graph.audio.pause()).then(() => {
-			if (this.isCurrent(generation, graph) && !shouldPlay) this.synchronizePausedClock(graph);
+		(shouldPlay ? graph.audio.play() : this.pauseAudioForGameplay(graph, session, freezeAtGameplayTimeline)).then(() => {
+			if (!this.isCurrent(generation, graph) || shouldPlay || freezeAtGameplayTimeline) return;
+			if (graph.gameplay.getSnapshot().session.state === "paused_manual") this.synchronizePausedClock(graph);
 		}).catch((error) => {
 			if (this.isCurrent(generation, graph)) this.handleError(error);
 		}).finally(() => {
 			if (this.isCurrent(generation, graph)) this.audioSyncPending = false;
 		});
+	}
+	async pauseAudioForGameplay(graph, session, freezeAtGameplayTimeline) {
+		if (graph.audio.getStatus().state === "playing") await graph.audio.pause();
+		if (!freezeAtGameplayTimeline || !this.isCurrent(this.connectedGeneration, graph)) return;
+		if (audioClockAlignedWithGameplay(session, graph.audio.getClockSnapshot())) return;
+		if (typeof graph.audio.seek !== "function") throw new Error("Audio service cannot align a frozen gameplay countdown");
+		await graph.audio.seek(Number(session.timelinePositionMs ?? 0) / 1e3);
 	}
 	attachRetainedCamera() {
 		const surface = this.graph.video.attachCameraStream(this.videoElement());
@@ -19359,10 +19375,18 @@ var AeroGame = class extends HTMLElement {
 				graph.input.advanceTime(frameNow);
 			}
 			try {
-				if (!(graph.gameplay.getSnapshot().session.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing")) {
+				const beforeAdvance = graph.gameplay.getSnapshot().session;
+				const audioClock = graph.audio.getClockSnapshot();
+				const awaitingAudioStart = beforeAdvance.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing";
+				const awaitingAudioFreeze = [
+					"calibrating",
+					"paused_tracking",
+					"countdown"
+				].includes(beforeAdvance.state) && (this.audioSyncPending || !audioClockAlignedWithGameplay(beforeAdvance, audioClock));
+				if (!awaitingAudioStart && !awaitingAudioFreeze) {
 					graph.gameplay.advance({
 						timestampMs: frameNow,
-						clock: graph.audio.getClockSnapshot(),
+						clock: audioClock,
 						input: graph.input.getSnapshot(),
 						lease: this.leaseSnapshotForGameplay()
 					});
@@ -20441,8 +20465,8 @@ function runtimeStatus(content, session, input) {
 function transientCue(menuOpen, sessionStartRequested, session, gameplay, input) {
 	if (menuOpen || !sessionStartRequested) return "";
 	if (session.state === "paused_tracking") return "Tracking lost";
-	if (input.calibration?.state === "cooldown") return "Release";
 	if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
+	if (input.calibration?.state === "cooldown") return "Release";
 	if (session.state !== "calibrating") return "";
 	if (input.calibration?.state === "holding") return "Hold T-pose";
 	return "T-pose";
@@ -20486,6 +20510,9 @@ function productLibraryPackages(packages) {
 }
 function currentDpr() {
 	return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1;
+}
+function audioClockAlignedWithGameplay(session, clock) {
+	return clock?.playing === false && Number(clock.positionSeconds) * 1e3 === Number(session?.timelinePositionMs ?? 0);
 }
 function cssPixels(value) {
 	const parsed = Number.parseFloat(value);

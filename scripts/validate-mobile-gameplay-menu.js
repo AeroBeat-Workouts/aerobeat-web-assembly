@@ -28,7 +28,7 @@ try {
       const variant = (packageId) => ({ variantId: `${packageId}-flow`, chartId: `${packageId}-chart`, mode: "flow", rulesetId: "flow_grid_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: `${packageId}-flow` } });
       const idleContent = () => ({ state: "idle", packageId: null, selectedVariant: null, variants: [], resolvedEvents: [], song: null, background: null, lineage: null });
       const readyContent = (packageId) => { const selectedVariant = variant(packageId); return { state: "ready", packageId, selectedVariant, variants: [selectedVariant], resolvedEvents: [], song: { name: packageId }, background: null, lineage: null }; };
-      const state = globalThis.__mobileState = { pose: undefined, audioState: "paused", audioPlayCalls: 0, audioPauseCalls: 0, cvStartCalls: 0, cvStopCalls: 0, videoPauseCalls: 0, videoPlayCalls: 0, retained: null, library: [], packageLoadCalls: [], exportCalls: [], importCalls: [], maps: [], contentSnapshot: idleContent() };
+      const state = globalThis.__mobileState = { pose: undefined, audioState: "paused", audioPositionSeconds: 0, audioPlayCalls: 0, audioPauseCalls: 0, audioSeekCalls: 0, delayNextPause: false, resolvePause: null, cvStartCalls: 0, cvStopCalls: 0, videoPauseCalls: 0, videoPlayCalls: 0, retained: null, library: [], packageLoadCalls: [], exportCalls: [], importCalls: [], maps: [], contentSnapshot: idleContent() };
       const content = { getSnapshot: () => state.contentSnapshot, async loadPersistenceHandle(handle) { state.packageLoadCalls.push(handle.packageId); state.contentSnapshot = readyContent(handle.packageId); }, async selectVariant(variantId) { state.contentSnapshot = { ...state.contentSnapshot, selectedVariant: state.contentSnapshot.variants.find((item) => item.variantId === variantId) ?? null }; }, async swapFutureVariant(variantId) { await this.selectVariant(variantId); }, subscribe() { return () => {}; }, setPlaybackState() {}, readAsset() { return new Uint8Array(); }, destroy() {} };
       const authoring = { getSnapshot: () => ({ state: "idle", progress: 0 }), subscribe() { return () => {}; }, async listPackages() { return state.library; }, async estimateStorage() { return { usageBytes: 0, quotaBytes: 1024 }; }, async loadPackage(handle) { return { handle, package: {} }; }, async exportPackage(handle) { state.exportCalls.push(handle.packageId); return { fileName: `${handle.packageId}.aerobeat.zip`, mediaType: "application/zip", byteLength: 1, bytes: new Uint8Array([1]) }; }, async deletePackage() { return false; }, cancel() {}, destroy() {} };
       const vendor = { snapshot: () => original.vendor.snapshot(), async searchMaps() { return { maps: state.maps }; }, async listLatestMaps() { return { maps: state.maps }; } };
@@ -43,9 +43,9 @@ try {
       const cv = { async start() { state.cvStartCalls += 1; }, async stop() { state.cvStopCalls += 1; }, async dispose() {}, getLatestPoseFrame: () => state.pose, getStatus: () => ({ lifecycleState: "running" }) };
       const audio = {
         async activateLease() {}, async releaseLease() {}, async pauseForLease() { state.audioState = "paused"; state.audioPauseCalls += 1; },
-        async play() { state.audioState = "playing"; state.audioPlayCalls += 1; }, async pause() { state.audioState = "paused"; state.audioPauseCalls += 1; }, async stop() { state.audioState = "stopped"; },
+        async play() { state.audioState = "playing"; state.audioPlayCalls += 1; }, async pause() { state.audioPauseCalls += 1; if (state.delayNextPause) { state.delayNextPause = false; await new Promise((resolve) => { state.resolvePause = resolve; }); state.resolvePause = null; } state.audioState = "paused"; }, async seek(positionSeconds) { state.audioPositionSeconds = Number(positionSeconds); state.audioSeekCalls += 1; }, async stop() { state.audioState = "stopped"; state.audioPositionSeconds = 0; },
         async setDocumentHidden(hidden) { if (hidden) state.audioState = "paused"; }, async destroy() {},
-        getStatus: () => ({ state: state.audioState, autoplayState: "allowed" }), getClockSnapshot: () => ({ contextTimeSeconds: performance.now() / 1000, positionSeconds: 0, playing: state.audioState === "playing" })
+        getStatus: () => ({ state: state.audioState, autoplayState: "allowed" }), getClockSnapshot: () => ({ contextTimeSeconds: performance.now() / 1000, positionSeconds: state.audioPositionSeconds, playing: state.audioState === "playing" })
       };
       return Object.freeze({ ...original, vendor, authoring, content, video, cv, audio });
     };
@@ -166,11 +166,12 @@ try {
   const holdingVisual = await visualShellSnapshot(game);
   assert(holdingVisual.cue && holdingVisual.cueText === "Hold T-pose" && holdingVisual.visibleOverlayCount === 2 && holdingVisual.previewVisible && holdingVisual.rendererBackground === "#00000000", `T-pose hold must remain one minimal cue: ${JSON.stringify(holdingVisual)}`);
   for (let offset = 2250; offset <= 4000; offset += 250) await pushPose(game, 6000 + offset, true);
+  const initialCountdownPromise = captureOrderedCountdown(page, game);
   await releaseHold(game, 10250);
-  await waitFor(page, async () => Number.isFinite(await game.evaluate((element) => element.graph.gameplay.getSnapshot().countdown?.value)), 3000);
-  const countdownVisual = await visualShellSnapshot(game);
+  const initialCountdown = await initialCountdownPromise;
+  assert(JSON.stringify(initialCountdown.values) === JSON.stringify([3,2,1]) && initialCountdown.dwells.every((value) => value >= 800) && initialCountdown.proofs.every((proof) => proof.pixelRange >= 120 && proof.style.textShadow !== "none" && proof.style.statusCount === 1), `initial countdown must paint one ordered high-contrast full-dwell cue: ${JSON.stringify(initialCountdown)}`);
+  const countdownVisual = initialCountdown.firstVisual;
   assert(countdownVisual.menu && countdownVisual.cue && /^[123]$/u.test(countdownVisual.cueText) && countdownVisual.hudPresenters === 0 && countdownVisual.visibleOverlayCount === 2 && !countdownVisual.previewVisible && countdownVisual.previewOpacity === "0" && countdownVisual.rendererBackground === "#071426", `countdown may expose only menu plus one numeric cue: ${JSON.stringify(countdownVisual)}`);
-  await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 6000);
   let state = await stateSnapshot(game);
   assert(state.audioState === "playing" && state.audioPlayCalls >= 1, "audio must start only after initial countdown enters play");
   const playingVisual = await visualShellSnapshot(game);
@@ -180,15 +181,23 @@ try {
   await game.evaluate((element) => element.shadowRoot.querySelector("input[value='aero'][data-action='environment-select']").click());
   const aeroPlaying = await visualShellSnapshot(game); assert(aeroPlaying.environmentMode === "aero" && !aeroPlaying.previewVisible && aeroPlaying.rendererBackground === "#071426" && await page.evaluate(() => globalThis.__cameraRequests === 1), `Aero selection must immediately restore opaque play without camera reacquire: ${JSON.stringify(aeroPlaying)}`);
 
+  await game.evaluate(() => { globalThis.__mobileState.delayNextPause = true; globalThis.__mobileState.audioPositionSeconds = .25; });
   await pushPose(game, 15000, true); await pushPose(game, 15250, true);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "paused_tracking");
   state = await stateSnapshot(game);
-  assert(state.audioState === "paused", "sustained in-play T-pose must enter pose-aware pause");
+  assert(state.audioState === "playing" && state.audioSyncPending && state.pauseResolverReady, `delayed tracking pause must remain truthfully pending: ${JSON.stringify(state)}`);
   const trackingVisual = await visualShellSnapshot(game);
   assert(trackingVisual.menu && trackingVisual.cue && trackingVisual.cueText === "Tracking lost" && trackingVisual.hudPresenters === 0 && trackingVisual.visibleOverlayCount === 2 && trackingVisual.previewVisible && trackingVisual.rendererBackground === "#00000000", `tracking recovery may expose only menu plus one minimal cue: ${JSON.stringify(trackingVisual)}`);
   for (let offset = 500; offset <= 4000; offset += 250) await pushPose(game, 15000 + offset, true);
   await releaseHold(game, 19250);
+  const pendingRecovery = await stateSnapshot(game);
+  assert(pendingRecovery.sessionState === "paused_tracking" && pendingRecovery.audioState === "playing" && pendingRecovery.countdownValue === null, `fresh recovery must not enter countdown before audio freezes: ${JSON.stringify(pendingRecovery)}`);
+  await game.evaluate(() => globalThis.__mobileState.resolvePause?.());
+  const recoveryCountdown = await captureOrderedCountdown(page, game);
+  assert(JSON.stringify(recoveryCountdown.values) === JSON.stringify([3,2,1]) && recoveryCountdown.dwells.every((value) => value >= 800), `tracking recovery must paint ordered full-dwell countdown: ${JSON.stringify(recoveryCountdown)}`);
   await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 6000);
+  state = await stateSnapshot(game);
+  assert(state.audioState === "playing" && state.audioSeekCalls >= 1 && state.audioPositionSeconds === 0, `recovery must seek frozen audio to the coordinator timeline before restart: ${JSON.stringify(state)}`);
 
   const beforeMenu = await stateSnapshot(game);
   await game.evaluate((element) => element.shadowRoot.querySelector("[data-action='menu-toggle']").click());
@@ -239,7 +248,22 @@ async function composedDrawerText(game) { return game.evaluate((element) => {
   walk(drawer); return [...new Set(result)];
 }); }
 async function shellSnapshot(game) { return game.evaluate((element) => { const root=element.shadowRoot,drawer=root.querySelector("[data-role='drawer']"),button=root.querySelector("[data-role='menu-button']"),video=root.querySelector("video"),canvas=root.querySelector("canvas"),gameRect=element.getBoundingClientRect(),videoRect=video.getBoundingClientRect(),canvasRect=canvas.getBoundingClientRect(),presenters=[...drawer.querySelectorAll("aero-prototype-selector,aero-beatsaver-browser,aero-content-import-progress,aero-content-library,aero-capabilities-panel,aero-error-panel,aero-fullscreen-button")],buttonRect=button.getBoundingClientRect(); return { menuOpen:element.getSnapshot().interaction.menuOpen,drawerVisible:!drawer.hidden,buttonWidth:buttonRect.width,buttonHeight:buttonRect.height,buttonTop:buttonRect.top-gameRect.top,presenterCount:presenters.length,compactCount:presenters.filter((item)=>item.hasAttribute("compact")).length,closedVisiblePresenterCount:presenters.filter((item)=>!drawer.hidden&&item.getClientRects().length>0).length,ariaExpanded:button.getAttribute("aria-expanded"),ariaControls:button.getAttribute("aria-controls"),drawerFocused:root.activeElement===drawer,buttonFocused:root.activeElement===button,activeRole:root.activeElement?.getAttribute?.("data-role")??root.activeElement?.tagName??null,videoStable:video===root.querySelector("video"),canvasStable:canvas===root.querySelector("canvas"),surfaceFill:Math.abs(videoRect.width-gameRect.width)<1&&Math.abs(videoRect.height-gameRect.height)<1&&Math.abs(canvasRect.width-gameRect.width)<1&&Math.abs(canvasRect.height-gameRect.height)<1}; }); }
-async function stateSnapshot(game) { return game.evaluate((element) => ({ sessionState:element.graph.gameplay.getSnapshot().session.state,menuOpen:element.getSnapshot().interaction.menuOpen,audioState:globalThis.__mobileState.audioState,audioPlayCalls:globalThis.__mobileState.audioPlayCalls,audioPauseCalls:globalThis.__mobileState.audioPauseCalls,cvStopCalls:globalThis.__mobileState.cvStopCalls,videoPauseCalls:globalThis.__mobileState.videoPauseCalls })); }
+async function stateSnapshot(game) { return game.evaluate((element) => ({ sessionState:element.graph.gameplay.getSnapshot().session.state,countdownValue:element.graph.gameplay.getSnapshot().countdown?.value??null,menuOpen:element.getSnapshot().interaction.menuOpen,audioState:globalThis.__mobileState.audioState,audioPositionSeconds:globalThis.__mobileState.audioPositionSeconds,audioPlayCalls:globalThis.__mobileState.audioPlayCalls,audioPauseCalls:globalThis.__mobileState.audioPauseCalls,audioSeekCalls:globalThis.__mobileState.audioSeekCalls,audioSyncPending:element.audioSyncPending,pauseResolverReady:typeof globalThis.__mobileState.resolvePause==="function",cvStopCalls:globalThis.__mobileState.cvStopCalls,videoPauseCalls:globalThis.__mobileState.videoPauseCalls })); }
+async function captureOrderedCountdown(page, game) {
+  const values=[]; const starts=[]; const proofs=[]; let firstVisual=null;
+  for (const expected of [3,2,1]) {
+    await waitFor(page, async () => Number(await game.evaluate((element) => element.graph.gameplay.getSnapshot().countdown?.value)) === expected, 4000);
+    const visual=await visualShellSnapshot(game); if(!firstVisual) firstVisual=visual;
+    const style=await game.evaluate((element) => { const cue=element.shadowRoot.querySelector("[data-role='transient-cue']"); const computed=getComputedStyle(cue); return { color:computed.color,textShadow:computed.textShadow,fontSize:computed.fontSize,statusCount:[...element.shadowRoot.querySelectorAll("[role='status']")].filter((item)=>!item.hidden&&item.getClientRects().length>0).length }; });
+    const screenshot=await game.locator("[data-role='transient-cue']").screenshot();
+    const pixelRange=await page.evaluate(async (base64) => { const blob=await (await fetch(`data:image/png;base64,${base64}`)).blob(); const bitmap=await createImageBitmap(blob); const canvas=document.createElement("canvas"); canvas.width=bitmap.width; canvas.height=bitmap.height; const context=canvas.getContext("2d"); context.drawImage(bitmap,0,0); const data=context.getImageData(0,0,canvas.width,canvas.height).data; let minimum=255,maximum=0; for(let index=0;index<data.length;index+=4){ if(data[index+3]===0) continue; const luminance=.2126*data[index]+.7152*data[index+1]+.0722*data[index+2]; minimum=Math.min(minimum,luminance); maximum=Math.max(maximum,luminance); } return maximum-minimum; }, screenshot.toString("base64"));
+    values.push(expected); starts.push(await game.evaluate(() => performance.now())); proofs.push({style,pixelRange});
+    await waitFor(page, async () => Number(await game.evaluate((element) => element.graph.gameplay.getSnapshot().countdown?.value)) !== expected, 2500);
+  }
+  await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 2500);
+  const end=await game.evaluate(() => performance.now()); const dwells=starts.map((value,index)=>Math.round((starts[index+1]??end)-value));
+  return {values,dwells,proofs,firstVisual};
+}
 async function pushPose(game, timestampMs, tPose) { await game.evaluate((element, payload) => { const base={nose:{x:.5,y:.3},left_shoulder:{x:.6,y:.4},right_shoulder:{x:.4,y:.4},left_elbow:{x:.7,y:.4},right_elbow:{x:.3,y:.4},left_wrist:payload.tPose?{x:.8,y:.4}:{x:.64,y:.62},right_wrist:payload.tPose?{x:.2,y:.4}:{x:.36,y:.62}}; globalThis.__mobileState.pose={sourceId:"mock-camera",timestampMs:payload.timestampMs,mirrored:true,landmarks:Object.entries(base).map(([name,value])=>({name,...value,confidence:.99}))}; }, { timestampMs, tPose }); await new Promise((resolve) => setTimeout(resolve, 80)); }
 async function tPoseHold(game, start) { for(let offset=0;offset<=4000;offset+=250) await pushPose(game,start+offset,true); }
 async function releaseHold(game, start) { for(let offset=0;offset<=4000;offset+=250) await pushPose(game,start+offset,false); }
