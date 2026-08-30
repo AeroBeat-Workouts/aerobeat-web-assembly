@@ -133,6 +133,17 @@ Own the visual source truth:
 - Add a deterministic `feedback.great` vector wordmark entry or equivalent approved semantic atlas asset.
 - Keep runtime assets monochrome/current-color; hand colors and white effects remain renderer state.
 - Validate exact manifest membership, normalized geometry, transparent background, and deterministic bytes.
+- Publish the canonical manifest and SVGs as package assets through a small bundler-safe metadata/URL module; branding still does not rasterize, color, or animate them.
+
+### Runtime asset delivery boundary
+
+Current production assembly never calls renderer `uploadIconAtlas()`, so adding semantic IDs alone would continue degrading to fallback shapes. The release must consume the canonical branding package rather than copy SVG source into renderer or assembly:
+
+1. `@aerobeat/branding` exports a bounded canonical gameplay manifest plus bundler-resolvable SVG asset URLs.
+2. Assembly imports that module and starts generation-bound atlas preparation during each connection.
+3. `@aerobeat/web-renderer` validates the manifest, fetches/rasterizes the currentColor SVGs child-locally, and owns only the resulting private alpha-mask atlas/GPU texture.
+4. Late atlas completion after disconnect/reconnect is discarded; atlas failure remains an explicit bounded fallback/error state and never exposes pixels publicly.
+5. Deterministic release proof verifies every canonical SVG is shipped once and no PNG design references enter the artifact.
 
 ### `aerobeat-web-contracts`
 
@@ -229,7 +240,7 @@ The renderer does not decide whether a real input was a hit. Gameplay does not o
 **Bead:** `aerobeat-branding-vxa`  
 **Owners:** assembly handoff + `aerobeat-branding`  
 **Work:** record physical pass/fail evidence; import SVG source masters; normalize directional/directionless/wordmark alpha-mask assets; update manifest and provenance.  
-**Acceptance:** deterministic branding validation; visual comparison against Derrick’s masters; no runtime PNG dependency.
+**Acceptance:** deterministic branding validation; visual comparison against Derrick’s masters; bundler-safe canonical manifest/SVG exports; no runtime PNG dependency.
 
 ### Task 2 — Freeze judgement-time and visual-test contracts
 
@@ -249,8 +260,8 @@ The renderer does not decide whether a real input was a hit. Gameplay does not o
 
 **Beads:** `aerobeat-web-ui-3od`, `aerobeat-web-assembly-vf5`  
 **Owners:** `aerobeat-web-ui`, `aerobeat-web-assembly`  
-**Work:** top Start/Test controls, compact copy, exact selected-package Test, menu pause, safe normal resume, immediate Test resume, generation-bound cross-song/mode restart, Preview stop coordination, real judgement projection, synthetic alternation.  
-**Acceptance:** direct and real cross-origin iframe behavior match; remote Preview unchanged; downloaded Preview unchanged; Start retains T-pose/countdown/cursors; Test requests zero camera and alternates visible GREAT/miss outcomes.
+**Work:** top Start/Test controls, compact copy, exact selected-package Test, menu pause, safe normal resume, immediate Test resume, generation-bound cross-song/mode restart, Preview stop coordination, real judgement projection, synthetic alternation, and generation-safe canonical branding atlas initialization.  
+**Acceptance:** direct and real cross-origin iframe behavior match; canonical SVGs load into the actual production renderer rather than fallback shapes; remote Preview unchanged; downloaded Preview unchanged; Start retains T-pose/countdown/cursors; Test requests zero camera and alternates visible GREAT/miss outcomes.
 
 ### Task 5 — Independent QA, audit, release, and physical handoff
 
