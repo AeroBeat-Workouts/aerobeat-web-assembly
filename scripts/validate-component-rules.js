@@ -30,7 +30,7 @@ for (const root of ["src", "test", "demo"]) {
   }
   for (const file of collectFiles(root)) {
     const source = readFileSync(file, "utf8");
-    const withoutAssemblyShellButtons = source.replace(/<button\b(?=[^>]*\bdata-action="(?:menu-toggle|menu-close|menu-backdrop|calibrate-start)")[^>]*>/gu, "").replace(/<input\b(?=[^>]*\bdata-action="environment-select")[^>]*>/gu, "");
+    const withoutAssemblyShellButtons = source.replace(/<button\b(?=[^>]*\bdata-action="(?:menu-toggle|menu-close|menu-backdrop)")[^>]*>/gu, "").replace(/<input\b(?=[^>]*\bdata-action="environment-select")[^>]*>/gu, "");
     if (/<(?:button|input|select|textarea)\b/u.test(withoutAssemblyShellButtons)) {
       failures.push(`${file}: visible controls must be named aero-* Web Components or approved assembly interaction-shell buttons`);
     }

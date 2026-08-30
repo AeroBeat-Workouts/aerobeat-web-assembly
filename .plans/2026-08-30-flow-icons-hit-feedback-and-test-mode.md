@@ -263,6 +263,8 @@ The renderer does not decide whether a real input was a hit. Gameplay does not o
 **Work:** top Start/Test controls, compact copy, exact selected-package Test, menu pause, safe normal resume, immediate Test resume, generation-bound cross-song/mode restart, Preview stop coordination, real judgement projection, synthetic alternation, and generation-safe canonical branding atlas initialization.  
 **Acceptance:** direct and real cross-origin iframe behavior match; canonical SVGs load into the actual production renderer rather than fallback shapes; remote Preview unchanged; downloaded Preview unchanged; Start retains T-pose/countdown/cursors; Test requests zero camera and alternates visible GREAT/miss outcomes.
 
+**Assembly coder status (2026-08-30):** implemented and locally validated. Canonical atlas WebGL pixels plus reconnect stale-upload suppression, real committed-timeline projection, unscored alternating Test projection, audio-only Test lifecycle, direct Test resume, exact cross-song Test→Play restart, resource-aware lease subsets, remote gating, and legacy/exact host routing are covered. Independent QA/audit and release remain Task 5 work; `aerobeat-web-assembly-vf5` intentionally stays open.
+
 ### Task 5 — Independent QA, audit, release, and physical handoff
 
 **Bead:** `aerobeat-web-assembly-9if`  

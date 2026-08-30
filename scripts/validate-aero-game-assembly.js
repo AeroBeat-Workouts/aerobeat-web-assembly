@@ -9,13 +9,14 @@ import { createLockedProductionCvService } from "../src/production-cv-service.js
 import { lockedProductionCvProfile } from "../src/production-cv-profile.js";
 
 const source = readFileSync("src/index.js", "utf8");
+const projectionSource = readFileSync("src/session-render-projection.js", "utf8");
 const html = readFileSync("index.html", "utf8");
 assert.match(html, /<aero-game>/u);
 assert.doesNotMatch(html + source, /<aerobeat-app\b|customElements\.define\(["']aerobeat-app/u);
 assert.doesNotMatch(source, /history\.|location\.(?:assign|replace)|100vh/u);
 assert.match(source, /connectedCallback\(\)/u);
 assert.match(source, /disconnectedCallback\(\)/u);
-assert.match(source, /beatSaberFlowDirections = Object\.freeze\(\["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"\]\)/u, "assembly must preserve all Beat Saber Flow directions for the renderer");
+assert.match(projectionSource, /FLOW_DIRECTIONS = Object\.freeze\(\["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"\]\)/u, "assembly must preserve all Beat Saber Flow directions for the renderer");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
   providerId: "gpu-webgl", minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
@@ -54,6 +55,10 @@ assert.equal(lease.snapshot().ownerInstanceId, null);
 assert.equal(calls.at(-1), "second:release");
 await lease.unregister(first); await lease.unregister(second);
 assert.equal(lease.getParticipantCount(), 0);
+
+const resourceLease = new AeroGameMediaLeaseCoordinator(); const resourceContexts = [];
+const resourceParticipant = { instanceId:"resource-owner", async pauseForLease(context){resourceContexts.push(["pause",...(context?.resources??[])]);}, async activateLease(context){resourceContexts.push(["activate",...(context?.resources??[])]);}, async releaseLease(context){resourceContexts.push(["release",...(context?.resources??[])]);} };
+resourceLease.register(resourceParticipant); await resourceLease.requestResources(resourceParticipant,["audio"]); assert.deepEqual(resourceLease.snapshot().resources,["audio"]); await resourceLease.requestResources(resourceParticipant,["camera","audio"]); assert.deepEqual(resourceLease.snapshot().resources,["camera","audio"]); assert.deepEqual(resourceContexts,[["activate","audio"],["pause","audio"],["activate","camera","audio"]]); await assert.rejects(()=>resourceLease.requestResources(resourceParticipant,["camera"]),/resources/u); await assert.rejects(()=>resourceLease.requestResources(resourceParticipant,["audio","audio"]),/resources/u); let resourceGetterCalls=0;const hostileResources=[];Object.defineProperty(hostileResources,"0",{enumerable:true,get(){resourceGetterCalls+=1;return"audio"}});hostileResources.length=1;await assert.rejects(()=>resourceLease.requestResources(resourceParticipant,hostileResources),/data properties/u);assert.equal(resourceGetterCalls,0); await resourceLease.release(resourceParticipant);
 
 const failureLease = new AeroGameMediaLeaseCoordinator();
 const broken = participant("broken", { pauseError: true }); const next = participant("next");

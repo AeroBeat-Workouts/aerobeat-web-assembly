@@ -1,12 +1,14 @@
 // @ts-check
 
 import "@aerobeat/web-style/aero-theme.css";
+import { webGameplayIconBundle } from "@aerobeat/branding/web-gameplay-assets";
 import {
   elementNames,
   isGameCommand,
   isSafeIframePayload
 } from "@aerobeat/web-contracts";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
+import { rasterizeBrandingIconAtlas } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
@@ -15,6 +17,7 @@ import { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./
 import { createLockedVideoFrameSource } from "./production-cv-service.js";
 import { createAeroDisplayLoop } from "./runtime-cadence.js";
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
+import { projectSessionTargets } from "./session-render-projection.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
@@ -23,6 +26,8 @@ export { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service
 const GAME_EVENT_NAME = "aero-game-event";
 const AERO_BACKGROUND_PROJECTION = Object.freeze({ kind: "linear-gradient", colors: Object.freeze(["#071426", "#153b5d"]), angleDeg: 180 });
 const CAMERA_BACKGROUND_PROJECTION = Object.freeze({ kind: "solid", colors: Object.freeze(["#00000000"]), angleDeg: 180 });
+const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "play" });
+const VISUAL_TEST_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "visual_test" });
 let instanceSequence = 0;
 
 defineAeroUiElements();
@@ -77,6 +82,11 @@ export class AeroGame extends HTMLElement {
     this.menuPauseArmed = false;
     this.menuStarting = false;
     this.sessionStartRequested = false;
+    this.sessionGeneration = 0;
+    this.pendingSessionAction = "";
+    this.activeSessionAction = "";
+    this.iconAtlasGeneration = 0;
+    this.iconAtlasAbort = null;
     this.environmentMode = "aero";
     this.cameraCompositeMode = null;
     this.musicPrerequisite = "";
@@ -105,13 +115,14 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = "";
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null;
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null;
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
     try {
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
       this.attachStableSurfaces();
+      this.beginIconAtlasInitialization();
       this.bindGraph();
       this.bindLease();
       this.bindHostLifecycle();
@@ -149,29 +160,57 @@ export class AeroGame extends HTMLElement {
     return this.getSnapshot();
   }
 
-  async start() {
+  async start() { return this.startSession("play", { requireDownloaded: false }); }
+
+  /** Start or restart one exact purpose from song time zero. @param {"play"|"visual_test"} purpose @param {{requireDownloaded?:boolean}} [options] */
+  async startSession(purpose, options = {}) {
     this.assertConnected();
+    if (purpose !== "play" && purpose !== "visual_test") throw new TypeError("Session purpose is invalid");
     this.stopPreview();
-    const generation = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant;
-    await aeroGameMediaLeaseCoordinator.request(participant);
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-    graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-    if (!graph.video.getRetainedCameraStream()) {
-      const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
-      if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-      if (result.status !== "granted") throw new Error(result.message);
+    const connectionGeneration = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant;
+    const sessionGeneration = ++this.sessionGeneration; const action = purpose === "visual_test" ? "test" : "start";
+    this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
+    try {
+      if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+      if (options.requireDownloaded === true && !this.downloadedPlayable()) throw new Error("Download Music first.");
+      const contentPlayable = playableContent(graph.content.getSnapshot());
+      this.stopFrameLoop();
+      await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+      graph.video.pause(this.videoElement());
+      if (typeof graph.audio.seek === "function") await graph.audio.seek(0);
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+      if (contentPlayable) this.configureGameplayFromContent(false);
+      this.restartIconAtlasIfPending();
+      const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
+      await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+      if (purpose === "play") {
+        if (!graph.video.getRetainedCameraStream()) {
+          const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
+          if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+          if (result.status !== "granted") throw new Error(result.message);
+        }
+        this.attachRetainedCamera();
+        await graph.video.play(this.videoElement());
+        if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+        await this.startCv();
+      } else {
+        graph.video.pause(this.videoElement());
+        this.activeCvSource = null;
+      }
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
+      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+      this.sessionStartRequested = true; this.activeSessionAction = action;
+      graph.gameplay.requestStart(performance.now(), purpose === "visual_test" ? VISUAL_TEST_START_REQUEST : PLAY_START_REQUEST);
+      this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback();
+      this.publish("session_changed");
+      return this.getSnapshot();
+    } finally {
+      if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) { this.pendingSessionAction = ""; this.menuStarting = false; this.renderPresenters(); }
     }
-    this.attachRetainedCamera();
-    await graph.video.play(this.videoElement());
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-    await this.startCv();
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-    graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-    this.sessionStartRequested = true;
-    try { graph.gameplay.requestStart(performance.now()); } catch { /* content/calibration may still be pending */ }
-    this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback();
-    this.publish("session_changed");
-    return this.getSnapshot();
   }
 
   async pause(reason = "manual") {
@@ -189,13 +228,16 @@ export class AeroGame extends HTMLElement {
   async resume() {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant;
-    await aeroGameMediaLeaseCoordinator.request(participant);
+    const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
+    await aeroGameMediaLeaseCoordinator.requestResources(participant, visualTest ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]));
     if (!this.isCurrent(generation, graph) || document.hidden) return this.getSnapshot();
     graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-    if (graph.video.getRetainedCameraStream()) { this.attachRetainedCamera(); await graph.video.play(this.videoElement()); }
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-    await this.startCv();
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+    if (!visualTest) {
+      if (graph.video.getRetainedCameraStream()) { this.attachRetainedCamera(); await graph.video.play(this.videoElement()); }
+      if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+      await this.startCv();
+      if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+    }
     try { graph.gameplay.resume(performance.now()); } catch { /* not configured */ }
     this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback(); this.publish("session_changed");
     return this.getSnapshot();
@@ -204,7 +246,7 @@ export class AeroGame extends HTMLElement {
   async stop() {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant;
-    this.sessionStartRequested = false;
+    this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = ""; this.sessionGeneration += 1;
     this.stopFrameLoop();
     await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
@@ -401,7 +443,7 @@ export class AeroGame extends HTMLElement {
     const payload = command.payload ?? {};
     switch (command.type) {
       case "configure": return this.configure(payload);
-      case "start": return this.start();
+      case "start": return command.payload === null ? this.start() : this.startSession(dataValue(payload, "purpose") === "visual_test" ? "visual_test" : "play", { requireDownloaded: dataValue(payload, "purpose") === "visual_test" });
       case "pause": return this.pause("host_command");
       case "resume": return this.resume();
       case "stop": return this.stop();
@@ -448,6 +490,33 @@ export class AeroGame extends HTMLElement {
     video.muted = true; video.playsInline = true;
   }
 
+  beginIconAtlasInitialization() {
+    const graph = this.graph; if (!graph || typeof graph.renderer.uploadIconAtlas !== "function") return;
+    this.iconAtlasAbort?.abort();
+    const abort = new AbortController(); this.iconAtlasAbort = abort;
+    const atlasGeneration = ++this.iconAtlasGeneration; const connectionGeneration = this.connectedGeneration;
+    const onConnectionAbort = () => abort.abort(); this.activeAbort.signal.addEventListener("abort", onConnectionAbort, { once: true });
+    void rasterizeBrandingIconAtlas(webGameplayIconBundle.manifest, {
+      signal: abort.signal,
+      resolveUrl: (asset) => {
+        const url = webGameplayIconBundle.iconUrls[asset.id];
+        if (typeof url !== "string" || url.length > 4096) throw new Error("Canonical gameplay icon URL is unavailable");
+        return url;
+      }
+    }).then((atlas) => {
+      if (!this.isCurrent(connectionGeneration, graph) || atlasGeneration !== this.iconAtlasGeneration || abort.signal.aborted) return;
+      graph.renderer.uploadIconAtlas(atlas); this.renderRuntimePresentation();
+    }).catch((error) => {
+      if (abort.signal.aborted || !this.isCurrent(connectionGeneration, graph) || atlasGeneration !== this.iconAtlasGeneration) return;
+      graph.renderer.uploadIconAtlas(null); this.renderRuntimePresentation();
+    }).finally(() => { this.activeAbort.signal.removeEventListener("abort", onConnectionAbort); if (this.iconAtlasAbort === abort) this.iconAtlasAbort = null; });
+  }
+
+  restartIconAtlasIfPending() {
+    if (!this.graph || this.graph.renderer.describe().iconAtlasReady === true) return;
+    this.beginIconAtlasInitialization();
+  }
+
   bindGraph() {
     if (typeof this.graph.input.subscribe === "function") this.unsubscribe.push(this.graph.input.subscribe(() => { this.renderRuntimePresentation(); this.emitGameEvent("calibration_changed", { snapshot: this.snapshotForType("calibration_changed") }); }));
     for (const [service, type] of [[this.graph.content, "content_changed"], [this.graph.authoring, "import_changed"]]) {
@@ -461,7 +530,7 @@ export class AeroGame extends HTMLElement {
     const participant = {
       instanceId: this.instanceId,
       pauseForLease: async () => { if (!this.isCurrent(generation, graph)) return; this.stopFrameLoop(); await Promise.allSettled([graph.audio.pauseForLease(), graph.cv.stop()]); if (!this.isCurrent(generation, graph)) return; graph.video.pauseForLease(); graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot()); try { graph.gameplay.pause(performance.now(), "media_lease_transferred"); this.synchronizePausedClock(graph); } catch { /* not configured */ } this.syncContentPlayback(); },
-      activateLease: async () => { if (!this.isCurrent(generation, graph)) return; graph.video.activateLease(); await graph.audio.activateLease(); },
+      activateLease: async (context) => { if (!this.isCurrent(generation, graph)) return; if (context?.resources.includes("camera")) graph.video.activateLease(); else graph.video.releaseLease({ releaseStream: false }); await graph.audio.activateLease(); },
       releaseLease: async () => { graph.video.releaseLease({ releaseStream: false }); await graph.audio.releaseLease(); }
     };
     this.leaseParticipant = participant;
@@ -552,6 +621,7 @@ export class AeroGame extends HTMLElement {
   cameraPreviewForced() {
     if (!this.graph || !this.sessionStartRequested || this.menuOpen) return false;
     const gameplay = this.graph.gameplay.getSnapshot(); const state = gameplay.session.state;
+    if (gameplay.session.purpose === "visual_test") return false;
     return (state === "calibrating" && !gameplay.safety.ready) || state === "paused_tracking" || gameplay.safety.freshCalibrationRequired === true;
   }
 
@@ -647,7 +717,7 @@ export class AeroGame extends HTMLElement {
     this.lastCameraIdentity = identity; this.graph.input.resetCalibration("media_source_changed");
   }
 
-  async startCv() { if (this.activeCvSource && !document.hidden) await this.graph.cv.start(this.activeCvSource); }
+  async startCv() { if (this.graph?.gameplay.getSnapshot().session.purpose !== "visual_test" && this.activeCvSource && !document.hidden) await this.graph.cv.start(this.activeCvSource); }
 
   startFrameLoop() {
     this.stopFrameLoop();
@@ -661,21 +731,24 @@ export class AeroGame extends HTMLElement {
     if (!graph) return;
     try {
       const frameNow = performance.now();
-      const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface);
-      const frame = graph.cv.getLatestPoseFrame();
-      if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
-        this.latestPoseTimestampMs = frame.timestampMs; this.lastFreshPoseAtMs = frameNow; this.lastInputAdvanceAtMs = frameNow; this.freshPoseConsumptionCount += 1;
-        if (!this.menuOpen) graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity });
-      } else if (!this.menuOpen && frameNow - this.lastFreshPoseAtMs >= 100 && frameNow - this.lastInputAdvanceAtMs >= 1000 / 15) {
-        this.lastInputAdvanceAtMs = frameNow; this.inputAdvanceCount += 1; graph.input.advanceTime(frameNow);
+      const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
+      if (!visualTest) {
+        const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface);
+        const frame = graph.cv.getLatestPoseFrame();
+        if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
+          this.latestPoseTimestampMs = frame.timestampMs; this.lastFreshPoseAtMs = frameNow; this.lastInputAdvanceAtMs = frameNow; this.freshPoseConsumptionCount += 1;
+          if (!this.menuOpen) graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity });
+        } else if (!this.menuOpen && frameNow - this.lastFreshPoseAtMs >= 100 && frameNow - this.lastInputAdvanceAtMs >= 1000 / 15) {
+          this.lastInputAdvanceAtMs = frameNow; this.inputAdvanceCount += 1; graph.input.advanceTime(frameNow);
+        }
       }
       try {
         const beforeAdvance = graph.gameplay.getSnapshot().session; const audioClock = graph.audio.getClockSnapshot();
         const awaitingAudioStart = beforeAdvance.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing";
         const awaitingAudioFreeze = ["calibrating", "paused_tracking", "countdown"].includes(beforeAdvance.state) && (this.audioSyncPending || !audioClockAlignedWithGameplay(beforeAdvance, audioClock));
         if (!awaitingAudioStart && !awaitingAudioFreeze) {
-          graph.gameplay.advance({ timestampMs: frameNow, clock: audioClock, input: graph.input.getSnapshot(), lease: this.leaseSnapshotForGameplay() });
-          if (this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
+          graph.gameplay.advance({ timestampMs: frameNow, clock: audioClock, ...(visualTest ? {} : { input: graph.input.getSnapshot() }), lease: this.leaseSnapshotForGameplay() });
+          if (!visualTest && this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(frameNow);
         }
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
@@ -702,9 +775,11 @@ export class AeroGame extends HTMLElement {
       try { graph.gameplay.pause(Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), "document_hidden"); this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
     } else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
       graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-      if (graph.video.getRetainedCameraStream()) { this.attachRetainedCamera(); await graph.video.play(this.videoElement()); }
+      const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
+      if (!visualTest && graph.video.getRetainedCameraStream()) { this.attachRetainedCamera(); await graph.video.play(this.videoElement()); }
       if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
-      await this.startCv(); if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
+      if (!visualTest) await this.startCv();
+      if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
       try { graph.gameplay.resume(performance.now()); } catch { /* content or calibration may still be pending */ }
       this.startFrameLoop(); this.syncAudioForGameplay();
     }
@@ -725,7 +800,8 @@ export class AeroGame extends HTMLElement {
     const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0);
     const ruleset = String(selected?.rulesetId ?? "");
     const presentation = selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid";
-    const targets = (content.resolvedEvents ?? []).filter((event) => event.centerTimestampMs >= nowMs - 500 && event.centerTimestampMs <= nowMs + 2500).slice(0, 128).map(renderTarget);
+    const events = Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
+    const targets = projectSessionTargets(events, gameplay, nowMs);
     return { presentation, nowMs, targets, countdown: null, overlay: "none", calibrationDim: 0 };
   }
 
@@ -757,7 +833,8 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-beatsaver-browser", { ...this.beatSaverView, preview: this.previewView });
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
     setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
-    this.presenterCommitCount += 10;
+    setPresenter(this, "aero-session-actions", this.sessionActionsSnapshot());
+    this.presenterCommitCount += 11;
     this.runtimeUiSignature = ""; this.renderRuntimePresentation();
   }
 
@@ -789,8 +866,7 @@ export class AeroGame extends HTMLElement {
     if (drawer) { drawer.hidden = !this.menuOpen; drawer.setAttribute("aria-hidden", this.menuOpen ? "false" : "true"); }
     if (backdrop instanceof HTMLElement) backdrop.hidden = !this.menuOpen;
     for (const presenter of this.shadowRoot?.querySelectorAll("[data-role='drawer'] aero-prototype-selector,[data-role='drawer'] aero-beatsaver-browser,[data-role='drawer'] aero-content-import-progress,[data-role='drawer'] aero-content-library,[data-role='drawer'] aero-capabilities-panel,[data-role='drawer'] aero-error-panel,[data-role='drawer'] aero-fullscreen-button") ?? []) presenter.toggleAttribute("compact", this.menuOpen);
-    const start = this.shadowRoot?.querySelector("[data-action='calibrate-start']");
-    if (start instanceof HTMLButtonElement) { start.disabled = this.menuStarting; start.textContent = this.menuStarting ? "Preparing…" : "Calibrate / Start"; }
+    setPresenter(this, "aero-session-actions", this.sessionActionsSnapshot());
   }
 
   selectBrowsedMap(mapId) {
@@ -846,7 +922,7 @@ export class AeroGame extends HTMLElement {
     const selection = this.librarySelectionTail.catch(() => null).then(() => this.selectLibraryPackage(target, selectionGeneration));
     this.librarySelectionTail = selection;
     this.pendingLibrarySelection = selection;
-    selection.catch((error) => { if (selectionGeneration === this.librarySelectionGeneration) this.handleError(error); }).finally(() => { if (this.pendingLibrarySelection === selection) this.pendingLibrarySelection = null; });
+    selection.catch((error) => { if (selectionGeneration === this.librarySelectionGeneration) this.handleError(error); }).finally(() => { if (this.pendingLibrarySelection === selection) { this.pendingLibrarySelection = null; this.renderPresenters(); } });
     return selection;
   }
 
@@ -996,7 +1072,6 @@ export class AeroGame extends HTMLElement {
     const action = path.find((entry) => entry instanceof HTMLElement && entry.dataset?.action)?.dataset?.action;
     if (action === "menu-toggle") this.setMenuOpen(!this.menuOpen);
     else if (action === "menu-close" || action === "menu-backdrop") this.setMenuOpen(false);
-    else if (action === "calibrate-start") await this.startFromMenu();
     else if (action === "environment-select") { const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select"); if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value); }
   }
 
@@ -1014,17 +1089,19 @@ export class AeroGame extends HTMLElement {
 
   setMenuOpen(open) {
     if (!this.graph || this.menuOpen === open) return;
+    const graph = this.graph; const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
     if (open) {
       this.menuFocusRestore = this.menuButtonElement();
       this.menuOpen = true; this.menuPauseArmed = true;
-      const now = Math.max(performance.now(), Number(this.graph.gameplay.getSnapshot().session.timestampMs ?? 0));
-      this.graph.input.resetCalibration("menu_open");
-      try { this.graph.gameplay.pause(now, "configuration_menu"); this.synchronizePausedClock(this.graph); } catch { /* unconfigured */ }
-      void this.graph.audio.pause().catch((error) => this.handleError(error));
+      const now = Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0));
+      if (!visualTest) graph.input.resetCalibration("menu_open");
+      try { graph.gameplay.pause(now, "configuration_menu"); this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
+      void Promise.allSettled([graph.audio.pause(), graph.cv.stop()]).then(() => { if (this.graph !== graph) return; try { this.synchronizePausedClock(graph); } catch { /* unconfigured */ } });
     } else {
       this.stopPreview();
       this.menuOpen = false; this.menuPauseArmed = true;
-      this.graph.input.resetCalibration("menu_closed_recalibration_required");
+      if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph); }
+      else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)); }
     }
     this.renderPresenters(); this.publish("session_changed");
     queueMicrotask(() => requestAnimationFrame(() => {
@@ -1034,32 +1111,32 @@ export class AeroGame extends HTMLElement {
     }));
   }
 
-  async startFromMenu() {
+  async resumeVisualTestFromMenu(graph) {
+    const generation = this.connectedGeneration;
+    try {
+      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+      graph.gameplay.resume(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)));
+      if (!this.isCurrent(generation, graph) || this.menuOpen) return;
+      this.startFrameLoop(); this.syncAudioForGameplay(); this.syncContentPlayback(); this.publish("session_changed");
+    } catch (error) { if (this.isCurrent(generation, graph)) this.handleError(error); }
+  }
+
+  async startFromMenu(purpose) {
     if (!this.graph || this.menuStarting) return;
-    this.stopPreview();
-    const generation = this.connectedGeneration; const graph = this.graph;
-    this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
+    const graph = this.graph; const generation = this.connectedGeneration;
     try {
       if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
-      let playable = await this.ensurePlayableMusicSelection();
-      if (!playable && this.beatSaverView.selectedMap) {
-        const mapId = this.beatSaverView.selectedMap.mapId; const versionHash = this.beatSaverView.selectedVersionHash; const difficulty = this.beatSaverView.selectedDifficulty;
-        if (!versionHash || !difficulty) throw new Error("Choose a playable song version and difficulty");
-        await this.importBeatSaverById(mapId, versionHash, { difficulty, sourceId: mapId });
-        if (!this.isCurrent(generation, graph)) return;
-        playable = await this.ensurePlayableMusicSelection();
-      }
-      if (!playable) {
-        this.musicPrerequisite = "Choose or import a song to start.";
+      if (!this.isCurrent(generation, graph)) return;
+      if (!this.downloadedPlayable()) {
+        this.musicPrerequisite = "Download Music first.";
         this.menuOpen = true; this.renderPresenters(); this.focusMusicSection();
         return;
       }
-      await this.start();
+      await this.startSession(purpose, { requireDownloaded: true });
       if (!this.isCurrent(generation, graph)) return;
       this.menuPauseArmed = true;
       this.setMenuOpen(false);
     } catch (error) { if (this.isCurrent(generation, graph)) { this.handleError(error); this.menuOpen = true; this.renderPresenters(); } }
-    finally { this.menuStarting = false; if (this.isCurrent(generation, graph)) this.renderPresenters(); }
   }
 
   async ensurePlayableMusicSelection() {
@@ -1075,6 +1152,16 @@ export class AeroGame extends HTMLElement {
     return false;
   }
 
+  downloadedPlayable() {
+    if (!this.graph || this.pendingLibrarySelection) return false;
+    const packageId = this.libraryView.selectedPackageId;
+    const target = librarySelectionTarget(this.libraryView.collections, this.libraryView.selectedCollectionId, packageId);
+    return Boolean(target && packageId && this.graph.content.getSnapshot().packageId === packageId && playableContent(this.graph.content.getSnapshot()));
+  }
+
+  sessionActionsSnapshot() { return Object.freeze({ downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction }); }
+  isSessionCurrent(sessionGeneration, connectionGeneration, graph) { return this.sessionGeneration === sessionGeneration && this.isCurrent(connectionGeneration, graph); }
+
   focusMusicSection() {
     queueMicrotask(() => requestAnimationFrame(() => {
       const section = this.shadowRoot?.querySelector("[data-section='music']");
@@ -1088,7 +1175,9 @@ export class AeroGame extends HTMLElement {
   handleUiIntent(event) {
     const detail = event instanceof CustomEvent ? event.detail : null;
     if (!detail || typeof detail.type !== "string") return;
-    if (detail.type === "fullscreen-request") void this.enterFullscreen().catch((error) => this.handleError(error));
+    if (detail.type === "session-start") void this.startFromMenu("play");
+    else if (detail.type === "session-test") void this.startFromMenu("visual_test");
+    else if (detail.type === "fullscreen-request") void this.enterFullscreen().catch((error) => this.handleError(error));
     else if (detail.type === "fullscreen-exit") void this.exitFullscreen().catch((error) => this.handleError(error));
     else if (detail.type === "beatsaver-search") void this.browseBeatSaver({ text: dataValue(detail.payload, "query") ?? "" }).catch((error) => this.handleError(error));
     else if (detail.type === "beatsaver-latest") void this.browseLatestBeatSaver().catch((error) => this.handleError(error));
@@ -1174,7 +1263,7 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.localZipInput().removeEventListener("change", this.boundLocalZip);
@@ -1205,9 +1294,9 @@ defineAeroGame();
 
 function template() { return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
-*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button,.start-action{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
+*,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.start-action{display:block}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
 .drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);background:#03131f;border:1px solid rgba(255,255,255,.34);border-radius:12px;color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;padding:8px 10px;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><button data-action="calibrate-start" class="start-action" type="button">Calibrate / Start</button><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }
@@ -1232,7 +1321,7 @@ function previewMimeType(path) { const extension = String(path).split(".").at(-1
 function playableContent(content) { return content?.state === "ready" && typeof content.packageId === "string" && content.packageId.length > 0 && typeof content.selectedVariant?.variantId === "string" && content.selectedVariant.variantId.length > 0; }
 function runtimeStatus(content, session, input) {
   if (!playableContent(content)) return "Choose a song in Music.";
-  if (session.state === "playing") return "Workout in progress.";
+  if (session.state === "playing") return session.purpose === "visual_test" ? "Visual Test in progress." : "Workout in progress.";
   if (session.state === "countdown") return "Get ready.";
   if (session.state === "paused_tracking") return "Recalibrate to continue.";
   if (input.calibration?.state === "holding") return "Hold the T-pose.";
@@ -1240,7 +1329,7 @@ function runtimeStatus(content, session, input) {
   return "Ready to calibrate.";
 }
 function transientCue(menuOpen, sessionStartRequested, session, gameplay, input) {
-  if (menuOpen || !sessionStartRequested) return "";
+  if (menuOpen || !sessionStartRequested || session.purpose === "visual_test") return "";
   if (session.state === "paused_tracking") return "Tracking lost";
   if (Number.isFinite(gameplay.countdown?.value)) return String(gameplay.countdown.value);
   if (input.calibration?.state === "cooldown") return "Release";
@@ -1291,7 +1380,7 @@ function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && g
 function audioClockAlignedWithGameplay(session, clock) { return clock?.playing === false && Number(clock.positionSeconds) * 1000 === Number(session?.timelinePositionMs ?? 0); }
 function cssPixels(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? parsed : 0; }
 function gameplayCursorRecords(menuOpen, session, input) {
-  if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
+  if (menuOpen || session?.purpose === "visual_test" || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
   const tracking = input?.tracking;
   if (!tracking || tracking.gameplayPaused === true || tracking.freshCalibrationRequired === true || tracking.allRequiredAnchorsVisible !== true || input?.retainedGeometryDimmed === true || input?.countdownFrozen === true) return Object.freeze([]);
   const roles = ["nose", "left_wrist", "right_wrist"];
@@ -1302,21 +1391,11 @@ function gameplayCursorRecords(menuOpen, session, input) {
     return [Object.freeze({ role, x: anchor.x, y: anchor.y, confidence: anchor.confidence })];
   }));
 }
-function renderTarget(event) {
-  const beat = event.authoredBeat ?? {}; const type = String(beat.type ?? "note");
-  if (type === "note") return { id: event.eventId, kind: "flow", hand: beat.hand === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(beat.placement) ? beat.placement : null, cells: [], lane: null, beatCenterMs: event.centerTimestampMs, direction: flowDirection(beat.direction) };
-  if (type === "guard") { const crossed = beat.modifier === "crossed_guard"; return { id: event.eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: [beat.guardTarget?.leftCell, beat.guardTarget?.rightCell].filter(Number.isInteger), lane: null, beatCenterMs: event.centerTimestampMs }; }
-  if (type === "squat" || type.startsWith("weave")) return { id: event.eventId, kind: "obstacle", hand: "neutral", family: type === "squat" ? "squat" : "weave", cell: null, cells: Array.isArray(beat.blockedCells) ? beat.blockedCells : [], lane: null, beatCenterMs: event.centerTimestampMs };
-  const hand = type.endsWith("right") ? "right" : "left"; const family = type.startsWith("hook") ? "hook" : type.startsWith("uppercut") ? "uppercut" : "straight";
-  return { id: event.eventId, kind: "punch", hand, family, cell: Number.isInteger(beat.spatialTarget?.targetCell) ? beat.spatialTarget.targetCell : null, cells: [], lane: hand, beatCenterMs: event.centerTimestampMs, direction: beat.spatialTarget?.entryDirection ?? null };
-}
-const beatSaberFlowDirections = Object.freeze(["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"]);
-function flowDirection(value) { if (Number.isInteger(value) && Number(value) >= 0 && Number(value) < beatSaberFlowDirections.length) return beatSaberFlowDirections[Number(value)] ?? null; return typeof value === "string" && beatSaberFlowDirections.includes(value) ? value : null; }
 function profileSessionState(gameplay) { const countdown = dataValue(gameplay, "countdown"); const session = dataValue(gameplay, "session"); if (dataValue(countdown, "value") !== null && dataValue(countdown, "value") !== undefined) return "countdown"; return typeof dataValue(session, "state") === "string" ? dataValue(session, "state") : "idle"; }
 function profilePresentationId(variant) { if (dataValue(variant, "mode") === "flow") return "flow"; const semantic = String(dataValue(variant, "rulesetId") ?? "").includes("semantic"); const row = String(dataValue(variant, "recipeId") ?? "").includes("row_family"); return `${semantic ? "semantic" : "spatial"}-${row ? "row" : "cut"}`; }
 function tuningIdentity(profile, regenerationRequired) { return Object.freeze({ schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: profile.profileId, profileVersion: profile.profileVersion, contentHash: profile.contentHash, class: profile.class, regenerationRequired }); }
 function profileTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, generation: snapshot.generation, destroyed: snapshot.destroyed, bundleVersion: snapshot.bundleVersion, profileCount: snapshot.profiles.length, active: Object.freeze({ visual: snapshot.active.visual.identity, scoring: snapshot.active.scoring.identity, converter: snapshot.active.converter.identity }), appliedConverterHash: snapshot.appliedConverterHash, pendingConverterHash: snapshot.pendingConverterHash, regenerationRequired: snapshot.regenerationRequired, experimental: true }); }
-function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
+function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), iconAtlasReady: dataValue(snapshot, "iconAtlasReady") === true, iconAtlasError: boundedString(dataValue(snapshot, "iconAtlasError"), "") || null, tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
 function profilePresenterSnapshot(snapshot, selectedVariant, sessionState) {
   const classes = ["live_visual", "between_run_ruleset", "converter_regeneration"].map((profileClass) => {
     const key = profileClass === "live_visual" ? "visual" : profileClass === "between_run_ruleset" ? "scoring" : "converter";
