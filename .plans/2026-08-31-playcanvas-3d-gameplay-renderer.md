@@ -69,7 +69,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 1 — PlayCanvas renderer replacement
 
 **Bead:** `aerobeat-web-renderer-jzd`
-**Status:** Correction QA PASS at `ba9a8b9`; independent audit active
+**Status:** Pointer-lock telemetry defect repaired at `8730e8e`; correction re-QA/audit pending
 
 ### Work
 
@@ -88,12 +88,12 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 
 **Research result (2026-08-31):** the existing authoritative frame record and per-instance canvas lifecycle are the correct migration seam. The new public identity is `AeroPlayCanvasRenderer` / `createAeroPlayCanvasRenderer` / `aero.renderer.playcanvas`; `buildGameplaySceneModel` replaces the 2.5D draw plan with screenshot-free world-space truth. PlayCanvas must not start a second RAF, acquire a second context, own song time, or hardware-instance depth-sorted translucent volumes. The implementation must explicitly preserve transparent camera composition, synchronous façade destruction, recreatable assets/context recovery, exact DPR sizing, and bounded target pooling. Research also found a direct renderer consumer in the UI media-pose preview, requiring the following linked migration rather than a compatibility alias.
 
-**Implementation result (2026-08-31):** renderer commits `a9c5bb0` and first-call presentation correction `eb1ea93` are pushed clean/upstream. PlayCanvas 2.21.4 now owns all three world presentations; the legacy gameplay plan/export/service identity is deleted. Unit and Chromium gates pass with two isolated applications, zero engine RAF, first-call plus portrait/landscape DPR1/3 displayed alpha pixels, timing floor, duration volumes, overlays, Test camera cleanup, context recovery, reconnect/destroy, and zero console noise. Two final dry-pack JSON runs were byte-identical; exact metadata is recorded only in Bead `aerobeat-web-renderer-jzd`. Independent QA then found that Spatial Grid floor/state cells and multi-row Flow obstacle volumes discarded authoritative row Y, collapsing 12 cells to four X positions. Discovered P0 Bead `aerobeat-web-renderer-3vk` owns the repair. Commit `ba9a8b9` restores all 12 X/Y positions, state rows, and row-distinct duration volumes with unit and displayed Chromium proof. Independent correction QA passed the focused geometry and complete renderer matrix; audit remains required.
+**Implementation result (2026-08-31):** renderer commits `a9c5bb0` and first-call presentation correction `eb1ea93` are pushed clean/upstream. PlayCanvas 2.21.4 now owns all three world presentations; the legacy gameplay plan/export/service identity is deleted. Unit and Chromium gates pass with two isolated applications, zero engine RAF, first-call plus portrait/landscape DPR1/3 displayed alpha pixels, timing floor, duration volumes, overlays, Test camera cleanup, context recovery, reconnect/destroy, and zero console noise. Two final dry-pack JSON runs were byte-identical; exact metadata is recorded only in Bead `aerobeat-web-renderer-jzd`. Independent QA then found that Spatial Grid floor/state cells and multi-row Flow obstacle volumes discarded authoritative row Y, collapsing 12 cells to four X positions. Discovered P0 Bead `aerobeat-web-renderer-3vk` owns the repair. Commit `ba9a8b9` restores all 12 X/Y positions, state rows, and row-distinct duration volumes with unit and displayed Chromium proof. Independent correction QA passed the focused geometry and complete renderer matrix. Subsequent UI QA discovered detached pointer-lock telemetry evaluated `null === null`; discovered P0 Bead `aerobeat-web-renderer-9j5` was repaired at `8730e8e` with real RMB lock and disabled/detached/destroyed false-state browser proof. Correction re-QA and audit remain required.
 
 ## Task 1.5 — UI media-preview migration
 
 **Bead:** `aerobeat-web-ui-58j`
-**Status:** Coder complete at `8300726`; pending independent QA/audit
+**Status:** Dependency QA defect repaired; UI regression commit `3bf327f`; correction QA/audit pending
 
 ### Work
 
@@ -107,7 +107,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 - Media-preview pose pixels and lifecycle remain truthful in direct/iframe assembly tests.
 - UI repo is independently QA/audited, committed, pushed, and clean/upstream.
 
-**Implementation result (2026-08-31):** UI commit `8300726` is pushed clean/upstream. The stable media preview now owns `createAeroPlayCanvasRenderer`, retains caller-owned normalized landmark rendering and exact DPR sizing, and rejects every old renderer identity. Direct Chromium DPR2 evidence covers displayed partial-alpha landmarks, seven semantic points, stable canvas/facade reconnect, detach/reattach truth, and zero renderer RAF. UI unit/browser checks and two deterministic dry-pack runs pass; exact pack metadata is external in Bead `aerobeat-web-ui-58j`. Independent QA/audit remain required.
+**Implementation result (2026-08-31):** UI commit `8300726` is pushed clean/upstream. The stable media preview now owns `createAeroPlayCanvasRenderer`, retains caller-owned normalized landmark rendering and exact DPR sizing, and rejects every old renderer identity. Direct Chromium DPR2 evidence covers displayed partial-alpha landmarks, seven semantic points, stable canvas/facade reconnect, detach/reattach truth, and zero renderer RAF. UI unit/browser checks and two deterministic dry-pack runs pass; exact pack metadata is external in Bead `aerobeat-web-ui-58j`. Independent QA found only the renderer pointer-lock telemetry dependency defect; renderer commit `8730e8e` fixes it and UI commit `3bf327f` adds detached/reconnected false-state regression assertions. Linked local gates pass; correction QA/audit remain required.
 
 ## Task 2 — Assembly, DOM, and gameplay integration
 
