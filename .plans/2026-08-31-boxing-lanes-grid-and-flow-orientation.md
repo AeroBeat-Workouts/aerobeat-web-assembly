@@ -197,7 +197,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 3 — Integrate mode×conversion selection and lane truth
 
-**Status:** Core implementation `82570f7` pushed; owner validation passed, awaiting independent QA/audit and online `3C9D` persistence proof.
+**Status:** Complete and independently audited at implementation `82570f7` / evidence baseline `3d660f8`; `aerobeat-web-assembly-hc4.1` closed.
 
 **Bead:** `aerobeat-web-assembly-hc4.1`
 **Prerequisites:** audited Tasks 0–2
@@ -231,7 +231,9 @@ The band cannot be independently resized without lying about gameplay timing. In
 - Projection tests lock punch/weave lane direction, neutral guard/squat duplication, exact Grid blocked cells, and the unchanged `350 ms` feedback lifetime.
 - Browser coverage locks the mode×conversion matrix, `selectedProfileId`, scalar accessor/object rejection, stale list/export/delete preservation, one bounded `flow_orientation_reimport_required` refresh with no auto-select loop, and corrected reimport selection.
 - Owner gates passed: `npm run check`, `npm test`, focused standard-library browser integration, full `npm run test:browser` across direct/iframe portrait/landscape DPR1/3, and `npm pack --dry-run` (82 files, 301.4 kB packed, 1.1 MB unpacked).
-- Remaining live-only evidence: actual online BeatSaver `3C9D` / `5662f64a12c76a3dd11a5f6ee22611608cd06760` Standard Easy download, IndexedDB persistence, and selected Flow cell comparison remains for QA/release follow-up; no automated claim substitutes for it.
+- Independent QA passed at exact clean/upstream `3d660f8`: full `npm run test:browser`, a five-variant direct/same-origin iframe Cartesian matrix at portrait/landscape DPR1/3, stale-package preservation/no-retry recovery, and two byte-identical dry-pack manifests (`2740f076b27967669e19aa612b98a7e1677d8ff7b0a0de6364f59ee4102004c3`; 82 files; 301391 packed bytes; 1072089 unpacked bytes).
+- QA's actual online assembly path downloaded BeatSaver `3C9D` exact hash `5662f64a12c76a3dd11a5f6ee22611608cd06760`, authored/persisted all five Standard Easy variants, explicitly selected Flow, proved beat `21` source `(x=3,y=0)` → persisted cell `11` and first twelve placements `[11,8,10,9,11,8,11,8,10,9,11,8]`, then deleted its ephemeral collection without committing archive/audio bytes.
+- Final independent audit reran `npm run check`, the focused selection/projection tests, the stale-library browser test, two dry packs, and a fresh live assembly/IndexedDB reproduction of the exact `3C9D` hash/placements. Source review confirmed own scalar intent privacy, exact variant resolution and conversion retention, semantic-lane versus spatial-grid routing, contract-owned timing windows, exact `350 ms` projection feedback, no legacy gameplay selector path, non-destructive stale behavior, compatibility coverage, and no Boxing winner language. Existing `dev:tailscale` PID `2972964` remained running and returned HTTP 200.
 
 ## Task 4 — Integrated QA, deterministic release, and physical handoff
 
