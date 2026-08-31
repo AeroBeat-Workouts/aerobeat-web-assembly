@@ -197,7 +197,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 3 — Integrate mode×conversion selection and lane truth
 
-**Status:** Core implementation complete; owner validation passed, awaiting independent QA/audit and online `3C9D` persistence proof.
+**Status:** Core implementation `82570f7` pushed; owner validation passed, awaiting independent QA/audit and online `3C9D` persistence proof.
 
 **Bead:** `aerobeat-web-assembly-hc4.1`
 **Prerequisites:** audited Tasks 0–2
