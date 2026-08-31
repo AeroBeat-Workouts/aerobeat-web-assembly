@@ -288,7 +288,7 @@ Remaining uncertainty: none affecting the corrective action
 
 ## Task 4 — Deterministic release and physical handoff
 
-**Status:** Owner release implementation/evidence complete; independent QA and final audit pending
+**Status:** Owner implementation and independent QA complete; final external audit pending (no post-audit packed-file edits)
 **QA/release Bead:** `aerobeat-web-assembly-5gf.3`
 **Final audit Bead:** `aerobeat-web-assembly-5gf.4`
 **Owner:** assembly release coder → independent QA → final auditor
@@ -309,7 +309,11 @@ Remaining uncertainty: none affecting the corrective action
 - Physical checklist remains Pending until Derrick tests; automated evidence claims no phone pass.
 - All intentional changes are committed and pushed.
 
-**Owner release evidence (2026-08-31): PASS pending commit/push finalization.** The established patch script advanced package, lock, and HTML proof metadata from `0.0.26` to `0.0.27`. Fresh `npm test`, full `npm run test:browser`, exact `npm run test:live-flow-obstacles`, `npm run build`, and `git diff --check` passed. Two independent raw `0.0.27` release builds and two pre-commit dry-pack JSON outputs compared byte-for-byte. The raw artifact was verified to contain no `.plans/` or `docs/` files and therefore cannot self-reference this release record. Final committed-payload dry packs and exact raw/pack metadata must be measured after push and recorded only in external Bead `aerobeat-web-assembly-5gf.3`. The focused Task 16 handoff leaves every phone observation explicitly Pending, preserves all gameplay/conversion variants, and selects no winner. Existing `dev:tailscale` PID `2972964` remained untouched.
+**Owner release evidence (2026-08-31): PASS.** The established patch script advanced package, lock, and HTML proof metadata from `0.0.26` to `0.0.27`. Fresh `npm test`, full `npm run test:browser`, exact `npm run test:live-flow-obstacles`, `npm run build`, and `git diff --check` passed. Two independent raw `0.0.27` release builds and two final committed-payload dry-pack JSON outputs compared byte-for-byte. The raw artifact contains no `.plans/` or `docs/` files and cannot self-reference this release record. Exact raw/pack metadata is stored only in external Bead `aerobeat-web-assembly-5gf.3`. The focused Task 16 handoff leaves every phone observation explicitly Pending, preserves all gameplay/conversion variants, and selects no winner. Existing `dev:tailscale` PID `2972964` remained untouched.
+
+**Independent release QA (2026-08-31): PASS after provenance correction.** QA independently reproduced the complete unit/browser/live/build/diff matrix, byte-identical raw releases, byte-identical dry packs with exact external metadata, all `0.0.27` proof surfaces, linked clean/upstream repositories, the 22/22 Pending/no-phone-pass/no-winner handoff boundary, and unchanged single server process. QA initially rejected a nonexistent manually transcribed short commit token in external owner evidence; the Bead diagnosis and superseding canonical full hash corrected only that external token without changing the validated payload. Correction QA confirmed the canonical pushed commit and retained every prior PASS.
+
+**Final evidence boundary:** this plan and the handoff are part of the npm payload. The final auditor must measure the payload committed with this status, record exact metadata and closure only in Beads, and make no post-audit packed-file edit; otherwise the archive proof would invalidate itself.
 
 ---
 
