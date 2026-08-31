@@ -224,7 +224,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
-**Status:** Owner implementation and corrected full validation complete; independent QA pending
+**Status:** Owner implementation and independent QA complete; final auditor pending
 **Bead:** `aerobeat-web-assembly-5gf.2`
 **External prerequisites:** `aerobeat-web-renderer-der`, `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-assembly` coder → independent QA → auditor
@@ -245,6 +245,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 **Owner evidence (2026-08-31):** Assembly explicitly routes obstacle cells and exact intervals, publishes the complete 2500 ms renderer horizon, omits bomb/arc/burst from the recognized-only Boxing fallback, mounts scalar-only Test transport, and serializes Pause/Play/coalesced Seek with immediate paused reconstruction. Deferred Play→Seek and deferred stale-Play→replacement-Play regressions pass. Fresh `npm test`, `npm run test:browser`, `npm run build`, `git diff --check`, and focused mobile/live gates pass. Exact live `3C9D` hash `5662f64a12c76a3dd11a5f6ee22611608cd06760` proves all 16 selected Easy obstacles and 16 cell planes with exact 25 ms intervals, no feedback/camera/noise. The two owner dry packs matched before this evidence paragraph was added; final committed-payload pack determinism must be measured after the evidence correction and recorded outside the packed payload. Existing server PID `2972964` remains unchanged.
 
 **Independent QA (2026-08-31): FAIL on evidence provenance; functional gates PASS.** QA reproduced `npm test`, the complete browser chain, exact live Flow gate, build, and diff check. Two fresh committed-tree dry packs matched each other, but their metadata differed from the owner values above because `.plans/` is part of the npm payload and the owner measured before appending the metadata-bearing paragraph.
+
+**Correction QA (2026-08-31): PASS.** At pushed correction commit `2febfd5`, QA confirmed the plan-only provenance repair, diff hygiene, clean/upstream state, unchanged server, external Bead ownership of exact metadata, and two byte-identical committed-payload dry packs. Functional/browser gates were not duplicated because the correction changed documentation only; their prior independent PASS remains authoritative. Final audit must measure the subsequently committed plan-status payload and keep its exact values outside the package.
 
 **Pack-evidence debugging record (2026-08-31):**
 
