@@ -4,6 +4,7 @@
 **Owner:** assembly orchestrator → renderer/transport coders → independent QA → final auditor
 **Umbrella Bead:** `aerobeat-web-assembly-6nt`
 **Renderer Bead:** `aerobeat-web-renderer-jzd`
+**UI migration Bead:** `aerobeat-web-ui-58j`
 **Target release:** deterministic patch after `0.0.27`
 
 ## Goal
@@ -83,6 +84,25 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 - Deterministic tests prove timestamp→Z, exact 4×3 orientation, timing-zone bounds, obstacle volume interval, far/near ordering, spent/cull boundaries, all three styles, canonical icons, DPR/aspect behavior, camera gating/input cleanup, context recovery, and idempotent teardown.
 - Chromium pixel/scene evidence covers direct representative portrait/landscape DPR1/3 cases without screenshot data entering public state.
 - Renderer repo is clean/upstream after independent QA/audit, with npm pack determinism recorded externally.
+
+**Research result (2026-08-31):** the existing authoritative frame record and per-instance canvas lifecycle are the correct migration seam. The new public identity is `AeroPlayCanvasRenderer` / `createAeroPlayCanvasRenderer` / `aero.renderer.playcanvas`; `buildGameplaySceneModel` replaces the 2.5D draw plan with screenshot-free world-space truth. PlayCanvas must not start a second RAF, acquire a second context, own song time, or hardware-instance depth-sorted translucent volumes. The implementation must explicitly preserve transparent camera composition, synchronous façade destruction, recreatable assets/context recovery, exact DPR sizing, and bounded target pooling. Research also found a direct renderer consumer in the UI media-pose preview, requiring the following linked migration rather than a compatibility alias.
+
+## Task 1.5 — UI media-preview migration
+
+**Bead:** `aerobeat-web-ui-58j`
+**Status:** Blocked by Task 1 API landing
+
+### Work
+
+- Replace the UI package import and lifecycle use of `createAeroWebGl2Renderer` with the new PlayCanvas renderer API.
+- Preserve the stable media preview canvas, normalized landmark overlay, exact resize, detach/destroy, accessibility, and zero media/camera ownership.
+- Remove every UI reference to the legacy renderer rather than retaining an alias.
+
+### Acceptance
+
+- UI checks/browser tests pass against the pushed renderer package.
+- Media-preview pose pixels and lifecycle remain truthful in direct/iframe assembly tests.
+- UI repo is independently QA/audited, committed, pushed, and clean/upstream.
 
 ## Task 2 — Assembly, DOM, and gameplay integration
 
