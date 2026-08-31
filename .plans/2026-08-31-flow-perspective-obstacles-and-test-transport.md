@@ -233,6 +233,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Supply exact approach/depth/obstacle interval data to renderer frames.
 - Wire Visual Test transport to generation-bound pause/seek/synchronize/render behavior.
 - Serialize transport intents in dispatch order so an identical scrub Pause followed by Seek cannot race as independent async work; prove Pause → seek → synchronized paused render and remain-paused semantics.
+- A queued Play operation must not resolve until its actual asynchronous audio `play()` settles; prove with a deferred audio operation that Play → Seek cannot race a later Pause or reassert playback.
 - Coalesce drag updates without hiding the live frame.
 - Preserve Test audio-only/unscored/camera-free semantics and all Play scoring/privacy/lifecycle behavior.
 - Keep current Flow orientation and all five gameplay variants unchanged.
