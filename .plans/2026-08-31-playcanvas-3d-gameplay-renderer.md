@@ -44,14 +44,14 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 0 — Terminal Visual Test replay repair
 
 **Bead:** `aerobeat-web-assembly-6nt.1`
-**Status:** Coder complete; focused QA PASS, correction full-browser QA deferred until linked renderer is stable
+**Status:** Coder complete; focused QA PASS; immutable full-browser closure tracked in Task 2
 
 ### Result
 
 - Normalized every current non-`paused_manual` Visual Test state, including terminal `completed`, through the generation-bound serialized transport pause before seeking.
 - Added exact-end backward replay coverage with coalesced multi-scrub, zero, repeated terminal cycles, exact-duration boundaries, continuous multi-frame advancement, and zero gameplay score/judgement truth while retaining the existing race, reconnect, pause-after-scrub, Play-failure, and scored-Play guards.
 - Coder gates passed: `npm test`, focused `node scripts/validate-mobile-gameplay-menu.js`, and `git diff --check`.
-- Independent focused QA passed the complete terminal replay/race/score matrix. Its requested full browser run was invalid because assembly consumed the concurrently mutating `file:../aerobeat-web-renderer` checkout; six diagnostic loads produced identical non-empty atlas alpha before Vite failed when the PlayCanvas migration removed a linked legacy module mid-run. No threshold/product workaround was made. Discovered Bead `aerobeat-web-assembly-6nt.5` records the diagnosis; immutable correction QA runs after renderer/UI/assembly commits stabilize.
+- Independent focused QA passed the complete terminal replay/race/score matrix. Its requested full browser run was invalid because assembly consumed the concurrently mutating `file:../aerobeat-web-renderer` checkout; six diagnostic loads produced identical non-empty atlas alpha before Vite failed when the PlayCanvas migration removed a linked legacy module mid-run. No threshold/product workaround was made. Discovered Bead `aerobeat-web-assembly-6nt.5` records the diagnosis. Renderer/UI commits are now stable, but the assembly cannot load until Task 2 removes deleted legacy imports; Task 2 full browser QA must close this immutable terminal replay matrix before Task 0 audit/closure.
 
 ### Work
 
@@ -112,7 +112,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 2 — Assembly, DOM, and gameplay integration
 
 **Bead:** `aerobeat-web-assembly-6nt.2`
-**Status:** Blocked by Tasks 0–1
+**Status:** Active — renderer/UI audits complete; assembly coder running
 
 ### Work
 
