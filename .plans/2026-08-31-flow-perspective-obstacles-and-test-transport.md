@@ -155,7 +155,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
-**Status:** In progress
+**Status:** Owner implementation `8b9dfca` complete and pushed; independent QA active
 **Bead:** `aerobeat-web-renderer-der`
 **Owner:** `aerobeat-web-renderer` coder → independent QA → auditor
 
@@ -177,6 +177,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Procedural rings remain crisp, destination-centered, and timing-correct.
 - Boxing Lanes/Grid regressions remain green.
 - Check, unit, browser pixels, pack, independent QA/audit, commit, and push pass.
+
+**Owner evidence (2026-08-31):** Commit `8b9dfca` adds a bounded `(0.5,0.42)` Flow vanishing point, `0.16×` start scale, 2500 ms linear depth horizon, exact endpoint interpolation, source-order-independent far-to-near ordering, destination-fixed procedural rings, interval-aware per-cell obstacle planes, and bounded 256–512 px atlas cells. Owner check/unit/browser framebuffer gates passed distinct same-cell cue pixels, destination rings, obstacle interval persistence, crisp DPR1/3 portrait/landscape masks, exact 350 ms feedback, and byte-identical representative Boxing plans. Dry pack: 13 entries, 32,326 packed bytes, 121,489 unpacked bytes, SHA-1 `3e48e5eb02d782050f3606d5027d0d109ef3ae53`.
 
 ## Task 2 — Add Visual Test transport presenter
 
