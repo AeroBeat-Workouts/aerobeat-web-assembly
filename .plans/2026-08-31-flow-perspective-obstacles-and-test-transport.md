@@ -89,7 +89,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0 — Confirm obstacle failure and lock contracts
 
-**Status:** Pending
+**Status:** In progress
 **Bead:** `aerobeat-web-assembly-5gf.1`
 **Owner:** assembly diagnostic coder → QA
 
@@ -108,7 +108,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
-**Status:** Pending
+**Status:** In progress
 **Bead:** `aerobeat-web-renderer-der`
 **Owner:** `aerobeat-web-renderer` coder → independent QA → auditor
 
@@ -133,7 +133,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 2 — Add Visual Test transport presenter
 
-**Status:** Pending
+**Status:** In progress
 **Bead:** `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-ui` coder → independent QA → auditor
 
@@ -212,6 +212,12 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Stale package preservation/reimport/list/export/delete behavior remains unchanged.
 - Start/Test/menu/restart, leases, privacy, Preview, cadence, countdown, compositor, cursors, context loss, direct/iframe boundaries, and lifecycle teardown remain green.
 - No production gameplay/conversion winner is selected.
+
+## Execution record
+
+- Diagnostic coder `6a041b51-91f5-4f73-bc0f-0128f5122fe1` is tracing the selected Flow obstacle through authoring, projection, and renderer contracts for Task 0.
+- Renderer coder `9501dd69-a354-4a85-9ade-612ad23d47b7` is implementing Task 1 under `aerobeat-web-renderer-der`.
+- UI coder `4868399b-1e95-42b2-a6e8-7edff7c5a12c` is implementing Task 2 under `aerobeat-web-ui-ytx`.
 
 ## Approval record
 
