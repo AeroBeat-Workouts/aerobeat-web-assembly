@@ -44,14 +44,14 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 0 — Terminal Visual Test replay repair
 
 **Bead:** `aerobeat-web-assembly-6nt.1`
-**Status:** Coder complete; focused and immutable full-browser QA PASS; awaiting audit
+**Status:** Complete — independent QA/audit PASS; Bead closed
 
 ### Result
 
 - Normalized every current non-`paused_manual` Visual Test state, including terminal `completed`, through the generation-bound serialized transport pause before seeking.
 - Added exact-end backward replay coverage with coalesced multi-scrub, zero, repeated terminal cycles, exact-duration boundaries, continuous multi-frame advancement, and zero gameplay score/judgement truth while retaining the existing race, reconnect, pause-after-scrub, Play-failure, and scored-Play guards.
 - Coder gates passed: `npm test`, focused `node scripts/validate-mobile-gameplay-menu.js`, and `git diff --check`.
-- Independent focused QA passed the complete terminal replay/race/score matrix. Its requested full browser run was invalid because assembly consumed the concurrently mutating `file:../aerobeat-web-renderer` checkout; six diagnostic loads produced identical non-empty atlas alpha before Vite failed when the PlayCanvas migration removed a linked legacy module mid-run. No threshold/product workaround was made. Discovered Bead `aerobeat-web-assembly-6nt.5` records the diagnosis. Renderer/UI commits are now stable, but the assembly cannot load until Task 2 removes deleted legacy imports; Task 2 full browser QA must close this immutable terminal replay matrix before Task 0 audit/closure.
+- Independent focused QA passed the complete terminal replay/race/score matrix. Its requested full browser run was invalid because assembly consumed the concurrently mutating `file:../aerobeat-web-renderer` checkout; six diagnostic loads produced identical non-empty atlas alpha before Vite failed when the PlayCanvas migration removed a linked legacy module mid-run. No threshold/product workaround was made. Discovered Bead `aerobeat-web-assembly-6nt.5` records the diagnosis. Final QA/audit against immutable clean renderer/UI commits repeatedly passed displayed directional-atlas pixels and the complete browser matrix, closing `6nt.5` as an environment-isolation defect rather than a product race.
 
 ### Work
 
@@ -112,7 +112,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 2 — Assembly, DOM, and gameplay integration
 
 **Bead:** `aerobeat-web-assembly-6nt.2`
-**Status:** Independent QA PASS; awaiting audit
+**Status:** Complete — independent QA/audit PASS; Bead closed
 
 ### Work
 
@@ -140,10 +140,14 @@ Source/unit/browser/build/raw-release/dependency/static-search gates pass. The b
 
 QA Bead `aerobeat-web-assembly-0qp` independently passed commit `2626f33bfeb981c621c469b77ea4c31534b45c4f` against clean pinned renderer `78535847eee4869c211f1300842a73d48eec03f5` and UI `3bf327f1b36fb4a9d41be2dc9bb8b61786a4edc1`. `npm test`, the complete `npm run test:browser` chain, `npm run build`, `npm ls --all`, `npm run test:live-flow-obstacles`, and `git diff --check` all exited successfully. Browser output explicitly passed all eight direct/iframe portrait/landscape DPR1/3 shell contexts and cursor contexts, compositor pixels, console/privacy/lifecycle checks, Visual Test camera help/reset and PlayCanvas identity, tracking-loss cursor clearing, and the immutable terminal end→multi-scrub/zero/exact-end→Play replay matrix with zero scoring truth. Static inspection found no forbidden legacy renderer identity under production `src/` or validation `scripts/`; assembly constructs only `createAeroPlayCanvasRenderer`, publishes authoritative timing windows and exact obstacle intervals, and disables the debug camera before renderer teardown. Live map `3C9D` Easy produced 16 obstacles and 16 truthful volumes. Build emitted only PlayCanvas/Vite externalization and chunk-size warnings; `npm ls --all` emitted expected optional-platform/peer notices while exiting zero. No old `0.0.27` release artifact changed, physical phone checks remain Pending, no winner is selected, both dependency repos remain clean/upstream, and retained `dev:tailscale` PID `2972964` remained healthy.
 
+### Independent audit result (2026-08-31)
+
+Audit Bead `aerobeat-web-assembly-shx` independently reviewed terminal replay commit `b43c6b2`, PlayCanvas integration commit `2626f33`, QA evidence commit `631ad01`, implementation/QA Beads, and the complete production/test diff. The auditor re-ran `npm test`, `npm run test:browser`, `npm run build`, `npm ls --all`, and `git diff --check`; every process exited successfully. Exact browser output again passed all eight direct/iframe portrait/landscape DPR1/3 product-shell and cursor contexts plus compositor pixels. Source/static inspection confirmed the exact 4×3 top-left projection, all Flow/Boxing/conversion choices, authoritative external-time timing bounds and duration intervals, Visual Test-only hold-RMB/WASD/Q/E/Shift/reset/help gating with teardown cleanup, DOM/privacy ownership, zero production legacy renderer identities, and no gameplay/conversion winner. Recorded repeated pack and raw-release hashes were inspected without regenerating the shipped `0.0.27` artifacts. Renderer `7853584` and UI `3bf327f` remained clean/upstream, `release/raw/0.0.27` remained unchanged, and retained `dev:tailscale` PID `2972964` returned HTTP 200 without restart. Only expected PlayCanvas optional worker externalization/chunk-size and npm optional-platform notices remain; physical phone checks are still explicitly Pending.
+
 ## Task 3 — Independent QA and deterministic release
 
 **Bead:** `aerobeat-web-assembly-6nt.3`
-**Status:** Blocked by Task 2
+**Status:** Ready — Task 0/2 audit PASS; physical checks remain Pending
 
 ### Work
 
