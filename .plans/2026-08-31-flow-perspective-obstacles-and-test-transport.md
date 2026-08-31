@@ -224,7 +224,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
-**Status:** In progress; assembly coder `4ec15038-ec89-415f-9f8e-d555d5653899` active
+**Status:** Owner implementation and corrected full validation complete; independent QA pending
 **Bead:** `aerobeat-web-assembly-5gf.2`
 **External prerequisites:** `aerobeat-web-renderer-der`, `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-assembly` coder → independent QA → auditor
@@ -239,6 +239,10 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Coalesce drag updates without hiding the live frame.
 - Preserve Test audio-only/unscored/camera-free semantics and all Play scoring/privacy/lifecycle behavior.
 - Keep current Flow orientation and all five gameplay variants unchanged.
+
+**Critical stale-Play diagnosis (2026-08-31):** Code review observed that `startSession()` increments `sessionGeneration` but replaces `transportIntentTail` while an old non-cancelable `resumeVisualTestTransport()` may still be awaiting `audio.play()`. That old completion can therefore mutate the same audio graph after the replacement session has stopped/paused it; its graph-only `finally` can also clear a newer generation's `audioSyncPending`. The prior awaited-Play fix correctly serialized same-generation Play→Seek but treated generation invalidation as if it canceled the media side effect. Required regression: defer Visual Test transport Play, start replacement scored Play into calibration with audio paused, release the stale Play, and prove it cannot reassert audio or clear current synchronization ownership. Smallest repair: capture and await the previous transport tail before replacement start/stop media work, and generation-own pending cleanup, so the replacement's authoritative stop/pause always occurs after the stale non-cancelable Play settles.
+
+**Owner evidence (2026-08-31):** Assembly explicitly routes obstacle cells and exact intervals, publishes the complete 2500 ms renderer horizon, omits bomb/arc/burst from the recognized-only Boxing fallback, mounts scalar-only Test transport, and serializes Pause/Play/coalesced Seek with immediate paused reconstruction. Deferred Play→Seek and deferred stale-Play→replacement-Play regressions pass. Fresh `npm test`, `npm run test:browser`, `npm run build`, `git diff --check`, and focused mobile/live gates pass. Exact live `3C9D` hash `5662f64a12c76a3dd11a5f6ee22611608cd06760` proves all 16 selected Easy obstacles and 16 cell planes with exact 25 ms intervals, no feedback/camera/noise. Two dry packs are byte-identical: 85 files, 322,290 packed bytes, 1,151,377 unpacked bytes, SHA-1 `74ebdcfb72c94327632877e47ec8af795aa60b19`, integrity `sha512-KmABAH7d/N9AdaytTLkRZ6EZeW0hYa5xC34HLzZlK3cUmNiclM0ocp848sNcZjWK/ImPQLYtgTidZ+f0suwjAA==`. Existing server PID `2972964` remains unchanged.
 
 ### Acceptance
 

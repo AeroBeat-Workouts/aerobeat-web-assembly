@@ -35,6 +35,34 @@ const syntheticSecond=projectSessionTargets(events,testTruth,2181); assert.equal
 assert.equal(JSON.stringify(testTruth),truthBefore,"synthetic projection must not mutate gameplay judgement or score truth");
 assert.equal(projectSessionTargets(events,testTruth,2531)[0].feedbackProgress,1); assert.equal(projectSessionTargets(events,testTruth,2532).length,0);
 
+const actualObstacle = Object.freeze({
+  eventId:"ab-chart-dance-dance-revolution-ddrmix-flow-easy:event:20",
+  centerTimestampMs:29839.999389648438,
+  endTimestampMs:29864.999389648438,
+  authoredBeat:Object.freeze({start:74.5999984741211,end:74.6624984741211,type:"obstacle",cells:Object.freeze([1])})
+});
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500).length,1,"actual obstacle enters at exact 2500 ms approach boundary");
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500.001).length,0,"actual obstacle stays hidden before approach boundary");
+for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.endTimestampMs)/2, actualObstacle.endTimestampMs]) {
+  assert.deepEqual(projectSessionTargets([actualObstacle],testTruth,nowMs),[{
+    id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1],lane:null,
+    beatCenterMs:actualObstacle.centerTimestampMs,endMs:actualObstacle.endTimestampMs
+  }],`actual obstacle remains exact and feedback-free at ${nowMs}`);
+}
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.endTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
+const obstacleEarlier=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
+projectSessionTargets([actualObstacle],testTruth,actualObstacle.endTimestampMs);
+const obstacleEarlierAfterForward=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
+assert.deepEqual(obstacleEarlierAfterForward,obstacleEarlier,"forward-then-backward projection reconstructs the exact earlier obstacle state");
+const longObstacle=Object.freeze({eventId:"long-obstacle",centerTimestampMs:1000,endTimestampMs:2000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",cells:Object.freeze([1,2,5,6])})});
+assert.equal(projectSessionTargets([longObstacle],testTruth,1500)[0]?.endMs,2000,"long obstacle persists beyond generic 350 ms feedback lifetime");
+assert.equal(projectSessionTargets([longObstacle],testTruth,2001).length,0,"long obstacle uses exact interval end");
+const falseObstacleHit=Object.freeze({...testTruth,judgements:Object.freeze([{eventId:"long-obstacle",result:"hit",shadow:false,committedTimelinePositionMs:1000}])});
+assert.equal(projectSessionTargets([longObstacle],falseObstacleHit,1200)[0]?.judgement,undefined,"obstacle ignores all synthetic/real feedback");
+const omittedFlowNonNotes=Object.freeze(["bomb","arc","burst"].map((type,index)=>Object.freeze({eventId:`omitted-${type}`,centerTimestampMs:1000+index,authoredBeat:Object.freeze({type,placement:1,startPlacement:1,endPlacement:2,tailPlacement:2})})));
+assert.deepEqual(projectSessionTargets(omittedFlowNonNotes,testTruth,900),[],"Flow bomb/arc/burst are explicitly omitted rather than misprojected as Boxing punches");
+assert.deepEqual(projectSessionTargets([{eventId:"unknown",centerTimestampMs:1000,authoredBeat:{type:"future_unknown"}}],testTruth,900),[],"unrecognized authored types cannot reach the recognized-only Boxing punch branch");
+
 const boxingEvents = Object.freeze([
   Object.freeze({ eventId:"punch-left",centerTimestampMs:1000,authoredBeat:Object.freeze({type:"hook_left",spatialTarget:Object.freeze({targetCell:5,entryDirection:"up"})}) }),
   Object.freeze({ eventId:"weave-left",centerTimestampMs:1100,authoredBeat:Object.freeze({type:"weave_left",blockedCells:Object.freeze([0,1,4,5])}) }),
