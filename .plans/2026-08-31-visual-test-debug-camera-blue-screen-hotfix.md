@@ -115,23 +115,28 @@ Remaining uncertainty: Physical retest result and breadth across real downloaded
 **Implementation Bead:** `aerobeat-web-renderer-b79`
 **QA Bead:** `aerobeat-web-renderer-nf1`
 **Audit Bead:** `aerobeat-web-renderer-xui`
-**Status:** Coder PASS at `7447d30`; awaiting independent renderer QA/audit
+**Status:** Complete — implementation/QA/final audit PASS; renderer Beads closed
 
-The correction initializes and resets stored debug yaw to `Math.PI` and applies that stored pose directly, eliminating the reset `lookAt`/next-frame Euler contradiction. Unit math proves forward Z `>0.99` with downward floor pitch. Chromium renders a positive-Z Flow scene over opaque blue and proves more than 100 non-background pixels across two active debug frames, Reset plus another frame, and disable/re-enable pause/resume equivalence while retaining held-RMB, movement, cleanup, presentations, DPR, transparency, reconnect, destroy, and context recovery. `npm test`, complete `npm run test:browser`, dependency/static/diff checks, and two byte-identical dry packs passed. Renderer commit `7447d305b2e4ee45e601ece3476a65246d51f85a` is pushed clean/upstream; exact pack metadata remains external on `b79`.
-
-Independent renderer QA/audit must pass before assembly consumes the result.
+The correction initializes and resets stored debug yaw to `Math.PI` and applies that stored pose directly, eliminating the reset `lookAt`/next-frame Euler contradiction. Unit math proves forward Z `>0.99` with downward floor pitch. Chromium renders a positive-Z Flow scene over opaque blue and proves active second-frame, Reset-next-frame, and disable/re-enable pause/resume gameplay pixels while retaining held-RMB, movement, cleanup, presentations, DPR, transparency, reconnect, destroy, and context recovery. Independent QA measured roughly 81.9k non-background pixels in every corrected state and proved baseline yaw zero produced negative forward Z. Final audit added the decisive sensitivity probe: forced old yaw zero rendered 0 gameplay pixels while corrected `Math.PI` rendered 81,940. `npm test`, complete `npm run test:browser`, dependency/static/diff checks, and deterministic dry packs passed independently. Renderer implementation `7447d30`, QA ledger `2bc146d`, and final audit `3cfbbe4` are pushed clean/upstream; `b79`, `nf1`, and `xui` are closed, with exact pack metadata external.
 
 ## Task 2 — Assembly physical-path regression
 
-**Bead:** `aerobeat-web-assembly-ft7`
+**Implementation Bead:** `aerobeat-web-assembly-ft7`
+**QA Bead:** `aerobeat-web-assembly-614`
 **Status:** In progress
 
-Consume the immutable renderer correction and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
+Consume immutable audited renderer commit `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
 
 ## Task 3 — Deterministic hotfix release
+
+**Bead:** `aerobeat-web-assembly-235`
+**Status:** Blocked by Task 2 QA
 
 Patch package/lock/index/proof surfaces to `0.0.29`, leave `0.0.28` byte-unchanged, produce repeated byte-identical raw and dry-pack outputs, keep final exact pack metadata external, update the focused physical handoff with this failed `0.0.28` observation and `0.0.29` retest rows Pending, and retain the existing server PID.
 
 ## Task 4 — Independent QA/audit and closure
+
+**Bead:** `aerobeat-web-assembly-lym`
+**Status:** Blocked by Task 3
 
 Independent QA and final audit must reproduce active debug-camera scene pixels and the complete high-value regression/release matrix before closing both bugs. All linked repos must be clean/upstream; no physical PASS or gameplay/conversion winner may be inferred.
