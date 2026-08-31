@@ -112,7 +112,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 2 — Assembly, DOM, and gameplay integration
 
 **Bead:** `aerobeat-web-assembly-6nt.2`
-**Status:** Active — renderer/UI audits complete; assembly coder running
+**Status:** Coder complete; awaiting independent QA/audit
 
 ### Work
 
@@ -129,6 +129,12 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 - Direct/iframe portrait/landscape DPR1/3, menu pause/resume, hidden recovery, lease transfer, reconnect, teardown, context loss, audio-only Test, scored Play, and privacy/console gates pass.
 - Test free-fly works only in Visual Test; fixed athlete camera remains the gameplay/mobile default.
 - Legacy renderer references and 2.5D timing circles are absent from production assembly.
+
+### Coder result (2026-08-31)
+
+Assembly now constructs only `createAeroPlayCanvasRenderer`, consumes truthful scene-model/status returns, supplies authoritative timing bounds for all presentations, and publishes exact Flow obstacle start/end intervals. Caller-owned display ticks, external audio/session time, stable surfaces, scoring/input privacy, all five variants, terminal Test replay, and the DOM-owned shell remain authoritative. Visual Test on fine-pointer desktops exposes DOM help and Reset camera while assembly enables the isolated renderer debug camera; Play, menu-open, teardown, destroy, and mobile/fixed-camera states disable it.
+
+Source/unit/browser/build/raw-release/dependency/static-search gates pass. The browser suite covers direct/iframe portrait and landscape at DPR1/3, displayed PlayCanvas pixels, exact current-input cursor projection, all shell/lifecycle/privacy paths, and the Task 0 terminal replay matrix. Bug Bead `aerobeat-web-assembly-pke` diagnosed and closed the finite-pose shell fixture defect with a fixture-owned monotonic ≤15 fps source: direct DPR3 passed twice, iframe DPR3 passed twice, and the complete eight-context shell matrix passed without a production tracking workaround. Repeated raw release proof output matched; unreleased `0.0.27` generated artifacts were restored because Task 3 owns the next patch release. Exact dry-pack metadata remains external in Bead evidence.
 
 ## Task 3 — Independent QA and deterministic release
 

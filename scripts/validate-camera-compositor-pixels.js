@@ -10,7 +10,7 @@ const childUrl = vite.resolvedUrls?.local?.[0];
 if (!childUrl) throw new Error("Vite URL unavailable");
 const parentServer = createHttpServer((request, response) => {
   const url = new URL(request.url ?? "/", "http://parent.invalid"); const width = Number(url.searchParams.get("width")) || 390; const height = Number(url.searchParams.get("height")) || 844;
-  response.setHeader("content-type", "text/html; charset=utf-8"); response.end(`<!doctype html><style>html,body{margin:0}iframe{border:0;display:block;width:${width}px;height:${height}px}</style><iframe id="game" allow="camera; fullscreen; autoplay" src="${childUrl}"></iframe>`);
+  response.setHeader("content-type", "text/html; charset=utf-8"); response.end(`<!doctype html><style>html,body{margin:0}iframe{border:0;display:block;width:${width}px;height:${height}px}</style><iframe id="game" allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${childUrl}"></iframe>`);
 });
 await new Promise((resolve) => parentServer.listen(0, "127.0.0.1", resolve));
 const address = parentServer.address(); if (!address || typeof address === "string") throw new Error("Parent server unavailable");

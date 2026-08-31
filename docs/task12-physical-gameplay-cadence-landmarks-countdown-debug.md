@@ -172,6 +172,6 @@ Evidence: Managed route measured 30 renderer frames vs 122 rAF callbacks over 2.
 Failed approaches: Synthetic cue/state matrices, isolated cadence-helper tests, camera compositor tests, and renderer-only overlay tests did not verify final product display cadence or marker pixels under phone CV load.
 Corrective action: Separate display-rAF gameplay/render from independent 15fps CV, stop per-frame full presenter rebuilds, render three calibrated athlete-space cursors after gameplay, add countdown/cadence/CV-age diagnostics.
 Verification test: >=45 renderer fps on ~60Hz with <=15fps CV; 3/2/1 each visible >=800ms with frozen audio; DPR1/3 direct/iframe framebuffer cursor proof; mirror/stale/privacy/physical Android checks.
-Related files/components: assembly src/index.js, production-cv-service.js, runtime-cadence.js; renderer renderer-facade.js/gameplay-plan.js/landmark-mapping.js; gameplay session-coordinator.js; input body-grid-service.js; mobile/shell/camera validators.
+Related files/components: assembly src/index.js, production-cv-service.js, runtime-cadence.js; renderer renderer-facade.js/gameplay-scene-model.js/landmark-mapping.js; gameplay session-coordinator.js; input body-grid-service.js; mobile/shell/camera validators.
 Remaining uncertainty: Exact physical countdown paint failure, phone CV latency, stop/pause reason, cursor edge/style choice, optional calibration skeleton.
 ```

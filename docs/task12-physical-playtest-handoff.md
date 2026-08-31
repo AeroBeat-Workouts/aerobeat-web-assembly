@@ -93,7 +93,7 @@ Automated cross-origin acceptance is the supported no-operator path:
 npm run test:browser
 ```
 
-It creates an ephemeral parent origin, an independent Vite child origin, and `iframe#game` with `allow="camera; fullscreen; autoplay"`; it verifies exact source/origin/instance/version handshake, payload limits, profile identity parity, teardown, and zero unexpected product console errors. There is no persistent manual iframe server checked into this repo. Starting a separate manual parent server requires explicit operator approval.
+It creates an ephemeral parent origin, an independent Vite child origin, and `iframe#game` with `allow="camera; fullscreen; autoplay; xr-spatial-tracking"`; it verifies exact source/origin/instance/version handshake, payload limits, profile identity parity, teardown, and zero unexpected product console errors. There is no persistent manual iframe server checked into this repo. Starting a separate manual parent server requires explicit operator approval.
 
 ## Exact selectors
 

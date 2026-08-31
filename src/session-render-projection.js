@@ -63,7 +63,7 @@ function flowObstacleTarget(event, beat, nowMs) {
   const cells = recordValue(beat, "cells");
   if (startMs === null || endMs === null || endMs < startMs || !Array.isArray(cells) || cells.length === 0 || cells.length > 12 || cells.some((cell) => !Number.isInteger(cell) || Number(cell) < 0 || Number(cell) > 11) || new Set(cells).size !== cells.length) return null;
   if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...cells], lane:null, beatCenterMs:startMs, endMs };
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...cells], lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs };
 }
 
 /** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress */

@@ -41,6 +41,8 @@ const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_st
 const VISUAL_TEST_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "visual_test" });
 const FLOW_REIMPORT_MESSAGE = "This downloaded song uses the legacy Flow orientation. Reimport it to play.";
 const MAXIMUM_VISUAL_TEST_DURATION_MS = 86_400_000;
+const GAMEPLAY_CURSOR_GRID = Object.freeze({ x:0, y:0, width:1, height:1 });
+const DEBUG_CAMERA_HELP = "Hold right mouse to look. Move with W A S D, Q down, E up, hold Shift to boost.";
 let instanceSequence = 0;
 
 defineAeroUiElements();
@@ -923,18 +925,19 @@ export class AeroGame extends HTMLElement {
     const targets = projectSessionTargets(events, gameplay, nowMs);
     const blockedCells = presentation === "boxing_spatial_grid" ? Object.freeze([...new Set(targets.filter((target) => target.kind === "obstacle").flatMap((target) => target.cells).filter((cell) => Number.isInteger(cell) && cell >= 0 && cell < 12))]) : undefined;
     return {
-      presentation, nowMs, targets, blockedCells, countdown: null, overlay: "none", calibrationDim: 0,
-      ...(presentation === "boxing_lanes" ? { timingWindowBeforeMs: prototypeJudgementDefaults.timingWindowBeforeMs, timingWindowAfterMs: prototypeJudgementDefaults.timingWindowAfterMs } : {})
+      presentation, nowMs, targets, blockedCells,
+      timingWindowBeforeMs: prototypeJudgementDefaults.timingWindowBeforeMs,
+      timingWindowAfterMs: prototypeJudgementDefaults.timingWindowAfterMs,
+      countdown: null, overlay: "none", calibrationDim: 0
     };
   }
 
   renderGameplay(graph = this.graph) {
     if (!graph) return null;
     const result = graph.renderer.renderGameplayFrame(this.rendererFrame());
-    const grid = result?.plan?.grid;
-    if (!grid || typeof graph.renderer.renderGameplayCursors !== "function") return result;
+    if (typeof graph.renderer.renderGameplayCursors !== "function") return result;
     const cursors = gameplayCursorRecords(this.menuOpen, graph.gameplay.getSnapshot().session, graph.input.getSnapshot());
-    graph.renderer.renderGameplayCursors(cursors, { grid, minConfidence: 0.5, sizeCssPx: 18 });
+    graph.renderer.renderGameplayCursors(cursors, { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 18 });
     return result;
   }
 
@@ -958,6 +961,30 @@ export class AeroGame extends HTMLElement {
 
   renderVisualTestTransport() { setPresenter(this, "aero-visual-test-transport", this.visualTestTransportSnapshot()); }
 
+  debugCameraSnapshot() {
+    const session = this.graph?.gameplay.getSnapshot().session;
+    const visualTest = Boolean(this.graph && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test");
+    const finePointer = typeof globalThis.matchMedia === "function" && globalThis.matchMedia("(hover: hover) and (pointer: fine)").matches;
+    const visible = visualTest && finePointer;
+    return Object.freeze({ visible, enabled: visible && !this.menuOpen && this.lifecycle === "connected", help: DEBUG_CAMERA_HELP });
+  }
+
+  syncDebugCameraPresentation() {
+    if (!this.graph) return;
+    const snapshot = this.debugCameraSnapshot();
+    if (typeof this.graph.renderer.setDebugCameraEnabled === "function") this.graph.renderer.setDebugCameraEnabled(snapshot.enabled);
+    const help = this.shadowRoot?.querySelector("[data-role='debug-camera-help']");
+    if (help instanceof HTMLElement) { help.hidden = !snapshot.visible; help.setAttribute("aria-hidden", snapshot.visible ? "false" : "true"); }
+    const reset = this.shadowRoot?.querySelector("button[data-action='debug-camera-reset']");
+    if (reset instanceof HTMLButtonElement) reset.disabled = !snapshot.enabled;
+  }
+
+  resetDebugCamera() {
+    if (!this.graph || !this.debugCameraSnapshot().enabled || typeof this.graph.renderer.resetDebugCamera !== "function") return;
+    this.graph.renderer.resetDebugCamera();
+    this.publish("session_changed");
+  }
+
   /** @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>|null} graph */
   isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) {
     return Boolean(graph && this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) && this.sessionStartRequested && this.activeSessionAction === "test" && graph.gameplay.getSnapshot().session.purpose === "visual_test");
@@ -965,7 +992,7 @@ export class AeroGame extends HTMLElement {
 
   renderPresenters() {
     if (!this.graph) return;
-    this.renderInteractionShell(); this.syncCameraPresentation();
+    this.renderInteractionShell(); this.syncCameraPresentation(); this.syncDebugCameraPresentation();
     const content = this.graph.content.getSnapshot();
     const gameplay = this.graph.gameplay.getSnapshot();
     const input = this.graph.input.getSnapshot();
@@ -1251,6 +1278,7 @@ export class AeroGame extends HTMLElement {
     const action = path.find((entry) => entry instanceof HTMLElement && entry.dataset?.action)?.dataset?.action;
     if (action === "menu-toggle") this.setMenuOpen(!this.menuOpen);
     else if (action === "menu-close" || action === "menu-backdrop") this.setMenuOpen(false);
+    else if (action === "debug-camera-reset") this.resetDebugCamera();
     else if (action === "environment-select") { const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select"); if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value); }
   }
 
@@ -1440,12 +1468,12 @@ export class AeroGame extends HTMLElement {
   }
 
   capabilities() {
-    const webgl2 = Boolean(this.graph?.renderer.getCapabilities().webgl2);
+    const playcanvas = Boolean(this.graph?.renderer.getCapabilities().playcanvas);
     const camera = Boolean(navigator.mediaDevices?.getUserMedia);
     const fullscreen = typeof this.requestFullscreen === "function";
     const limitations = [];
-    if (!camera) limitations.push("camera_unavailable"); if (!fullscreen) limitations.push("fullscreen_unavailable"); if (!webgl2) limitations.push("webgl2_unavailable");
-    return Object.freeze({ schema: "aerobeat/game_capabilities", version: 1, secureContext: globalThis.isSecureContext, camera, fullscreen, autoplay: true, webgl2, indexedDb: typeof indexedDB !== "undefined", worker: typeof Worker !== "undefined", directBeatSaverCors: true, localZipImport: typeof Blob !== "undefined", limitations: Object.freeze(limitations) });
+    if (!camera) limitations.push("camera_unavailable"); if (!fullscreen) limitations.push("fullscreen_unavailable"); if (!playcanvas) limitations.push("playcanvas_unavailable");
+    return Object.freeze({ schema: "aerobeat/game_capabilities", version: 1, secureContext: globalThis.isSecureContext, camera, fullscreen, autoplay: true, playcanvas, indexedDb: typeof indexedDB !== "undefined", worker: typeof Worker !== "undefined", directBeatSaverCors: true, localZipImport: typeof Blob !== "undefined", limitations: Object.freeze(limitations) });
   }
 
   fullscreenSnapshot() { return Object.freeze({ schema: "aerobeat/fullscreen_snapshot", version: 1, supported: typeof this.requestFullscreen === "function", active: document.fullscreenElement === this, requestPending: this.fullscreenPending, errorCode: this.fullscreenError }); }
@@ -1465,7 +1493,7 @@ export class AeroGame extends HTMLElement {
     if (graph) {
       try { graph.content.destroy(); } catch { /* idempotent */ } try { graph.authoring.destroy(); } catch { /* idempotent */ }
       try { graph.input.destroy(); } catch { /* idempotent */ } try { graph.profiles.destroy(); } catch { /* idempotent */ } try { graph.gameplay.destroy(); } catch { /* idempotent */ }
-      try { graph.renderer.destroy(); } catch { /* idempotent */ } try { graph.video.destroy(); } catch { /* idempotent */ }
+      try { graph.renderer.setDebugCameraEnabled(false); } catch { /* idempotent */ } try { graph.renderer.destroy(); } catch { /* idempotent */ } try { graph.video.destroy(); } catch { /* idempotent */ }
       void graph.cv.dispose().catch(() => {}); void graph.audio.destroy().catch(() => {});
     }
     this.activeCvSource = null; this.lastCameraIdentity = ""; this.leaseParticipant = null; this.cameraCompositeMode = null; this.videoElement().dataset.previewVisible = "false";
@@ -1485,8 +1513,8 @@ defineAeroGame();
 function template() { return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
 *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.start-action{display:block}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
-.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);background:#03131f;border:1px solid rgba(255,255,255,.34);border-radius:12px;color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;padding:8px 10px;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
+.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);background:#03131f;border:1px solid rgba(255,255,255,.34);border-radius:12px;color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;padding:8px 10px;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}.debug-camera-help{position:absolute;z-index:26;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-start:max(8px,env(safe-area-inset-top));max-inline-size:min(360px,calc(100% - 80px));display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:#fff;padding:8px 10px;font:700 12px/1.35 system-ui}.debug-camera-help p{margin:0}.debug-camera-help button{flex:0 0 auto;min-block-size:42px;border:1px solid rgba(255,255,255,.4);border-radius:9px;background:#d5f3fb;color:#052733;font:800 12px system-ui;padding:6px 10px}.debug-camera-help button:disabled{opacity:.5}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-help" class="debug-camera-help" aria-label="Visual Test camera controls" aria-hidden="true" hidden><p>${DEBUG_CAMERA_HELP}</p><button data-action="debug-camera-reset" type="button">Reset camera</button></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }
@@ -1530,7 +1558,7 @@ function transientCue(menuOpen, sessionStartRequested, session, gameplay, input)
 function actionableRuntimeMessage(error, limitations) {
   if (error?.message) return boundedString(error.message, "AeroBeat needs attention.");
   if (limitations.includes("camera_unavailable")) return "Camera access is unavailable in this browser.";
-  if (limitations.includes("webgl2_unavailable")) return "WebGL2 is unavailable; try a current browser.";
+  if (limitations.includes("playcanvas_unavailable")) return "PlayCanvas rendering is unavailable; try a current browser.";
   if (limitations.includes("fullscreen_unavailable")) return "Fullscreen is unavailable here.";
   return "";
 }
@@ -1591,7 +1619,7 @@ function profilePresentationId(variant) { return selectedGameplayProfileId(varia
 function isFlowOrientationReimportError(error) { return ownDataValue(error, "code") === "flow_orientation_reimport_required"; }
 function tuningIdentity(profile, regenerationRequired) { return Object.freeze({ schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: profile.profileId, profileVersion: profile.profileVersion, contentHash: profile.contentHash, class: profile.class, regenerationRequired }); }
 function profileTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, generation: snapshot.generation, destroyed: snapshot.destroyed, bundleVersion: snapshot.bundleVersion, profileCount: snapshot.profiles.length, active: Object.freeze({ visual: snapshot.active.visual.identity, scoring: snapshot.active.scoring.identity, converter: snapshot.active.converter.identity }), appliedConverterHash: snapshot.appliedConverterHash, pendingConverterHash: snapshot.pendingConverterHash, regenerationRequired: snapshot.regenerationRequired, experimental: true }); }
-function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), iconAtlasReady: dataValue(snapshot, "iconAtlasReady") === true, iconAtlasError: boundedString(dataValue(snapshot, "iconAtlasError"), "") || null, tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
+function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), engine: dataValue(snapshot, "engine"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), manualRendering: dataValue(snapshot, "manualRendering") === true, debugCameraEnabled: dataValue(snapshot, "debugCameraEnabled") === true, pointerLockActive: dataValue(snapshot, "pointerLockActive") === true, visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), iconAtlasReady: dataValue(snapshot, "iconAtlasReady") === true, iconAtlasError: boundedString(dataValue(snapshot, "iconAtlasError"), "") || null, tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
 function profilePresenterSnapshot(snapshot, selectedVariant, sessionState) {
   const classes = ["live_visual", "between_run_ruleset", "converter_regeneration"].map((profileClass) => {
     const key = profileClass === "live_visual" ? "visual" : profileClass === "between_run_ruleset" ? "scoring" : "converter";

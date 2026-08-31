@@ -37,9 +37,9 @@ try {
       const approach = projectSessionTargets([event], testTruth, event.centerTimestampMs - 2500);
       const active = projectSessionTargets([event], testTruth, (event.centerTimestampMs + event.endTimestampMs) / 2);
       const after = projectSessionTargets([event], testTruth, event.endTimestampMs + 0.001);
-      const rendered = element.graph.renderer.renderGameplayFrame({ presentation:"flow", nowMs:(event.centerTimestampMs + event.endTimestampMs) / 2, overlay:"none", targets:active });
-      const commands = rendered.plan.commands.filter((command) => command.targetId === event.eventId && command.kind === "plane");
-      return { eventId:event.eventId, cells:[...event.authoredBeat.cells], startMs:event.centerTimestampMs, endMs:event.endTimestampMs, durationMs:event.endTimestampMs-event.centerTimestampMs, before:before.length, approach:approach.length, active:active.length, after:after.length, planeCount:commands.length, intervalEnds:[...new Set(commands.map((command) => command.intervalEndMs))], judgements:active.map((target) => target.judgement) };
+      const rendered = element.graph.renderer.renderGameplayFrame({ presentation:"flow", nowMs:(event.centerTimestampMs + event.endTimestampMs) / 2, timingWindowBeforeMs:180, timingWindowAfterMs:180, overlay:"none", targets:active });
+      const volumes = rendered.model.objects.filter((object) => object.targetId === event.eventId && object.kind === "obstacle");
+      return { eventId:event.eventId, cells:[...event.authoredBeat.cells], startMs:event.centerTimestampMs, endMs:event.endTimestampMs, durationMs:event.endTimestampMs-event.centerTimestampMs, before:before.length, approach:approach.length, active:active.length, after:after.length, volumeCount:volumes.length, intervalStarts:[...new Set(volumes.map((object) => object.intervalStartMs))], intervalEnds:[...new Set(volumes.map((object) => object.intervalEndMs))], rowPositions:[...new Set(volumes.map((object) => object.position.y))], judgements:active.map((target) => target.judgement) };
     });
     return { collectionId:result.collection.collectionId, selectedPackageId:content.packageId, selectedVariantId:content.selectedVariant?.variantId, selectedChartId:content.selectedVariant?.chartId, obstacleCount:obstacles.length, proofs, cameraRequests:globalThis.__liveFlowCameraRequests };
   }, { mapId, versionHash });
@@ -51,12 +51,14 @@ try {
     assert.ok(proof.cells.length > 0 && proof.cells.every((cell) => cell === 1 || cell === 2), `${proof.eventId} must preserve exact selected Easy cells`);
     assert.ok(Math.abs(proof.durationMs - 25) < 0.001, `${proof.eventId} must preserve exact 25 ms interval`);
     assert.deepEqual({ before:proof.before, approach:proof.approach, active:proof.active, after:proof.after }, { before:0, approach:1, active:1, after:0 });
-    assert.equal(proof.planeCount, proof.cells.length);
+    assert.equal(proof.volumeCount, proof.cells.length);
+    assert.deepEqual(proof.intervalStarts, [proof.startMs]);
     assert.deepEqual(proof.intervalEnds, [proof.endMs]);
+    assert.equal(proof.rowPositions.length, new Set(proof.cells.map((cell) => Math.floor(cell / 4))).size, `${proof.eventId} must preserve distinct authored obstacle rows`);
     assert.deepEqual(proof.judgements, [undefined]);
   }
   assert.equal(evidence.cameraRequests, 0); assert.deepEqual(noise, []);
-  console.log(`Live Flow obstacles passed: map=${mapId} hash=${versionHash} package=${evidence.selectedPackageId} variant=${evidence.selectedVariantId} obstacles=${evidence.obstacleCount} planes=${evidence.proofs.reduce((sum,proof)=>sum+proof.planeCount,0)}`);
+  console.log(`Live Flow obstacles passed: map=${mapId} hash=${versionHash} package=${evidence.selectedPackageId} variant=${evidence.selectedVariantId} obstacles=${evidence.obstacleCount} volumes=${evidence.proofs.reduce((sum,proof)=>sum+proof.volumeCount,0)}`);
 } finally {
   if (importedCollectionId) { try { await page.locator("aero-game").evaluate((element, collectionId) => element.deleteLibraryCollection(collectionId), importedCollectionId); } catch { /* ephemeral context is the final cleanup boundary */ } }
   await browser.close(); await vite.close();

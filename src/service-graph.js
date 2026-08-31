@@ -5,7 +5,7 @@ import { createAeroContentRuntime } from "@aerobeat/web-content";
 import { createAeroWebContentAuthoringService } from "@aerobeat/web-content-authoring";
 import { createAeroGameplaySessionCoordinator, createAeroPrototypeProfileRegistry } from "@aerobeat/web-gameplay";
 import { createAeroBodyGridService } from "@aerobeat/web-input";
-import { createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
+import { createAeroPlayCanvasRenderer } from "@aerobeat/web-renderer";
 import { createAeroBeatSaverVendorService } from "@aerobeat/web-vendor-beatsaver";
 import { createMediaPipePoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId } from "@aerobeat/web-vendor-mediapipe";
 import { createBrowserVideoMediaFacade } from "@aerobeat/web-video";
@@ -45,6 +45,6 @@ export function createAeroGameServiceGraph(options = {}) {
     audio,
     profiles: createAeroPrototypeProfileRegistry(),
     gameplay: createAeroGameplaySessionCoordinator({ instanceId }),
-    renderer: createAeroWebGl2Renderer()
+    renderer: createAeroPlayCanvasRenderer()
   });
 }

@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { createAeroContentRuntime } from "@aerobeat/web-content";
 import { canonicalJson, createAeroWebContentAuthoringService, createMemoryPersistenceAdapter, prefixedSha256, prototypeReachConverterProfile } from "@aerobeat/web-content-authoring";
 import { canonicalPrototypeProfileJson, createAeroGameplaySessionCoordinator, createAeroPrototypeProfileRegistry, sha256PrototypeProfileHex } from "@aerobeat/web-gameplay";
-import { compactRendererVisualProfile, createAeroWebGl2Renderer } from "@aerobeat/web-renderer";
+import { compactRendererVisualProfile, createAeroPlayCanvasRenderer } from "@aerobeat/web-renderer";
 
 const matrix = JSON.parse(await readFile(new URL("../../aerobeat-web-content-authoring/fixtures/task11-source-matrix-v1.json", import.meta.url), "utf8"));
 const matrixHash = matrix.fixtureHash; const matrixBody = structuredClone(matrix); delete matrixBody.fixtureHash;
@@ -39,7 +39,7 @@ for (const [formatIndex, format] of ["v2", "v3", "v4"].entries()) for (const [pa
   if(pathway==="local")await content.loadPersistenceHandle(authored.handle);else if(pathway==="online")await content.loadExternalPackage("https://assembly.invalid/package.json");else await content.loadPackage({package:authored.package,packageHash:declaredHash,assets:[{path:audioPath,bytes:persistedAudio}]});
   assert.equal(content.getSnapshot().variants.length, 5);
   for (const variant of content.getSnapshot().variants) { await content.selectVariant(variant.variantId); assert.equal(content.getSnapshot().selectedVariant.variantId, variant.variantId); }
-  const renderer = createAeroWebGl2Renderer(); renderer.importTuning(compactRendererVisualProfile); assert.equal(renderer.describe().visualProfileIdentity.profileId, "aero.visual.compact"); renderer.destroy();
+  const renderer = createAeroPlayCanvasRenderer(); renderer.importTuning(compactRendererVisualProfile); assert.equal(renderer.describe().serviceId, "aero.renderer.playcanvas"); assert.equal(renderer.describe().visualProfileIdentity.profileId, "aero.visual.compact"); renderer.destroy();
   packageHashes[`${pathway}:${format}`] = authored.handle.packageHash.value;
   content.destroy(); authoring.destroy(); profileRegistry.destroy();
 }

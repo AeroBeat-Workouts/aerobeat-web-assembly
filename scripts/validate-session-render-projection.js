@@ -46,7 +46,7 @@ assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.cen
 for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.endTimestampMs)/2, actualObstacle.endTimestampMs]) {
   assert.deepEqual(projectSessionTargets([actualObstacle],testTruth,nowMs),[{
     id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1],lane:null,
-    beatCenterMs:actualObstacle.centerTimestampMs,endMs:actualObstacle.endTimestampMs
+    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.endTimestampMs
   }],`actual obstacle remains exact and feedback-free at ${nowMs}`);
 }
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.endTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
@@ -55,7 +55,7 @@ projectSessionTargets([actualObstacle],testTruth,actualObstacle.endTimestampMs);
 const obstacleEarlierAfterForward=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
 assert.deepEqual(obstacleEarlierAfterForward,obstacleEarlier,"forward-then-backward projection reconstructs the exact earlier obstacle state");
 const longObstacle=Object.freeze({eventId:"long-obstacle",centerTimestampMs:1000,endTimestampMs:2000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",cells:Object.freeze([1,2,5,6])})});
-assert.equal(projectSessionTargets([longObstacle],testTruth,1500)[0]?.endMs,2000,"long obstacle persists beyond generic 350 ms feedback lifetime");
+assert.deepEqual({ start:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalStartMs, end:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalEndMs },{ start:1000,end:2000 },"long obstacle publishes its exact renderer duration interval beyond generic feedback lifetime");
 assert.equal(projectSessionTargets([longObstacle],testTruth,2001).length,0,"long obstacle uses exact interval end");
 const falseObstacleHit=Object.freeze({...testTruth,judgements:Object.freeze([{eventId:"long-obstacle",result:"hit",shadow:false,committedTimelinePositionMs:1000}])});
 assert.equal(projectSessionTargets([longObstacle],falseObstacleHit,1200)[0]?.judgement,undefined,"obstacle ignores all synthetic/real feedback");
