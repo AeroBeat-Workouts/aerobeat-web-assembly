@@ -286,7 +286,7 @@ Remaining uncertainty: none affecting the corrective action
 
 ## Task 4 — Deterministic release and physical handoff
 
-**Status:** Pending
+**Status:** In progress — release coder active
 **QA/release Bead:** `aerobeat-web-assembly-5gf.3`
 **Final audit Bead:** `aerobeat-web-assembly-5gf.4`
 **Owner:** assembly release coder → independent QA → final auditor
