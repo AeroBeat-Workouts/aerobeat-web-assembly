@@ -16,7 +16,7 @@
     "check:components": "node scripts/validate-component-rules.js",
     "check:console": "node scripts/validate-playwright-console-noise.js",
     "test": "npm run check && npm run test:unit",
-    "test:unit": "node scripts/validate-runtime-cadence.js && node scripts/validate-session-render-projection.js && node scripts/validate-pose-backend-registry.js && node scripts/validate-pose-gameplay-source.js && node scripts/validate-predictive-pose-routing.js && node scripts/validate-aero-game-assembly.js && node scripts/validate-task11-actual-services.js && node scripts/validate-v4-assembly-integration.js",
+    "test:unit": "node scripts/validate-runtime-cadence.js && node scripts/validate-gameplay-mode-selection.js && node scripts/validate-session-render-projection.js && node scripts/validate-pose-backend-registry.js && node scripts/validate-pose-gameplay-source.js && node scripts/validate-predictive-pose-routing.js && node scripts/validate-aero-game-assembly.js && node scripts/validate-task11-actual-services.js && node scripts/validate-v4-assembly-integration.js",
     "test:v4-integration": "node scripts/validate-v4-assembly-integration.js",
     "test:live-v4-import": "node scripts/validate-live-v4-import.js",
     "test:live-catalyst": "node scripts/validate-live-catalyst-batch.js",

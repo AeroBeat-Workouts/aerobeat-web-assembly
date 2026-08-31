@@ -35,6 +35,20 @@ const syntheticSecond=projectSessionTargets(events,testTruth,2181); assert.equal
 assert.equal(JSON.stringify(testTruth),truthBefore,"synthetic projection must not mutate gameplay judgement or score truth");
 assert.equal(projectSessionTargets(events,testTruth,2531)[0].feedbackProgress,1); assert.equal(projectSessionTargets(events,testTruth,2532).length,0);
 
+const boxingEvents = Object.freeze([
+  Object.freeze({ eventId:"punch-left",centerTimestampMs:1000,authoredBeat:Object.freeze({type:"hook_left",spatialTarget:Object.freeze({targetCell:5,entryDirection:"up"})}) }),
+  Object.freeze({ eventId:"weave-left",centerTimestampMs:1100,authoredBeat:Object.freeze({type:"weave_left",blockedCells:Object.freeze([0,1,4,5])}) }),
+  Object.freeze({ eventId:"weave-right",centerTimestampMs:1200,authoredBeat:Object.freeze({type:"weave_right",blockedCells:Object.freeze([2,3,6,7])}) }),
+  Object.freeze({ eventId:"guard",centerTimestampMs:1300,authoredBeat:Object.freeze({type:"guard",guardTarget:Object.freeze({leftCell:4,rightCell:7})}) }),
+  Object.freeze({ eventId:"squat",centerTimestampMs:1400,authoredBeat:Object.freeze({type:"squat",blockedCells:Object.freeze([8,9,10,11])}) })
+]);
+const boxing = projectSessionTargets(boxingEvents,playSession,900);
+assert.equal(boxing.find((entry)=>entry.id==="punch-left")?.lane,"left","punch lane follows authored hand");
+assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-left")?.hand,lane:boxing.find((entry)=>entry.id==="weave-left")?.lane,cells:boxing.find((entry)=>entry.id==="weave-left")?.cells},{hand:"left",lane:"left",cells:[0,1,4,5]},"left weave keeps directional lane and exact Grid blocked cells");
+assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-right")?.hand,lane:boxing.find((entry)=>entry.id==="weave-right")?.lane,cells:boxing.find((entry)=>entry.id==="weave-right")?.cells},{hand:"right",lane:"right",cells:[2,3,6,7]},"right weave keeps directional lane and exact Grid blocked cells");
+assert.deepEqual({lane:boxing.find((entry)=>entry.id==="guard")?.lane,cells:boxing.find((entry)=>entry.id==="guard")?.cells},{lane:null,cells:[4,7]},"guard remains neutral for lane duplication and preserves Grid cells");
+assert.deepEqual({hand:boxing.find((entry)=>entry.id==="squat")?.hand,lane:boxing.find((entry)=>entry.id==="squat")?.lane,cells:boxing.find((entry)=>entry.id==="squat")?.cells},{hand:"neutral",lane:null,cells:[8,9,10,11]},"squat remains neutral for lane duplication and preserves Grid cells");
+
 assert.equal(projectSessionTargets(events,playSession,0).length,2);
 assert.equal(projectSessionTargets(Array.from({length:200},(_,index)=>({eventId:`event-${index}`,centerTimestampMs:index,authoredBeat:{type:"note"}})),testTruth,0).length,128,"projection remains bounded");
-console.log("Real commitment-timed feedback and unscored alternating visual Test projection passed.");
+console.log("Real 350 ms feedback, lane cue semantics, Grid cells, and unscored alternating visual Test projection passed.");

@@ -64,7 +64,9 @@ Assembly has no backend selector and does not route prediction into production g
 
 Each connection owns an isolated public `AeroPrototypeProfileRegistry` with exact `live_visual`, `between_run_ruleset`, and `converter_regeneration` identities. Visual profiles apply live through the renderer. Scoring profiles are locked while playing/counting down and bind only newly configured/future content between runs. Converter selection remains regeneration-required until a newly authored package carries the selected hash in source provenance, the top conversion trace, all four Boxing traces, and all four Boxing chart prototype records.
 
-Profile bundles remain direct-host data. UI controls emit scalar identity intents which the game resolves against its local registry; snapshots and iframe events expose bounded identity/hash telemetry only, never profile bundles, ZIP/audio/media, settings objects, or generated package records. All profiles are experimental and no winner is selected.
+Profile bundles remain direct-host data. UI controls emit scalar identity intents which the game resolves against its local registry; snapshots and iframe events expose bounded identity/hash telemetry only, never profile bundles, ZIP/audio/media, settings objects, or generated package records. Gameplay independently resolves Flow, Boxing Lanes, or Boxing Grid plus the retained Boxing Conversion to one exact existing variant. Flow never changes the retained conversion; Balanced Height is only the first-use experimental default. Both Boxing conversions use scrolling lanes for the semantic ruleset and the 4×3 grid for the spatial ruleset. All profiles are experimental and no winner is selected.
+
+Legacy downloaded packages with inverted Flow orientation remain listed, exportable, and deletable, but cannot be selected for Preview, Test, or Play. Selection clears once with `flow_orientation_reimport_required` and does not auto-select the stale package again; reimporting corrected content restores normal exact selection.
 
 ## Iframe protocol
 

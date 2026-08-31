@@ -197,6 +197,8 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 3 — Integrate mode×conversion selection and lane truth
 
+**Status:** Core implementation complete; owner validation passed, awaiting independent QA/audit and online `3C9D` persistence proof.
+
 **Bead:** `aerobeat-web-assembly-hc4.1`
 **Prerequisites:** audited Tasks 0–2
 **Owner:** `aerobeat-web-assembly` coder → independent QA → auditor
@@ -221,6 +223,15 @@ The band cannot be independently resized without lying about gameplay timing. In
 - Test remains audio-only, hit-first, unscored, and camera/CV/input/cursor-free.
 - Direct and iframe portrait/landscape DPR1/3 exercise all modes and both conversions.
 - Tests, browser/live gates, QA, audit, commit, and push pass.
+
+**Owner evidence (2026-08-31):**
+
+- Assembly consumes exact own `{rulesetId}` / `{recipeId}` intents, resolves only existing variants, retains the last valid Boxing conversion across Flow, and uses Balanced Height only for first use.
+- Semantic frames route to `boxing_lanes` with contract-owned `prototypeJudgementDefaults` before/after timing; spatial frames route to `boxing_spatial_grid`; Flow remains `flow` without lane timing fields.
+- Projection tests lock punch/weave lane direction, neutral guard/squat duplication, exact Grid blocked cells, and the unchanged `350 ms` feedback lifetime.
+- Browser coverage locks the mode×conversion matrix, `selectedProfileId`, scalar accessor/object rejection, stale list/export/delete preservation, one bounded `flow_orientation_reimport_required` refresh with no auto-select loop, and corrected reimport selection.
+- Owner gates passed: `npm run check`, `npm test`, focused standard-library browser integration, full `npm run test:browser` across direct/iframe portrait/landscape DPR1/3, and `npm pack --dry-run` (82 files, 301.4 kB packed, 1.1 MB unpacked).
+- Remaining live-only evidence: actual online BeatSaver `3C9D` / `5662f64a12c76a3dd11a5f6ee22611608cd06760` Standard Easy download, IndexedDB persistence, and selected Flow cell comparison remains for QA/release follow-up; no automated claim substitutes for it.
 
 ## Task 4 — Integrated QA, deterministic release, and physical handoff
 

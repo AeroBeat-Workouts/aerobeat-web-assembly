@@ -3,15 +3,26 @@
 import "@aerobeat/web-style/aero-theme.css";
 import { webGameplayIconBundle } from "@aerobeat/branding/web-gameplay-assets";
 import {
+  conversionRecipeIds,
   elementNames,
   isGameCommand,
-  isSafeIframePayload
+  isSafeIframePayload,
+  prototypeJudgementDefaults,
+  rulesetIds
 } from "@aerobeat/web-contracts";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { rasterizeBrandingIconAtlas } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
+import {
+  exactGameplayVariant,
+  firstUseBoxingRecipeId,
+  readBoxingRecipeIntent,
+  readGameplayRulesetIntent,
+  rendererPresentationForVariant,
+  selectedGameplayProfileId
+} from "./gameplay-mode-selection.js";
 import { createAeroGameIframeBridge } from "./iframe-bridge.js";
 import { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
 import { createLockedVideoFrameSource } from "./production-cv-service.js";
@@ -28,6 +39,7 @@ const AERO_BACKGROUND_PROJECTION = Object.freeze({ kind: "linear-gradient", colo
 const CAMERA_BACKGROUND_PROJECTION = Object.freeze({ kind: "solid", colors: Object.freeze(["#00000000"]), angleDeg: 180 });
 const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "play" });
 const VISUAL_TEST_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "visual_test" });
+const FLOW_REIMPORT_MESSAGE = "This downloaded song uses the legacy Flow orientation. Reimport it to play.";
 let instanceSequence = 0;
 
 defineAeroUiElements();
@@ -72,6 +84,7 @@ export class AeroGame extends HTMLElement {
     this.librarySelectionGeneration = 0;
     this.librarySelectionTail = Promise.resolve(null);
     this.desiredLibrarySelection = null;
+    this.lastBoxingRecipeId = firstUseBoxingRecipeId;
     this.leaseParticipant = null;
     this.unregisterLease = null;
     this.fullscreenPending = false;
@@ -300,9 +313,22 @@ export class AeroGame extends HTMLElement {
       else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
     } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+    const selectedRecipeId = graph.content.getSnapshot().selectedVariant?.recipeId;
+    if (conversionRecipeIds.includes(selectedRecipeId)) this.lastBoxingRecipeId = selectedRecipeId;
     this.configureGameplayFromContent(futureOnly); this.syncContentPlayback();
     this.publish("content_changed");
     return this.getSnapshot();
+  }
+
+  /** Resolve independent bounded gameplay axes to one exact authored variant. */
+  async selectGameplayAxes(rulesetId, recipeId = this.lastBoxingRecipeId) {
+    this.assertConnected();
+    if (!rulesetIds.includes(rulesetId)) throw new TypeError("Gameplay ruleset intent is invalid");
+    if (rulesetId !== rulesetIds[0] && !conversionRecipeIds.includes(recipeId)) throw new TypeError("Boxing conversion intent is invalid");
+    const target = exactGameplayVariant(this.graph.content.getSnapshot().variants, rulesetId, recipeId);
+    if (!target?.variantId) throw new Error("Selected gameplay variant is unavailable");
+    if (rulesetId !== rulesetIds[0]) this.lastBoxingRecipeId = recipeId;
+    return this.selectVariant(target.variantId);
   }
 
   /** Select one registered experimental profile by bounded ID. */
@@ -798,11 +824,14 @@ export class AeroGame extends HTMLElement {
   rendererFrame() {
     const content = this.graph.content.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
     const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0);
-    const ruleset = String(selected?.rulesetId ?? "");
-    const presentation = selected?.mode === "flow" ? "flow" : ruleset.includes("semantic") ? "boxing_semantic_track" : "boxing_spatial_grid";
+    const presentation = rendererPresentationForVariant(selected);
     const events = Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
     const targets = projectSessionTargets(events, gameplay, nowMs);
-    return { presentation, nowMs, targets, countdown: null, overlay: "none", calibrationDim: 0 };
+    const blockedCells = presentation === "boxing_spatial_grid" ? Object.freeze([...new Set(targets.filter((target) => target.kind === "obstacle").flatMap((target) => target.cells).filter((cell) => Number.isInteger(cell) && cell >= 0 && cell < 12))]) : undefined;
+    return {
+      presentation, nowMs, targets, blockedCells, countdown: null, overlay: "none", calibrationDim: 0,
+      ...(presentation === "boxing_lanes" ? { timingWindowBeforeMs: prototypeJudgementDefaults.timingWindowBeforeMs, timingWindowAfterMs: prototypeJudgementDefaults.timingWindowAfterMs } : {})
+    };
   }
 
   renderGameplay(graph = this.graph) {
@@ -894,20 +923,49 @@ export class AeroGame extends HTMLElement {
     this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph;
     if (selectionGeneration !== this.librarySelectionGeneration) return null;
     const before = graph.content.getSnapshot();
-    const presentationId = before.selectedVariant ? profilePresentationId(before.selectedVariant) : "flow";
+    const retainedRulesetId = rulesetIds.includes(before.selectedVariant?.rulesetId) ? before.selectedVariant.rulesetId : rulesetIds[0];
+    const retainedRecipeId = conversionRecipeIds.includes(before.selectedVariant?.recipeId) ? before.selectedVariant.recipeId : this.lastBoxingRecipeId;
+    if (conversionRecipeIds.includes(retainedRecipeId)) this.lastBoxingRecipeId = retainedRecipeId;
     const modifierIds = stringList(before.selectedVariant?.modifierIds ?? [], 16);
     let loaded;
-    try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); } catch (error) { if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null; throw error; }
+    try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); }
+    catch (error) {
+      if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+      if (isFlowOrientationReimportError(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
+      throw error;
+    }
     if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-    await this.selectContent({ kind: "persistence", handle: loaded.handle });
+    try { await this.selectContent({ kind: "persistence", handle: loaded.handle }); }
+    catch (error) {
+      if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+      if (isFlowOrientationReimportError(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
+      throw error;
+    }
     if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
     const content = graph.content.getSnapshot();
-    const equivalent = content.variants.find((variant) => profilePresentationId(variant) === presentationId);
-    const fallback = content.variants.find((variant) => profilePresentationId(variant) === "flow") ?? content.variants[0];
+    const equivalent = retainedRulesetId === rulesetIds[0]
+      ? content.variants.find((variant) => variant.rulesetId === rulesetIds[0])
+      : content.variants.find((variant) => variant.rulesetId === retainedRulesetId && variant.recipeId === retainedRecipeId);
+    const fallback = content.variants.find((variant) => variant.rulesetId === rulesetIds[0]) ?? content.variants[0];
     const selected = equivalent ?? fallback;
     if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.selectVariant(selected.variantId, modifierIds);
     if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+    if (this.lastError?.code === "flow_orientation_reimport_required") { this.lastError = null; this.renderPresenters(); }
     return Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
+  }
+
+  async clearStaleLibrarySelection(selectionGeneration, error) {
+    if (selectionGeneration !== this.librarySelectionGeneration) return null;
+    const generation = this.connectedGeneration;
+    this.librarySelectionGeneration += 1;
+    this.desiredLibrarySelection = null;
+    this.stopPreview({ render: false });
+    this.libraryView = Object.freeze({ ...this.libraryView, selectedCollectionId: null, selectedPackageId: null });
+    this.lastError = Object.freeze({ code: "flow_orientation_reimport_required", message: FLOW_REIMPORT_MESSAGE });
+    this.emitGameEvent("error", this.lastError);
+    await this.refreshLibrary(generation, { autoSelect: false });
+    if (this.isCurrent(generation)) this.renderPresenters();
+    return null;
   }
 
   requestLibrarySelection(collectionIdValue, packageIdValue) {
@@ -928,17 +986,18 @@ export class AeroGame extends HTMLElement {
 
   async refreshLibrary(generation = this.connectedGeneration, preferences = {}) {
     const graph = this.graph; if (!graph) return;
+    const autoSelect = dataValue(preferences, "autoSelect") !== false;
     const collectionsRequest = typeof graph.authoring.listCollections === "function" ? graph.authoring.listCollections() : Promise.resolve(null);
     const [listedPackages, listedCollectionsValue, storage] = await Promise.all([graph.authoring.listPackages(), collectionsRequest, graph.authoring.estimateStorage()]);
     if (!this.isCurrent(generation, graph)) return;
     const packages = productLibraryPackages(listedPackages); const listedCollections = listedCollectionsValue ?? legacyLibraryCollections(packages);
-    const requestedPackageId = boundedString(preferences.preferredPackageId, this.desiredLibrarySelection?.packageId ?? this.libraryView.selectedPackageId ?? "");
-    const requestedCollectionId = boundedString(preferences.preferredCollectionId, this.desiredLibrarySelection?.collectionId ?? this.libraryView.selectedCollectionId ?? "");
+    const requestedPackageId = autoSelect ? boundedString(preferences.preferredPackageId, this.desiredLibrarySelection?.packageId ?? this.libraryView.selectedPackageId ?? "") : "";
+    const requestedCollectionId = autoSelect ? boundedString(preferences.preferredCollectionId, this.desiredLibrarySelection?.collectionId ?? this.libraryView.selectedCollectionId ?? "") : "";
     const collections = productLibraryCollections(listedCollections, requestedCollectionId, requestedPackageId);
-    const selectedCollection = collections.find((entry) => entry.collectionId === requestedCollectionId) ?? collections.find((entry) => entry.difficulties.some((difficulty) => difficulty.packageId === requestedPackageId)) ?? collections[0] ?? null;
+    const selectedCollection = autoSelect ? collections.find((entry) => entry.collectionId === requestedCollectionId) ?? collections.find((entry) => entry.difficulties.some((difficulty) => difficulty.packageId === requestedPackageId)) ?? collections[0] ?? null : null;
     const selectedPackageId = selectedCollection?.difficulties.some((entry) => entry.packageId === requestedPackageId) ? requestedPackageId : selectedCollection?.activePackageId ?? null;
     this.libraryView = Object.freeze({ packages, collections, songs: publicLibrarySongs(collections), selectedCollectionId: selectedCollection?.collectionId ?? null, selectedPackageId, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
-    if (!selectedCollection || !selectedPackageId) return;
+    if (!autoSelect || !selectedCollection || !selectedPackageId) return;
     const current = graph.content.getSnapshot();
     if (current.packageId === selectedPackageId) return;
     return this.requestLibrarySelection(selectedCollection.collectionId, selectedPackageId);
@@ -1195,20 +1254,24 @@ export class AeroGame extends HTMLElement {
     else if (detail.type === "library-select") { const collectionId = dataValue(detail.payload, "collectionId"); const collection = this.libraryView.collections.find((entry) => entry.collectionId === collectionId); if (collection) void this.requestLibrarySelection(collection.collectionId, collection.activePackageId); }
     else if (detail.type === "library-difficulty-select") { const collectionId = dataValue(detail.payload, "collectionId"); const packageId = dataValue(detail.payload, "packageId"); void this.requestLibrarySelection(collectionId, packageId); }
     else if (detail.type === "library-preview-toggle") void this.toggleLibraryPreview(dataValue(detail.payload, "packageId")).catch((error) => this.handleError(error));
-    else if (detail.type === "library-export") { const target = librarySelectionTarget(this.libraryView.collections, this.libraryView.selectedCollectionId, dataValue(detail.payload, "packageId")); if (target) void this.exportLibraryPackage(target).catch((error) => this.handleError(error)); }
+    else if (detail.type === "library-export") { const target = libraryPackageTarget(this.libraryView.collections, dataValue(detail.payload, "packageId")); if (target) void this.exportLibraryPackage(target).catch((error) => this.handleError(error)); }
     else if (detail.type === "library-delete") void this.deleteLibraryCollection(dataValue(detail.payload, "collectionId")).catch((error) => this.handleError(error));
-    else if (detail.type === "prototype-select") { const target = this.variantForPresentation(dataValue(detail.payload, "profileId")); if (target) void this.selectVariant(target.variantId).catch((error) => this.handleError(error)); }
+    else if (detail.type === "gameplay-mode-select") {
+      try { const rulesetId = readGameplayRulesetIntent(detail.payload); void this.selectGameplayAxes(rulesetId).catch((error) => this.handleError(error)); }
+      catch (error) { this.handleError(error); }
+    }
+    else if (detail.type === "boxing-conversion-select") {
+      try {
+        const recipeId = readBoxingRecipeIntent(detail.payload); this.lastBoxingRecipeId = recipeId;
+        const selectedRuleset = this.graph.content.getSnapshot().selectedVariant?.rulesetId;
+        if (selectedRuleset !== rulesetIds[0] && rulesetIds.includes(selectedRuleset)) void this.selectGameplayAxes(selectedRuleset, recipeId).catch((error) => this.handleError(error));
+      } catch (error) { this.handleError(error); }
+    }
     else if (detail.type === "prototype-profile-select") { try { this.selectProfileFromIntent(detail.payload); } catch (error) { this.handleError(error); } }
     else if (detail.type === "tuning-import-request") this.emitGameEvent("profile_bundle_import_requested", {});
     else if (detail.type === "tuning-export") { try { const bundle = this.exportPrototypeProfiles(); this.emitGameEvent("profile_bundle_exported", { bundleVersion: bundle.bundleVersion, bundleHash: bundle.bundleHash, profileCount: bundle.profiles.length }); } catch (error) { this.handleError(error); } }
     else if (detail.type === "tuning-reset") { try { this.resetPrototypeProfiles(); } catch (error) { this.handleError(error); } }
     else if (detail.type === "calibration-reset") this.reset();
-  }
-
-  variantForPresentation(value) {
-    if (typeof value !== "string") return null;
-    const variants = this.graph.content.getSnapshot().variants;
-    return variants.find((variant) => profilePresentationId(variant) === value) ?? null;
   }
 
   selectProfileFromIntent(payload) {
@@ -1379,6 +1442,11 @@ function librarySelectionTarget(collections, collectionIdValue, packageIdValue) 
   const difficulty = collection?.difficulties.find((entry) => entry.packageId === packageId);
   return collection && difficulty ? Object.freeze({ collectionId, packageId, packageKey: difficulty.packageKey, difficultyId: difficulty.difficultyId }) : null;
 }
+function libraryPackageTarget(collections, packageIdValue) {
+  const packageId = boundedString(packageIdValue, "");
+  for (const collection of collections) { const difficulty = collection.difficulties.find((entry) => entry.packageId === packageId); if (difficulty) return Object.freeze({ collectionId: collection.collectionId, packageId, packageKey: difficulty.packageKey, difficultyId: difficulty.difficultyId }); }
+  return null;
+}
 function activateLibraryCollection(collections, collectionId, packageId) { return Object.freeze(collections.map((collection) => collection.collectionId === collectionId && collection.difficulties.some((entry) => entry.packageId === packageId) ? Object.freeze({ ...collection, activePackageId: packageId }) : collection)); }
 function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1; }
 function audioClockAlignedWithGameplay(session, clock) { return clock?.playing === false && Number(clock.positionSeconds) * 1000 === Number(session?.timelinePositionMs ?? 0); }
@@ -1396,7 +1464,8 @@ function gameplayCursorRecords(menuOpen, session, input) {
   }));
 }
 function profileSessionState(gameplay) { const countdown = dataValue(gameplay, "countdown"); const session = dataValue(gameplay, "session"); if (dataValue(countdown, "value") !== null && dataValue(countdown, "value") !== undefined) return "countdown"; return typeof dataValue(session, "state") === "string" ? dataValue(session, "state") : "idle"; }
-function profilePresentationId(variant) { if (dataValue(variant, "mode") === "flow") return "flow"; const semantic = String(dataValue(variant, "rulesetId") ?? "").includes("semantic"); const row = String(dataValue(variant, "recipeId") ?? "").includes("row_family"); return `${semantic ? "semantic" : "spatial"}-${row ? "row" : "cut"}`; }
+function profilePresentationId(variant) { return selectedGameplayProfileId(variant); }
+function isFlowOrientationReimportError(error) { return ownDataValue(error, "code") === "flow_orientation_reimport_required"; }
 function tuningIdentity(profile, regenerationRequired) { return Object.freeze({ schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: profile.profileId, profileVersion: profile.profileVersion, contentHash: profile.contentHash, class: profile.class, regenerationRequired }); }
 function profileTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, generation: snapshot.generation, destroyed: snapshot.destroyed, bundleVersion: snapshot.bundleVersion, profileCount: snapshot.profiles.length, active: Object.freeze({ visual: snapshot.active.visual.identity, scoring: snapshot.active.scoring.identity, converter: snapshot.active.converter.identity }), appliedConverterHash: snapshot.appliedConverterHash, pendingConverterHash: snapshot.pendingConverterHash, regenerationRequired: snapshot.regenerationRequired, experimental: true }); }
 function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), iconAtlasReady: dataValue(snapshot, "iconAtlasReady") === true, iconAtlasError: boundedString(dataValue(snapshot, "iconAtlasError"), "") || null, tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
