@@ -1,0 +1,133 @@
+# Visual Test Debug-Camera Blue-Screen Hotfix
+
+**Status:** Approved from physical defect report; diagnosis complete; implementation in progress
+**Owner:** assembly orchestrator → renderer coder → independent QA → final auditor
+**Assembly bug:** `aerobeat-web-assembly-ft7`
+**Renderer bug:** `aerobeat-web-renderer-b79` (external reference to assembly `ft7`)
+**Affected release:** `0.0.28`
+**Target release:** deterministic `0.0.29`
+
+## Goal
+
+Repair the physically observed desktop Visual Test regression where active playback shows only the opaque blue PlayCanvas clear while pausing/menu-open reveals the Flow scene. Preserve the approved PlayCanvas-plus-DOM architecture, free-fly controls, exact 4×3/timing/duration/scoring/privacy/lifecycle contracts, retained `dev:tailscale` process, and Pending physical boundary.
+
+## Exact observed failure
+
+Directly observed in Derrick's physical screenshots and report:
+
+- A downloaded DDR song starts in Flow Visual Test and audio advances.
+- While Test is playing, the gameplay surface is uniformly blue; the DOM help, Reset camera, menu button, transport, and song time remain visible.
+- Pausing midway/menu-open reveals PlayCanvas grid/timing/target geometry behind the drawer.
+- Resuming hides the geometry behind the blue render again.
+
+The failure occurs only in the active desktop Visual Test camera state demonstrated by this transition. It is not yet evidence of missing chart data, scoring failure, or a general renderer/context failure.
+
+## Expected behavior
+
+Active desktop Visual Test must begin with the debug camera at the same scene-facing overview as Reset camera, render non-background Flow geometry before any camera input, remain visible across pause/resume, and preserve held-RMB look plus `WASD`, `Q`/`E`, Shift boost, reset, and lifecycle cleanup. Pausing may disable debug input but must not be the condition that makes geometry visible.
+
+## Execution path
+
+1. Assembly starts a desktop `purpose:"visual_test"` session and renders a gameplay frame from authoritative content/session time.
+2. `renderPresenters()` calls `syncDebugCameraPresentation()`.
+3. `debugCameraSnapshot()` enables the renderer debug camera when the Test session is present, pointer is fine, menu is closed, and lifecycle is connected.
+4. `AeroPlayCanvasRenderer.setDebugCameraEnabled(true)` installs input listeners.
+5. Every active `renderGameplayFrame()` calls `applyCamera(model)`.
+6. Because debug mode is enabled, `applyCamera()` calls `applyDebugPose()` instead of the fixed scene camera.
+7. `applyDebugPose()` applies stored Euler pitch/yaw to the PlayCanvas camera before rendering.
+8. Opening the menu makes assembly disable debug mode; the renderer resets and subsequent frames use the fixed camera, exposing the scene.
+
+## Most likely root cause — confirmed
+
+The renderer stores an Euler yaw inconsistent with the camera orientation established by Reset:
+
+- `resetDebugCamera()` stores `debugYaw = 0`, `debugPitch = -0.13`, positions the camera at `(0, 3.15, -7.8)`, then uses `lookAt(0, 1.05, 8)` to face the gameplay scene on positive Z.
+- On the next active frame, `applyDebugPose()` discards that `lookAt` rotation and calls `setEulerAngles(-7.45°, 0°, 0°)`.
+- PlayCanvas cameras look down local negative Z. Yaw `0` therefore faces negative world Z, away from all positive-Z gameplay geometry.
+- A direct PlayCanvas math probe confirmed the vectors: pitch `-7.57°`, yaw `0°` gives forward approximately `(0, -0.132, -0.991)`; yaw `180°` gives `(0, -0.132, +0.991)`, matching the scene-facing `lookAt` forward vector `(0, -0.132, +0.991)`.
+- Pausing/menu-open disables debug mode and restores the fixed/look-at camera, exactly matching the physical symptom.
+
+This is the causal root, not merely a surface where blue appears.
+
+## Alternative hypotheses
+
+1. **Higher-priority DOM overlay** — unlikely. The visible color matches the canvas/background clear, DOM controls remain independently visible, and switching camera mode reveals scene geometry without changing canvas stacking.
+2. **Targets culled because song time advanced** — unlikely. Geometry appears at the same approximate timeline immediately after pause; the chart/session pipeline remains active.
+3. **Transparent material/depth ordering** — unlikely. The same objects/materials render when debug mode is disabled, and the whole grid/timing scene disappears together.
+4. **Context loss or second render loop** — unlikely. UI remains responsive, pause renders the scene in the same canvas/application, and audited renderer telemetry uses one app/context with manual ticks.
+
+## Why previous verification missed it
+
+No hotfix has been attempted yet. The `0.0.28` automated suites proved debug-camera enablement, pointer lock, held mouse look, movement intents, cleanup, context recovery, and representative fixed-camera pixels. They did not assert non-background gameplay pixels after debug mode was enabled and another active frame reapplied the stored Euler pose. Reset was validated behaviorally, but not against the immediately following active render that overwrote `lookAt` with yaw zero.
+
+## Unknowns
+
+- Derrick's exact viewport/browser and whether Reset was pressed are not recorded. Neither is required to explain the deterministic camera-forward mismatch.
+- The same physical issue has not yet been reproduced with Boxing presentations; the shared camera path predicts it affects all active desktop Test presentations.
+- Physical confirmation of the hotfix remains Pending until Derrick retests the secure route.
+
+## Minimal reproduction
+
+1. Use a desktop fine-pointer browser.
+2. Select any downloaded Flow package containing visible upcoming targets.
+3. Start `Test` and allow playback to advance with no mouse/keyboard input.
+4. Observe an opaque clear with no gameplay geometry while DOM Test controls remain.
+5. Open the menu/pause: geometry becomes visible under the fixed camera.
+6. Close/resume: debug mode reapplies yaw zero and geometry disappears.
+
+A renderer-only reproduction is smaller: render a positive-Z Flow scene, enable debug mode, render a second frame, and compare the camera forward vector/non-background pixels with the reset/fixed view.
+
+## Proposed verification before correction
+
+Add a targeted renderer browser assertion that distinguishes camera orientation from overlays/materials:
+
+- render representative positive-Z Flow geometry;
+- enable debug mode and render at least two frames;
+- assert the camera forward vector has positive Z and rendered pixels differ from the configured opaque background;
+- call Reset, render again, and assert scene pixels remain;
+- disable/re-enable across pause-equivalent transitions and assert the scene remains visible;
+- retain real held-RMB look, mouse-up release, movement, disabled/detached/destroyed cleanup, portrait/landscape DPR, and context recovery checks.
+
+Add an assembly browser regression for active desktop Test → pause/menu-open → resume using displayed PlayCanvas pixels, not telemetry alone.
+
+## Recommended fix
+
+Use one coherent stored debug pose. Initialize/reset yaw to `Math.PI` with pitch `-0.13`, and apply that stored pose directly rather than establishing a conflicting transient `lookAt` rotation. This keeps active-frame Euler application facing positive-Z gameplay and lets mouse deltas remain continuous around the correct baseline. Avoid any DOM z-index, clear-color, culling, or camera-disable workaround because those would treat symptoms or remove the approved free-fly feature.
+
+Adjacent regression scope: all three presentations, Reset, pause/resume, real pointer lock and mouse-up release, movement keys, fixed/mobile/scored camera, exact timing/duration projection, lifecycle teardown, context recovery, and deterministic packaging.
+
+## Debugging record
+
+```text
+Problem: Active desktop Visual Test shows only the blue PlayCanvas clear.
+Observed symptom: Playing hides all gameplay geometry; pause/menu-open reveals it; resume hides it again while DOM/audio remain active.
+Root cause: Stored debug yaw 0 points the PlayCanvas camera down negative Z; each active frame overwrites the scene-facing reset/lookAt rotation, while gameplay lives on positive Z.
+Evidence: Renderer call path and direct PlayCanvas forward-vector probe; physical visibility changes exactly when assembly toggles debug mode.
+Failed approaches: None attempted. Prior tests covered input/telemetry but omitted active debug-camera gameplay pixel continuity.
+Corrective action: Make reset/initial stored yaw Math.PI and apply one coherent Euler pose; add renderer and assembly pixel regressions.
+Verification test: Positive camera-forward Z plus non-background scene pixels across active two-frame render, Reset, pause/resume, and lifecycle/input matrices.
+Related files/components: renderer `src/renderer-facade.js`; renderer Chromium validation; assembly `src/index.js`; assembly product-shell/browser validation.
+Remaining uncertainty: Physical retest result and breadth across real downloaded Boxing content remain Pending.
+```
+
+## Task 1 — Renderer correction
+
+**Bead:** `aerobeat-web-renderer-b79`
+**Status:** In progress
+
+Implement the smallest coherent-pose correction and targeted unit/Chromium regression. Run full renderer unit/browser/package determinism. Independent renderer QA/audit must pass before assembly consumes the result.
+
+## Task 2 — Assembly physical-path regression
+
+**Bead:** `aerobeat-web-assembly-ft7`
+**Status:** In progress
+
+Consume the immutable renderer correction and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
+
+## Task 3 — Deterministic hotfix release
+
+Patch package/lock/index/proof surfaces to `0.0.29`, leave `0.0.28` byte-unchanged, produce repeated byte-identical raw and dry-pack outputs, keep final exact pack metadata external, update the focused physical handoff with this failed `0.0.28` observation and `0.0.29` retest rows Pending, and retain the existing server PID.
+
+## Task 4 — Independent QA/audit and closure
+
+Independent QA and final audit must reproduce active debug-camera scene pixels and the complete high-value regression/release matrix before closing both bugs. All linked repos must be clean/upstream; no physical PASS or gameplay/conversion winner may be inferred.
