@@ -111,7 +111,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0A — Publish authoritative Flow interval timing
 
-**Status:** Owner implementation `9ccec74` needs correction after independent QA found derived-timestamp overflow; correction active
+**Status:** Correction `c973c06` complete and pushed after QA-found overflow; independent re-QA active
 **Bead:** `aerobeat-web-content-28s`
 **Owner:** `aerobeat-web-content` coder → independent QA → auditor
 
@@ -130,11 +130,11 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Owner evidence (2026-08-31):** Commit `9ccec74` adds optional immutable `endTimestampMs` only when an authored beat owns `end`, derived with the exact loaded package BPM while preserving instant envelope keys and package/chart/authored identity. Exact 150 BPM proof resolves `74.5999984741211→74.6624984741211` to `29839.999389648438→29864.999389648438 ms`. Owner unit/browser gates passed obstacle/arc/burst, malformed intervals, paused swaps, frozen/serializable snapshots, isolation, and zero console failures. Dry pack: 9 files, 22,730 packed bytes, 92,867 unpacked bytes, SHA-1 `b3dd1fd497f551690353efda5ced56fd76fea2a8`.
 
-**Independent QA (2026-08-31): FAIL, correction active.** Standard gates and normal fixtures pass, but finite authored `end:1e308` passes raw package validation and overflows during `timelineFor` conversion to public `endTimestampMs:Infinity`, which JSON serializes as `null`; huge finite `start` has the same class. Root cause is validating raw finiteness/monotonicity without bounding BPM-derived milliseconds. Correction must reject derived center/end values outside the shared 24-hour runtime horizon before publication and prove overflow plus exact boundary fixtures.
+**Independent QA (2026-08-31): Initial FAIL corrected by `c973c06`; re-QA active.** Standard gates and normal fixtures passed, but finite authored `end:1e308` passed raw package validation and overflowed during `timelineFor` conversion to public `endTimestampMs:Infinity`, which JSON serialized as `null`; huge finite `start` had the same class. Root cause was validating raw finiteness/monotonicity without bounding BPM-derived milliseconds. Correction now validates BPM-derived start/end at the package boundary against an inclusive 86,400,000 ms limit; exact max passes, +1/overflow rejects, the 150 BPM oracle remains exact, and owner unit/browser/pack gates pass. Corrected dry pack: 9 files, 22,967 packed bytes, 93,734 unpacked bytes, SHA-1 `9a24fe9c0f391394db68dc134401cfd6d98ac392`.
 
 ## Task 0B — Validate Flow non-note geometry
 
-**Status:** Owner implementation `944937f` complete and pushed; independent QA active
+**Status:** Owner implementation `944937f` needs correction after independent QA found interval-bound and envelope-precedence bypasses; correction active
 **Bead:** `aerobeat-web-gameplay-bza`
 **Owner:** `aerobeat-web-gameplay` coder → independent QA → auditor
 
@@ -152,6 +152,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Check, unit, browser, pack, independent QA/audit, commit, and push pass.
 
 **Owner evidence (2026-08-31):** Commit `944937f` explicitly and transactionally validates canonical Flow bomb placement; obstacle interval/unique cells; arc head/tail/directions; and burst head/tail/direction/checkpoints while retaining non-scoring ignored outcomes and documented legacy direct-envelope compatibility. Owner check/unit/public integration/browser gates passed malformed transactionality, valid ignored results, note/Boxing regressions, and zero console errors. Dry pack: 13 files, 30,340 packed bytes, 125,447 unpacked bytes, SHA-1 `6a20aeb85601c2a7fced0cd899cf85810a8b9126`.
+
+**Independent QA (2026-08-31): FAIL, correction active.** Finite interval ends above 86,400,000 ms remained accepted, and `normalizeEvents` flattened authored fields after the resolved envelope so malicious authored `endTimestampMs` could mask an authoritative rollback. The correction must restore envelope timing precedence and enforce the inclusive 24-hour bound for canonical and legacy supplied ends; exact max/+1/MAX/override transactionality fixtures are required.
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
@@ -208,7 +210,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
-**Status:** Pending
+**Status:** In progress; assembly coder `4ec15038-ec89-415f-9f8e-d555d5653899` active
 **Bead:** `aerobeat-web-assembly-5gf.2`
 **External prerequisites:** `aerobeat-web-renderer-der`, `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-assembly` coder → independent QA → auditor
@@ -276,6 +278,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - UI coder `4868399b-1e95-42b2-a6e8-7edff7c5a12c` is implementing Task 2 under `aerobeat-web-ui-ytx`.
 - Content runtime coder `ceab3137-194b-4f19-b8c8-8b6f115650f9` is implementing authoritative interval timing under `aerobeat-web-content-28s`.
 - Gameplay coder `1240f06d-1130-4566-bb95-2dc7d4655cac` is implementing Flow non-note validation under `aerobeat-web-gameplay-bza`.
+- Assembly coder `4ec15038-ec89-415f-9f8e-d555d5653899` is integrating obstacle projection and ordered Visual Test transport under `aerobeat-web-assembly-5gf.2`.
 
 ## Approval record
 
