@@ -1,7 +1,7 @@
 # AeroBeat Boxing Lanes, Boxing Grid, and Flow Orientation
 
 **Date:** 2026-08-31
-**Status:** Approved — Execution In Progress
+**Status:** Complete — automated delivery, QA, audit, and release closed; Derrick physical observations remain Pending.
 **Owner:** `aerobeat-web-assembly`
 **Parent plan:** `.plans/2026-08-28-embeddable-game-calibration-and-boxing-prototypes.md`
 **Release target:** next web assembly release after `0.0.25`
@@ -237,7 +237,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 4 — Integrated QA, deterministic release, and physical handoff
 
-**Status:** Owner release lane and independent QA complete at `0.0.26`; `aerobeat-web-assembly-hc4.2` is closed, followed by final audit Bead `.3`.
+**Status:** Complete at `0.0.26`; owner release, independent QA (`aerobeat-web-assembly-hc4.2`), and final whole-objective audit (`aerobeat-web-assembly-hc4.3`) are closed.
 
 **QA/Release Bead:** `aerobeat-web-assembly-hc4.2`
 **Final Audit Bead:** `aerobeat-web-assembly-hc4.3`
@@ -281,6 +281,14 @@ The band cannot be independently resized without lying about gameplay timing. In
 - Release marker inspection confirmed corrected stale identity plus Flow, `boxing_lanes`, and `boxing_spatial_grid` identities and exact product labels. With no runtime drift, the two independently audited live `3C9D` persistence proofs remain bound to this release: exact hash `5662f64a12c76a3dd11a5f6ee22611608cd06760`, beat `21` `(x=3,y=0)` → cell `11`, first twelve `[11,8,10,9,11,8,11,8,10,9,11,8]`.
 - The physical handoff contains all five comparisons, keeps every Derrick observation Pending, states automated evidence is not a human phone pass, and makes no winner recommendation. All five planned repos were clean/upstream; prerequisite implementation Beads were closed; PID `2972964` remained unchanged and the secure route returned HTTP 200.
 - After this QA closure commit, QA reruns two raw builds and two dry packs at the final clean/upstream HEAD and reports hashes without another tracked edit, avoiding a self-changing evidence loop.
+
+**Final whole-objective audit closure (2026-08-31):**
+
+- Final auditor independently reviewed the complete plan, all umbrella/task/prerequisite Beads, source and release diffs, the physical handoff, and evidence in all five planned repositories. Web and Godot source review confirmed the exactly-once bottom-left→top-left transform across notes, bombs, arcs, chains, and obstacles while retaining unflipped source truth for Boxing.
+- Fresh `npm run check` plus focused mode-selection, session-projection, and stale standard-library gates passed. The auditor critically reviewed the immediately preceding independent full check/unit/build/browser evidence for all five variants, direct/iframe portrait/landscape DPR1/3, privacy, cadence, countdown, Preview, compositor, and cursors rather than duplicating an unchanged full browser run.
+- Two fresh raw builds matched the tracked 13-file `0.0.26` proof and each other: source fingerprint `cacac1e520eb1f619a3c694a01e7d7b6d1a51516bd05c1b1bf0556e387bafbc9`; recursive manifest SHA-256 `831f513a19a63b10a4ab2d3194fa06a51895533c9f95ea912636b7c434239647`; proof SHA-256 `69969cd8b0ca8e3a5e99b26c6eeb93643c90fe59af05ea7b62aab8f717f54a85`. Two preclosure dry packs were byte-identical (JSON SHA-256 `43b957f340c7579c042f5c10d8bc2e44977df0b993a3bd6f82f196935bd8161c`; 83 files; 305820 packed bytes; 1086224 unpacked bytes; tar SHA-1 `5da2d3543acdc3e4229fd8494ac13084f8d309f7`). A final clean-HEAD raw/pack pair is reported after this closure commit without another tracked edit.
+- `aerobeat-web-assembly-hc4.3` and umbrella `aerobeat-web-assembly-hc4` closed with explicit whole-objective PASS reasons and were Dolt-pushed. All prerequisite Beads were closed, all five repositories were clean/upstream apart from this intentional final ledger/plan closure, PID `2972964` remained unchanged, and the secure route returned HTTP 200.
+- The completed plan remains active rather than archived because the physical handoff is intentionally still live: every Derrick observation remains `Pending`; automated evidence claims neither a physical phone pass nor a production Boxing winner.
 
 ---
 
