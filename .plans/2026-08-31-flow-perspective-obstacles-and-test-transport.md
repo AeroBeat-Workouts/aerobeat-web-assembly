@@ -165,7 +165,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
-**Status:** Exact-endpoint/horizon correction `b2e95c9` and corrected independent QA PASS; final auditor active
+**Status:** Complete; implementation `8b9dfca`, correction `b2e95c9`, corrected QA PASS, final audit/closure `adbbaa1`, `aerobeat-web-renderer-der` closed
 **Bead:** `aerobeat-web-renderer-der`
 **Owner:** `aerobeat-web-renderer` coder → independent QA → auditor
 
@@ -193,6 +193,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 **Independent QA (2026-08-31): Initial FAIL corrected by `b2e95c9`; re-QA active.** All static/unit/pixel/Boxing/lifecycle/pack gates passed, but `projectFlowRect(endpoint,1)` recomputed center geometry and introduced sub-ULP x/y drift instead of deep-strict equality with the original cell rectangle. Correction now returns an exact frozen endpoint copy at clamped progress 1 and strictly proves public/cue/obstacle endpoints across all 12 cells and four extreme aspects. It also strengthens full +2500 ms horizon and feedback-independent obstacle/no-ring/no-GREAT framebuffer proof. Corrected dry pack: 14 entries, 33,923 packed bytes, 126,689 unpacked bytes, SHA-1 `76b32559691f89fb59816a1817cee4b7bbc5998c`.
 
 **Corrected independent QA (2026-08-31): PASS.** Fresh full/browser/diff/pack gates proved strict endpoints over 60 cell/aspect pairs, intermediate linearity, complete horizon/order, destination ring pixels, interval/feedback-independent obstacle planes without ring/GREAT, crisp DPR1/3 masks, all Flow semantics, byte-identical Boxing, and lifecycle/console regressions.
+
+**Final audit (2026-08-31): PASS.** Auditor reproduced strict endpoint, interpolation/horizon, obstacle, crisp atlas/DPR framebuffer, Flow/Boxing, lifecycle/privacy, and identical pack evidence; closed `aerobeat-web-renderer-der` and pushed ledger closure commit `adbbaa1`.
 
 ## Task 2 — Add Visual Test transport presenter
 
