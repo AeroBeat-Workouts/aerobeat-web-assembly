@@ -147,7 +147,7 @@ Audit Bead `aerobeat-web-assembly-shx` independently reviewed terminal replay co
 ## Task 3 — Independent QA and deterministic release
 
 **Bead:** `aerobeat-web-assembly-6nt.3`
-**Status:** Ready — Task 0/2 audit PASS; physical checks remain Pending
+**Status:** Coder complete — `0.0.28` awaiting independent release QA/audit; physical checks remain Pending
 
 ### Work
 
@@ -163,6 +163,10 @@ Audit Bead `aerobeat-web-assembly-shx` independently reviewed terminal replay co
 - Package/lock/index/proof version surfaces agree.
 - All relevant repos are clean/upstream and the existing secure server remains healthy and unchanged.
 - Automated evidence claims no physical phone pass and no gameplay/conversion winner.
+
+### Release coder result (2026-08-31)
+
+Release ownership patched all package/lock/index/proof surfaces from `0.0.27` to `0.0.28`, generated the intentional raw unminified browser proof under `release/raw/0.0.28`, and left every tracked `0.0.27` artifact byte-unchanged. `npm test`, the complete eight-context `npm run test:browser` chain, exact live `3C9D` Easy Flow obstacle projection, `npm run build`, `npm ls --all`, forbidden legacy-identity search, and `git diff --check` pass. Two raw release constructions produced the same recursive byte manifest (`e2fb7a38a293260c5b6a41a1d5b39db44f76828c84b0f4d4e38087c6a71bd822`); the proof records source fingerprint `b1bf3a8c2f631e6058be8493cba3a44a8c3742d0b9b1dc12569bd42851814a77` and `11404580` artifact bytes before the manifest. Final committed-payload dry-pack evidence and exact metadata are recorded only in external Bead `aerobeat-web-assembly-6nt.3`, not in this packed plan or other packed docs. The focused `0.0.28` phone checklist covers PlayCanvas Flow/Boxing, 3D timing-floor states, duration intervals, fixed/debug camera boundaries, transport, input cleanup, scoring/privacy, and keeps every observation explicitly Pending without selecting a gameplay or conversion winner. Renderer `7853584` and UI `3bf327f` remain pinned clean/upstream; the retained `dev:tailscale` PID `2972964` returns HTTP 200 without restart.
 
 ## Task 4 — Final audit and closure
 
