@@ -90,7 +90,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0 — Confirm obstacle failure and lock contracts
 
-**Status:** In progress
+**Status:** Diagnostic complete; closure follows interval/validation landings
 **Bead:** `aerobeat-web-assembly-5gf.1`
 **Owner:** assembly diagnostic coder → QA
 
@@ -106,6 +106,46 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Minimal fixture proves the current obstacle disappears and distinguishes projection failure from renderer failure.
 - Test names exact obstacle cells/duration and expected draw commands.
 - No destructive package migration or content regeneration is introduced.
+
+**Diagnostic evidence (2026-08-31):** Exact live `3C9D` hash `5662f64a12c76a3dd11a5f6ee22611608cd06760`, Standard Easy, contains 16 valid Flow obstacles. The first selected event is cell `[1]`, beats `74.5999984741211→74.6624984741211`, exact `29839.999389648438→29864.999389648438 ms` at 150 BPM. Current assembly projects it as a straight left punch with no cells and the renderer emits zero target commands; manually supplying the same baseline renderer an obstacle target with `[1]` emits obstacle commands. The generic fallback also catches Flow bomb/arc/burst, so explicit validation/presentation decisions are required.
+
+## Task 0A — Publish authoritative Flow interval timing
+
+**Status:** In progress
+**Bead:** `aerobeat-web-content-28s`
+**Owner:** `aerobeat-web-content` coder → independent QA → auditor
+
+### Work
+
+- Enrich resolved interval events with exact `endTimestampMs` in the content timeline owner from authored `end` and package BPM.
+- Preserve immutable authored beats, package/chart hashes, source lineage, and instant-event envelopes.
+- Cover obstacle, arc, and burst intervals without exposing conversion traces or raw source geometry.
+
+### Acceptance
+
+- The exact live fixture resolves to `29839.999389648438→29864.999389648438 ms`.
+- Known-BPM obstacle/arc/burst fixtures produce exact finite immutable end timestamps.
+- Malformed authored intervals fail at the existing package boundary or remain rejected downstream; package bytes/hashes do not change.
+- Check, unit, browser, pack, independent QA/audit, commit, and push pass.
+
+## Task 0B — Validate Flow non-note geometry
+
+**Status:** In progress
+**Bead:** `aerobeat-web-gameplay-bza`
+**Owner:** `aerobeat-web-gameplay` coder → independent QA → auditor
+
+### Work
+
+- Transactionally validate Flow bomb placement, obstacle cells/end timing, and arc/burst head/tail/interval fields from resolved content events.
+- Preserve the existing explicit non-scoring `ignored` judgement path for every non-note Flow event.
+- Reject malformed geometry before assembly/renderer presentation.
+
+### Acceptance
+
+- Exact valid non-note fixtures configure successfully and remain ignored for score.
+- Empty/duplicate/out-of-range obstacle cells, invalid intervals, and malformed bomb/arc/burst placements reject atomically.
+- Existing note scoring, Flow direction matching, Boxing behavior, leases, pauses, and score partitions remain unchanged.
+- Check, unit, browser, pack, independent QA/audit, commit, and push pass.
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
@@ -219,6 +259,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Diagnostic coder `6a041b51-91f5-4f73-bc0f-0128f5122fe1` is tracing the selected Flow obstacle through authoring, projection, and renderer contracts for Task 0.
 - Renderer coder `9501dd69-a354-4a85-9ade-612ad23d47b7` is implementing Task 1 under `aerobeat-web-renderer-der`.
 - UI coder `4868399b-1e95-42b2-a6e8-7edff7c5a12c` is implementing Task 2 under `aerobeat-web-ui-ytx`.
+- Content runtime coder `ceab3137-194b-4f19-b8c8-8b6f115650f9` is implementing authoritative interval timing under `aerobeat-web-content-28s`.
+- Gameplay coder `1240f06d-1130-4566-bb95-2dc7d4655cac` is implementing Flow non-note validation under `aerobeat-web-gameplay-bza`.
 
 ## Approval record
 
