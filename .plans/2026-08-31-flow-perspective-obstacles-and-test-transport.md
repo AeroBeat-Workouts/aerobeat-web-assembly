@@ -174,7 +174,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 2 — Add Visual Test transport presenter
 
-**Status:** In progress
+**Status:** Owner implementation `76d187e` complete and pushed; independent QA active
 **Bead:** `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-ui` coder → independent QA → auditor
 
@@ -191,6 +191,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Touch targets, labels, focus, keyboard range behavior, portrait/landscape layout, reduced motion, reconnect listener exactness, and scalar privacy pass.
 - No service/media/package/event records cross the presenter boundary.
 - Check, unit, browser, pack, independent QA/audit, commit, and push pass.
+
+**Owner evidence (2026-08-31):** Commit `76d187e` adds exported `aero-visual-test-transport` with exact immutable `{active,playing,currentMs,durationMs}` state and exact empty/scalar `visual-test-play`, `visual-test-pause`, and `visual-test-seek` intents. Owner check/unit/browser suites and focused DPR1/3 portrait/landscape Chromium gates passed safe-area layout, 42 px controls, focus/reconnect/reduced-motion/privacy/console truth. Dry pack: 21 files, 40,945 packed bytes, 172,820 unpacked bytes, SHA-1 `3947a230488402702c215be6d5f7ea7c38a6ee8d`.
 
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
