@@ -60,7 +60,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - At progress 1, the cue lands exactly on its existing 4×3 cell rectangle.
 - Position and physical size interpolate deterministically; no scoring or source placement changes.
 - Far cues draw first and near cues draw last, independent of source-array ordering.
-- Same-cell cues at different times therefore occupy distinct positions/scales until arrival.
+- The Flow approach horizon and assembly publication horizon must agree; cues published beyond the motion lead may not pile up at one exact vanishing-point rectangle.
+- Same-cell cues at different times therefore occupy distinct positions/scales throughout the visible approach horizon until arrival.
 - The procedural approach ring remains centered on the final cell and contracts to the hit instant, retaining the exact 2D timing affordance.
 - Flow obstacles use the same approach-depth model and become translucent projected planes over their exact occupied cells; duration/extent must remain truthful.
 - Flow feedback remains attached to the final hit cell with the existing exact 350 ms lifetime.
