@@ -93,7 +93,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 1.5 — UI media-preview migration
 
 **Bead:** `aerobeat-web-ui-58j`
-**Status:** Dependency QA defect repaired; UI regression commit `3bf327f`; correction QA/audit pending
+**Status:** Correction QA PASS at `3bf327f`; independent audit active
 
 ### Work
 
@@ -107,7 +107,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 - Media-preview pose pixels and lifecycle remain truthful in direct/iframe assembly tests.
 - UI repo is independently QA/audited, committed, pushed, and clean/upstream.
 
-**Implementation result (2026-08-31):** UI commit `8300726` is pushed clean/upstream. The stable media preview now owns `createAeroPlayCanvasRenderer`, retains caller-owned normalized landmark rendering and exact DPR sizing, and rejects every old renderer identity. Direct Chromium DPR2 evidence covers displayed partial-alpha landmarks, seven semantic points, stable canvas/facade reconnect, detach/reattach truth, and zero renderer RAF. UI unit/browser checks and two deterministic dry-pack runs pass; exact pack metadata is external in Bead `aerobeat-web-ui-58j`. Independent QA found only the renderer pointer-lock telemetry dependency defect; renderer commit `8730e8e` fixes it and UI commit `3bf327f` adds detached/reconnected false-state regression assertions. Linked local gates pass; correction QA/audit remain required.
+**Implementation result (2026-08-31):** UI commit `8300726` is pushed clean/upstream. The stable media preview now owns `createAeroPlayCanvasRenderer`, retains caller-owned normalized landmark rendering and exact DPR sizing, and rejects every old renderer identity. Direct Chromium DPR2 evidence covers displayed partial-alpha landmarks, seven semantic points, stable canvas/facade reconnect, detach/reattach truth, and zero renderer RAF. UI unit/browser checks and two deterministic dry-pack runs pass; exact pack metadata is external in Bead `aerobeat-web-ui-58j`. Independent QA found only the renderer pointer-lock telemetry dependency defect; renderer commit `8730e8e` fixes it and UI commit `3bf327f` adds detached/reconnected false-state regression assertions. Independent correction QA passed the full UI matrix and exact iframe context-loss, detach, reconnect, destroy, and pointer-lock lifecycle probe against renderer `8730e8e`; audit remains required.
 
 ## Task 2 — Assembly, DOM, and gameplay integration
 
