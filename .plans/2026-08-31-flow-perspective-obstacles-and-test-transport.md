@@ -90,7 +90,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0 — Confirm obstacle failure and lock contracts
 
-**Status:** Diagnostic complete; closure follows interval/validation landings
+**Status:** Complete; `aerobeat-web-assembly-5gf.1` closed after orchestrator reproduction plus independent exact live-package diagnosis
 **Bead:** `aerobeat-web-assembly-5gf.1`
 **Owner:** assembly diagnostic coder → QA
 
