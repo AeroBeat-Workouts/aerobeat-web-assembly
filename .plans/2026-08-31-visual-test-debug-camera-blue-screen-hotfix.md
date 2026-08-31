@@ -123,9 +123,15 @@ The correction initializes and resets stored debug yaw to `Math.PI` and applies 
 
 **Implementation Bead:** `aerobeat-web-assembly-ft7`
 **QA Bead:** `aerobeat-web-assembly-614`
-**Status:** In progress
+**Status:** Coder PASS — assembly regression/docs pushed; awaiting independent QA `aerobeat-web-assembly-614`; `ft7` remains open
 
 Consume immutable audited renderer commit `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
+
+### Coder result (2026-08-31)
+
+The existing eight-context product-shell matrix now starts representative downloaded Flow through the actual `<aero-game>` `session-test` UI on a fine-pointer browser, waits for multiple active debug-enabled display frames, and samples the WebGL canvas synchronously into a test-private `OffscreenCanvas` against opaque Aero blue. Every direct/real-iframe portrait/landscape DPR1/3 context proves non-background gameplay pixels before input, after DOM Reset plus an active frame, and after actual menu pause/resume plus re-enabled active frames. A test-private old-yaw-zero negative control produces exactly zero non-background pixels in all eight contexts, while corrected states produce `76,029–690,182` pixels before input, `76,072–684,872` after Reset, and `76,153–679,030` after resume in the final complete browser run. Only scalar counts/sizes leave the browser evaluation; pixels and screenshots remain private.
+
+`npm test`, complete `npm run test:browser`, exact live `3C9D` Easy Flow (`16` obstacles/`16` volumes), `npm run build`, `npm ls --all`, forbidden legacy-identity search, `git diff --check`, and focused/full matrix runs pass. Terminal replay, five presentation/conversion choices, exact 4×3/timing/duration/cursors, scored/mobile fixed camera, debug cleanup, privacy/lifecycle/context recovery, and all pre-existing eight-context shell/cursor checks remain intact. The tracked `0.0.28` raw tree and package/lock/index version surfaces are byte-unchanged; no `0.0.29` version or release artifact was built. The physical handoff records Derrick's `0.0.28` desktop Flow blue-screen as Failed/superseded and keeps every `0.0.29` retest row Pending without selecting a winner. Renderer `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` was not modified; retained server PID `2972964` was not restarted.
 
 ## Task 3 — Deterministic hotfix release
 

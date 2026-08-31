@@ -2,17 +2,25 @@
 
 **Date:** 2026-08-31
 
-**Release:** `@aerobeat/web-assembly` `0.0.28`
+**Affected release:** `@aerobeat/web-assembly` `0.0.28`
 
-**Status:** Owner release automation and independent release QA/final audit are complete; every physical-phone observation below remains Pending.
+**Retest target:** deterministic `0.0.29` hotfix (release work remains separate)
+
+**Status:** Derrick's physical desktop Flow Visual Test blue-screen observation on `0.0.28` is recorded as Failed and superseded by the audited camera correction; every `0.0.29` physical retest observation below remains Pending.
 
 **Secure route:** `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/`
 
 ## Boundary
 
-This checklist is the operator-owned physical validation for the PlayCanvas-plus-DOM gameplay release. Automated gates do **not** claim a physical-phone pass. Leave every observation explicitly **Pending** until Derrick records the result from a physical phone.
+This checklist is the operator-owned physical validation for the PlayCanvas-plus-DOM gameplay hotfix. Automated gates do **not** claim a physical-phone or desktop retest pass. Leave every `0.0.29` retest observation explicitly **Pending** until Derrick records it on the released hotfix.
 
-The release preserves **Flow**, **Boxing Lanes**, and **Boxing Grid**, plus Boxing-only **Balanced Height** and **Source Height** conversions. Every presentation and conversion remains experimental. This handoff does not recommend, select, or promote a gameplay or conversion winner.
+The hotfix preserves **Flow**, **Boxing Lanes**, and **Boxing Grid**, plus Boxing-only **Balanced Height** and **Source Height** conversions. Every presentation and conversion remains experimental. This handoff does not recommend, select, or promote a gameplay or conversion winner.
+
+## Superseded `0.0.28` Physical Evidence
+
+| Physical check | Result | Derrick observation |
+|---|---|---|
+| Desktop fine-pointer Flow Visual Test keeps gameplay geometry visible while active and across pause/resume | Failed / superseded | On `0.0.28`, active Test showed only the opaque blue PlayCanvas clear while audio and DOM controls advanced; pause/menu-open revealed Flow geometry, and resume hid it again. The `0.0.29` correction requires a fresh Pending retest rather than converting automation into a physical pass. |
 
 ## Prepare
 
@@ -72,10 +80,11 @@ The release preserves **Flow**, **Boxing Lanes**, and **Boxing Grid**, plus Boxi
 
 After visual inspection, use **Start** in any presentation. Confirm camera acquisition, T-pose/release, ordered `3`, `2`, `1`, nose/left-wrist/right-wrist cursors, pause/recovery, and scoring remain available. Confirm the Test scrubber and desktop debug camera are unavailable and synthetic Test feedback is not scoring evidence.
 
-## Derrick Physical-Phone Observation Record
+## Derrick `0.0.29` Physical Retest Record
 
-| Physical-phone check | Result | Derrick observation |
+| Physical retest check | Result | Derrick observation |
 |---|---|---|
+| Desktop fine-pointer Flow Test shows gameplay pixels before input, after Reset, and after menu pause/resume | Pending | |
 | Secure route loads and exact Preview/Stop selection works | Pending | |
 | Flow / Boxing Lanes / Boxing Grid choices are preserved | Pending | |
 | Boxing-only Balanced Height / Source Height conversions are preserved | Pending | |
@@ -104,8 +113,8 @@ After visual inspection, use **Start** in any presentation. Confirm camera acqui
 
 ## Automated Evidence Boundary
 
-Owner release gates cover unit and browser suites, exact live Flow obstacle projection, production build, deterministic raw release construction, deterministic final committed-payload dry packing, and diff hygiene. Repeated artifacts must compare byte-for-byte. Exact final npm-pack metadata belongs only in the external release Bead because this document is included in the npm payload. Raw release evidence may be recorded externally; the raw browser artifact contains no `.plans/` or `docs/` files and therefore cannot self-reference this checklist.
+Assembly and renderer gates cover unit/browser suites, exact live Flow obstacle projection, production build, debug-camera canvas pixels, and diff hygiene. Task 3 separately owns deterministic raw release construction and final committed-payload dry packing for `0.0.29`; repeated artifacts must compare byte-for-byte. Exact final npm-pack metadata belongs only in the external release Bead because this document is included in the npm payload. Raw release evidence may be recorded externally; the raw browser artifact contains no `.plans/` or `docs/` files and therefore cannot self-reference this checklist.
 
 ## Completion Boundary
 
-Keep every physical-phone row **Pending** until Derrick performs the observation. Independent release QA and the final auditor own release acceptance and Bead closure; the release coder must not close `aerobeat-web-assembly-6nt.3` or infer a phone pass from automation.
+Keep every `0.0.29` physical retest row **Pending** until Derrick performs the observation. Independent QA `aerobeat-web-assembly-614`, release Bead `aerobeat-web-assembly-235`, and final audit `aerobeat-web-assembly-lym` own acceptance and closure. Assembly regression automation must not close the physical defect or infer a phone/desktop pass.
