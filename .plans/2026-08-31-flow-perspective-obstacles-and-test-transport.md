@@ -242,7 +242,34 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Critical stale-Play diagnosis (2026-08-31):** Code review observed that `startSession()` increments `sessionGeneration` but replaces `transportIntentTail` while an old non-cancelable `resumeVisualTestTransport()` may still be awaiting `audio.play()`. That old completion can therefore mutate the same audio graph after the replacement session has stopped/paused it; its graph-only `finally` can also clear a newer generation's `audioSyncPending`. The prior awaited-Play fix correctly serialized same-generation Play→Seek but treated generation invalidation as if it canceled the media side effect. Required regression: defer Visual Test transport Play, start replacement scored Play into calibration with audio paused, release the stale Play, and prove it cannot reassert audio or clear current synchronization ownership. Smallest repair: capture and await the previous transport tail before replacement start/stop media work, and generation-own pending cleanup, so the replacement's authoritative stop/pause always occurs after the stale non-cancelable Play settles.
 
-**Owner evidence (2026-08-31):** Assembly explicitly routes obstacle cells and exact intervals, publishes the complete 2500 ms renderer horizon, omits bomb/arc/burst from the recognized-only Boxing fallback, mounts scalar-only Test transport, and serializes Pause/Play/coalesced Seek with immediate paused reconstruction. Deferred Play→Seek and deferred stale-Play→replacement-Play regressions pass. Fresh `npm test`, `npm run test:browser`, `npm run build`, `git diff --check`, and focused mobile/live gates pass. Exact live `3C9D` hash `5662f64a12c76a3dd11a5f6ee22611608cd06760` proves all 16 selected Easy obstacles and 16 cell planes with exact 25 ms intervals, no feedback/camera/noise. Two dry packs are byte-identical: 85 files, 322,290 packed bytes, 1,151,377 unpacked bytes, SHA-1 `74ebdcfb72c94327632877e47ec8af795aa60b19`, integrity `sha512-KmABAH7d/N9AdaytTLkRZ6EZeW0hYa5xC34HLzZlK3cUmNiclM0ocp848sNcZjWK/ImPQLYtgTidZ+f0suwjAA==`. Existing server PID `2972964` remains unchanged.
+**Owner evidence (2026-08-31):** Assembly explicitly routes obstacle cells and exact intervals, publishes the complete 2500 ms renderer horizon, omits bomb/arc/burst from the recognized-only Boxing fallback, mounts scalar-only Test transport, and serializes Pause/Play/coalesced Seek with immediate paused reconstruction. Deferred Play→Seek and deferred stale-Play→replacement-Play regressions pass. Fresh `npm test`, `npm run test:browser`, `npm run build`, `git diff --check`, and focused mobile/live gates pass. Exact live `3C9D` hash `5662f64a12c76a3dd11a5f6ee22611608cd06760` proves all 16 selected Easy obstacles and 16 cell planes with exact 25 ms intervals, no feedback/camera/noise. The two owner dry packs matched before this evidence paragraph was added; final committed-payload pack determinism must be measured after the evidence correction and recorded outside the packed payload. Existing server PID `2972964` remains unchanged.
+
+**Independent QA (2026-08-31): FAIL on evidence provenance; functional gates PASS.** QA reproduced `npm test`, the complete browser chain, exact live Flow gate, build, and diff check. Two fresh committed-tree dry packs matched each other, but their metadata differed from the owner values above because `.plans/` is part of the npm payload and the owner measured before appending the metadata-bearing paragraph.
+
+**Pack-evidence debugging record (2026-08-31):**
+
+- **Exact observed failure:** committed evidence claimed SHA-1 `74ebdcfb72c94327632877e47ec8af795aa60b19`, 322,290 packed bytes, and 1,151,377 unpacked bytes; two QA packs of commit `512acd4` both instead yielded SHA-1 `9759f95c4772afebc22233ef0bc2ff7f4045264a`, 322,695 packed bytes, and 1,152,384 unpacked bytes. Runtime gates passed.
+- **Expected behavior:** two packs of the finalized committed payload must match each other, and durable evidence must not claim metadata measured from a different payload.
+- **Execution path:** owner runs dry packs → owner appends their exact metadata to this plan → npm includes this plan in the package → appended bytes change tarball metadata and digest → QA packs the committed tree and observes a different, internally consistent result.
+- **Most likely root cause:** self-invalidating provenance. `.plans/2026-08-31-flow-perspective-obstacles-and-test-transport.md` has no `export-ignore`, is among the 85 packed files, and was changed after the owner pack. The current committed pack reproduces QA exactly.
+- **Alternative hypotheses:** nondeterministic npm packing is contradicted by both owner and QA pairs being internally identical; toolchain drift is unlikely because the unpacked-size change corresponds to post-measurement payload content; runtime/generated artifacts are contradicted by a clean tree and identical QA runs.
+- **Why the prior approach failed:** it treated a hash as ordinary inline evidence even though writing that hash changed the hashed payload. Repeating the same inline update can never prove the final payload.
+- **Unknowns:** no functional unknown remains. The exact owner working-tree snapshot was not preserved, but is unnecessary to establish the causal invariant.
+- **Minimal reproduction:** pack the tree twice; append any bytes to this included plan; pack again. Each pair is deterministic, while the second pair necessarily differs from the first.
+- **Proposed verification:** remove exact archive metadata from packed files, commit, run two fresh dry packs, compare full JSON metadata byte-for-byte, and store exact final values only in Beads/commit evidence outside the npm payload.
+- **Recommended fix:** keep the plan’s semantic PASS/FAIL statement without self-referential archive values; record exact post-commit pack metadata in Beads and audit output. Then rerun independent QA before audit.
+
+```text
+Problem: committed dry-pack evidence did not reproduce
+Observed symptom: QA pair matched itself but not owner metadata
+Root cause: exact archive metadata was appended to a plan included in that archive after measurement
+Evidence: .plans file is packed; current commit reproduces QA pair exactly; both pairs are internally deterministic
+Failed approaches: embedding pre-append archive digest and sizes in the packed plan
+Corrective action: remove inline exact metadata; measure final commit; record values outside package payload
+Verification test: two post-commit npm pack --dry-run --json results match byte-for-byte
+Related files/components: active plan, npm pack payload, Bead aerobeat-web-assembly-5gf.2
+Remaining uncertainty: none affecting the corrective action
+```
 
 ### Acceptance
 
