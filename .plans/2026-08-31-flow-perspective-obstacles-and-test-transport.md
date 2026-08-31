@@ -111,7 +111,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0A — Publish authoritative Flow interval timing
 
-**Status:** Owner implementation `9ccec74` complete and pushed; independent QA active
+**Status:** Owner implementation `9ccec74` needs correction after independent QA found derived-timestamp overflow; correction active
 **Bead:** `aerobeat-web-content-28s`
 **Owner:** `aerobeat-web-content` coder → independent QA → auditor
 
@@ -130,9 +130,11 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Owner evidence (2026-08-31):** Commit `9ccec74` adds optional immutable `endTimestampMs` only when an authored beat owns `end`, derived with the exact loaded package BPM while preserving instant envelope keys and package/chart/authored identity. Exact 150 BPM proof resolves `74.5999984741211→74.6624984741211` to `29839.999389648438→29864.999389648438 ms`. Owner unit/browser gates passed obstacle/arc/burst, malformed intervals, paused swaps, frozen/serializable snapshots, isolation, and zero console failures. Dry pack: 9 files, 22,730 packed bytes, 92,867 unpacked bytes, SHA-1 `b3dd1fd497f551690353efda5ced56fd76fea2a8`.
 
+**Independent QA (2026-08-31): FAIL, correction active.** Standard gates and normal fixtures pass, but finite authored `end:1e308` passes raw package validation and overflows during `timelineFor` conversion to public `endTimestampMs:Infinity`, which JSON serializes as `null`; huge finite `start` has the same class. Root cause is validating raw finiteness/monotonicity without bounding BPM-derived milliseconds. Correction must reject derived center/end values outside the shared 24-hour runtime horizon before publication and prove overflow plus exact boundary fixtures.
+
 ## Task 0B — Validate Flow non-note geometry
 
-**Status:** In progress
+**Status:** Owner implementation `944937f` complete and pushed; independent QA active
 **Bead:** `aerobeat-web-gameplay-bza`
 **Owner:** `aerobeat-web-gameplay` coder → independent QA → auditor
 
@@ -148,6 +150,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Empty/duplicate/out-of-range obstacle cells, invalid intervals, and malformed bomb/arc/burst placements reject atomically.
 - Existing note scoring, Flow direction matching, Boxing behavior, leases, pauses, and score partitions remain unchanged.
 - Check, unit, browser, pack, independent QA/audit, commit, and push pass.
+
+**Owner evidence (2026-08-31):** Commit `944937f` explicitly and transactionally validates canonical Flow bomb placement; obstacle interval/unique cells; arc head/tail/directions; and burst head/tail/direction/checkpoints while retaining non-scoring ignored outcomes and documented legacy direct-envelope compatibility. Owner check/unit/public integration/browser gates passed malformed transactionality, valid ignored results, note/Boxing regressions, and zero console errors. Dry pack: 13 files, 30,340 packed bytes, 125,447 unpacked bytes, SHA-1 `6a20aeb85601c2a7fced0cd899cf85810a8b9126`.
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
@@ -176,7 +180,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 2 — Add Visual Test transport presenter
 
-**Status:** Owner implementation `76d187e` and independent QA PASS; final auditor active
+**Status:** Complete; implementation `76d187e`, independent QA PASS, final audit/closure `9fecc44`, `aerobeat-web-ui-ytx` closed
 **Bead:** `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-ui` coder → independent QA → auditor
 
@@ -197,6 +201,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 **Owner evidence (2026-08-31):** Commit `76d187e` adds exported `aero-visual-test-transport` with exact immutable `{active,playing,currentMs,durationMs}` state and exact empty/scalar `visual-test-play`, `visual-test-pause`, and `visual-test-seek` intents. Owner check/unit/browser suites and focused DPR1/3 portrait/landscape Chromium gates passed safe-area layout, 42 px controls, focus/reconnect/reduced-motion/privacy/console truth. Dry pack: 21 files, 40,945 packed bytes, 172,820 unpacked bytes, SHA-1 `3947a230488402702c215be6d5f7ea7c38a6ee8d`.
 
 **Independent QA (2026-08-31): PASS.** Fresh check/unit/browser/focused validators, diff check, and identical dry pack passed exact state/privacy/timecode/intents, pause-on-first keyboard/touch scrub, continuous seeks, no resume inference, reconnect/focus/reduced-motion, and DPR1/3 orientation matrix with zero console/page errors. Assembly must preserve ordered intent serialization because button Pause and scrub Pause intentionally share the same exact intent and scrub is distinguished only by the immediately following Seek.
+
+**Final audit (2026-08-31): PASS.** Auditor reproduced focused/static/browser/pack evidence, found the exact 10-file/596-line implementation scoped and clean, confirmed the ordered intent dependency belongs to assembly, closed `aerobeat-web-ui-ytx`, and pushed ledger closure commit `9fecc44`.
 
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
