@@ -237,7 +237,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 4 — Integrated QA, deterministic release, and physical handoff
 
-**Status:** Owner release lane complete at `0.0.26`; `aerobeat-web-assembly-hc4.2` remains in progress for independent QA/audit, followed by final audit Bead `.3`.
+**Status:** Owner release lane and independent QA complete at `0.0.26`; `aerobeat-web-assembly-hc4.2` is closed, followed by final audit Bead `.3`.
 
 **QA/Release Bead:** `aerobeat-web-assembly-hc4.2`
 **Final Audit Bead:** `aerobeat-web-assembly-hc4.3`
@@ -272,6 +272,15 @@ The band cannot be independently resized without lying about gameplay timing. In
 - Runtime source and validation scripts are byte-identical to independently audited Task 3 baseline `3d660f8`; raw `0.0.26` assets contain the corrected stale marker plus semantic-lane/spatial-grid identities. This truthfully binds Task 3's two actual online `3C9D` authoring/IndexedDB reproductions—exact hash `5662f64a12c76a3dd11a5f6ee22611608cd06760`, beat `21` `(x=3,y=0)` → selected Flow cell `11`, first twelve `[11,8,10,9,11,8,11,8,10,9,11,8]`—to the released runtime without another source change.
 - Repeated owner npm dry-pack rounds were byte-identical before final ledger recording; a final pair is rerun after all packed plan/docs/Bead evidence is frozen. The focused phone handoff leaves every physical observation Pending, compares Flow, both Boxing Lanes conversions, and both Boxing Grid conversions, and explicitly makes no human-pass or production-winner claim.
 - Existing `dev:tailscale` PID `2972964` was neither stopped nor restarted and the secure route returned HTTP 200.
+
+**Independent QA evidence (2026-08-31):**
+
+- QA started from exact clean/upstream release commit `00a3098`. Package, lock root/package, and HTML marker all resolve only `0.0.26`; runtime `src/` and validation `scripts/` have no diff from audited Task 3 baseline `3d660f8`.
+- Fresh `npm run check`, `npm test`, `npm run build`, and full `npm run test:browser` passed. Browser output independently covered the five variants and adversarial iframe contract, exact shell labels/Conversion behavior, mobile/start/menu, Preview/privacy, stale no-loop/reimport/export/delete, direct/iframe portrait/landscape DPR1/3, moving camera compositor pixels, and gameplay cursors. Focused unit evidence passed exact own scalar privacy, contract-owned `180`/`180` lane timing, directional and neutral-duplicated lane semantics, 4×3 Grid cells, and exact moving `350 ms` feedback.
+- Two fresh raw builds were byte-identical to each other and to the tracked 13-file proof. The independently recomputed source fingerprint equals `cacac1e520eb1f619a3c694a01e7d7b6d1a51516bd05c1b1bf0556e387bafbc9`; recursive manifest SHA-256 is `831f513a19a63b10a4ab2d3194fa06a51895533c9f95ea912636b7c434239647`; proof SHA-256 is `69969cd8b0ca8e3a5e99b26c6eeb93643c90fe59af05ea7b62aab8f717f54a85`.
+- Release marker inspection confirmed corrected stale identity plus Flow, `boxing_lanes`, and `boxing_spatial_grid` identities and exact product labels. With no runtime drift, the two independently audited live `3C9D` persistence proofs remain bound to this release: exact hash `5662f64a12c76a3dd11a5f6ee22611608cd06760`, beat `21` `(x=3,y=0)` → cell `11`, first twelve `[11,8,10,9,11,8,11,8,10,9,11,8]`.
+- The physical handoff contains all five comparisons, keeps every Derrick observation Pending, states automated evidence is not a human phone pass, and makes no winner recommendation. All five planned repos were clean/upstream; prerequisite implementation Beads were closed; PID `2972964` remained unchanged and the secure route returned HTTP 200.
+- After this QA closure commit, QA reruns two raw builds and two dry packs at the final clean/upstream HEAD and reports hashes without another tracked edit, avoiding a self-changing evidence loop.
 
 ---
 
