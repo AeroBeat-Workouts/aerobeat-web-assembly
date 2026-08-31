@@ -111,7 +111,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0A — Publish authoritative Flow interval timing
 
-**Status:** Correction `c973c06` and corrected independent QA PASS; final auditor active
+**Status:** Complete; implementation `9ccec74`, correction `c973c06`, corrected QA PASS, final audit/closure `2d4a983`, `aerobeat-web-content-28s` closed
 **Bead:** `aerobeat-web-content-28s`
 **Owner:** `aerobeat-web-content` coder → independent QA → auditor
 
@@ -134,9 +134,11 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Corrected independent QA (2026-08-31): PASS.** Fresh full/browser/diff/pack gates reproduced exact 24-hour acceptance, +1 ms and `1e308` start/end rejection, finite JSON, frozen snapshots, exact 150 BPM oracle, package/hash identity, paused swaps, isolation, and zero console/page failures.
 
+**Final audit (2026-08-31): PASS.** Auditor reproduced all corrected bounds, interval/instant identity, browser, swap/isolation, and identical pack evidence; closed `aerobeat-web-content-28s` and pushed ledger closure commit `2d4a983`.
+
 ## Task 0B — Validate Flow non-note geometry
 
-**Status:** Owner implementation `944937f` needs correction after independent QA found interval-bound and envelope-precedence bypasses; correction active
+**Status:** Correction `9381e6c` complete and pushed after QA-found interval-bound/envelope-precedence bypasses; independent re-QA active
 **Bead:** `aerobeat-web-gameplay-bza`
 **Owner:** `aerobeat-web-gameplay` coder → independent QA → auditor
 
@@ -155,7 +157,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Owner evidence (2026-08-31):** Commit `944937f` explicitly and transactionally validates canonical Flow bomb placement; obstacle interval/unique cells; arc head/tail/directions; and burst head/tail/direction/checkpoints while retaining non-scoring ignored outcomes and documented legacy direct-envelope compatibility. Owner check/unit/public integration/browser gates passed malformed transactionality, valid ignored results, note/Boxing regressions, and zero console errors. Dry pack: 13 files, 30,340 packed bytes, 125,447 unpacked bytes, SHA-1 `6a20aeb85601c2a7fced0cd899cf85810a8b9126`.
 
-**Independent QA (2026-08-31): FAIL, correction active.** Finite interval ends above 86,400,000 ms remained accepted, and `normalizeEvents` flattened authored fields after the resolved envelope so malicious authored `endTimestampMs` could mask an authoritative rollback. The correction must restore envelope timing precedence and enforce the inclusive 24-hour bound for canonical and legacy supplied ends; exact max/+1/MAX/override transactionality fixtures are required.
+**Independent QA (2026-08-31): Initial FAIL corrected by `9381e6c`; re-QA active.** Finite interval ends above 86,400,000 ms remained accepted, and `normalizeEvents` flattened authored fields after the resolved envelope so malicious authored `endTimestampMs` could mask an authoritative rollback. The correction rejects authored ownership of resolved interval timing and enforces the inclusive 24-hour bound for canonical and legacy supplied ends. Owner max/+1/MAX/precedence/accessor/prototype/transactionality plus full browser gates pass. Corrected dry pack: 13 files, 30,467 packed bytes, 125,859 unpacked bytes, SHA-1 `c5875a3f8677563fc4e439661bed0b7b1ac95e18`.
 
 ## Task 1 — Build perspective Flow and crisp icon rendering
 
