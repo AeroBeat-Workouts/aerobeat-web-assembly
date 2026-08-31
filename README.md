@@ -91,13 +91,14 @@ Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, 
 
 ## Validation
 
-The current deterministic raw release proof is `0.0.26`. It carries the corrected Flow row orientation, exact Flow/Boxing Lanes/Boxing Grid gameplay choices, and the separate Balanced Height/Source Height Boxing conversion control. Automated gates do not replace the operator-owned phone checks in `docs/task15-boxing-lanes-grid-flow-physical-handoff.md`; neither the release nor that checklist selects a production Boxing winner.
+The current deterministic raw release proof is `0.0.27`. Task 3 integration received final audit PASS before release ownership began. The release preserves corrected Flow row orientation, all existing Flow/Boxing Lanes/Boxing Grid choices and both Balanced Height/Source Height conversions while adding truthful Flow obstacle planes, 2.5D approach separation, crisp canonical icons, and the Visual Test Play/Pause/live-scrub transport. Owner release gates and repeated raw/pack construction establish semantic byte-for-byte determinism; exact final npm-pack metadata is kept only in the external release Bead because this README is itself packed. Automated evidence does not replace the explicitly Pending physical-phone checks in `docs/task16-flow-perspective-obstacles-test-transport-physical-handoff.md`, and no gameplay or conversion winner is selected.
 
 ```bash
 npm run check
 npm test
 npm run test:browser
 npm run test:v4-integration
+npm run test:live-flow-obstacles
 npm run build
 npm run build-release
 # Optional, network-dependent current-map proof:

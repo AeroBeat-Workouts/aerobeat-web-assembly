@@ -224,7 +224,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
-**Status:** Owner implementation and independent QA complete; final auditor pending
+**Status:** Complete; owner implementation, corrected independent QA, final audit/closure `ed21165`, `aerobeat-web-assembly-5gf.2` closed
 **Bead:** `aerobeat-web-assembly-5gf.2`
 **External prerequisites:** `aerobeat-web-renderer-der`, `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-assembly` coder → independent QA → auditor
@@ -246,7 +246,9 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Independent QA (2026-08-31): FAIL on evidence provenance; functional gates PASS.** QA reproduced `npm test`, the complete browser chain, exact live Flow gate, build, and diff check. Two fresh committed-tree dry packs matched each other, but their metadata differed from the owner values above because `.plans/` is part of the npm payload and the owner measured before appending the metadata-bearing paragraph.
 
-**Correction QA (2026-08-31): PASS.** At pushed correction commit `2febfd5`, QA confirmed the plan-only provenance repair, diff hygiene, clean/upstream state, unchanged server, external Bead ownership of exact metadata, and two byte-identical committed-payload dry packs. Functional/browser gates were not duplicated because the correction changed documentation only; their prior independent PASS remains authoritative. Final audit must measure the subsequently committed plan-status payload and keep its exact values outside the package.
+**Correction QA (2026-08-31): PASS.** At pushed correction commit `2febfd5`, QA confirmed the plan-only provenance repair, diff hygiene, clean/upstream state, unchanged server, external Bead ownership of exact metadata, and two byte-identical committed-payload dry packs. Functional/browser gates were not duplicated because the correction changed documentation only; their prior independent PASS remains authoritative.
+
+**Final audit (2026-08-31): PASS.** At pushed commit `ed21165`, the auditor reviewed the complete Task 3 range, reproduced focused unit/live Flow/build/diff gates, confirmed the prior full-browser PASS remained applicable across documentation-only corrections, compared two final dry packs byte-for-byte, verified all linked repositories clean/upstream, and closed `aerobeat-web-assembly-5gf.2`. Exact pack metadata remains only in its external Bead comment. The existing `dev:tailscale` PID `2972964` remained unchanged.
 
 **Pack-evidence debugging record (2026-08-31):**
 
@@ -286,7 +288,7 @@ Remaining uncertainty: none affecting the corrective action
 
 ## Task 4 — Deterministic release and physical handoff
 
-**Status:** In progress — release coder active
+**Status:** Owner release implementation/evidence complete; independent QA and final audit pending
 **QA/release Bead:** `aerobeat-web-assembly-5gf.3`
 **Final audit Bead:** `aerobeat-web-assembly-5gf.4`
 **Owner:** assembly release coder → independent QA → final auditor
@@ -306,6 +308,8 @@ Remaining uncertainty: none affecting the corrective action
 - Release and dry pack reproduce byte-for-byte.
 - Physical checklist remains Pending until Derrick tests; automated evidence claims no phone pass.
 - All intentional changes are committed and pushed.
+
+**Owner release evidence (2026-08-31): PASS pending commit/push finalization.** The established patch script advanced package, lock, and HTML proof metadata from `0.0.26` to `0.0.27`. Fresh `npm test`, full `npm run test:browser`, exact `npm run test:live-flow-obstacles`, `npm run build`, and `git diff --check` passed. Two independent raw `0.0.27` release builds and two pre-commit dry-pack JSON outputs compared byte-for-byte. The raw artifact was verified to contain no `.plans/` or `docs/` files and therefore cannot self-reference this release record. Final committed-payload dry packs and exact raw/pack metadata must be measured after push and recorded only in external Bead `aerobeat-web-assembly-5gf.3`. The focused Task 16 handoff leaves every phone observation explicitly Pending, preserves all gameplay/conversion variants, and selects no winner. Existing `dev:tailscale` PID `2972964` remained untouched.
 
 ---
 
