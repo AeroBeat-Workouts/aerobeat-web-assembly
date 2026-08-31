@@ -114,7 +114,11 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 0 — Repair Flow source-row orientation
 
-**Beads:** `aerobeat-web-content-authoring-5bs`, `aerobeat-tool-content-authoring-4l8`
+**Status:** Web coder active (`d7a8f94d-7764-4ac9-a5f2-032029f33bd9`); Godot parity follows audited web truth.
+
+**Implementation Beads:** `aerobeat-web-content-authoring-5bs`, `aerobeat-tool-content-authoring-4l8`
+**Web QA/Audit:** `aerobeat-web-content-authoring-t6k`, `aerobeat-web-content-authoring-lnm`
+**Godot QA/Audit:** `aerobeat-tool-content-authoring-32m`, `aerobeat-tool-content-authoring-buk`
 **Owners:** web authoring coder → Godot parity coder → independent QA → auditor
 
 **Work:**
@@ -139,7 +143,10 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 1 — Present three modes plus separate conversion choice
 
-**Bead:** `aerobeat-web-ui-5tz`
+**Status:** Coder active (`5c3dbf5f-9e41-4d1e-82da-9fa93020b73b`).
+
+**Implementation Bead:** `aerobeat-web-ui-5tz`
+**QA/Audit:** `aerobeat-web-ui-0wx`, `aerobeat-web-ui-zq5`
 **Owner:** `aerobeat-web-ui` coder → independent QA → auditor
 
 **Work:**
@@ -159,7 +166,10 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 2 — Implement reusable Boxing Lanes renderer
 
-**Bead:** `aerobeat-web-renderer-sal`
+**Status:** Coder active (`16d767d4-2f53-4fba-86f1-7b8a3acb4a67`).
+
+**Implementation Bead:** `aerobeat-web-renderer-sal`
+**QA/Audit:** `aerobeat-web-renderer-4bq`, `aerobeat-web-renderer-dn8`
 **Owner:** `aerobeat-web-renderer` coder → independent QA → auditor
 
 **Work:**
@@ -214,7 +224,8 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 4 — Integrated QA, deterministic release, and physical handoff
 
-**Bead:** `aerobeat-web-assembly-hc4.2`
+**QA/Release Bead:** `aerobeat-web-assembly-hc4.2`
+**Final Audit Bead:** `aerobeat-web-assembly-hc4.3`
 **Depends on:** audited Tasks 0–3
 **Owner:** assembly coordination
 
