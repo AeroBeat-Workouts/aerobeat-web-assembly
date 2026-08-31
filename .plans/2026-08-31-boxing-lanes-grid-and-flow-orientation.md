@@ -1,7 +1,7 @@
 # AeroBeat Boxing Lanes, Boxing Grid, and Flow Orientation
 
 **Date:** 2026-08-31
-**Status:** Draft — Revised from Derrick Feedback; Awaiting Approval
+**Status:** Approved — Execution In Progress
 **Owner:** `aerobeat-web-assembly`
 **Parent plan:** `.plans/2026-08-28-embeddable-game-calibration-and-boxing-prototypes.md`
 **Release target:** next web assembly release after `0.0.25`
@@ -302,6 +302,8 @@ Remaining uncertainty: Exact stale downloaded-package invalidation mechanism mus
 
 ---
 
-## Approval Gate
+## Approval Record
 
-Implementation starts only after Derrick approves this revised plan. Approval authorizes Flow orientation repair first, then simplified UI, Boxing Lanes renderer, assembly integration, independent QA/audit, deterministic release, and physical handoff while keeping the secure server running and preserving the no-winner boundary.
+Derrick approved this revised plan on 2026-08-31. Execution is authorized for Flow orientation repair first, simplified UI and Boxing Lanes renderer in parallel where independent, then assembly integration, independent QA/audit, deterministic release, and physical handoff while keeping the secure server running and preserving the no-winner boundary.
+
+**Active DSH goal:** `goal-b0f1fb3d-be6b-4543-a4f9-769c8a479a66`
