@@ -111,7 +111,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0A — Publish authoritative Flow interval timing
 
-**Status:** Correction `c973c06` complete and pushed after QA-found overflow; independent re-QA active
+**Status:** Correction `c973c06` and corrected independent QA PASS; final auditor active
 **Bead:** `aerobeat-web-content-28s`
 **Owner:** `aerobeat-web-content` coder → independent QA → auditor
 
@@ -131,6 +131,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 **Owner evidence (2026-08-31):** Commit `9ccec74` adds optional immutable `endTimestampMs` only when an authored beat owns `end`, derived with the exact loaded package BPM while preserving instant envelope keys and package/chart/authored identity. Exact 150 BPM proof resolves `74.5999984741211→74.6624984741211` to `29839.999389648438→29864.999389648438 ms`. Owner unit/browser gates passed obstacle/arc/burst, malformed intervals, paused swaps, frozen/serializable snapshots, isolation, and zero console failures. Dry pack: 9 files, 22,730 packed bytes, 92,867 unpacked bytes, SHA-1 `b3dd1fd497f551690353efda5ced56fd76fea2a8`.
 
 **Independent QA (2026-08-31): Initial FAIL corrected by `c973c06`; re-QA active.** Standard gates and normal fixtures passed, but finite authored `end:1e308` passed raw package validation and overflowed during `timelineFor` conversion to public `endTimestampMs:Infinity`, which JSON serialized as `null`; huge finite `start` had the same class. Root cause was validating raw finiteness/monotonicity without bounding BPM-derived milliseconds. Correction now validates BPM-derived start/end at the package boundary against an inclusive 86,400,000 ms limit; exact max passes, +1/overflow rejects, the 150 BPM oracle remains exact, and owner unit/browser/pack gates pass. Corrected dry pack: 9 files, 22,967 packed bytes, 93,734 unpacked bytes, SHA-1 `9a24fe9c0f391394db68dc134401cfd6d98ac392`.
+
+**Corrected independent QA (2026-08-31): PASS.** Fresh full/browser/diff/pack gates reproduced exact 24-hour acceptance, +1 ms and `1e308` start/end rejection, finite JSON, frozen snapshots, exact 150 BPM oracle, package/hash identity, paused swaps, isolation, and zero console/page failures.
 
 ## Task 0B — Validate Flow non-note geometry
 
