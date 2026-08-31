@@ -1,6 +1,6 @@
 # PlayCanvas 3D Gameplay Renderer Conversion
 
-**Status:** Approved and in progress
+**Status:** Complete — final independent audit PASS; deterministic `0.0.28` committed/pushed; physical checks remain Pending
 **Owner:** assembly orchestrator → renderer/transport coders → independent QA → final auditor
 **Umbrella Bead:** `aerobeat-web-assembly-6nt`
 **Renderer Bead:** `aerobeat-web-renderer-jzd`
@@ -147,7 +147,7 @@ Audit Bead `aerobeat-web-assembly-shx` independently reviewed terminal replay co
 ## Task 3 — Independent QA and deterministic release
 
 **Bead:** `aerobeat-web-assembly-6nt.3`
-**Status:** Independent release QA PASS — `0.0.28` awaiting final audit; physical checks remain Pending
+**Status:** Complete — independent release QA/final audit PASS; Bead closed; physical checks remain Pending
 
 ### Work
 
@@ -175,7 +175,7 @@ Independent QA reproduced the complete unit and browser suites to exact process 
 ## Task 4 — Final audit and closure
 
 **Bead:** `aerobeat-web-assembly-6nt.4`
-**Status:** Blocked by Task 3
+**Status:** Complete — final independent audit PASS; Bead closed
 
 ### Work
 
@@ -188,6 +188,18 @@ Independent QA reproduced the complete unit and browser suites to exact process 
 - Every plan requirement has independent evidence.
 - Implementation/release Beads close only on PASS.
 - Umbrella closes only after orchestrator verifies the auditor, clean/upstream repos, healthy retained server, and Pending handoff.
+
+### Final independent audit result (2026-08-31)
+
+Final audit independently reviewed the approved decisions, implementation/release/QA commits, complete source/release diff, plan and Beads, production service graph, renderer scene/model/facade, transport repair, package/version/proof surfaces, and focused physical handoff. `npm test`, the complete exact-exit `npm run test:browser` chain, live `3C9D` Flow obstacle proof, production build, full dependency tree, current `git diff --check`, static forbidden-identity searches, linked renderer unit/browser gates, and linked gameplay unit/integration/browser gates all passed. Browser evidence covered all eight direct/iframe portrait/landscape DPR1/3 shell and cursor contexts plus compositor pixels, terminal completed→scrub/zero/exact-end→Play recovery with zero scoring truth, PlayCanvas timing/duration/presentation/debug-input/DOM/privacy/lifecycle contracts, context recovery, reconnect, and teardown.
+
+The auditor reproduced raw `0.0.28` construction byte-identical to the committed 13-file tree (`11,405,946` total bytes including proof), preserved every tracked `0.0.27` byte against pre-release baseline `0f5bee2`, and confirmed proof SHA-256 `06d8003d337b131fd238f141674ef4f76c0ebfcff9ed7af9e97005bbde8bf7f2`, source fingerprint `b1bf3a8c2f631e6058be8493cba3a44a8c3742d0b9b1dc12569bd42851814a77`, and `11,404,580` pre-manifest bytes. PlayCanvas `2.21.4` is the sole production gameplay renderer; forbidden legacy renderer identities/routes are absent from assembly, renderer, and UI production source. Exact top-left 4×3 projection, Flow/Boxing Lanes/Boxing Grid, both conversions, external-time upcoming/active/spent floor states, interval obstacle volumes, deterministic far-to-near transparency with depth writes disabled, one app/context per canvas, Visual Test-only hold-RMB free-fly and cleanup, DOM ownership, MediaPipe Lite ≤15 fps, scoring/privacy, and no-winner decisions remain intact.
+
+Assembly, renderer `78535847eee4869c211f1300842a73d48eec03f5`, UI `3bf327f1b36fb4a9d41be2dc9bb8b61786a4edc1`, gameplay `1d97a5eff81b4a52b9f74cb7ccb723c292566eac`, and every other package-lock `file:` dependency were clean/upstream. Retained `dev:tailscale` PID `2972964` returned HTTP 200 without restart or duplication. Expected warnings remained limited to PlayCanvas optional `node:worker_threads` browser externalization, Vite chunk size, and npm optional platform/peer notices. Every physical-phone row remains explicitly Pending and no gameplay or conversion winner is selected. This finalized packed plan and handoff are the closure payload; exact final post-commit dry-pack metadata and closure Git/Dolt identifiers are recorded only in external Bead evidence, with no later packed-file edits.
+
+## Final result
+
+The terminal replay defect is repaired, PlayCanvas plus DOM is the sole production gameplay presentation architecture, all three presentations and both retained conversions pass the authoritative 4×3/timing/duration/camera/lifecycle/privacy matrix, deterministic `0.0.28` is committed and pushed, and Tasks 0–4 plus the umbrella are closed only after independent QA/audit PASS. Physical phone observations remain Derrick-owned Pending follow-up rather than a release blocker or inferred automated pass.
 
 ## Required regression matrix
 

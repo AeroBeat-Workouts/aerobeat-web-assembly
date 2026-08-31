@@ -4,7 +4,7 @@
 
 **Release:** `@aerobeat/web-assembly` `0.0.28`
 
-**Status:** Owner release automation complete; independent release QA, final audit, and every physical-phone observation below are Pending.
+**Status:** Owner release automation and independent release QA/final audit are complete; every physical-phone observation below remains Pending.
 
 **Secure route:** `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/`
 
