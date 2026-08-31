@@ -114,7 +114,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 0 — Repair Flow source-row orientation
 
-**Status:** Web coder active (`d7a8f94d-7764-4ac9-a5f2-032029f33bd9`); Godot parity follows audited web truth.
+**Status:** Complete and audited. Web commits `7401f82`, `343aacb`, `9a4fa1f` plus audit-ledger commit `1de7ca2` passed QA/audit; Godot parity `c0d8968` passed QA/audit. All six Task 0 implementation/QA/audit Beads are closed.
 
 **Implementation Beads:** `aerobeat-web-content-authoring-5bs`, `aerobeat-tool-content-authoring-4l8`
 **Web QA/Audit:** `aerobeat-web-content-authoring-t6k`, `aerobeat-web-content-authoring-lnm`
@@ -143,7 +143,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 1 — Present three modes plus separate conversion choice
 
-**Status:** Coder active (`5c3dbf5f-9e41-4d1e-82da-9fa93020b73b`).
+**Status:** Complete and audited. Implementation/follow-ups (`57d0fc8`, `8827728`, `8c3a6fc`, `ae07326`) passed latest-HEAD QA and final audit; implementation, QA, and audit Beads are closed without selecting a winner.
 
 **Implementation Bead:** `aerobeat-web-ui-5tz`
 **QA/Audit:** `aerobeat-web-ui-0wx`, `aerobeat-web-ui-zq5`
@@ -166,7 +166,7 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 2 — Implement reusable Boxing Lanes renderer
 
-**Status:** Coder active (`16d767d4-2f53-4fba-86f1-7b8a3acb4a67`).
+**Status:** Complete and audited. Implementation/corrections (`e8764f5`, `5966528`, `16a0678`) passed renewed QA and final audit after the Grid weave regression was fixed; implementation, QA, and audit Beads are closed.
 
 **Implementation Bead:** `aerobeat-web-renderer-sal`
 **QA/Audit:** `aerobeat-web-renderer-4bq`, `aerobeat-web-renderer-dn8`
@@ -296,7 +296,7 @@ Failed approaches: Existing synthetic/golden tests reproduced current converter 
 Corrective action: Transform source cells exactly once at Flow emission for every cell-bearing beat type; preserve explicit source coordinates for Boxing conversion; regenerate web/Godot goldens and stale package identity/output.
 Verification test: Exact 3C9D Easy source-to-package comparison plus v2/v3/v4 synthetic top/middle/bottom fixtures across notes, bombs, arcs, chains, and obstacles; web/Godot parity; actual persisted/downloaded replacement proof.
 Related files/components: web beatmap.js/converter.js/goldens; Godot BeatSaver stage conversion/goldens; assembly live import/persistence selection.
-Remaining uncertainty: Exact stale downloaded-package invalidation mechanism must be chosen during implementation after inspecting collection identity/cache reuse.
+Resolution: IndexedDB v4 non-destructively marks legacy package/collection records stale, preserves packages/assets/collections/source caches for listing/export/deletion, rejects gameplay loads with `flow_orientation_reimport_required`, and allows corrected same-key reimport to replace stale records with safe asset GC.
 ```
 
 ---
