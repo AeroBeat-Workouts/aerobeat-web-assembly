@@ -111,7 +111,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 0A — Publish authoritative Flow interval timing
 
-**Status:** In progress
+**Status:** Owner implementation `9ccec74` complete and pushed; independent QA active
 **Bead:** `aerobeat-web-content-28s`
 **Owner:** `aerobeat-web-content` coder → independent QA → auditor
 
@@ -127,6 +127,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Known-BPM obstacle/arc/burst fixtures produce exact finite immutable end timestamps.
 - Malformed authored intervals fail at the existing package boundary or remain rejected downstream; package bytes/hashes do not change.
 - Check, unit, browser, pack, independent QA/audit, commit, and push pass.
+
+**Owner evidence (2026-08-31):** Commit `9ccec74` adds optional immutable `endTimestampMs` only when an authored beat owns `end`, derived with the exact loaded package BPM while preserving instant envelope keys and package/chart/authored identity. Exact 150 BPM proof resolves `74.5999984741211→74.6624984741211` to `29839.999389648438→29864.999389648438 ms`. Owner unit/browser gates passed obstacle/arc/burst, malformed intervals, paused swaps, frozen/serializable snapshots, isolation, and zero console failures. Dry pack: 9 files, 22,730 packed bytes, 92,867 unpacked bytes, SHA-1 `b3dd1fd497f551690353efda5ced56fd76fea2a8`.
 
 ## Task 0B — Validate Flow non-note geometry
 
