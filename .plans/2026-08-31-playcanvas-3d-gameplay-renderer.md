@@ -44,7 +44,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 0 — Terminal Visual Test replay repair
 
 **Bead:** `aerobeat-web-assembly-6nt.1`
-**Status:** Coder complete; focused QA PASS; immutable full-browser closure tracked in Task 2
+**Status:** Coder complete; focused and immutable full-browser QA PASS; awaiting audit
 
 ### Result
 
@@ -112,7 +112,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 2 — Assembly, DOM, and gameplay integration
 
 **Bead:** `aerobeat-web-assembly-6nt.2`
-**Status:** Coder complete; awaiting independent QA/audit
+**Status:** Independent QA PASS; awaiting audit
 
 ### Work
 
@@ -135,6 +135,10 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 Assembly now constructs only `createAeroPlayCanvasRenderer`, consumes truthful scene-model/status returns, supplies authoritative timing bounds for all presentations, and publishes exact Flow obstacle start/end intervals. Caller-owned display ticks, external audio/session time, stable surfaces, scoring/input privacy, all five variants, terminal Test replay, and the DOM-owned shell remain authoritative. Visual Test on fine-pointer desktops exposes DOM help and Reset camera while assembly enables the isolated renderer debug camera; Play, menu-open, teardown, destroy, and mobile/fixed-camera states disable it.
 
 Source/unit/browser/build/raw-release/dependency/static-search gates pass. The browser suite covers direct/iframe portrait and landscape at DPR1/3, displayed PlayCanvas pixels, exact current-input cursor projection, all shell/lifecycle/privacy paths, and the Task 0 terminal replay matrix. Bug Bead `aerobeat-web-assembly-pke` diagnosed and closed the finite-pose shell fixture defect with a fixture-owned monotonic ≤15 fps source: direct DPR3 passed twice, iframe DPR3 passed twice, and the complete eight-context shell matrix passed without a production tracking workaround. Repeated raw release proof output matched; unreleased `0.0.27` generated artifacts were restored because Task 3 owns the next patch release. Exact dry-pack metadata remains external in Bead evidence.
+
+### Independent QA result (2026-08-31)
+
+QA Bead `aerobeat-web-assembly-0qp` independently passed commit `2626f33bfeb981c621c469b77ea4c31534b45c4f` against clean pinned renderer `78535847eee4869c211f1300842a73d48eec03f5` and UI `3bf327f1b36fb4a9d41be2dc9bb8b61786a4edc1`. `npm test`, the complete `npm run test:browser` chain, `npm run build`, `npm ls --all`, `npm run test:live-flow-obstacles`, and `git diff --check` all exited successfully. Browser output explicitly passed all eight direct/iframe portrait/landscape DPR1/3 shell contexts and cursor contexts, compositor pixels, console/privacy/lifecycle checks, Visual Test camera help/reset and PlayCanvas identity, tracking-loss cursor clearing, and the immutable terminal end→multi-scrub/zero/exact-end→Play replay matrix with zero scoring truth. Static inspection found no forbidden legacy renderer identity under production `src/` or validation `scripts/`; assembly constructs only `createAeroPlayCanvasRenderer`, publishes authoritative timing windows and exact obstacle intervals, and disables the debug camera before renderer teardown. Live map `3C9D` Easy produced 16 obstacles and 16 truthful volumes. Build emitted only PlayCanvas/Vite externalization and chunk-size warnings; `npm ls --all` emitted expected optional-platform/peer notices while exiting zero. No old `0.0.27` release artifact changed, physical phone checks remain Pending, no winner is selected, both dependency repos remain clean/upstream, and retained `dev:tailscale` PID `2972964` remained healthy.
 
 ## Task 3 — Independent QA and deterministic release
 
