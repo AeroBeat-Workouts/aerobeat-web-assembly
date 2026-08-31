@@ -43,7 +43,13 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 0 — Terminal Visual Test replay repair
 
 **Bead:** `aerobeat-web-assembly-6nt.1`
-**Status:** Pending coder
+**Status:** Coder complete; pending independent QA/audit
+
+### Result
+
+- Normalized every current non-`paused_manual` Visual Test state, including terminal `completed`, through the generation-bound serialized transport pause before seeking.
+- Added exact-end backward replay coverage with coalesced multi-scrub, zero, repeated terminal cycles, exact-duration boundaries, continuous multi-frame advancement, and zero gameplay score/judgement truth while retaining the existing race, reconnect, pause-after-scrub, Play-failure, and scored-Play guards.
+- Coder gates passed: `npm test`, focused `node scripts/validate-mobile-gameplay-menu.js`, and `git diff --check`.
 
 ### Work
 

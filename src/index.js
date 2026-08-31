@@ -304,7 +304,7 @@ export class AeroGame extends HTMLElement {
     if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
     graph.video.pause(this.videoElement());
     const session = graph.gameplay.getSnapshot().session;
-    if (session.state === "playing") { try { graph.gameplay.pause(Math.max(performance.now(), Number(session.timestampMs ?? 0)), "visual_test_transport"); } catch { /* current session may already be paused */ } }
+    if (session.state !== "paused_manual") { try { graph.gameplay.pause(Math.max(performance.now(), Number(session.timestampMs ?? 0)), "visual_test_transport"); } catch { /* current session may already be paused */ } }
     if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
     this.synchronizePausedClock(graph); this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport(); this.publish("session_changed");
   }
@@ -337,7 +337,7 @@ export class AeroGame extends HTMLElement {
     while (this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) && this.desiredTransportSeekMs !== null) {
       const desiredMs = this.desiredTransportSeekMs; this.desiredTransportSeekMs = null;
       const session = graph.gameplay.getSnapshot().session;
-      if (session.state === "playing" || graph.audio.getStatus().state === "playing") await this.pauseVisualTestTransport(connectionGeneration, sessionGeneration, graph);
+      if (session.state !== "paused_manual" || graph.audio.getStatus().state === "playing") await this.pauseVisualTestTransport(connectionGeneration, sessionGeneration, graph);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
       const seekMs = Math.min(this.visualTestDurationMs(graph), Math.max(0, Math.round(desiredMs)));
       await graph.audio.seek(seekMs / 1000);
