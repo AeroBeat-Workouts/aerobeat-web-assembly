@@ -123,7 +123,8 @@ The correction initializes and resets stored debug yaw to `Math.PI` and applies 
 
 **Implementation Bead:** `aerobeat-web-assembly-ft7`
 **QA Bead:** `aerobeat-web-assembly-614`
-**Status:** Coder PASS — assembly regression/docs pushed; awaiting independent QA `aerobeat-web-assembly-614`; `ft7` remains open
+**QA correction Bead:** `aerobeat-web-assembly-656`
+**Status:** QA correction coder PASS — strict framebuffer evidence awaiting independent re-QA; `ft7`/`614`/`656` remain open
 
 Consume immutable audited renderer commit `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
 
@@ -132,6 +133,12 @@ Consume immutable audited renderer commit `3cfbbe431ba5907831ceac15c26b0fdc7e2ce
 The existing eight-context product-shell matrix now starts representative downloaded Flow through the actual `<aero-game>` `session-test` UI on a fine-pointer browser, waits for multiple active debug-enabled display frames, and samples the WebGL canvas synchronously into a test-private `OffscreenCanvas` against opaque Aero blue. Every direct/real-iframe portrait/landscape DPR1/3 context proves non-background gameplay pixels before input, after DOM Reset plus an active frame, and after actual menu pause/resume plus re-enabled active frames. A test-private old-yaw-zero negative control produces exactly zero non-background pixels in all eight contexts, while corrected states produce `76,029–690,182` pixels before input, `76,072–684,872` after Reset, and `76,153–679,030` after resume in the final complete browser run. Only scalar counts/sizes leave the browser evaluation; pixels and screenshots remain private.
 
 `npm test`, complete `npm run test:browser`, exact live `3C9D` Easy Flow (`16` obstacles/`16` volumes), `npm run build`, `npm ls --all`, forbidden legacy-identity search, `git diff --check`, and focused/full matrix runs pass. Terminal replay, five presentation/conversion choices, exact 4×3/timing/duration/cursors, scored/mobile fixed camera, debug cleanup, privacy/lifecycle/context recovery, and all pre-existing eight-context shell/cursor checks remain intact. The tracked `0.0.28` raw tree and package/lock/index version surfaces are byte-unchanged; no `0.0.29` version or release artifact was built. The physical handoff records Derrick's `0.0.28` desktop Flow blue-screen as Failed/superseded and keeps every `0.0.29` retest row Pending without selecting a winner. Renderer `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` was not modified; retained server PID `2972964` was not restarted.
+
+### QA evidence correction (2026-08-31)
+
+Independent QA correctly rejected the initial negative-control evidence because a late `drawImage` read from `preserveDrawingBuffer:false` could return an invalid transparent buffer that also counted as zero gameplay pixels. P0 Bead `aerobeat-web-assembly-656` owns the test-only repair. Diagnosis established the valid sampling boundary immediately after `renderGameplayFrame`, before the cursor tick; the renderer canvas is intentionally transparent for the DOM-owned gradient, so test-private raw RGBA is manually source-over composited onto `#071426`. Capture is demand-only to avoid DPR3 cadence/tracking perturbation, and dimensions derive from the renderer's DPR2 cap.
+
+The corrected scalar validator requires renderer/canvas/sample dimensions and DPR agreement, complete pixel partitioning, full opaque composite output, positive exact-background pixels, an opaque `[7,20,38,255]` corner, and old-yaw-zero exactly all background. A startup self-test deliberately supplies a transparent invalidated sample and proves rejection. Two standalone eight-context matrices plus the matrix inside the complete browser chain passed: every old-yaw sample was exactly zero non-background with all pixels opaque background, while every corrected before-input/Reset/resume state retained substantial gameplay pixels. Fresh `npm test`, complete browser, live Flow, build, dependency, static, and diff gates passed; only expected PlayCanvas worker externalization/chunk warnings remained. No production, dependency, version, release, or server behavior changed.
 
 ## Task 3 — Deterministic hotfix release
 
