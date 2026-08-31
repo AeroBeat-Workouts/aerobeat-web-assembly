@@ -69,7 +69,7 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 ## Task 1 — PlayCanvas renderer replacement
 
 **Bead:** `aerobeat-web-renderer-jzd`
-**Status:** Coder complete at `a9c5bb0`; pending independent QA/audit
+**Status:** Coder complete at `eb1ea93`; pending independent QA/audit
 
 ### Work
 
@@ -88,12 +88,12 @@ Replace the legacy custom WebGL2 2D/2.5D gameplay renderer with one source-contr
 
 **Research result (2026-08-31):** the existing authoritative frame record and per-instance canvas lifecycle are the correct migration seam. The new public identity is `AeroPlayCanvasRenderer` / `createAeroPlayCanvasRenderer` / `aero.renderer.playcanvas`; `buildGameplaySceneModel` replaces the 2.5D draw plan with screenshot-free world-space truth. PlayCanvas must not start a second RAF, acquire a second context, own song time, or hardware-instance depth-sorted translucent volumes. The implementation must explicitly preserve transparent camera composition, synchronous façade destruction, recreatable assets/context recovery, exact DPR sizing, and bounded target pooling. Research also found a direct renderer consumer in the UI media-pose preview, requiring the following linked migration rather than a compatibility alias.
 
-**Implementation result (2026-08-31):** renderer commit `a9c5bb0` is pushed clean/upstream. PlayCanvas 2.21.4 now owns all three world presentations; the legacy gameplay plan/export/service identity is deleted. Unit and Chromium gates pass with two isolated applications, zero engine RAF, displayed alpha pixels at portrait/landscape DPR1/3, timing floor, duration volumes, overlays, Test camera cleanup, context recovery, reconnect/destroy, and zero console noise. Two dry-pack JSON runs were byte-identical; exact metadata is recorded only in Bead `aerobeat-web-renderer-jzd`. Independent QA/audit remain required.
+**Implementation result (2026-08-31):** renderer commits `a9c5bb0` and first-call presentation correction `eb1ea93` are pushed clean/upstream. PlayCanvas 2.21.4 now owns all three world presentations; the legacy gameplay plan/export/service identity is deleted. Unit and Chromium gates pass with two isolated applications, zero engine RAF, first-call plus portrait/landscape DPR1/3 displayed alpha pixels, timing floor, duration volumes, overlays, Test camera cleanup, context recovery, reconnect/destroy, and zero console noise. Two final dry-pack JSON runs were byte-identical; exact metadata is recorded only in Bead `aerobeat-web-renderer-jzd`. Independent QA/audit remain required.
 
 ## Task 1.5 — UI media-preview migration
 
 **Bead:** `aerobeat-web-ui-58j`
-**Status:** Ready; renderer API landed at `a9c5bb0`
+**Status:** Ready; renderer API stabilized at `eb1ea93`
 
 ### Work
 
