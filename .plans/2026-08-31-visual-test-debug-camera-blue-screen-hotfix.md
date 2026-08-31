@@ -112,10 +112,14 @@ Remaining uncertainty: Physical retest result and breadth across real downloaded
 
 ## Task 1 — Renderer correction
 
-**Bead:** `aerobeat-web-renderer-b79`
-**Status:** In progress
+**Implementation Bead:** `aerobeat-web-renderer-b79`
+**QA Bead:** `aerobeat-web-renderer-nf1`
+**Audit Bead:** `aerobeat-web-renderer-xui`
+**Status:** Coder PASS at `7447d30`; awaiting independent renderer QA/audit
 
-Implement the smallest coherent-pose correction and targeted unit/Chromium regression. Run full renderer unit/browser/package determinism. Independent renderer QA/audit must pass before assembly consumes the result.
+The correction initializes and resets stored debug yaw to `Math.PI` and applies that stored pose directly, eliminating the reset `lookAt`/next-frame Euler contradiction. Unit math proves forward Z `>0.99` with downward floor pitch. Chromium renders a positive-Z Flow scene over opaque blue and proves more than 100 non-background pixels across two active debug frames, Reset plus another frame, and disable/re-enable pause/resume equivalence while retaining held-RMB, movement, cleanup, presentations, DPR, transparency, reconnect, destroy, and context recovery. `npm test`, complete `npm run test:browser`, dependency/static/diff checks, and two byte-identical dry packs passed. Renderer commit `7447d305b2e4ee45e601ece3476a65246d51f85a` is pushed clean/upstream; exact pack metadata remains external on `b79`.
+
+Independent renderer QA/audit must pass before assembly consumes the result.
 
 ## Task 2 — Assembly physical-path regression
 
