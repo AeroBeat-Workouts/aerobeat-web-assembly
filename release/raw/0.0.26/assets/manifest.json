@@ -1,0 +1,140 @@
+{
+  "schemaId": "aerobeat.branding.web-gameplay-icons.v1",
+  "schemaVersion": 1,
+  "colorContract": "currentColor",
+  "webglContract": "alpha-mask-atlas-input",
+  "derivativeAuthor": "AeroBeat prototype asset generation under Derrick authorization",
+  "license": "AeroBeat project-authorized prototype; repository license pending",
+  "assets": [
+    {
+      "id": "boxing.glove",
+      "file": "boxing-glove.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-glove-1.svg",
+      "derivation": "prototype redraw preserving the generic glove semantic",
+      "hand": "neutral"
+    },
+    {
+      "id": "boxing.guard.crossed",
+      "file": "boxing-guard-crossed.svg",
+      "viewBox": "0 0 48 24",
+      "source": "../boxing-guard-1.svg",
+      "derivation": "generated connected two-cell crossed-forearm prototype",
+      "hand": "both"
+    },
+    {
+      "id": "boxing.guard.standard",
+      "file": "boxing-guard-standard.svg",
+      "viewBox": "0 0 48 24",
+      "source": "../boxing-guard-1.svg",
+      "derivation": "generated connected two-cell parallel-guard prototype",
+      "hand": "both"
+    },
+    {
+      "id": "boxing.hook.left",
+      "file": "boxing-hook-left.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-hook-1.svg",
+      "derivation": "prototype redraw with explicit leftward hand geometry",
+      "hand": "left"
+    },
+    {
+      "id": "boxing.hook.right",
+      "file": "boxing-hook-right.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-hook-1.svg",
+      "derivation": "optically centered mirror of the prototype hook master",
+      "hand": "right"
+    },
+    {
+      "id": "boxing.squat",
+      "file": "boxing-squat.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-squat-1.svg",
+      "derivation": "prototype redraw preserving the squat semantic",
+      "hand": "neutral"
+    },
+    {
+      "id": "boxing.straight.left",
+      "file": "boxing-straight-left.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-punch-1.svg",
+      "derivation": "prototype redraw with explicit leftward hand geometry",
+      "hand": "left"
+    },
+    {
+      "id": "boxing.straight.right",
+      "file": "boxing-straight-right.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-punch-1.svg",
+      "derivation": "optically centered mirror of the prototype straight master",
+      "hand": "right"
+    },
+    {
+      "id": "boxing.uppercut.left",
+      "file": "boxing-uppercut-left.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-uppercut-1.svg",
+      "derivation": "prototype redraw with explicit rising left-hand geometry",
+      "hand": "left"
+    },
+    {
+      "id": "boxing.uppercut.right",
+      "file": "boxing-uppercut-right.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-uppercut-1.svg",
+      "derivation": "optically centered mirror of the prototype uppercut master",
+      "hand": "right"
+    },
+    {
+      "id": "boxing.weave.left",
+      "file": "boxing-weave-left.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-dodge-1.svg",
+      "derivation": "generated left-leaning weave prototype",
+      "hand": "neutral"
+    },
+    {
+      "id": "boxing.weave.right",
+      "file": "boxing-weave-right.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-dodge-1.svg",
+      "derivation": "generated mirrored right-leaning weave prototype",
+      "hand": "neutral"
+    },
+    {
+      "id": "calibration.tpose",
+      "file": "calibration-tpose.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../boxing-tpose-1.svg",
+      "derivation": "prototype redraw preserving the symmetric T-pose semantic",
+      "hand": "neutral"
+    },
+    {
+      "id": "feedback.great",
+      "file": "feedback-great.svg",
+      "viewBox": "0 0 128 32",
+      "source": "../feedback-great-1.svg",
+      "derivation": "deterministic bold geometric GREAT wordmark built from path-only primitives",
+      "hand": "neutral"
+    },
+    {
+      "id": "flow.directional",
+      "file": "flow-directional.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../flow-directional-1.svg",
+      "derivation": "visual-mass-centered normalization of Derrick's selected right-facing directional master",
+      "hand": "neutral",
+      "orientation": "right"
+    },
+    {
+      "id": "flow.directionless",
+      "file": "flow-directionless.svg",
+      "viewBox": "0 0 64 64",
+      "source": "../flow-directionless-1.svg",
+      "derivation": "visual-mass-centered normalization of Derrick's selected nonrotating directionless master",
+      "hand": "neutral",
+      "orientation": "none"
+    }
+  ]
+}

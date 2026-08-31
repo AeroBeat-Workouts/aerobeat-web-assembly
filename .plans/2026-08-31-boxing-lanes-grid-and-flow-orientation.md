@@ -237,6 +237,8 @@ The band cannot be independently resized without lying about gameplay timing. In
 
 ## Task 4 — Integrated QA, deterministic release, and physical handoff
 
+**Status:** Owner release lane complete at `0.0.26`; `aerobeat-web-assembly-hc4.2` remains in progress for independent QA/audit, followed by final audit Bead `.3`.
+
 **QA/Release Bead:** `aerobeat-web-assembly-hc4.2`
 **Final Audit Bead:** `aerobeat-web-assembly-hc4.3`
 **Depends on:** audited Tasks 0–3
@@ -261,6 +263,15 @@ The band cannot be independently resized without lying about gameplay timing. In
 - Release/pack reproduce byte-for-byte; Git and Dolt state are pushed.
 - Derrick receives a physical checklist; automated evidence does not claim a human pass.
 - No production Boxing gameplay or conversion winner is selected.
+
+**Owner release evidence (2026-08-31):**
+
+- Canonical `npm run version:patch` advanced `package.json`, `package-lock.json`, and the HTML release marker from `0.0.25` to `0.0.26`; the raw proof is tracked at `release/raw/0.0.26/` under the established release layout.
+- Two independent `npm run build-release` rounds were byte-identical across 13 files. Source fingerprint is `cacac1e520eb1f619a3c694a01e7d7b6d1a51516bd05c1b1bf0556e387bafbc9`; recursive file-manifest SHA-256 is `831f513a19a63b10a4ab2d3194fa06a51895533c9f95ea912636b7c434239647`; proof SHA-256 is `69969cd8b0ca8e3a5e99b26c6eeb93643c90fe59af05ea7b62aab8f717f54a85`; artifact bytes before proof are `3669249`.
+- Owner `npm run check`, `npm test`, `npm run test:browser`, and `npm run build` passed. Browser coverage includes five variants, exact three-mode/two-conversion shell behavior, lane motion/shared truthful band/no-rings/canonical cues, moving `350 ms` feedback, Flow/Grid 4×3, stale preservation/reimport, direct/iframe portrait/landscape DPR1/3, Preview, privacy, cadence, countdown, compositor, and cursors.
+- Runtime source and validation scripts are byte-identical to independently audited Task 3 baseline `3d660f8`; raw `0.0.26` assets contain the corrected stale marker plus semantic-lane/spatial-grid identities. This truthfully binds Task 3's two actual online `3C9D` authoring/IndexedDB reproductions—exact hash `5662f64a12c76a3dd11a5f6ee22611608cd06760`, beat `21` `(x=3,y=0)` → selected Flow cell `11`, first twelve `[11,8,10,9,11,8,11,8,10,9,11,8]`—to the released runtime without another source change.
+- Repeated owner npm dry-pack rounds were byte-identical before final ledger recording; a final pair is rerun after all packed plan/docs/Bead evidence is frozen. The focused phone handoff leaves every physical observation Pending, compares Flow, both Boxing Lanes conversions, and both Boxing Grid conversions, and explicitly makes no human-pass or production-winner claim.
+- Existing `dev:tailscale` PID `2972964` was neither stopped nor restarted and the secure route returned HTTP 200.
 
 ---
 

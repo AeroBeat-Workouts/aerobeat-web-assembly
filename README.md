@@ -91,7 +91,7 @@ Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, 
 
 ## Validation
 
-The current deterministic raw release proof is `0.0.25`. Automated gates do not replace the operator-owned phone checks in `docs/task14-flow-feedback-test-mode-physical-handoff.md`.
+The current deterministic raw release proof is `0.0.26`. It carries the corrected Flow row orientation, exact Flow/Boxing Lanes/Boxing Grid gameplay choices, and the separate Balanced Height/Source Height Boxing conversion control. Automated gates do not replace the operator-owned phone checks in `docs/task15-boxing-lanes-grid-flow-physical-handoff.md`; neither the release nor that checklist selects a production Boxing winner.
 
 ```bash
 npm run check
