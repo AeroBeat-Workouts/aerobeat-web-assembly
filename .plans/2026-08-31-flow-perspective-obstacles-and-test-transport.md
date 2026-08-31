@@ -35,7 +35,7 @@ Derrick approved:
 
 ### Missing obstacles
 
-`session-render-projection.js` currently recognizes notes, guards, squats, and weaves, then treats every other authored type as a punch. A Flow `type:"obstacle"` therefore plausibly falls through to a punch with no spatial target and produces no target rectangle. This is the leading hypothesis and must be confirmed against an actual selected Flow event before editing.
+`session-render-projection.js` currently recognizes notes, guards, squats, and weaves, then treats every other authored type as a punch. The hypothesis is confirmed: the minimal authored Flow fixture `{type:"obstacle",start:2,end:4,cells:[1,2,5,6]}` projects as `{kind:"punch",family:"straight",cell:null,cells:[]}` and therefore produces no target rectangle. Source/runtime contracts retain exact obstacle `start`, `end`, and occupied `cells`; the repair must also preserve its active interval rather than emitting a one-frame hatch.
 
 ### Same-cell occlusion
 
