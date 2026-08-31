@@ -176,7 +176,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 ## Task 2 — Add Visual Test transport presenter
 
-**Status:** Owner implementation `76d187e` complete and pushed; independent QA active
+**Status:** Owner implementation `76d187e` and independent QA PASS; final auditor active
 **Bead:** `aerobeat-web-ui-ytx`
 **Owner:** `aerobeat-web-ui` coder → independent QA → auditor
 
@@ -196,6 +196,8 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 
 **Owner evidence (2026-08-31):** Commit `76d187e` adds exported `aero-visual-test-transport` with exact immutable `{active,playing,currentMs,durationMs}` state and exact empty/scalar `visual-test-play`, `visual-test-pause`, and `visual-test-seek` intents. Owner check/unit/browser suites and focused DPR1/3 portrait/landscape Chromium gates passed safe-area layout, 42 px controls, focus/reconnect/reduced-motion/privacy/console truth. Dry pack: 21 files, 40,945 packed bytes, 172,820 unpacked bytes, SHA-1 `3947a230488402702c215be6d5f7ea7c38a6ee8d`.
 
+**Independent QA (2026-08-31): PASS.** Fresh check/unit/browser/focused validators, diff check, and identical dry pack passed exact state/privacy/timecode/intents, pause-on-first keyboard/touch scrub, continuous seeks, no resume inference, reconnect/focus/reduced-motion, and DPR1/3 orientation matrix with zero console/page errors. Assembly must preserve ordered intent serialization because button Pause and scrub Pause intentionally share the same exact intent and scrub is distinguished only by the immediately following Seek.
+
 ## Task 3 — Integrate obstacle projection and live scrubbing
 
 **Status:** Pending
@@ -208,6 +210,7 @@ The audio service already owns pause/seek/duration, and the gameplay coordinator
 - Explicitly project Flow obstacles rather than falling through to Boxing punches.
 - Supply exact approach/depth/obstacle interval data to renderer frames.
 - Wire Visual Test transport to generation-bound pause/seek/synchronize/render behavior.
+- Serialize transport intents in dispatch order so an identical scrub Pause followed by Seek cannot race as independent async work; prove Pause → seek → synchronized paused render and remain-paused semantics.
 - Coalesce drag updates without hiding the live frame.
 - Preserve Test audio-only/unscored/camera-free semantics and all Play scoring/privacy/lifecycle behavior.
 - Keep current Flow orientation and all five gameplay variants unchanged.
