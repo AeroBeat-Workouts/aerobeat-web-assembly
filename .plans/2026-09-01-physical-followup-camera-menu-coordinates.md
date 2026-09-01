@@ -98,7 +98,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 ### Task 1 — Reproduce and repair menu churn (`nu0`)
 
 **Repos:** content runtime, UI presenter, assembly.
-**Status:** Coder and independent QA PASS; final audit in progress — subagent `3433c52f-1e5f-467a-af6d-756146a4e493`; `nu0` remains `in_progress`
+**Status:** FINAL AUDIT PASS — `nu0` closed and Dolt-pushed on 2026-09-01
 
 - Claim `nu0`.
 - Land physical-timing browser reproducer first.
@@ -117,6 +117,14 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Fresh UI gates passed: `npm test`, exact `npm run test:browser`, dry-run pack, `npm ls --all`, `git diff --check`.
 - Fresh assembly gates passed twice on final source where applicable: `npm test`, exact `npm run test:browser`, `npm run test:v4-integration`, live Flow obstacles, `npm run build`, `npm ls --all`, static/import/component/console/privacy/forbidden assertions, and `git diff --check`. The shell/cursor matrix covered direct + real cross-origin iframe, portrait/landscape, DPR1/3, fine/coarse paths, all gameplay modes, reconnect/privacy, and zero unexpected console errors.
 - Residual scope: the held-pointer transaction itself is one deterministic direct Chromium scenario combined with the existing eight-context direct/iframe viewport/DPR matrix; independent QA should repeat physical mouse/touch hardware timing and scroll behavior. Bead closure remains auditor-owned.
+
+**Final independent audit result (2026-09-01): PASS; `nu0` closed and Dolt-pushed.**
+
+- Independently reproduced the exact causal baseline with detached assembly `6f184cf`, content `2d4a983`, and UI `fbf0bb8`, applying only the repaired physical-timing test as a reproducer. Completed Visual Test Song failed with `17` playback publications, `204` presenter commits before pointerup, original-node disconnection/replacement, no pointerup/change or intent, retained `song-a-easy`, and drawer `scrollTop:607`; this confirms playback publish → full presenter reconstruction → held-node detachment rather than disabled state, stale generation, or iframe transport.
+- Repeated completed Test and completed Play for Song, downloaded Difficulty, Gameplay, and Conversion in direct fine mouse (`140 ms`), direct coarse CDP touch (`180 ms`), real cross-origin iframe fine mouse (`140 ms`), and real cross-origin iframe coarse touch (`180 ms`). All `32` transactions kept the same connected native node through pointerdown/up/change, observed `18–20` truthful publications per fine hold and `12–15` per coarse hold, had exactly zero full presenter commits before up/change, retained scroll exactly through change, restored focus to the current control after the necessary truthful commit, emitted the exact scalar intent, and ended at `song-b-hard` / `boxing_semantic_track_v1` / `cut_family_source_height_v1`.
+- Verified content no-op and set-equivalent playback suppression retains exact snapshot/listener identity while genuine playback changes publish; UI equivalent BeatSaver/library/Gameplay snapshots preserve exact identity/`isConnected`/focus, genuine changes render, and compact optimistic state survives only equivalent host snapshots; assembly excludes only playback/events/assets from drawer signatures while truthful package/variant/background and lifecycle changes still commit.
+- Fresh content gates PASS: `npm test`, `npm run test:browser`, dry pack `23,162 / 94,446`, `npm ls --all`, `git diff --check`. Fresh UI gates PASS: same gates, dry pack `44,019 / 185,409`. Fresh assembly gates PASS: `npm test`, `npm run test:browser`, v4 integration (`7b14eec`, `96e68173fffd6454bfb38740acaf58653da11320`, `3` packages / `5` variants), live Flow (`3C9D`, `16` obstacles / `16` volumes), build (`1299` modules), `npm ls --all`, `git diff --check`, and clean dry pack `399,358 / 1,431,710` with `97` entries.
+- Complete assembly static/JSDoc, public-import/MediaPipe-only forbidden, component, actual-graph, adversarial iframe, privacy/scalar-schema, lifecycle/reconnect, console, direct/iframe portrait/landscape DPR1/3, all-mode, cursor/camera-control, v4, live-Flow, and build matrix passed. No `scrollTop` workaround, truthful suppression, schema/privacy expansion, lifecycle/rendering regression, or release/handedness/camera/server/PoC/Theme/asset/publication scope creep was found. No linked P0 was required.
 
 ### Task 2 — Normalize renderer world/view convention (`aue`)
 
