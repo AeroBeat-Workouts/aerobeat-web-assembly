@@ -162,7 +162,7 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** FINAL AUDIT PASS — all three package audits, assembly coder/QA/audit, and exact release candidate `2c0968e` independently verified; Beads `7l3`/`9rh`/`nl4`/`es1` closed in required order; every physical cursor/volume row remains Physical Pending and Milestone 2 remains blocked
+**Status:** AUTOMATED AUDIT PASS / PHYSICAL FAIL — exact `0.0.31` candidate `2c0968e` passed coder/QA/audit, but Derrick physically found the Music/Sound popover permanently painted while logically closed; UI P0 `aerobeat-web-ui-9bd` and assembly/release P0 `aerobeat-web-assembly-2fw` are open; Milestone 2 remains blocked
 
 Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback through the audio service instance methods `getMixSnapshot()` / `setMix()`, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
@@ -193,9 +193,10 @@ Linked clean/upstream audited heads are renderer `b50bcb5208938a77369d644536951e
 ## Milestone 1 physical gate
 
 **Physical gate:** `aerobeat-web-assembly-7f9`
-**Status:** Physical Pending — blocks `aerobeat-web-assembly-zd0`
+**Physical repair:** `aerobeat-web-assembly-2fw` consuming UI P0 `aerobeat-web-ui-9bd`
+**Status:** Physical FAIL — exact `0.0.31` shows the Music/Sound panel permanently; blocks `aerobeat-web-assembly-zd0`
 
-Derrick must physically confirm cursor restoration and volume behavior in `0.0.31` before Milestone 2 is claimed. A failed observation creates a P0 and blocks the PoC. Pending is not PASS.
+Derrick found that the volume panel is physically painted before the icon is pressed and remains painted after logical close. Diagnosis: author `.volume-popover { display: grid }` overrides the browser’s user-agent `[hidden] { display: none }`; prior automation asserted only `hidden`/ARIA state and missed computed rendering. Correct with an author-level hidden rule and computed-style/geometry browser sensitivity, then rebuild/audit a corrected deterministic candidate and reset this gate to Physical Pending for Derrick. A failed observation creates a P0 and blocks the PoC. Pending is not PASS.
 
 ## Milestone 2 — Local-only `.bloq`/`.plat` conversion PoC
 
