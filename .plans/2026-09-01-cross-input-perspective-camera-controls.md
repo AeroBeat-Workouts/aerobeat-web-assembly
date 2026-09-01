@@ -1,6 +1,6 @@
 # Cross-Input Perspective Camera Controls
 
-**Status:** Approved and in progress
+**Status:** Complete — final independent audit PASS; deterministic `0.0.30` committed/pushed; physical retest remains Pending
 **Owner:** assembly orchestrator → renderer/assembly coders → independent QA → final auditor
 **Assembly feature:** `aerobeat-web-assembly-lk4`
 **Renderer feature:** `aerobeat-web-renderer-vbw`
@@ -93,7 +93,7 @@ Independent QA at candidate `5d171be10682b2b25030f8f988363e17c89a9851` inspected
 
 **QA Bead:** `aerobeat-web-assembly-3aw`
 **Release Bead:** `aerobeat-web-assembly-jiu`
-**Status:** Release coder PASS — deterministic `0.0.30` candidate built/pushed; awaiting final audit `95j`
+**Status:** Complete — deterministic `0.0.30` release and independent final audit PASS
 
 Independent QA passed before release. Package, lock, source index, raw HTML and proof surfaces now agree on `0.0.30`; README and the physical handoff describe the cross-input control iteration while retaining `0.0.29` direction PASS/superseded control failures, all `0.0.30` physical rows Pending and no winner. Two raw builds were byte-identical: `13` files, `11,452,934` total bytes, `11,451,568` bytes before the proof, raw-list SHA-256 `51fd57980db14edccb1881dd863c385f3b3e724a71867bde625b892ad1bdcc6f`, proof SHA-256 `3c2ae0a698bf6f57c732259a1c1362bc3d1f97398ab9740ca7419c4faaf9d0a4`, and source fingerprint `b3746ad0042348a64142674d8b9bde669247f88a57e67d774d55804dcfab244b`. Every tracked `0.0.29` byte remained unchanged.
 
@@ -102,6 +102,8 @@ Fresh `npm test`, the exact complete browser chain, all eight direct/real-iframe
 ## Task 4 — Final audit and closure
 
 **Bead:** `aerobeat-web-assembly-95j`
-**Status:** Ready — release coder PASS; awaiting independent final audit
+**Status:** Complete — independent final audit PASS; `jiu`, `lk4`, and `95j` closed
 
-Audit user decisions, renderer/assembly diffs, physical truth, tests, release metadata, Beads, Git, linked repos and server. Close only on complete PASS. No gameplay/conversion winner or broad visual redesign is part of this iteration.
+The final auditor inspected the complete renderer and assembly decision/diff chain and reproduced the exact user contract. Fresh renderer unit/Chromium gates measured real pointer-lock/fallback and touch yaw changes, caller-frame gradual movement, reset-camera D at negative world X, Normal/Boost rates, gesture rejection and complete capture/intent cleanup. Fresh assembly unit, complete browser, live Flow, build, dependency, forbidden-identity and diff gates passed. All eight direct/real-iframe portrait/landscape DPR1/3 contexts retained the exact no-prose accessible GUI, 44 px minimum controls, safe layout, desktop/mobile capture and movement, scored isolation, lifecycle cleanup, and strict canvas validity. In the final matrix every old-yaw sample was exactly zero non-background/all opaque Aero background with corner `[7,20,38,255]`; corrected states measured `76,029–690,115` before input, `76,104–687,262` after Reset and `76,170–677,236` after resume.
+
+The auditor rebuilt raw `0.0.30` twice; both rounds were byte-identical to each other and the committed 13-file tree: `11,452,934` total bytes, `11,451,568` pre-proof bytes, proof SHA-256 `3c2ae0a698bf6f57c732259a1c1362bc3d1f97398ab9740ca7419c4faaf9d0a4`, source fingerprint `b3746ad0042348a64142674d8b9bde669247f88a57e67d774d55804dcfab244b`, and auditor SHA-list hash `7e450afe15cc3f032031db71880a2f8d0669cd942793a6dc1cf5ac404e840895`. Every tracked `0.0.29` byte remained unchanged. Package, lock, source index, raw index and proof all agree on `0.0.30`; all 14 linked repos are clean/upstream at their audited commits. Exactly one retained managed server tree (`npm` PID `3901811` → shell `3901822` → Vite `3901823`) serves local and unchanged Tailscale routes with HTTP `200`. Final pack metadata is recorded externally after the closure commit, with no later packed-file edit. No npm publish, GitHub Release or public action occurred. Derrick's `0.0.29` observations remain truthful, every `0.0.30` physical row remains Pending, and no gameplay/conversion winner or broad visual redesign is inferred.
