@@ -12,7 +12,7 @@ import {
 } from "@aerobeat/web-contracts";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { rasterizeBrandingIconAtlas } from "@aerobeat/web-renderer";
-import { aeroUiIntentEventName, defineAeroUiElements } from "@aerobeat/web-ui";
+import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
 import {
@@ -24,6 +24,7 @@ import {
   selectedGameplayProfileId
 } from "./gameplay-mode-selection.js";
 import { createAeroGameIframeBridge } from "./iframe-bridge.js";
+import { getAudioMixSnapshot, setAudioMixSnapshot, subscribeAudioMix } from "./audio-mix-coordinator.js";
 import { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
 import { createLockedVideoFrameSource } from "./production-cv-service.js";
 import { createAeroDisplayLoop } from "./runtime-cadence.js";
@@ -148,6 +149,9 @@ export class AeroGame extends HTMLElement {
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
     try {
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
+      const graph = this.graph; const generation = this.connectedGeneration;
+      graph.audio.setMix(getAudioMixSnapshot());
+      this.unsubscribe.push(subscribeAudioMix((mix) => { if (!this.isCurrent(generation, graph)) return; graph.audio.setMix(mix); this.renderVisualTestTransport(); }, false));
       this.attachStableSurfaces();
       this.beginIconAtlasInitialization();
       this.bindGraph();
@@ -961,13 +965,13 @@ export class AeroGame extends HTMLElement {
 
   visualTestTransportSnapshot() {
     const graph = this.graph;
-    if (!graph) return Object.freeze({ active:false, playing:false, currentMs:0, durationMs:0 });
-    const session = graph.gameplay.getSnapshot().session; const durationMs = this.visualTestDurationMs(graph);
+    if (!graph) return Object.freeze({ active:false, playing:false, currentMs:0, durationMs:0, musicVolume:0.5, soundVolume:0.5 });
+    const session = graph.gameplay.getSnapshot().session; const durationMs = this.visualTestDurationMs(graph); const mix = graph.audio.getMixSnapshot();
     const active = this.sessionStartRequested && this.activeSessionAction === "test" && session.purpose === "visual_test";
     const timelineMs = Number(session.timelinePositionMs);
     const currentMs = active && Number.isFinite(timelineMs) ? Math.min(durationMs, Math.max(0, Math.round(timelineMs))) : 0;
     const playing = active && session.state === "playing" && graph.audio.getStatus().state === "playing" && this.frameTimer !== 0;
-    return Object.freeze({ active, playing, currentMs, durationMs });
+    return Object.freeze({ active, playing, currentMs, durationMs, musicVolume:mix.musicVolume, soundVolume:mix.sfxVolume });
   }
 
   renderVisualTestTransport() { setPresenter(this, "aero-visual-test-transport", this.visualTestTransportSnapshot()); }
@@ -1482,6 +1486,11 @@ export class AeroGame extends HTMLElement {
     if (!detail || typeof detail.type !== "string") return;
     if (detail.type === "session-start") void this.startFromMenu("play");
     else if (detail.type === "session-test") void this.startFromMenu("visual_test");
+    else if (detail.type === "visual-test-music-volume" || detail.type === "visual-test-sound-volume") {
+      const volume = readVisualTestVolumeIntent(detail.payload); if (volume === null) return;
+      const current = getAudioMixSnapshot();
+      setAudioMixSnapshot(detail.type === "visual-test-music-volume" ? { musicVolume:volume, sfxVolume:current.sfxVolume } : { musicVolume:current.musicVolume, sfxVolume:volume });
+    }
     else if (detail.type === "fullscreen-request") void this.enterFullscreen().catch((error) => this.handleError(error));
     else if (detail.type === "fullscreen-exit") void this.exitFullscreen().catch((error) => this.handleError(error));
     else if (detail.type === "beatsaver-search") void this.browseBeatSaver({ text: dataValue(detail.payload, "query") ?? "" }).catch((error) => this.handleError(error));
@@ -1616,6 +1625,7 @@ function setPresenter(host, selector, snapshot) { const element = host.shadowRoo
 function containerSnapshot(widthCssPx, heightCssPx, devicePixelRatio, visible, fullscreen) { return Object.freeze({ schema: "aerobeat/container_snapshot", version: 1, widthCssPx, heightCssPx, devicePixelRatio, visible, fullscreen }); }
 function referrerOrigin() { try { return document.referrer ? new URL(document.referrer).origin : ""; } catch { return ""; } }
 function dataValue(record, key) { if (!record || typeof record !== "object") return undefined; const descriptor = Object.getOwnPropertyDescriptor(record, key); return descriptor && "value" in descriptor && descriptor.enumerable ? descriptor.value : undefined; }
+function readVisualTestVolumeIntent(value) { if (!value || typeof value !== "object" || Array.isArray(value)) return null; const prototype = Object.getPrototypeOf(value); if (prototype !== Object.prototype && prototype !== null) return null; const keys = Reflect.ownKeys(value); if (keys.length !== 1 || keys[0] !== "volume") return null; const descriptor = Object.getOwnPropertyDescriptor(value, "volume"); if (!descriptor || !descriptor.enumerable || !("value" in descriptor) || typeof descriptor.value !== "number" || !Number.isFinite(descriptor.value) || descriptor.value < 0 || descriptor.value > 1) return null; return snapVisualTestVolume(descriptor.value); }
 function contentSource(value) { if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) throw new TypeError("Content source must be a plain record"); const keys = Reflect.ownKeys(value); if (keys.some((key) => typeof key !== "string" || !["kind", "package", "url", "handle"].includes(key))) throw new TypeError("Content source contains unknown fields"); const kind = dataValue(value, "kind"); if (kind === "direct") return Object.freeze({ kind, package: dataValue(value, "package") }); if (kind === "external") return Object.freeze({ kind, url: boundedString(dataValue(value, "url"), "") }); if (kind === "persistence") return Object.freeze({ kind, handle: safeData(dataValue(value, "handle"), 0, 32) }); throw new TypeError("Unsupported content source kind"); }
 function boundedString(value, fallback) { return typeof value === "string" && value.length > 0 && value.length <= 1024 ? value : fallback; }
 function boundedIdentifier(value, label) { if (typeof value !== "string" || !/^[0-9a-zA-Z_-]{1,256}$/u.test(value)) throw new TypeError(`${label} is invalid`); return value; }
