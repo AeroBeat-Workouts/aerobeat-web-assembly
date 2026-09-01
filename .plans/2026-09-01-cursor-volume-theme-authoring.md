@@ -137,7 +137,7 @@ Coder diagnoses with the new sensitivity probe, implements one idempotent confir
 **Audit:** `aerobeat-web-audio-18w`
 **Status:** Ready
 
-Add persistent service-owned Music and future-SFX GainNodes where supported. Music playback connects through Music gain instead of directly to destination. Expose strict bounded scalar mix set/read APIs and status with defaults `0.5/0.5`. Preserve injected-context ownership, source recreation, clock authority, lease/visibility semantics and teardown. Unsupported/fake contexts must degrade truthfully and remain testable.
+Add service-owned Music and future-SFX GainNodes where supported. Music playback connects through Music gain instead of directly to destination. Expose strict bounded scalar mix set/read APIs with defaults `0.5/0.5`; public status/capabilities may expose gain support but not the user's values because assembly publishes audio status externally. Preserve injected-context ownership, source recreation, clock authority, lease/visibility semantics and teardown. Unsupported/fake contexts must degrade truthfully and remain testable.
 
 ## Milestone 1C — Volume transport UI
 
