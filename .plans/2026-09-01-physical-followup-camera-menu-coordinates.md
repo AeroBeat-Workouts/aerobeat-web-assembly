@@ -98,6 +98,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 ### Task 1 — Reproduce and repair menu churn (`nu0`)
 
 **Repos:** content runtime, UI presenter, assembly.
+**Status:** Coder in progress — subagent `5f6c81d1-422c-4683-9bd7-c8ae5013bde3`
 
 - Claim `nu0`.
 - Land physical-timing browser reproducer first.
