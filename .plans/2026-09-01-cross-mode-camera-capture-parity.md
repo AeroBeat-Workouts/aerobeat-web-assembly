@@ -144,14 +144,16 @@ The correction defines those exact immutable representative targets once, refere
 ## Task 2 — Independent QA
 
 **Bead:** `aerobeat-web-assembly-edg`
-**Status:** Ready — P0 `b8z` correction coder PASS; independent re-QA may resume
+**Status:** Complete — independent re-QA PASS; Bead closed
 
-Independently inspect the evidence boundary, reproduce all three modes and reject any test that only composes separate control and presentation assertions.
+Independent QA inspected the explicit correction against sibling authoring `spatialTarget()`/`acceptedSubcells()` and confirmed exact canonical left row-0 `2/1/right/[4,5,12,13]` and right row-2 `9/10/left/[34,35,42,43]` fixtures plus the independently derived startup self-test. Two focused matrices, one standalone complete matrix and the complete browser matrix passed for `54` fresh actual-UI mode/context executions. Every execution selected the mode through the drawer, started a new Test generation, bound its exact canonical scene signature, and repeated right-click pointer/fallback look, second-click/Escape exit, touch toggle/look/second-tap/invalid rejection, gradual keyboard/DOM camera-relative movement, D-right, Normal/Boost, Reset and pause/resume cleanup without state leakage.
+
+Across both complete eight-context runs, scalar non-background ranges were Flow before `76,029–690,115`, Reset `76,072–686,925`, resume `132,830–670,223`; Boxing Lanes before `44,806–555,703`, Reset `44,838–555,241`, resume `45,340–548,086`; Boxing Grid before `74,829–678,084`, Reset `74,825–672,229`, resume `74,669–670,223`. Every one of the `54` fresh old-yaw controls was exactly zero non-background/all opaque background; all samples retained opaque corner `[7,20,38,255]`. Fresh `npm test`, complete browser, live Flow, build, dependencies, syntax/static/diff/forbidden searches passed. Production and raw `0.0.30` remain unchanged, all linked repos are clean/upstream, physical rows remain Pending, deferred art `ubg` is untouched, and the one retained server tree remains HTTP `200` locally and through the unchanged tailnet route.
 
 ## Task 3 — Final audit
 
 **Bead:** `aerobeat-web-assembly-unk`
-**Status:** Blocked by Task 2
+**Status:** Ready — Task 2 QA PASS
 
 Audit source immutability or any justified correction, all high-value gates, Beads/Git/server, `0.0.30` artifact immutability, and physical Pending truth. Close only on PASS.
 
