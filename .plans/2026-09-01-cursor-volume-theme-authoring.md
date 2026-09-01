@@ -3,7 +3,7 @@
 **Status:** Approved and in progress
 **Owner:** assembly orchestrator → package coders → independent QA → package auditors → assembly integrator → release auditor → physical gate → local asset PoC
 **Assembly epic:** `aerobeat-web-assembly-27n`
-**Target release for Milestone 1:** deterministic `0.0.31`
+**Target release for Milestone 1:** corrected deterministic `0.0.32` (`0.0.31` retained byte-immutable as the physically failed historical candidate)
 **Baseline:** assembly `a2d8831d8a5c493df3a4418e7ec64c4d2df024d6`, renderer `fb103de71a3cc2e3b90587616d7f37ca61f9c282`, audio `6a6be4350437359d41ecd3f45e5bead7d5294daa`, UI `3bf327f1b36fb4a9d41be2dc9bb8b61786a4edc1`
 
 ## Goal
@@ -162,7 +162,7 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** AUTOMATED AUDIT PASS / PHYSICAL FAIL — exact `0.0.31` candidate `2c0968e` passed coder/QA/audit, but Derrick physically found the Music/Sound popover permanently painted while logically closed; UI P0 `aerobeat-web-ui-9bd` AUDITED PASS/closed at `fbf0bb8`; corrected deterministic `0.0.32` assembly/release P0 `aerobeat-web-assembly-2fw` coder in progress — subagent `686d9429-9797-42f5-8133-9a6af4568bf2`; Milestone 2 remains blocked
+**Status:** CORRECTED `0.0.32` CODER PASS / QA-AUDIT PENDING — exact `0.0.31` candidate `2c0968e` passed prior coder/QA/audit, but Derrick physically found the Music/Sound popover permanently painted while logically closed; UI P0 `aerobeat-web-ui-9bd` AUDITED PASS/closed at `fbf0bb8` (production correction `2abc98c`); assembly/release P0 `aerobeat-web-assembly-2fw` remains in progress for independent QA/audit; Milestone 2 remains blocked
 
 Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback through the audio service instance methods `getMixSnapshot()` / `setMix()`, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
@@ -190,19 +190,27 @@ Tracked raw candidate plus two freshly cleared `build-release` rounds were recur
 
 Linked clean/upstream audited heads are renderer `b50bcb5208938a77369d644536951ed8d9ef555d`, audio `aef0b0a9cd51926b7c2e3b9dbff58911e2cfbbb0`, and UI `05991721249a0edfaaafe0a6448f34e574a07aa6`. Independent code/lineage review verified confirmed-release cursor ownership, strict persistent exact pair and generation-bound fanout, Music/future-SFX gain buses, exact six-field UI snapshot plus normalization/snap/accessibility, and no mix leakage into snapshots, events, iframe bridge, service graph, capability schema, or telemetry. Release inventory remains MediaPipe-only with zero WASM/forbidden markers, zero Theme runtime or legacy compatibility additions, and zero AssetBundle/`.bloq`/`.plat`/GLB/Unity or other third-party Theme bytes. `docs/task17-cursor-volume-physical-handoff.md` remains byte-exact to `2c0968e` and every row remains Physical Pending. No source defect was found; no P0 was created; no public/publish/upload/Theme action occurred.
 
+### Corrected `0.0.32` release coder result
+
+Assembly began clean/upstream at `026f1343779b24fdd0452555c212a7f6871ae5e6`; linked UI was clean/upstream at audited head `fbf0bb89cfdc5c3fcee332cbc5c69cfdd44d303f`, containing the minimal production correction `2abc98c`. `node_modules/@aerobeat/web-ui` resolves directly to that local checkout; no assembly compatibility fallback was added. The physical root cause is the author cascade: raw `0.0.31` has logical `hidden=true` but `.volume-popover { display:grid }` overrides the user-agent hidden rule. Actual Chromium against tracked raw `0.0.31` reproduced both default and repeated-button closed states as computed `display:grid` with geometry `[140,189,1]`; open was the same nonzero grid. Prior automation failed because it asserted hidden/ARIA truth without computed rendering or geometry.
+
+The strengthened assembly browser sensitivity now exercises all eight direct/iframe × portrait/landscape × DPR1/3 contexts. In every context default, repeated-button, outside-pointer, outside-click, Escape, inactive, reactivated, detach, and reconnect states are logically closed and have zero geometry; connected closed paths compute `display:none` (detached content truthfully has empty computed display while outside the document). Every open transition computes `display:grid`, has nonzero width/height/client rects, preserves exact `0.29/0.73` values, and remains integrated with the existing persistence, fanout, privacy, and lifecycle proof. The same validator intentionally serves immutable raw `0.0.31` and requires the historical always-painted defect to reproduce, making the test sensitive to both the defect and correction.
+
+Canonical `version:patch` produced package/lock/index `0.0.32`. Two clean `build-release` rounds were recursively identical: 13 files, `11,516,820` pre-proof bytes, `11,518,186` total bytes, canonical SHA-256 manifest `87b0f5419ffd0b6fc88b1314f7480c0510037d7a1bad7cc80507761701428a25`, and source fingerprint `fd46c1fa3991b1486b8ef576779b77f74ec82365f2bbec669d2193347c44703e`. Every tracked `0.0.31` and older byte remains unchanged. Fresh `npm test`, exact `npm run test:browser`, v4 integration, live `3C9D` Flow-obstacle validation, production build, `npm ls --all`, version/proof/privacy/forbidden checks, and `git diff --check` passed. Two dry packs and two actual packs were pairwise exact; final pack/archive hashes and npm metadata are recorded only in P0 `aerobeat-web-assembly-2fw` because this plan is itself packed. No publish, GitHub Release, upload, server replacement, PoC, Theme, asset, or third-party redistribution action occurred.
+
 ## Milestone 1 physical gate
 
 **Physical gate:** `aerobeat-web-assembly-7f9`
 **Physical repair:** `aerobeat-web-assembly-2fw` consuming UI P0 `aerobeat-web-ui-9bd`
-**Status:** Physical FAIL — exact `0.0.31` shows the Music/Sound panel permanently; blocks `aerobeat-web-assembly-zd0`
+**Status:** Physical Pending for exact corrected `0.0.32`; the failed popover row alone is reset for Derrick retest, every other untested row remains Pending, and `aerobeat-web-assembly-zd0` stays blocked
 
-Derrick found that the volume panel is physically painted before the icon is pressed and remains painted after logical close. Diagnosis: author `.volume-popover { display: grid }` overrides the browser’s user-agent `[hidden] { display: none }`; prior automation asserted only `hidden`/ARIA state and missed computed rendering. Correct with an author-level hidden rule and computed-style/geometry browser sensitivity, then rebuild/audit a corrected deterministic candidate and reset this gate to Physical Pending for Derrick. A failed observation creates a P0 and blocks the PoC. Pending is not PASS.
+Derrick found that the `0.0.31` volume panel was physically painted before the icon was pressed and remained painted after logical close. Diagnosis: author `.volume-popover { display: grid }` overrides the browser’s user-agent `[hidden] { display: none }`; prior automation asserted only `hidden`/ARIA state and missed computed rendering. Audited UI source adds the author-level hidden rule, assembly sensitivity proves computed style/geometry through every closure path, and deterministic `0.0.32` is the corrected handoff candidate. The failed popover row is Physical Pending rather than PASS until Derrick retests this exact candidate. A failed observation creates a linked P0 and blocks the PoC. Pending is not PASS.
 
 ## Milestone 2 — Local-only `.bloq`/`.plat` conversion PoC
 
 **Assembly tracking Bead:** `aerobeat-web-assembly-zd0`
 **Deferred visual Bead:** `aerobeat-web-assembly-ubg`
-**Status:** Blocked by `0.0.31` physical gate
+**Status:** Blocked by corrected `0.0.32` physical gate
 
 Create local `aerobeat-web-theme-authoring`, with ignored `local/sources`, `local/work`, and `local/generated`. Commit no third-party binaries. Establish owned synthetic AssetBundle/GLB fixtures where practical, deterministic inventory/manifest/validation, and tool adapters. After explicit local-only acquisition, inspect one block and one simple platform without executing scripts. Record hashes/provenance privately, extract to GLB, reauthor a minimal PlayCanvas material comparison, measure size/load/CPU/GPU/mobile behavior, and stop for Derrick's review.
 

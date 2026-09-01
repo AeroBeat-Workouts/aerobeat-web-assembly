@@ -2,13 +2,13 @@
 
 **Date:** 2026-09-01
 
-**Release:** deterministic `@aerobeat/web-assembly` `0.0.31` local release candidate
+**Release:** corrected deterministic `@aerobeat/web-assembly` `0.0.32` local release candidate
 
 **Status:** Every row below is **Physical Pending**. Automated evidence must never convert any row to PASS.
 
 ## Boundary
 
-This checklist records operator-owned physical observations only. The release remains local: do not publish npm, create or upload a GitHub Release, create a public repository, or redistribute third-party bytes. This gate does not select a gameplay, conversion, Blocks Theme, or Arena Theme winner, and no Theme runtime or asset proof is part of `0.0.31`.
+This checklist records operator-owned physical observations only. The release remains local: do not publish npm, create or upload a GitHub Release, create a public repository, or redistribute third-party bytes. This gate does not select a gameplay, conversion, Blocks Theme, or Arena Theme winner, and no Theme runtime or asset proof is part of `0.0.32`.
 
 ## Physical Pending Record
 
@@ -18,7 +18,7 @@ This checklist records operator-owned physical observations only. The release re
 | Hardware cursor visibly restores after Escape exits pointer lock in Flow, Boxing Lanes, and Boxing Grid | Physical Pending | |
 | Hardware cursor visibly restores after menu-open, pause, hidden, blur, detach, and destroy cleanup | Physical Pending | |
 | A later right-click visibly re-enters capture after each confirmed release path | Physical Pending | |
-| Direct desktop portrait/landscape DPR1/3 volume button and popover are visually correct | Physical Pending | |
+| Direct desktop portrait/landscape DPR1/3 volume button and popover are visually correct, physically absent by default/after every closure path, and visible only while open | Physical Pending | `0.0.31` failed because the logically hidden popover remained painted; only this failed row is reset for corrected `0.0.32` retest. |
 | Same-origin iframe desktop portrait/landscape DPR1/3 volume button and popover are visually correct | Physical Pending | |
 | Direct mobile portrait/landscape DPR1/3 volume button, vertical sliders, values, and 44px targets are visually correct | Physical Pending | |
 | Same-origin iframe mobile portrait/landscape DPR1/3 volume button, vertical sliders, values, and 44px targets are visually correct | Physical Pending | |
