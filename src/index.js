@@ -42,7 +42,9 @@ const VISUAL_TEST_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_ses
 const FLOW_REIMPORT_MESSAGE = "This downloaded song uses the legacy Flow orientation. Reimport it to play.";
 const MAXIMUM_VISUAL_TEST_DURATION_MS = 86_400_000;
 const GAMEPLAY_CURSOR_GRID = Object.freeze({ x:0, y:0, width:1, height:1 });
-const DEBUG_CAMERA_HELP = "Hold right mouse to look. Move with W A S D, Q down, E up, hold Shift to boost.";
+const DEBUG_CAMERA_MOVEMENT_INTENTS = Object.freeze(["forward", "back", "left", "right", "up", "down"]);
+const DEBUG_CAMERA_SPEED_MODES = Object.freeze(["normal", "boost"]);
+const DEBUG_CAMERA_CAPTURE_MODES = Object.freeze(["none", "pointer", "fallback", "touch"]);
 let instanceSequence = 0;
 
 defineAeroUiElements();
@@ -116,12 +118,18 @@ export class AeroGame extends HTMLElement {
     this.previewTimer = 0;
     this.previewObjectUrl = null;
     this.previewListeners = null;
-    this.boundVisibility = () => { void this.applyVisibility(); };
+    /** @type {Map<number, string>} */
+    this.debugCameraControlPointers = new Map();
+    this.debugCameraSpeedMode = "normal";
+    this.debugCameraUiSignature = "";
+    this.boundVisibility = () => { if (document.hidden) this.releaseDebugCameraControls(); void this.applyVisibility(); };
     this.boundFullscreen = () => { this.fullscreenPending = false; this.fullscreenError = null; this.measureContainer(); this.publish("fullscreen_changed"); };
     this.boundUiIntent = (event) => this.handleUiIntent(event);
     this.boundLocalZip = (event) => { void this.handleLocalZip(event); };
     this.boundInteractionClick = (event) => { void this.handleInteractionClick(event); };
     this.boundInteractionKeydown = (event) => this.handleInteractionKeydown(event);
+    this.boundDebugCameraPointerDown = (event) => this.handleDebugCameraPointerDown(event);
+    this.boundDebugCameraPointerRelease = (event) => this.handleDebugCameraPointerRelease(event);
     const root = this.attachShadow({ mode: "open" });
     root.innerHTML = template();
     this.localZipPicker = document.createElement("input"); this.localZipPicker.type = "file"; this.localZipPicker.accept = ".zip,application/zip"; this.localZipPicker.hidden = true; root.prepend(this.localZipPicker);
@@ -134,7 +142,7 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = "";
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null;
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = "";
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
@@ -665,6 +673,9 @@ export class AeroGame extends HTMLElement {
     this.shadowRoot?.addEventListener(aeroUiIntentEventName, this.boundUiIntent);
     this.shadowRoot?.addEventListener("click", this.boundInteractionClick);
     this.shadowRoot?.addEventListener("keydown", this.boundInteractionKeydown);
+    this.shadowRoot?.addEventListener("pointerdown", this.boundDebugCameraPointerDown);
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.addEventListener(type, this.boundDebugCameraPointerRelease);
+    this.shadowRoot?.addEventListener("pointerleave", this.boundDebugCameraPointerRelease, true);
     this.localZipInput().addEventListener("change", this.boundLocalZip);
     this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.measureContainer()) : null;
     this.resizeObserver?.observe(this);
@@ -875,7 +886,7 @@ export class AeroGame extends HTMLElement {
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
       } catch { /* unconfigured session */ }
-      this.syncCameraPresentation(); this.renderGameplay(graph); this.renderVisualTestTransport();
+      this.syncCameraPresentation(); this.renderGameplay(graph); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
       if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
       this.renderRuntimePresentation();
@@ -964,24 +975,106 @@ export class AeroGame extends HTMLElement {
   debugCameraSnapshot() {
     const session = this.graph?.gameplay.getSnapshot().session;
     const visualTest = Boolean(this.graph && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test");
-    const finePointer = typeof globalThis.matchMedia === "function" && globalThis.matchMedia("(hover: hover) and (pointer: fine)").matches;
-    const visible = visualTest && finePointer;
-    return Object.freeze({ visible, enabled: visible && !this.menuOpen && this.lifecycle === "connected", help: DEBUG_CAMERA_HELP });
+    const visible = visualTest;
+    const enabled = visible && !this.menuOpen && this.lifecycle === "connected" && !document.hidden && session?.state === "playing";
+    return Object.freeze({ visible, enabled });
   }
 
   syncDebugCameraPresentation() {
     if (!this.graph) return;
     const snapshot = this.debugCameraSnapshot();
-    if (typeof this.graph.renderer.setDebugCameraEnabled === "function") this.graph.renderer.setDebugCameraEnabled(snapshot.enabled);
-    const help = this.shadowRoot?.querySelector("[data-role='debug-camera-help']");
-    if (help instanceof HTMLElement) { help.hidden = !snapshot.visible; help.setAttribute("aria-hidden", snapshot.visible ? "false" : "true"); }
+    const renderer = this.graph.renderer;
+    const before = typeof renderer.describe === "function" ? renderer.describe() : null;
+    if (before?.debugCameraEnabled === true && !snapshot.enabled) this.releaseDebugCameraControls();
+    if (typeof renderer.setDebugCameraEnabled === "function") renderer.setDebugCameraEnabled(snapshot.enabled);
+    if (snapshot.enabled && typeof renderer.setDebugCameraSpeedMode === "function") renderer.setDebugCameraSpeedMode(this.debugCameraSpeedMode);
+    const panel = this.shadowRoot?.querySelector("[data-role='debug-camera-controls']");
+    if (panel instanceof HTMLElement) { panel.hidden = !snapshot.visible; panel.setAttribute("aria-hidden", snapshot.visible ? "false" : "true"); }
+    this.syncDebugCameraControlState(snapshot);
+  }
+
+  /** @param {{visible:boolean,enabled:boolean}} [snapshot] */
+  syncDebugCameraControlState(snapshot = this.debugCameraSnapshot()) {
+    const renderer = this.graph?.renderer;
+    const raw = renderer && typeof renderer.describe === "function" ? renderer.describe() : {};
+    const captureMode = DEBUG_CAMERA_CAPTURE_MODES.includes(raw.debugCaptureMode) ? raw.debugCaptureMode : "none";
+    const speedMode = DEBUG_CAMERA_SPEED_MODES.includes(raw.debugCameraSpeedMode) ? raw.debugCameraSpeedMode : this.debugCameraSpeedMode;
+    const activeIntentCount = Number.isInteger(raw.debugActiveIntentCount) ? Math.min(DEBUG_CAMERA_MOVEMENT_INTENTS.length, Math.max(0, raw.debugActiveIntentCount)) : 0;
+    const boostActive = raw.debugCameraBoostActive === true;
+    this.debugCameraSpeedMode = speedMode;
+    const pressedIntents = new Set(this.debugCameraControlPointers.values());
+    const signature = JSON.stringify([snapshot.visible, snapshot.enabled, captureMode, speedMode, boostActive, activeIntentCount, [...pressedIntents].sort()]);
+    if (signature === this.debugCameraUiSignature) return;
+    this.debugCameraUiSignature = signature;
+    const panel = this.shadowRoot?.querySelector("[data-role='debug-camera-controls']");
+    if (panel instanceof HTMLElement) { panel.dataset.captureMode = captureMode; panel.dataset.speedMode = speedMode; panel.dataset.activeIntentCount = String(activeIntentCount); }
+    for (const button of this.shadowRoot?.querySelectorAll("button[data-debug-camera-intent]") ?? []) {
+      if (!(button instanceof HTMLButtonElement)) continue;
+      const pressed = pressedIntents.has(button.dataset.debugCameraIntent ?? "");
+      button.disabled = !snapshot.enabled; button.setAttribute("aria-pressed", pressed ? "true" : "false"); button.dataset.active = pressed ? "true" : "false";
+    }
+    const speed = this.shadowRoot?.querySelector("button[data-action='debug-camera-speed']");
+    if (speed instanceof HTMLButtonElement) {
+      const boost = speedMode === "boost"; speed.disabled = !snapshot.enabled; speed.setAttribute("aria-pressed", boost ? "true" : "false"); speed.setAttribute("aria-label", `Camera movement speed ${boost ? "Boost" : "Normal"}. Activate ${boost ? "Normal" : "Boost"}.`);
+      const symbol = speed.querySelector("[data-role='debug-camera-speed-symbol']"); if (symbol instanceof HTMLElement) symbol.textContent = boost ? "B" : "N";
+    }
     const reset = this.shadowRoot?.querySelector("button[data-action='debug-camera-reset']");
     if (reset instanceof HTMLButtonElement) reset.disabled = !snapshot.enabled;
+    const state = this.shadowRoot?.querySelector("[data-role='debug-camera-state']");
+    if (state instanceof HTMLOutputElement) {
+      const captured = captureMode !== "none"; const effectiveSpeed = boostActive ? "Boost" : "Normal";
+      state.textContent = `${captured ? "●" : "○"} · ${effectiveSpeed}`;
+      state.setAttribute("aria-label", `Camera look ${captured ? `captured by ${captureMode}` : "not captured"}; movement speed ${effectiveSpeed}; ${activeIntentCount} active movement ${activeIntentCount === 1 ? "intent" : "intents"}.`);
+    }
+  }
+
+  /** @param {Event} event */
+  handleDebugCameraPointerDown(event) {
+    if (!(event instanceof PointerEvent) || !this.graph || !this.debugCameraSnapshot().enabled) return;
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    const button = path.find((entry) => entry instanceof HTMLButtonElement && entry.dataset.debugCameraIntent);
+    if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+    const intent = button.dataset.debugCameraIntent ?? "";
+    if (!DEBUG_CAMERA_MOVEMENT_INTENTS.includes(intent) || typeof this.graph.renderer.setDebugCameraMovementIntent !== "function") return;
+    event.preventDefault(); event.stopPropagation();
+    this.releaseDebugCameraPointer(event.pointerId);
+    this.debugCameraControlPointers.set(event.pointerId, intent);
+    try { button.setPointerCapture(event.pointerId); } catch { /* synthetic events and detached controls cannot capture */ }
+    this.graph.renderer.setDebugCameraMovementIntent(intent, true);
+    this.debugCameraUiSignature = ""; this.syncDebugCameraControlState();
+  }
+
+  /** @param {Event} event */
+  handleDebugCameraPointerRelease(event) {
+    if (!(event instanceof PointerEvent) || !this.debugCameraControlPointers.has(event.pointerId)) return;
+    event.preventDefault(); event.stopPropagation();
+    this.releaseDebugCameraPointer(event.pointerId);
+  }
+
+  /** @param {number} pointerId */
+  releaseDebugCameraPointer(pointerId) {
+    const intent = this.debugCameraControlPointers.get(pointerId); if (!intent) return;
+    this.debugCameraControlPointers.delete(pointerId);
+    if (![...this.debugCameraControlPointers.values()].includes(intent) && typeof this.graph?.renderer.setDebugCameraMovementIntent === "function") this.graph.renderer.setDebugCameraMovementIntent(intent, false);
+    this.debugCameraUiSignature = ""; this.syncDebugCameraControlState();
+  }
+
+  releaseDebugCameraControls() {
+    const intents = new Set(this.debugCameraControlPointers.values()); this.debugCameraControlPointers.clear();
+    if (typeof this.graph?.renderer.setDebugCameraMovementIntent === "function") for (const intent of intents) this.graph.renderer.setDebugCameraMovementIntent(intent, false);
+    this.debugCameraUiSignature = ""; this.syncDebugCameraControlState();
+  }
+
+  toggleDebugCameraSpeed() {
+    if (!this.graph || !this.debugCameraSnapshot().enabled || typeof this.graph.renderer.setDebugCameraSpeedMode !== "function") return;
+    this.debugCameraSpeedMode = this.debugCameraSpeedMode === "boost" ? "normal" : "boost";
+    this.graph.renderer.setDebugCameraSpeedMode(this.debugCameraSpeedMode);
+    this.debugCameraUiSignature = ""; this.syncDebugCameraControlState();
   }
 
   resetDebugCamera() {
     if (!this.graph || !this.debugCameraSnapshot().enabled || typeof this.graph.renderer.resetDebugCamera !== "function") return;
-    this.graph.renderer.resetDebugCamera();
+    this.releaseDebugCameraControls(); this.graph.renderer.resetDebugCamera();
     this.publish("session_changed");
   }
 
@@ -1279,6 +1372,7 @@ export class AeroGame extends HTMLElement {
     if (action === "menu-toggle") this.setMenuOpen(!this.menuOpen);
     else if (action === "menu-close" || action === "menu-backdrop") this.setMenuOpen(false);
     else if (action === "debug-camera-reset") this.resetDebugCamera();
+    else if (action === "debug-camera-speed") this.toggleDebugCameraSpeed();
     else if (action === "environment-select") { const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select"); if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value); }
   }
 
@@ -1484,7 +1578,8 @@ export class AeroGame extends HTMLElement {
     this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
-    this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.localZipInput().removeEventListener("change", this.boundLocalZip);
+    this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.localZipInput().removeEventListener("change", this.boundLocalZip);
+    this.releaseDebugCameraControls();
     for (const stop of this.unsubscribe.splice(0)) { try { stop(); } catch { /* isolated */ } }
     if (finalState === "destroyed") this.emitGameEvent("destroyed", { instanceId: this.instanceId });
     this.bridge?.destroy(); this.bridge = null;
@@ -1513,8 +1608,8 @@ defineAeroGame();
 function template() { return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
 *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.start-action{display:block}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
-.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);background:#03131f;border:1px solid rgba(255,255,255,.34);border-radius:12px;color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;padding:8px 10px;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}.debug-camera-help{position:absolute;z-index:26;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-start:max(8px,env(safe-area-inset-top));max-inline-size:min(360px,calc(100% - 80px));display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:#fff;padding:8px 10px;font:700 12px/1.35 system-ui}.debug-camera-help p{margin:0}.debug-camera-help button{flex:0 0 auto;min-block-size:42px;border:1px solid rgba(255,255,255,.4);border-radius:9px;background:#d5f3fb;color:#052733;font:800 12px system-ui;padding:6px 10px}.debug-camera-help button:disabled{opacity:.5}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-help" class="debug-camera-help" aria-label="Visual Test camera controls" aria-hidden="true" hidden><p>${DEBUG_CAMERA_HELP}</p><button data-action="debug-camera-reset" type="button">Reset camera</button></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
+.drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);background:#03131f;border:1px solid rgba(255,255,255,.34);border-radius:12px;color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;padding:8px 10px;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}.debug-camera-controls{position:absolute;z-index:26;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:220px;max-inline-size:calc(100% - max(72px,calc(env(safe-area-inset-right) + 64px)));display:grid;gap:4px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.88);padding:6px;color:#fff;pointer-events:auto}.debug-camera-grid{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:4px}.debug-camera-grid button{display:grid;place-items:center;min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:9px;background:#0d2a3b;color:#fff;font:900 16px/1 system-ui;touch-action:none;user-select:none;-webkit-user-select:none}.debug-camera-grid button:focus-visible{outline:3px solid var(--aero-color-focus,#72dcff);outline-offset:1px}.debug-camera-grid button[aria-pressed="true"],.debug-camera-grid button[data-active="true"]{background:#08728a;border-color:#9ff1ff}.debug-camera-grid button:disabled{opacity:.46}.debug-camera-controls output{display:block;min-block-size:20px;text-align:center;color:#d9f8ff;font:800 12px/20px system-ui;white-space:nowrap}.debug-camera-controls[data-capture-mode="pointer"] output,.debug-camera-controls[data-capture-mode="fallback"] output,.debug-camera-controls[data-capture-mode="touch"] output{color:#9ff1ff}@media(max-height:300px){.debug-camera-controls{padding:4px}.debug-camera-grid{gap:2px}.debug-camera-grid button{min-block-size:44px}}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-controls" class="debug-camera-controls" role="group" aria-label="Visual Test camera controls" aria-describedby="debug-camera-state" aria-hidden="true" hidden><div class="debug-camera-grid" role="group" aria-label="Camera movement"><button data-action="debug-camera-move" data-debug-camera-intent="forward" type="button" aria-label="Move camera forward" aria-keyshortcuts="W" aria-pressed="false"><span aria-hidden="true">F</span></button><button data-action="debug-camera-move" data-debug-camera-intent="back" type="button" aria-label="Move camera back" aria-keyshortcuts="S" aria-pressed="false"><span aria-hidden="true">B</span></button><button data-action="debug-camera-move" data-debug-camera-intent="up" type="button" aria-label="Move camera up" aria-keyshortcuts="E" aria-pressed="false"><span aria-hidden="true">U</span></button><button data-action="debug-camera-speed" type="button" aria-label="Camera movement speed Normal. Activate Boost." aria-pressed="false"><span data-role="debug-camera-speed-symbol" aria-hidden="true">N</span></button><button data-action="debug-camera-move" data-debug-camera-intent="left" type="button" aria-label="Move camera left" aria-keyshortcuts="A" aria-pressed="false"><span aria-hidden="true">L</span></button><button data-action="debug-camera-move" data-debug-camera-intent="right" type="button" aria-label="Move camera right" aria-keyshortcuts="D" aria-pressed="false"><span aria-hidden="true">R</span></button><button data-action="debug-camera-move" data-debug-camera-intent="down" type="button" aria-label="Move camera down" aria-keyshortcuts="Q" aria-pressed="false"><span aria-hidden="true">D</span></button><button data-action="debug-camera-reset" type="button" aria-label="Reset camera"><span aria-hidden="true">↺</span></button></div><output id="debug-camera-state" data-role="debug-camera-state" aria-live="polite" aria-label="Camera look not captured; movement speed Normal; 0 active movement intents.">○ · Normal</output></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }

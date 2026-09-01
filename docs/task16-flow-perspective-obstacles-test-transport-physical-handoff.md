@@ -2,25 +2,29 @@
 
 **Date:** 2026-08-31
 
-**Affected release:** `@aerobeat/web-assembly` `0.0.28`
+**Affected releases:** `@aerobeat/web-assembly` `0.0.28` and `0.0.29`
 
-**Retest target:** deterministic `0.0.29` hotfix candidate
+**Retest target:** deterministic `0.0.30` cross-input camera candidate
 
-**Status:** Derrick's physical desktop Flow Visual Test blue-screen observation on `0.0.28` is recorded as Failed and superseded by the audited camera correction; every `0.0.29` physical retest observation below remains Pending.
+**Status:** The `0.0.28` desktop Flow blue screen remains Failed/superseded. Derrick physically confirmed `0.0.29` camera direction as PASS and reported that perspective materially improves sight-reading, while mouse look, A/D direction, and held movement failed the intended control contract. Every `0.0.30` physical retest below remains Pending.
 
 **Secure route:** `https://derrick-alienware-aurora-r13.tail613fcb.ts.net:8443/`
 
 ## Boundary
 
-This checklist is the operator-owned physical validation for the PlayCanvas-plus-DOM gameplay hotfix. Automated gates do **not** claim a physical-phone or desktop retest pass. Leave every `0.0.29` retest observation explicitly **Pending** until Derrick records it on the released hotfix.
+This checklist is the operator-owned physical validation for the PlayCanvas-plus-DOM gameplay and cross-input camera iteration. Automated gates do **not** claim a physical-phone or desktop retest pass. Leave every `0.0.30` retest observation explicitly **Pending** until Derrick records it on the released candidate.
 
 The hotfix preserves **Flow**, **Boxing Lanes**, and **Boxing Grid**, plus Boxing-only **Balanced Height** and **Source Height** conversions. Every presentation and conversion remains experimental. This handoff does not recommend, select, or promote a gameplay or conversion winner.
 
-## Superseded `0.0.28` Physical Evidence
+## Superseded Physical Evidence
 
-| Physical check | Result | Derrick observation |
-|---|---|---|
-| Desktop fine-pointer Flow Visual Test keeps gameplay geometry visible while active and across pause/resume | Failed / superseded | On `0.0.28`, active Test showed only the opaque blue PlayCanvas clear while audio and DOM controls advanced; pause/menu-open revealed Flow geometry, and resume hid it again. The `0.0.29` correction requires a fresh Pending retest rather than converting automation into a physical pass. |
+| Release | Physical check | Result | Derrick observation |
+|---|---|---|---|
+| `0.0.28` | Desktop fine-pointer Flow Visual Test keeps gameplay geometry visible while active and across pause/resume | Failed / superseded | Active Test showed only the opaque blue PlayCanvas clear while audio and DOM controls advanced; pause/menu-open revealed Flow geometry, and resume hid it again. |
+| `0.0.29` | Corrected perspective camera faces gameplay | PASS / superseded by control iteration | Camera direction is physically correct, and the 3D perspective materially improves sight-reading as beats and obstacles approach the threshold. |
+| `0.0.29` | Desktop mouse rotates the perspective camera | Failed / superseded | Mouse movement did not physically rotate the camera. |
+| `0.0.29` | Desktop A/D movement is intuitive | Failed / superseded | Left/right felt reversed. |
+| `0.0.29` | Held movement is smooth and gradual | Failed / superseded | Movement occurred as tap/key-repeat steps rather than continuous held movement. |
 
 ## Prepare
 
@@ -66,8 +70,10 @@ The hotfix preserves **Flow**, **Boxing Lanes**, and **Boxing Grid**, plus Boxin
 4. Press **Play** and confirm audio and visuals continue from the selected time.
 5. Open and close the menu during Test and confirm direct Test resume behavior remains intact.
 6. Start another song/difficulty/presentation and confirm the previous Test transport cannot revive stale audio or state.
-7. Confirm the phone uses the fixed athlete camera and does not expose desktop free-fly help, Reset camera, pointer lock, or mouse/keyboard controls.
-8. On an optional desktop follow-up, confirm Test alone exposes hold-right-mouse look, `WASD`, `Q`/`E`, Shift boost, and Reset camera; releasing right mouse, opening the menu, entering Play, detaching, or destroying the game must release/disable debug input.
+7. On phone/coarse input, confirm Test exposes the compact Forward, Back, Left, Right, Up, Down, Normal/Boost, and Reset panel with no help prose. Two-finger tap must toggle touch capture; while captured, one-finger canvas drag must rotate the camera. Pinch, long, moved, or extra-touch gestures must not toggle capture.
+8. On desktop/fine input, confirm right-click toggles captured mouse look, a second right-click or Escape exits, held `WASD`/`Q`/`E` moves continuously camera-relative, D moves visually right at Reset, and Shift temporarily boosts over the GUI-selected speed.
+9. Hold each GUI movement button and confirm gradual movement continues until release. Pointer up/cancel/lost capture, menu, Pause, hidden tab, detach, and destroy must clear every intent without a jump or stuck movement.
+10. Confirm scored **Start** never exposes the panel or accepts camera-control intents and stays on its fixed athlete camera.
 
 ## Preserved Boxing Presentations and Conversions
 
@@ -78,14 +84,24 @@ The hotfix preserves **Flow**, **Boxing Lanes**, and **Boxing Grid**, plus Boxin
 
 ## Optional Scored Start
 
-After visual inspection, use **Start** in any presentation. Confirm camera acquisition, T-pose/release, ordered `3`, `2`, `1`, nose/left-wrist/right-wrist cursors, pause/recovery, and scoring remain available. Confirm the Test scrubber and desktop debug camera are unavailable and synthetic Test feedback is not scoring evidence.
+After visual inspection, use **Start** in any presentation. Confirm camera acquisition, T-pose/release, ordered `3`, `2`, `1`, nose/left-wrist/right-wrist cursors, pause/recovery, and scoring remain available. Confirm the Test scrubber and cross-input debug camera panel are unavailable and synthetic Test feedback is not scoring evidence.
 
-## Derrick `0.0.29` Physical Retest Record
+## Derrick `0.0.30` Physical Retest Record
 
 | Physical retest check | Result | Derrick observation |
 |---|---|---|
-| Desktop fine-pointer Flow Test shows gameplay pixels before input, after Reset, and after menu pause/resume | Pending | |
 | Secure route loads and exact Preview/Stop selection works | Pending | |
+| Desktop Flow Test shows gameplay pixels before input, after Reset, and after menu pause/resume | Pending | |
+| Desktop right-click toggles captured mouse look; second right-click and Escape exit | Pending | |
+| Held W/S moves gradually camera-relative without tap/key-repeat steps | Pending | |
+| Held A/D moves gradually left/right as expected, with D visually right at Reset | Pending | |
+| Held Q/E moves down/up and Shift temporarily boosts speed | Pending | |
+| GUI Forward/Back/Left/Right/Up/Down holds move only until release | Pending | |
+| GUI Normal/Boost changes movement rate and Reset restores the overview | Pending | |
+| Phone exposes the compact camera GUI with no help prose | Pending | |
+| Phone two-finger tap toggles capture and captured one-finger drag rotates | Pending | |
+| Phone pinch, long, moved, and extra-touch gestures do not toggle capture | Pending | |
+| Menu, Pause, hidden tab, detach, and destroy clear controls without stuck movement | Pending | |
 | Flow / Boxing Lanes / Boxing Grid choices are preserved | Pending | |
 | Boxing-only Balanced Height / Source Height conversions are preserved | Pending | |
 | Flow cues retain exact row-distinct 4×3 endpoints | Pending | |
@@ -104,7 +120,6 @@ After visual inspection, use **Start** in any presentation. Confirm camera acqui
 | Forward/backward scrubbing live-renders authoritative state | Pending | |
 | Scrub release remains paused until explicit Play | Pending | |
 | Replacement session cannot revive stale Test audio/state | Pending | |
-| Phone stays on fixed camera with no free-fly controls | Pending | |
 | Boxing Lanes variants/conversions remain unchanged | Pending | |
 | Boxing Grid retains all twelve row-distinct cells | Pending | |
 | Optional Start camera/calibration/countdown/cursors/scoring works | Pending | |
@@ -113,8 +128,8 @@ After visual inspection, use **Start** in any presentation. Confirm camera acqui
 
 ## Automated Evidence Boundary
 
-Assembly and renderer gates cover unit/browser suites, exact live Flow obstacle projection, production build, debug-camera canvas pixels, and diff hygiene. Task 3 separately owns deterministic raw release construction and final committed-payload dry packing for `0.0.29`; repeated artifacts must compare byte-for-byte. Exact final npm-pack metadata belongs only in the external release Bead because this document is included in the npm payload. Raw release evidence may be recorded externally; the raw browser artifact contains no `.plans/` or `docs/` files and therefore cannot self-reference this checklist.
+Assembly and renderer gates cover unit/browser suites, exact live Flow obstacle projection, production build, strict debug-camera canvas pixels, desktop pointer/keyboard movement, mobile touch gestures, DOM hold controls, accessibility, and diff hygiene. Task 3 separately owns deterministic raw release construction and final committed-payload dry packing for `0.0.30`; repeated artifacts must compare byte-for-byte. Exact final npm-pack metadata belongs only in the external release Bead because this document is included in the npm payload. Raw release evidence may be recorded externally; the raw browser artifact contains no `.plans/` or `docs/` files and therefore cannot self-reference this checklist.
 
 ## Completion Boundary
 
-Keep every `0.0.29` physical retest row **Pending** until Derrick performs the observation. Independent QA `aerobeat-web-assembly-614`, release Bead `aerobeat-web-assembly-235`, and final audit `aerobeat-web-assembly-lym` own acceptance and closure. Assembly regression automation must not close the physical defect or infer a phone/desktop pass.
+Keep every `0.0.30` physical retest row **Pending** until Derrick performs the observation. Independent QA `aerobeat-web-assembly-3aw`, release Bead `aerobeat-web-assembly-jiu`, and final audit `aerobeat-web-assembly-95j` own acceptance and closure. Assembly regression automation must not infer a phone/desktop pass or select a gameplay/conversion winner.
