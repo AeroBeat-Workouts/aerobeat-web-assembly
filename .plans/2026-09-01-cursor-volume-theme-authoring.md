@@ -109,7 +109,9 @@ Keep a private release-pending flag/state. If locked, request exit and finalize 
 
 ### QA-discovered late-acquisition correction
 
-Parent sensitivity against coder commit `d75bb1e` reproduced one unsupported race in the first correction: if legacy `requestPointerLock()` returns `undefined`, fallback can exit synchronously before the browser later grants lock. `handleDebugPointerLockChange()` ignored a locked canvas when logical mode was already `none`, leaving `{exitCalls:0, mode:"none", releasePending:false, lockSurvives:true}`. P0 `aerobeat-web-renderer-d7t` now requires stale/late canvas locks to be immediately released and sensitivity-proves the undefined-return path before independent QA resumes.
+Parent sensitivity against coder commit `d75bb1e` reproduced one unsupported race in the first correction: if legacy `requestPointerLock()` returns `undefined`, fallback can exit synchronously before the browser later grants lock. `handleDebugPointerLockChange()` ignored a locked canvas when logical mode was already `none`, leaving `{exitCalls:0, mode:"none", releasePending:false, lockSurvives:true}`. P0 `aerobeat-web-renderer-d7t` requires stale/late canvas locks to be immediately released and sensitivity-proves the undefined-return path.
+
+Independent audit then found a cross-instance error-isolation race at `e4cee4c`: because `pointerlockerror` is document-global, another instance's failed request could make the owning renderer finalize release or degrade to fallback even while `document.pointerLockElement` remained its canvas. P0 `aerobeat-web-renderer-4w1` requires ownership-aware error handling: held-lock pointer/release state stays truthful until `pointerlockchange`, while absent-lock own failures still finalize/degrade safely.
 
 ### Debug record
 
@@ -130,7 +132,7 @@ Remaining uncertainty: Hardware cursor behavior on Derrick's browser/Wayland pat
 **Implementation:** `aerobeat-web-renderer-5ue`
 **QA:** `aerobeat-web-renderer-aiw`
 **Audit:** `aerobeat-web-renderer-kmm`
-**Status:** Original coder `d75bb1e` QA FAIL; P0 correction PASS `ad5d5f1`; QA PASS `e4cee4c`; independent audit in progress — subagent `0424a0c6-dd84-4e07-b83f-7fdd2e03944c`
+**Status:** Audit FAIL at `e4cee4c`; P0 `aerobeat-web-renderer-4w1` cross-instance pointer-error correction in progress with coder `b9943984-1412-4b67-bc44-7506b7d277cc`; audit `0424a0c6-dd84-4e07-b83f-7fdd2e03944c` paused
 
 Coder diagnoses with the new sensitivity probe, implements one idempotent confirmed-release path, and preserves every existing camera/touch/movement/lifecycle contract. Independent QA and audit must reproduce release ordering and cursor-style sensitivity before assembly consumes the commit.
 
@@ -148,7 +150,7 @@ Add service-owned Music and future-SFX GainNodes where supported. Music playback
 **Implementation:** `aerobeat-web-ui-af3`
 **QA:** `aerobeat-web-ui-4lr`
 **Audit:** `aerobeat-web-ui-8xx`
-**Status:** Coder `3ac371f` QA FAIL; P0 `aerobeat-web-ui-osp` deterministic half-step correction in progress with coder `2acb3baa-acef-4aab-b514-54be7a077b72`; QA `c4d91c7a-3d6f-4757-9530-be5389cf6712` paused pending fix
+**Status:** Coder `3ac371f` QA FAIL; P0 correction PASS `2186523`; independent QA resumed — subagent `c4d91c7a-3d6f-4757-9530-be5389cf6712`
 
 Extend the strict Visual Test transport snapshot with only Music/Sound scalar values. Emit exact volume intents after UI-side normalization/snap. Own the popover's ephemeral open state without replacing focused sliders during snapshots. Verify layout/accessibility/direct keyboard/touch/reconnect at phone portrait/landscape and DPR without owning audio or persistence.
 
