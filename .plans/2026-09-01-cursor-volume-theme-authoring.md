@@ -139,7 +139,7 @@ Coder diagnoses with the new sensitivity probe, implements one idempotent confir
 **Implementation:** `aerobeat-web-audio-nyz`
 **QA:** `aerobeat-web-audio-m5v`
 **Audit:** `aerobeat-web-audio-18w`
-**Status:** Coder PASS `c23957e`; QA PASS `c176c35`; independent audit in progress — subagent `7316f565-acf5-4714-8896-7118b4f16a6b`
+**Status:** AUDITED PASS — coder `c23957e`, QA `c176c35`, ledger/audit closure `aef0b0a`; Beads `nyz`/`m5v`/`18w` closed
 
 Add service-owned Music and future-SFX GainNodes where supported. Music playback connects through Music gain instead of directly to destination. Expose strict bounded scalar mix set/read APIs with defaults `0.5/0.5`; setters accept only exact plain/null-prototype own enumerable data values and never invoke accessors. Public status/capabilities may expose gain support but not the user's values because assembly publishes audio status externally. Preserve injected-context ownership, source recreation, clock authority, lease/visibility semantics and teardown. Unsupported/fake contexts must degrade truthfully and remain testable.
 
