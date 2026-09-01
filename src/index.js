@@ -82,6 +82,7 @@ export class AeroGame extends HTMLElement {
     this.presenterCommitCount = 0;
     this.runtimeUiCommitCount = 0;
     this.runtimeUiSignature = "";
+    this.contentPresenterSignature = "";
     this.activeCvSource = null;
     this.lastCameraIdentity = "";
     this.browsedMaps = new Map();
@@ -142,7 +143,7 @@ export class AeroGame extends HTMLElement {
     this.connectedGeneration += 1;
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
-    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = "";
+    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = "";
     this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = "";
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
@@ -653,9 +654,12 @@ export class AeroGame extends HTMLElement {
 
   bindGraph() {
     if (typeof this.graph.input.subscribe === "function") this.unsubscribe.push(this.graph.input.subscribe(() => { this.renderRuntimePresentation(); this.emitGameEvent("calibration_changed", { snapshot: this.snapshotForType("calibration_changed") }); }));
-    for (const [service, type] of [[this.graph.content, "content_changed"], [this.graph.authoring, "import_changed"]]) {
-      if (typeof service.subscribe === "function") this.unsubscribe.push(service.subscribe(() => { if (this.menuOpen) this.renderPresenters(); else this.renderRuntimePresentation(); this.emitGameEvent(type, { snapshot: this.snapshotForType(type) }); }));
-    }
+    if (typeof this.graph.content.subscribe === "function") this.unsubscribe.push(this.graph.content.subscribe((snapshot) => {
+      const signature = contentPresenterDataSignature(snapshot); const presenterDataChanged = signature !== this.contentPresenterSignature; this.contentPresenterSignature = signature;
+      if (this.menuOpen && presenterDataChanged) this.renderPresenters(); else this.renderRuntimePresentation();
+      this.emitGameEvent("content_changed", { snapshot: this.snapshotForType("content_changed") });
+    }));
+    if (typeof this.graph.authoring.subscribe === "function") this.unsubscribe.push(this.graph.authoring.subscribe(() => { if (this.menuOpen) this.renderPresenters(); else this.renderRuntimePresentation(); this.emitGameEvent("import_changed", { snapshot: this.snapshotForType("import_changed") }); }));
     this.unsubscribe.push(this.graph.profiles.subscribe(() => { this.applyActiveVisualProfile(); if (this.menuOpen) this.renderPresenters(); else this.renderRuntimePresentation(); this.emitGameEvent("profiles_changed", { snapshot: profileTelemetry(this.graph.profiles.getSnapshot()) }); }));
   }
 
@@ -1666,6 +1670,10 @@ function actionableRuntimeMessage(error, limitations) {
   if (limitations.includes("playcanvas_unavailable")) return "PlayCanvas rendering is unavailable; try a current browser.";
   if (limitations.includes("fullscreen_unavailable")) return "Fullscreen is unavailable here.";
   return "";
+}
+/** Content playback/events/assets are runtime truth, not drawer-presenter data. @param {unknown} snapshot */
+function contentPresenterDataSignature(snapshot) {
+  return JSON.stringify([dataValue(snapshot, "state"), dataValue(snapshot, "generation"), dataValue(snapshot, "packageId"), dataValue(snapshot, "selectedVariant"), dataValue(snapshot, "background")]);
 }
 function mapSummary(map) { const versions = playableVersions(map); return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: versions.length, versions: Object.freeze(versions.slice(0, 8).map((version, index) => Object.freeze({ versionHash: version.hash, label: String(index + 1) }))) }); }
 function standardDifficulties(version) { return Object.freeze((version?.difficulties ?? []).filter((entry) => entry.characteristic === "Standard").map((entry) => entry.difficulty).filter((entry, index, all) => all.indexOf(entry) === index)); }
