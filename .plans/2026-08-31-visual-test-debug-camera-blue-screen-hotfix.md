@@ -124,7 +124,7 @@ The correction initializes and resets stored debug yaw to `Math.PI` and applies 
 **Implementation Bead:** `aerobeat-web-assembly-ft7`
 **QA Bead:** `aerobeat-web-assembly-614`
 **QA correction Bead:** `aerobeat-web-assembly-656`
-**Status:** QA correction coder PASS — strict framebuffer evidence awaiting independent re-QA; `ft7`/`614`/`656` remain open
+**Status:** Automated correction QA PASS; `656` closed; Task 2 closure blocked only by missing retained server Bead `aerobeat-web-assembly-f3v`
 
 Consume immutable audited renderer commit `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
 
@@ -139,6 +139,8 @@ The existing eight-context product-shell matrix now starts representative downlo
 Independent QA correctly rejected the initial negative-control evidence because a late `drawImage` read from `preserveDrawingBuffer:false` could return an invalid transparent buffer that also counted as zero gameplay pixels. P0 Bead `aerobeat-web-assembly-656` owns the test-only repair. Diagnosis established the valid sampling boundary immediately after `renderGameplayFrame`, before the cursor tick; the renderer canvas is intentionally transparent for the DOM-owned gradient, so test-private raw RGBA is manually source-over composited onto `#071426`. Capture is demand-only to avoid DPR3 cadence/tracking perturbation, and dimensions derive from the renderer's DPR2 cap.
 
 The corrected scalar validator requires renderer/canvas/sample dimensions and DPR agreement, complete pixel partitioning, full opaque composite output, positive exact-background pixels, an opaque `[7,20,38,255]` corner, and old-yaw-zero exactly all background. A startup self-test deliberately supplies a transparent invalidated sample and proves rejection. Two standalone eight-context matrices plus the matrix inside the complete browser chain passed: every old-yaw sample was exactly zero non-background with all pixels opaque background, while every corrected before-input/Reset/resume state retained substantial gameplay pixels. Fresh `npm test`, complete browser, live Flow, build, dependency, static, and diff gates passed; only expected PlayCanvas worker externalization/chunk warnings remained. No production, dependency, version, release, or server behavior changed.
+
+Independent correction QA repeated both standalone matrices and the entire gate chain at `29ce631`. Every DPR1 sample contained exactly `329,160` opaque composite pixels; DPR3 correctly honored the renderer DPR2 cap with exactly `1,316,640`. Every old-yaw sample was exactly all background, corrected before-input counts ranged `76,029–690,182`, Reset-next-frame `76,056–686,835`, and resume `76,153–670,374`, and the deliberate invalid sample was rejected. P0 correction `656` is closed. During final boundary verification QA discovered that required retained `dev:tailscale` PID `2972964` had exited: no local `:5173` process accepts connections and the unchanged Tailscale `:8443` proxy returns HTTP `502`. Operational P0 `aerobeat-web-assembly-f3v` blocks QA `614`; QA did not restart or duplicate the server, so Task 3 remains blocked despite complete automated product evidence.
 
 ## Task 3 — Deterministic hotfix release
 
