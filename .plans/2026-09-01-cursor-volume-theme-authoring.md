@@ -148,9 +148,11 @@ Add service-owned Music and future-SFX GainNodes where supported. Music playback
 **Implementation:** `aerobeat-web-ui-af3`
 **QA:** `aerobeat-web-ui-4lr`
 **Audit:** `aerobeat-web-ui-8xx`
-**Status:** Coder PASS at UI `3ac371f`; independent QA in progress — subagent `c4d91c7a-3d6f-4757-9530-be5389cf6712`
+**Status:** Coder `3ac371f` QA FAIL; P0 `aerobeat-web-ui-osp` deterministic half-step correction in progress with coder `2acb3baa-acef-4aab-b514-54be7a077b72`; QA `c4d91c7a-3d6f-4757-9530-be5389cf6712` paused pending fix
 
 Extend the strict Visual Test transport snapshot with only Music/Sound scalar values. Emit exact volume intents after UI-side normalization/snap. Own the popover's ephemeral open state without replacing focused sliders during snapshots. Verify layout/accessibility/direct keyboard/touch/reconnect at phone portrait/landscape and DPR without owning audio or persistence.
+
+QA found one deterministic-normalization defect in `3ac371f`: binary division made exported `snapVisualTestVolume(0.285)` return `0.28` while another half-step `0.725` returned `0.73`. P0 `aerobeat-web-ui-osp` preserves QA sensitivities and requires stable half-up `0.01` normalization without changing magnetic anchors or UI behavior before QA resumes.
 
 ## Milestone 1D — Assembly integration, QA and release
 
