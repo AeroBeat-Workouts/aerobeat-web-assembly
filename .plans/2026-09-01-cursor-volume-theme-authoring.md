@@ -168,6 +168,14 @@ Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin
 
 Patch package/lock/index/proof to `0.0.31`, leave `0.0.30` byte-unchanged, build raw twice, pack twice, independently audit all linked repos and retain one managed server. Every new physical row remains Pending; no gameplay/conversion/theme winner.
 
+### Read-only integration map
+
+Subagent `79831f20-7453-4b53-9b17-73c6f1460b09` confirmed one required atomic compatibility fix: corrected UI accepts only the exact six-field transport snapshot, while assembly still emits the old four fields and therefore currently fails closed to hidden transport. Add internal `src/audio-mix-coordinator.js` with descriptor-safe exact-pair narrowing, denial/corruption fallback, immutable in-memory truth, same-document subscribers, storage-event cross-document apply without writeback, idempotent unsubscribe and no component retention. Keep `service-graph.js` persistence-agnostic.
+
+Wire `src/index.js` immediately after fresh graph creation: subscribe/apply the current pair before any playback, generation-guard graph updates, map `sfxVolume` only to UI `soundVolume`, render locally without `publish()` or public events, and let teardown use the existing unsubscribe list. Intent narrowing must be descriptor-safe and reuse UI snap normalization; coordinator fan-out is the single audio/UI update path. `getSnapshot()` and iframe events remain status-only; do not extend exact game-capabilities v1.
+
+Add focused coordinator and browser integration validators, update the three fake-audio fixtures in console-noise/mobile-menu/product-shell tests rather than adding production compatibility fallbacks, and prove exact storage, hostile accessors, denial/corruption, same-document and same-origin iframe sync, disconnect/reconnect, Test/Play/seek/pause/hidden/lease continuity, all eight direct/iframe layout contexts, and complete outbound privacy. Cross-origin iframes prove privacy only, not storage synchronization.
+
 ## Milestone 1 physical gate
 
 Derrick must physically confirm cursor restoration and volume behavior in `0.0.31` before Milestone 2 is claimed. A failed observation creates a P0 and blocks the PoC. Pending is not PASS.
