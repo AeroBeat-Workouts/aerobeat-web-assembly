@@ -1,6 +1,6 @@
 # AeroBeat Physical Follow-up: Menu Stability, World Handedness, and Camera Pose Authoring
 
-**Status:** DRAFT — awaiting Derrick approval
+**Status:** APPROVED and in progress — Derrick approved execution on 2026-09-01
 **Owner:** `aerobeat-web-assembly`
 **Date:** 2026-09-01
 **Predecessor:** `.plans/2026-09-01-cursor-volume-theme-authoring.md`
