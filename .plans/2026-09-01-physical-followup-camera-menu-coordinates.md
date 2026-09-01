@@ -98,7 +98,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 ### Task 1 — Reproduce and repair menu churn (`nu0`)
 
 **Repos:** content runtime, UI presenter, assembly.
-**Status:** Coder in progress — subagent `5f6c81d1-422c-4683-9bd7-c8ae5013bde3`
+**Status:** Coder complete — awaiting independent QA/audit; `nu0` remains `in_progress`
 
 - Claim `nu0`.
 - Land physical-timing browser reproducer first.
@@ -106,6 +106,17 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Preserve native control identity, focus, and drawer scroll across no-op/playback updates.
 - Verify song, difficulty, Gameplay, Conversion, Start/Test after Test and completed Play in direct/iframe, desktop/mobile, portrait/landscape, DPR1/3.
 - Coder → independent QA → independent audit; auditor owns closure.
+
+**Coder result (2026-09-01): PASS; pushed for QA/audit.**
+
+- Baseline source failure was captured before repair by `node scripts/validate-mobile-gameplay-menu.js`: completed Visual Test playback churn produced `19` publications and `228` presenter commits during one `140 ms` physical hold; the captured Song B radio was detached before pointerdown (`pointerDown:false`, `pointerUp:false`, `isConnectedAfterHold:false`), no `library-select` intent emitted, and selection stayed `song-a-easy` at drawer `scrollTop:607`. Exact diagnosis and repair contract are recorded in `docs/task18-post-session-menu-stability.md`.
+- Content commit `42cfdcd` publishes playback only for exact bounded state/position/set changes and proves equivalent ID sets are order/duplicate independent.
+- UI commit `685145e` makes equivalent narrowed presenter snapshots idempotent, including compact-library optimistic state, and proves map/library/Gameplay native identity plus focus remain exact.
+- Assembly commit `51b1247` routes only drawer-relevant content changes (`state`, generation, package, selected variant, background) to full presenters; playback/events/assets remain runtime truth. The Chromium regression covers completed Visual Test and completed Play, physical pointerdown/`140 ms` dwell/pointerup/change, multiple truthful playback publications, scroll, identity/`isConnected`, zero pre-change presenter commits, exact bounded intents, and final `song-b-hard` + `boxing_semantic_track_v1` + `cut_family_source_height_v1` truth. No periodic scroll setter, truthful-state suppression, schema expansion, release action, or broad UI rewrite was added.
+- Fresh content gates passed: `npm test`, exact `npm run test:browser`, dry-run pack, `npm ls --all`, `git diff --check`.
+- Fresh UI gates passed: `npm test`, exact `npm run test:browser`, dry-run pack, `npm ls --all`, `git diff --check`.
+- Fresh assembly gates passed twice on final source where applicable: `npm test`, exact `npm run test:browser`, `npm run test:v4-integration`, live Flow obstacles, `npm run build`, `npm ls --all`, static/import/component/console/privacy/forbidden assertions, and `git diff --check`. The shell/cursor matrix covered direct + real cross-origin iframe, portrait/landscape, DPR1/3, fine/coarse paths, all gameplay modes, reconnect/privacy, and zero unexpected console errors.
+- Residual scope: the held-pointer transaction itself is one deterministic direct Chromium scenario combined with the existing eight-context direct/iframe viewport/DPR matrix; independent QA should repeat physical mouse/touch hardware timing and scroll behavior. Bead closure remains auditor-owned.
 
 ### Task 2 — Normalize renderer world/view convention (`aue`)
 
