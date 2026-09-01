@@ -162,7 +162,7 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** Blocked by package audits
+**Status:** Read-only integration mapping in progress — subagent `79831f20-7453-4b53-9b17-73c6f1460b09`; implementation remains blocked by renderer/UI audits
 
 Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
