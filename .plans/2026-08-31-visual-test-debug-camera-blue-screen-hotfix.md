@@ -1,6 +1,6 @@
 # Visual Test Debug-Camera Blue-Screen Hotfix
 
-**Status:** Approved from physical defect report; diagnosis complete; implementation in progress
+**Status:** Complete — final independent audit PASS; deterministic `0.0.29` committed/pushed; physical retest remains Pending
 **Owner:** assembly orchestrator → renderer coder → independent QA → final auditor
 **Assembly bug:** `aerobeat-web-assembly-ft7`
 **Renderer bug:** `aerobeat-web-renderer-b79` (external reference to assembly `ft7`)
@@ -147,13 +147,15 @@ Independent closure verification found no remaining QA blocker. The original PID
 ## Task 3 — Deterministic hotfix release
 
 **Bead:** `aerobeat-web-assembly-235`
-**Status:** Release coder PASS — deterministic `0.0.29` candidate awaiting final audit; physical retest remains Pending
+**Status:** Complete — release coder and final independent audit PASS; Bead closed
 
-Package/lock/index/README/proof surfaces now agree on `0.0.29`; the intentional raw browser proof is generated under `release/raw/0.0.29` while every tracked `0.0.28` byte remains unchanged. Fresh unit, complete browser, strict eight-context debug-camera canvas evidence, exact live `3C9D` Flow, build, dependency, forbidden-identity, and diff gates pass. Two raw constructions compare recursively byte-for-byte; two post-commit external dry packs compare byte-for-byte. Exact raw/proof/source/size and pack metadata remain only in external release Bead `235`, avoiding self-reference in this packed plan. The focused handoff retains Derrick's `0.0.28` desktop Flow failure as superseded and every `0.0.29` retest as Pending, with no winner. The single managed `dev:tailscale` server tree and tailnet proxy remain retained without restart or duplication.
+Package/lock/index/README/proof surfaces agree on `0.0.29`; the intentional raw browser proof is generated under `release/raw/0.0.29` while every tracked `0.0.28` byte remains unchanged. Fresh unit, complete browser, strict eight-context debug-camera canvas evidence, exact live `3C9D` Flow, build, dependency, forbidden-identity, and diff gates pass. Repeated raw constructions compare recursively byte-for-byte with the committed tree. Exact raw/proof/source/size and final committed-payload pack metadata remain only in external Bead evidence, avoiding self-reference in this packed plan. The focused handoff retains Derrick's `0.0.28` desktop Flow failure as superseded and every `0.0.29` retest as Pending, with no winner.
 
 ## Task 4 — Independent QA/audit and closure
 
 **Bead:** `aerobeat-web-assembly-lym`
-**Status:** Blocked by Task 3
+**Status:** Complete — final independent audit PASS; Bead and implementation bug closed
 
-Independent QA and final audit must reproduce active debug-camera scene pixels and the complete high-value regression/release matrix before closing both bugs. All linked repos must be clean/upstream; no physical PASS or gameplay/conversion winner may be inferred.
+The final auditor independently reviewed Derrick's physical symptom, the renderer and assembly diffs, commits, tests, Beads, release proof, physical boundary, server recovery, and all linked repositories. Fresh assembly `npm test`, complete `npm run test:browser`, exact live Flow, build, dependency and diff gates passed. All eight direct/real-iframe portrait/landscape DPR1/3 contexts produced valid fully opaque composite samples with exact Aero-background corners and complete pixel partitions; forced yaw zero was exactly all background in every context, while corrected before-input, Reset-next-frame, and resumed states retained substantial gameplay pixels. The transparent-invalid-sample self-test rejected the original evidence false-positive path. Fresh renderer unit/browser/dependency/diff gates passed at audited commit `3cfbbe4`, confirming the coherent `Math.PI` stored/reset pose without a camera-disable, DOM, clear-color, culling, or fixed-camera workaround. Terminal replay, free-fly input/cleanup, all presentations/conversions, exact 4×3/timing/duration/scoring/privacy/lifecycle/context contracts remain intact.
+
+The auditor rebuilt raw `0.0.29` twice; both rounds were byte-identical to each other and the committed 13-file tree, while raw `0.0.28` remained unchanged. Package/lock/source/raw proof surfaces all resolve to `0.0.29`; PlayCanvas remains `2.21.4`; forbidden legacy renderer identities remain absent. Every linked repo is clean/upstream. The original required server PID `2972964` had vanished externally before final QA and could not truthfully be retained; operational Bead `f3v` restored exactly one approved managed tree (`npm` PID `3901811` → shell `3901822` → Vite `3901823`) behind the unchanged Tailscale proxy. Local and tailnet routes return HTTP `200`, with no duplicate listener. Final pack metadata is recorded externally after the closure commit with no later packed-file edit. Historic `0.0.28` remains Failed/superseded; every `0.0.29` physical retest remains Pending and no gameplay or conversion winner is selected.
