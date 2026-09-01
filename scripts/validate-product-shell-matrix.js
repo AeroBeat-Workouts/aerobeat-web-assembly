@@ -8,6 +8,12 @@ import { createServer as createViteServer } from "vite";
 
 const AERO_CANVAS_BACKGROUND_RGBA = Object.freeze([7, 20, 38, 255]);
 const AERO_CANVAS_CHANNEL_TOLERANCE = 1;
+// Explicitly mirrors web-content-authoring/src/converter.js spatialTarget()/acceptedSubcells() for hook row 0 left and hook row 2 right; private converter internals remain unimported.
+const CANONICAL_BOXING_GRID_HOOK_TARGETS = Object.freeze({
+  left: Object.freeze({ targetCell:2, acceptedSubcells:Object.freeze([4,5,12,13]), sourceCell:1, entryDirection:"right" }),
+  right: Object.freeze({ targetCell:9, acceptedSubcells:Object.freeze([34,35,42,43]), sourceCell:10, entryDirection:"left" })
+});
+runCanonicalBoxingGridHookFixtureSelfTest();
 runCanvasSampleValidatorSelfTest();
 
 const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null } });
@@ -229,7 +235,7 @@ async function verifyVisualTestScenePixels(page,game,context){
   const modes=[
     {key:"flow",rulesetId:"flow_grid_v1",presentation:"flow",events:[{eventId:"flow-left",centerTimestampMs:900,authoredBeat:{type:"note",hand:"left",placement:4,direction:"right"}},{eventId:"flow-right",centerTimestampMs:1500,authoredBeat:{type:"note",hand:"right",placement:7,direction:"up"}},{eventId:"flow-wall",centerTimestampMs:700,endTimestampMs:2100,authoredBeat:{start:.7,end:2.1,type:"obstacle",cells:[0,4]}}]},
     {key:"boxing_lanes",rulesetId:"boxing_semantic_track_v1",presentation:"boxing_lanes",events:[{eventId:"lanes-hook-left",centerTimestampMs:800,authoredBeat:{type:"hook_left",spatialTarget:{targetCell:4,entryDirection:"up"}}},{eventId:"lanes-hook-right",centerTimestampMs:1050,authoredBeat:{type:"hook_right",spatialTarget:{targetCell:7,entryDirection:"left"}}},{eventId:"lanes-weave-left",centerTimestampMs:1350,authoredBeat:{type:"weave_left",blockedCells:[0,1,4,5]}},{eventId:"lanes-guard",centerTimestampMs:1650,authoredBeat:{type:"guard",guardTarget:{leftCell:4,rightCell:7}}}]},
-    {key:"boxing_spatial_grid",rulesetId:"boxing_spatial_grid_v1",presentation:"boxing_spatial_grid",events:[{eventId:"grid-hook-left",centerTimestampMs:750,authoredBeat:{type:"hook_left",spatialTarget:{targetCell:1,acceptedSubcells:[2,3,10,11],sourceCell:2,entryDirection:"right"}}},{eventId:"grid-hook-right",centerTimestampMs:1000,authoredBeat:{type:"hook_right",spatialTarget:{targetCell:10,acceptedSubcells:[36,37,44,45],sourceCell:9,entryDirection:"left"}}},{eventId:"grid-weave-right",centerTimestampMs:1300,authoredBeat:{type:"weave_right",blockedCells:[2,3,6,7],checkpoint:{kind:"instantaneous",noseSafeCells:[0,1,4,5]}}},{eventId:"grid-squat",centerTimestampMs:1600,authoredBeat:{type:"squat",blockedCells:[8,9,10,11],checkpoint:{kind:"instantaneous",noseSafeCells:[0,1,2,3]}}},{eventId:"grid-guard",centerTimestampMs:1900,authoredBeat:{type:"guard",guardTarget:{leftCell:5,rightCell:6}}}]}
+    {key:"boxing_spatial_grid",rulesetId:"boxing_spatial_grid_v1",presentation:"boxing_spatial_grid",events:[{eventId:"grid-hook-left",centerTimestampMs:750,authoredBeat:{type:"hook_left",spatialTarget:CANONICAL_BOXING_GRID_HOOK_TARGETS.left}},{eventId:"grid-hook-right",centerTimestampMs:1000,authoredBeat:{type:"hook_right",spatialTarget:CANONICAL_BOXING_GRID_HOOK_TARGETS.right}},{eventId:"grid-weave-right",centerTimestampMs:1300,authoredBeat:{type:"weave_right",blockedCells:[2,3,6,7],checkpoint:{kind:"instantaneous",noseSafeCells:[0,1,4,5]}}},{eventId:"grid-squat",centerTimestampMs:1600,authoredBeat:{type:"squat",blockedCells:[8,9,10,11],checkpoint:{kind:"instantaneous",noseSafeCells:[0,1,2,3]}}},{eventId:"grid-guard",centerTimestampMs:1900,authoredBeat:{type:"guard",guardTarget:{leftCell:5,rightCell:6}}}]}
   ];
   const modeProofs=[];
   const sampleCanvas=()=>game.evaluate((element)=>{const state=globalThis.__shellMatrixState;state.latestGameplayCanvasSample=null;state.captureNextGameplayCanvasSample=true;element.runDisplayFrame();const sample=state.latestGameplayCanvasSample;if(!sample)throw new Error("Visual Test gameplay-frame canvas sample unavailable");return structuredClone(sample);});
@@ -388,6 +394,15 @@ function canvasSampleValidationErrors(sample,context){
 }
 /** @param {CanvasSampleEvidence} sample @param {{kind:string,width:number,height:number,dpr:number}} context @param {string} state */
 function assertValidAeroCanvasSample(sample,context,state){const errors=canvasSampleValidationErrors(sample,context);assert(errors.length===0,`${label(context)} ${state} must be a valid opaque Aero-background canvas sample: ${JSON.stringify({errors,sample})}`);}
+function runCanonicalBoxingGridHookFixtureSelfTest(){
+  for(const {hand,row,target} of [{hand:"left",row:0,target:CANONICAL_BOXING_GRID_HOOK_TARGETS.left},{hand:"right",row:2,target:CANONICAL_BOXING_GRID_HOOK_TARGETS.right}]){
+    const targetColumn=hand==="left"?2:1,sourceColumn=hand==="left"?1:2,targetCell=row*4+targetColumn,sourceCell=row*4+sourceColumn,acceptedSubcells=[];
+    for(const subRow of [row*2,row*2+1])acceptedSubcells.push(subRow*8+targetColumn*2,subRow*8+targetColumn*2+1);
+    const expected={targetCell,acceptedSubcells,sourceCell,entryDirection:hand==="left"?"right":"left"};
+    assert(JSON.stringify(target)===JSON.stringify(expected),`Boxing Grid ${hand} hook fixture must mirror canonical converter spatialTarget()/acceptedSubcells(): ${JSON.stringify({target,expected})}`);
+  }
+  console.log("Boxing Grid hook fixture self-test passed: canonical hand geometry retained");
+}
 function runCanvasSampleValidatorSelfTest(){
   const context={kind:"self-test",width:1,height:1,dpr:1},valid={width:1,height:1,canvasWidth:1,canvasHeight:1,devicePixelRatio:1,maxDevicePixelRatio:2,sourceSampledPixels:1,sourceVisiblePixels:0,sampledPixels:1,opaquePixels:1,backgroundPixels:1,nonBackground:0,configuredBackground:"#071426",corner:[7,20,38,255]},invalidated={...valid,opaquePixels:0,backgroundPixels:0,corner:[7,20,38,0]};
   assert(canvasSampleValidationErrors(valid,context).length===0,"Canvas sample validator self-test valid fixture must pass");

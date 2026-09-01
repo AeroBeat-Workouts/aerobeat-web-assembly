@@ -1,6 +1,6 @@
 # Cross-Mode Camera Capture Parity
 
-**Status:** Regression coder PASS — unchanged production; awaiting independent QA `edg`
+**Status:** P0 `b8z` correction coder PASS — canonical fixture; awaiting independent re-QA `edg`; production unchanged
 **Owner:** assembly orchestrator → regression coder → independent QA → auditor
 **Umbrella Bead:** `aerobeat-web-assembly-81f`
 **QA Bead:** `aerobeat-web-assembly-edg`
@@ -125,20 +125,26 @@ Remaining uncertainty: Physical 0.0.30 mode-specific behavior and chart availabi
 ## Task 1 — Sensitive three-mode regression
 
 **Bead:** `aerobeat-web-assembly-81f`
-**Status:** Coder PASS — sensitive test/docs only; awaiting independent QA `edg`
+**Status:** P0 `b8z` correction coder PASS — sensitive test/docs only; awaiting independent re-QA `edg`
 
 The interrupted first coder left one test-only partial conversion in `scripts/validate-product-shell-matrix.js`. Syntax/JSDoc static checks passed, then the required focused `direct:844x390@1` run completed Flow and Boxing Lanes but failed while starting Boxing Grid. Exact diagnostics were `session:"paused_manual"`, `debugCameraEnabled:false`, and `lastError.code:"spatial_target_invalid"` / `"Spatial accepted subcells are invalid"`. The fixture's spatial punches omitted mandatory `acceptedSubcells`, while its weave/squat shapes also used display-only `blockedCells` without the spatial ruleset's required `checkpoint.noseSafeCells`.
 
-This was a regression-fixture defect, not production behavior. The minimal test-only correction supplies canonical bounded accepted subcells/source cells/cardinal directions for grid punches and truthful checkpoint plus blocked-cell data for weave/squat. The focused rerun then started all three actual UI Test sessions in sequence and repeated common capture/look/exit/touch/gradual movement/speed/Reset/pause-resume proof without pointer-lock, debug-clock, speed, intent, or session leakage. Distinct scalar scene signatures were Flow targets at cells `4`/`7` plus obstacle cells `0,4`; Boxing Lanes left/right punches, lane obstacle and guard; and Boxing Grid punches at cells `1`/`10`, blocked rows `2,3,6,7` / `8,9,10,11`, and guard cells `5,6`. Production source and every `0.0.30` version/raw surface remain untouched.
+This was a regression-fixture defect, not production behavior. The first test-only correction made the fixture structurally valid by supplying bounded accepted subcells/source cells/cardinal directions for grid punches and truthful checkpoint plus blocked-cell data for weave/squat. It was not yet semantically canonical: independent QA `edg` correctly found that the candidate reversed the converter's hook hand geometry even though gameplay validation accepted the bounded cells. P0 `b8z` now owns that evidence correction. Production source and every `0.0.30` version/raw surface remain untouched.
 
 Three complete eight-context executions passed: two standalone matrices plus the matrix inside the exact full browser chain. Each execution started three actual UI Test generations per context, for `72` total presentation/context executions. Every mode repeated right-click pointer/fallback capture, mouse look, second-click and Escape exit, two-finger capture, one-finger look, second two-finger exit, invalid-gesture rejection, held keyboard/DOM camera-relative movement, Normal/Boost, Reset, and pause/resume cleanup without state leakage. The three private-pixel scene signatures remained distinct in every context. Across the final three complete runs, corrected scalar non-background ranges were Flow before `76,029–690,115`, Reset `76,056–688,243`, resume `132,830–670,223`; Boxing Lanes before `44,806–555,827`, Reset `44,816–555,014`, resume `45,123–548,086`; Boxing Grid before `74,825–677,958`, Reset `74,829–677,525`, resume `74,669–670,223`. All `72` old-yaw controls were exactly zero non-background, fully opaque Aero background with corner `[7,20,38,255]`.
 
 Fresh `npm test`, exact complete `npm run test:browser`, live `3C9D` Flow (`16` obstacles / `16` volumes), production build, `npm ls --all`, forbidden production identity search, syntax/JSDoc/static and `git diff --check` passed. Only expected PlayCanvas worker externalization and chunk-size warnings remained. All 14 linked repos are clean/upstream; renderer is unchanged at `fb103de`; exactly one server tree remains healthy on local `5173` and unchanged tailnet `8443`. Diff scope is only this plan, the physical handoff and the product-shell test. Production source, README, dependency, package/lock/index, version and every raw `0.0.30` byte remain untouched. The handoff records automated parity only; every physical observation remains Pending.
 
+### P0 evidence correction `b8z`
+
+Independent QA inspected the sibling authoring converter rather than trusting bounded gameplay validation. Canonical `spatialTarget()`/`acceptedSubcells()` requires row-0 `hook_left` target cell `2`, source cell `1`, entry direction `right`, accepted subcells `[4,5,12,13]`; row-2 `hook_right` requires target cell `9`, source cell `10`, entry direction `left`, accepted subcells `[34,35,42,43]`. Candidate `627daf3` had reversed each target/source pair and matched accepted subcells to those wrong targets, so its passing proof could hide a semantic fixture error.
+
+The correction defines those exact immutable representative targets once, references them from the Boxing Grid events, and runs a startup self-test that independently derives hook target/source columns and two-by-two cell subcells. A source comment binds the scalars to canonical sibling `web-content-authoring/src/converter.js` without importing private internals or claiming broader semantics. Weave/squat retain structurally valid `checkpoint.noseSafeCells` and representative blocked cells. Two focused direct-landscape DPR1 reruns, two complete eight-context matrices and the additional complete matrix inside `npm run test:browser` all pass with corrected Boxing Grid scene signatures `punch:left:2` and `punch:right:9`, for `78` corrected mode/context samples across five runs. Scalar non-background ranges are Flow before `76,029–690,182`, Reset `76,056–687,524`, resume `132,830–670,223`; Boxing Lanes before `44,806–555,773`, Reset `44,816–555,014`, resume `45,312–548,086`; Boxing Grid before `74,833–677,972`, Reset `74,825–681,893`, resume `74,787–670,223`. Every old-yaw control is exactly zero non-background, all opaque Aero background with corner `[7,20,38,255]`. Fresh syntax/JSDoc/static, `npm test`, complete browser, live Flow, build, dependency, forbidden-production-identity and diff gates pass; only expected PlayCanvas worker externalization/chunk warnings remain. Production/release surfaces are unchanged.
+
 ## Task 2 — Independent QA
 
 **Bead:** `aerobeat-web-assembly-edg`
-**Status:** Ready — coder regression and full gates PASS
+**Status:** Ready — P0 `b8z` correction coder PASS; independent re-QA may resume
 
 Independently inspect the evidence boundary, reproduce all three modes and reject any test that only composes separate control and presentation assertions.
 
