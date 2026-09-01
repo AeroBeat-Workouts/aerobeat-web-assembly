@@ -60,11 +60,25 @@ try {
   const crossB = await pageB.evaluate(() => ({ writes:globalThis.__storageWrites, mixes:[...document.querySelectorAll("aero-game")].map((game)=>game.graph.audio.getMixSnapshot()) }));
   assert(crossA.writes === 1 && crossB.writes === 0 && [...crossA.mixes,...crossB.mixes].every((mix)=>mix.musicVolume===0.84&&mix.sfxVolume===0.73), `cross-document sync/writeback failed: ${JSON.stringify({crossA,crossB})}`);
 
-  const disconnected = await pageA.evaluate(() => { const games=[...document.querySelectorAll("aero-game")],removed=games[1],id=removed.instanceId;removed.remove();return{id,calls:globalThis.__mixLogs[id].length}; });
+  const disconnected = await pageA.evaluate(() => { const games=[...document.querySelectorAll("aero-game")],removed=games[1],id=removed.instanceId;globalThis.__removedMixGame=removed;globalThis.__removedMixOldLog=globalThis.__mixLogs[id];removed.remove();return{id,calls:globalThis.__removedMixOldLog.length}; });
   await pageB.evaluate(() => { const game=document.querySelector("aero-game"),transport=game.shadowRoot.querySelector("aero-visual-test-transport");transport.dispatchEvent(new CustomEvent("aero:ui:intent",{bubbles:true,composed:true,detail:{type:"visual-test-sound-volume",payload:{volume:0.16}}})); });
   await pageA.waitForFunction(() => document.querySelector("aero-game")?.graph.audio.getMixSnapshot().sfxVolume === 0.16);
-  const disconnectedAfter = await pageA.evaluate((id) => ({ calls:globalThis.__mixLogs[id].length, connectedMix:document.querySelector("aero-game").graph.audio.getMixSnapshot(), connectedTransport:structuredClone(document.querySelector("aero-game").shadowRoot.querySelector("aero-visual-test-transport").transportSnapshot) }), disconnected.id);
-  assert(disconnectedAfter.calls === disconnected.calls && disconnectedAfter.connectedMix.sfxVolume === 0.16 && disconnectedAfter.connectedTransport.soundVolume === 0.16, `disconnect unsubscribe failed: ${JSON.stringify({disconnected,disconnectedAfter})}`);
+  const disconnectedAfter = await pageA.evaluate(async() => ({ calls:globalThis.__removedMixOldLog.length, subscriberCount:(await import("/src/audio-mix-coordinator.js")).aeroAudioMixCoordinator.subscribers.size, connectedMix:document.querySelector("aero-game").graph.audio.getMixSnapshot(), connectedTransport:structuredClone(document.querySelector("aero-game").shadowRoot.querySelector("aero-visual-test-transport").transportSnapshot) }));
+  assert(disconnectedAfter.calls === disconnected.calls && disconnectedAfter.subscriberCount===1 && disconnectedAfter.connectedMix.sfxVolume === 0.16 && disconnectedAfter.connectedTransport.soundVolume === 0.16, `disconnect unsubscribe failed: ${JSON.stringify({disconnected,disconnectedAfter})}`);
+
+  const reconnected = await pageA.evaluate(() => {
+    const game=globalThis.__removedMixGame,parent=document.querySelector("aero-game")?.parentElement;
+    if (!game || !parent) return null;
+    const oldCalls=globalThis.__removedMixOldLog.length;
+    parent.append(game);
+    return { oldCalls };
+  });
+  await pageA.waitForFunction(() => document.querySelectorAll("aero-game").length===2&&[...document.querySelectorAll("aero-game")].every((game)=>game.getSnapshot().lifecycle==="connected"));
+  const reconnectedAfter = await pageA.evaluate(async(id) => {
+    const game=[...document.querySelectorAll("aero-game")].find((entry)=>entry.instanceId===id);
+    return game ? { mix:game.graph.audio.getMixSnapshot(), transport:structuredClone(game.shadowRoot.querySelector("aero-visual-test-transport").transportSnapshot), calls:globalThis.__mixLogs[id].length, last:globalThis.__mixLogs[id].at(-1), oldCalls:globalThis.__removedMixOldLog.length, subscriberCount:(await import("/src/audio-mix-coordinator.js")).aeroAudioMixCoordinator.subscribers.size } : null;
+  }, disconnected.id);
+  assert(reconnected && reconnectedAfter && reconnectedAfter.oldCalls===reconnected.oldCalls && reconnectedAfter.subscriberCount===2 && reconnectedAfter.calls===1 && reconnectedAfter.last==="setMix:0.84:0.16" && reconnectedAfter.mix.musicVolume===0.84 && reconnectedAfter.mix.sfxVolume===0.16 && reconnectedAfter.transport.musicVolume===0.84 && reconnectedAfter.transport.soundVolume===0.16, `reconnect did not create one fresh current-mix subscription: ${JSON.stringify({reconnected,reconnectedAfter})}`);
 } finally {
   for (const page of [pageA,pageB]) await page.close().catch(()=>{});
   await browser.close(); await vite.close();
