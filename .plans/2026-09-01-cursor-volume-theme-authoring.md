@@ -132,7 +132,7 @@ Remaining uncertainty: Hardware cursor behavior on Derrick's browser/Wayland pat
 **Implementation:** `aerobeat-web-renderer-5ue`
 **QA:** `aerobeat-web-renderer-aiw`
 **Audit:** `aerobeat-web-renderer-kmm`
-**Status:** Audit FAIL at `e4cee4c`; P0 `aerobeat-web-renderer-4w1` correction coder PASS `bef3e5d`; QA resumed — subagent `0eb9dba0-d429-4b28-9114-3e4c55245f8a`; audit paused pending QA
+**Status:** Audit FAIL at `e4cee4c`; P0 correction coder PASS `bef3e5d`; QA PASS `508d9c7`; final audit resumed — subagent `0424a0c6-dd84-4e07-b83f-7fdd2e03944c`
 
 Coder diagnoses with the new sensitivity probe, implements one idempotent confirmed-release path, and preserves every existing camera/touch/movement/lifecycle contract. Independent QA and audit must reproduce release ordering and cursor-style sensitivity before assembly consumes the commit.
 
@@ -150,7 +150,7 @@ Add service-owned Music and future-SFX GainNodes where supported. Music playback
 **Implementation:** `aerobeat-web-ui-af3`
 **QA:** `aerobeat-web-ui-4lr`
 **Audit:** `aerobeat-web-ui-8xx`
-**Status:** Coder `3ac371f` QA FAIL; P0 correction PASS `2186523`; independent QA PASS; audit in progress — subagent `b635824e-adc3-45e3-bc22-93a815bd936c`
+**Status:** AUDITED PASS — coder `3ac371f`, P0 correction/QA `2186523`, audit/ledger closure `0599172`; Beads `af3`/`osp`/`4lr`/`8xx` closed
 
 Extend the strict Visual Test transport snapshot with only Music/Sound scalar values. Emit exact volume intents after UI-side normalization/snap. Own the popover's ephemeral open state without replacing focused sliders during snapshots. Verify layout/accessibility/direct keyboard/touch/reconnect at phone portrait/landscape and DPR without owning audio or persistence.
 
@@ -162,9 +162,9 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** Read-only integration mapping in progress — subagent `79831f20-7453-4b53-9b17-73c6f1460b09`; implementation remains blocked by renderer/UI audits
+**Status:** Read-only integration mapping in progress — subagent `79831f20-7453-4b53-9b17-73c6f1460b09`; audio/UI audited, implementation remains blocked only by renderer final audit
 
-Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
+Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback through the audio service instance methods `getMixSnapshot()` / `setMix()`, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
 Patch package/lock/index/proof to `0.0.31`, leave `0.0.30` byte-unchanged, build raw twice, pack twice, independently audit all linked repos and retain one managed server. Every new physical row remains Pending; no gameplay/conversion/theme winner.
 
