@@ -162,7 +162,7 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** All three package audits PASS; assembly coder/QA/audit PASS; Beads `7l3`/`9rh` closed; deterministic `0.0.31` build in progress — subagent `f0ff1868-105f-4d55-a584-4313d25aca3c`; physical cursor/volume rows remain Pending
+**Status:** All three package audits PASS; assembly coder/QA/audit PASS; Beads `7l3`/`9rh` closed; release coder PASS for local deterministic `0.0.31`; `nl4` remains open for final auditor `es1`; every physical cursor/volume row remains Physical Pending
 
 Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback through the audio service instance methods `getMixSnapshot()` / `setMix()`, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
@@ -175,6 +175,12 @@ Subagent `79831f20-7453-4b53-9b17-73c6f1460b09` confirmed one required atomic co
 Wire `src/index.js` immediately after fresh graph creation: subscribe/apply the current pair before any playback, generation-guard graph updates, map `sfxVolume` only to UI `soundVolume`, render locally without `publish()` or public events, and let teardown use the existing unsubscribe list. Intent narrowing must be descriptor-safe and reuse UI snap normalization; coordinator fan-out is the single audio/UI update path. `getSnapshot()` and iframe events remain status-only; do not extend exact game-capabilities v1.
 
 Add focused coordinator and browser integration validators, update the three fake-audio fixtures in console-noise/mobile-menu/product-shell tests rather than adding production compatibility fallbacks, and prove exact storage, hostile accessors, denial/corruption, same-document and same-origin iframe sync, disconnect/reconnect, Test/Play/seek/pause/hidden/lease continuity, all eight direct/iframe layout contexts, and complete outbound privacy. Cross-origin iframes prove privacy only, not storage synchronization.
+
+### Release coder result
+
+`0.0.31` was built through the canonical `version:patch` and `build-release` scripts. Two independent raw builds produced byte-identical 13-file trees with raw-manifest SHA-256 `20114134270da12b7d4bed7ca4a298607c668ede88e80a2b4d8c24e2da4aa804`, proof SHA-256 `25bc04047ab00391f608a65fc1f1711725935f7016be4caebcb166a0771e3983`, source fingerprint `1f221ee94879e629d17efcae70ac58e92aacfd943d660d15824ae47f4ecec0c3`, `11,516,716` pre-proof bytes, and `11,518,082` total bytes. A complete pre/post SHA-256 manifest proved every tracked `0.0.30` byte unchanged.
+
+Fresh `npm test`, exact `npm run test:browser`, `npm run test:v4-integration`, live `3C9D` Flow obstacle validation, production build, `npm ls --all`, version/proof alignment, forbidden/privacy/scope searches, and diff hygiene passed. The exact browser gate passed Flow, Boxing Lanes, and Boxing Grid through all eight direct/iframe portrait/landscape DPR1/3 contexts plus gameplay cursors, cursor capture/release/re-entry, volume persistence/fanout/lifecycle/privacy, and zero unexpected console errors. Static and runtime proof found no mix leakage into the bridge/service graph, capability schema addition, Theme runtime/assets, third-party bytes, or forbidden pose runtime. Exact final npm-pack metadata remains only in release Bead `nl4` because this plan is itself packed. The dedicated Task 17 handoff leaves hardware cursor, physical visual volume, audible Music, and future SFX rows Physical Pending. Release Bead closure remains owned by final auditor `es1`.
 
 ## Milestone 1 physical gate
 
