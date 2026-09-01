@@ -192,6 +192,9 @@ Linked clean/upstream audited heads are renderer `b50bcb5208938a77369d644536951e
 
 ## Milestone 1 physical gate
 
+**Physical gate:** `aerobeat-web-assembly-7f9`
+**Status:** Physical Pending — blocks `aerobeat-web-assembly-zd0`
+
 Derrick must physically confirm cursor restoration and volume behavior in `0.0.31` before Milestone 2 is claimed. A failed observation creates a P0 and blocks the PoC. Pending is not PASS.
 
 ## Milestone 2 — Local-only `.bloq`/`.plat` conversion PoC
