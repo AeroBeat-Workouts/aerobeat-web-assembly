@@ -162,7 +162,7 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** All three package audits PASS; assembly coder/QA/audit PASS; Beads `7l3`/`9rh` closed; release coder PASS `2c0968e`; final `0.0.31` audit in progress — subagent `8b19e648-ca30-4dee-b66e-4104373a1694`; every physical cursor/volume row remains Physical Pending
+**Status:** All three package audits PASS; assembly coder/QA/audit PASS; Beads `7l3`/`9rh` closed; release coder PASS `2c0968e`; final `0.0.31` audit in progress — replacement standalone subagent `96ebaef5-7a70-4513-8d53-bd906476a881` after inherited-context worker made no mutation; every physical cursor/volume row remains Physical Pending
 
 Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback through the audio service instance methods `getMixSnapshot()` / `setMix()`, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
