@@ -93,13 +93,15 @@ Independent QA at candidate `5d171be10682b2b25030f8f988363e17c89a9851` inspected
 
 **QA Bead:** `aerobeat-web-assembly-3aw`
 **Release Bead:** `aerobeat-web-assembly-jiu`
-**Status:** Independent QA `3aw` PASS; deterministic release `jiu` Ready
+**Status:** Release coder PASS — deterministic `0.0.30` candidate built/pushed; awaiting final audit `95j`
 
-Independently verify real capture/look and held movement, UI accessibility, touch gestures, lifecycle cleanup, presentations and regression matrices. Patch to deterministic `0.0.30`, keep `0.0.29` and earlier releases unchanged, compare two raw builds and two final packs byte-for-byte, retain the one managed Tailscale server tree, and keep physical observations Pending.
+Independent QA passed before release. Package, lock, source index, raw HTML and proof surfaces now agree on `0.0.30`; README and the physical handoff describe the cross-input control iteration while retaining `0.0.29` direction PASS/superseded control failures, all `0.0.30` physical rows Pending and no winner. Two raw builds were byte-identical: `13` files, `11,452,934` total bytes, `11,451,568` bytes before the proof, raw-list SHA-256 `51fd57980db14edccb1881dd863c385f3b3e724a71867bde625b892ad1bdcc6f`, proof SHA-256 `3c2ae0a698bf6f57c732259a1c1362bc3d1f97398ab9740ca7419c4faaf9d0a4`, and source fingerprint `b3746ad0042348a64142674d8b9bde669247f88a57e67d774d55804dcfab244b`. Every tracked `0.0.29` byte remained unchanged.
+
+Fresh `npm test`, the exact complete browser chain, all eight direct/real-iframe portrait/landscape DPR1/3 control/canvas contexts, live `3C9D` Flow (`16` obstacles/`16` volumes), production build, dependency, forbidden-production-identity and diff checks passed. Final external dry-pack determinism and exact archive metadata are recorded only on release Bead `jiu` after the committed payload. All linked repos are clean/upstream; the single retained managed server tree and unchanged Tailscale route remain healthy. No npm publish, GitHub Release or public action occurred.
 
 ## Task 4 — Final audit and closure
 
 **Bead:** `aerobeat-web-assembly-95j`
-**Status:** Blocked by Task 3
+**Status:** Ready — release coder PASS; awaiting independent final audit
 
 Audit user decisions, renderer/assembly diffs, physical truth, tests, release metadata, Beads, Git, linked repos and server. Close only on complete PASS. No gameplay/conversion winner or broad visual redesign is part of this iteration.

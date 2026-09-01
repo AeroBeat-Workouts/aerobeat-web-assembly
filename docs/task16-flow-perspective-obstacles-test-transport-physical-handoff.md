@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-31
 
-**Affected releases:** `@aerobeat/web-assembly` `0.0.28` and `0.0.29`
+**Affected releases:** `@aerobeat/web-assembly` `0.0.28`, `0.0.29`, and candidate `0.0.30`
 
 **Retest target:** deterministic `0.0.30` cross-input camera candidate
 
