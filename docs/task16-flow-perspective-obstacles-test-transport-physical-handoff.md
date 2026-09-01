@@ -4,7 +4,7 @@
 
 **Affected release:** `@aerobeat/web-assembly` `0.0.28`
 
-**Retest target:** deterministic `0.0.29` hotfix (release work remains separate)
+**Retest target:** deterministic `0.0.29` hotfix candidate
 
 **Status:** Derrick's physical desktop Flow Visual Test blue-screen observation on `0.0.28` is recorded as Failed and superseded by the audited camera correction; every `0.0.29` physical retest observation below remains Pending.
 

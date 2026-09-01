@@ -147,9 +147,9 @@ Independent closure verification found no remaining QA blocker. The original PID
 ## Task 3 — Deterministic hotfix release
 
 **Bead:** `aerobeat-web-assembly-235`
-**Status:** Ready — Task 2 independent QA PASS; physical `0.0.29` retest remains Pending
+**Status:** Release coder PASS — deterministic `0.0.29` candidate awaiting final audit; physical retest remains Pending
 
-Patch package/lock/index/proof surfaces to `0.0.29`, leave `0.0.28` byte-unchanged, produce repeated byte-identical raw and dry-pack outputs, keep final exact pack metadata external, update the focused physical handoff with this failed `0.0.28` observation and `0.0.29` retest rows Pending, and retain the existing server PID.
+Package/lock/index/README/proof surfaces now agree on `0.0.29`; the intentional raw browser proof is generated under `release/raw/0.0.29` while every tracked `0.0.28` byte remains unchanged. Fresh unit, complete browser, strict eight-context debug-camera canvas evidence, exact live `3C9D` Flow, build, dependency, forbidden-identity, and diff gates pass. Two raw constructions compare recursively byte-for-byte; two post-commit external dry packs compare byte-for-byte. Exact raw/proof/source/size and pack metadata remain only in external release Bead `235`, avoiding self-reference in this packed plan. The focused handoff retains Derrick's `0.0.28` desktop Flow failure as superseded and every `0.0.29` retest as Pending, with no winner. The single managed `dev:tailscale` server tree and tailnet proxy remain retained without restart or duplication.
 
 ## Task 4 — Independent QA/audit and closure
 
