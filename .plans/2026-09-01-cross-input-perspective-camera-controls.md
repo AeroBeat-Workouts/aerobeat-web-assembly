@@ -74,16 +74,14 @@ This iteration changes camera interaction only. Broader graphics/readability wor
 **Implementation Bead:** `aerobeat-web-renderer-vbw`
 **QA Bead:** `aerobeat-web-renderer-jb1`
 **Audit Bead:** `aerobeat-web-renderer-3ik`
-**Status:** Coder PASS at `adda00e`; awaiting independent renderer QA/audit
+**Status:** Complete — implementation/independent QA/final audit PASS; renderer Beads closed
 
-Renderer commit `adda00e3a79554bbfee206e478ea1b127c62e4fd` adds strict `setDebugCameraMovementIntent()` and `setDebugCameraSpeedMode()` APIs, bounded scalar capture/speed/intent telemetry, right-click toggle pointer capture with fallback, two-finger touch toggle plus captured one-finger look, and continuous caller-frame movement. Normal/Boost are `3.5`/`12` units per second with a `100 ms` delta cap. At reset yaw π, W moves +Z and D moves −X; rotated bases, normalization, opposite cancellation, vertical motion, first-frame/pause safety, and all cleanup paths are covered. Unit, complete Chromium, dependency/static/diff and deterministic dry-pack gates pass; exact pack metadata remains external on `vbw`.
-
-Independent renderer QA/audit must pass before assembly consumption.
+Renderer commit `adda00e3a79554bbfee206e478ea1b127c62e4fd` adds strict `setDebugCameraMovementIntent()` and `setDebugCameraSpeedMode()` APIs, bounded scalar capture/speed/intent telemetry, right-click toggle pointer capture with fallback, two-finger touch toggle plus captured one-finger look, and continuous caller-frame movement. Normal/Boost are `3.5`/`12` units per second with a `100 ms` delta cap. At reset yaw π, W moves +Z and D moves −X; rotated bases, normalization, opposite cancellation, vertical motion, first-frame/pause safety, and all cleanup paths are covered. Independent QA `11278d3` and final audit `fb103de` reproduced real pointer-lock/fallback/touch yaw changes, gradual frame-rate-independent movement, camera-relative axes, speed states, gesture rejection, full cleanup, existing scene/camera regressions, complete unit/Chromium gates, and deterministic packages. Renderer `vbw`, `jb1`, and `3ik` are closed; final renderer commit `fb103de71a3cc2e3b90587616d7f37ca61f9c282` is clean/upstream and exact pack metadata remains external.
 
 ## Task 2 — Assembly control panel and policy
 
 **Bead:** `aerobeat-web-assembly-lk4`
-**Status:** Blocked by Task 1 audit
+**Status:** Ready — renderer Task 1 audit PASS
 
 Enable Visual Test debug camera on coarse pointers; replace prose with accessible hold controls and capture/speed state; wire pointer/touch cancellation to renderer intent APIs. Add direct/real-iframe desktop/mobile portrait/landscape DPR coverage without changing scored Play or gameplay truth. Record `0.0.29` camera direction PASS and the remaining control observations accurately; keep `0.0.30` retest Pending.
 
