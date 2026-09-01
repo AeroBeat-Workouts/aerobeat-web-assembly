@@ -210,9 +210,11 @@ Two exact-candidate dry packs and two actual-pack JSON records were all byte-ide
 
 **Physical gate:** `aerobeat-web-assembly-7f9`
 **Physical repair:** `aerobeat-web-assembly-2fw` consuming UI P0 `aerobeat-web-ui-9bd`
-**Status:** Physical Pending for exact corrected `0.0.32`; the failed popover row alone is reset for Derrick retest, every other untested row remains Pending, and `aerobeat-web-assembly-zd0` stays blocked
+**Status:** Corrected `0.0.32` popover default-hidden/icon-toggle row Physical PASS; overall physical gate remains open after new menu and horizontal-handedness failures, every other untested row remains Pending, and `aerobeat-web-assembly-zd0` stays blocked
 
-Derrick found that the `0.0.31` volume panel was physically painted before the icon was pressed and remained painted after logical close. Diagnosis: author `.volume-popover { display: grid }` overrides the browser’s user-agent `[hidden] { display: none }`; prior automation asserted only `hidden`/ARIA state and missed computed rendering. Audited UI source adds the author-level hidden rule, assembly sensitivity proves computed style/geometry through every closure path, and deterministic `0.0.32` is the corrected handoff candidate. The failed popover row is Physical Pending rather than PASS until Derrick retests this exact candidate. A failed observation creates a linked P0 and blocks the PoC. Pending is not PASS.
+Derrick found that the `0.0.31` volume panel was physically painted before the icon was pressed and remained painted after logical close. Diagnosis: author `.volume-popover { display: grid }` overrides the browser’s user-agent `[hidden] { display: none }`; prior automation asserted only `hidden`/ARIA state and missed computed rendering. Audited UI source adds the author-level hidden rule, assembly sensitivity proves computed style/geometry through every closure path, and Derrick physically confirmed the deterministic `0.0.32` correction.
+
+Physical follow-up discovered P0 `aerobeat-web-assembly-nu0` (post-Test/completed-song menu selection and scroll instability) and P0 `aerobeat-web-assembly-aue` (athlete/grid horizontal handedness), plus requested camera authoring feature `aerobeat-web-assembly-jyg`. Diagnosis and proposed execution order live in `.plans/2026-09-01-physical-followup-camera-menu-coordinates.md`, which is DRAFT pending Derrick approval. The gate and PoC remain blocked; Pending is not PASS.
 
 ## Milestone 2 — Local-only `.bloq`/`.plat` conversion PoC
 
