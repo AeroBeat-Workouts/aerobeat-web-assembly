@@ -107,6 +107,10 @@ Add a focused real-browser probe that records right-click entry, release request
 
 Keep a private release-pending flag/state. If locked, request exit and finalize capture/cursor restoration from `pointerlockchange`; if fallback/touch, finalize immediately. Preserve/restore the pre-capture canvas cursor rather than hard-coding a permanent style. Route every cleanup through one idempotent release function.
 
+### QA-discovered late-acquisition correction
+
+Parent sensitivity against coder commit `d75bb1e` reproduced one unsupported race in the first correction: if legacy `requestPointerLock()` returns `undefined`, fallback can exit synchronously before the browser later grants lock. `handleDebugPointerLockChange()` ignored a locked canvas when logical mode was already `none`, leaving `{exitCalls:0, mode:"none", releasePending:false, lockSurvives:true}`. P0 `aerobeat-web-renderer-d7t` now requires stale/late canvas locks to be immediately released and sensitivity-proves the undefined-return path before independent QA resumes.
+
 ### Debug record
 
 ```text
@@ -126,7 +130,7 @@ Remaining uncertainty: Hardware cursor behavior on Derrick's browser/Wayland pat
 **Implementation:** `aerobeat-web-renderer-5ue`
 **QA:** `aerobeat-web-renderer-aiw`
 **Audit:** `aerobeat-web-renderer-kmm`
-**Status:** Coder PASS at renderer `d75bb1e`; independent QA in progress — subagent `0eb9dba0-d429-4b28-9114-3e4c55245f8a`
+**Status:** QA FAIL on renderer `d75bb1e`; P0 `aerobeat-web-renderer-d7t` correction in progress with coder `b9943984-1412-4b67-bc44-7506b7d277cc`; QA `0eb9dba0-d429-4b28-9114-3e4c55245f8a` paused pending fix
 
 Coder diagnoses with the new sensitivity probe, implements one idempotent confirmed-release path, and preserves every existing camera/touch/movement/lifecycle contract. Independent QA and audit must reproduce release ordering and cursor-style sensitivity before assembly consumes the commit.
 
