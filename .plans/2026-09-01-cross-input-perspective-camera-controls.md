@@ -71,10 +71,14 @@ This iteration changes camera interaction only. Broader graphics/readability wor
 
 ## Task 1 — Renderer controls
 
-**Bead:** `aerobeat-web-renderer-vbw`
-**Status:** Ready
+**Implementation Bead:** `aerobeat-web-renderer-vbw`
+**QA Bead:** `aerobeat-web-renderer-jb1`
+**Audit Bead:** `aerobeat-web-renderer-3ik`
+**Status:** Coder PASS at `adda00e`; awaiting independent renderer QA/audit
 
-Implement continuous camera-relative movement, right-click toggle pointer capture, touch capture/look, GUI intent APIs, scalar telemetry and complete cleanup. Add deterministic unit and Chromium proof for basis direction, time integration, diagonal normalization, speed states, pointer/touch gestures and lifecycle. Run independent renderer QA/audit before assembly consumption.
+Renderer commit `adda00e3a79554bbfee206e478ea1b127c62e4fd` adds strict `setDebugCameraMovementIntent()` and `setDebugCameraSpeedMode()` APIs, bounded scalar capture/speed/intent telemetry, right-click toggle pointer capture with fallback, two-finger touch toggle plus captured one-finger look, and continuous caller-frame movement. Normal/Boost are `3.5`/`12` units per second with a `100 ms` delta cap. At reset yaw π, W moves +Z and D moves −X; rotated bases, normalization, opposite cancellation, vertical motion, first-frame/pause safety, and all cleanup paths are covered. Unit, complete Chromium, dependency/static/diff and deterministic dry-pack gates pass; exact pack metadata remains external on `vbw`.
+
+Independent renderer QA/audit must pass before assembly consumption.
 
 ## Task 2 — Assembly control panel and policy
 
