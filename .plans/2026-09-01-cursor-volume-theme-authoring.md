@@ -126,7 +126,7 @@ Remaining uncertainty: Hardware cursor behavior on Derrick's browser/Wayland pat
 **Implementation:** `aerobeat-web-renderer-5ue`
 **QA:** `aerobeat-web-renderer-aiw`
 **Audit:** `aerobeat-web-renderer-kmm`
-**Status:** Ready
+**Status:** Renderer coder in progress — subagent `b9943984-1412-4b67-bc44-7506b7d277cc`
 
 Coder diagnoses with the new sensitivity probe, implements one idempotent confirmed-release path, and preserves every existing camera/touch/movement/lifecycle contract. Independent QA and audit must reproduce release ordering and cursor-style sensitivity before assembly consumes the commit.
 
@@ -135,7 +135,7 @@ Coder diagnoses with the new sensitivity probe, implements one idempotent confir
 **Implementation:** `aerobeat-web-audio-nyz`
 **QA:** `aerobeat-web-audio-m5v`
 **Audit:** `aerobeat-web-audio-18w`
-**Status:** Ready
+**Status:** Audio coder in progress — subagent `cbffabf8-0744-4bf3-8a71-b5dd15725fd7`
 
 Add service-owned Music and future-SFX GainNodes where supported. Music playback connects through Music gain instead of directly to destination. Expose strict bounded scalar mix set/read APIs with defaults `0.5/0.5`; public status/capabilities may expose gain support but not the user's values because assembly publishes audio status externally. Preserve injected-context ownership, source recreation, clock authority, lease/visibility semantics and teardown. Unsupported/fake contexts must degrade truthfully and remain testable.
 
@@ -144,7 +144,7 @@ Add service-owned Music and future-SFX GainNodes where supported. Music playback
 **Implementation:** `aerobeat-web-ui-af3`
 **QA:** `aerobeat-web-ui-4lr`
 **Audit:** `aerobeat-web-ui-8xx`
-**Status:** Ready
+**Status:** UI coder in progress — subagent `2acb3baa-acef-4aab-b514-54be7a077b72`
 
 Extend the strict Visual Test transport snapshot with only Music/Sound scalar values. Emit exact volume intents after UI-side normalization/snap. Own the popover's ephemeral open state without replacing focused sliders during snapshots. Verify layout/accessibility/direct keyboard/touch/reconnect at phone portrait/landscape and DPR without owning audio or persistence.
 
