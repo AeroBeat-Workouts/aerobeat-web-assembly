@@ -1,6 +1,6 @@
 # Cross-Mode Camera Capture Parity
 
-**Status:** P0 `b8z` correction coder PASS — canonical fixture; awaiting independent re-QA `edg`; production unchanged
+**Status:** Complete — independent final audit PASS; production `0.0.30` unchanged; physical retest Pending; art deferred
 **Owner:** assembly orchestrator → regression coder → independent QA → auditor
 **Umbrella Bead:** `aerobeat-web-assembly-81f`
 **QA Bead:** `aerobeat-web-assembly-edg`
@@ -153,9 +153,15 @@ Across both complete eight-context runs, scalar non-background ranges were Flow 
 ## Task 3 — Final audit
 
 **Bead:** `aerobeat-web-assembly-unk`
-**Status:** Ready — Task 2 QA PASS
+**Status:** Complete — independent final audit PASS; `81f` and `unk` closed
 
-Audit source immutability or any justified correction, all high-value gates, Beads/Git/server, `0.0.30` artifact immutability, and physical Pending truth. Close only on PASS.
+The final auditor inspected the exact runtime and evidence boundary. Assembly `debugCameraSnapshot()` is presentation-agnostic, and audited renderer `fb103de` owns one common state machine: right-click enters pointer/fallback capture, a second right-click or Escape exits, captured mouse movement changes pose, two-finger tap enters/exits touch capture, captured one-finger drag changes pose, and caller-frame integration supplies gradual camera-relative movement. No production correction was needed.
+
+The actual-UI regression binds each Flow, Boxing Lanes and Boxing Grid drawer selection to a fresh Test generation, exact presentation, canonical distinct scene signature and the complete control/touch/pause/pixel sequence inside that same session. Canonical Grid hooks match sibling converter source and the independent startup derivation: left row 0 is `2/1/right/[4,5,12,13]`; right row 2 is `9/10/left/[34,35,42,43]`. Weave/squat retain required instantaneous `checkpoint.noseSafeCells`. Speed, debug clock, intents, capture and session generations reset without cross-mode leakage.
+
+Fresh audit runs passed one focused three-mode matrix, one standalone complete eight-context matrix and the matrix inside the exact complete browser chain: `51` actual mode/context executions. Across the two fresh complete matrices, scalar non-background ranges were Flow before `76,029–690,544`, Reset `76,056–686,634`, resume `132,843–670,223`; Boxing Lanes before `44,808–555,703`, Reset `44,816–555,180`, resume `45,157–548,086`; Boxing Grid before `74,825–674,791`, Reset `74,829–673,780`, resume `74,669–670,223`. Every one of the `48` complete-matrix old-yaw controls was exactly zero non-background/all opaque Aero background with `[7,20,38,255]` corner. Renderer fresh Chromium measured real pointer/fallback/touch and gradual movement again, including fallback yaw `0.0625`, touch yaw about `-0.27`, held Z delta about `0.106`, and reset D/right X about `-0.181`.
+
+Fresh assembly `npm test`, complete browser, live `3C9D` Flow (`16` obstacles / `16` volumes), build, dependency, syntax/JSDoc/static, forbidden-production-identity and diff gates passed. Fresh renderer unit/browser/dependency/diff gates passed. Package, lock, source index, production `src/` and raw `release/raw/0.0.30` tree hashes exactly match baseline `ec23869`; all 14 linked repos are clean/upstream. Exactly one retained server tree (`3901811 → 3901822 → 3901823`) serves local `5173` and unchanged tailnet `8443` with HTTP `200`. No version bump, publish or public action occurred. Every physical row remains Pending; deferred art Bead `ubg` remains untouched/open for Derrick's next approved slice.
 
 ## Deferred art slice
 
