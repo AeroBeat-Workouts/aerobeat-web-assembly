@@ -128,7 +128,9 @@ After visual inspection, use **Start** in any presentation. Confirm camera acqui
 
 ## Automated Evidence Boundary
 
-Assembly and renderer gates cover unit/browser suites, exact live Flow obstacle projection, production build, strict debug-camera canvas pixels, desktop pointer/keyboard movement, mobile touch gestures, DOM hold controls, accessibility, and diff hygiene. Task 3 separately owns deterministic raw release construction and final committed-payload dry packing for `0.0.30`; repeated artifacts must compare byte-for-byte. Exact final npm-pack metadata belongs only in the external release Bead because this document is included in the npm payload. Raw release evidence may be recorded externally; the raw browser artifact contains no `.plans/` or `docs/` files and therefore cannot self-reference this checklist.
+Assembly and renderer gates cover unit/browser suites, exact live Flow obstacle projection, production build, strict debug-camera canvas pixels, desktop pointer/keyboard movement, mobile touch gestures, DOM hold controls, accessibility, and diff hygiene. The actual downloaded-song UI matrix additionally iterates Flow, Boxing Lanes, and Boxing Grid inside every direct/real-iframe portrait/landscape DPR1/3 context. Each presentation must independently start a new Test generation, expose distinct representative scene geometry, and repeat right-click/two-finger capture toggle, mouse/touch look, second gesture/Escape exit, gradual camera-relative keyboard/GUI movement, Normal/Boost, Reset, pause/resume cleanup, and opaque private-pixel proof. This automated evidence does not infer a physical PASS.
+
+Task 3 separately owns deterministic raw release construction and final committed-payload dry packing for `0.0.30`; repeated artifacts must compare byte-for-byte. Exact final npm-pack metadata belongs only in the external release Bead because this document is included in the npm payload. Raw release evidence may be recorded externally; the raw browser artifact contains no `.plans/` or `docs/` files and therefore cannot self-reference this checklist.
 
 ## Completion Boundary
 

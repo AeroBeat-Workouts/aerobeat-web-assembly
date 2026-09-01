@@ -1,6 +1,6 @@
 # Cross-Mode Camera Capture Parity
 
-**Status:** Approved diagnostic in progress
+**Status:** Regression coder PASS — unchanged production; awaiting independent QA `edg`
 **Owner:** assembly orchestrator → regression coder → independent QA → auditor
 **Umbrella Bead:** `aerobeat-web-assembly-81f`
 **QA Bead:** `aerobeat-web-assembly-edg`
@@ -125,14 +125,20 @@ Remaining uncertainty: Physical 0.0.30 mode-specific behavior and chart availabi
 ## Task 1 — Sensitive three-mode regression
 
 **Bead:** `aerobeat-web-assembly-81f`
-**Status:** Ready after diagnosis
+**Status:** Coder PASS — sensitive test/docs only; awaiting independent QA `edg`
 
-Implement the smallest test-only actual-UI proof described above. Do not touch production or version/release surfaces unless a reproducible defect is found. Update the physical handoff to record this as automated parity evidence while leaving physical observations Pending.
+The interrupted first coder left one test-only partial conversion in `scripts/validate-product-shell-matrix.js`. Syntax/JSDoc static checks passed, then the required focused `direct:844x390@1` run completed Flow and Boxing Lanes but failed while starting Boxing Grid. Exact diagnostics were `session:"paused_manual"`, `debugCameraEnabled:false`, and `lastError.code:"spatial_target_invalid"` / `"Spatial accepted subcells are invalid"`. The fixture's spatial punches omitted mandatory `acceptedSubcells`, while its weave/squat shapes also used display-only `blockedCells` without the spatial ruleset's required `checkpoint.noseSafeCells`.
+
+This was a regression-fixture defect, not production behavior. The minimal test-only correction supplies canonical bounded accepted subcells/source cells/cardinal directions for grid punches and truthful checkpoint plus blocked-cell data for weave/squat. The focused rerun then started all three actual UI Test sessions in sequence and repeated common capture/look/exit/touch/gradual movement/speed/Reset/pause-resume proof without pointer-lock, debug-clock, speed, intent, or session leakage. Distinct scalar scene signatures were Flow targets at cells `4`/`7` plus obstacle cells `0,4`; Boxing Lanes left/right punches, lane obstacle and guard; and Boxing Grid punches at cells `1`/`10`, blocked rows `2,3,6,7` / `8,9,10,11`, and guard cells `5,6`. Production source and every `0.0.30` version/raw surface remain untouched.
+
+Three complete eight-context executions passed: two standalone matrices plus the matrix inside the exact full browser chain. Each execution started three actual UI Test generations per context, for `72` total presentation/context executions. Every mode repeated right-click pointer/fallback capture, mouse look, second-click and Escape exit, two-finger capture, one-finger look, second two-finger exit, invalid-gesture rejection, held keyboard/DOM camera-relative movement, Normal/Boost, Reset, and pause/resume cleanup without state leakage. The three private-pixel scene signatures remained distinct in every context. Across the final three complete runs, corrected scalar non-background ranges were Flow before `76,029–690,115`, Reset `76,056–688,243`, resume `132,830–670,223`; Boxing Lanes before `44,806–555,827`, Reset `44,816–555,014`, resume `45,123–548,086`; Boxing Grid before `74,825–677,958`, Reset `74,829–677,525`, resume `74,669–670,223`. All `72` old-yaw controls were exactly zero non-background, fully opaque Aero background with corner `[7,20,38,255]`.
+
+Fresh `npm test`, exact complete `npm run test:browser`, live `3C9D` Flow (`16` obstacles / `16` volumes), production build, `npm ls --all`, forbidden production identity search, syntax/JSDoc/static and `git diff --check` passed. Only expected PlayCanvas worker externalization and chunk-size warnings remained. All 14 linked repos are clean/upstream; renderer is unchanged at `fb103de`; exactly one server tree remains healthy on local `5173` and unchanged tailnet `8443`. Diff scope is only this plan, the physical handoff and the product-shell test. Production source, README, dependency, package/lock/index, version and every raw `0.0.30` byte remain untouched. The handoff records automated parity only; every physical observation remains Pending.
 
 ## Task 2 — Independent QA
 
 **Bead:** `aerobeat-web-assembly-edg`
-**Status:** Blocked by Task 1
+**Status:** Ready — coder regression and full gates PASS
 
 Independently inspect the evidence boundary, reproduce all three modes and reject any test that only composes separate control and presentation assertions.
 
