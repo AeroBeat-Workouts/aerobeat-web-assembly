@@ -150,7 +150,7 @@ Add service-owned Music and future-SFX GainNodes where supported. Music playback
 **Implementation:** `aerobeat-web-ui-af3`
 **QA:** `aerobeat-web-ui-4lr`
 **Audit:** `aerobeat-web-ui-8xx`
-**Status:** Coder `3ac371f` QA FAIL; P0 correction PASS `2186523`; independent QA resumed — subagent `c4d91c7a-3d6f-4757-9530-be5389cf6712`
+**Status:** Coder `3ac371f` QA FAIL; P0 correction PASS `2186523`; independent QA PASS; audit in progress — subagent `b635824e-adc3-45e3-bc22-93a815bd936c`
 
 Extend the strict Visual Test transport snapshot with only Music/Sound scalar values. Emit exact volume intents after UI-side normalization/snap. Own the popover's ephemeral open state without replacing focused sliders during snapshots. Verify layout/accessibility/direct keyboard/touch/reconnect at phone portrait/landscape and DPR without owning audio or persistence.
 
