@@ -124,7 +124,7 @@ The correction initializes and resets stored debug yaw to `Math.PI` and applies 
 **Implementation Bead:** `aerobeat-web-assembly-ft7`
 **QA Bead:** `aerobeat-web-assembly-614`
 **QA correction Bead:** `aerobeat-web-assembly-656`
-**Status:** Automated correction QA PASS; `656` closed; Task 2 closure blocked only by missing retained server Bead `aerobeat-web-assembly-f3v`
+**Status:** Complete — independent correction QA PASS; `614`, `656`, and `f3v` closed; Task 3 ready
 
 Consume immutable audited renderer commit `3cfbbe431ba5907831ceac15c26b0fdc7e2ceac2` and add active Test displayed-pixel proof across start, pause/menu-open, resume, Reset, all presentations, direct/iframe portrait/landscape DPR1/3, and existing terminal replay/lifecycle/privacy matrices.
 
@@ -140,12 +140,14 @@ Independent QA correctly rejected the initial negative-control evidence because 
 
 The corrected scalar validator requires renderer/canvas/sample dimensions and DPR agreement, complete pixel partitioning, full opaque composite output, positive exact-background pixels, an opaque `[7,20,38,255]` corner, and old-yaw-zero exactly all background. A startup self-test deliberately supplies a transparent invalidated sample and proves rejection. Two standalone eight-context matrices plus the matrix inside the complete browser chain passed: every old-yaw sample was exactly zero non-background with all pixels opaque background, while every corrected before-input/Reset/resume state retained substantial gameplay pixels. Fresh `npm test`, complete browser, live Flow, build, dependency, static, and diff gates passed; only expected PlayCanvas worker externalization/chunk warnings remained. No production, dependency, version, release, or server behavior changed.
 
-Independent correction QA repeated both standalone matrices and the entire gate chain at `29ce631`. Every DPR1 sample contained exactly `329,160` opaque composite pixels; DPR3 correctly honored the renderer DPR2 cap with exactly `1,316,640`. Every old-yaw sample was exactly all background, corrected before-input counts ranged `76,029–690,182`, Reset-next-frame `76,056–686,835`, and resume `76,153–670,374`, and the deliberate invalid sample was rejected. P0 correction `656` is closed. During final boundary verification QA discovered that required retained `dev:tailscale` PID `2972964` had exited: no local `:5173` process accepts connections and the unchanged Tailscale `:8443` proxy returns HTTP `502`. Operational P0 `aerobeat-web-assembly-f3v` blocks QA `614`; QA did not restart or duplicate the server, so Task 3 remains blocked despite complete automated product evidence.
+Independent correction QA repeated both standalone matrices and the entire gate chain at `29ce631`. Every DPR1 sample contained exactly `329,160` opaque composite pixels; DPR3 correctly honored the renderer DPR2 cap with exactly `1,316,640`. Every old-yaw sample was exactly all background, corrected before-input counts ranged `76,029–690,182`, Reset-next-frame `76,056–686,835`, and resume `76,153–670,374`, and the deliberate invalid sample was rejected. P0 correction `656` is closed. During final boundary verification QA discovered that required retained `dev:tailscale` PID `2972964` had exited: no local `:5173` process accepted connections and the unchanged Tailscale `:8443` proxy returned HTTP `502`. Operational P0 `aerobeat-web-assembly-f3v` recorded that boundary without treating it as a product defect.
+
+Independent closure verification found no remaining QA blocker. The original PID and its parent had vanished externally and no exit/OOM record remained, so exact PID continuity could not be preserved. After confirming no duplicate process, `f3v` restored exactly one approved managed process tree (`npm` PID `3901811` → shell PID `3901822` → Vite PID `3901823`) on the unchanged Tailscale proxy. Exactly one listener owns `127.0.0.1:5173`; both local `:5173` and tailnet `:8443` return HTTP `200`. Assembly QA evidence remains clean/upstream at `df3b29e`, renderer `3cfbbe4` and UI `3bf327f` remain clean/upstream, all `0.0.28` package/lock/index/proof and raw artifacts remain unchanged, the historic `0.0.28` physical result remains Failed/superseded, and every `0.0.29` physical retest remains Pending with no winner. QA Bead `614` is closed PASS and release Bead `235` is ready.
 
 ## Task 3 — Deterministic hotfix release
 
 **Bead:** `aerobeat-web-assembly-235`
-**Status:** Blocked by Task 2 QA
+**Status:** Ready — Task 2 independent QA PASS; physical `0.0.29` retest remains Pending
 
 Patch package/lock/index/proof surfaces to `0.0.29`, leave `0.0.28` byte-unchanged, produce repeated byte-identical raw and dry-pack outputs, keep final exact pack metadata external, update the focused physical handoff with this failed `0.0.28` observation and `0.0.29` retest rows Pending, and retain the existing server PID.
 
