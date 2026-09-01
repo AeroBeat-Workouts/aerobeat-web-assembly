@@ -194,4 +194,4 @@ After the PoC review, create package-specific Beads for Theme manifest contracts
 - Preserve direct/real iframe, portrait/landscape, DPR1/3, fine/coarse pointer, all three presentations, terminal replay, exact 4×3 timing/duration/scoring/privacy/lifecycle/context recovery.
 - Store no raw media, pixels, screenshots, pointer histories or asset bytes in public snapshots/events.
 - All linked repositories clean/upstream at each gate; package dry-pack metadata external when packed docs would perturb it.
-- Keep current `dev:tailscale` server tree unless it disappears; do not duplicate it.
+- The previously retained `dev:tailscale` PID tree (`3901811`/`3901822`/`3901823`) disappeared before assembly integration; local `5173` and tailnet `8443` both returned connection failure on 2026-09-01. Do not duplicate it. Start exactly one managed replacement only when assembly implementation/browser validation needs it, then verify both exact URLs.
