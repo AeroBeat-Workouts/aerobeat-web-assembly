@@ -81,17 +81,19 @@ Renderer commit `adda00e3a79554bbfee206e478ea1b127c62e4fd` adds strict `setDebug
 ## Task 2 — Assembly control panel and policy
 
 **Bead:** `aerobeat-web-assembly-lk4`
-**Status:** Coder PASS — awaiting independent assembly QA `3aw`
+**Status:** Complete — coder and independent assembly QA `3aw` PASS
 
 Assembly replaces the former help prose with one compact, safe-area-aware GUI containing six accessible 44 px minimum hold controls, Normal/Boost, Reset, and bounded capture/speed/active-intent state. Visual Test enables the audited renderer camera on fine and coarse input; scored Play remains fixed. Pointer down/capture and every up/cancel/lost-capture/departure, menu, transport pause, hidden, disconnect/reconnect and destroy path clear DOM and renderer intents. Right-click toggle/Escape/fallback and two-finger toggle/captured one-finger look remain renderer-owned.
 
 Coder validation passed `npm test`, the complete browser chain, all eight direct/real-iframe portrait/landscape DPR1/3 shell and cursor contexts, live `3C9D` Flow (`16` obstacles/`16` volumes), production build, dependency/static/diff checks, linked-repo checks, server checks and `0.0.29` immutability. UI proof requires exactly Forward/Back/Up/Speed/Left/Right/Down/Reset labels, no help paragraph/prose, 44 px minimum controls, no menu/transport overlap, camera-relative held W/A/D, DOM pointer capture/release, `0.35` normal and `1.2` boost movement per 100 ms, real pointer/fallback yaw change and exit, touch capture/look plus invalid-gesture rejection, and complete lifecycle cleanup. Strict renderer-boundary canvas proof remains valid in every context: old yaw is exactly zero non-background/all opaque Aero background while corrected states remain substantial. The physical handoff records `0.0.29` direction PASS and mouse/A-D/step observations Failed/superseded; every `0.0.30` row is Pending with no winner.
 
+Independent QA at candidate `5d171be10682b2b25030f8f988363e17c89a9851` inspected the full `3dbf483..5d171be` diff and ran two standalone shell matrices plus the matrix inside the complete browser chain. All eight direct/real-iframe portrait/landscape DPR1/3 contexts passed exact GUI inventory, minimum size, safe-area/no-overlap, real pointer capture/fallback look and exit, gradual held keyboard and DOM movement, camera-relative A/D, Normal/Boost rate, touch toggle/look/rejection, menu/pause/hidden/reconnect/destroy cleanup, scored isolation, privacy and lifecycle checks. Final complete canvas evidence measured `76,042–690,182` corrected pixels before input, `76,088–688,365` after Reset and `76,170–680,178` after resume; every forced old-yaw sample was exactly zero non-background with a fully opaque Aero background and `[7,20,38,255]` corner. Fresh unit/static, complete browser, live Flow, build, dependency, forbidden-identity and diff gates passed. Package/lock/index/raw `0.0.29` remained unchanged; all linked repos and the retained server were clean/healthy.
+
 ## Task 3 — Independent QA and deterministic release
 
 **QA Bead:** `aerobeat-web-assembly-3aw`
 **Release Bead:** `aerobeat-web-assembly-jiu`
-**Status:** QA `3aw` ready; deterministic release remains blocked by QA
+**Status:** Independent QA `3aw` PASS; deterministic release `jiu` Ready
 
 Independently verify real capture/look and held movement, UI accessibility, touch gestures, lifecycle cleanup, presentations and regression matrices. Patch to deterministic `0.0.30`, keep `0.0.29` and earlier releases unchanged, compare two raw builds and two final packs byte-for-byte, retain the one managed Tailscale server tree, and keep physical observations Pending.
 
