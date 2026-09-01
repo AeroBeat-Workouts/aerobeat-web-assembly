@@ -130,7 +130,7 @@ Remaining uncertainty: Hardware cursor behavior on Derrick's browser/Wayland pat
 **Implementation:** `aerobeat-web-renderer-5ue`
 **QA:** `aerobeat-web-renderer-aiw`
 **Audit:** `aerobeat-web-renderer-kmm`
-**Status:** Original coder `d75bb1e` QA FAIL; P0 `aerobeat-web-renderer-d7t` correction coder PASS at `ad5d5f1`; independent QA resumed — subagent `0eb9dba0-d429-4b28-9114-3e4c55245f8a`
+**Status:** Original coder `d75bb1e` QA FAIL; P0 correction PASS `ad5d5f1`; QA PASS `e4cee4c`; independent audit in progress — subagent `0424a0c6-dd84-4e07-b83f-7fdd2e03944c`
 
 Coder diagnoses with the new sensitivity probe, implements one idempotent confirmed-release path, and preserves every existing camera/touch/movement/lifecycle contract. Independent QA and audit must reproduce release ordering and cursor-style sensitivity before assembly consumes the commit.
 
