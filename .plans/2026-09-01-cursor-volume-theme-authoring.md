@@ -132,7 +132,7 @@ Remaining uncertainty: Hardware cursor behavior on Derrick's browser/Wayland pat
 **Implementation:** `aerobeat-web-renderer-5ue`
 **QA:** `aerobeat-web-renderer-aiw`
 **Audit:** `aerobeat-web-renderer-kmm`
-**Status:** Audit FAIL at `e4cee4c`; P0 correction coder PASS `bef3e5d`; QA PASS `508d9c7`; final audit resumed — subagent `0424a0c6-dd84-4e07-b83f-7fdd2e03944c`
+**Status:** AUDITED PASS — production corrections through `bef3e5d`, QA `508d9c7`, audit/ledger closure `b50bcb5`; Beads `5ue`/`d7t`/`4w1`/`aiw`/`kmm` closed; hardware cursor Physical Pending
 
 Coder diagnoses with the new sensitivity probe, implements one idempotent confirmed-release path, and preserves every existing camera/touch/movement/lifecycle contract. Independent QA and audit must reproduce release ordering and cursor-style sensitivity before assembly consumes the commit.
 
@@ -162,7 +162,7 @@ QA found one deterministic-normalization defect in `3ac371f`: binary division ma
 **QA:** `aerobeat-web-assembly-9rh`
 **Release:** `aerobeat-web-assembly-nl4`
 **Final audit:** `aerobeat-web-assembly-es1`
-**Status:** Read-only integration map complete; audio/UI audited, implementation remains blocked only by renderer final audit
+**Status:** All three package audits PASS; assembly coder in progress — subagent `f5b9d707-1d2b-4012-aac4-df95aaa33bc1`
 
 Assembly stores the exact plain-data `{musicVolume,sfxVolume}` pair under origin-local key `aerobeat.audio-mix.v1`, defaults safely to `0.5/0.5`, applies it to every fresh graph before playback through the audio service instance methods `getMixSnapshot()` / `setMix()`, persists UI changes, and keeps values private from snapshots/iframe events. A module-local coordinator owns same-document subscribers; the browser `storage` event synchronizes same-origin iframe/document realms. Storage denial/corruption fails closed to in-memory defaults without blocking playback; disconnect unsubscribes without retaining components. Test actual Music gain continuity across Test/Play, seek, pause, lease transfer, hidden/reconnect and multiple instances; Sound is bounded state only until SFX exists. Integrate audited cursor renderer and prove physical-path exit state/style across Flow/Lanes/Grid. Preserve the complete existing matrix.
 
