@@ -284,13 +284,18 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Final independent audit PASS at `cfd37f8`: critical self-test/syntax/diff/tree/status gates pass; no source/raw/lockfile mutation exists; `6fc`, `r39`, `nji`, `qmc`, `cf1`, `1wu`, and `nme` are closed with final comments and Dolt-pushed. No missing evidence or linked defect remains.
 - Managed local job `bash-5` serves `release/raw/0.0.33` directly on `127.0.0.1:5173`, with no rebuild. Root and proof return HTTP `200`; served index/proof hashes equal local audited bytes; proof reports version `0.0.33` and source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`.
 
-### Task 4 — Apply reviewed camera default and physical retest
+### Task 4 — Apply reviewed camera default, add local loading, and physically retest (`2c6`, `7f9`)
 
-- After Derrick supplies/approves the artifact, replace the single renderer-owned default with those exact reviewed values.
+**Status:** ARTIFACT REVIEW PASS / IMPLEMENTATION AUTHORIZED — Derrick physically passed left/right orientation and explicitly requested the reviewed pose become the shared default plus a local JSON Load workflow.
+
+- Reviewed `/home/derrick/Downloads/aerobeat-gameplay-camera-pose.v1.json` through the renderer's strict normalizer and canonical serializer: schema/conventions/bounds PASS; canonical byte match; `478` bytes; SHA-256 `b04663252307ae8be9ba0f0f542a88f6660b6bc09fbe88c658f098b103b67bee`.
+- Apply the exact reviewed position `{x:0.05,y:1,z:5}`, Euler `{xPitch:0,yYaw:0,zRoll:0}`, and unchanged projection `{verticalFovDegrees:48,nearClip:0.1,farClip:80}` as the single renderer-owned default used across Flow, Boxing Lanes, and Boxing Grid.
+- Add a Visual-Test-only local `Load camera pose` action. It opens a child-local JSON file picker, parses strict schema v1 JSON, normalizes it through renderer authority, releases capture/movement input, applies it only to the live debug camera, and permits continued mouse/keyboard/touch fine tuning and deterministic re-export.
+- Loading must not persist, upload, publish, bridge, emit, expose in snapshots/telemetry, or silently change production defaults. Only a separately reviewed source commit can lock a loaded pose into defaults.
 - Re-run renderer/assembly QA and audit, then build an immutable successor candidate.
-- Derrick physically verifies menu selection/scroll, handedness, cursor roles, one shared camera pose, and remaining audio/cursor rows.
-- Close physical gate `7f9` only on Derrick PASS.
-- Keep asset PoC `zd0` blocked until that closure.
+- Derrick physically verifies menu selection/scroll, the shared camera pose, and load→fine-tune→export behavior. Handedness is already physically PASS.
+- Close physical gate `7f9` only on Derrick's remaining physical PASS.
+- Bloq/platform-conversion PoC `zd0` is closed as explicitly discarded. Replacement handcrafted 3D visual/environment direction is proposed separately in `.plans/2026-09-02-handcrafted-3d-gameplay-visuals-and-environment.md` under `k72`; do not implement until separately approved.
 
 ## Required validation
 
@@ -305,5 +310,5 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 - This plan requires Derrick approval before implementation.
 - Internal source edits, tests, commits, pushes, local immutable build artifacts, and one managed local playtest server are authorized only after approval.
-- No npm publish, GitHub Release/repository creation, upload, public publication, third-party acquisition/redistribution, asset PoC, or Theme runtime work without separate approval.
-- Stop after exporting the candidate camera artifact for Derrick review; do not silently apply an authored pose.
+- No npm publish, GitHub Release/repository creation, upload, public publication, third-party acquisition/redistribution, model/environment implementation, Gaussian-splat work, or Theme runtime work without separate approval.
+- Derrick's canonical artifact review and exact default application are now explicit. Local debug loading may alter only the active Test camera; never lock a later loaded pose into production defaults without Derrick naming and approving that artifact.

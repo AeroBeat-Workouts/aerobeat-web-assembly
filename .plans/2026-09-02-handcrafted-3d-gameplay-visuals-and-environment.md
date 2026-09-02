@@ -1,0 +1,74 @@
+# Handcrafted 3D Gameplay Visuals and Environment
+
+**Status:** PROPOSED — direction supplied by Derrick on 2026-09-02; implementation awaits explicit plan approval
+**Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
+**Planning Bead:** `aerobeat-web-assembly-k72`
+**Supersedes:** closed bloq/platform-conversion PoC `aerobeat-web-assembly-zd0`
+
+## Goal
+
+Replace the discarded block/background conversion direction with jointly authored, rights-clean 3D gameplay models, a perspective-defining track, and one locally owned test environment. Preserve PlayCanvas as the single runtime renderer and keep all assets self-contained.
+
+## Approved visual direction to plan
+
+- **Directional note:** DDR-style 3D arrow with a white outline treatment, shared by Flow and Boxing.
+- **Any note:** circular 3D note with the same coherent visual language.
+- **Guard:** one shield model reused identically for left/right hands in the two nearby cells; role color/material distinguishes side rather than separate geometry.
+- **Wall obstacle:** semi-transparent red rectangular volume. In Flow its world-Z length must span the complete authoritative obstacle interval rather than appearing as a short temporary slab.
+- **Bomb:** black sea-urchin silhouette—a sphere with sharp cone spines—with red emissive glow/outline signaling avoidance.
+- **Track:** semi-transparent blue-tinted glass surface below the athlete and event lanes, extending through the visible approach path so camera perspective and beat travel are immediately legible.
+- **Test environment:** use the already-owned local GLB at `/home/derrick/.dsh/projects/aerobeat/aerobeat-environment-community/.testbed/assets/models/alien-moon-icescape/alien-moon-icescape.glb` with its sibling transform config. Do not acquire or redistribute third-party assets.
+- **Future environments:** locally owned Gaussian splats remain a later explicitly approved experiment, not part of this first implementation.
+
+## Constraints
+
+- Handcrafted/model-generation work must be reviewed visually by Derrick before runtime integration.
+- Use one canonical asset per semantic role where specified; do not duplicate left/right shield geometry.
+- White outlines must remain visible against the ice environment and transparent track without breaking depth ordering or alpha.
+- Translucent walls and track must retain truthful depth, interval length, and gameplay visibility.
+- Preserve role colors, handedness, timing, scoring, event IDs, camera conventions, privacy, and public contracts.
+- No Theme runtime, network asset fetch, public release, upload, third-party acquisition, or Gaussian-splat integration in this slice.
+
+## Proposed tasks
+
+### Task 1 — Author visual specifications and review renders
+
+- Define dimensions, pivots, forward axes, materials, outline technique, polygon/texture budgets, and collision-free render bounds for arrow, circle, shield, wall, bomb, and track.
+- Produce neutral and in-context review renders before integration.
+- Derrick approves silhouettes/materials before Task 2.
+
+### Task 2 — Create canonical self-contained model assets
+
+- Generate or model the arrow, circle, shield, and bomb geometry.
+- Author red translucent wall and blue glass track materials.
+- Normalize transforms and deterministic source/export files.
+- Record provenance and rights ownership for every new asset.
+
+### Task 3 — Add renderer-owned 3D asset contract
+
+- Load canonical local assets through the renderer without introducing runtime network dependencies.
+- Map Flow and Boxing directional events to the shared arrow, directionless events to the circle, guard cells to the shared shield, obstacles to interval-sized walls, and bombs to the urchin model.
+- Keep fallback behavior explicit and testable during development; remove obsolete production sprite/block paths when landing.
+
+### Task 4 — Correct full-length Flow walls and add the glass track
+
+- Derive wall center and world-Z scale from authoritative `centerTimestampMs → endTimestampMs` interval truth.
+- Add a stable blue-glass approach track below the athlete/grid and through the visible timeline depth.
+- Validate sorting, clipping, transparency, and perspective at supported viewports/DPRs.
+
+### Task 5 — Integrate alien moon ice test environment
+
+- Import the local GLB and sibling transform config as a self-contained test background.
+- Establish camera/environment/track framing without changing gameplay coordinates.
+- Keep environment selection and lifecycle teardown deterministic.
+
+### Task 6 — QA, audit, and physical review
+
+- Unit/model tests for semantic mapping, reuse, full obstacle length, transforms, and deterministic manifests.
+- Chromium direct/iframe portrait/landscape DPR matrix for depth, alpha, outlines, handedness, and full-length walls.
+- Visual evidence for Flow, Boxing Lanes, and Boxing Grid.
+- Derrick physical review before immutable successor release work.
+
+## Approval gate
+
+This plan records the replacement direction only. Do not begin model generation or runtime integration until Derrick explicitly approves this plan or a narrowed first task.
