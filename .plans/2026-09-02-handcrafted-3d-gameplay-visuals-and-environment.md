@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 REVISION RE-QA PASS — repaired spec/boards ready for k72.6 audit; Tasks 2–6 remain unapproved
+**Status:** TASK 1 REVISED REVIEW READY — DERRICK APPROVAL REQUIRED
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -130,3 +130,12 @@ Derrick approved Task 1 only, after the camera-loader successor is ready, and on
 - Cross-checked the complete specification and manifest: right-handed `+Y`-up/local `−Z`-forward coordinates, fixed review camera, dimensions, pivots, materials, bounds, depth/occlusion, budgets, reuse rules, clarified state semantics, rights/provenance, and exact review-only/non-runtime boundary remain explicit and coherent.
 - Independently decoded both boards as nonempty RGB PNGs at exactly `1600 × 900`; the review directory contains exactly those two PNGs plus `manifest.json`. Manifest SHA-256 values reproduce exactly: neutral `3aa318ef432a8678dcb87e59b4df81299537b96081d8e3b9695acff9be7b229f`; gameplay context `e8bf7d79b6ed3a5ef66e1f03f1809677cf2c16c735f017553d8ab34960de63ee`. JSON parsing and `git diff --check` passed.
 - QA Bead `aerobeat-web-assembly-k72.5` closed PASS. This re-QA does **not** approve visuals for Derrick, does not authorize or touch Tasks 2–6, and leaves `k72.6` plus the parent visual-review/approval gate open.
+
+## Task 1 revision final independent audit — PASS (2026-09-02)
+
+- Audited the required linear chain at exact commits: requirements `8a8b2d575216f72576a490e62344e742a88fe0b7`, revision `ab150be14e6efc8375d8494ab54b9a7eb780e9ca`, diagnosis `41a9e07979b88c6ab2a579c9bdef05faa90fae16`, repair `f6e4ac3283cdfe8f304ec408f8e5e6e72f61f47e`, and re-QA `e94eceea201748261ced321c89d3b3a785d68aa5`. Before audit metadata, fetched `origin/main` exactly matched the clean re-QA commit.
+- Independently inspected the complete specification, both native `1600 × 900` boards, revision-3 manifest, layout diagnostic/repair record, revised Bead chain, and cumulative Git scope. Both boards are readable and collision-free and visibly show one canonical shield model/icon as two simultaneous identical instances, truthful-depth nose/left-wrist/right-wrist 3D spheres, red/yellow/green rows, white success-area core tint with silhouette retained, `80 ms` resolved-beat removal, and threshold-positioned same-height `Great` in white plus `Miss` in red with a white outline and `350 ms` total lifetime.
+- Confirmed the six canonical roles remain visible and labeled, all headings/callouts/footer copy are unique, contained, non-overlapping, and readable, and the specification/manifest preserve coordinate, camera, dimensions, pivots, material, bounds, depth/occlusion, budget, provenance, and review-only/non-runtime constraints.
+- Independently reproduced the exact three-file review inventory, RGB dimensions, JSON parse, and SHA-256 values: neutral `3aa318ef432a8678dcb87e59b4df81299537b96081d8e3b9695acff9be7b229f`; gameplay context `e8bf7d79b6ed3a5ef66e1f03f1809677cf2c16c735f017553d8ab34960de63ee`. Cumulative `git diff --check` passed.
+- The audited chain changes only plan/Beads metadata, the Task 1 specification, two PNG review boards, their manifest, and the layout diagnostic. No runtime, model, mesh, GLB, texture, environment, release, or Tasks 2–6 implementation changed.
+- Task 1 is revised-review ready only. This audit does **not** approve the visuals for Derrick and does **not** authorize Tasks 2–6. Audit Bead `aerobeat-web-assembly-k72.6` closes PASS; parent `aerobeat-web-assembly-k72` remains open/in progress pending Derrick's visual approval.
