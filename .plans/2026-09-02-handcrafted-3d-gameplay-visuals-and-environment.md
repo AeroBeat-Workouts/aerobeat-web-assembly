@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 REVISED REVIEW READY — DERRICK APPROVAL REQUIRED
+**Status:** TASK 1 COMPLETE AND DERRICK-APPROVED — STOPPED AT GATE; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -139,3 +139,9 @@ Derrick approved Task 1 only, after the camera-loader successor is ready, and on
 - Independently reproduced the exact three-file review inventory, RGB dimensions, JSON parse, and SHA-256 values: neutral `3aa318ef432a8678dcb87e59b4df81299537b96081d8e3b9695acff9be7b229f`; gameplay context `e8bf7d79b6ed3a5ef66e1f03f1809677cf2c16c735f017553d8ab34960de63ee`. Cumulative `git diff --check` passed.
 - The audited chain changes only plan/Beads metadata, the Task 1 specification, two PNG review boards, their manifest, and the layout diagnostic. No runtime, model, mesh, GLB, texture, environment, release, or Tasks 2–6 implementation changed.
 - Task 1 is revised-review ready only. This audit does **not** approve the visuals for Derrick and does **not** authorize Tasks 2–6. Audit Bead `aerobeat-web-assembly-k72.6` closes PASS; parent `aerobeat-web-assembly-k72` remains open/in progress pending Derrick's visual approval.
+
+## Derrick Task 1 visual approval — PASS (2026-09-02)
+
+- Derrick explicitly approved the revised Task 1 visual direction after reviewing the collision-free neutral and gameplay-context boards.
+- Approved scope includes the six canonical 3D role designs, simultaneous identical dual-shield instances, 3D nose/wrist spheres, red/yellow/green timing rows, white success-area beat tint, and short-lived threshold-positioned `Great`/`Miss` feedback exactly as specified.
+- This approval completes Task 1 review only. Work remains stopped at the approval gate: Tasks 2–6, runtime integration, model/GLB/environment creation, release work, publication, and external acquisition remain unapproved.
