@@ -5,7 +5,7 @@
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
 **Task 1 revision chain:** coder `aerobeat-web-assembly-k72.4` → QA `aerobeat-web-assembly-k72.5` → audit `aerobeat-web-assembly-k72.6`
-**Task 2 asset chain:** coder `aerobeat-web-assembly-k72.8` → QA `aerobeat-web-assembly-k72.9` → audit `aerobeat-web-assembly-k72.10`
+**Task 2 asset chain:** coder `aerobeat-web-assembly-k72.8` → QA `aerobeat-web-assembly-k72.9` → audit `aerobeat-web-assembly-k72.10` → Derrick 3D review gate `aerobeat-web-assembly-k72.18`
 **Task 3 renderer chain:** coder `aerobeat-web-assembly-k72.11` → QA `aerobeat-web-assembly-k72.12`
 **Tasks 4–5 assembly chain:** coder `aerobeat-web-assembly-k72.13` → matrix QA `aerobeat-web-assembly-k72.14` → final audit `aerobeat-web-assembly-k72.15`
 **Task 6 release chain:** release `aerobeat-web-assembly-k72.16` → physical gate `aerobeat-web-assembly-k72.17`
@@ -166,5 +166,6 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 
 - Derrick explicitly approved the full remaining plan: Task 2 asset creation, Task 3 renderer integration, Tasks 4–5 track/wall/environment integration, and Task 6 QA/audit/release/physical review.
 - Derrick explicitly authorized creation of the public GitHub repository `AeroBeat-Workouts/aerobeat-asset-gameplay`. GitHub read-back confirmed it exists with `PUBLIC` visibility at `https://github.com/AeroBeat-Workouts/aerobeat-asset-gameplay`; its local checkout is `/home/derrick/.dsh/projects/aerobeat/aerobeat-asset-gameplay`.
-- Execution Bead graph: asset coder `k72.8` → asset QA `k72.9` → asset audit `k72.10` → renderer coder `k72.11` → renderer QA `k72.12` → assembly/environment coder `k72.13` → cross-mode matrix QA `k72.14` → final audit `k72.15` → immutable release `k72.16` → Derrick physical gate `k72.17`.
-- Local inspection found Blender absent and Ubuntu candidate `4.0.2+dfsg-1ubuntu8`; Derrick explicitly offered temporary sudo for required installation, `sudo -n` succeeded, and managed job `bash-11` began installing Blender. No third-party art acquisition is authorized.
+- Execution Bead graph: asset coder `k72.8` → asset QA `k72.9` → asset audit `k72.10` → Derrick 3D asset review `k72.18` → renderer coder `k72.11` → renderer QA `k72.12` → assembly/environment coder `k72.13` → cross-mode matrix QA `k72.14` → final audit `k72.15` → immutable release `k72.16` → Derrick physical gate `k72.17`.
+- Local inspection found Blender absent and Ubuntu candidate `4.0.2+dfsg-1ubuntu8`; Derrick explicitly offered temporary sudo for required installation, `sudo -n` succeeded, and managed job `bash-11` installed Blender `4.0.2+dfsg-1ubuntu8` successfully. No third-party art acquisition is authorized.
+- Research architect subagent `b26fd796-601f-4120-9477-d134d554fd73` launched and was verified running to recommend the cross-engine source/export/validation pipeline. The added Derrick 3D review gate `k72.18` now blocks renderer integration `k72.11`, preserving the requirement that real model renders be visually approved before Task 3.
