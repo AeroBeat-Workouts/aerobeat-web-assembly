@@ -192,7 +192,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** PACK-POLICY P0 `aerobeat-web-assembly-cf1` CODER PASS / INDEPENDENT QA IN PROGRESS — subagent `1bc06c3a-af7a-4b1f-a983-d7879193f81f`; fail-open defects repaired; normalized identity remains exact; `cf1`, `1wu`, and `nme` remain in_progress; audit/server blocked
+**Status:** PACK-POLICY QA FAIL / P0 `aerobeat-web-assembly-qmc` DIAGNOSED — the parser validates selected decoded semantics rather than the complete canonical npm header/package/wrapper grammar; coder repair pending; `qmc`, `cf1`, `1wu`, and `nme` remain open; audit/server blocked
 
 - Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
 - Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
@@ -232,6 +232,12 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Fresh validation PASS: `npm run test:release-pack-policy`; `npm test`; `npm ls --all` with declared optional absences only; both Node syntax checks; and `git diff --check`.
 - One fresh normalized detached exact-`55f4088` pack and strict verification reproduce authoritative SHA-256 identities unchanged: JSON `cbbdb639a9a091b946b2764988e3c34daf57c882fa511919a93c295fc99da65c`; tgz `e2746b16168c03b056e628e66e33ea687bd3ad6db8b45b505c43069ebbc7dcf6`; decompressed tar `939693741365c836abd9e7f1279c9888f4bf03c9e809347094da69d3b44e7c97`; manifest `ca299ccaaceb12edfc00c1811cf86c89a77b96c46a30c849b4ee5a952d94b957`. The strict verifier reports `97×0644`, zero PAX, exactly two terminal zero blocks, and no trailing bytes. The candidate worktree remained clean/detached, and `git diff 55f4088..HEAD -- release/raw/0.0.33` remained empty.
 - No release rebuild/version/server/publish/upload/GitHub Release/pose/PoC/Theme/asset action occurred. Keep `cf1`, `1wu`, and `nme` in_progress for independent QA/audit.
+
+#### Numeric-field QA failure and full-grammar diagnosis — P0 `qmc`
+
+- QA proved four malformed mode/size/checksum fields pass because `readTarNumber()` truncates at NUL and uses partial `Number.parseInt(..., 8)`. Broader read-only diagnosis confirmed that recomputed-checksum mutations of base-256 numbers and every ignored header field also pass, as do noncanonical type/path splits, empty/subset/reordered packages, and altered/concatenated/trailing gzip wrappers.
+- Root cause is broader than numeric parsing: the custom verifier checks selected decoded semantics instead of one complete raw npm `10.9.8` archive grammar. The synthetic checksum fixture is also reversed (`NUL+SPACE`) relative to npm’s canonical `SPACE+NUL`, which prior permissive parsing masked.
+- Repair contract: derive the complete expected npm regular-file membership/order from required npm metadata; canonicalize Git/npm modes; reject base-256/PAX/non-file entries; construct and byte-compare every full 512-byte USTAR header including fixed portable metadata, canonical path split, pinned mtime, checksum, padding and terminator; require archive size/shasum/integrity and one canonical gzip member/EOF. Use BigInt and re-encoding for any numeric helper. Add one-byte-per-field, numeric, membership/order, and gzip-wrapper mutation matrices before rerunning the two-worktree proof.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 
