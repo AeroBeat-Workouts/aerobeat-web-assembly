@@ -161,7 +161,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 ### Task 3 — Export deterministic camera pose (`jyg`)
 
 **Dependency:** audited `aue` source repair PASS; physical webcam confirmation remains in `7f9`.
-**Status:** Coder in progress — subagent `f715b097-18ca-4a52-9616-5cb241a374a0`
+**Status:** Coder PASS — renderer `b1f6627`, assembly `c2d36f4`; pushed for independent QA/audit; `jyg` remains `in_progress`
 
 - Claim `jyg`.
 - Create one strict renderer-owned pose module/default and remove duplicated fixed/debug defaults.
@@ -171,6 +171,15 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Coder → independent QA → independent audit.
 - Produce a new immutable local release/playtest for Derrick. Derrick authors and returns the JSON artifact.
 - Stop for explicit artifact review before committing authored default values.
+
+#### Task 3 coder results — 2026-09-02
+
+- Renderer commit `b1f6627` adds one strict private camera-pose module/default for `aerobeat/gameplay_camera_pose` v1. Fixed play, debug initialization, Reset, attach/reconnect, and all projection settings now use the same canonical Euler pose; the approximate `lookAt` target and duplicated position/yaw/pitch defaults are gone. The unchanged migrated default is position `(0,3.15,7.8)`, Euler `(-7.448451,0,0)`, projection `(48,0.1,80)` on `playcanvas_world/right_handed/+Y/local_-Z/world_-Z`.
+- Validation rejects hostile prototypes, accessors without invoking them, symbols, extras, non-finite values, every documented bound, nonzero roll, schema/version/convention mismatches, and invalid clip order. Canonicalization rounds to six decimals, normalizes yaw to `[-180,180)`, removes negative zero, freezes nested data/byte arrays, preserves fixed key order/two-space/LF/trailing-newline JSON, reapplies the canonical pose to the PlayCanvas entity before returning, and produces repeated byte-identical exports.
+- Assembly commit `c2d36f4` adds the assembly-owned `Export camera pose` action beside Reset. The named button is at least 44px, shares active-playing Visual Test visibility/enabled policy, accepts only a trusted click/keyboard gesture, releases GUI and renderer authoring input, then performs a child-local Blob/object-URL/hidden-anchor download with stable filename/MIME and immediate removal/revocation. No UI package, iframe bridge, storage, event, snapshot, telemetry, release, server, authored default, Theme, PoC, asset, or publication path changed.
+- Renderer coder gates PASS: `npm test`; exact `npm run test:browser` including handedness and camera control regressions; two byte-identical `npm pack --dry-run --json` results (`37,765` packed / `128,784` unpacked / `17` files); `npm ls --all`; and `git diff --check`. Browser proof covers unsafe export rejection, canonical entity reapplication, fixed/debug Reset parity, Flow/Lanes/Grid identity, context recovery/reconnect/detach/destroy, and absence from `describe()`.
+- Assembly coder gates PASS: `npm test`; exact full `npm run test:browser`; all eight direct/real-iframe portrait/landscape DPR1/3 contexts at fine/coarse pointer policy and each Flow/Lanes/Grid mode; `npm run build`; `npm run test:v4-integration`; live `npm run test:live-flow-obstacles` (`3C9D`, 16 obstacles/16 volumes); `npm ls --all`; component/import/console/privacy/forbidden/static checks; two byte-identical dry packs; and `git diff --check`. Every context/mode produced the same 488-byte artifact SHA-256 `55ea553d68c40fc56e448a9ae21f741bfebbe4f04de48861ac32a5a09238c01a`; tests also prove trusted-gesture rejection for synthetic clicks, Blob MIME/size, hidden connected anchor name, URL revocation, cleared intents, and no pose/artifact bytes in storage, game snapshot, renderer describe/telemetry, or bridge/event-bearing public state.
+- Coder boundary: no replacement pose was authored or applied, no runtime import/persistence was added, and no version/release or server replacement was performed. Independent QA/audit and Derrick artifact authoring/review remain required before Task 4.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 
