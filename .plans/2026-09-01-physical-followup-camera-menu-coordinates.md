@@ -326,8 +326,8 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Replaced the managed `0.0.33` server only after final audit PASS. Managed job `bash-6` now serves exact `release/raw/0.0.34` on `http://127.0.0.1:5173/`; prior job `bash-5` exited by requested `SIGTERM`.
 - HTTP read-back PASS: served index SHA-256 `9e273e3b885177128c66176466ec5b92ceb9afb28c2a94eafc4aed7eb11b9923` exactly matches tracked raw; served proof SHA-256 `46ca87869bae0016639277832520eec48031532c5ab509a2cfca36f8fc3d12a2` exactly matches tracked raw and reports `proofVersion: 0.0.34`, source fingerprint `2d85d3179324ba1d126f54884e3a9a610d7d6114ff81c31286fc074a19f1fed3`, and `minified: false`.
 
-- Derrick physically verifies menu selection/scroll, the shared camera pose, and load→fine-tune→export behavior. Handedness is already physically PASS.
-- Close physical gate `7f9` only on Derrick's remaining physical PASS.
+- **Derrick physical PASS — 2026-09-02.** On the exact served audited `0.0.34`, Derrick passed menu selection/scroll stability, the reviewed shared default camera pose, and private local Load→fine-tune→Export behavior. Handedness was already physically PASS.
+- Physical gate `7f9` is closed. The camera follow-up release gate is complete; only separately approved Task 1 of the handcrafted 3D visual plan may begin.
 - Bloq/platform-conversion PoC `zd0` is closed as explicitly discarded. Replacement handcrafted 3D visual/environment direction is proposed separately in `.plans/2026-09-02-handcrafted-3d-gameplay-visuals-and-environment.md` under `k72`; do not implement until separately approved.
 
 ## Required validation
