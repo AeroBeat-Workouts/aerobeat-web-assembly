@@ -206,7 +206,8 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 - Independent QA reproduced both cleared raw builds and tracked raw `0.0.33` exactly, and proved every older release unchanged.
 - Two dry and two actual packs from isolated exact candidate `55f4088` agree with each other but not the coder’s claimed authoritative pack identity. QA observed metadata JSON SHA-256 `7866e5ffc719b40a0a37c1037a819ae33d83c0e9373a0e543a70bb0a390d1232`, `408,630` packed bytes, npm shasum `a20a3e1bb5fe60f249bc345b9f6399f70e4aa485`, integrity `sha512-a1Kjtb0KtwGvw2298Z1Pg5s+Gp+GORUw7iM01E6NO+WVHzerV+StMTCimmGExZZCBgOZVxUeA7NR6e0KA6Giaw==`, and archive SHA-256 `21c7585528668bbc4ea5a269a7ee188aa0a9179c69546d2bc300853bc91885f3`; file count `97` and unpacked bytes `1,462,194` match.
-- Linked P0 `aerobeat-web-assembly-1wu` requires a concrete tar/gzip/toolchain/input diagnosis and reproducible corrected evidence. QA correctly stopped before claiming the remaining release gates.
+- Linked P0 `aerobeat-web-assembly-1wu` confirmed the cause: npm portable tar preserves source permission distinctions Git does not track. Coder packed `71×0600 + 26×0644`; fresh QA packed `97×0600`. All 97 member bytes/paths/order/sizes/mtimes/owners and gzip headers match; only 26 tar mode/checksum headers differ, and mode replay reproduces both identities exactly.
+- Corrective policy is Git-index-derived mode normalization in two fresh exact-commit worktrees (`100644→0644`, `100755→0755`) before pack, plus asserted path/mode/size/content manifests and tar/PAX checks. This will supersede both host-specific identities without changing candidate `55f4088` or raw `0.0.33`. QA correctly stopped before claiming remaining release gates.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 
