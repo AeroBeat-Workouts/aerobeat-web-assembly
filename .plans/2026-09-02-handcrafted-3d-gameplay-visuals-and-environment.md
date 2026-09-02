@@ -1,10 +1,14 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 COMPLETE AND DERRICK-APPROVED — STOPPED AT GATE; Tasks 2–6 remain unapproved
+**Status:** TASKS 2–6 APPROVED — CROSS-REPO EXECUTION IN PROGRESS
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
 **Task 1 revision chain:** coder `aerobeat-web-assembly-k72.4` → QA `aerobeat-web-assembly-k72.5` → audit `aerobeat-web-assembly-k72.6`
+**Task 2 asset chain:** coder `aerobeat-web-assembly-k72.8` → QA `aerobeat-web-assembly-k72.9` → audit `aerobeat-web-assembly-k72.10`
+**Task 3 renderer chain:** coder `aerobeat-web-assembly-k72.11` → QA `aerobeat-web-assembly-k72.12`
+**Tasks 4–5 assembly chain:** coder `aerobeat-web-assembly-k72.13` → matrix QA `aerobeat-web-assembly-k72.14` → final audit `aerobeat-web-assembly-k72.15`
+**Task 6 release chain:** release `aerobeat-web-assembly-k72.16` → physical gate `aerobeat-web-assembly-k72.17`
 **Supersedes:** closed bloq/platform-conversion PoC `aerobeat-web-assembly-zd0`
 
 ## Goal
@@ -117,7 +121,7 @@ Replace the discarded block/background conversion direction with jointly authore
 
 ## Approval gate
 
-Derrick approved Task 1 only, after the camera-loader successor is ready, and on 2026-09-02 requested a Task 1 revision covering simultaneous dual-shield display, 3D nose/wrist spheres, colored timing rows, white success-area beat tint, and short-lived world-space `Great`/`Miss` feedback. Task 1 may specify and render-review these proposed geometry/material/feedback behaviors but must not create landing-ready runtime assets or integrate them. Tasks 2–6 require separate approval.
+Derrick approved Task 1 after the camera-loader successor was ready and approved its revised visual package on 2026-09-02. Derrick then explicitly approved Tasks 2–6 and explicitly authorized creation of the **public** `AeroBeat-Workouts/aerobeat-asset-gameplay` GitHub repository. The asset repository must remain cross-engine; if concrete web-specific payload becomes necessary, use a separately approved `aerobeat-web-asset-gameplay` repo instead. Temporary sudo was offered only if a required local tool installation needs it. This approval does not authorize third-party asset acquisition, Gaussian splats, unrelated feature work, package publication, or GitHub Releases beyond the planned repository/commits.
 
 ## Task 1 revision coder result (2026-09-02)
 
