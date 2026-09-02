@@ -1,9 +1,10 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 REVIEW READY — DERRICK APPROVAL REQUIRED
+**Status:** TASK 1 REVISION IN PROGRESS — Derrick supplied clarified guard, athlete-marker, timing-tint, and world-feedback requirements; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
-**Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
+**Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
+**Task 1 revision chain:** coder `aerobeat-web-assembly-k72.4` → QA `aerobeat-web-assembly-k72.5` → audit `aerobeat-web-assembly-k72.6`
 **Supersedes:** closed bloq/platform-conversion PoC `aerobeat-web-assembly-zd0`
 
 ## Goal
@@ -14,7 +15,10 @@ Replace the discarded block/background conversion direction with jointly authore
 
 - **Directional note:** DDR-style 3D arrow with a white outline treatment, shared by Flow and Boxing.
 - **Any note:** circular 3D note with the same coherent visual language.
-- **Guard:** one shield model reused identically for left/right hands in the two nearby cells; role color/material distinguishes side rather than separate geometry.
+- **Guard:** one canonical shield model/icon reused identically for both hands. A guard beat displays two simultaneous instances—one in each applicable left/right grid cell or lane—so both hands see the same shield at once. “Shared” means shared geometry/icon identity, not a single displayed instance; do not distinguish the two shields with separate geometry.
+- **Athlete markers:** replace flat 2D-looking nose and wrist circles with full 3D spheres placed at the truthful nose/wrist world positions. Preserve existing role colors and occlusion/depth behavior.
+- **Timing rows and beat tint:** keep the near-athlete grid rows colored red/yellow/green. As an approaching beat enters the success area, tint its 3D model white to communicate timing without replacing its silhouette.
+- **Hit/miss feedback:** on threshold resolution, remove the beat quickly and spawn short-lived world-space text at the beat’s crossing position and height. Successful hits show `Great` in white; misses show `Miss` in red with a white outline. Feedback must remain only briefly and must not distract or obscure later beats.
 - **Wall obstacle:** semi-transparent red rectangular volume. In Flow its world-Z length must span the complete authoritative obstacle interval rather than appearing as a short temporary slab.
 - **Bomb:** black sea-urchin silhouette—a sphere with sharp cone spines—with red emissive glow/outline signaling avoidance.
 - **Track:** semi-transparent blue-tinted glass surface below the athlete and event lanes, extending through the visible approach path so camera perspective and beat travel are immediately legible.
@@ -75,14 +79,16 @@ Replace the discarded block/background conversion direction with jointly authore
 ### Task 3 — Add renderer-owned 3D asset contract
 
 - Load canonical local assets through the renderer without introducing runtime network dependencies.
-- Map Flow and Boxing directional events to the shared arrow, directionless events to the circle, guard cells to the shared shield, obstacles to interval-sized walls, and bombs to the urchin model.
+- Map Flow and Boxing directional events to the shared arrow, directionless events to the circle, each guard event to two simultaneous instances of the one canonical shield in both applicable cells/lanes, obstacles to interval-sized walls, and bombs to the urchin model.
+- Replace flat-looking nose/wrist markers with depth-correct 3D spheres; add success-area white beat tint and threshold-positioned short-lived `Great`/`Miss` world feedback without changing timing/scoring truth.
 - Keep fallback behavior explicit and testable during development; remove obsolete production sprite/block paths when landing.
 
 ### Task 4 — Correct full-length Flow walls and add the glass track
 
 - Derive wall center and world-Z scale from authoritative `centerTimestampMs → endTimestampMs` interval truth.
 - Add a stable blue-glass approach track below the athlete/grid and through the visible timeline depth.
-- Validate sorting, clipping, transparency, and perspective at supported viewports/DPRs.
+- Preserve red/yellow/green near-athlete row bands while ensuring the white success-area beat tint remains distinct from the white-outlined track and environment.
+- Validate sorting, clipping, transparency, perspective, 3D athlete-marker occlusion, and short-lived feedback readability at supported viewports/DPRs.
 
 ### Task 5 — Integrate alien moon ice test environment
 
@@ -99,4 +105,4 @@ Replace the discarded block/background conversion direction with jointly authore
 
 ## Approval gate
 
-Derrick approved Task 1 only, after the camera-loader successor is ready. Task 1 may specify and render-review the proposed geometry/materials but must not create landing-ready runtime assets or integrate them. Tasks 2–6 require separate approval.
+Derrick approved Task 1 only, after the camera-loader successor is ready, and on 2026-09-02 requested a Task 1 revision covering simultaneous dual-shield display, 3D nose/wrist spheres, colored timing rows, white success-area beat tint, and short-lived world-space `Great`/`Miss` feedback. Task 1 may specify and render-review these proposed geometry/material/feedback behaviors but must not create landing-ready runtime assets or integrate them. Tasks 2–6 require separate approval.
