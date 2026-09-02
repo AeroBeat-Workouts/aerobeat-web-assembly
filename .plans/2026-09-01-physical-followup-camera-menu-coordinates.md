@@ -300,7 +300,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 #### Immutable camera-loader successor `0.0.34` coder result — 2026-09-02
 
-- **CODER PASS; immutable release payload commit `d80a55769f31ed2c87f42b30774cb1f87f65ca35` pushed; independent release QA/audit remain open under `khx`/`sfs`.** Started from clean pushed assembly `4a4bcd36e9d692d7ef61fe80ea99b4d975b46a0b` with linked renderer clean/pushed at audited `75dc6f23310646bd38c12f31d7830206db5ab38e`. Claimed only `6n2`; `khx`, `sfs`, `7f9`, and cadence reliability bug `4fo` remain open.
+- **CODER PASS; immutable release payload commit `d80a55785f94e74cd6ecb306d3e60c9cfe7f9627` pushed; independent release QA/audit remain open under `khx`/`sfs`.** Started from clean pushed assembly `4a4bcd36e9d692d7ef61fe80ea99b4d975b46a0b` with linked renderer clean/pushed at audited `75dc6f23310646bd38c12f31d7830206db5ab38e`. Claimed only `6n2`; `khx`, `sfs`, `7f9`, and cadence reliability bug `4fo` remain open.
 - Before versioning, captured every tracked byte/path/Git mode/filesystem mode through raw `0.0.33`: `114` files / `79,791,684` bytes, complete TSV manifest SHA-256 `1616f96396f21572ef8e99108495bfa63290bdad0db4cd0ce6be8193621150cc`. Every working byte was also checked against its exact tracked Git blob. The post-build manifest is byte-identical, proving all raw `0.0.33` and older paths, bytes, and modes unchanged.
 - Ran canonical `npm run version:patch` exactly once. `package.json`, root and package-root `package-lock.json`, and the index release marker are exactly `0.0.34`; no other version path changed.
 - Explicitly removed only `release/raw/0.0.34` before each of two `npm run build-release` rounds. Round 1, round 2, and the retained canonical tree are byte/path/mode-identical: `13` files / `11,565,989` bytes, complete relative-path/mode/size/content-SHA-256 inventory hash `79dac2e656c7db271ef12a4d4a3766c13e091f786f90fb7f02f33a92b0a30f78`, `11,564,623` pre-proof bytes, proof SHA-256 `46ca87869bae0016639277832520eec48031532c5ab509a2cfca36f8fc3d12a2`, and source fingerprint `2d85d3179324ba1d126f54884e3a9a610d7d6114ff81c31286fc074a19f1fed3`.
@@ -320,6 +320,11 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 - **FINAL AUDIT PASS.** Authoritative payload commit is `d80a55785f94e74cd6ecb306d3e60c9cfe7f9627`; the prior audit's sole FAIL came from a mistyped full SHA supplied in the chat prompt, not a repository defect. The corrected commit exists and is the direct ancestor of QA candidate `6957f42e94e2c5716d89bc3479828320b8deda6a`, which is the direct ancestor of QA metadata `4c6689382b56379f2118486522c4e56077c6101a`.
 - `release/raw` and every `0.0.26`–`0.0.34` Git tree ID are identical through `4c66893`. Both retained QA TGZs independently hash to `fd4f89f541f08c975807bce733d2d55197ccb30bd0e14a1c7bc3815bab3e2cf9`; tracked `0.0.34` proof SHA-256 is `46ca87869bae0016639277832520eec48031532c5ab509a2cfca36f8fc3d12a2`. No genuine defect or linked follow-up exists; `sfs` is closed while physical gate `7f9` and cadence bug `4fo` remain open and separate.
+
+#### Audited successor serving handoff — 2026-09-02
+
+- Replaced the managed `0.0.33` server only after final audit PASS. Managed job `bash-6` now serves exact `release/raw/0.0.34` on `http://127.0.0.1:5173/`; prior job `bash-5` exited by requested `SIGTERM`.
+- HTTP read-back PASS: served index SHA-256 `9e273e3b885177128c66176466ec5b92ceb9afb28c2a94eafc4aed7eb11b9923` exactly matches tracked raw; served proof SHA-256 `46ca87869bae0016639277832520eec48031532c5ab509a2cfca36f8fc3d12a2` exactly matches tracked raw and reports `proofVersion: 0.0.34`, source fingerprint `2d85d3179324ba1d126f54884e3a9a610d7d6114ff81c31286fc074a19f1fed3`, and `minified: false`.
 
 - Derrick physically verifies menu selection/scroll, the shared camera pose, and load→fine-tune→export behavior. Handedness is already physically PASS.
 - Close physical gate `7f9` only on Derrick's remaining physical PASS.
