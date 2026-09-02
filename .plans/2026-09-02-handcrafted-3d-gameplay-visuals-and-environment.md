@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 REVISION CODER COMPLETE — revised spec/boards ready for k72.5 QA and k72.6 audit; Tasks 2–6 remain unapproved
+**Status:** TASK 1 REVISION RE-QA PASS — repaired spec/boards ready for k72.6 audit; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -121,3 +121,12 @@ Derrick approved Task 1 only, after the camera-loader successor is ready, and on
 - Mechanical scope, image, manifest, and hash checks passed, but native-resolution visual inspection found clipped/overlapping neutral-board A/C headings and white-tint annotation, plus overlapping or duplicated gameplay-context row, dual-shield, world-text, and white-tint labels.
 - Root cause is fixed text placement without measured bounds/exclusive annotation zones; coverage-only validation did not detect presentation collisions. Diagnostic `.plans/debug/2026-09-02-task1-review-board-layout.md` records the full analysis.
 - Repair Bead `aerobeat-web-assembly-k72.7` blocks reopened QA `k72.5`. Regenerate only the two review PNGs and manifest using measured/wrapped text, unique callouts, and reserved row/footer zones; specification semantics and all runtime/model/environment files remain untouched.
+
+## Task 1 revision independent re-QA — PASS (2026-09-02)
+
+- Re-QA inspected exact repair commit `f6e4ac3283cdfe8f304ec408f8e5e6e72f61f47e`; before QA metadata, fetched `origin/main` exactly matched the clean repair commit. Its scope is limited to the two review PNGs, `manifest.json`, the layout diagnostic result, and Beads metadata. No specification, runtime, model, mesh, GLB, texture, environment, release, or Tasks 2–6 implementation file changed.
+- Independently inspected both complete boards at native `1600 × 900`. Every prior defect is gone: neutral A/C headings and the white-core annotation are fully contained; gameplay RED, GREEN / SUCCESS, dual-shield, world-text, and white-success-tint labels are separated; duplicate callouts are removed; headings, labels, callouts, and footer copy are unique, contained, non-overlapping, and readable.
+- Both boards retain visible coverage of all six canonical roles: directional arrow, any-note circle, one canonical shared shield model/icon shown as two simultaneous identical instances, full interval wall, spiny bomb, and glass track. They also visibly retain truthful-depth nose/left-wrist/right-wrist spheres, red/yellow/green timing rows, white success-area core tint with silhouette retained, resolved-beat disappearance in `80 ms`, and same-height `Great` / outlined `Miss` world text with `350 ms` total lifetime.
+- Cross-checked the complete specification and manifest: right-handed `+Y`-up/local `−Z`-forward coordinates, fixed review camera, dimensions, pivots, materials, bounds, depth/occlusion, budgets, reuse rules, clarified state semantics, rights/provenance, and exact review-only/non-runtime boundary remain explicit and coherent.
+- Independently decoded both boards as nonempty RGB PNGs at exactly `1600 × 900`; the review directory contains exactly those two PNGs plus `manifest.json`. Manifest SHA-256 values reproduce exactly: neutral `3aa318ef432a8678dcb87e59b4df81299537b96081d8e3b9695acff9be7b229f`; gameplay context `e8bf7d79b6ed3a5ef66e1f03f1809677cf2c16c735f017553d8ab34960de63ee`. JSON parsing and `git diff --check` passed.
+- QA Bead `aerobeat-web-assembly-k72.5` closed PASS. This re-QA does **not** approve visuals for Derrick, does not authorize or touch Tasks 2–6, and leaves `k72.6` plus the parent visual-review/approval gate open.
