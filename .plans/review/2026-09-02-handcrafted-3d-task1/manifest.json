@@ -1,0 +1,33 @@
+{
+  "schema": "aerobeat/handcrafted-3d-task1-review-manifest",
+  "version": 1,
+  "camera": {
+    "position": [0.05, 1, 5],
+    "euler": [0, 0, 0],
+    "verticalFovDegrees": 48
+  },
+  "boards": [
+    {
+      "file": "neutral-board.png",
+      "label": "Neutral Board",
+      "dimensions": {
+        "width": 1600,
+        "height": 900
+      },
+      "mode": "RGB",
+      "sha256": "f5c5f6879ed18bcf007d5f6b4c721ff65d4f55e528db44e93f3189f054ed42ca"
+    },
+    {
+      "file": "gameplay-context-board.png",
+      "label": "Gameplay Context Board",
+      "dimensions": {
+        "width": 1600,
+        "height": 900
+      },
+      "mode": "RGB",
+      "sha256": "47eade8a7b160b34fdbffb027b71c067db0d1f97f82e51917cde738d2ddfb1da"
+    }
+  ],
+  "rightsAndProvenance": "Original AeroBeat/Gambit Games review artwork generated locally and deterministically with Python 3 and Pillow from vector primitives and pseudo-3D shading. No third-party model, mesh, GLB, texture, environment image, logo, or acquired asset was imported or redistributed. The gameplay-context background is an original abstract ice-toned field made only from gradients and polygons.",
+  "nonRuntimeDisclaimer": "These PNG boards are visual-review evidence only. They are not runtime assets, textures, model sheets, meshes, collision geometry, GLBs, environment assets, or implementation inputs, and they must not be shipped or loaded by the game runtime."
+}

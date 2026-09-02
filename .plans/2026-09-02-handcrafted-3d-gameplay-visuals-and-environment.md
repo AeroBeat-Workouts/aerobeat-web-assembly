@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 IN PROGRESS — audited camera-loader successor `0.0.34` passed Derrick's physical gate on 2026-09-02; Tasks 2–6 remain unapproved
+**Status:** TASK 1 CODER COMPLETE — specification and review boards authored; QA/audit and Derrick visual approval remain; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -37,6 +37,15 @@ Replace the discarded block/background conversion direction with jointly authore
 - Define dimensions, pivots, forward axes, materials, outline technique, polygon/texture budgets, and collision-free render bounds for arrow, circle, shield, wall, bomb, and track.
 - Produce neutral and in-context review renders before integration.
 - Derrick approves silhouettes/materials before Task 2.
+
+**Task 1 results (2026-09-02):**
+
+- Authored `docs/handcrafted-3d-visual-spec-v1.md` with exact role dimensions, pivots, +Y-up/local−Z-forward convention, materials, outline/depth/transparency rules, polygon/texture budgets, collision-free render bounds, reuse constraints, and acceptance criteria.
+- Produced exactly two labeled deterministic `1600 × 900` RGB PNG review boards in `.plans/review/2026-09-02-handcrafted-3d-task1/`. Both visibly cover directional arrow, any-note circle, the one shared shield, full interval wall, spiny bomb, and glass track.
+- Gameplay context uses only locally drawn abstract ice-toned gradients/polygons; it does not import the owned alien-moon environment or any other environment asset.
+- Recorded dimensions, SHA-256 hashes, rights/provenance, non-runtime disclaimer, and review camera in `manifest.json`. The boards are review evidence only and no generator, model, mesh, GLB, texture, or runtime code is retained in the repository.
+- Validation passed: both PNGs are nonempty RGB `1600 × 900`, manifest hashes reproduce, directory contains exactly the two PNGs plus manifest, JSON parses, and `git diff --check` passes.
+- Coder Bead `aerobeat-web-assembly-k72.1` completed; visual approval remains the gate before Task 2, and Tasks 2–6 remain untouched/unapproved.
 
 ### Task 2 — Create canonical self-contained model assets
 
