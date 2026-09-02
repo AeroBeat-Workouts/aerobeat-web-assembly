@@ -192,7 +192,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** PACK-POLICY P0 `aerobeat-web-assembly-nji` CODER PASS / INDEPENDENT QA IN PROGRESS — subagent `54d9c581-cc4e-4173-b3e8-c228ce520ede`; caller metadata removed as authority; verifier internally derives pinned npm truth; normalized identity unchanged; `nji`, `qmc`, `cf1`, `1wu`, and `nme` remain open; audit/server blocked
+**Status:** PACK-POLICY QA FAIL / P0 `aerobeat-web-assembly-r39` DIAGNOSED — internal npm provenance is repaired, but version/dry-pack subprocesses have no finite liveness bound; timeout coder pending; `r39`, `nji`, `qmc`, `cf1`, `1wu`, and `nme` remain open; audit/server blocked
 
 - Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
 - Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
@@ -259,6 +259,12 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - The internally derived one-record metadata is now the sole package inventory and size/SHA-1/SHA-512 authority. The target is rechecked clean and mode-exact after derivation; the dry run may not write an archive. Caller `--metadata` rejects as an unknown option. Archive/manifest paths resolve outside target/canonical aliases, and cleanup requires the exact owned temporary root.
 - Regressions reject the exact canonical one-file subset plus matching self-authored metadata, empty/reordered joint pairs, `PATH` npm substitution, hostile `TMPDIR`/npm config, lifecycle attempts, Node/npm version mismatch, npm command failure, stdout/stderr noise, empty/extra malformed JSON, and protected archive/manifest aliases. Complete canonical gzip/USTAR, mode/bin, target, CLI, and prior P0 protections remain.
 - Fresh gates PASS: `npm run test:release-pack-policy`; `npm test`; `npm ls --all` with only declared optional absences; both Node syntax checks; `git diff --check`. Two fresh differently-moded detached exact-`55f4088` worktrees normalized to `214×0644`; all eight dry/actual JSON files remain `cbbdb639a9a091b946b2764988e3c34daf57c882fa511919a93c295fc99da65c`, all four tgz files remain `e2746b16168c03b056e628e66e33ea687bd3ad6db8b45b505c43069ebbc7dcf6`, tar remains `939693741365c836abd9e7f1279c9888f4bf03c9e809347094da69d3b44e7c97`, and manifests remain `ca299ccaaceb12edfc00c1811cf86c89a77b96c46a30c849b4ee5a952d94b957` with `97×0644`, zero PAX. Raw/candidate bytes are unchanged.
+
+#### Internal npm liveness QA failure — P0 `r39`
+
+- QA supplied an exact-version fake pinned npm CLI that hangs during dry-pack. `runPinnedNpm()` has no finite timeout, so verification remained blocked until an external three-second watchdog killed it with exit `124`; cleanup and later fail-closed checks were unreachable.
+- Root cause and the completed debug-skill analysis are recorded in `docs/task22-release-pack-npm-timeout-debug.md`.
+- Repair contract: both version and dry-pack calls use documented finite operation-specific process-group deadlines with TERM/KILL escalation and distinct timeout errors; tests must prove no child/descendant leftovers, target invariants, owned-temp cleanup, and preservation of all earlier trust/grammar protections and authoritative package identity.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 
