@@ -5,9 +5,13 @@ import { chmodSync, lstatSync, readFileSync, realpathSync, writeFileSync } from 
 import { gunzipSync } from "node:zlib";
 import { dirname, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
+import { TextDecoder } from "node:util";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const TAR_BLOCK_SIZE = 512;
+const TAR_TERMINATOR_SIZE = TAR_BLOCK_SIZE * 2;
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
 const EXPECTED_FILESYSTEM_MODES = new Map([
   ["100644", 0o644],
   ["100755", 0o755]
@@ -61,13 +65,13 @@ export function verifyArchive(target, expectedCommit, archivePath, manifestPath)
   const rows = [];
 
   for (const member of members) {
-    if (member.type === "pax") throw new Error(`PAX member is forbidden: ${member.path || "<global>"}`);
+    assertSafeNpmMemberPath(member.path);
+    if (member.type === "pax") throw new Error(`PAX member is forbidden: ${member.path}`);
     if (member.type === "directory") {
       if (member.mode !== 0o755) throw new Error(`Directory ${member.path} has mode ${formatMode(member.mode)}, expected 0755`);
       continue;
     }
     if (member.type !== "file") throw new Error(`Unsupported npm tar member type ${member.type} at ${member.path}`);
-    if (!member.path.startsWith("package/") || member.path === "package/") throw new Error(`Unsafe npm member path ${member.path}`);
     const sourcePath = member.path.slice("package/".length);
     if (seen.has(sourcePath)) throw new Error(`Duplicate npm member ${sourcePath}`);
     seen.add(sourcePath);
@@ -168,21 +172,42 @@ function summarizeTarget(context) {
 
 /** @param {Buffer} tar */
 function parseTar(tar) {
+  if (tar.length < TAR_TERMINATOR_SIZE) throw new Error("Truncated tar: missing canonical two-block end-of-archive terminator");
+  if (tar.length % TAR_BLOCK_SIZE !== 0) throw new Error(`Malformed tar length ${tar.length}: expected exact 512-byte block framing`);
+
   const members = [];
   let offset = 0;
-  while (offset + 512 <= tar.length) {
-    const header = tar.subarray(offset, offset + 512);
-    if (header.every((byte) => byte === 0)) break;
+  while (true) {
+    if (offset + TAR_BLOCK_SIZE > tar.length) throw new Error("Truncated tar: missing canonical two-block end-of-archive terminator");
+    const header = tar.subarray(offset, offset + TAR_BLOCK_SIZE);
+    if (isZeroBlock(header)) {
+      if (offset + TAR_TERMINATOR_SIZE > tar.length || !isZeroBlock(tar.subarray(offset + TAR_BLOCK_SIZE, offset + TAR_TERMINATOR_SIZE))) {
+        throw new Error(`Truncated tar terminator at byte ${offset}: expected two consecutive zero blocks`);
+      }
+      if (offset + TAR_TERMINATOR_SIZE !== tar.length) {
+        const trailing = tar.subarray(offset + TAR_TERMINATOR_SIZE);
+        if (trailing.every((byte) => byte === 0)) throw new Error(`Non-canonical extra zero padding after tar terminator at byte ${offset + TAR_TERMINATOR_SIZE}`);
+        throw new Error(`Nonzero trailing data after tar terminator at byte ${offset + TAR_TERMINATOR_SIZE}`);
+      }
+      return members;
+    }
+
     verifyTarChecksum(header, offset);
-    const name = readTarString(header, 0, 100);
-    const prefix = readTarString(header, 345, 155);
+    const name = readTarPathField(header, 0, 100, "name", offset, false);
+    const prefix = readTarPathField(header, 345, 155, "prefix", offset, true);
     const path = prefix ? `${prefix}/${name}` : name;
+    assertSafeNpmMemberPath(path);
     const mode = readTarNumber(header, 100, 8);
     const size = readTarNumber(header, 124, 12);
+    if (!Number.isSafeInteger(mode) || mode < 0 || !Number.isSafeInteger(size) || size < 0) {
+      throw new Error(`Invalid tar mode or size at byte ${offset}`);
+    }
     const typeFlag = header[156];
-    const contentStart = offset + 512;
+    const contentStart = offset + TAR_BLOCK_SIZE;
     const contentEnd = contentStart + size;
-    if (contentEnd > tar.length) throw new Error(`Truncated tar member ${path}`);
+    const nextOffset = contentStart + Math.ceil(size / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
+    if (contentEnd > tar.length || nextOffset > tar.length) throw new Error(`Truncated tar member ${path}`);
+    if (!tar.subarray(contentEnd, nextOffset).every((byte) => byte === 0)) throw new Error(`Nonzero tar member padding at ${path}`);
     const content = tar.subarray(contentStart, contentEnd);
     let type;
     if (typeFlag === 0 || typeFlag === 48) type = "file";
@@ -190,9 +215,13 @@ function parseTar(tar) {
     else if (typeFlag === 120 || typeFlag === 103) type = "pax";
     else type = `type-${String.fromCharCode(typeFlag)}`;
     members.push({ path, mode, size, content, type });
-    offset = contentStart + Math.ceil(size / 512) * 512;
+    offset = nextOffset;
   }
-  return members;
+}
+
+/** @param {Buffer} block */
+function isZeroBlock(block) {
+  return block.length === TAR_BLOCK_SIZE && block.every((byte) => byte === 0);
 }
 
 /** @param {Buffer} header @param {number} offset */
@@ -203,11 +232,49 @@ function verifyTarChecksum(header, offset) {
   if (recorded !== computed) throw new Error(`Invalid tar header checksum at byte ${offset}: ${recorded} != ${computed}`);
 }
 
-/** @param {Buffer} header @param {number} start @param {number} length */
-function readTarString(header, start, length) {
+/**
+ * Read the narrow NUL-terminated UTF-8 name/prefix shape emitted by npm's tar
+ * writer. Accepting unterminated, invalid UTF-8, or nonzero post-NUL bytes would
+ * make distinct raw headers collapse to one verifier path.
+ * @param {Buffer} header
+ * @param {number} start
+ * @param {number} length
+ * @param {string} label
+ * @param {number} headerOffset
+ * @param {boolean} allowEmpty
+ */
+function readTarPathField(header, start, length, label, headerOffset, allowEmpty) {
   const field = header.subarray(start, start + length);
   const end = field.indexOf(0);
-  return field.subarray(0, end < 0 ? field.length : end).toString("utf8");
+  if (end < 0) throw new Error(`Malformed tar ${label} field at byte ${headerOffset}: missing NUL terminator`);
+  if (!field.subarray(end + 1).every((byte) => byte === 0)) {
+    throw new Error(`Malformed tar ${label} field at byte ${headerOffset}: nonzero bytes after NUL`);
+  }
+  let value;
+  try {
+    value = UTF8_DECODER.decode(field.subarray(0, end));
+  } catch {
+    throw new Error(`Malformed tar ${label} field at byte ${headerOffset}: invalid UTF-8`);
+  }
+  if (!allowEmpty && !value) throw new Error(`Malformed tar ${label} field at byte ${headerOffset}: empty value`);
+  return value;
+}
+
+/**
+ * Every member, including directories, PAX records, and unsupported types,
+ * must first name one unambiguous descendant of npm's package/ root.
+ * @param {string} path
+ */
+function assertSafeNpmMemberPath(path) {
+  if (!path || path.startsWith("/") || path.startsWith("\\") || path.includes("\\") || /[\u0000-\u001f\u007f]/u.test(path)) {
+    throw new Error(`Unsafe npm member path ${path || "<empty>"}`);
+  }
+  const withoutTrailingSlash = path.endsWith("/") ? path.slice(0, -1) : path;
+  const segments = withoutTrailingSlash.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === ".." || /^[A-Za-z]:$/u.test(segment))) {
+    throw new Error(`Unsafe npm member path ${path}`);
+  }
+  if (segments[0] !== "package" || segments.length < 2) throw new Error(`Unsafe npm member path ${path}`);
 }
 
 /** @param {Buffer} header @param {number} start @param {number} length */
@@ -238,14 +305,31 @@ function compareCodePoints(left, right) { return left < right ? -1 : left > righ
 /** @param {string} root @param {string[]} args */
 function git(root, args) { return execFileSync("git", ["-C", resolve(root), ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
 
+const COMMAND_OPTION_SCHEMAS = new Map([
+  ["normalize", { required: new Set(["target", "commit"]), optional: new Set() }],
+  ["assert", { required: new Set(["target", "commit"]), optional: new Set() }],
+  ["verify", { required: new Set(["target", "commit", "archive"]), optional: new Set(["manifest"]) }]
+]);
+
+/** @param {string[]} argv */
 function parseArguments(argv) {
   const [command, ...rest] = argv;
+  const schema = command ? COMMAND_OPTION_SCHEMAS.get(command) : undefined;
+  if (!schema) throw new Error("Usage: release-pack-policy.js <normalize|assert|verify> --target PATH --commit COMMIT [--archive TGZ --manifest FILE]");
   const options = new Map();
   for (let index = 0; index < rest.length; index += 2) {
-    const key = rest[index];
+    const token = rest[index];
     const value = rest[index + 1];
-    if (!key?.startsWith("--") || value === undefined) throw new Error(`Invalid argument sequence near ${key ?? "<end>"}`);
-    options.set(key.slice(2), value);
+    if (!token?.startsWith("--") || token.length === 2 || token.includes("=") || value === undefined || value === "" || value.startsWith("--")) {
+      throw new Error(`Invalid argument sequence near ${token ?? "<end>"}`);
+    }
+    const key = token.slice(2);
+    if (!schema.required.has(key) && !schema.optional.has(key)) throw new Error(`Unknown option --${key} for ${command}`);
+    if (options.has(key)) throw new Error(`Duplicate option --${key}`);
+    options.set(key, value);
+  }
+  for (const key of schema.required) {
+    if (!options.has(key)) throw new Error(`${command} requires --${key}`);
   }
   return { command, options };
 }
