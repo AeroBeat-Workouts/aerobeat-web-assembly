@@ -1,8 +1,9 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 APPROVED — Derrick approved visual specification/review-render work only on 2026-09-02, to begin after the camera-loader successor is ready; Tasks 2–6 remain unapproved
+**Status:** TASK 1 IN PROGRESS — audited camera-loader successor `0.0.34` passed Derrick's physical gate on 2026-09-02; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
+**Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
 **Supersedes:** closed bloq/platform-conversion PoC `aerobeat-web-assembly-zd0`
 
 ## Goal
