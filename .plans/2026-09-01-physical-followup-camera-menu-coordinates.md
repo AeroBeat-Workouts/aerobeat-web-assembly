@@ -129,7 +129,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 ### Task 2 — Normalize renderer world/view convention (`aue`)
 
 **Repos:** renderer primarily; assembly tests/docs as needed. Input/CV/contracts should not change unless verification disproves the diagnosis.
-**Status:** CODER PASS — renderer `3c8143c` pushed; awaiting independent QA/audit; `aue` remains `in_progress`
+**Status:** CODER PASS — renderer `3c8143c` and assembly `f40b83a` pushed; independent QA in progress — subagent `80326a78-707d-4f16-8306-5c73ea64aea9`; audit pending; `aue` remains `in_progress`
 
 - Claim `aue`.
 - Add staged semantic + `worldToScreen` + framebuffer proof before changing behavior.
