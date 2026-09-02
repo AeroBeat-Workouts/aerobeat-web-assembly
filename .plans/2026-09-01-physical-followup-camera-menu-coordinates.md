@@ -160,7 +160,8 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3 — Export deterministic camera pose (`jyg`)
 
-**Dependency:** starts only after audited `aue` PASS.
+**Dependency:** audited `aue` source repair PASS; physical webcam confirmation remains in `7f9`.
+**Status:** Coder in progress — subagent `f715b097-18ca-4a52-9616-5cb241a374a0`
 
 - Claim `jyg`.
 - Create one strict renderer-owned pose module/default and remove duplicated fixed/debug defaults.
