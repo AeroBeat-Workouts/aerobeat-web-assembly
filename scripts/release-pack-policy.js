@@ -15,6 +15,13 @@ const CANONICAL_GZIP_HEADER = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0
 const PINNED_NODE_VERSION = "v22.22.3";
 const PINNED_NPM_VERSION = "10.9.8";
 const PINNED_NPM_CLI = "/usr/lib/node_modules/npm/bin/npm-cli.js";
+const PINNED_TIMEOUT_CLI = "/usr/bin/timeout";
+const PINNED_TIMEOUT_VERSION = "timeout (GNU coreutils) 9.4";
+const NPM_VERSION_TIMEOUT_SECONDS = 15;
+const NPM_DRY_PACK_TIMEOUT_SECONDS = 120;
+const NPM_TIMEOUT_KILL_AFTER_SECONDS = 2;
+const TIMEOUT_IDENTITY_TIMEOUT_MS = 5_000;
+const TIMEOUT_OUTER_MARGIN_MS = 5_000;
 const ISOLATED_TEMP_PARENT = "/tmp";
 const ISOLATED_TEMP_PREFIX = "aerobeat-release-pack-";
 const EXPECTED_FILESYSTEM_MODES = new Map([
@@ -109,6 +116,7 @@ function deriveNpmPackMetadata(context) {
   if (process.version !== PINNED_NODE_VERSION) throw new Error(`Release pack policy requires Node ${PINNED_NODE_VERSION}, received ${process.version}`);
   const npmCli = realpathSync(PINNED_NPM_CLI);
   if (npmCli !== PINNED_NPM_CLI) throw new Error(`Pinned npm CLI must resolve exactly to ${PINNED_NPM_CLI}`);
+  const timeoutCli = validatePinnedTimeout();
   const parent = realpathSync(ISOLATED_TEMP_PARENT);
   const temporaryRoot = mkdtempSync(resolve(parent, ISOLATED_TEMP_PREFIX));
   try {
@@ -155,7 +163,7 @@ function deriveNpmPackMetadata(context) {
       npm_config_loglevel: "silent",
       npm_config_offline: "true"
     };
-    const version = runPinnedNpm(["--version"], context.root, environment, "npm version check");
+    const version = runPinnedNpm(["--version"], context.root, environment, "npm version check", NPM_VERSION_TIMEOUT_SECONDS, timeoutCli);
     if (version.stdout !== `${PINNED_NPM_VERSION}\n` || version.stderr !== "") {
       throw new Error(`Release pack policy requires npm ${PINNED_NPM_VERSION} with noise-free output`);
     }
@@ -163,7 +171,7 @@ function deriveNpmPackMetadata(context) {
       "pack", "--dry-run", "--json", "--ignore-scripts=true", "--foreground-scripts=false",
       "--pack-destination", output, "--cache", cache, "--userconfig", userConfig,
       "--globalconfig", globalConfig, "--offline=true", "--loglevel=silent", "--color=false"
-    ], context.root, environment, "internal npm dry-pack derivation");
+    ], context.root, environment, "internal npm dry-pack derivation", NPM_DRY_PACK_TIMEOUT_SECONDS, timeoutCli);
     if (result.stderr !== "") throw new Error("Internal npm dry-pack derivation produced unexpected stderr noise");
     if (!result.stdout.endsWith("\n") || result.stdout.trim() === "") throw new Error("Internal npm dry-pack derivation produced malformed stdout");
     if (readdirSync(output).length !== 0) throw new Error("Internal npm dry-pack derivation unexpectedly wrote package output");
@@ -176,23 +184,75 @@ function deriveNpmPackMetadata(context) {
   }
 }
 
+/** Validate the absolute GNU timeout watchdog before trusting it with npm liveness. */
+function validatePinnedTimeout() {
+  let timeoutCli;
+  try { timeoutCli = realpathSync(PINNED_TIMEOUT_CLI); }
+  catch (error) { throw new Error(`Pinned GNU timeout is unavailable at ${PINNED_TIMEOUT_CLI}: ${error instanceof Error ? error.message : String(error)}`); }
+  if (timeoutCli !== PINNED_TIMEOUT_CLI || !lstatSync(timeoutCli).isFile()) {
+    throw new Error(`Pinned GNU timeout must resolve exactly to regular file ${PINNED_TIMEOUT_CLI}`);
+  }
+  const result = spawnSync(timeoutCli, ["--version"], {
+    env: { PATH: "/usr/bin:/bin", LANG: "C.UTF-8", LC_ALL: "C.UTF-8", TZ: "UTC" },
+    encoding: "utf8",
+    maxBuffer: 64 * 1024,
+    timeout: TIMEOUT_IDENTITY_TIMEOUT_MS,
+    killSignal: "SIGKILL",
+    windowsHide: true
+  });
+  if (result.error) {
+    const timedOut = "code" in result.error && result.error.code === "ETIMEDOUT";
+    throw new Error(timedOut ? "Pinned GNU timeout identity check timed out" : `Pinned GNU timeout identity check failed to start: ${result.error.message}`);
+  }
+  if (result.signal) throw new Error(`Pinned GNU timeout identity check terminated by signal ${result.signal}`);
+  if (result.status !== 0) throw new Error(`Pinned GNU timeout identity check failed with exit ${result.status}: ${result.stderr || result.stdout}`);
+  if (result.stderr !== "" || result.stdout.split("\n", 1)[0] !== PINNED_TIMEOUT_VERSION) {
+    throw new Error(`Pinned GNU timeout identity mismatch; expected ${PINNED_TIMEOUT_VERSION}`);
+  }
+  return timeoutCli;
+}
+
 /**
+ * Run one pinned npm operation under GNU timeout's process-group watchdog.
+ * Production deadlines are fixed source policy, not caller/environment knobs.
  * @param {string[]} args
  * @param {string} cwd
  * @param {NodeJS.ProcessEnv} environment
  * @param {string} label
+ * @param {number} deadlineSeconds
+ * @param {string} timeoutCli
  */
-function runPinnedNpm(args, cwd, environment, label) {
-  const result = spawnSync(process.execPath, [PINNED_NPM_CLI, ...args], {
+function runPinnedNpm(args, cwd, environment, label, deadlineSeconds, timeoutCli) {
+  if (!Number.isFinite(deadlineSeconds) || deadlineSeconds <= 0) throw new Error(`${label} has an invalid timeout policy`);
+  const deadline = `${deadlineSeconds}s`;
+  const killAfter = `${NPM_TIMEOUT_KILL_AFTER_SECONDS}s`;
+  const timeoutArguments = [
+    "--verbose", "--signal=TERM", `--kill-after=${killAfter}`, deadline,
+    process.execPath, PINNED_NPM_CLI, ...args
+  ];
+  const result = spawnSync(timeoutCli, timeoutArguments, {
     cwd,
     env: environment,
     encoding: "utf8",
     maxBuffer: 16 * 1024 * 1024,
+    timeout: Math.ceil((deadlineSeconds + NPM_TIMEOUT_KILL_AFTER_SECONDS) * 1000) + TIMEOUT_OUTER_MARGIN_MS,
+    killSignal: "SIGKILL",
     windowsHide: true
   });
-  if (result.error) throw new Error(`${label} failed to start: ${result.error.message}`);
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  const watchdogTimedOut = stderr.includes(`${timeoutCli}: sending signal TERM to command`)
+    || stderr.includes(`${timeoutCli}: sending signal KILL to command`);
+  if (watchdogTimedOut) {
+    throw new Error(`${label} timed out after ${deadline}; process group received TERM with KILL escalation after ${killAfter}`);
+  }
+  if (result.error) {
+    const outerTimedOut = "code" in result.error && result.error.code === "ETIMEDOUT";
+    throw new Error(outerTimedOut
+      ? `${label} timeout watchdog failed to return within its bounded outer deadline`
+      : `${label} failed to start: ${result.error.message}`);
+  }
   if (result.signal) throw new Error(`${label} terminated by signal ${result.signal}`);
-  if (result.status !== 0) throw new Error(`${label} failed with exit ${result.status}: ${result.stderr || result.stdout}`);
+  if (result.status !== 0) throw new Error(`${label} failed with exit ${result.status}: ${stderr || result.stdout}`);
   if (typeof result.stdout !== "string" || typeof result.stderr !== "string") throw new Error(`${label} did not return text output`);
   return { stdout: result.stdout, stderr: result.stderr };
 }

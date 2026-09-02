@@ -3,7 +3,7 @@
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -190,10 +190,23 @@ try {
   assertCopiedPolicyReject("node-version-mismatch", { nodeVersion: "v0.0.0" }, /requires Node v0\.0\.0/u);
   assertCopiedPolicyReject("npm-version-mismatch", { npmBody: "process.stdout.write('0.0.0\\n')" }, /requires npm 10\.9\.8/u);
   assertCopiedPolicyReject("npm-command-failure", { npmBody: fakeNpmBody("process.stderr.write('failure\\n'); process.exit(7)") }, /failed with exit 7/u);
+  assertCopiedPolicyReject("npm-signal", { npmBody: fakeNpmBody("process.kill(process.pid, 'SIGTERM')") }, /failed with exit 143|terminated by signal/u);
+  assertCopiedPolicyReject("npm-max-buffer", { npmBody: fakeNpmBody("process.stdout.write('x'.repeat(17 * 1024 * 1024))") }, /ENOBUFS|exceeded|maxBuffer/u);
   assertCopiedPolicyReject("npm-stderr-noise", { npmBody: fakeNpmBody("process.stderr.write('noise\\n'); process.stdout.write('[]\\n')") }, /unexpected stderr noise/u);
   assertCopiedPolicyReject("npm-stdout-noise", { npmBody: fakeNpmBody("process.stdout.write('noise\\n[]\\n')") }, /valid JSON without stdout noise/u);
   assertCopiedPolicyReject("npm-empty-json", { npmBody: fakeNpmBody("process.stdout.write('[]\\n')") }, /one-record JSON array/u);
   assertCopiedPolicyReject("npm-extra-json-record", { npmBody: fakeNpmBody("process.stdout.write('[{},{}]\\n')") }, /one-record JSON array/u);
+  assertCopiedPolicyReject("timeout-missing", { missingTimeout: true }, /Pinned GNU timeout is unavailable/u);
+  assertCopiedPolicyReject("timeout-identity", { timeoutBody: "#!/bin/sh\necho not-gnu-timeout\n" }, /identity mismatch/u);
+  assertCopiedPolicyReject("timeout-failure", { timeoutBody: "#!/bin/sh\nexit 9\n" }, /identity check failed with exit 9/u);
+  assertCopiedPolicyReject("timeout-wrapper-failure", {
+    timeoutBody: "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'timeout (GNU coreutils) 9.4'; exit 0; fi\nexit 70\n"
+  }, /npm version check failed with exit 70/u);
+
+  assertCopiedPolicyTimeout("version-hang", "version", false, /npm version check timed out after 0\.25s/u);
+  assertCopiedPolicyTimeout("dry-pack-hang", "dry-pack", false, /internal npm dry-pack derivation timed out after 0\.25s/u);
+  assertCopiedPolicyTimeout("dry-pack-descendant", "dry-pack", true, /internal npm dry-pack derivation timed out after 0\.25s/u);
+  assertCopiedPolicyTimeout("dry-pack-term-resistant", "dry-pack", true, /internal npm dry-pack derivation timed out after 0\.25s/u, true);
 
   assert.throws(() => verifyArchive(fixture, commit, resolve(fixture, "plain.txt"), undefined), /archive must be outside/u);
   assert.throws(() => verifyArchive(fixture, commit, fixtureArchive, resolve(fixture, "manifest.tsv")), /manifest must be outside/u);
@@ -242,7 +255,7 @@ try {
   chmodSync(resolve(fixture, "plain.txt"), 0o644);
   assert.throws(() => assertDetachedTarget(fixture, `${commit}^`), /ambiguous argument|Command failed/u);
 
-  console.log("Release pack policy self-test passed: internally derived pinned npm authority, lifecycle/environment isolation, canonical gzip/USTAR, strict membership/path/CLI grammar, Git-index/bin modes, exact bytes, and manifest identity.");
+  console.log("Release pack policy self-test passed: bounded npm process-group liveness and cleanup, internally derived pinned npm authority, lifecycle/environment isolation, canonical gzip/USTAR, strict membership/path/CLI grammar, Git-index/bin modes, exact bytes, and manifest identity.");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
@@ -370,7 +383,7 @@ function fakeNpmBody(packStatement) {
  * Exercise pinned runtime and subprocess failure paths without exposing a
  * production environment override for the npm authority.
  * @param {string} label
- * @param {{nodeVersion?:string,npmBody?:string}} options
+ * @param {{nodeVersion?:string,npmBody?:string,timeoutBody?:string,missingTimeout?:boolean}} options
  * @param {RegExp} pattern
  */
 function assertCopiedPolicyReject(label, options, pattern) {
@@ -379,14 +392,94 @@ function assertCopiedPolicyReject(label, options, pattern) {
   mkdirSync(scripts, { recursive: true });
   const fakeCli = resolve(copyRoot, "fake-npm.mjs");
   writeFileSync(fakeCli, options.npmBody ?? fakeNpmBody("process.stdout.write('[]\\n')"));
+  const fakeTimeout = resolve(copyRoot, "fake-timeout");
+  if (!options.missingTimeout) {
+    writeFileSync(fakeTimeout, options.timeoutBody ?? "#!/bin/sh\nexec /usr/bin/timeout \"$@\"\n", { mode: 0o755 });
+    chmodSync(fakeTimeout, 0o755);
+  }
   let source = readFileSync(SCRIPT_PATH, "utf8");
   if (options.nodeVersion) source = source.replace('const PINNED_NODE_VERSION = "v22.22.3";', `const PINNED_NODE_VERSION = ${JSON.stringify(options.nodeVersion)};`);
   source = source.replace('const PINNED_NPM_CLI = "/usr/lib/node_modules/npm/bin/npm-cli.js";', `const PINNED_NPM_CLI = ${JSON.stringify(fakeCli)};`);
+  source = source.replace('const PINNED_TIMEOUT_CLI = "/usr/bin/timeout";', `const PINNED_TIMEOUT_CLI = ${JSON.stringify(fakeTimeout)};`);
   const copiedScript = resolve(scripts, "release-pack-policy.js");
   writeFileSync(copiedScript, source);
-  const result = spawnSync(process.execPath, [copiedScript, "verify", "--target", fixture, "--commit", git(fixture, ["rev-parse", "HEAD"]), "--archive", fixtureArchive], { encoding: "utf8" });
+  const result = spawnSync(process.execPath, [copiedScript, "verify", "--target", fixture, "--commit", git(fixture, ["rev-parse", "HEAD"]), "--archive", fixtureArchive], { encoding: "utf8", timeout: 5_000 });
+  assert.equal(result.error, undefined, `${label} must return before its outer watchdog: ${result.error?.message ?? ""}`);
   assert.notEqual(result.status, 0, `${label} must fail closed`);
   assert.match(result.stderr, pattern, label);
+}
+
+/**
+ * Prove both npm operations have bounded process-group termination and cleanup.
+ * Test-only deadlines are injected by editing a disposable source copy, never
+ * through production environment variables.
+ * @param {string} label
+ * @param {"version"|"dry-pack"} operation
+ * @param {boolean} spawnDescendant
+ * @param {RegExp} pattern
+ * @param {boolean} [resistTerm]
+ */
+function assertCopiedPolicyTimeout(label, operation, spawnDescendant, pattern, resistTerm = false) {
+  const copyRoot = resolve(temporaryRoot, `copied-${label}`);
+  const scripts = resolve(copyRoot, "scripts");
+  mkdirSync(scripts, { recursive: true });
+  const pidFile = resolve(copyRoot, "pids.txt");
+  const fakeCli = resolve(copyRoot, "fake-npm.mjs");
+  const descendant = spawnDescendant
+    ? `const child = spawn(process.execPath, ["-e", ${JSON.stringify(resistTerm ? "process.on('SIGTERM',()=>{});setInterval(()=>{},1000)" : "setInterval(()=>{},1000)")}], { stdio: "ignore" });\npids.push(child.pid);`
+    : "";
+  const hangBody = `const pids=[process.pid];\n${descendant}\nwriteFileSync(${JSON.stringify(pidFile)}, pids.join(" "));\n${resistTerm ? "process.on('SIGTERM',()=>{});" : ""}\nsetInterval(()=>{},1000);`;
+  const body = `import { spawn } from "node:child_process";\nimport { writeFileSync } from "node:fs";\n${operation === "version"
+    ? hangBody
+    : `if (process.argv[2] === "--version") process.stdout.write("10.9.8\\n"); else {\n${hangBody}\n}`}\n`;
+  writeFileSync(fakeCli, body);
+  const uniquePrefix = `aerobeat-release-pack-test-${process.pid}-${label}-`;
+  const unrelated = resolve(tmpdir(), `${uniquePrefix}unrelated`);
+  mkdirSync(unrelated);
+  let source = readFileSync(SCRIPT_PATH, "utf8")
+    .replace('const PINNED_NPM_CLI = "/usr/lib/node_modules/npm/bin/npm-cli.js";', `const PINNED_NPM_CLI = ${JSON.stringify(fakeCli)};`)
+    .replace("const NPM_VERSION_TIMEOUT_SECONDS = 15;", "const NPM_VERSION_TIMEOUT_SECONDS = 0.25;")
+    .replace("const NPM_DRY_PACK_TIMEOUT_SECONDS = 120;", "const NPM_DRY_PACK_TIMEOUT_SECONDS = 0.25;")
+    .replace("const NPM_TIMEOUT_KILL_AFTER_SECONDS = 2;", "const NPM_TIMEOUT_KILL_AFTER_SECONDS = 0.2;")
+    .replace('const ISOLATED_TEMP_PREFIX = "aerobeat-release-pack-";', `const ISOLATED_TEMP_PREFIX = ${JSON.stringify(uniquePrefix)};`);
+  const copiedScript = resolve(scripts, "release-pack-policy.js");
+  writeFileSync(copiedScript, source);
+  const result = spawnSync(process.execPath, [copiedScript, "verify", "--target", fixture, "--commit", git(fixture, ["rev-parse", "HEAD"]), "--archive", fixtureArchive], {
+    encoding: "utf8",
+    timeout: 5_000,
+    killSignal: "SIGKILL"
+  });
+  const pids = existsSync(pidFile) ? readFileSync(pidFile, "utf8").trim().split(/\s+/u).filter(Boolean).map(Number) : [];
+  try {
+    assert.equal(result.error, undefined, `${label} must return before its outer watchdog: ${result.error?.message ?? ""}`);
+    assert.notEqual(result.status, 0, `${label} must fail closed`);
+    assert.match(result.stderr, pattern, label);
+    assert(pids.length >= 1, `${label} fake CLI must record its PID`);
+    for (const pid of pids) assertProcessGone(pid, label);
+    assert.equal(git(fixture, ["status", "--porcelain=v1", "--untracked-files=all"]), "", `${label} must leave target clean`);
+    assert.equal(statSync(resolve(fixture, "plain.txt")).mode & 0o777, 0o644, `${label} must preserve target modes`);
+    assert.deepEqual(readdirSync(tmpdir()).filter((name) => name.startsWith(uniquePrefix)), [`${uniquePrefix}unrelated`]);
+    assert.equal(existsSync(unrelated), true, `${label} cleanup must preserve unrelated lookalike path`);
+  } finally {
+    for (const pid of pids) {
+      try { process.kill(pid, "SIGKILL"); } catch {}
+    }
+    rmSync(unrelated, { recursive: true, force: true });
+  }
+}
+
+/** @param {number} pid @param {string} label */
+function assertProcessGone(pid, label) {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    try { process.kill(pid, 0); }
+    catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ESRCH") return;
+      throw error;
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+  }
+  assert.fail(`${label} left process ${pid} alive after timeout cleanup`);
 }
 
 /** @param {string} root @param {string[]} args */

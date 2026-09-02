@@ -192,7 +192,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** PACK-POLICY QA FAIL / P0 `aerobeat-web-assembly-r39` DIAGNOSED — internal npm provenance is repaired, but version/dry-pack subprocesses have no finite liveness bound; timeout coder pending; `r39`, `nji`, `qmc`, `cf1`, `1wu`, and `nme` remain open; audit/server blocked
+**Status:** PACK-POLICY P0 `aerobeat-web-assembly-r39` CODER PASS / INDEPENDENT QA-AUDIT PENDING — npm version/dry-pack subprocesses now have finite process-group deadlines and cleanup; normalized identity unchanged; `r39`, `nji`, `qmc`, `cf1`, `1wu`, and `nme` remain open; audit/server blocked
 
 - Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
 - Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
@@ -265,6 +265,13 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - QA supplied an exact-version fake pinned npm CLI that hangs during dry-pack. `runPinnedNpm()` has no finite timeout, so verification remained blocked until an external three-second watchdog killed it with exit `124`; cleanup and later fail-closed checks were unreachable.
 - Root cause and the completed debug-skill analysis are recorded in `docs/task22-release-pack-npm-timeout-debug.md`.
 - Repair contract: both version and dry-pack calls use documented finite operation-specific process-group deadlines with TERM/KILL escalation and distinct timeout errors; tests must prove no child/descendant leftovers, target invariants, owned-temp cleanup, and preservation of all earlier trust/grammar protections and authoritative package identity.
+
+#### Internal npm liveness repair coder result — 2026-09-02
+
+- **CODER PASS; independent QA/audit pending.** The policy validates absolute GNU coreutils `timeout` `/usr/bin/timeout` version `9.4`, then wraps exact Node+npm process groups with fixed source-policy deadlines: `15 s` for npm version, `120 s` for dry-pack, `TERM` then `KILL` after `2 s`. A larger built-in watchdog fails distinctly if the wrapper itself does not return. Timeout diagnostics are handled before generic signal/exit errors so both operations report exact timeout failures and guarded owned-root cleanup runs.
+- Test-only disposable source copies inject `0.25 s` deadlines and `0.2 s` escalation without any runtime environment override. Version hang, dry-pack hang, ordinary descendants, TERM-resistant direct/descendant processes, outer watchdog, PID disappearance, target cleanliness/modes, owned temp cleanup, unrelated lookalike preservation, timeout executable missing/identity/failure, npm nonzero/signal/max-buffer/noise/output, and every prior policy regression pass.
+- Two fresh exact-`55f4088` worktrees created under differing umasks normalized to `214×0644`, remained clean, and each ran two dry plus two actual packs. All eight metadata JSON files remain `cbbdb639a9a091b946b2764988e3c34daf57c882fa511919a93c295fc99da65c`; all four archives remain `e2746b16168c03b056e628e66e33ea687bd3ad6db8b45b505c43069ebbc7dcf6`; tar remains `939693741365c836abd9e7f1279c9888f4bf03c9e809347094da69d3b44e7c97`; manifests remain `ca299ccaaceb12edfc00c1811cf86c89a77b96c46a30c849b4ee5a952d94b957`; `97×0644`, zero PAX. Raw/candidate bytes are unchanged.
+- Fresh gates PASS: policy self-test, full `npm test`, `npm ls --all`, both Node syntax checks, and `git diff --check`. No release rebuild/version/server/publication/pose/PoC/Theme/asset action occurred.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 

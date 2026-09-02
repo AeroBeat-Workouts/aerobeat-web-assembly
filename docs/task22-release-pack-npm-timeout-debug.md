@@ -48,6 +48,12 @@ Wrap each pinned npm invocation with a fixed absolute GNU `timeout` process-grou
 
 This addresses liveness at the subprocess boundary rather than adding a caller-side test timeout. Adjacent regressions are normal success, nonzero exit, signal, max-buffer failure, TERM-resistant child, ordinary descendant cleanup, target invariants, and isolated-root cleanup.
 
+## Coder repair result
+
+`runPinnedNpm()` now invokes `process.execPath + PINNED_NPM_CLI` through validated absolute GNU coreutils `timeout` at `/usr/bin/timeout` (`9.4`). The npm version check has a fixed `15 s` production deadline, internal dry-pack derivation has `120 s`, and both receive process-group `TERM` followed by `KILL` after a `2 s` grace period. A slightly larger built-in `spawnSync` deadline is retained only as a watchdog-of-last-resort if the validated wrapper itself fails to return. GNU timeout diagnostics are detected before generic signal/exit handling so each operation reports a distinct timeout error and the caller reaches guarded owned-temp cleanup.
+
+Adversarial source-copy tests inject short constants without any production environment override. They cover version and dry-pack hangs, an ordinary descendant, TERM-resistant direct/descendant processes, bounded outer watchdog return, PID disappearance, target cleanliness/mode preservation, owned temporary-root removal, unrelated lookalike preservation, timeout executable missing/identity/failure, npm nonzero/signal/max-buffer/noise/output failures, and every prior archive/target protection.
+
 ## Debugging Record
 
 ```text
