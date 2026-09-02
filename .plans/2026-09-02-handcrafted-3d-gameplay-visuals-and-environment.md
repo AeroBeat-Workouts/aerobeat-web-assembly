@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** PROPOSED — direction supplied by Derrick on 2026-09-02; implementation awaits explicit plan approval
+**Status:** TASK 1 APPROVED — Derrick approved visual specification/review-render work only on 2026-09-02, to begin after the camera-loader successor is ready; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Supersedes:** closed bloq/platform-conversion PoC `aerobeat-web-assembly-zd0`
@@ -71,4 +71,4 @@ Replace the discarded block/background conversion direction with jointly authore
 
 ## Approval gate
 
-This plan records the replacement direction only. Do not begin model generation or runtime integration until Derrick explicitly approves this plan or a narrowed first task.
+Derrick approved Task 1 only, after the camera-loader successor is ready. Task 1 may specify and render-review the proposed geometry/materials but must not create landing-ready runtime assets or integrate them. Tasks 2–6 require separate approval.
