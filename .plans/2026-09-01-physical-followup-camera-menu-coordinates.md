@@ -192,7 +192,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** PACK-POLICY QA FAIL / P0 `aerobeat-web-assembly-6fc` CODER RETRY IN PROGRESS — standalone subagent `992c180c-4d4c-4191-8abd-a1987c6831f7` after the first child made no workspace/Bead progress; status/monotonic classification repair pending; all release Beads remain open; audit/server blocked
+**Status:** PACK-POLICY P0 `aerobeat-web-assembly-6fc` ORCHESTRATOR REPAIR PASS / INDEPENDENT QA-AUDIT PENDING — two stalled coder children were retired with no edits; status/monotonic timeout classification and spoof regressions now pass locally; all release Beads remain open; audit/server blocked
 
 - Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
 - Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
@@ -278,6 +278,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - QA proved `runPinnedNpm()` classifies timeout solely by searching merged, untrusted child stderr for GNU timeout's verbose TERM/KILL text. A fake npm child printed that text and exited `7` immediately; the verifier falsely reported a 120-second timeout.
 - Root cause and debug-skill analysis are recorded in `docs/task23-release-pack-timeout-classification-debug.md`.
 - Repair contract: remove stderr text as authority; use GNU `--preserve-status`, monotonic deadline consumption, and result status to classify genuine TERM/KILL deadlines after outer-watchdog errors. Regress spoof text with exits `0`, `7`, `124`, and signals while preserving bounded genuine timeout, descendant cleanup, target/temp invariants, all prior policy protections, and the exact package identity.
+- Orchestrator repair applies that contract directly after two coder children made no progress. Targeted Node syntax checks and `npm run test:release-pack-policy` pass, including forged diagnostics for exits `0`, `7`, `124`, SIGTERM, and SIGKILL plus genuine TERM/KILL process-group deadlines. Full gates, two-worktree package proof, independent QA, and audit remain required.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 

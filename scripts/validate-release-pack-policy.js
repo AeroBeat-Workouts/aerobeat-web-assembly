@@ -203,10 +203,27 @@ try {
     timeoutBody: "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'timeout (GNU coreutils) 9.4'; exit 0; fi\nexit 70\n"
   }, /npm version check failed with exit 70/u);
 
-  assertCopiedPolicyTimeout("version-hang", "version", false, /npm version check timed out after 0\.25s/u);
-  assertCopiedPolicyTimeout("dry-pack-hang", "dry-pack", false, /internal npm dry-pack derivation timed out after 0\.25s/u);
-  assertCopiedPolicyTimeout("dry-pack-descendant", "dry-pack", true, /internal npm dry-pack derivation timed out after 0\.25s/u);
-  assertCopiedPolicyTimeout("dry-pack-term-resistant", "dry-pack", true, /internal npm dry-pack derivation timed out after 0\.25s/u, true);
+  const forgedTimeoutDiagnostic = "/usr/bin/timeout: sending signal TERM to command\n";
+  assertCopiedPolicyReject("timeout-spoof-exit-0", {
+    npmBody: fakeNpmBody(`process.stderr.write(${JSON.stringify(forgedTimeoutDiagnostic)}); process.exit(0)`), maxElapsedMs: 2_000
+  }, /unexpected stderr noise/u);
+  assertCopiedPolicyReject("timeout-spoof-exit-7", {
+    npmBody: fakeNpmBody(`process.stderr.write(${JSON.stringify(forgedTimeoutDiagnostic)}); process.exit(7)`), maxElapsedMs: 2_000
+  }, /failed with exit 7/u);
+  assertCopiedPolicyReject("timeout-spoof-exit-124", {
+    npmBody: fakeNpmBody(`process.stderr.write(${JSON.stringify(forgedTimeoutDiagnostic)}); process.exit(124)`), maxElapsedMs: 2_000
+  }, /failed with exit 124/u);
+  assertCopiedPolicyReject("timeout-spoof-sigterm", {
+    npmBody: fakeNpmBody(`process.stderr.write(${JSON.stringify(forgedTimeoutDiagnostic)}); process.kill(process.pid, "SIGTERM")`), maxElapsedMs: 2_000
+  }, /failed with exit 143|terminated by signal/u);
+  assertCopiedPolicyReject("timeout-spoof-sigkill", {
+    npmBody: fakeNpmBody(`process.stderr.write(${JSON.stringify(forgedTimeoutDiagnostic)}); process.kill(process.pid, "SIGKILL")`), maxElapsedMs: 2_000
+  }, /failed with exit 137|terminated by signal/u);
+
+  assertCopiedPolicyTimeout("version-hang", "version", false, /npm version check timed out after 0\.25s.*TERM/u);
+  assertCopiedPolicyTimeout("dry-pack-hang", "dry-pack", false, /internal npm dry-pack derivation timed out after 0\.25s.*TERM/u);
+  assertCopiedPolicyTimeout("dry-pack-descendant", "dry-pack", true, /internal npm dry-pack derivation timed out after 0\.25s.*TERM/u);
+  assertCopiedPolicyTimeout("dry-pack-term-resistant", "dry-pack", true, /internal npm dry-pack derivation timed out after 0\.25s.*KILL/u, true);
 
   assert.throws(() => verifyArchive(fixture, commit, resolve(fixture, "plain.txt"), undefined), /archive must be outside/u);
   assert.throws(() => verifyArchive(fixture, commit, fixtureArchive, resolve(fixture, "manifest.tsv")), /manifest must be outside/u);
@@ -383,7 +400,7 @@ function fakeNpmBody(packStatement) {
  * Exercise pinned runtime and subprocess failure paths without exposing a
  * production environment override for the npm authority.
  * @param {string} label
- * @param {{nodeVersion?:string,npmBody?:string,timeoutBody?:string,missingTimeout?:boolean}} options
+ * @param {{nodeVersion?:string,npmBody?:string,timeoutBody?:string,missingTimeout?:boolean,maxElapsedMs?:number}} options
  * @param {RegExp} pattern
  */
 function assertCopiedPolicyReject(label, options, pattern) {
@@ -393,20 +410,24 @@ function assertCopiedPolicyReject(label, options, pattern) {
   const fakeCli = resolve(copyRoot, "fake-npm.mjs");
   writeFileSync(fakeCli, options.npmBody ?? fakeNpmBody("process.stdout.write('[]\\n')"));
   const fakeTimeout = resolve(copyRoot, "fake-timeout");
-  if (!options.missingTimeout) {
-    writeFileSync(fakeTimeout, options.timeoutBody ?? "#!/bin/sh\nexec /usr/bin/timeout \"$@\"\n", { mode: 0o755 });
+  const customTimeout = options.missingTimeout || options.timeoutBody !== undefined;
+  if (customTimeout && !options.missingTimeout) {
+    writeFileSync(fakeTimeout, options.timeoutBody ?? "", { mode: 0o755 });
     chmodSync(fakeTimeout, 0o755);
   }
   let source = readFileSync(SCRIPT_PATH, "utf8");
   if (options.nodeVersion) source = source.replace('const PINNED_NODE_VERSION = "v22.22.3";', `const PINNED_NODE_VERSION = ${JSON.stringify(options.nodeVersion)};`);
   source = source.replace('const PINNED_NPM_CLI = "/usr/lib/node_modules/npm/bin/npm-cli.js";', `const PINNED_NPM_CLI = ${JSON.stringify(fakeCli)};`);
-  source = source.replace('const PINNED_TIMEOUT_CLI = "/usr/bin/timeout";', `const PINNED_TIMEOUT_CLI = ${JSON.stringify(fakeTimeout)};`);
+  if (customTimeout) source = source.replace('const PINNED_TIMEOUT_CLI = "/usr/bin/timeout";', `const PINNED_TIMEOUT_CLI = ${JSON.stringify(fakeTimeout)};`);
   const copiedScript = resolve(scripts, "release-pack-policy.js");
   writeFileSync(copiedScript, source);
+  const startedAt = Date.now();
   const result = spawnSync(process.execPath, [copiedScript, "verify", "--target", fixture, "--commit", git(fixture, ["rev-parse", "HEAD"]), "--archive", fixtureArchive], { encoding: "utf8", timeout: 5_000 });
+  const elapsedMs = Date.now() - startedAt;
   assert.equal(result.error, undefined, `${label} must return before its outer watchdog: ${result.error?.message ?? ""}`);
   assert.notEqual(result.status, 0, `${label} must fail closed`);
   assert.match(result.stderr, pattern, label);
+  if (options.maxElapsedMs !== undefined) assert(elapsedMs < options.maxElapsedMs, `${label} took ${elapsedMs} ms`);
 }
 
 /**

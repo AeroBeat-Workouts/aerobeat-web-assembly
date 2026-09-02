@@ -48,6 +48,10 @@ Remove verbose-diagnostic substring classification. Invoke GNU timeout with `--p
 
 Handle the outer `spawnSync` ETIMEDOUT first, then deadline-consumed outcomes, then ordinary error/signal/status and output checks. Keep timeout stderr as ordinary child/wrapper output subject to existing noise policy; do not parse it for authority.
 
+## Repair result
+
+`runPinnedNpm()` now invokes GNU timeout with `--preserve-status`, records monotonic elapsed time around the wrapper, handles outer `ETIMEDOUT` first, and classifies an operation timeout only after the configured wall-clock budget is consumed. Status `143` reports TERM and `137` reports KILL escalation; other boundary outcomes are named explicitly. Merged stderr is never parsed for timeout authority. Regression tests cover forged GNU diagnostic text with immediate exits `0`, `7`, `124`, SIGTERM, and SIGKILL, plus genuine TERM/KILL deadlines and descendant cleanup.
+
 ## Debugging Record
 
 ```text

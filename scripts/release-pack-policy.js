@@ -5,6 +5,7 @@ import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync
 import { basename, dirname, posix, relative, resolve, sep } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { crc32, inflateRawSync } from "node:zlib";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -227,9 +228,10 @@ function runPinnedNpm(args, cwd, environment, label, deadlineSeconds, timeoutCli
   const deadline = `${deadlineSeconds}s`;
   const killAfter = `${NPM_TIMEOUT_KILL_AFTER_SECONDS}s`;
   const timeoutArguments = [
-    "--verbose", "--signal=TERM", `--kill-after=${killAfter}`, deadline,
+    "--preserve-status", "--signal=TERM", `--kill-after=${killAfter}`, deadline,
     process.execPath, PINNED_NPM_CLI, ...args
   ];
+  const startedAt = performance.now();
   const result = spawnSync(timeoutCli, timeoutArguments, {
     cwd,
     env: environment,
@@ -239,17 +241,25 @@ function runPinnedNpm(args, cwd, environment, label, deadlineSeconds, timeoutCli
     killSignal: "SIGKILL",
     windowsHide: true
   });
+  const elapsedMs = performance.now() - startedAt;
   const stderr = typeof result.stderr === "string" ? result.stderr : "";
-  const watchdogTimedOut = stderr.includes(`${timeoutCli}: sending signal TERM to command`)
-    || stderr.includes(`${timeoutCli}: sending signal KILL to command`);
-  if (watchdogTimedOut) {
-    throw new Error(`${label} timed out after ${deadline}; process group received TERM with KILL escalation after ${killAfter}`);
-  }
   if (result.error) {
     const outerTimedOut = "code" in result.error && result.error.code === "ETIMEDOUT";
     throw new Error(outerTimedOut
       ? `${label} timeout watchdog failed to return within its bounded outer deadline`
       : `${label} failed to start: ${result.error.message}`);
+  }
+  const deadlineMs = deadlineSeconds * 1000;
+  const schedulerToleranceMs = Math.min(100, deadlineMs * 0.1);
+  if (elapsedMs >= deadlineMs - schedulerToleranceMs) {
+    const outcome = result.status === 137
+      ? `KILL escalation after ${killAfter}`
+      : result.status === 143
+        ? "TERM"
+        : result.signal
+          ? `signal ${result.signal}`
+          : `exit ${String(result.status)}`;
+    throw new Error(`${label} timed out after ${deadline}; process group outcome ${outcome}`);
   }
   if (result.signal) throw new Error(`${label} terminated by signal ${result.signal}`);
   if (result.status !== 0) throw new Error(`${label} failed with exit ${result.status}: ${stderr || result.stdout}`);
