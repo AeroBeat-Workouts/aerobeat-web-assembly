@@ -194,3 +194,11 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - `0.0.2` contains exactly 17 release files. Inventory SHA-256 `1a5b66f543bae940b8bb789e9ab9979d073663b5f6ff12382e08f4ad10c0ff1b`; proof SHA-256 `90dcbe52b35d2ec11a01784a96f195b5cd01ac141000886cb950c74864eec288`.
 - Parent and independent re-QA visually inspected all nine RGB `1600 × 900` renders. Re-QA verified local/origin/public Git equality, strict validation, seven source opens and clean GLB imports, exact bounds/pivots/names/budgets/dependencies, absent external URIs/textures/fonts/engine metadata, Python compilation, and two complete reproducibility passes. Generator rejects missing release, finalized `0.0.1`, and unsupported `0.0.3`.
 - Repair `k72.19` and QA `k72.9` closed PASS. Asset implementation `k72.8` remains in progress for final asset audit `k72.10`; Derrick 3D approval gate remains pending.
+
+## Task 2 license audit repair and re-QA — PASS (2026-09-02)
+
+- Final audit found that `LICENSE.md` inherited a noncanonical self-defeating CC BY-NC clause from `aerobeat-template-asset`; asset manifest-label validation could not detect the legal-text corruption. Audit created blocker `k72.20` and left `k72.8`/`k72.10` open.
+- Debug record `.plans/debug/2026-09-02-license-text-integrity.md` was committed in asset repo at `345f05c`. A separate nonblocking template-lane issue `aerobeat-template-asset` Bead `oc-n2m` tracks the same inherited clause across eight discovered AeroBeat asset/template/environment repos.
+- Repair commit `0ed97676a0a816b797b12b9f8d19a9d281b9da03` replaced the file with exact official CC BY-NC 4.0 plain text: SHA-256 `41003d4a74749c0220e33dd415042164b5a1093ed401f36277234f772d22d3d0`, `19,347` bytes, `408` lines. Validation now pins that identity and rejects a one-bit mutation with `license integrity mismatch`.
+- Independent re-QA matched official/local/public bytes, reproduced mutation rejection, strict validation, seven source/GLB imports, and release reproducibility. All 70 protected source/manifest/set/release/review files remained byte-identical to pre-license-fix commit `85e55eb`; only `LICENSE.md`, `tools/validate.py`, and `tools/reproducibility.py` changed.
+- License repair `k72.20` closed PASS. Final asset audit `k72.10` remains in progress; no Derrick model approval or runtime integration is implied.
