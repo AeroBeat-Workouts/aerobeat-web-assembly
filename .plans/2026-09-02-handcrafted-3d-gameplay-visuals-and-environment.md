@@ -34,6 +34,17 @@ Replace the discarded block/background conversion direction with jointly authore
 - Preserve role colors, handedness, timing, scoring, event IDs, camera conventions, privacy, and public contracts.
 - No Theme runtime, network asset fetch, public release, upload, third-party acquisition, or Gaussian-splat integration in this slice.
 
+## Approved future asset ownership and packaging direction
+
+- Keep the canonical gameplay art in its own cross-engine polyrepo named `aerobeat-asset-gameplay`, following the separation used by the Godot asset lane. Use `aerobeat-web-asset-gameplay` only if the payload later gains web-specific assets or contracts.
+- Preserve engine-neutral ownership: editable Blender/source files, provenance, export tooling, validation, individual GLBs, and mix-and-match set manifests belong to the asset polyrepo; PlayCanvas/Godot consumers own only engine integration and rendering behavior.
+- Keep every swappable semantic role in a separate editable source directory and separate GLB rather than a combined gameplay GLB. Initial roles are directional arrow, any-note circle, guard shield, bomb, normalized wall, track, and shared athlete-marker sphere.
+- Name the initial directional-arrow variation `outline-v1`; do not encode the inspiration source in the asset identifier.
+- A set manifest selects one versioned variation independently per role so complete sets and arbitrary combinations can coexist. The shield GLB remains one canonical asset instantiated twice for a guard event.
+- `Great`/`Miss` remains renderer-owned world text rather than a GLB. Dynamic interval scaling, timing tint, row colors, instancing, outline passes, and scoring/timing behavior remain consumer/runtime responsibilities.
+- Future immutable asset releases should preserve separate GLBs, manifests, per-file hashes, coordinate/pivot/bounds metadata, provenance, and export-tool versions. A consuming assembly pins an exact asset release and copies only its selected assets into that assembly's immutable release.
+- This section approves architecture and naming only. It does not create a local or remote repository and does not authorize Tasks 2–6, public publication, or runtime integration.
+
 ## Proposed tasks
 
 ### Task 1 — Author visual specifications and review renders
@@ -71,10 +82,11 @@ Replace the discarded block/background conversion direction with jointly authore
 
 ### Task 2 — Create canonical self-contained model assets
 
-- Generate or model the arrow, circle, shield, and bomb geometry.
-- Author red translucent wall and blue glass track materials.
-- Normalize transforms and deterministic source/export files.
-- Record provenance and rights ownership for every new asset.
+- If separately approved, create the cross-engine `aerobeat-asset-gameplay` polyrepo; use `aerobeat-web-asset-gameplay` instead only if concrete web-specific payload becomes necessary.
+- Generate or model each role as an independently swappable source/export pair: directional arrow variation `outline-v1`, any-note circle, shield, bomb, normalized wall, track, and shared athlete-marker sphere.
+- Keep one separate GLB per role/variation and author mix-and-match set manifests; do not combine all gameplay models into one GLB.
+- Author red translucent wall and blue glass track materials while leaving runtime scaling, tint, instancing, outline passes, and world text to engine consumers.
+- Normalize transforms and deterministic source/export files; record provenance, rights ownership, per-file hashes, bounds, pivots, and coordinate metadata for every asset.
 
 ### Task 3 — Add renderer-owned 3D asset contract
 
