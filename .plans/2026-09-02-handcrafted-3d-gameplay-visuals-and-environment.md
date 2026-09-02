@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 CODER COMPLETE — specification and review boards authored; QA/audit and Derrick visual approval remain; Tasks 2–6 remain unapproved
+**Status:** TASK 1 QA PASS — coder specification/review boards independently verified; audit and Derrick visual approval remain; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -46,6 +46,16 @@ Replace the discarded block/background conversion direction with jointly authore
 - Recorded dimensions, SHA-256 hashes, rights/provenance, non-runtime disclaimer, and review camera in `manifest.json`. The boards are review evidence only and no generator, model, mesh, GLB, texture, or runtime code is retained in the repository.
 - Validation passed: both PNGs are nonempty RGB `1600 × 900`, manifest hashes reproduce, directory contains exactly the two PNGs plus manifest, JSON parses, and `git diff --check` passes.
 - Coder Bead `aerobeat-web-assembly-k72.1` completed; visual approval remains the gate before Task 2, and Tasks 2–6 remain untouched/unapproved.
+
+**Task 1 independent QA (2026-09-02) — PASS:**
+
+- Verified exact coder commit `b149f28`: scope is limited to this plan, Beads metadata, the specification, manifest, and two PNG review boards. No runtime/model/GLB/environment/release file changed, and fetched `origin/main` exactly matched the clean coder commit before QA metadata.
+- Confirmed all six roles are specified and visibly labeled/readable on both boards: directional arrow, any-note circle, exactly one shared shield, complete-interval translucent wall, spiny bomb, and glass track. Shared Flow/Boxing arrow reuse, material-only left/right shield reuse, authoritative full-interval wall scaling/endpoints, and deterministic track segment reuse are explicit.
+- Confirmed exact right-handed `+Y`-up/local `−Z`-forward convention and review camera position `[0.05, 1, 5]`, Euler `[0, 0, 0]`, vertical FOV `48°`; per-role dimensions, pivots, materials, depth/transparency/outline behavior, budgets, collision-free bounds, and aggregate limits are complete and coherent.
+- Independently decoded both boards as nonempty RGB `1600 × 900` PNGs. SHA-256 reproduced exactly: neutral `f5c5f6879ed18bcf007d5f6b4c721ff65d4f55e528db44e93f3189f054ed42ca`; gameplay context `47eade8a7b160b34fdbffb027b71c067db0d1f97f82e51917cde738d2ddfb1da`. The review directory contains exactly those two PNGs and `manifest.json`.
+- Visual QA confirms white/dark rims remain legible on neutral and pale ice-toned fields, arrow/circle/shield silhouettes stay distinct, bomb remains black with a separate red hazard cue, track perspective is immediate, and the translucent wall visibly exposes front/side/full Z span without hiding gameplay objects.
+- Rights/provenance and non-runtime disclaimers are explicit; the context artwork is abstract and locally authored, with no imported environment or third-party asset. `git diff --check` passed. This QA does **not** grant Derrick's required visual approval and does not authorize or touch Tasks 2–6.
+- QA Bead `aerobeat-web-assembly-k72.2` closed PASS; audit Bead `aerobeat-web-assembly-k72.3` and Derrick visual approval remain pending.
 
 ### Task 2 — Create canonical self-contained model assets
 
