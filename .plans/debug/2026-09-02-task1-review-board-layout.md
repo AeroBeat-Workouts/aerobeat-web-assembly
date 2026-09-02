@@ -83,3 +83,19 @@ Corrective action: Regenerate with measured text, wrapped headings, exclusive ca
 Verification test: Native-resolution visual QA plus text-bound containment, uniqueness, and manifest/hash checks.
 Related files/components: `.plans/review/2026-09-02-handcrafted-3d-task1/neutral-board.png`, `.plans/review/2026-09-02-handcrafted-3d-task1/gameplay-context-board.png`, `manifest.json`.
 Remaining uncertainty: Exact coordinates in the removed temporary generator are unavailable and will be reconstructed.
+
+## Repair Result — 2026-09-02
+
+Status: complete for Bead `aerobeat-web-assembly-k72.7`.
+
+- Regenerated only `neutral-board.png` and `gameplay-context-board.png` with a temporary Pillow script outside the repository, then removed the generator.
+- Added measured/wrapped text placement with at least 12 px padding, exclusive unique callout regions, dedicated timing-row label space, and a reserved footer exclusion zone.
+- Neutral board: wrapped the A heading, contained the C heading, and moved the white-core annotation fully inside C.
+- Gameplay board: separated RED from shields, rendered one dual-shield callout, separated GREEN / SUCCESS from athlete labels, rendered one bounded world-text callout, and rendered one white-success-tint callout above the footer.
+- Retained all six canonical roles and every clarified visual-review state without changing runtime, model, environment, scoring, timing truth, persistence, or public contracts.
+- Native inspection and mechanical validation passed: both files are RGB `1600 × 900`; JSON parses; manifest hashes reproduce; exact review inventory remains two PNGs plus `manifest.json`; scoped Git diff contains only review evidence and metadata.
+
+Validated SHA-256:
+
+- `neutral-board.png`: `3aa318ef432a8678dcb87e59b4df81299537b96081d8e3b9695acff9be7b229f`
+- `gameplay-context-board.png`: `e8bf7d79b6ed3a5ef66e1f03f1809677cf2c16c735f017553d8ab34960de63ee`

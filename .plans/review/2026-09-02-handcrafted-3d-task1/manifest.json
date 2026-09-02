@@ -1,7 +1,7 @@
 {
   "schema": "aerobeat/handcrafted-3d-task1-review-manifest",
   "version": 1,
-  "revision": 2,
+  "revision": 3,
   "camera": {
     "coordinateSystem": "right-handed; +Y up; local forward -Z",
     "position": [0.05, 1, 5],
@@ -36,7 +36,7 @@
         "height": 900
       },
       "mode": "RGB",
-      "sha256": "784b4b5c685a4b0ba608f073b0c3cd9f25405b08843b906e85100cb72910d15f"
+      "sha256": "3aa318ef432a8678dcb87e59b4df81299537b96081d8e3b9695acff9be7b229f"
     },
     {
       "file": "gameplay-context-board.png",
@@ -46,7 +46,7 @@
         "height": 900
       },
       "mode": "RGB",
-      "sha256": "2cc4e95e03a70cb41cd60c7469b7da133ad5e2378ecf5b10680cfb8dd707e146"
+      "sha256": "e8bf7d79b6ed3a5ef66e1f03f1809677cf2c16c735f017553d8ab34960de63ee"
     }
   ],
   "rightsAndProvenance": "Original AeroBeat/Gambit Games review artwork generated locally and deterministically with temporary Python 3 and Pillow drawing scripts using geometric/vector primitives, analytic colors, local DejaVu text rendering, and pseudo-3D shading. Temporary generators were removed after raster generation and are not repository content. No third-party model, mesh, GLB, texture, environment image, logo, acquired asset, or planned alien-moon environment content was imported or redistributed. The gameplay-context background is an original abstract ice-toned field made only from gradients and polygons.",
