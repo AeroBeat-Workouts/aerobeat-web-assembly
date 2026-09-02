@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 REVISION IN PROGRESS — Derrick supplied clarified guard, athlete-marker, timing-tint, and world-feedback requirements; Tasks 2–6 remain unapproved
+**Status:** TASK 1 REVISION CODER COMPLETE — revised spec/boards ready for k72.5 QA and k72.6 audit; Tasks 2–6 remain unapproved
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -106,3 +106,12 @@ Replace the discarded block/background conversion direction with jointly authore
 ## Approval gate
 
 Derrick approved Task 1 only, after the camera-loader successor is ready, and on 2026-09-02 requested a Task 1 revision covering simultaneous dual-shield display, 3D nose/wrist spheres, colored timing rows, white success-area beat tint, and short-lived world-space `Great`/`Miss` feedback. Task 1 may specify and render-review these proposed geometry/material/feedback behaviors but must not create landing-ready runtime assets or integrate them. Tasks 2–6 require separate approval.
+
+## Task 1 revision coder result (2026-09-02)
+
+- Revised `docs/handcrafted-3d-visual-spec-v1.md` so every guard beat displays two simultaneous visible identical instances of one canonical shield model/icon in the applicable left/right cells or lanes. The only distinction is placement; geometry, icon, scale, orientation, material, Y, and beat Z remain identical.
+- Added review-only, non-scoring specifications for full 3D nose/left-wrist/right-wrist spheres at truthful role-colored world positions; red/yellow/green near-athlete rows; a `60 ms` white success-area core tint that preserves silhouette; `80 ms` resolved-beat removal; and same-height threshold-positioned `Great`/`Miss` world text with `180 ms` hold plus `170 ms` fade (`350 ms` total).
+- Fixed depth/occlusion ordering, per-object bounds, coexistence limits, triangle/texture budgets, and explicit exclusions from judgement thresholds, score, combo, timing truth, event IDs, persistence, public contracts, obstacles, and bombs.
+- Regenerated the two existing RGB `1600 × 900` review boards. Both retain and label the original six roles while visibly demonstrating dual identical shields, 3D role-colored athlete spheres, red/yellow/green rows, white success tint with silhouette retained, rapid disappearance, and `Great` / white-outlined `Miss` world feedback.
+- Updated `manifest.json` revision, fixed review camera/provenance, board coverage, SHA-256 records, and non-runtime disclaimer. Temporary Pillow generators were removed; no generator, model, mesh, GLB, texture, runtime code, environment, or Tasks 2–6 implementation is retained.
+- Coder validation passed: exact directory inventory is two PNGs plus one manifest; both PNGs are nonempty RGB `1600 × 900`; JSON parses; hashes reproduce; repository scope and diff checks pass. Bead `aerobeat-web-assembly-k72.4` is complete; `k72.5`, `k72.6`, and parent `k72` remain open for independent QA/audit and Derrick review.
