@@ -3,7 +3,7 @@
 import { strict as assert } from "node:assert";
 import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,11 +25,13 @@ mkdirSync(packs);
 try {
   mkdirSync(resolve(fixture, "nested"));
   mkdirSync(resolve(fixture, longestPrefixDirectory));
+  const lifecycleMarker = resolve(temporaryRoot, "lifecycle-ran.txt");
   const packageJson = {
     name: "pack-policy-fixture",
     version: "1.0.0",
     private: true,
     bin: { fixture: "tool.sh" },
+    scripts: { prepack: `node -e "require('fs').writeFileSync(${JSON.stringify(lifecycleMarker)}, 'ran')"` },
     files: ["plain.txt", "empty.txt", "tool.sh", "nested/deeper.txt", exactWidthName, `${longestPrefixDirectory}/leaf.txt`]
   };
   writeFileSync(resolve(fixture, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
@@ -60,7 +62,7 @@ try {
   assert.equal(statSync(resolve(fixture, "tool.sh")).mode & 0o777, 0o755);
   assert.equal(git(fixture, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
 
-  const pack = spawnSync("npm", ["pack", "--json", "--pack-destination", packs], { cwd: fixture, encoding: "utf8" });
+  const pack = spawnSync("npm", ["pack", "--json", "--ignore-scripts", "--pack-destination", packs], { cwd: fixture, encoding: "utf8" });
   if (pack.status !== 0) throw new Error(`fixture npm pack failed:\n${pack.stderr}`);
   fixtureMetadataPath = resolve(temporaryRoot, "pack-metadata.json");
   writeFileSync(fixtureMetadataPath, pack.stdout);
@@ -68,7 +70,9 @@ try {
   const metadata = metadataDocument[0];
   fixtureArchive = resolve(packs, metadata.filename);
   const manifest = resolve(temporaryRoot, "manifest.tsv");
-  const verified = verifyArchive(fixture, commit, fixtureArchive, fixtureMetadataPath, manifest);
+  const verified = verifyArchive(fixture, commit, fixtureArchive, manifest);
+  assert.equal(verified.derivedMetadataSha256, sha256(Buffer.from(pack.stdout)));
+  assert.equal(existsSync(lifecycleMarker), false, "pack and internal dry-pack derivation must not run lifecycle scripts");
   assert.equal(verified.memberCount, 7);
   assert.equal(verified.paxCount, 0);
   assert.deepEqual(verified.modeCounts, { "0644": 6, "0755": 1 });
@@ -119,11 +123,11 @@ try {
     }
   }
 
-  // Membership is exact and bound to trusted npm metadata.
+  // Membership is exact and bound to internally derived npm metadata.
   const firstMember = canonicalTar.subarray(0, firstMemberEnd(canonicalTar));
   const terminator = Buffer.alloc(2 * BLOCK_SIZE);
   assertTarReject("empty-package", terminator, /subset/u);
-  assertTarReject("subset-package", Buffer.concat([firstMember, terminator]), /subset|does not match trusted npm metadata/u);
+  assertTarReject("subset-package", Buffer.concat([firstMember, terminator]), /subset|does not match internally derived npm metadata/u);
   assertTarReject("extra-package", Buffer.concat([canonicalTar.subarray(0, -2 * BLOCK_SIZE), firstMember, terminator]), /Duplicate|extra member|exactly two zero blocks/u);
   const memberChunks = readMemberChunks(canonicalTar);
   [memberChunks[0], memberChunks[1]] = [memberChunks[1], memberChunks[0]];
@@ -145,20 +149,57 @@ try {
     assertTarReject(label, mutated, /Non-canonical npm USTAR header/u);
   }
 
-  // The trusted metadata schema, identity, exact sorted inventory and archive hashes are mandatory.
-  assertMetadataReject("metadata-not-array", {}, /one-record JSON array/u);
-  assertMetadataReject("metadata-extra-key", mutateMetadata((record) => { record.extra = true; }), /unexpected schema/u);
-  assertMetadataReject("metadata-wrong-name", mutateMetadata((record) => { record.name = "wrong"; }), /package identity/u);
-  assertMetadataReject("metadata-size", mutateMetadata((record) => { record.size += 1; }), /byte length/u);
-  assertMetadataReject("metadata-sha1", mutateMetadata((record) => { record.shasum = "0".repeat(40); }), /SHA-1/u);
-  assertMetadataReject("metadata-sha512", mutateMetadata((record) => { record.integrity = `sha512-${"A".repeat(88)}`; }), /SHA-512/u);
-  assertMetadataReject("metadata-empty-files", mutateMetadata((record) => { record.files = []; record.entryCount = 0; record.unpackedSize = 0; }), /nonempty/u);
-  assertMetadataReject("metadata-subset", mutateMetadata((record) => { record.files.pop(); record.entryCount -= 1; record.unpackedSize = record.files.reduce((sum, file) => sum + file.size, 0); }), /subset|extra member/u);
-  assertMetadataReject("metadata-extra-file", mutateMetadata((record) => { record.files.push({ path: "missing.txt", size: 0, mode: 420 }); record.entryCount += 1; }), /not tracked|pinned npm locale/u);
-  assertMetadataReject("metadata-reordered", mutateMetadata((record) => { [record.files[0], record.files[1]] = [record.files[1], record.files[0]]; }), /pinned npm locale/u);
-  assertMetadataReject("metadata-file-extra-key", mutateMetadata((record) => { record.files[0].extra = true; }), /unexpected schema/u);
-  assertMetadataReject("metadata-mode", mutateMetadata((record) => { record.files[0].mode = 0o600; }), /metadata mode/u);
-  assertMetadataReject("metadata-bundled", mutateMetadata((record) => { record.bundled = ["x"]; }), /bundled/u);
+  // Package authority is derived internally. Caller-authored metadata is not accepted.
+  const firstChunk = readMemberChunks(canonicalTar)[0];
+  const selfAuthoredSubset = encodeCanonicalGzip(Buffer.concat([firstChunk, Buffer.alloc(2 * BLOCK_SIZE)]));
+  assertArchiveReject("self-authored-one-file-subset", selfAuthoredSubset, /subset|inventory/u);
+  assertTarReject("joint-empty-pair", Buffer.alloc(2 * BLOCK_SIZE), /subset|inventory/u);
+  const reorderedPair = readMemberChunks(canonicalTar);
+  [reorderedPair[0], reorderedPair[1]] = [reorderedPair[1], reorderedPair[0]];
+  assertTarReject("joint-reordered-pair", Buffer.concat([...reorderedPair, Buffer.alloc(2 * BLOCK_SIZE)]), /Non-canonical|inventory|extra member|Archive byte length|SHA-1/u);
+  const selfAuthoredMetadataPath = resolve(temporaryRoot, "self-authored-metadata.json");
+  const selfAuthoredDocument = JSON.parse(readFileSync(fixtureMetadataPath, "utf8"));
+  selfAuthoredDocument[0].files = [selfAuthoredDocument[0].files[0]];
+  selfAuthoredDocument[0].entryCount = 1;
+  selfAuthoredDocument[0].unpackedSize = selfAuthoredDocument[0].files[0].size;
+  refreshArchiveMetadata(selfAuthoredDocument[0], selfAuthoredSubset);
+  writeFileSync(selfAuthoredMetadataPath, `${JSON.stringify(selfAuthoredDocument, null, 2)}\n`);
+  assertCliReject(["verify", "--target", fixture, "--commit", commit, "--archive", resolve(temporaryRoot, "case-self-authored-one-file-subset", "pack-policy-fixture-1.0.0.tgz"), "--metadata", selfAuthoredMetadataPath], /Unknown option --metadata/u);
+
+  const hostileBin = resolve(temporaryRoot, "hostile-bin");
+  mkdirSync(hostileBin);
+  const hostileNpmMarker = resolve(temporaryRoot, "hostile-npm-ran.txt");
+  writeFileSync(resolve(hostileBin, "npm"), `#!/bin/sh\necho ran > ${JSON.stringify(hostileNpmMarker)}\nexit 99\n`, { mode: 0o755 });
+  const oldPath = process.env.PATH;
+  const oldTmp = process.env.TMPDIR;
+  const oldIgnoreScripts = process.env.npm_config_ignore_scripts;
+  process.env.PATH = `${hostileBin}:${oldPath ?? ""}`;
+  process.env.TMPDIR = fixture;
+  process.env.npm_config_ignore_scripts = "false";
+  try { verifyArchive(fixture, commit, fixtureArchive, undefined); }
+  finally {
+    if (oldPath === undefined) delete process.env.PATH; else process.env.PATH = oldPath;
+    if (oldTmp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = oldTmp;
+    if (oldIgnoreScripts === undefined) delete process.env.npm_config_ignore_scripts; else process.env.npm_config_ignore_scripts = oldIgnoreScripts;
+  }
+  assert.equal(existsSync(hostileNpmMarker), false, "PATH npm substitution must not execute");
+  assert.equal(existsSync(lifecycleMarker), false, "hostile environment must not enable lifecycle scripts");
+  assert.equal(git(fixture, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
+
+  // Pinned-runtime failures and noisy/malformed npm output fail closed.
+  assertCopiedPolicyReject("node-version-mismatch", { nodeVersion: "v0.0.0" }, /requires Node v0\.0\.0/u);
+  assertCopiedPolicyReject("npm-version-mismatch", { npmBody: "process.stdout.write('0.0.0\\n')" }, /requires npm 10\.9\.8/u);
+  assertCopiedPolicyReject("npm-command-failure", { npmBody: fakeNpmBody("process.stderr.write('failure\\n'); process.exit(7)") }, /failed with exit 7/u);
+  assertCopiedPolicyReject("npm-stderr-noise", { npmBody: fakeNpmBody("process.stderr.write('noise\\n'); process.stdout.write('[]\\n')") }, /unexpected stderr noise/u);
+  assertCopiedPolicyReject("npm-stdout-noise", { npmBody: fakeNpmBody("process.stdout.write('noise\\n[]\\n')") }, /valid JSON without stdout noise/u);
+  assertCopiedPolicyReject("npm-empty-json", { npmBody: fakeNpmBody("process.stdout.write('[]\\n')") }, /one-record JSON array/u);
+  assertCopiedPolicyReject("npm-extra-json-record", { npmBody: fakeNpmBody("process.stdout.write('[{},{}]\\n')") }, /one-record JSON array/u);
+
+  assert.throws(() => verifyArchive(fixture, commit, resolve(fixture, "plain.txt"), undefined), /archive must be outside/u);
+  assert.throws(() => verifyArchive(fixture, commit, fixtureArchive, resolve(fixture, "manifest.tsv")), /manifest must be outside/u);
+  const manifestAlias = resolve(temporaryRoot, "manifest-alias.tsv");
+  symlinkSync(resolve(fixture, "plain.txt"), manifestAlias);
+  assert.throws(() => verifyArchive(fixture, commit, fixtureArchive, manifestAlias), /manifest must be outside/u);
 
   // Canonical gzip is one member with exact header, deflate boundary, trailer and EOF.
   const gzipMutations = [
@@ -181,8 +222,8 @@ try {
 
   // Target and CLI boundaries stay fail closed.
   assertCliPass(["assert", "--target", fixture, "--commit", commit]);
-  assertCliPass(["verify", "--target", fixture, "--commit", commit, "--archive", fixtureArchive, "--metadata", fixtureMetadataPath]);
-  assertCliReject(["verify", "--target", fixture, "--commit", commit, "--archive", fixtureArchive], /requires --metadata/u);
+  assertCliPass(["verify", "--target", fixture, "--commit", commit, "--archive", fixtureArchive]);
+  assertCliReject(["verify", "--target", fixture, "--commit", commit, "--archive", fixtureArchive, "--metadata", fixtureMetadataPath], /Unknown option --metadata/u);
   assertCliReject(["assert", "--target", fixture, "--commit", commit, "--__proto__", "x"], /Unknown option/u);
   assertCliReject(["assert", "--target", fixture, "--target", fixture, "--commit", commit], /Duplicate option/u);
   assertCliReject(["assert", "--target"], /Invalid argument sequence/u);
@@ -201,7 +242,7 @@ try {
   chmodSync(resolve(fixture, "plain.txt"), 0o644);
   assert.throws(() => assertDetachedTarget(fixture, `${commit}^`), /ambiguous argument|Command failed/u);
 
-  console.log("Release pack policy self-test passed: trusted npm metadata, canonical single-member gzip, complete npm USTAR headers, strict numeric/membership/path/terminator/CLI grammar, Git-index/bin modes, exact bytes, and manifest identity.");
+  console.log("Release pack policy self-test passed: internally derived pinned npm authority, lifecycle/environment isolation, canonical gzip/USTAR, strict membership/path/CLI grammar, Git-index/bin modes, exact bytes, and manifest identity.");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
@@ -212,31 +253,13 @@ function assertTarReject(label, tar, pattern, refreshMetadata = true) {
   assertArchiveReject(label, archiveBuffer, pattern, refreshMetadata);
 }
 
-/** @param {string} label @param {Buffer} archiveBuffer @param {RegExp} pattern @param {boolean} [refreshMetadata] */
-function assertArchiveReject(label, archiveBuffer, pattern, refreshMetadata = true) {
+/** @param {string} label @param {Buffer} archiveBuffer @param {RegExp} pattern @param {boolean} [_refreshMetadata] */
+function assertArchiveReject(label, archiveBuffer, pattern, _refreshMetadata = true) {
   const caseRoot = resolve(temporaryRoot, `case-${label}`);
   mkdirSync(caseRoot);
   const archivePath = resolve(caseRoot, "pack-policy-fixture-1.0.0.tgz");
-  const testMetadataPath = resolve(caseRoot, "metadata.json");
   writeFileSync(archivePath, archiveBuffer);
-  const document = JSON.parse(readFileSync(fixtureMetadataPath, "utf8"));
-  if (refreshMetadata) refreshArchiveMetadata(document[0], archiveBuffer);
-  writeFileSync(testMetadataPath, `${JSON.stringify(document, null, 2)}\n`);
-  assert.throws(() => verifyArchive(fixture, git(fixture, ["rev-parse", "HEAD"]), archivePath, testMetadataPath, undefined), pattern, label);
-}
-
-/** @param {string} label @param {unknown} document @param {RegExp} pattern */
-function assertMetadataReject(label, document, pattern) {
-  const path = resolve(temporaryRoot, `${label}.json`);
-  writeFileSync(path, `${JSON.stringify(document, null, 2)}\n`);
-  assert.throws(() => verifyArchive(fixture, git(fixture, ["rev-parse", "HEAD"]), fixtureArchive, path, undefined), pattern, label);
-}
-
-/** @param {(record:Record<string, unknown>)=>void} mutate */
-function mutateMetadata(mutate) {
-  const document = JSON.parse(readFileSync(fixtureMetadataPath, "utf8"));
-  mutate(document[0]);
-  return document;
+  assert.throws(() => verifyArchive(fixture, git(fixture, ["rev-parse", "HEAD"]), archivePath, undefined), pattern, label);
 }
 
 /** @param {Record<string, unknown>} record @param {Buffer} archiveBuffer */
@@ -338,6 +361,34 @@ function assertCliReject(args, pattern) {
   assert.notEqual(result.status, 0, `CLI should reject: ${args.join(" ")}`);
   assert.match(result.stderr, pattern);
 }
+/** @param {string} packStatement */
+function fakeNpmBody(packStatement) {
+  return `if (process.argv[2] === "--version") process.stdout.write("10.9.8\\n"); else { ${packStatement} }`;
+}
+
+/**
+ * Exercise pinned runtime and subprocess failure paths without exposing a
+ * production environment override for the npm authority.
+ * @param {string} label
+ * @param {{nodeVersion?:string,npmBody?:string}} options
+ * @param {RegExp} pattern
+ */
+function assertCopiedPolicyReject(label, options, pattern) {
+  const copyRoot = resolve(temporaryRoot, `copied-${label}`);
+  const scripts = resolve(copyRoot, "scripts");
+  mkdirSync(scripts, { recursive: true });
+  const fakeCli = resolve(copyRoot, "fake-npm.mjs");
+  writeFileSync(fakeCli, options.npmBody ?? fakeNpmBody("process.stdout.write('[]\\n')"));
+  let source = readFileSync(SCRIPT_PATH, "utf8");
+  if (options.nodeVersion) source = source.replace('const PINNED_NODE_VERSION = "v22.22.3";', `const PINNED_NODE_VERSION = ${JSON.stringify(options.nodeVersion)};`);
+  source = source.replace('const PINNED_NPM_CLI = "/usr/lib/node_modules/npm/bin/npm-cli.js";', `const PINNED_NPM_CLI = ${JSON.stringify(fakeCli)};`);
+  const copiedScript = resolve(scripts, "release-pack-policy.js");
+  writeFileSync(copiedScript, source);
+  const result = spawnSync(process.execPath, [copiedScript, "verify", "--target", fixture, "--commit", git(fixture, ["rev-parse", "HEAD"]), "--archive", fixtureArchive], { encoding: "utf8" });
+  assert.notEqual(result.status, 0, `${label} must fail closed`);
+  assert.match(result.stderr, pattern, label);
+}
+
 /** @param {string} root @param {string[]} args */
 function git(root, args) { return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
 /** @param {Buffer} value */

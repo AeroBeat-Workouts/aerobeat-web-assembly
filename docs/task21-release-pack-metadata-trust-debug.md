@@ -64,3 +64,17 @@ Verification test: Reject self-authored subset/extra/reorder pairs and reproduce
 Related files/components: scripts/release-pack-policy.js; scripts/validate-release-pack-policy.js; README.md; nji/qmc/cf1/1wu/nme.
 Remaining uncertainty: None for pinned Node 22.22.3/npm 10.9.8.
 ```
+
+## Implemented root fix
+
+`verify` no longer accepts `--metadata`. After detached-target, cleanliness, and normalized Git-mode assertions, the verifier:
+
+1. requires exact Node `v22.22.3` and invokes `/usr/lib/node_modules/npm/bin/npm-cli.js` directly through that Node process;
+2. creates fresh mode-`0700` cache, temp, home, and output directories under an owned `/tmp/aerobeat-release-pack-*` root outside the detached target and canonical checkout;
+3. supplies a minimal deterministic `C.UTF-8`/UTC environment, empty isolated user/global npm configs, offline/no-color/no-notice settings, and CLI-level `--ignore-scripts=true`;
+4. requires exact noise-free npm `10.9.8`, exact noise-free one-record dry-pack JSON, no unexpected output archive, and an unchanged clean normalized target afterward;
+5. uses that internally derived record as the sole inventory and archive-hash authority before retaining the complete canonical gzip/USTAR/content/terminator checks.
+
+Archive and manifest paths resolve outside protected checkouts. Cleanup refuses an aliased/non-owned temporary root rather than deleting through it. The regression suite rejects the exact canonical one-file subset plus caller-authored metadata, caller metadata itself, empty and reordered joint pairs, PATH/npm/config/TMPDIR substitution, lifecycle attempts, pinned-version mismatch, command failure, stdout/stderr noise, malformed/extra JSON, and protected archive/manifest aliases.
+
+Two fresh differently-moded exact-`55f4088` worktrees normalize to `214×0644`; two dry and two actual packs per worktree retain JSON `cbbdb639…`, tgz `e2746b16…`, tar `93969374…`, manifest `ca299cca…`, `97×0644`, and zero PAX.

@@ -1,9 +1,9 @@
 // @ts-check
 
 import { createHash } from "node:crypto";
-import { chmodSync, lstatSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, posix, relative, resolve, sep } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { crc32, inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
@@ -12,6 +12,11 @@ const TAR_BLOCK_SIZE = 512;
 const TAR_TERMINATOR_SIZE = TAR_BLOCK_SIZE * 2;
 const PINNED_MTIME_SECONDS = 499162500;
 const CANONICAL_GZIP_HEADER = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff]);
+const PINNED_NODE_VERSION = "v22.22.3";
+const PINNED_NPM_VERSION = "10.9.8";
+const PINNED_NPM_CLI = "/usr/lib/node_modules/npm/bin/npm-cli.js";
+const ISOLATED_TEMP_PARENT = "/tmp";
+const ISOLATED_TEMP_PREFIX = "aerobeat-release-pack-";
 const EXPECTED_FILESYSTEM_MODES = new Map([
   ["100644", 0o644],
   ["100755", 0o755]
@@ -47,24 +52,29 @@ export function assertDetachedTarget(target, expectedCommit) {
 }
 
 /**
- * Verify one npm 10.9.8 archive against trusted npm-pack JSON metadata and the
- * exact detached target. The verifier intentionally accepts one canonical
- * single-member gzip + USTAR regular-file grammar, not general tar input.
+ * Verify one npm 10.9.8 archive against metadata independently derived by the
+ * policy tool from the exact normalized detached target. The caller cannot
+ * supply package inventory or hashes. This accepts one canonical single-member
+ * gzip + USTAR regular-file grammar, not general tar input.
  * @param {string} target
  * @param {string} expectedCommit
  * @param {string} archivePath
- * @param {string} metadataPath
  * @param {string | undefined} manifestPath
  */
-export function verifyArchive(target, expectedCommit, archivePath, metadataPath, manifestPath) {
+export function verifyArchive(target, expectedCommit, archivePath, manifestPath) {
   const context = inspectDetachedTarget(target, expectedCommit);
   assertClean(context.root);
   assertTrackedModes(context.root, context.entries);
-  const archive = readFileSync(resolve(archivePath));
+  const resolvedArchive = assertExternalExistingFile(archivePath, context.root, "archive");
+  const archive = readFileSync(resolvedArchive);
   const packageRecord = readPackageRecord(context.root);
-  const metadata = readTrustedMetadata(metadataPath, archivePath, archive, context, packageRecord);
+  const derived = deriveNpmPackMetadata(context);
+  const metadata = readDerivedMetadata(derived.stdout, resolvedArchive, archive, context, packageRecord);
+  assertClean(context.root);
+  assertTrackedModes(context.root, context.entries);
   const tar = decodeCanonicalGzip(archive);
   const rows = verifyCanonicalTar(tar, metadata.files, context, packageRecord);
+  assertArchiveIdentity(metadata, archive);
   const modeCounts = new Map();
   for (const row of rows) modeCounts.set(row.mode, (modeCounts.get(row.mode) ?? 0) + 1);
   const manifest = rows
@@ -72,12 +82,15 @@ export function verifyArchive(target, expectedCommit, archivePath, metadataPath,
     .sort((left, right) => compareCodePoints(left.path, right.path))
     .map((row) => `${JSON.stringify(row.path)}\t${row.mode}\t${row.size}\t${row.sha256}\n`)
     .join("");
-  if (manifestPath) writeFileSync(resolve(manifestPath), manifest);
+  if (manifestPath) {
+    const resolvedManifest = assertExternalOutputPath(manifestPath, context.root, "manifest");
+    writeFileSync(resolvedManifest, manifest);
+  }
   return {
     target: context.root,
     commit: context.commit,
-    archive: resolve(archivePath),
-    metadata: resolve(metadataPath),
+    archive: resolvedArchive,
+    derivedMetadataSha256: sha256(Buffer.from(derived.stdout)),
     archiveSha256: sha256(archive),
     decompressedTarSha256: sha256(tar),
     manifestSha256: sha256(Buffer.from(manifest)),
@@ -85,6 +98,161 @@ export function verifyArchive(target, expectedCommit, archivePath, metadataPath,
     paxCount: 0,
     modeCounts: Object.fromEntries([...modeCounts].sort(([left], [right]) => compareCodePoints(left, right)))
   };
+}
+
+/**
+ * Derive the sole authoritative npm-pack record from the normalized detached
+ * target with the pinned Node/npm toolchain and a sanitized isolated runtime.
+ * @param {{root:string,commit:string,entries:IndexEntry[]}} context
+ */
+function deriveNpmPackMetadata(context) {
+  if (process.version !== PINNED_NODE_VERSION) throw new Error(`Release pack policy requires Node ${PINNED_NODE_VERSION}, received ${process.version}`);
+  const npmCli = realpathSync(PINNED_NPM_CLI);
+  if (npmCli !== PINNED_NPM_CLI) throw new Error(`Pinned npm CLI must resolve exactly to ${PINNED_NPM_CLI}`);
+  const parent = realpathSync(ISOLATED_TEMP_PARENT);
+  const temporaryRoot = mkdtempSync(resolve(parent, ISOLATED_TEMP_PREFIX));
+  try {
+    assertOwnedTemporaryRoot(temporaryRoot, parent);
+    assertPathSeparate(temporaryRoot, context.root, "isolated temporary root");
+    assertPathSeparate(temporaryRoot, SCRIPT_REPOSITORY_ROOT, "isolated temporary root");
+    const cache = resolve(temporaryRoot, "cache");
+    const temporary = resolve(temporaryRoot, "tmp");
+    const output = resolve(temporaryRoot, "output");
+    const home = resolve(temporaryRoot, "home");
+    mkdirSync(cache, { mode: 0o700 });
+    mkdirSync(temporary, { mode: 0o700 });
+    mkdirSync(output, { mode: 0o700 });
+    mkdirSync(home, { mode: 0o700 });
+    const userConfig = resolve(temporaryRoot, "user.npmrc");
+    const globalConfig = resolve(temporaryRoot, "global.npmrc");
+    writeFileSync(userConfig, "", { mode: 0o600 });
+    writeFileSync(globalConfig, "", { mode: 0o600 });
+    for (const path of [cache, temporary, output, home, userConfig, globalConfig]) {
+      const actual = realpathSync(path);
+      if (!isPathInside(actual, temporaryRoot)) throw new Error(`Isolated npm path escaped temporary root: ${path}`);
+      assertPathSeparate(actual, context.root, "isolated npm path");
+      assertPathSeparate(actual, SCRIPT_REPOSITORY_ROOT, "isolated npm path");
+    }
+    const environment = {
+      PATH: "/usr/bin:/bin",
+      HOME: home,
+      TMPDIR: temporary,
+      TMP: temporary,
+      TEMP: temporary,
+      LANG: "C.UTF-8",
+      LC_ALL: "C.UTF-8",
+      TZ: "UTC",
+      NO_COLOR: "1",
+      npm_config_cache: cache,
+      npm_config_userconfig: userConfig,
+      npm_config_globalconfig: globalConfig,
+      npm_config_ignore_scripts: "true",
+      npm_config_foreground_scripts: "false",
+      npm_config_audit: "false",
+      npm_config_fund: "false",
+      npm_config_update_notifier: "false",
+      npm_config_color: "false",
+      npm_config_loglevel: "silent",
+      npm_config_offline: "true"
+    };
+    const version = runPinnedNpm(["--version"], context.root, environment, "npm version check");
+    if (version.stdout !== `${PINNED_NPM_VERSION}\n` || version.stderr !== "") {
+      throw new Error(`Release pack policy requires npm ${PINNED_NPM_VERSION} with noise-free output`);
+    }
+    const result = runPinnedNpm([
+      "pack", "--dry-run", "--json", "--ignore-scripts=true", "--foreground-scripts=false",
+      "--pack-destination", output, "--cache", cache, "--userconfig", userConfig,
+      "--globalconfig", globalConfig, "--offline=true", "--loglevel=silent", "--color=false"
+    ], context.root, environment, "internal npm dry-pack derivation");
+    if (result.stderr !== "") throw new Error("Internal npm dry-pack derivation produced unexpected stderr noise");
+    if (!result.stdout.endsWith("\n") || result.stdout.trim() === "") throw new Error("Internal npm dry-pack derivation produced malformed stdout");
+    if (readdirSync(output).length !== 0) throw new Error("Internal npm dry-pack derivation unexpectedly wrote package output");
+    assertClean(context.root);
+    assertTrackedModes(context.root, context.entries);
+    return { stdout: result.stdout };
+  } finally {
+    assertOwnedTemporaryRoot(temporaryRoot, parent);
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+/**
+ * @param {string[]} args
+ * @param {string} cwd
+ * @param {NodeJS.ProcessEnv} environment
+ * @param {string} label
+ */
+function runPinnedNpm(args, cwd, environment, label) {
+  const result = spawnSync(process.execPath, [PINNED_NPM_CLI, ...args], {
+    cwd,
+    env: environment,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+    windowsHide: true
+  });
+  if (result.error) throw new Error(`${label} failed to start: ${result.error.message}`);
+  if (result.signal) throw new Error(`${label} terminated by signal ${result.signal}`);
+  if (result.status !== 0) throw new Error(`${label} failed with exit ${result.status}: ${result.stderr || result.stdout}`);
+  if (typeof result.stdout !== "string" || typeof result.stderr !== "string") throw new Error(`${label} did not return text output`);
+  return { stdout: result.stdout, stderr: result.stderr };
+}
+
+/** @param {string} path @param {string} targetRoot @param {string} label */
+function assertExternalExistingFile(path, targetRoot, label) {
+  if (!path) throw new Error(`verify requires --${label}`);
+  const actual = realpathSync(resolve(path));
+  if (!lstatSync(actual).isFile()) throw new Error(`--${label} must name a regular file`);
+  assertPathOutside(actual, targetRoot, label);
+  assertPathOutside(actual, SCRIPT_REPOSITORY_ROOT, label);
+  return actual;
+}
+
+/** @param {string} path @param {string} targetRoot @param {string} label */
+function assertExternalOutputPath(path, targetRoot, label) {
+  if (!path) throw new Error(`verify requires --${label}`);
+  const parent = realpathSync(dirname(resolve(path)));
+  assertPathOutside(parent, targetRoot, label);
+  assertPathOutside(parent, SCRIPT_REPOSITORY_ROOT, label);
+  const actual = resolve(parent, basename(path));
+  try {
+    const existing = realpathSync(actual);
+    assertPathOutside(existing, targetRoot, label);
+    assertPathOutside(existing, SCRIPT_REPOSITORY_ROOT, label);
+    if (!lstatSync(existing).isFile()) throw new Error(`--${label} must name a regular file`);
+    return existing;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return actual;
+    throw error;
+  }
+}
+
+/** @param {string} candidate @param {string} protectedRoot @param {string} label */
+function assertPathOutside(candidate, protectedRoot, label) {
+  const protectedReal = realpathSync(protectedRoot);
+  const candidateReal = realpathSync(candidate);
+  if (candidateReal === protectedReal || isPathInside(candidateReal, protectedReal)) {
+    throw new Error(`${label} must be outside and must not alias the protected checkout ${protectedReal}`);
+  }
+}
+
+/** @param {string} candidate @param {string} protectedRoot @param {string} label */
+function assertPathSeparate(candidate, protectedRoot, label) {
+  const protectedReal = realpathSync(protectedRoot);
+  const candidateReal = realpathSync(candidate);
+  if (candidateReal === protectedReal || isPathInside(candidateReal, protectedReal) || isPathInside(protectedReal, candidateReal)) {
+    throw new Error(`${label} must be outside and must not alias the protected checkout ${protectedReal}`);
+  }
+}
+
+/** @param {string} candidate @param {string} parent */
+function isPathInside(candidate, parent) { return candidate.startsWith(`${parent}${sep}`); }
+
+/** @param {string} root @param {string} parent */
+function assertOwnedTemporaryRoot(root, parent) {
+  const actual = realpathSync(root);
+  if (actual !== root || dirname(actual) !== parent || !basename(actual).startsWith(ISOLATED_TEMP_PREFIX) || !lstatSync(actual).isDirectory()) {
+    throw new Error(`Refusing unsafe temporary cleanup path ${root}`);
+  }
 }
 
 /** @param {string} root */
@@ -115,19 +283,18 @@ function normalizeBinPath(value) {
 }
 
 /**
- * @param {string} metadataPath
+ * @param {string} metadataText
  * @param {string} archivePath
  * @param {Buffer} archive
  * @param {{root:string,commit:string,entries:IndexEntry[]}} context
  * @param {{name:string,version:string,bins:Set<string>}} packageRecord
  */
-function readTrustedMetadata(metadataPath, archivePath, archive, context, packageRecord) {
-  if (!metadataPath) throw new Error("verify requires --metadata from the matching npm pack --json invocation");
+function readDerivedMetadata(metadataText, archivePath, archive, context, packageRecord) {
   let document;
-  try { document = JSON.parse(readFileSync(resolve(metadataPath), "utf8")); }
-  catch { throw new Error("Trusted npm pack metadata must be valid JSON"); }
+  try { document = JSON.parse(metadataText); }
+  catch { throw new Error("Internally derived npm pack metadata must be valid JSON without stdout noise"); }
   if (!Array.isArray(document) || document.length !== 1 || !isPlainRecord(document[0])) {
-    throw new Error("Trusted npm pack metadata must be a one-record JSON array");
+    throw new Error("Internally derived npm pack metadata must be a one-record JSON array");
   }
   const metadata = document[0];
   assertExactKeys(metadata, METADATA_KEYS, "npm pack metadata");
@@ -141,11 +308,8 @@ function readTrustedMetadata(metadataPath, archivePath, archive, context, packag
   assertSafeInteger(metadata.size, "metadata size");
   assertSafeInteger(metadata.unpackedSize, "metadata unpackedSize");
   assertSafeInteger(metadata.entryCount, "metadata entryCount");
-  if (metadata.size !== archive.length) throw new Error(`Archive byte length ${archive.length} does not match npm metadata ${metadata.size}`);
-  const archiveSha1 = digest("sha1", archive, "hex");
-  const archiveSha512 = `sha512-${digest("sha512", archive, "base64")}`;
-  if (metadata.shasum !== archiveSha1) throw new Error("Archive SHA-1 does not match trusted npm metadata");
-  if (metadata.integrity !== archiveSha512) throw new Error("Archive SHA-512 integrity does not match trusted npm metadata");
+  if (typeof metadata.shasum !== "string" || !/^[0-9a-f]{40}$/u.test(metadata.shasum)) throw new Error("Internally derived npm metadata shasum is malformed");
+  if (typeof metadata.integrity !== "string" || !/^sha512-[A-Za-z0-9+/]{86}==$/u.test(metadata.integrity)) throw new Error("Internally derived npm metadata integrity is malformed");
   if (!Array.isArray(metadata.bundled) || metadata.bundled.length !== 0) throw new Error("npm pack metadata bundled must be an empty array");
   if (!Array.isArray(metadata.files) || metadata.files.length === 0 || metadata.entryCount !== metadata.files.length) {
     throw new Error("npm pack metadata files must be a nonempty exact entryCount array");
@@ -182,7 +346,16 @@ function readTrustedMetadata(metadataPath, archivePath, archive, context, packag
   ];
   if (files.some((file, index) => file.path !== expectedOrder[index].path)) throw new Error("npm metadata files do not use the pinned npm locale path order");
   if (metadata.unpackedSize !== unpackedSize) throw new Error("npm metadata unpackedSize does not equal exact file-byte sum");
-  return { files };
+  return { files, size: metadata.size, shasum: metadata.shasum, integrity: metadata.integrity };
+}
+
+/** @param {{size:number,shasum:string,integrity:string}} metadata @param {Buffer} archive */
+function assertArchiveIdentity(metadata, archive) {
+  if (metadata.size !== archive.length) throw new Error(`Archive byte length ${archive.length} does not match internally derived npm metadata ${metadata.size}`);
+  const archiveSha1 = digest("sha1", archive, "hex");
+  const archiveSha512 = `sha512-${digest("sha512", archive, "base64")}`;
+  if (metadata.shasum !== archiveSha1) throw new Error("Archive SHA-1 does not match internally derived npm metadata");
+  if (metadata.integrity !== archiveSha512) throw new Error("Archive SHA-512 integrity does not match internally derived npm metadata");
 }
 
 /** @param {Buffer} archive */
@@ -217,13 +390,13 @@ function verifyCanonicalTar(tar, metadataFiles, context, packageRecord) {
   const rows = [];
   let offset = 0;
   for (let memberIndex = 0; memberIndex < metadataFiles.length; memberIndex += 1) {
-    if (offset + TAR_BLOCK_SIZE > tar.length - TAR_TERMINATOR_SIZE) throw new Error("Tar member inventory is a subset of trusted npm metadata");
+    if (offset + TAR_BLOCK_SIZE > tar.length - TAR_TERMINATOR_SIZE) throw new Error("Tar member inventory is a subset of internally derived npm metadata");
     const actualHeader = tar.subarray(offset, offset + TAR_BLOCK_SIZE);
-    if (isZeroBlock(actualHeader)) throw new Error("Tar member inventory is a subset of trusted npm metadata");
+    if (isZeroBlock(actualHeader)) throw new Error("Tar member inventory is a subset of internally derived npm metadata");
     const archivePath = readCanonicalHeaderPath(actualHeader, offset);
     const sourcePath = archivePath.slice("package/".length);
     const file = expectedByPath.get(sourcePath);
-    if (!file) throw new Error(`Tar contains an extra member not present in trusted npm metadata: ${archivePath}`);
+    if (!file) throw new Error(`Tar contains an extra member not present in internally derived npm inventory: ${archivePath}`);
     if (seen.has(sourcePath)) throw new Error(`Duplicate npm tar member ${sourcePath}`);
     seen.add(sourcePath);
     const entry = context.entries.find((candidate) => candidate.path === sourcePath);
@@ -243,9 +416,9 @@ function verifyCanonicalTar(tar, metadataFiles, context, packageRecord) {
     rows.push({ path: archivePath, mode: formatMode(expectedMode), size: file.size, sha256: sha256(file.source) });
     offset = paddedEnd;
   }
-  if (seen.size !== metadataFiles.length) throw new Error("Tar member inventory does not match trusted npm metadata");
+  if (seen.size !== metadataFiles.length) throw new Error("Tar member inventory does not match internally derived npm metadata");
   if (offset + TAR_TERMINATOR_SIZE !== tar.length || !isZeroBlock(tar.subarray(offset, offset + 512)) || !isZeroBlock(tar.subarray(offset + 512))) {
-    throw new Error("Tar must end with exactly two zero blocks and exact EOF after trusted npm membership");
+    throw new Error("Tar must end with exactly two zero blocks and exact EOF after internally derived npm membership");
   }
   return rows;
 }
@@ -440,14 +613,14 @@ function git(root, args) { return execFileSync("git", ["-C", resolve(root), ...a
 const COMMAND_OPTION_SCHEMAS = new Map([
   ["normalize", { required: new Set(["target", "commit"]), optional: new Set() }],
   ["assert", { required: new Set(["target", "commit"]), optional: new Set() }],
-  ["verify", { required: new Set(["target", "commit", "archive", "metadata"]), optional: new Set(["manifest"]) }]
+  ["verify", { required: new Set(["target", "commit", "archive"]), optional: new Set(["manifest"]) }]
 ]);
 
 /** @param {string[]} argv */
 function parseArguments(argv) {
   const [command, ...rest] = argv;
   const schema = command ? COMMAND_OPTION_SCHEMAS.get(command) : undefined;
-  if (!schema) throw new Error("Usage: release-pack-policy.js <normalize|assert|verify> --target PATH --commit COMMIT [--archive TGZ --metadata JSON --manifest FILE]");
+  if (!schema) throw new Error("Usage: release-pack-policy.js <normalize|assert|verify> --target PATH --commit COMMIT [--archive TGZ --manifest FILE]");
   const options = new Map();
   for (let index = 0; index < rest.length; index += 2) {
     const token = rest[index];
@@ -470,7 +643,7 @@ if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToP
     let result;
     if (command === "normalize") result = normalizeDetachedTarget(target, commit);
     else if (command === "assert") result = assertDetachedTarget(target, commit);
-    else if (command === "verify") result = verifyArchive(target, commit, options.get("archive") ?? "", options.get("metadata") ?? "", options.get("manifest"));
+    else if (command === "verify") result = verifyArchive(target, commit, options.get("archive") ?? "", options.get("manifest"));
     else throw new Error("Unknown release pack policy command");
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
