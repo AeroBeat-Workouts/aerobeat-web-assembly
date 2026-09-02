@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** TASK 1 QA PASS — coder specification/review boards independently verified; audit and Derrick visual approval remain; Tasks 2–6 remain unapproved
+**Status:** TASK 1 REVIEW READY — DERRICK APPROVAL REQUIRED
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -56,6 +56,14 @@ Replace the discarded block/background conversion direction with jointly authore
 - Visual QA confirms white/dark rims remain legible on neutral and pale ice-toned fields, arrow/circle/shield silhouettes stay distinct, bomb remains black with a separate red hazard cue, track perspective is immediate, and the translucent wall visibly exposes front/side/full Z span without hiding gameplay objects.
 - Rights/provenance and non-runtime disclaimers are explicit; the context artwork is abstract and locally authored, with no imported environment or third-party asset. `git diff --check` passed. This QA does **not** grant Derrick's required visual approval and does not authorize or touch Tasks 2–6.
 - QA Bead `aerobeat-web-assembly-k72.2` closed PASS; audit Bead `aerobeat-web-assembly-k72.3` and Derrick visual approval remain pending.
+
+**FINAL AUDIT PASS (2026-09-02):**
+
+- Audited exact coder commit `b149f28b52c8989b0378d785c2a9feb13fac0e01` and QA commit `acec27b999dd9bed5a6eec128eca0471f04daf79`; both are committed in order and the pre-audit checkout matched clean `origin/main` at the QA commit.
+- Recomputed both nonempty RGB `1600 × 900` PNGs and reproduced manifest SHA-256 exactly: neutral `f5c5f6879ed18bcf007d5f6b4c721ff65d4f55e528db44e93f3189f054ed42ca`; gameplay context `47eade8a7b160b34fdbffb027b71c067db0d1f97f82e51917cde738d2ddfb1da`. The review directory contains exactly those two PNGs plus `manifest.json`.
+- Independently inspected both boards and the complete specification/manifest. All six required roles are present and labeled on both boards: directional arrow, any-note circle, one shared shield, full interval wall, spiny bomb, and glass track. Required reuse, dimensions, pivots, axes, material/depth/outline behavior, budgets, bounds, camera, provenance, and non-runtime constraints are explicit.
+- Exact committed scope from the Task 1 chain is limited to plan/Beads metadata, the specification, manifest, and two review PNGs. No runtime/model/GLB/environment/release file or Task 2–6 implementation changed; `git diff --check` passed.
+- Task 1 is review-ready only. This audit does **not** approve silhouettes/materials on Derrick's behalf and does not authorize Tasks 2–6. Parent Bead `aerobeat-web-assembly-k72` remains open/in progress pending Derrick's separate visual review and approval.
 
 ### Task 2 — Create canonical self-contained model assets
 
