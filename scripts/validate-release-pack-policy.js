@@ -1,12 +1,13 @@
 // @ts-check
 
 import { strict as assert } from "node:assert";
+import { createHash } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { crc32, deflateRawSync, gunzipSync } from "node:zlib";
 import { assertDetachedTarget, normalizeDetachedTarget, verifyArchive } from "./release-pack-policy.js";
 
 const BLOCK_SIZE = 512;
@@ -14,16 +15,31 @@ const SCRIPT_PATH = fileURLToPath(new URL("./release-pack-policy.js", import.met
 const temporaryRoot = mkdtempSync(resolve(tmpdir(), "aerobeat-pack-policy-"));
 const fixture = resolve(temporaryRoot, "fixture");
 const packs = resolve(temporaryRoot, "packs");
+const exactWidthName = "a".repeat(92);
+const longestPrefixDirectory = "p".repeat(146);
+let fixtureMetadataPath = "";
+let fixtureArchive = "";
 mkdirSync(fixture);
 mkdirSync(packs);
 
 try {
-  writeFileSync(resolve(fixture, "package.json"), `${JSON.stringify({ name: "pack-policy-fixture", version: "1.0.0", private: true, files: ["plain.txt", "tool.sh"] }, null, 2)}\n`);
+  mkdirSync(resolve(fixture, "nested"));
+  mkdirSync(resolve(fixture, longestPrefixDirectory));
+  const packageJson = {
+    name: "pack-policy-fixture",
+    version: "1.0.0",
+    private: true,
+    bin: { fixture: "tool.sh" },
+    files: ["plain.txt", "empty.txt", "tool.sh", "nested/deeper.txt", exactWidthName, `${longestPrefixDirectory}/leaf.txt`]
+  };
+  writeFileSync(resolve(fixture, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
   writeFileSync(resolve(fixture, "plain.txt"), "plain\n");
+  writeFileSync(resolve(fixture, "empty.txt"), "");
   writeFileSync(resolve(fixture, "tool.sh"), "#!/bin/sh\nexit 0\n");
-  chmodSync(resolve(fixture, "plain.txt"), 0o644);
-  chmodSync(resolve(fixture, "package.json"), 0o644);
-  chmodSync(resolve(fixture, "tool.sh"), 0o755);
+  writeFileSync(resolve(fixture, "nested/deeper.txt"), "nested\n");
+  writeFileSync(resolve(fixture, exactWidthName), "width\n");
+  writeFileSync(resolve(fixture, longestPrefixDirectory, "leaf.txt"), "prefix\n");
+  for (const path of ["package.json", "plain.txt", "empty.txt", "tool.sh", "nested/deeper.txt", exactWidthName, `${longestPrefixDirectory}/leaf.txt`]) chmodSync(resolve(fixture, path), path === "tool.sh" ? 0o755 : 0o644);
   git(fixture, ["init", "-q"]);
   git(fixture, ["config", "user.name", "Pack Policy Test"]);
   git(fixture, ["config", "user.email", "pack-policy@example.invalid"]);
@@ -37,204 +53,278 @@ try {
   chmodSync(resolve(fixture, "plain.txt"), 0o600);
   chmodSync(resolve(fixture, "tool.sh"), 0o700);
   assert.throws(() => assertDetachedTarget(fixture, commit), /has mode 0600, expected 0644/u);
-
   const normalized = normalizeDetachedTarget(fixture, commit);
-  assert.equal(normalized.trackedFileCount, 3);
-  assert.deepEqual(normalized.modeCounts, { "0644": 2, "0755": 1 });
+  assert.equal(normalized.trackedFileCount, 7);
+  assert.deepEqual(normalized.modeCounts, { "0644": 6, "0755": 1 });
   assert.equal(statSync(resolve(fixture, "plain.txt")).mode & 0o777, 0o644);
   assert.equal(statSync(resolve(fixture, "tool.sh")).mode & 0o777, 0o755);
   assert.equal(git(fixture, ["status", "--porcelain=v1", "--untracked-files=all"]), "");
 
   const pack = spawnSync("npm", ["pack", "--json", "--pack-destination", packs], { cwd: fixture, encoding: "utf8" });
   if (pack.status !== 0) throw new Error(`fixture npm pack failed:\n${pack.stderr}`);
-  const metadata = JSON.parse(pack.stdout)[0];
-  const archive = resolve(packs, metadata.filename);
+  fixtureMetadataPath = resolve(temporaryRoot, "pack-metadata.json");
+  writeFileSync(fixtureMetadataPath, pack.stdout);
+  const metadataDocument = JSON.parse(pack.stdout);
+  const metadata = metadataDocument[0];
+  fixtureArchive = resolve(packs, metadata.filename);
   const manifest = resolve(temporaryRoot, "manifest.tsv");
-  const verified = verifyArchive(fixture, commit, archive, manifest);
-  assert.equal(verified.memberCount, 3);
+  const verified = verifyArchive(fixture, commit, fixtureArchive, fixtureMetadataPath, manifest);
+  assert.equal(verified.memberCount, 7);
   assert.equal(verified.paxCount, 0);
-  assert.deepEqual(verified.modeCounts, { "0644": 2, "0755": 1 });
-  assert.equal(readFileSync(manifest, "utf8").split("\n").filter(Boolean).length, 3);
+  assert.deepEqual(verified.modeCounts, { "0644": 6, "0755": 1 });
+  assert.equal(metadata.files.find((file) => file.path === "tool.sh").mode, 0o755, "npm bin must be modeled as executable");
+  assert.equal(readFileSync(manifest, "utf8").split("\n").filter(Boolean).length, 7);
 
-  const canonicalTar = gunzipSync(readFileSync(archive));
-  const terminatorOffset = findFirstZeroBlock(canonicalTar);
-  assert.equal(canonicalTar.length % BLOCK_SIZE, 0);
-  assert.equal(terminatorOffset, canonicalTar.length - 2 * BLOCK_SIZE, "canonical npm fixture must end in exactly two zero blocks");
-  assert(canonicalTar.subarray(terminatorOffset).every((byte) => byte === 0));
-  const memberBytes = canonicalTar.subarray(0, terminatorOffset);
+  const canonicalArchive = readFileSync(fixtureArchive);
+  const canonicalTar = gunzipSync(canonicalArchive);
+  const headers = readMemberHeaders(canonicalTar);
+  assert.equal(headers.length, 7);
+  assert(headers.some(({ path }) => path === `package/${exactWidthName}`));
+  assert(headers.some(({ path }) => path === `package/${longestPrefixDirectory}/leaf.txt`));
+  assert.equal(findFirstZeroBlock(canonicalTar), canonicalTar.length - 2 * BLOCK_SIZE);
+  assert(canonicalTar.subarray(canonicalTar.length - 2 * BLOCK_SIZE).every((byte) => byte === 0));
+
+  // One-byte mutations of every meaningful or reserved USTAR field must fail.
+  const fieldOffsets = [0, 100, 108, 116, 124, 136, 148, 156, 157, 257, 263, 265, 297, 329, 337, 345, 476, 488, 500];
+  for (const offset of fieldOffsets) {
+    const mutated = mutateFirstHeader(canonicalTar, (header) => {
+      header[offset] ^= 1;
+      if (offset < 148 || offset >= 156) writeCanonicalChecksum(header);
+    });
+    assertTarReject(`header-field-${offset}`, mutated, /Non-canonical|Malformed|extra member|Unsafe npm member/u);
+  }
+
+  // Numeric fields accept no partial octal, alternate termination, sign, 8/9, base-256, or overflow shape.
+  const numericFields = [
+    ["mode", 100, 8], ["uid", 108, 8], ["gid", 116, 8], ["size", 124, 12],
+    ["mtime", 136, 12], ["checksum", 148, 8], ["devmajor", 329, 8], ["devminor", 337, 8]
+  ];
+  const malformedNumericValues = [
+    (length) => Buffer.from(`${"0".repeat(length - 2)}8\0`, "ascii"),
+    (length) => Buffer.from(`${"0".repeat(length - 2)}9\0`, "ascii"),
+    (length) => Buffer.from(`-${"0".repeat(length - 2)}\0`, "ascii"),
+    (length) => Buffer.from(`${"0".repeat(Math.max(0, length - 5))} \0XYZ`, "ascii").subarray(0, length),
+    (length) => { const value = Buffer.alloc(length); value[0] = 0x80; return value; },
+    (length) => Buffer.from("7".repeat(length), "ascii")
+  ];
+  for (const [label, start, length] of numericFields) {
+    for (const [index, makeValue] of malformedNumericValues.entries()) {
+      const mutated = mutateFirstHeader(canonicalTar, (header) => {
+        const value = makeValue(length);
+        header.fill(0, start, start + length);
+        value.copy(header, start, 0, Math.min(value.length, length));
+        if (label !== "checksum") writeCanonicalChecksum(header);
+      });
+      assertTarReject(`numeric-${label}-${index}`, mutated, /Non-canonical npm USTAR header|Malformed tar/u);
+    }
+  }
+
+  // Membership is exact and bound to trusted npm metadata.
   const firstMember = canonicalTar.subarray(0, firstMemberEnd(canonicalTar));
   const terminator = Buffer.alloc(2 * BLOCK_SIZE);
+  assertTarReject("empty-package", terminator, /subset/u);
+  assertTarReject("subset-package", Buffer.concat([firstMember, terminator]), /subset|does not match trusted npm metadata/u);
+  assertTarReject("extra-package", Buffer.concat([canonicalTar.subarray(0, -2 * BLOCK_SIZE), firstMember, terminator]), /Duplicate|extra member|exactly two zero blocks/u);
+  const memberChunks = readMemberChunks(canonicalTar);
+  [memberChunks[0], memberChunks[1]] = [memberChunks[1], memberChunks[0]];
+  assertTarReject("reordered-package", Buffer.concat([...memberChunks, terminator]), /SHA-1|SHA-512|Non-canonical|metadata/u, false);
 
-  // Canonical end-of-archive framing is mandatory and exact.
-  assertTarReject("missing-terminator", canonicalTar.subarray(0, terminatorOffset), /missing canonical two-block/u);
-  assertTarReject("one-zero-block", canonicalTar.subarray(0, terminatorOffset + BLOCK_SIZE), /expected two consecutive zero blocks/u);
-  assertTarReject("partial-final-block", canonicalTar.subarray(0, canonicalTar.length - 1), /512-byte block framing/u);
-  assertTarReject("extra-zero-block", Buffer.concat([canonicalTar, Buffer.alloc(BLOCK_SIZE)]), /extra zero padding/u);
-  const trailingNonzeroBlock = Buffer.alloc(BLOCK_SIZE);
-  trailingNonzeroBlock[0] = 1;
-  assertTarReject("trailing-nonzero", Buffer.concat([canonicalTar, trailingNonzeroBlock]), /Nonzero trailing data/u);
-  assertTarReject("duplicate-after-terminator", Buffer.concat([canonicalTar, firstMember, terminator]), /Nonzero trailing data/u);
-
-  // Existing structural protections remain fail closed before the terminator.
-  const badChecksum = Buffer.from(canonicalTar);
-  badChecksum[0] ^= 1;
-  assertTarReject("bad-checksum", badChecksum, /Invalid tar header checksum/u);
-  assertTarReject("duplicate-before-end", Buffer.concat([memberBytes, firstMember, terminator]), /Duplicate npm member/u);
-  assertTarReject("truncated-member", buildTar([buildMember({ path: "package/plain.txt", mode: 0o644, content: Buffer.from("x"), declaredSize: 2048 })]), /Truncated tar member/u);
-  const nonzeroPaddingMember = buildMember({ path: "package/plain.txt", mode: 0o644, content: Buffer.from("x") });
-  nonzeroPaddingMember[BLOCK_SIZE + 1] = 1;
-  assertTarReject("nonzero-member-padding", buildTar([nonzeroPaddingMember]), /Nonzero tar member padding/u);
-  assertTarReject("pax", buildTar([buildMember({ path: "package/pax", mode: 0o644, typeFlag: "x", content: Buffer.from("path=package/plain.txt\n") })]), /PAX member is forbidden/u);
-  assertTarReject("unsupported-type", buildTar([buildMember({ path: "package/link", mode: 0o644, typeFlag: "2" })]), /Unsupported npm tar member type/u);
-
-  const wrongMode = Buffer.from(canonicalTar);
-  writeTarNumber(wrongMode.subarray(0, BLOCK_SIZE), 100, 8, 0o600);
-  writeChecksum(wrongMode.subarray(0, BLOCK_SIZE));
-  assertTarReject("wrong-file-mode", wrongMode, /has mode 0600, expected/u);
-  const wrongContent = Buffer.from(canonicalTar);
-  wrongContent[BLOCK_SIZE] ^= 1;
-  assertTarReject("wrong-file-content", wrongContent, /does not match the exact tracked target bytes/u);
-
-  // A safe directory is accepted, but every directory path is constrained first and its mode remains exact 0755.
-  const safeDirectory = buildMember({ path: "package/nested/", mode: 0o755, typeFlag: "5" });
-  const withSafeDirectory = writeTar("safe-directory", Buffer.concat([safeDirectory, memberBytes, terminator]));
-  assert.equal(verifyArchive(fixture, commit, withSafeDirectory, undefined).memberCount, 3);
-  assertTarReject("wrong-directory-mode", buildTar([buildMember({ path: "package/nested/", mode: 0o700, typeFlag: "5" })]), /expected 0755/u);
-
-  const unsafePaths = [
-    "../escape/",
-    "/absolute",
-    "\\absolute",
-    "package\\ambiguous",
-    "package/../escape",
-    "package/./dot",
-    "package//empty",
-    "package/C:/drive",
-    "package/",
-    "package"
-  ];
-  for (const [index, path] of unsafePaths.entries()) {
-    const typeFlag = index % 4 === 0 ? "5" : index % 4 === 1 ? "x" : index % 4 === 2 ? "2" : "0";
-    assertTarReject(`unsafe-path-${index}`, buildTar([buildMember({ path, mode: typeFlag === "5" ? 0o755 : 0o644, typeFlag })]), /Unsafe npm member path/u);
+  // Exact framing and prior cf1 path/type/padding protections remain closed.
+  assertTarReject("missing-terminator", canonicalTar.subarray(0, -2 * BLOCK_SIZE), /two-block terminator|subset/u);
+  assertTarReject("one-zero-block", canonicalTar.subarray(0, -BLOCK_SIZE), /two-block terminator|exact EOF|Truncated tar member/u);
+  assertTarReject("partial-final-block", canonicalTar.subarray(0, -1), /512-byte framing|two zero blocks/u);
+  assertTarReject("extra-zero-block", Buffer.concat([canonicalTar, Buffer.alloc(BLOCK_SIZE)]), /exact EOF|two zero blocks/u);
+  const nonzeroPadding = mutateTarMemberPadding(canonicalTar);
+  assertTarReject("nonzero-padding", nonzeroPadding, /Nonzero tar member padding/u);
+  for (const unsafePath of ["../escape", "/absolute", "package\\ambiguous", "package/../escape", "package/./dot", "package//empty", "package/C:/drive", "package/"]) {
+    const mutated = replaceFirstHeaderPath(canonicalTar, unsafePath);
+    assertTarReject(`unsafe-${sha256(Buffer.from(unsafePath)).slice(0, 8)}`, mutated, /Unsafe npm member path|Non-canonical/u);
   }
-  assertTarReject("unsafe-directory-before-mode", buildTar([buildMember({ path: "../escape/", mode: 0o700, typeFlag: "5" })]), /Unsafe npm member path/u);
-  assertTarReject("unsafe-pax-before-type", buildTar([buildMember({ path: "../pax", mode: 0o644, typeFlag: "x" })]), /Unsafe npm member path/u);
-  assertTarReject("unsafe-unsupported-before-type", buildTar([buildMember({ path: "../link", mode: 0o644, typeFlag: "2" })]), /Unsafe npm member path/u);
+  for (const [label, type] of [["nul-type", 0], ["directory", 53], ["symlink", 50], ["pax", 120]]) {
+    const mutated = mutateFirstHeader(canonicalTar, (header) => { header[156] = type; writeCanonicalChecksum(header); });
+    assertTarReject(label, mutated, /Non-canonical npm USTAR header/u);
+  }
 
-  const malformedNoNul = buildMember({ path: "package/plain.txt", mode: 0o644 });
-  malformedNoNul.subarray(0, 100).fill(97);
-  writeChecksum(malformedNoNul.subarray(0, BLOCK_SIZE));
-  assertTarReject("malformed-name-no-nul", buildTar([malformedNoNul]), /name field.*missing NUL/u);
-  const malformedAfterNul = buildMember({ path: "package/plain.txt", mode: 0o644 });
-  malformedAfterNul["package/plain.txt".length + 1] = 1;
-  writeChecksum(malformedAfterNul.subarray(0, BLOCK_SIZE));
-  assertTarReject("malformed-name-post-nul", buildTar([malformedAfterNul]), /name field.*nonzero bytes after NUL/u);
-  const malformedUtf8 = buildMember({ path: "package/plain.txt", mode: 0o644 });
-  malformedUtf8[0] = 0xff;
-  writeChecksum(malformedUtf8.subarray(0, BLOCK_SIZE));
-  assertTarReject("malformed-name-utf8", buildTar([malformedUtf8]), /name field.*invalid UTF-8/u);
-  assertTarReject("malformed-prefix", buildTar([buildMember({ path: "x", prefix: "package/", mode: 0o644 })]), /Unsafe npm member path/u);
+  // The trusted metadata schema, identity, exact sorted inventory and archive hashes are mandatory.
+  assertMetadataReject("metadata-not-array", {}, /one-record JSON array/u);
+  assertMetadataReject("metadata-extra-key", mutateMetadata((record) => { record.extra = true; }), /unexpected schema/u);
+  assertMetadataReject("metadata-wrong-name", mutateMetadata((record) => { record.name = "wrong"; }), /package identity/u);
+  assertMetadataReject("metadata-size", mutateMetadata((record) => { record.size += 1; }), /byte length/u);
+  assertMetadataReject("metadata-sha1", mutateMetadata((record) => { record.shasum = "0".repeat(40); }), /SHA-1/u);
+  assertMetadataReject("metadata-sha512", mutateMetadata((record) => { record.integrity = `sha512-${"A".repeat(88)}`; }), /SHA-512/u);
+  assertMetadataReject("metadata-empty-files", mutateMetadata((record) => { record.files = []; record.entryCount = 0; record.unpackedSize = 0; }), /nonempty/u);
+  assertMetadataReject("metadata-subset", mutateMetadata((record) => { record.files.pop(); record.entryCount -= 1; record.unpackedSize = record.files.reduce((sum, file) => sum + file.size, 0); }), /subset|extra member/u);
+  assertMetadataReject("metadata-extra-file", mutateMetadata((record) => { record.files.push({ path: "missing.txt", size: 0, mode: 420 }); record.entryCount += 1; }), /not tracked|pinned npm locale/u);
+  assertMetadataReject("metadata-reordered", mutateMetadata((record) => { [record.files[0], record.files[1]] = [record.files[1], record.files[0]]; }), /pinned npm locale/u);
+  assertMetadataReject("metadata-file-extra-key", mutateMetadata((record) => { record.files[0].extra = true; }), /unexpected schema/u);
+  assertMetadataReject("metadata-mode", mutateMetadata((record) => { record.files[0].mode = 0o600; }), /metadata mode/u);
+  assertMetadataReject("metadata-bundled", mutateMetadata((record) => { record.bundled = ["x"]; }), /bundled/u);
 
-  // The CLI grammar is command-specific and rejects malformed input before filesystem access.
+  // Canonical gzip is one member with exact header, deflate boundary, trailer and EOF.
+  const gzipMutations = [
+    ["gzip-magic", (buffer) => { buffer[0] ^= 1; }, /gzip header/u],
+    ["gzip-method", (buffer) => { buffer[2] = 0; }, /gzip header/u],
+    ["gzip-mtime", (buffer) => { buffer[4] = 1; }, /gzip header/u],
+    ["gzip-flags", (buffer) => { buffer[3] = 8; }, /gzip header/u],
+    ["gzip-xfl", (buffer) => { buffer[8] = 0; }, /gzip header/u],
+    ["gzip-os", (buffer) => { buffer[9] = 3; }, /gzip header/u],
+    ["gzip-crc", (buffer) => { buffer[buffer.length - 8] ^= 1; }, /CRC32|deflate/u],
+    ["gzip-isize", (buffer) => { buffer[buffer.length - 4] ^= 1; }, /ISIZE|deflate/u]
+  ];
+  for (const [label, mutate, pattern] of gzipMutations) {
+    const buffer = Buffer.from(canonicalArchive);
+    mutate(buffer);
+    assertArchiveReject(label, buffer, pattern);
+  }
+  assertArchiveReject("gzip-concatenated", Buffer.concat([canonicalArchive, canonicalArchive]), /deflate|trailing|CRC32|ISIZE/u);
+  assertArchiveReject("gzip-trailing", Buffer.concat([canonicalArchive, Buffer.from([1])]), /deflate|trailing|CRC32|ISIZE/u);
+
+  // Target and CLI boundaries stay fail closed.
   assertCliPass(["assert", "--target", fixture, "--commit", commit]);
-  assertCliPass(["verify", "--target", fixture, "--commit", commit, "--archive", archive]);
-  assertCliReject(["assert", "--target", fixture, "--commit", commit, "--__proto__", "x"], /Unknown option --__proto__/u);
-  assertCliReject(["assert", "--target", fixture, "--commit", commit, "--constructor", "x"], /Unknown option --constructor/u);
-  assertCliReject(["normalize", "--target", fixture, "--commit", commit, "--archive", archive], /Unknown option --archive/u);
-  assertCliReject(["assert", "--target", fixture, "--target", fixture, "--commit", commit], /Duplicate option --target/u);
-  assertCliReject(["assert", "--target", fixture], /requires --commit/u);
-  assertCliReject(["verify", "--target", fixture, "--commit", commit], /requires --archive/u);
+  assertCliPass(["verify", "--target", fixture, "--commit", commit, "--archive", fixtureArchive, "--metadata", fixtureMetadataPath]);
+  assertCliReject(["verify", "--target", fixture, "--commit", commit, "--archive", fixtureArchive], /requires --metadata/u);
+  assertCliReject(["assert", "--target", fixture, "--commit", commit, "--__proto__", "x"], /Unknown option/u);
+  assertCliReject(["assert", "--target", fixture, "--target", fixture, "--commit", commit], /Duplicate option/u);
   assertCliReject(["assert", "--target"], /Invalid argument sequence/u);
-  assertCliReject(["assert", "--target", "--commit", commit], /Invalid argument sequence/u);
   assertCliReject(["assert", `--target=${fixture}`, "--commit", commit], /Invalid argument sequence/u);
-  assertCliReject(["assert", "--target", fixture, "--commit", commit, "extra", "value"], /Invalid argument sequence/u);
   assertCliReject(["unknown", "--target", fixture, "--commit", commit], /Usage:/u);
-  assertCliReject([], /Usage:/u);
 
-  console.log("Release pack policy self-test passed: canonical npm tar termination, complete trailing-stream rejection, every-type package path safety, strict CLI grammar, Git-index modes, exact member bytes, checksum/truncation/duplicate/PAX/type protections, and manifest identity.");
+  const alias = resolve(temporaryRoot, "canonical-alias");
+  const canonicalRoot = resolve(dirname(SCRIPT_PATH), "..");
+  symlinkSync(canonicalRoot, alias);
+  assert.throws(() => normalizeDetachedTarget(alias, git(canonicalRoot, ["rev-parse", "HEAD"])), /canonical checkout/u);
+  writeFileSync(resolve(fixture, "untracked.txt"), "x");
+  assert.throws(() => assertDetachedTarget(fixture, commit), /must be clean/u);
+  rmSync(resolve(fixture, "untracked.txt"));
+  chmodSync(resolve(fixture, "plain.txt"), 0o600);
+  assert.throws(() => assertDetachedTarget(fixture, commit), /has mode 0600/u);
+  chmodSync(resolve(fixture, "plain.txt"), 0o644);
+  assert.throws(() => assertDetachedTarget(fixture, `${commit}^`), /ambiguous argument|Command failed/u);
+
+  console.log("Release pack policy self-test passed: trusted npm metadata, canonical single-member gzip, complete npm USTAR headers, strict numeric/membership/path/terminator/CLI grammar, Git-index/bin modes, exact bytes, and manifest identity.");
 } finally {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
 
-/** @param {string} label @param {Buffer} tar @param {RegExp} pattern */
-function assertTarReject(label, tar, pattern) {
-  const archive = writeTar(label, tar);
-  assert.throws(() => verifyArchive(fixture, git(fixture, ["rev-parse", "HEAD"]), archive, undefined), pattern, label);
+/** @param {string} label @param {Buffer} tar @param {RegExp} pattern @param {boolean} [refreshMetadata] */
+function assertTarReject(label, tar, pattern, refreshMetadata = true) {
+  const archiveBuffer = encodeCanonicalGzip(tar);
+  assertArchiveReject(label, archiveBuffer, pattern, refreshMetadata);
 }
 
-/** @param {string} label @param {Buffer} tar */
-function writeTar(label, tar) {
-  const path = resolve(temporaryRoot, `${label}.tgz`);
-  writeFileSync(path, gzipSync(tar));
-  return path;
+/** @param {string} label @param {Buffer} archiveBuffer @param {RegExp} pattern @param {boolean} [refreshMetadata] */
+function assertArchiveReject(label, archiveBuffer, pattern, refreshMetadata = true) {
+  const caseRoot = resolve(temporaryRoot, `case-${label}`);
+  mkdirSync(caseRoot);
+  const archivePath = resolve(caseRoot, "pack-policy-fixture-1.0.0.tgz");
+  const testMetadataPath = resolve(caseRoot, "metadata.json");
+  writeFileSync(archivePath, archiveBuffer);
+  const document = JSON.parse(readFileSync(fixtureMetadataPath, "utf8"));
+  if (refreshMetadata) refreshArchiveMetadata(document[0], archiveBuffer);
+  writeFileSync(testMetadataPath, `${JSON.stringify(document, null, 2)}\n`);
+  assert.throws(() => verifyArchive(fixture, git(fixture, ["rev-parse", "HEAD"]), archivePath, testMetadataPath, undefined), pattern, label);
 }
 
-/** @param {Buffer[]} members */
-function buildTar(members) {
-  return Buffer.concat([...members, Buffer.alloc(2 * BLOCK_SIZE)]);
+/** @param {string} label @param {unknown} document @param {RegExp} pattern */
+function assertMetadataReject(label, document, pattern) {
+  const path = resolve(temporaryRoot, `${label}.json`);
+  writeFileSync(path, `${JSON.stringify(document, null, 2)}\n`);
+  assert.throws(() => verifyArchive(fixture, git(fixture, ["rev-parse", "HEAD"]), fixtureArchive, path, undefined), pattern, label);
 }
 
-/**
- * Build only the narrow ustar member shape needed for adversarial verifier tests.
- * @param {{path:string, prefix?:string, mode:number, typeFlag?:string, content?:Buffer, declaredSize?:number}} options
- */
-function buildMember({ path, prefix = "", mode, typeFlag = "0", content = Buffer.alloc(0), declaredSize = content.length }) {
-  const header = Buffer.alloc(BLOCK_SIZE);
-  writeTarString(header, 0, 100, path);
-  writeTarNumber(header, 100, 8, mode);
-  writeTarNumber(header, 108, 8, 0);
-  writeTarNumber(header, 116, 8, 0);
-  writeTarNumber(header, 124, 12, declaredSize);
-  writeTarNumber(header, 136, 12, 0);
-  header[156] = typeFlag.charCodeAt(0);
-  writeTarString(header, 257, 6, "ustar");
-  header.write("00", 263, "ascii");
-  writeTarString(header, 345, 155, prefix);
-  writeChecksum(header);
-  const padding = Buffer.alloc(Math.ceil(content.length / BLOCK_SIZE) * BLOCK_SIZE - content.length);
-  return Buffer.concat([header, content, padding]);
+/** @param {(record:Record<string, unknown>)=>void} mutate */
+function mutateMetadata(mutate) {
+  const document = JSON.parse(readFileSync(fixtureMetadataPath, "utf8"));
+  mutate(document[0]);
+  return document;
 }
 
-/** @param {Buffer} target @param {number} start @param {number} length @param {string} value */
-function writeTarString(target, start, length, value) {
-  const bytes = Buffer.from(value, "utf8");
-  if (bytes.length >= length) throw new Error(`Test tar string too long: ${value}`);
-  target.fill(0, start, start + length);
-  bytes.copy(target, start);
+/** @param {Record<string, unknown>} record @param {Buffer} archiveBuffer */
+function refreshArchiveMetadata(record, archiveBuffer) {
+  record.size = archiveBuffer.length;
+  record.shasum = createHash("sha1").update(archiveBuffer).digest("hex");
+  record.integrity = `sha512-${createHash("sha512").update(archiveBuffer).digest("base64")}`;
 }
 
-/** @param {Buffer} target @param {number} start @param {number} length @param {number} value */
-function writeTarNumber(target, start, length, value) {
-  const text = value.toString(8).padStart(length - 1, "0");
-  if (text.length >= length) throw new Error(`Test tar number too large: ${value}`);
-  target.fill(0, start, start + length);
-  target.write(text, start, "ascii");
+/** @param {Buffer} tar @param {(header:Buffer)=>void} mutate */
+function mutateFirstHeader(tar, mutate) {
+  const result = Buffer.from(tar);
+  mutate(result.subarray(0, BLOCK_SIZE));
+  return result;
 }
 
-/** @param {Buffer} header */
-function writeChecksum(header) {
-  header.fill(32, 148, 156);
-  let checksum = 0;
-  for (const byte of header) checksum += byte;
-  const text = checksum.toString(8).padStart(6, "0");
-  header.write(text, 148, "ascii");
-  header[154] = 0;
-  header[155] = 32;
+/** @param {Buffer} tar @param {string} path */
+function replaceFirstHeaderPath(tar, path) {
+  return mutateFirstHeader(tar, (header) => {
+    header.fill(0, 0, 100);
+    const bytes = Buffer.from(path, "ascii");
+    bytes.copy(header, 0, 0, Math.min(bytes.length, 100));
+    writeCanonicalChecksum(header);
+  });
 }
 
 /** @param {Buffer} tar */
-function findFirstZeroBlock(tar) {
-  for (let offset = 0; offset + BLOCK_SIZE <= tar.length; offset += BLOCK_SIZE) {
-    if (tar.subarray(offset, offset + BLOCK_SIZE).every((byte) => byte === 0)) return offset;
+function mutateTarMemberPadding(tar) {
+  const result = Buffer.from(tar);
+  const size = readCanonicalOctal(result.subarray(124, 136));
+  result[BLOCK_SIZE + size] = 1;
+  return result;
+}
+
+/** @param {Buffer} tar */
+function readMemberHeaders(tar) {
+  const rows = [];
+  for (let offset = 0; offset < tar.length - 2 * BLOCK_SIZE;) {
+    const header = tar.subarray(offset, offset + BLOCK_SIZE);
+    const name = readAscii(header.subarray(0, 100));
+    const prefix = readAscii(header.subarray(345, 500));
+    const path = prefix ? `${prefix}/${name}` : name;
+    const size = readCanonicalOctal(header.subarray(124, 136));
+    rows.push({ path, header, offset, size });
+    offset += BLOCK_SIZE + Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE;
   }
-  throw new Error("Test archive has no zero block");
+  return rows;
+}
+
+/** @param {Buffer} tar */
+function readMemberChunks(tar) {
+  return readMemberHeaders(tar).map(({ offset, size }) => tar.subarray(offset, offset + BLOCK_SIZE + Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE));
 }
 
 /** @param {Buffer} tar */
 function firstMemberEnd(tar) {
-  const sizeText = tar.subarray(124, 136).toString("ascii").replace(/\0.*$/u, "").trim();
-  const size = Number.parseInt(sizeText || "0", 8);
+  const size = readCanonicalOctal(tar.subarray(124, 136));
   return BLOCK_SIZE + Math.ceil(size / BLOCK_SIZE) * BLOCK_SIZE;
+}
+
+/** @param {Buffer} tar */
+function findFirstZeroBlock(tar) {
+  for (let offset = 0; offset + BLOCK_SIZE <= tar.length; offset += BLOCK_SIZE) if (tar.subarray(offset, offset + BLOCK_SIZE).every((byte) => byte === 0)) return offset;
+  throw new Error("Test archive has no zero block");
+}
+
+/** @param {Buffer} field */
+function readAscii(field) { const end = field.indexOf(0); return field.subarray(0, end < 0 ? field.length : end).toString("ascii"); }
+/** @param {Buffer} field */
+function readCanonicalOctal(field) { return Number.parseInt(field.toString("ascii").replace(/ \0$/u, ""), 8); }
+
+/** @param {Buffer} header */
+function writeCanonicalChecksum(header) {
+  header.fill(0x20, 148, 156);
+  let checksum = 0;
+  for (const byte of header) checksum += byte;
+  const digits = checksum.toString(8).padStart(6, "0");
+  header.write(`${digits} \0`, 148, 8, "ascii");
+}
+
+/** @param {Buffer} tar */
+function encodeCanonicalGzip(tar) {
+  const header = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0, 0, 0, 0, 0x02, 0xff]);
+  const body = deflateRawSync(tar, { level: 9 });
+  const trailer = Buffer.alloc(8);
+  trailer.writeUInt32LE(crc32(tar) >>> 0, 0);
+  trailer.writeUInt32LE(tar.length >>> 0, 4);
+  return Buffer.concat([header, body, trailer]);
 }
 
 /** @param {string[]} args */
@@ -242,15 +332,13 @@ function assertCliPass(args) {
   const result = spawnSync(process.execPath, [SCRIPT_PATH, ...args], { encoding: "utf8" });
   assert.equal(result.status, 0, `CLI should pass: ${args.join(" ")}\n${result.stderr}`);
 }
-
 /** @param {string[]} args @param {RegExp} pattern */
 function assertCliReject(args, pattern) {
   const result = spawnSync(process.execPath, [SCRIPT_PATH, ...args], { encoding: "utf8" });
   assert.notEqual(result.status, 0, `CLI should reject: ${args.join(" ")}`);
   assert.match(result.stderr, pattern);
 }
-
 /** @param {string} root @param {string[]} args */
-function git(root, args) {
-  return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
-}
+function git(root, args) { return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim(); }
+/** @param {Buffer} value */
+function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
