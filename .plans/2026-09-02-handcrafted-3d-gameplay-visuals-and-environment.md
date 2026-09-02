@@ -47,7 +47,7 @@ Replace the discarded block/background conversion direction with jointly authore
 - A set manifest selects one versioned variation independently per role so complete sets and arbitrary combinations can coexist. The shield GLB remains one canonical asset instantiated twice for a guard event.
 - `Great`/`Miss` remains renderer-owned world text rather than a GLB. Dynamic interval scaling, timing tint, row colors, instancing, outline passes, and scoring/timing behavior remain consumer/runtime responsibilities.
 - Future immutable asset releases should preserve separate GLBs, manifests, per-file hashes, coordinate/pivot/bounds metadata, provenance, and export-tool versions. A consuming assembly pins an exact asset release and copies only its selected assets into that assembly's immutable release.
-- This section approves architecture and naming only. It does not create a local or remote repository and does not authorize Tasks 2–6, public publication, or runtime integration.
+- This section originally approved architecture and naming only; the later explicit execution approval below now authorizes Tasks 2–6 and creation of the public asset polyrepo while preserving all listed ownership boundaries.
 
 ## Proposed tasks
 
@@ -160,4 +160,11 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 
 - Derrick explicitly approved the revised Task 1 visual direction after reviewing the collision-free neutral and gameplay-context boards.
 - Approved scope includes the six canonical 3D role designs, simultaneous identical dual-shield instances, 3D nose/wrist spheres, red/yellow/green timing rows, white success-area beat tint, and short-lived threshold-positioned `Great`/`Miss` feedback exactly as specified.
-- This approval completes Task 1 review only. Work remains stopped at the approval gate: Tasks 2–6, runtime integration, model/GLB/environment creation, release work, publication, and external acquisition remain unapproved.
+- This approval completed Task 1 review only at that time. The later execution approval below supersedes that stop condition for Tasks 2–6 while third-party acquisition and unrelated publication remain forbidden.
+
+## Derrick Tasks 2–6 execution approval (2026-09-02)
+
+- Derrick explicitly approved the full remaining plan: Task 2 asset creation, Task 3 renderer integration, Tasks 4–5 track/wall/environment integration, and Task 6 QA/audit/release/physical review.
+- Derrick explicitly authorized creation of the public GitHub repository `AeroBeat-Workouts/aerobeat-asset-gameplay`. GitHub read-back confirmed it exists with `PUBLIC` visibility at `https://github.com/AeroBeat-Workouts/aerobeat-asset-gameplay`; its local checkout is `/home/derrick/.dsh/projects/aerobeat/aerobeat-asset-gameplay`.
+- Execution Bead graph: asset coder `k72.8` → asset QA `k72.9` → asset audit `k72.10` → renderer coder `k72.11` → renderer QA `k72.12` → assembly/environment coder `k72.13` → cross-mode matrix QA `k72.14` → final audit `k72.15` → immutable release `k72.16` → Derrick physical gate `k72.17`.
+- Local inspection found Blender absent and Ubuntu candidate `4.0.2+dfsg-1ubuntu8`; Derrick explicitly offered temporary sudo for required installation, `sudo -n` succeeded, and managed job `bash-11` began installing Blender. No third-party art acquisition is authorized.
