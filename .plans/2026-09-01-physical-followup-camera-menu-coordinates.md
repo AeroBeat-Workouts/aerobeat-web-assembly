@@ -161,7 +161,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 ### Task 3 — Export deterministic camera pose (`jyg`)
 
 **Dependency:** audited `aue` source repair PASS; physical webcam confirmation remains in `7f9`.
-**Status:** Coder PASS — renderer `b1f6627`, assembly `c2d36f4`; pushed for independent QA/audit; `jyg` remains `in_progress`
+**Status:** Coder PASS — renderer `b1f6627`, assembly `c2d36f4`; independent QA in progress — subagent `baf36ca1-3f72-4baf-b818-4ae5cdc24ecb`; audit pending; `jyg` remains `in_progress`
 
 - Claim `jyg`.
 - Create one strict renderer-owned pose module/default and remove duplicated fixed/debug defaults.
