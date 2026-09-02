@@ -192,7 +192,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** PACK REPAIR CODER PASS / INDEPENDENT QA IN PROGRESS — subagent `ea344d30-8cf9-4ad2-a3b5-9687ddda5879`; normalized exact-candidate identity established; `1wu` and `nme` remain in_progress and server replacement remains blocked
+**Status:** PACK-POLICY QA FAIL / P0 `aerobeat-web-assembly-cf1` CODER IN PROGRESS — normalized identity is stable, but archive verifier accepted malformed termination/traversal/trailing members/unknown CLI options; coder `dc1334a5-8a0a-4fce-a987-179cb670f482`; `cf1`, `1wu`, and `nme` remain in_progress; audit/server blocked
 
 - Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
 - Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
@@ -216,6 +216,12 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - All four actual archives are byte-identical at SHA-256 `e2746b16168c03b056e628e66e33ea687bd3ad6db8b45b505c43069ebbc7dcf6`; all decompressed tar streams are SHA-256 `939693741365c836abd9e7f1279c9888f4bf03c9e809347094da69d3b44e7c97`. Every one of the `97` npm file members matches the exact candidate source bytes and expected mode (`97×0644`, `0×0755`), with zero PAX. All four canonical `path/mode/size/content-SHA256` manifests are byte-identical at SHA-256 `ca299ccaaceb12edfc00c1811cf86c89a77b96c46a30c849b4ee5a952d94b957`.
 - This normalized identity is the sole new authoritative exact-candidate pack identity. It explicitly supersedes both unnormalized host-specific identities: mixed-mode coder JSON/archive `eb05080d…` / `c7c13734…` (`71×0600 + 26×0644`) and all-`0600` QA JSON/archive `7866e5ff…` / `21c75855…` (`97×0600`). Neither prior identity is valid release evidence after this policy.
 - Validation PASS: `npm run test:release-pack-policy` (including attached-target refusal, normalization, index-mode/member-byte manifest checks, and PAX rejection); `npm test`; `npm ls --all` with declared optional absences only; Node syntax checks; `git diff --check`; exact candidate worktrees clean/detached; no diff under `release/raw/0.0.33`. QA should reproduce from two fresh exact-candidate worktrees using the documented tool, leave `1wu`/`nme` in_progress until QA/audit, and perform no server/publish/upload/Release/authored-pose/PoC/Theme/asset action.
+
+#### Pack-policy QA failure — archive verifier P0
+
+- Independent adversarial QA found `release-pack-policy.js` failed open for four malformed inputs: tar truncated before the required end-of-archive zero blocks; traversal directory `../escape/`; a duplicate member appended after end markers; and unknown accessor-like CLI option `--__proto__`.
+- Existing positive controls correctly reject canonical/attached/wrong/dirty/untracked targets, symlink/FIFO/unmerged/bad-mode entries, bad checksums/content truncation, duplicate-before-end, PAX, unsupported members, and file traversal. The normalized archive identity itself did not change.
+- Linked P0 `aerobeat-web-assembly-cf1` is in coder repair under subagent `dc1334a5-8a0a-4fce-a987-179cb670f482`. QA/audit and server replacement remain blocked until strict termination, all-member path safety, trailing-data scanning, and exact CLI option validation pass.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 
