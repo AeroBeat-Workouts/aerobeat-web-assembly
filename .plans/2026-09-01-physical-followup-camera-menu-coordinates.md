@@ -190,6 +190,16 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Fresh assembly gates passed: `npm test`; exact `npm run test:browser`; v4 golden (`vendor=7b14eec`, hash `96e68173fffd6454bfb38740acaf58653da11320`, `3` packages / `5` variants); live Flow `3C9D` hash `5662f64a12c76a3dd11a5f6ee22611608cd06760` (`16` obstacles / `16` volumes); production build (`1300` modules, only known Vite worker-externalization/chunk advisories); two byte-identical dry packs (`405,907` packed / `1,453,351` unpacked / `97` files, shasum `a03759b5c295d4ea96977b91c20612c60f9bdb40`); `npm ls --all` with declared optional absences; and `git diff --check`.
 - Static/privacy/scope audit confirms no pose/artifact bytes in renderer `describe()`/telemetry, game snapshots, local/session storage, events, iframe messages, or runtime public exports; the export path calls no publish/event/bridge/storage seam. Menu held-pointer/native identity/scroll and conventional handedness/world-to-screen/framebuffer regressions remain passing. No runtime import/persistence, authored default replacement, version/release/raw artifact, server, PoC, Theme, asset, dependency, or publication change exists. No defect or linked P0 was required.
 
+### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
+
+**Status:** Release coder in progress — subagent `4e08fc0a-da88-4b08-ab1c-eb8ea4044a1b`
+
+- Preserve raw `0.0.32` and all older releases byte-exact.
+- Build/compare two cleared raw `0.0.33` trees and verify the raw artifact’s menu, handedness, and camera-export behavior.
+- Commit one exact candidate, then run repeated dry/actual packs from a detached worktree at that commit so packed-plan hashes truthfully identify the committed payload.
+- Run independent release QA/audit before replacing the managed local playtest server.
+- No publish, upload, GitHub Release, Theme/PoC/assets, or authored-default application.
+
 ### Task 4 — Apply reviewed camera default and physical retest
 
 - After Derrick supplies/approves the artifact, replace the single renderer-owned default with those exact reviewed values.
