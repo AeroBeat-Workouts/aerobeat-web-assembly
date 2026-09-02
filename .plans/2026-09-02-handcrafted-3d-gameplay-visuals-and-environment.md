@@ -115,3 +115,9 @@ Derrick approved Task 1 only, after the camera-loader successor is ready, and on
 - Regenerated the two existing RGB `1600 × 900` review boards. Both retain and label the original six roles while visibly demonstrating dual identical shields, 3D role-colored athlete spheres, red/yellow/green rows, white success tint with silhouette retained, rapid disappearance, and `Great` / white-outlined `Miss` world feedback.
 - Updated `manifest.json` revision, fixed review camera/provenance, board coverage, SHA-256 records, and non-runtime disclaimer. Temporary Pillow generators were removed; no generator, model, mesh, GLB, texture, runtime code, environment, or Tasks 2–6 implementation is retained.
 - Coder validation passed: exact directory inventory is two PNGs plus one manifest; both PNGs are nonempty RGB `1600 × 900`; JSON parses; hashes reproduce; repository scope and diff checks pass. Bead `aerobeat-web-assembly-k72.4` is complete; `k72.5`, `k72.6`, and parent `k72` remain open for independent QA/audit and Derrick review.
+
+## Task 1 revision independent QA — FAIL (2026-09-02)
+
+- Mechanical scope, image, manifest, and hash checks passed, but native-resolution visual inspection found clipped/overlapping neutral-board A/C headings and white-tint annotation, plus overlapping or duplicated gameplay-context row, dual-shield, world-text, and white-tint labels.
+- Root cause is fixed text placement without measured bounds/exclusive annotation zones; coverage-only validation did not detect presentation collisions. Diagnostic `.plans/debug/2026-09-02-task1-review-board-layout.md` records the full analysis.
+- Repair Bead `aerobeat-web-assembly-k72.7` blocks reopened QA `k72.5`. Regenerate only the two review PNGs and manifest using measured/wrapped text, unique callouts, and reserved row/footer zones; specification semantics and all runtime/model/environment files remain untouched.
