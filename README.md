@@ -91,6 +91,22 @@ Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, 
 
 ## Validation
 
+### Reproducible npm pack modes
+
+Release QA must pack only from an explicitly supplied clean detached worktree. Before packing, normalize tracked files from the Git index (`100644→0644`, `100755→0755`) and assert the result; never run the normalizer against the canonical checkout:
+
+```bash
+node scripts/release-pack-policy.js normalize --target /absolute/detached/worktree --commit <exact-commit>
+npm pack --dry-run --json --pack-destination /absolute/output # run inside that detached worktree
+npm pack --json --pack-destination /absolute/output         # run inside that detached worktree
+node /path/to/main/scripts/release-pack-policy.js verify \
+  --target /absolute/detached/worktree --commit <exact-commit> \
+  --archive /absolute/output/package.tgz --manifest /absolute/output/package.manifest.tsv
+npm run test:release-pack-policy
+```
+
+The verifier requires every npm file member to match the detached target bytes and its Git-index-derived mode, rejects PAX and unsupported member types, and reports archive, decompressed-tar, and canonical path/mode/size/content-SHA256 manifest identities. This release tooling does not rebuild or version raw output.
+
 The current deterministic raw release proof is `0.0.33`; every `0.0.32` and older release byte remains immutable. It contains the audited post-session menu stability repair, conventional camera-on-`+Z`/future-`-Z` world basis, and private deterministic Visual Test camera-pose export; the retained default artifact is exactly 488 bytes with SHA-256 `55ea553d68c40fc56e448a9ae21f741bfebbe4f04de48861ac32a5a09238c01a`. The tracked raw `0.0.31` still physically reproduces its defect with `hidden=true`, computed `display:grid`, and nonzero popover geometry, while linked audited UI source corrects closed rendering to computed `display:none` and zero geometry. This cursor/volume iteration preserves PlayCanvas plus DOM as the sole gameplay presentation path for Flow, Boxing Lanes, and Boxing Grid, retains both Balanced Height and Source Height conversions, and keeps the corrected scene-facing perspective camera. Desktop Visual Test restores the authored cursor only after confirmed pointer-lock release while preserving right-click/Escape exit, re-entry, smooth captured mouse look, and gradual held camera-relative `WASD`/`Q`/`E` movement; touch Visual Test retains its bounded capture/look and accessible movement panel. A private origin-local `0.5/0.5` Music/Sound mix now synchronizes connected same-document and same-origin instances, persists only two bounded scalars, drives actual Music gain in Test and scored Play, and reserves Sound for the future SFX bus without extending public snapshots, iframe events, or capability schemas. Strict direct/iframe portrait/landscape DPR1/3 evidence proves that the popover is physically absent by default and after button, outside-pointer, outside-click, Escape, inactive, detach, and reconnect closure paths; every open state is a nonzero grid, and the complete GUI/capture/movement/volume lifecycle and privacy boundaries remain exact. The timestamp-driven 3D timing floor, duration-aware Flow obstacle volumes, Play/Pause/live scrubbing, exact 4×3 scoring/input, lifecycle, and scoring truth remain unchanged. Owner release gates and repeated raw/pack construction establish semantic byte-for-byte determinism; exact final npm-pack metadata is kept only in the external release Bead because this README is itself packed. Hardware cursor visibility, corrected physical volume appearance/interaction, and audible Music/SFX behavior remain explicitly Physical Pending, and no gameplay, conversion, or Theme winner is selected.
 
 ```bash

@@ -31,6 +31,7 @@
     "build": "vite build",
     "build-release": "node scripts/build-release.js",
     "build:release": "npm run build-release",
+    "test:release-pack-policy": "node scripts/validate-release-pack-policy.js",
     "version:patch": "node scripts/bump-patch-version.js",
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
   },
