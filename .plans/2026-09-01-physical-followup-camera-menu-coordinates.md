@@ -192,7 +192,7 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** RELEASE CODER PASS — exact candidate `55f4088` pushed; independent QA in progress — subagent `271de2cd-4037-4f17-92d1-83bcc95a322b`; audit pending; `nme` remains in_progress
+**Status:** RELEASE QA FAIL / P0 `aerobeat-web-assembly-1wu` IN PROGRESS — raw `0.0.33` reproducibility passed, but exact-candidate npm pack identity differs from coder evidence; `nme` remains in_progress and audit/server replacement are blocked
 
 - Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
 - Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
@@ -201,6 +201,12 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 - Fresh source gates pass: `npm test`; exact full `npm run test:browser`; v4 integration (`vendor=7b14eec`, golden `96e68173fffd6454bfb38740acaf58653da11320`, `3` packages / `5` variants); live Flow `3C9D` / `5662f64a12c76a3dd11a5f6ee22611608cd06760` (`16` obstacles / `16` volumes); production build (`1300` modules); `npm ls --all` with declared platform/feature-optional absences only; static/JSDoc/import/component/console/privacy/forbidden checks; and clean-source diff checks. The exact browser gate covers held menu input, all eight direct/real-iframe viewport/DPR contexts, framebuffer handedness, all modes, deterministic camera bytes, lifecycle/reconnect, scalar privacy, and zero unexpected console noise.
 - Exact committed-payload dry/actual pack hashes are intentionally excluded from this packed plan. Two dry packs and two actual packs completed byte-identically from a clean detached worktree at exact candidate `55f4088`; authoritative metadata remains only in external `nme` comment `01a061cc-f539-71da-b55c-b7efa62ffe6e` to avoid packed-plan self-reference ambiguity.
 - Independent release QA/audit remains required before any managed local playtest server replacement. No publish, upload, GitHub Release, server, Theme/PoC/assets, authored-pose application/import, or publication action is part of coder scope.
+
+#### Release QA failure — pack identity P0
+
+- Independent QA reproduced both cleared raw builds and tracked raw `0.0.33` exactly, and proved every older release unchanged.
+- Two dry and two actual packs from isolated exact candidate `55f4088` agree with each other but not the coder’s claimed authoritative pack identity. QA observed metadata JSON SHA-256 `7866e5ffc719b40a0a37c1037a819ae33d83c0e9373a0e543a70bb0a390d1232`, `408,630` packed bytes, npm shasum `a20a3e1bb5fe60f249bc345b9f6399f70e4aa485`, integrity `sha512-a1Kjtb0KtwGvw2298Z1Pg5s+Gp+GORUw7iM01E6NO+WVHzerV+StMTCimmGExZZCBgOZVxUeA7NR6e0KA6Giaw==`, and archive SHA-256 `21c7585528668bbc4ea5a269a7ee188aa0a9179c69546d2bc300853bc91885f3`; file count `97` and unpacked bytes `1,462,194` match.
+- Linked P0 `aerobeat-web-assembly-1wu` requires a concrete tar/gzip/toolchain/input diagnosis and reproducible corrected evidence. QA correctly stopped before claiming the remaining release gates.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 
