@@ -2,13 +2,13 @@
 
 **Date:** 2026-09-01
 
-**Release:** corrected deterministic `@aerobeat/web-assembly` `0.0.32` local release candidate
+**Release:** deterministic `@aerobeat/web-assembly` `0.0.33` local release candidate
 
 **Status:** Every row below is **Physical Pending**. Automated evidence must never convert any row to PASS.
 
 ## Boundary
 
-This checklist records operator-owned physical observations only. The release remains local: do not publish npm, create or upload a GitHub Release, create a public repository, or redistribute third-party bytes. This gate does not select a gameplay, conversion, Blocks Theme, or Arena Theme winner, and no Theme runtime or asset proof is part of `0.0.32`.
+This checklist records operator-owned physical observations only. The release remains local: do not publish npm, create or upload a GitHub Release, create a public repository, or redistribute third-party bytes. This gate does not select a gameplay, conversion, Blocks Theme, or Arena Theme winner, and no Theme runtime or asset proof is part of `0.0.33`. The candidate adds only audited post-session menu stability, conventional world handedness, and deterministic private camera-pose export over the retained `0.0.32` behavior.
 
 ## Physical Pending Record
 
@@ -18,6 +18,9 @@ This checklist records operator-owned physical observations only. The release re
 | Hardware cursor visibly restores after Escape exits pointer lock in Flow, Boxing Lanes, and Boxing Grid | Physical Pending | |
 | Hardware cursor visibly restores after menu-open, pause, hidden, blur, detach, and destroy cleanup | Physical Pending | |
 | A later right-click visibly re-enters capture after each confirmed release path | Physical Pending | |
+| After completed Test and completed Play, held Song/Difficulty/Gameplay/Conversion selection reaches the same native control and desktop drawer scroll does not snap | Physical Pending | |
+| Webcam nose motion follows expected horizontal movement; anatomical left/blue and right/green wrists appear on matching visual sides in Flow, Boxing Lanes, and Boxing Grid | Physical Pending | |
+| Visual Test exports `aerobeat-gameplay-camera-pose.v1.json` as the expected 488-byte deterministic artifact and the retained default camera is reviewable in all three modes | Physical Pending | Do not treat export as approval to apply an authored replacement pose. |
 | Direct desktop portrait/landscape DPR1/3 volume button and popover are visually correct, physically absent by default/after every closure path, and visible only while open | Physical Pending | `0.0.31` failed because the logically hidden popover remained painted; only this failed row is reset for corrected `0.0.32` retest. |
 | Same-origin iframe desktop portrait/landscape DPR1/3 volume button and popover are visually correct | Physical Pending | |
 | Direct mobile portrait/landscape DPR1/3 volume button, vertical sliders, values, and 44px targets are visually correct | Physical Pending | |

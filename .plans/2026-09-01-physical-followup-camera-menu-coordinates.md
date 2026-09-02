@@ -192,13 +192,15 @@ Derrick will physically author and provide the artifact. Applying its reviewed v
 
 ### Task 3.5 — Deterministic camera-authoring release `0.0.33` (`nme`)
 
-**Status:** Release coder in progress — subagent `4e08fc0a-da88-4b08-ab1c-eb8ea4044a1b`
+**Status:** RELEASE CODER PASS — exact candidate pending commit/push and independent QA/audit; leave `nme` in_progress
 
-- Preserve raw `0.0.32` and all older releases byte-exact.
-- Build/compare two cleared raw `0.0.33` trees and verify the raw artifact’s menu, handedness, and camera-export behavior.
-- Commit one exact candidate, then run repeated dry/actual packs from a detached worktree at that commit so packed-plan hashes truthfully identify the committed payload.
-- Run independent release QA/audit before replacing the managed local playtest server.
-- No publish, upload, GitHub Release, Theme/PoC/assets, or authored-default application.
+- Preserved raw `0.0.32` and every older release byte-exact. The pre/post aggregate through `0.0.32` is `349` files / `706,996,083` bytes with recursive inventory SHA-256 `9e1ca712a88825a6ab880aeb3b4426c21faf963ee8b591ae8d4f92d777e5bfd8`; `0.0.32` alone remains `13` files / `11,518,186` bytes with inventory hash `5b57e7fac19f406b57ebdc7a05c764d511b15edae3aa999952b5f6feacddef96` and proof hash `0962d46169ce7834033aaacefbcb777cacc7dfea43e8f7fbfa9351e832db47c7`.
+- Built raw `0.0.33` twice after explicitly clearing the successor output and compared both complete trees recursively to the tracked tree. All three are exact at `13` files / `11,550,983` bytes, inventory SHA-256 `3a5ed9eb392aef63bd32bef77fd6c90739a141cfb949360f88106d0e1cb2188d`, proof SHA-256 `bc7eed7244988c412ed8b830b4b47d2dc2526ff72b8a4306fc1815b1f215e98a`, source fingerprint `bfe5542ce964a1a79a447cb59816d37340588e326f0cdf8a06fd29290c1be870`, and `11,549,617` pre-manifest bytes.
+- Proof identity is exact: `proofVersion`/package/lock/index are `0.0.33`, `artifactKind` remains `raw-unminified-browser-proof`, `minified` remains false, runtime is MediaPipe-only, runtime WASM is empty, and forbidden asset/marker checks pass. The path inventory is identical to `0.0.32`; every icon, branding manifest, CSS, worker, and vendor bundle is byte-identical, with no Theme, asset, dependency, or third-party addition.
+- Added an opt-in `AEROBEAT_TEST_ROOT` seam to the existing menu and shell-matrix validators so the same real Chromium behavior proof can target the immutable raw tree without changing default source validation. Raw `0.0.33` passes completed-Test/Play held-pointer/menu-scroll behavior and the direct/real-iframe portrait/landscape DPR1/3 all-mode shell/handedness/camera matrix; repeated Flow/Lanes/Grid downloads are exactly `488` bytes with SHA-256 `55ea553d68c40fc56e448a9ae21f741bfebbe4f04de48861ac32a5a09238c01a` and remain absent from snapshots, renderer descriptions, storage, events, iframe messages, and telemetry.
+- Fresh source gates pass: `npm test`; exact full `npm run test:browser`; v4 integration (`vendor=7b14eec`, golden `96e68173fffd6454bfb38740acaf58653da11320`, `3` packages / `5` variants); live Flow `3C9D` / `5662f64a12c76a3dd11a5f6ee22611608cd06760` (`16` obstacles / `16` volumes); production build (`1300` modules); `npm ls --all` with declared platform/feature-optional absences only; static/JSDoc/import/component/console/privacy/forbidden checks; and clean-source diff checks. The exact browser gate covers held menu input, all eight direct/real-iframe viewport/DPR contexts, framebuffer handedness, all modes, deterministic camera bytes, lifecycle/reconnect, scalar privacy, and zero unexpected console noise.
+- Exact committed-payload dry/actual pack hashes are intentionally excluded from this packed plan. After the candidate commit, two dry packs and two actual packs must run from a detached worktree at that exact commit; authoritative metadata belongs only in the external `nme` comment to avoid packed-plan self-reference ambiguity.
+- Independent release QA/audit remains required before any managed local playtest server replacement. No publish, upload, GitHub Release, server, Theme/PoC/assets, authored-pose application/import, or publication action is part of coder scope.
 
 ### Task 4 — Apply reviewed camera default and physical retest
 

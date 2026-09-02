@@ -3,7 +3,8 @@
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 
-const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
+const testRoot = process.env.AEROBEAT_TEST_ROOT?.trim();
+const vite = await createViteServer({ appType: "spa", configFile: testRoot ? false : "vite.config.js", logLevel: "error", ...(testRoot ? { root: testRoot } : {}), server: { host: "127.0.0.1", port: 0 } });
 await vite.listen();
 const url = vite.resolvedUrls?.local?.[0];
 if (!url) throw new Error("Vite URL unavailable");
