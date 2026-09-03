@@ -220,6 +220,14 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Immutable cross-engine asset release `0.0.2` is therefore approved as the pinned source for Tasks 3–5. Approval covers the seven separate role assets and their current silhouettes/materials; it does not waive renderer/assembly QA, final audit, immutable web release proof, or physical review.
 - Gate `k72.18` closes PASS and renderer implementation `k72.11` becomes eligible to start.
 
+## Task 3 renderer implementation candidate (2026-09-03)
+
+- Initial broad renderer child claimed `k72.11` but produced no files across bounded observation, so it was retired. The task was decomposed into loader `k72.11.1` and visual behavior `k72.11.2` to reduce execution risk.
+- Loader commit `0a9e9a5a790f79567f5ec9d0738c3475f7a881a3` copied/verifies the exact approved 17-file asset release `0.0.2`, packages only runtime assets, and added generation/abort/context-safe PlayCanvas container preload with explicit fallback diagnostics. Parent independently reran `npm test` and full `npm run test:browser`; both passed. `k72.11.1` closed PASS.
+- Visual commit `8e67860ecb33f288ac1e4b25507f0fe0acf6583f` instantiates canonical GLBs for arrows/circles/bombs/full-Z walls/track, identical two-instance guard pairs, and truthful marker spheres; preserves red/yellow/green rows; implements white success tint, exact `80 ms` removal, and bounded stationary `Great`/`Miss` feedback (`180 + 170 = 350 ms`). It removes normal-path legacy target blocks/icons while retaining only explicit loader/context fallback.
+- Coder validation passed unit/browser matrices, direct/real-iframe portrait/landscape DPR1/3, GLB parsing/material cloning, fallback/context/reconnect/destroy, no RAF/console noise, exact 37-file npm pack containing the 17 pinned asset files, and no source/review/old-release/tool payload. Candidate renderer is clean at `main == origin/main`; `k72.11.2` closed and parent `k72.11` remains open for independent QA `k72.12`.
+- Current assembly still intentionally omits bomb/arc/burst projection; that consumer mapping remains in approved assembly Task `k72.13` rather than being invented inside renderer semantics.
+
 ## Task 3 renderer loader slice (2026-09-02)
 
 - Initial renderer coder `88a60316-4dca-41cb-80b1-d267fc2cbcb2` claimed `k72.11` but produced no observable file/test activity over the bounded startup window and was retired cleanly. The parent task was decomposed into loader `k72.11.1` → visual behavior `k72.11.2`.
