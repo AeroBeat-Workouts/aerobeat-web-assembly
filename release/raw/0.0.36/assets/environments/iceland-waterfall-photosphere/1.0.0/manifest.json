@@ -1,0 +1,129 @@
+{
+  "schema": "aerobeat.photosphere-derivative/v1",
+  "id": "iceland-waterfall-photosphere",
+  "source": {
+    "path": ".testbed/assets/splats/iceland-waterfall/iceland-waterfall.compressed.ply",
+    "sha256": "b83ffe8ee100731a7adbd35a71a68b30ceb4d2247c94b48f5054f9573a3b93e5",
+    "bytes": 55619664,
+    "pointCount": 2200000,
+    "aabb": {
+      "position": [
+        -110.9632,
+        -137.7865,
+        -151.6015
+      ],
+      "size": [
+        225.2568,
+        149.8706,
+        283.2019
+      ]
+    }
+  },
+  "capture": {
+    "tool": ".testbed/tools/photosphere/capture_cubemap.gd",
+    "scene": ".testbed/tools/photosphere/capture_cubemap.tscn",
+    "viewpoint": [
+      0,
+      0,
+      4
+    ],
+    "centerForward": [
+      0,
+      0,
+      -1
+    ],
+    "worldUp": [
+      0,
+      1,
+      0
+    ],
+    "faceSize": 1920,
+    "faceOrder": [
+      "pos_x",
+      "neg_x",
+      "pos_y",
+      "neg_y",
+      "pos_z",
+      "neg_z"
+    ],
+    "loadCount": 1,
+    "requiredExecution": "visible Vulkan Forward+",
+    "versions": {
+      "godot": "4.6.2-stable (official)",
+      "gdgsUpstream": "2.2.0",
+      "aerobeatVendorGdgsCommit": "f5d5e1b6d580ba1342022d1ceac8ac982f9597fb",
+      "gpu": "NVIDIA GeForce RTX 3080",
+      "gpuDriver": "580.173.02",
+      "vulkanReportedByGodot": "1.4.312",
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "displayServer": "X11"
+    }
+  },
+  "stitch": {
+    "tool": ".testbed/tools/photosphere/cube_to_equirect.py",
+    "mapping": "longitude wraps horizontally; -Z center, +Y/-Y poles",
+    "sampling": "bilinear RGB, half-texel pixel centers, face-edge clamp",
+    "versions": {
+      "python": "3.14.2",
+      "pillow": "12.1.0",
+      "numpy": "2.4.2"
+    }
+  },
+  "output": {
+    "path": ".testbed/assets/images/iceland-waterfall-photosphere/iceland-waterfall-photosphere.jpg",
+    "dimensions": [
+      4096,
+      2048
+    ],
+    "mode": "RGB",
+    "encoding": "JPEG",
+    "colorSpace": "sRGB",
+    "jpeg": {
+      "quality": 92,
+      "subsampling": 0,
+      "optimize": false,
+      "progressive": false
+    },
+    "sha256": "282f69ba1cad321074a8bdb84dd79d747d3c14a3df7408146837da1b08713c09",
+    "bytes": 1983883
+  },
+  "config": {
+    "path": ".testbed/assets/images/iceland-waterfall-photosphere/iceland-waterfall-photosphere.config.json",
+    "schema": "aerobeat/environment_asset_config",
+    "version": 1,
+    "sha256": "c129f38beea688e3c43399a72ace098befb621655fb43aaed9da34a2bec8bdd5",
+    "bytes": 332,
+    "parityIntent": "One-to-one future photosphere/splat transform parity; no runtime splat integration in this package."
+  },
+  "rights": {
+    "authority": "Derrick Barra direct project instruction on 2026-09-03",
+    "statement": "The listed splats were generated and then purchased by AeroBeat and may be used commercially without attribution.",
+    "attributionRequired": false,
+    "scopeLimit": "Applies only to the listed purchased splats and their photosphere derivatives; it does not apply to the rejected third-party alien-moon GLB and does not assert public sublicensing rights."
+  },
+  "continuity": {
+    "metrics": {
+      "seamMeanRgbDelta": 1.98681640625,
+      "seamP95RgbDelta": 6.333333333333333,
+      "poleTopChannelSpread": 0.23340437717143891,
+      "poleBottomChannelSpread": 12.765343785226612
+    },
+    "thresholds": {
+      "seamMeanRgbDelta": 5,
+      "seamP95RgbDelta": 16,
+      "poleTopChannelSpread": 16,
+      "poleBottomChannelSpread": 16
+    }
+  },
+  "conversionAssessment": {
+    "classification": "strong-comparison",
+    "note": "Complete waterfall, mossy ridge, sky, and gravel coverage; the detailed nadir produces the measured bottom-row variation."
+  },
+  "review": {
+    "folder": ".plans/review/2026-09-03-owned-photosphere-catalog/iceland-waterfall",
+    "report": "stitch-report.json",
+    "fullResolutionFacesRetained": false
+  },
+  "reproducibilityLimit": "Offline stitching is deterministic only for fixed face bytes and pinned versions. Full-resolution GPU faces are omitted; a fresh GDGS/GPU capture may differ due to device rendering, splat sorting, and driver behavior."
+}
