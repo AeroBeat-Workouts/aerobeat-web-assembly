@@ -26,7 +26,7 @@ const expectedDescriptor = {
 
 assert(Object.isFrozen(luminiousIceCavePhotosphereAsset));
 for (const key of ["dimensions", "orientation", "centerForward", "worldUp"]) assert(Object.isFrozen(luminiousIceCavePhotosphereAsset[key]), `${key} must be frozen`);
-assert.deepEqual(luminiousIceCavePhotosphereAsset, expectedDescriptor, "assembly descriptor drifted from renderer aaebf80 contract");
+assert.deepEqual(luminiousIceCavePhotosphereAsset, expectedDescriptor, "assembly descriptor drifted from renderer e5130e0 contract");
 assert.deepEqual(Object.keys(luminiousIceCavePhotosphereAsset).sort(), ["bytes", "centerForward", "dimensions", "id", "mimeType", "orientation", "projection", "sha256", "url", "worldUp"], "descriptor keys drifted");
 assert.equal(new URL(luminiousIceCavePhotosphereAsset.url).protocol, "file:", "source descriptor URL must resolve package-relatively");
 assert.match(new URL(luminiousIceCavePhotosphereAsset.url).pathname, /\/assets\/environments\/luminious-ice-cave-photosphere\/1\.0\.0\/luminious-ice-cave-photosphere\.jpg$/u);
@@ -43,7 +43,7 @@ assert.match(cameraSync, /setEnvironmentVisible\(compositeMode === "aero"\)/u, "
 assert.doesNotMatch(cameraSync, /setEnvironmentVisible\([^\n]*environmentMode/u, "renderer visibility must not follow the stored radio preference directly");
 const rendererTelemetryBody = source.slice(source.indexOf("function rendererTelemetry("), source.indexOf("function cadenceTelemetry("));
 assert.doesNotMatch(rendererTelemetryBody, /environment|sha256|bytes|url/u, "private environment identity must not enter assembly renderer telemetry");
-assert.equal(execFileSync("git", ["-C", "../aerobeat-web-renderer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), "aaebf80739164dcfc65463856a98cddda61f0ad4", "linked renderer commit drifted");
+assert.equal(execFileSync("git", ["-C", "../aerobeat-web-renderer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), "e5130e01edd511911e39e27126e856c67ae56ece", "linked renderer commit drifted");
 assert.equal(execFileSync("git", ["-C", "../aerobeat-web-renderer", "status", "--short"], { encoding: "utf8" }), "", "linked renderer checkout must remain clean");
 assert.equal(packageJson.dependencies["@aerobeat/branding"], undefined); assert.doesNotMatch(packageLock, /aerobeat-branding|@aerobeat\/branding/u);
 for (const token of ["webGameplayIconBundle", "rasterizeBrandingIconAtlas", "uploadIconAtlas", "beginIconAtlasInitialization", "restartIconAtlasIfPending", "iconAtlasGeneration", "iconAtlasAbort"]) assert.equal(source.includes(token), false, `assembly retained obsolete atlas token ${token}`);
