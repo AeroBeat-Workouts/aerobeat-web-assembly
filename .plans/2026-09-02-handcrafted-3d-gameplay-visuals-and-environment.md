@@ -219,3 +219,10 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Derrick reviewed the linked actual Blender-rendered `0.0.2` neutral board, gameplay context, and individual asset directory, then explicitly selected **Approve 3D assets**.
 - Immutable cross-engine asset release `0.0.2` is therefore approved as the pinned source for Tasks 3–5. Approval covers the seven separate role assets and their current silhouettes/materials; it does not waive renderer/assembly QA, final audit, immutable web release proof, or physical review.
 - Gate `k72.18` closes PASS and renderer implementation `k72.11` becomes eligible to start.
+
+## Task 3 renderer loader slice (2026-09-02)
+
+- Initial renderer coder `88a60316-4dca-41cb-80b1-d267fc2cbcb2` claimed `k72.11` but produced no observable file/test activity over the bounded startup window and was retired cleanly. The parent task was decomposed into loader `k72.11.1` → visual behavior `k72.11.2`.
+- Recovery loader commit `0a9e9a5a790f79567f5ec9d0738c3475f7a881a3` copies and verifies the exact 17-file approved asset release under renderer `assets/gameplay/0.0.2`, exposes immutable identities/package-relative URLs, and preloads all seven local GLB containers with byte/hash verification, abort/stale-generation rejection, context-loss fallback/reload, independent renderer ownership, and deterministic disposal.
+- Packaging includes only renderer source/docs and the 17 runtime asset files; `.blend`, review, old `0.0.1`, and asset tools are excluded. PlayCanvas 2.21.4 successfully parsed all seven containers and synthesizes omitted GLB normals.
+- Parent independently reran `npm test` and `npm run test:browser`; asset sync/identity/hash/lifecycle/pack checks and the existing Chromium direct/iframe portrait/landscape DPR matrix passed. Loader Bead `k72.11.1` closed; parent `k72.11` and visual behavior `k72.11.2` remain in progress/open.
