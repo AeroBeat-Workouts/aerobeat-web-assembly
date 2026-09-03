@@ -1,21 +1,20 @@
 // @ts-check
 
-import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { build } from "vite";
 import { computeReleaseFingerprint } from "./release-fingerprint.js";
+import { claimAppendOnlyReleaseTarget } from "./release-target-policy.js";
 
 const packageJson = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
 const proofVersion = packageJson.version;
-const sourceFingerprint = computeReleaseFingerprint();
-
 const releaseRoot = resolve("release", "raw", proofVersion);
-rmSync(releaseRoot, { force: true, recursive: true });
-mkdirSync(releaseRoot, { recursive: true });
+claimAppendOnlyReleaseTarget(releaseRoot);
+const sourceFingerprint = computeReleaseFingerprint();
 
 await build({
   build: {
-    emptyOutDir: true,
+    emptyOutDir: false,
     minify: false,
     outDir: releaseRoot,
     sourcemap: true,

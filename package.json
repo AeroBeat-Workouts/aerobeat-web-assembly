@@ -16,7 +16,7 @@
     "check:components": "node scripts/validate-component-rules.js",
     "check:console": "node scripts/validate-playwright-console-noise.js",
     "test": "npm run check && npm run test:unit",
-    "test:unit": "node scripts/sync-environment-assets.js verify && node scripts/validate-environment-assembly.js && node scripts/validate-audio-mix-coordinator.js && node scripts/validate-runtime-cadence.js && node scripts/validate-gameplay-mode-selection.js && node scripts/validate-session-render-projection.js && node scripts/validate-pose-backend-registry.js && node scripts/validate-pose-gameplay-source.js && node scripts/validate-predictive-pose-routing.js && node scripts/validate-aero-game-assembly.js && node scripts/validate-task11-actual-services.js && node scripts/validate-v4-assembly-integration.js",
+    "test:unit": "node scripts/validate-release-target-policy.js && node scripts/sync-environment-assets.js verify && node scripts/validate-environment-assembly.js && node scripts/validate-audio-mix-coordinator.js && node scripts/validate-runtime-cadence.js && node scripts/validate-gameplay-mode-selection.js && node scripts/validate-session-render-projection.js && node scripts/validate-pose-backend-registry.js && node scripts/validate-pose-gameplay-source.js && node scripts/validate-predictive-pose-routing.js && node scripts/validate-aero-game-assembly.js && node scripts/validate-task11-actual-services.js && node scripts/validate-v4-assembly-integration.js",
     "sync:environment-assets": "node scripts/sync-environment-assets.js sync",
     "verify:environment-assets": "node scripts/sync-environment-assets.js verify",
     "test:v4-integration": "node scripts/validate-v4-assembly-integration.js",
@@ -33,7 +33,8 @@
     "build": "vite build",
     "build-release": "node scripts/build-release.js",
     "build:release": "npm run build-release",
-    "test:release-pack-policy": "node scripts/validate-release-pack-policy.js",
+    "test:release-target-policy": "node scripts/validate-release-target-policy.js",
+    "test:release-pack-policy": "npm run test:release-target-policy && node scripts/validate-release-pack-policy.js",
     "version:patch": "node scripts/bump-patch-version.js",
     "submit-release-to-github": "node scripts/submit-release-to-github.js"
   },
