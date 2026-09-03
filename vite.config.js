@@ -18,6 +18,7 @@ const cacheBust = `${packageJson.version}-${sourceFingerprint.slice(0, 16)}`;
  */
 export default {
   base: basePath,
+  build: { assetsInlineLimit: 0 },
   define: {
     __AEROBEAT_BUILD_STAMP__: JSON.stringify(buildStamp),
     __AEROBEAT_CACHE_BUST__: JSON.stringify(cacheBust),

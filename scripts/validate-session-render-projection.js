@@ -59,8 +59,21 @@ assert.deepEqual({ start:projectSessionTargets([longObstacle],testTruth,1500)[0]
 assert.equal(projectSessionTargets([longObstacle],testTruth,2001).length,0,"long obstacle uses exact interval end");
 const falseObstacleHit=Object.freeze({...testTruth,judgements:Object.freeze([{eventId:"long-obstacle",result:"hit",shadow:false,committedTimelinePositionMs:1000}])});
 assert.equal(projectSessionTargets([longObstacle],falseObstacleHit,1200)[0]?.judgement,undefined,"obstacle ignores all synthetic/real feedback");
-const omittedFlowNonNotes=Object.freeze(["bomb","arc","burst"].map((type,index)=>Object.freeze({eventId:`omitted-${type}`,centerTimestampMs:1000+index,authoredBeat:Object.freeze({type,placement:1,startPlacement:1,endPlacement:2,tailPlacement:2})})));
-assert.deepEqual(projectSessionTargets(omittedFlowNonNotes,testTruth,900),[],"Flow bomb/arc/burst are explicitly omitted rather than misprojected as Boxing punches");
+const bombs=Object.freeze(Array.from({length:12},(_,placement)=>Object.freeze({eventId:`bomb-${placement}`,centerTimestampMs:1000+placement,authoredBeat:Object.freeze({type:"bomb",placement})})));
+const projectedBombs=projectSessionTargets(bombs,testTruth,-1500);
+assert.equal(projectedBombs.length,1,"bomb enters at its exact shared 2500 ms approach boundary");
+assert.deepEqual(projectedBombs[0],{id:"bomb-0",kind:"bomb",hand:"neutral",family:"bomb",cell:0,cells:[],lane:null,beatCenterMs:1000},"bomb projection is truthful, neutral and feedback-free");
+const allBombs=projectSessionTargets(bombs,testTruth,1000);
+assert.equal(allBombs.length,12,"all authored placements 0..11 project in the bounded visibility window");
+assert.deepEqual(allBombs.map(({id,cell})=>({id,cell})),Array.from({length:12},(_,cell)=>({id:`bomb-${cell}`,cell})),"bomb IDs, timeline ordering and exact authored placements are preserved");
+assert(allBombs.every((target)=>target.kind==="bomb"&&target.family==="bomb"&&target.hand==="neutral"&&target.judgement===undefined&&target.feedbackProgress===undefined),"bombs never acquire judgement or feedback fields");
+assert.equal(projectSessionTargets([bombs[0]],testTruth,1500).length,1,"bomb remains visible through the same 500 ms post-center window as unresolved visuals");
+assert.equal(projectSessionTargets([bombs[0]],testTruth,1500.001).length,0,"bomb leaves immediately after the bounded visibility window");
+const falseBombHit=Object.freeze({...testTruth,judgements:Object.freeze([{eventId:"bomb-0",result:"hit",shadow:false,committedTimelinePositionMs:1000}])});
+assert.equal(projectSessionTargets([bombs[0]],falseBombHit,1200)[0]?.judgement,undefined,"bomb ignores synthetic and real feedback truth");
+for(const placement of [-1,12,1.5,NaN,null,undefined,"1"]) assert.deepEqual(projectSessionTargets([{eventId:`invalid-${String(placement)}`,centerTimestampMs:1000,authoredBeat:{type:"bomb",placement}}],testTruth,1000),[],`invalid bomb placement ${String(placement)} is omitted`);
+const omittedFlowNonNotes=Object.freeze(["arc","burst"].map((type,index)=>Object.freeze({eventId:`omitted-${type}`,centerTimestampMs:1000+index,authoredBeat:Object.freeze({type,placement:1,startPlacement:1,endPlacement:2,tailPlacement:2})})));
+assert.deepEqual(projectSessionTargets(omittedFlowNonNotes,testTruth,900),[],"Flow arc/burst remain explicitly omitted rather than misprojected as Boxing punches");
 assert.deepEqual(projectSessionTargets([{eventId:"unknown",centerTimestampMs:1000,authoredBeat:{type:"future_unknown"}}],testTruth,900),[],"unrecognized authored types cannot reach the recognized-only Boxing punch branch");
 
 const boxingEvents = Object.freeze([

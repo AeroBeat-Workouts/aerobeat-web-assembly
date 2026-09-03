@@ -1,7 +1,6 @@
 // @ts-check
 
 import "@aerobeat/web-style/aero-theme.css";
-import { webGameplayIconBundle } from "@aerobeat/branding/web-gameplay-assets";
 import {
   conversionRecipeIds,
   elementNames,
@@ -11,10 +10,10 @@ import {
   rulesetIds
 } from "@aerobeat/web-contracts";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
-import { rasterizeBrandingIconAtlas } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
+import { alienMoonEnvironmentAsset } from "./alien-moon-environment-asset.js";
 import {
   exactGameplayVariant,
   firstUseBoxingRecipeId,
@@ -53,6 +52,8 @@ defineAeroUiElements();
 
 /** Full-container, reconnectable AeroBeat game root. */
 export class AeroGame extends HTMLElement {
+  #environmentAsset = alienMoonEnvironmentAsset;
+
   constructor() {
     super();
     this.instanceId = this.getAttribute("instance-id") || `aero-game-${++instanceSequence}`;
@@ -109,8 +110,6 @@ export class AeroGame extends HTMLElement {
     this.transportIntentTail = Promise.resolve();
     this.desiredTransportSeekMs = null;
     this.transportSeekQueued = false;
-    this.iconAtlasGeneration = 0;
-    this.iconAtlasAbort = null;
     this.environmentMode = "aero";
     this.cameraCompositeMode = null;
     this.musicPrerequisite = "";
@@ -148,17 +147,17 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = "";
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
     try {
+      this.assertPrivateEnvironmentAsset();
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
       const graph = this.graph; const generation = this.connectedGeneration;
       graph.audio.setMix(getAudioMixSnapshot());
       this.unsubscribe.push(subscribeAudioMix((mix) => { if (!this.isCurrent(generation, graph)) return; graph.audio.setMix(mix); this.renderVisualTestTransport(); }, false));
       this.attachStableSurfaces();
-      this.beginIconAtlasInitialization();
       this.bindGraph();
       this.bindLease();
       this.bindHostLifecycle();
@@ -175,6 +174,12 @@ export class AeroGame extends HTMLElement {
   }
 
   disconnectedCallback() { this.teardown("disconnected"); }
+
+  assertPrivateEnvironmentAsset() {
+    const asset = this.#environmentAsset;
+    if (asset.id !== "alien-moon-icescape" || asset.version !== "1.0.0" || asset.glb.bytes !== 6149400 || asset.config.bytes !== 100) throw new Error("Private environment descriptor drifted");
+    for (const url of [asset.glbUrl, asset.configUrl, asset.manifestUrl]) if (typeof url !== "string" || url.length < 1 || url.length > 4096) throw new Error("Private environment asset URL is unavailable");
+  }
 
   /** Configure plain host-owned options without starting media. */
   configure(options = {}) {
@@ -221,7 +226,6 @@ export class AeroGame extends HTMLElement {
       if (typeof graph.audio.seek === "function") await graph.audio.seek(0);
       if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
       if (contentPlayable) this.configureGameplayFromContent(false);
-      this.restartIconAtlasIfPending();
       const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
       await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
       if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
@@ -627,33 +631,6 @@ export class AeroGame extends HTMLElement {
     this.graph.renderer.attach(this.canvasElement()); this.graph.renderer.clear({ color: [0, 0, 0, 0] });
     const video = this.videoElement();
     video.muted = true; video.playsInline = true;
-  }
-
-  beginIconAtlasInitialization() {
-    const graph = this.graph; if (!graph || typeof graph.renderer.uploadIconAtlas !== "function") return;
-    this.iconAtlasAbort?.abort();
-    const abort = new AbortController(); this.iconAtlasAbort = abort;
-    const atlasGeneration = ++this.iconAtlasGeneration; const connectionGeneration = this.connectedGeneration;
-    const onConnectionAbort = () => abort.abort(); this.activeAbort.signal.addEventListener("abort", onConnectionAbort, { once: true });
-    void rasterizeBrandingIconAtlas(webGameplayIconBundle.manifest, {
-      signal: abort.signal,
-      resolveUrl: (asset) => {
-        const url = webGameplayIconBundle.iconUrls[asset.id];
-        if (typeof url !== "string" || url.length > 4096) throw new Error("Canonical gameplay icon URL is unavailable");
-        return url;
-      }
-    }).then((atlas) => {
-      if (!this.isCurrent(connectionGeneration, graph) || atlasGeneration !== this.iconAtlasGeneration || abort.signal.aborted) return;
-      graph.renderer.uploadIconAtlas(atlas); this.renderRuntimePresentation();
-    }).catch((error) => {
-      if (abort.signal.aborted || !this.isCurrent(connectionGeneration, graph) || atlasGeneration !== this.iconAtlasGeneration) return;
-      graph.renderer.uploadIconAtlas(null); this.renderRuntimePresentation();
-    }).finally(() => { this.activeAbort.signal.removeEventListener("abort", onConnectionAbort); if (this.iconAtlasAbort === abort) this.iconAtlasAbort = null; });
-  }
-
-  restartIconAtlasIfPending() {
-    if (!this.graph || this.graph.renderer.describe().iconAtlasReady === true) return;
-    this.beginIconAtlasInitialization();
   }
 
   bindGraph() {
@@ -1650,7 +1627,7 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.iconAtlasGeneration += 1; this.iconAtlasAbort?.abort(); this.iconAtlasAbort = null; this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";

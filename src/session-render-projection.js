@@ -4,14 +4,14 @@ const FEEDBACK_DURATION_MS = 350;
 const SYNTHETIC_MISS_COMMIT_OFFSET_MS = 181;
 const FLOW_APPROACH_LEAD_MS = 2500;
 const FLOW_DIRECTIONS = Object.freeze(["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"]);
-const FLOW_NON_NOTE_TYPES = Object.freeze(new Set(["bomb", "obstacle", "arc", "burst"]));
+const FLOW_OMITTED_TYPES = Object.freeze(new Set(["arc", "burst"]));
 const BOXING_PUNCH_TYPES = Object.freeze(new Set(["straight_left", "straight_right", "hook_left", "hook_right", "uppercut_left", "uppercut_right"]));
 
 /**
  * Project gameplay-owned real judgements or renderer-local visual Test outcomes.
  * Synthetic records never use the public judgement schema and never leave this module.
  * Flow obstacles are interval presentation truth and never receive synthetic or real feedback.
- * Bombs/arcs/bursts are intentionally omitted until a dedicated non-scoring visual contract exists.
+ * Valid authored Flow bombs are neutral, non-scoring visuals. Arcs and bursts remain explicitly omitted.
  *
  * @param {readonly Record<string, unknown>[]} events
  * @param {Record<string, unknown>} gameplay
@@ -31,8 +31,11 @@ export function projectSessionTargets(events, gameplay, nowMs) {
     if (type === "obstacle") {
       const target = flowObstacleTarget(event, beat, nowMs);
       if (target) targets.push(target);
-    } else if (FLOW_NON_NOTE_TYPES.has(type)) {
-      // Explicitly omitted: current gameplay ignores these events and the renderer has no truthful arc/burst/bomb contract.
+    } else if (type === "bomb") {
+      const target = flowBombTarget(event, beat, nowMs);
+      if (target) targets.push(target);
+    } else if (FLOW_OMITTED_TYPES.has(type)) {
+      // Explicitly omitted: current gameplay and renderer have no truthful arc/burst presentation contract.
     } else if (isRenderableFeedbackType(type)) {
       const eventId = String(recordValue(event, "eventId") ?? "");
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
@@ -64,6 +67,15 @@ function flowObstacleTarget(event, beat, nowMs) {
   if (startMs === null || endMs === null || endMs < startMs || !Array.isArray(cells) || cells.length === 0 || cells.length > 12 || cells.some((cell) => !Number.isInteger(cell) || Number(cell) < 0 || Number(cell) > 11) || new Set(cells).size !== cells.length) return null;
   if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...cells], lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs };
+}
+
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs */
+function flowBombTarget(event, beat, nowMs) {
+  const centerMs = optionalFiniteNumber(recordValue(event, "centerTimestampMs"));
+  const placement = recordValue(beat, "placement");
+  if (centerMs === null || !Number.isInteger(placement) || Number(placement) < 0 || Number(placement) > 11) return null;
+  if (nowMs < centerMs - FLOW_APPROACH_LEAD_MS || nowMs > centerMs + 500) return null;
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs };
 }
 
 /** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress */
