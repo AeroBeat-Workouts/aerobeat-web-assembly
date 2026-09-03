@@ -43,7 +43,7 @@ try {
     const test=document.createElement("aero-game"); test.setAttribute("instance-id","no-atlas-proof"); const originalFactory=reference.serviceGraphFactory;
     test.serviceGraphFactory=(options)=>{const graph=originalFactory(options);const id=++graphSequence;if(typeof graph.renderer.uploadIconAtlas==="function"){const upload=graph.renderer.uploadIconAtlas.bind(graph.renderer);graph.renderer.uploadIconAtlas=(atlas)=>{uploads.push({id,atlas});return upload(atlas)}}return graph};
     reference.parentElement.append(test);await new Promise((resolve)=>setTimeout(resolve,80));const oldGraph=test.graph;test.remove();reference.parentElement.append(test);await new Promise((resolve)=>setTimeout(resolve,80));
-    const snapshotText=JSON.stringify(test.getSnapshot());const result={uploads:uploads.length,atlasFetches:atlasFetches.length,oldDestroyed:oldGraph.renderer.describe().destroyed,lifecycle:test.getSnapshot().lifecycle,privateEnvironmentLeaked:/alien-moon|6149400|40e38a7b|1e50a941/iu.test(snapshotText)};test.remove();globalThis.fetch=originalFetch;return result;
+    const snapshotText=JSON.stringify(test.getSnapshot());const result={uploads:uploads.length,atlasFetches:atlasFetches.length,oldDestroyed:oldGraph.renderer.describe().destroyed,lifecycle:test.getSnapshot().lifecycle,privateEnvironmentLeaked:/luminious-ice-cave-photosphere|2210289|ff142b3c|d415e7de|524c7a56/iu.test(snapshotText)};test.remove();globalThis.fetch=originalFetch;return result;
   });
   if(noAtlasLifecycle.uploads!==0||noAtlasLifecycle.atlasFetches!==0||!noAtlasLifecycle.oldDestroyed||noAtlasLifecycle.lifecycle!=="connected"||noAtlasLifecycle.privateEnvironmentLeaked)throw new Error(`No-atlas lifecycle/privacy failed: ${JSON.stringify(noAtlasLifecycle)}`);
 

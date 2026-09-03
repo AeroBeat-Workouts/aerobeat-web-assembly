@@ -75,4 +75,4 @@ A representative visible set of 24 notes, 2 simultaneous guard-shield instances,
 
 ## Rights and provenance
 
-This specification and both review boards are original AeroBeat/Gambit Games visual-development work generated locally from deterministic vector primitives and pseudo-3D shading. They contain no imported models, environment imagery, third-party textures, logos, fonts beyond Pillow's local default rendering, or derivative asset content. The planned owned alien-moon environment is intentionally absent from Task 1 review production.
+This specification and both review boards are original AeroBeat/Gambit Games visual-development work generated locally from deterministic vector primitives and pseudo-3D shading. They contain no imported models, environment imagery, third-party textures, logos, fonts beyond Pillow's local default rendering, or derivative asset content. The later selected AeroBeat-controlled ice-cave photosphere is intentionally absent from Task 1 review production.

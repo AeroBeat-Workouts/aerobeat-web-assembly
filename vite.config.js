@@ -1,5 +1,6 @@
 // @ts-check
 
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { computeReleaseFingerprint } from "./scripts/release-fingerprint.js";
@@ -7,6 +8,12 @@ import { computeReleaseFingerprint } from "./scripts/release-fingerprint.js";
 const basePath = process.env.AEROBEAT_BASE_PATH ?? "/";
 const tailscaleHost = "derrick-alienware-aurora-r13.tail613fcb.ts.net";
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.2/", import.meta.url);
+const rendererGameplayInventoryBytes = readFileSync(new URL("inventory.v1.json", rendererGameplayRoot));
+if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "1a5b66f543bae940b8bb789e9ab9979d073663b5f6ff12382e08f4ad10c0ff1b") throw new Error("Linked renderer gameplay inventory hash drifted");
+const rendererGameplayInventory = JSON.parse(rendererGameplayInventoryBytes.toString("utf8"));
+const rendererGameplayGlbs = rendererGameplayInventory.payload.filter((entry) => entry.path.endsWith(".glb"));
+if (rendererGameplayGlbs.length !== 7) throw new Error("Linked renderer gameplay GLB inventory drifted");
 const sourceFingerprint = computeReleaseFingerprint(new URL(".", import.meta.url).pathname);
 const buildStamp = `source:${sourceFingerprint}`;
 const cacheBust = `${packageJson.version}-${sourceFingerprint.slice(0, 16)}`;
@@ -19,6 +26,16 @@ const cacheBust = `${packageJson.version}-${sourceFingerprint.slice(0, 16)}`;
 export default {
   base: basePath,
   build: { assetsInlineLimit: 0 },
+  plugins: [{
+    name: "aerobeat-linked-renderer-gameplay-assets",
+    buildStart() {
+      for (const asset of rendererGameplayGlbs) {
+        const source = readFileSync(new URL(asset.path, rendererGameplayRoot));
+        if (source.byteLength !== asset.bytes || createHash("sha256").update(source).digest("hex") !== asset.sha256) throw new Error(`Linked renderer gameplay asset drifted: ${asset.path}`);
+        this.emitFile({ type: "asset", fileName: `assets/gameplay/0.0.2/${asset.path}`, source });
+      }
+    }
+  }],
   define: {
     __AEROBEAT_BUILD_STAMP__: JSON.stringify(buildStamp),
     __AEROBEAT_CACHE_BUST__: JSON.stringify(cacheBust),

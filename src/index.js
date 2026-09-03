@@ -13,7 +13,7 @@ import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
-import { alienMoonEnvironmentAsset } from "./alien-moon-environment-asset.js";
+import { luminiousIceCavePhotosphereAsset } from "./luminious-ice-cave-photosphere-asset.js";
 import {
   exactGameplayVariant,
   firstUseBoxingRecipeId,
@@ -52,7 +52,7 @@ defineAeroUiElements();
 
 /** Full-container, reconnectable AeroBeat game root. */
 export class AeroGame extends HTMLElement {
-  #environmentAsset = alienMoonEnvironmentAsset;
+  #environmentAsset = luminiousIceCavePhotosphereAsset;
 
   constructor() {
     super();
@@ -177,8 +177,8 @@ export class AeroGame extends HTMLElement {
 
   assertPrivateEnvironmentAsset() {
     const asset = this.#environmentAsset;
-    if (asset.id !== "alien-moon-icescape" || asset.version !== "1.0.0" || asset.glb.bytes !== 6149400 || asset.config.bytes !== 100) throw new Error("Private environment descriptor drifted");
-    for (const url of [asset.glbUrl, asset.configUrl, asset.manifestUrl]) if (typeof url !== "string" || url.length < 1 || url.length > 4096) throw new Error("Private environment asset URL is unavailable");
+    if (asset.id !== "luminious-ice-cave-photosphere" || asset.mimeType !== "image/jpeg" || asset.bytes !== 2210289 || asset.sha256 !== "ff142b3ce3d3509ab3cfafcfc6a8cc2d3b0ff737852072d3a7aea8075478eed5" || asset.projection !== "equirectangular") throw new Error("Private environment descriptor drifted");
+    if (typeof asset.url !== "string" || asset.url.length < 1 || asset.url.length > 2048) throw new Error("Private environment asset URL is unavailable");
   }
 
   /** Configure plain host-owned options without starting media. */

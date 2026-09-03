@@ -5,28 +5,36 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 
 /**
- * Compute a deterministic fingerprint over this browser entrypoint and every
- * recursively linked local runtime package. Generated release/dist output is
+ * Compute a deterministic fingerprint over this browser entrypoint, assembly
+ * runtime assets, and every recursively linked local runtime package including
+ * each package's source and runtime assets. Generated release/dist output is
  * intentionally outside this set.
  *
  * @param {string} [root]
  */
 export function computeReleaseFingerprint(root = process.cwd()) {
-  const absoluteRoot = resolve(root); const files = new Set(); const packages = new Set();
-  addFile(resolve(absoluteRoot, "index.html")); addFile(resolve(absoluteRoot, "package-lock.json")); addFile(resolve(absoluteRoot, "vite.config.js"));
-  collectPackage(absoluteRoot);
-  const paths = [...files].sort((left, right) => compareCodePoints(relative(absoluteRoot, left), relative(absoluteRoot, right)));
-  const hash = createHash("sha256");
-  for (const path of paths) {
+  const absoluteRoot = resolve(root); const hash = createHash("sha256");
+  for (const path of listReleaseFingerprintInputs(absoluteRoot)) {
     hash.update(relative(absoluteRoot, path)); hash.update("\0"); hash.update(readFileSync(path)); hash.update("\0");
   }
   return hash.digest("hex");
+}
+
+/** @param {string} [root] @returns {string[]} */
+export function listReleaseFingerprintInputs(root = process.cwd()) {
+  const absoluteRoot = resolve(root); const files = new Set(); const packages = new Set();
+  addFile(resolve(absoluteRoot, "index.html")); addFile(resolve(absoluteRoot, "package-lock.json")); addFile(resolve(absoluteRoot, "vite.config.js"));
+  collectPackage(absoluteRoot);
+  return [...files].sort((left, right) => compareCodePoints(relative(absoluteRoot, left), relative(absoluteRoot, right)));
 
   /** @param {string} packageRoot */
   function collectPackage(packageRoot) {
     const resolvedRoot = resolve(packageRoot); if (packages.has(resolvedRoot)) return; packages.add(resolvedRoot);
     const packagePath = resolve(resolvedRoot, "package.json"); addFile(packagePath);
-    const sourceRoot = resolve(resolvedRoot, "src"); if (existsSync(sourceRoot)) for (const path of walk(sourceRoot)) addFile(path);
+    for (const directory of ["src", "assets"]) {
+      const contentRoot = resolve(resolvedRoot, directory);
+      if (existsSync(contentRoot)) for (const path of walk(contentRoot)) addFile(path);
+    }
     const packageData = JSON.parse(readFileSync(packagePath, "utf8"));
     const dependencies = packageData && typeof packageData === "object" ? packageData.dependencies : null;
     if (!dependencies || typeof dependencies !== "object" || Array.isArray(dependencies)) return;
