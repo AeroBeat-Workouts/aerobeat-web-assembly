@@ -628,6 +628,7 @@ export class AeroGame extends HTMLElement {
   destroy() { this.teardown("destroyed"); return this.getSnapshot(); }
 
   attachStableSurfaces() {
+    this.graph.renderer.setEnvironmentAsset(this.#environmentAsset);
     this.graph.renderer.attach(this.canvasElement()); this.graph.renderer.clear({ color: [0, 0, 0, 0] });
     const video = this.videoElement();
     video.muted = true; video.playsInline = true;
@@ -754,7 +755,11 @@ export class AeroGame extends HTMLElement {
     const visible = !document.hidden && retained && (this.environmentMode === "camera" || this.cameraPreviewForced());
     const video = this.videoElement(); video.dataset.previewVisible = visible ? "true" : "false"; video.setAttribute("aria-hidden", "true");
     const compositeMode = visible ? "camera" : "aero";
-    if (this.cameraCompositeMode !== compositeMode) { this.graph.renderer.setBackgroundProjection(visible ? CAMERA_BACKGROUND_PROJECTION : AERO_BACKGROUND_PROJECTION); this.cameraCompositeMode = compositeMode; }
+    if (this.cameraCompositeMode !== compositeMode) {
+      this.graph.renderer.setEnvironmentVisible(compositeMode === "aero");
+      this.graph.renderer.setBackgroundProjection(visible ? CAMERA_BACKGROUND_PROJECTION : AERO_BACKGROUND_PROJECTION);
+      this.cameraCompositeMode = compositeMode;
+    }
   }
 
   applyActiveScoringProfile() {
