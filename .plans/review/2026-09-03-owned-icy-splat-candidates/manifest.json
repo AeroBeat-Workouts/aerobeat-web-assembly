@@ -1,0 +1,113 @@
+{
+  "schema": "aerobeat.owned-splat-candidate-review/v1",
+  "created": "2026-09-03",
+  "purpose": "Derrick selection of an AeroBeat-controlled source splat for equirectangular photosphere generation",
+  "sourceRepository": "aerobeat-environment-community",
+  "sourceCommit": "d46ad5b254df4f718fa935490be3b51dc3dffeae",
+  "rightsStatement": {
+    "authority": "Derrick Barra direct project instruction on 2026-09-03",
+    "statement": "The candidate splats were generated and then purchased by AeroBeat and may be used commercially without attribution.",
+    "scope": "Candidate splats listed in this manifest; does not apply to the rejected Luis Vidal/Sketchfab alien-moon GLB."
+  },
+  "render": {
+    "engine": "Godot 4.6.2.stable.official.71f334935",
+    "renderer": "Vulkan Forward+",
+    "adapter": "NVIDIA GeForce RTX 3080",
+    "pipeline": "Godot/GDGS wrapper through existing splat_repro_capture scene",
+    "resolution": [960, 540],
+    "cameraPosition": [0, 0, 4],
+    "cameraTarget": [0, 0, 0],
+    "background": [0.04, 0.04, 0.06],
+    "pointCountPerCandidate": 2200000,
+    "comparisonNote": "All candidates use the same unmodified review camera; this is a selection preview, not the final 360 photosphere view."
+  },
+  "contactSheet": {
+    "path": "candidate-contact-sheet.png",
+    "width": 1920,
+    "height": 648,
+    "sha256": "71550a30e8c8abd77052530f979a4b9ff96a8fb5bb08e7e8e10dbaf10e7561ad"
+  },
+  "candidates": [
+    {
+      "number": 1,
+      "id": "luminious-ice-cave",
+      "sourcePath": ".testbed/assets/splats/luminious-ice-cave/luminious-ice-cave.compressed.ply",
+      "sourceBytes": 55619663,
+      "sourceSha256": "a5732239888a0c6967d85693b504248733dbd48e7981cf39a348c32badc3c56a",
+      "previewPath": "luminious-ice-cave/capture_wrapper.png",
+      "previewSha256": "47ec3e59478326cab1f096c4dbf30571f8fad3ca03f2352fb8855cfd5400bb6c",
+      "aabb": "[P: (-13.19479, -6.108843, -20.97153), S: (42.97656, 9.789062, 77.45679)]"
+    },
+    {
+      "number": 2,
+      "id": "icebergs-on-sea-shore",
+      "sourcePath": ".testbed/assets/splats/icebergs-on-sea-shore/icebergs-on-sea-shore.compressed.ply",
+      "sourceBytes": 55619663,
+      "sourceSha256": "24dfaf4654c9bcc951d66b7ea0d730a6fede101f433efb7064d912e3cd4fceaa",
+      "previewPath": "icebergs-on-sea-shore/capture_wrapper.png",
+      "previewSha256": "721299b931a20ea4109d7efb07dbdff47a1eab888a2acb746e2d2d138ebbc9d3",
+      "aabb": "[P: (-55.03584, -49.42183, -51.16409), S: (111.938, 53.25024, 103.4404)]"
+    },
+    {
+      "number": 3,
+      "id": "snow-mountain-with-lake",
+      "sourcePath": ".testbed/assets/splats/snow-mountain-with-lake/snow-mountain-with-lake.compressed.ply",
+      "sourceBytes": 55619663,
+      "sourceSha256": "c9353c30cbff071bad0c51ed7aa8f61bb5405cc98d7792a26e621dd50d59cc53",
+      "previewPath": "snow-mountain-with-lake/capture_wrapper.png",
+      "previewSha256": "557cb5a6f5bb8efe95ab6b74e8dbdf2204c863946e3afae096070847eca32d27",
+      "aabb": "[P: (-123.0491, -111.3014, -126.0911), S: (266.3926, 135.1025, 277.7195)]"
+    },
+    {
+      "number": 4,
+      "id": "iceland-waterfall",
+      "sourcePath": ".testbed/assets/splats/iceland-waterfall/iceland-waterfall.compressed.ply",
+      "sourceBytes": 55619664,
+      "sourceSha256": "b83ffe8ee100731a7adbd35a71a68b30ceb4d2247c94b48f5054f9573a3b93e5",
+      "previewPath": "iceland-waterfall/capture_wrapper.png",
+      "previewSha256": "dfb4219bbe6ee0f660c0f456e5866788b79debbc3b5b8791de84249b13ccb879",
+      "aabb": "[P: (-110.9632, -137.7865, -151.6015), S: (225.2568, 149.8706, 283.2019)]"
+    },
+    {
+      "number": 5,
+      "id": "igloo-toon",
+      "sourcePath": ".testbed/assets/splats/igloo-toon/igloo-toon.compressed.ply",
+      "sourceBytes": 55619664,
+      "sourceSha256": "88dca765c2cf56f76786140d592f82cd2b3059cfa1966d025147776926f1abbf",
+      "previewPath": "igloo-toon/capture_wrapper.png",
+      "previewSha256": "1892bd022be3cf082a9e81c9803f121604c3a5ee90ef56aa093a4b59ba212ba4",
+      "aabb": "[P: (-126.1886, -112.1255, -144.0924), S: (233.9084, 136.1228, 267.8364)]"
+    },
+    {
+      "number": 6,
+      "id": "salt-lake",
+      "sourcePath": ".testbed/assets/splats/salt-lake/salt-lake.compressed.ply",
+      "sourceBytes": 55619664,
+      "sourceSha256": "beb9dab250ad146cbe24199c7405d1745f817a5757e7538e81bb0fbe538aec6a",
+      "previewPath": "salt-lake/capture_wrapper.png",
+      "previewSha256": "5f25b71f0fe56a6549486207cd81185b393af183e0d14d7e7fbfbb1e2cd91c0f",
+      "aabb": "[P: (-140.184, -138.615, -166.0707), S: (283.5669, 146.2468, 317.2095)]"
+    },
+    {
+      "number": 7,
+      "id": "salt-lake-2",
+      "sourcePath": ".testbed/assets/splats/salt-lake-2/salt-lake-2.compressed.ply",
+      "sourceBytes": 55619663,
+      "sourceSha256": "4e623aab0b1dfca463b3d201b4c5cbefe6375ffb2ac2af58f4d6294694c09b3a",
+      "previewPath": "salt-lake-2/capture_wrapper.png",
+      "previewSha256": "edcea4b775db5ba3ed45f0bee18c3a18bd0cb2814ecbebaba8107bd56946ecc6",
+      "aabb": "[P: (-112.0088, -101.6793, -111.6288), S: (208.6387, 119.6157, 206.9521)]"
+    },
+    {
+      "number": 8,
+      "id": "alpine-river-valley",
+      "sourcePath": ".testbed/assets/splats/alpine-river-valley/alpine-river-valley.compressed.ply",
+      "sourceBytes": 55619664,
+      "sourceSha256": "eae63f0baf671e085d2d4b374d4b43cacbb02979c293e1ed194f9fb5813449d5",
+      "previewPath": "alpine-river-valley/capture_wrapper.png",
+      "previewSha256": "99ac68835675dd9a3d55c06c582135da2b32e34c3673ca3ccbfd0cb0d589a8fb",
+      "aabb": "[P: (-197.794, -124.8272, -175.563), S: (384.5889, 143.3599, 329.5208)]"
+    }
+  ],
+  "selection": null
+}
