@@ -3,101 +3,166 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { build } from "vite";
 import { listReleaseFingerprintInputs } from "./release-fingerprint.js";
-import { luminiousIceCavePhotosphereAsset } from "../src/luminious-ice-cave-photosphere-asset.js";
+import {
+  defaultEnvironmentAssetId,
+  environmentArtifactComparisonIds,
+  environmentAssetCatalog,
+  environmentAssetFiles,
+  normalizeEnvironmentConfig,
+  normalizeEnvironmentTransform,
+  serializeEnvironmentConfig
+} from "../src/environment-asset-catalog.js";
 
 const root = process.cwd();
-const environmentRoot = "assets/environments/luminious-ice-cave-photosphere/1.0.0";
-const JPEG_HASH = "ff142b3ce3d3509ab3cfafcfc6a8cc2d3b0ff737852072d3a7aea8075478eed5";
-const CONFIG_HASH = "d415e7de8cdc9c78cfc2d3261b9f50a0d9cb626fe8e368bec43de2c8e686fb42";
-const MANIFEST_HASH = "524c7a5623dfbafb65590a9b3b78dc894d4341165d564ac267d470f03acf7e80";
-const REJECTED_CONTENT = Object.freeze([["Luis", "Vidal"].join(" "), ["Sketch", "fab"].join(""), ["bfc9a041814f4112", "b016904edfaad0c5"].join(""), ["alien", "moon", "icescape"].join("-")]);
-const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
-const packageLock = readFileSync("package-lock.json", "utf8");
 const source = readFileSync("src/index.js", "utf8");
-const descriptorSource = readFileSync("src/luminious-ice-cave-photosphere-asset.js", "utf8");
-const expectedDescriptor = {
-  id: "luminious-ice-cave-photosphere", url: luminiousIceCavePhotosphereAsset.url, mimeType: "image/jpeg", bytes: 2210289, sha256: JPEG_HASH,
-  projection: "equirectangular", dimensions: [4096, 2048], orientation: { yaw: 0, pitch: 0, roll: 0 }, centerForward: [0, 0, -1], worldUp: [0, 1, 0]
-};
+const controlsBrowserSource = readFileSync("scripts/validate-environment-controls-browser.js", "utf8");
+const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
+const expectedPaths = environmentAssetFiles.map((entry) => entry.path).sort();
+const expectedGameplayPaths = [
+  "assets/gameplay/0.0.3/any-note/circle-v1.glb",
+  "assets/gameplay/0.0.3/athlete-marker/sphere-v1.glb",
+  "assets/gameplay/0.0.3/bomb/urchin-v1.glb",
+  "assets/gameplay/0.0.3/directional-arrow/outline-v1.glb",
+  "assets/gameplay/0.0.3/guard/shield-v1.glb",
+  "assets/gameplay/0.0.3/inventory.v1.json",
+  "assets/gameplay/0.0.3/manifests/any-note/circle-v1.v1.json",
+  "assets/gameplay/0.0.3/manifests/athlete-marker/sphere-v1.v1.json",
+  "assets/gameplay/0.0.3/manifests/bomb/urchin-v1.v1.json",
+  "assets/gameplay/0.0.3/manifests/directional-arrow/outline-v1.v1.json",
+  "assets/gameplay/0.0.3/manifests/guard/shield-v1.v1.json",
+  "assets/gameplay/0.0.3/manifests/track/blue-glass-v1.v1.json",
+  "assets/gameplay/0.0.3/manifests/wall/red-glass-v1.v1.json",
+  "assets/gameplay/0.0.3/proof.v1.json",
+  "assets/gameplay/0.0.3/sets/default-v1.json",
+  "assets/gameplay/0.0.3/track/blue-glass-v1.glb",
+  "assets/gameplay/0.0.3/wall/red-glass-v1.glb"
+];
+const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
+const rendererRoot = resolve(root, "../aerobeat-web-renderer");
+const rendererCommit = "1626fa89235c3d56d98004f89103c1389dc9cf30";
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "3df64e595ca45893e72cc5620361e5dec728fb26", "linked renderer tree drifted");
+assert.equal(git(rendererRoot, ["status", "--porcelain", "--untracked-files=no"]), "", "linked renderer tracked files are dirty");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.3"]), "aa37bf534cc592a4057127876d567eadc3496f49", "linked gameplay raw tree drifted");
+assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.3"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
+for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly gameplay runtime member drifted: ${path}`);
+const rendererGameplaySource = readFileSync(resolve(rendererRoot, "src/gameplay-assets.js"), "utf8");
+assert.match(rendererGameplaySource, /gameplayAssetSourceCommit="8b8b40593b9deb54d32654e39fd7c1c1c4a9dc1a"/u);
+assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="69b88d38113a56061dfc0ea5e92ec51a0b181fcade6a99e1dcc5df1baecdde03"/u);
 
-assert(Object.isFrozen(luminiousIceCavePhotosphereAsset));
-for (const key of ["dimensions", "orientation", "centerForward", "worldUp"]) assert(Object.isFrozen(luminiousIceCavePhotosphereAsset[key]), `${key} must be frozen`);
-assert.deepEqual(luminiousIceCavePhotosphereAsset, expectedDescriptor, "assembly descriptor drifted from renderer e5130e0 contract");
-assert.deepEqual(Object.keys(luminiousIceCavePhotosphereAsset).sort(), ["bytes", "centerForward", "dimensions", "id", "mimeType", "orientation", "projection", "sha256", "url", "worldUp"], "descriptor keys drifted");
-assert.equal(new URL(luminiousIceCavePhotosphereAsset.url).protocol, "file:", "source descriptor URL must resolve package-relatively");
-assert.match(new URL(luminiousIceCavePhotosphereAsset.url).pathname, /\/assets\/environments\/luminious-ice-cave-photosphere\/1\.0\.0\/luminious-ice-cave-photosphere\.jpg$/u);
-assert.equal(hash(readFileSync(new URL(luminiousIceCavePhotosphereAsset.url))), JPEG_HASH);
-assert.match(descriptorSource, /const environmentAssetPath = "\.\.\/assets\/environments\/luminious-ice-cave-photosphere\/1\.0\.0\/luminious-ice-cave-photosphere\.jpg";/u, "package-relative environment path drifted");
-assert.match(descriptorSource, /new URL\(environmentAssetPath, import\.meta\.url\)\.href/u, "environment URL must remain package-relative without Vite hashing away the owned build inventory");
-assert.equal(Object.values(packageJson.exports).includes("./src/luminious-ice-cave-photosphere-asset.js"), false, "environment descriptor must not become a public package export");
-assert.equal((source.match(/\.setEnvironmentAsset\(this\.#environmentAsset\)/gu) ?? []).length, 1, "each fresh service graph must receive the private environment descriptor exactly once");
+assert.equal(environmentAssetCatalog.length, 8);
+assert.equal(environmentAssetFiles.length, 24);
+assert.equal(new Set(ids).size, 8);
+assert.equal(ids[0], defaultEnvironmentAssetId);
+assert.deepEqual(environmentAssetFiles.map(({ path }) => path).filter((path) => path.endsWith(".jpg")).length, 8);
+assert.equal(expectedPaths.filter((path) => path.endsWith(".config.json")).length, 8);
+assert.equal(expectedPaths.filter((path) => path.endsWith("/manifest.json")).length, 8);
+for (const entry of environmentAssetCatalog) {
+  assert(Object.isFrozen(entry) && Object.isFrozen(entry.descriptor) && Object.isFrozen(entry.descriptor.dimensions) && Object.isFrozen(entry.descriptor.centerForward) && Object.isFrozen(entry.descriptor.worldUp) && Object.isFrozen(entry.defaultConfig) && Object.isFrozen(entry.defaultConfig.transform) && Object.isFrozen(entry.defaultConfig.transform.position) && Object.isFrozen(entry.defaultConfig.transform.rotationDegrees) && Object.isFrozen(entry.files));
+  assert.deepEqual(Object.keys(entry), ["label", "descriptor", "defaultConfig", "files"]);
+  assert.deepEqual(Object.keys(entry.descriptor), ["id", "url", "mimeType", "bytes", "sha256", "projection", "dimensions", "centerForward", "worldUp"]);
+  assert.equal(new URL(entry.descriptor.url).protocol, "file:");
+  assert.match(new URL(entry.descriptor.url).pathname, new RegExp(`/assets/environments/${entry.descriptor.id}/1\\.0\\.0/${entry.descriptor.id}\\.jpg$`, "u"));
+  for (const file of entry.files) { assert(Object.isFrozen(file)); assert.match(file.path, new RegExp(`^assets/environments/${entry.descriptor.id}/1\\.0\\.0/(?:${entry.descriptor.id}\\.(?:jpg|config\\.json)|manifest\\.json)$`, "u")); const bytes = readFileSync(file.path); assert.equal(bytes.byteLength, file.bytes); assert.equal(hash(bytes), file.sha256); }
+}
+assert.equal(new Set(environmentAssetCatalog.map((entry) => entry.descriptor.url)).size, 8);
+assert.equal(new Set(environmentAssetFiles.map(({ path }) => path)).size, 24);
+assert.equal(new Set(environmentAssetFiles.map(({ sha256 }) => sha256)).size, 24);
+assert.equal(Object.values(packageJson.exports).some((path) => String(path).includes("environment-asset-catalog")), false);
+assert.equal(new Set(environmentAssetFiles.map(({ path, sha256 }) => `${path}\0${sha256}`)).size, 24);
+
+const base = environmentAssetCatalog[0].defaultConfig;
+const artifact = serializeEnvironmentConfig(base);
+assert.equal(artifact.filename, `${defaultEnvironmentAssetId}.environment-config.v1.json`);
+assert.equal(artifact.mimeType, "application/json");
+assert.equal(artifact.text.endsWith("\n"), true);
+assert.deepEqual([...artifact.bytes], [...new TextEncoder().encode(artifact.text)]);
+assert.deepEqual(normalizeEnvironmentConfig(JSON.parse(artifact.text), defaultEnvironmentAssetId), base);
+assert.deepEqual(normalizeEnvironmentTransform({ position:{ x:-0, y:0, z:0 }, rotationDegrees:{ xPitch:0, yYaw:180, zRoll:-180 }, scale:4 }).position, { x:0, y:0, z:0 });
+for (const invalid of [
+  { ...base, extra:true },
+  { ...base, version:2 },
+  { ...base, id:ids[1] },
+  { ...base, projection:"gaussian-splat" },
+  { ...base, transform:{ ...base.transform, scale:Number.NaN } },
+  { ...base, transform:{ ...base.transform, scale:0.24 } },
+  { ...base, transform:{ ...base.transform, position:{ x:30, y:0, z:0 }, scale:1 } },
+  { ...base, transform:{ ...base.transform, rotationDegrees:{ ...base.transform.rotationDegrees, yYaw:181 } } }
+]) assert.throws(() => normalizeEnvironmentConfig(invalid, defaultEnvironmentAssetId));
+for (const hostileId of ["../escape", "Unknown", "unknown-environment", "", "a".repeat(97)]) {
+  assert.throws(() => normalizeEnvironmentConfig({ ...base, id:hostileId }, hostileId), /id/u);
+  assert.throws(() => normalizeEnvironmentConfig(base, hostileId), /id/u);
+  assert.throws(() => serializeEnvironmentConfig({ ...base, id:hostileId }), /id/u);
+}
+const accessor = { schema:base.schema, version:1, projection:base.projection, transform:base.transform }; Object.defineProperty(accessor, "id", { enumerable:true, get(){ throw new Error("accessor ran"); } });
+assert.throws(() => normalizeEnvironmentConfig(accessor, defaultEnvironmentAssetId), /own data/u);
+assert.throws(() => serializeEnvironmentConfig(accessor), /own data/u);
+assert.throws(() => normalizeEnvironmentConfig(new Proxy(base, {}), defaultEnvironmentAssetId), /proxies/u);
+assert.throws(() => normalizeEnvironmentConfig({ ...base, transform:new Proxy(base.transform, {}) }, defaultEnvironmentAssetId), /proxies/u);
+assert.throws(() => normalizeEnvironmentTransform(new Proxy(base.transform, {})), /proxies/u);
+assert.throws(() => normalizeEnvironmentTransform({ ...base.transform, position:new Proxy(base.transform.position, {}) }), /proxies/u);
+let nestedGetterCalls = 0; const accessorPosition = { y:0, z:0 }; Object.defineProperty(accessorPosition, "x", { enumerable:true, get(){ nestedGetterCalls += 1; return 0; } });
+assert.throws(() => normalizeEnvironmentConfig({ ...base, transform:{ ...base.transform, position:accessorPosition } }, defaultEnvironmentAssetId), /own data/u); assert.equal(nestedGetterCalls, 0);
+const cloneDescriptor = Object.getOwnPropertyDescriptor(globalThis, "structuredClone"); assert(cloneDescriptor); try { Object.defineProperty(globalThis, "structuredClone", { ...cloneDescriptor, value:undefined }); assert.throws(() => normalizeEnvironmentConfig(base, defaultEnvironmentAssetId), /unavailable/u); } finally { Object.defineProperty(globalThis, "structuredClone", cloneDescriptor); }
+
 const surfaceWiring = source.slice(source.indexOf("  attachStableSurfaces()"), source.indexOf("  bindGraph()"));
-assert(surfaceWiring.indexOf("setEnvironmentAsset(this.#environmentAsset)") < surfaceWiring.indexOf("renderer.attach(this.canvasElement())"), "environment descriptor must be configured before renderer surface attach");
-const cameraSync = source.slice(source.indexOf("  syncCameraPresentation()"), source.indexOf("  applyActiveScoringProfile()"));
-assert.match(cameraSync, /const compositeMode = visible \? "camera" : "aero";/u);
-assert.match(cameraSync, /setEnvironmentVisible\(compositeMode === "aero"\)/u, "resident photosphere visibility must follow computed composite mode");
-assert.doesNotMatch(cameraSync, /setEnvironmentVisible\([^\n]*environmentMode/u, "renderer visibility must not follow the stored radio preference directly");
-const rendererTelemetryBody = source.slice(source.indexOf("function rendererTelemetry("), source.indexOf("function cadenceTelemetry("));
-assert.doesNotMatch(rendererTelemetryBody, /environment|sha256|bytes|url/u, "private environment identity must not enter assembly renderer telemetry");
-assert.equal(execFileSync("git", ["-C", "../aerobeat-web-renderer", "rev-parse", "HEAD"], { encoding: "utf8" }).trim(), "e5130e01edd511911e39e27126e856c67ae56ece", "linked renderer commit drifted");
-assert.equal(execFileSync("git", ["-C", "../aerobeat-web-renderer", "status", "--short"], { encoding: "utf8" }), "", "linked renderer checkout must remain clean");
-assert.equal(packageJson.dependencies["@aerobeat/branding"], undefined); assert.doesNotMatch(packageLock, /aerobeat-branding|@aerobeat\/branding/u);
-for (const token of ["webGameplayIconBundle", "rasterizeBrandingIconAtlas", "uploadIconAtlas", "beginIconAtlasInitialization", "restartIconAtlasIfPending", "iconAtlasGeneration", "iconAtlasAbort"]) assert.equal(source.includes(token), false, `assembly retained obsolete atlas token ${token}`);
+assert(surfaceWiring.indexOf("setEnvironmentTransform(config.transform)") < surfaceWiring.indexOf("setEnvironmentAsset(entry.descriptor)"));
+assert(surfaceWiring.indexOf("setEnvironmentAsset(entry.descriptor)") < surfaceWiring.indexOf("renderer.attach(this.canvasElement())"));
+assert.match(surfaceWiring, /renderer\.attach\(this\.canvasElement\(\)\); this\.trackEnvironmentLoad\(entry\.descriptor\.id\)/u);
+const displayLifecycle = source.slice(source.indexOf("  startFrameLoop()"), source.indexOf("  stopFrameLoop()"));
+assert.match(displayLifecycle, /this\.observeEnvironmentLoad\(graph\)/u, "bounded display lifecycle must observe renderer-created environment promises");
+const environmentTracking = source.slice(source.indexOf("  resetEnvironmentLoadObservation()"), source.indexOf("  selectEnvironment(id)"));
+for (const guard of ["this.graph !== graph", "this.lifecycle !== \"connected\"", "this.connectedGeneration !== connectionGeneration", "this.environmentLoadGeneration !== generation", "this.selectedEnvironmentId !== id", "this.environmentObservedLoadPromise !== pending", "this.environmentObservedLoadId !== id"]) assert.equal(environmentTracking.includes(guard), true, `environment settlement guard missing: ${guard}`);
+assert.match(environmentTracking, /document\.hidden \|\| this\.sessionGeneration !== sessionGeneration/u);
+assert.match(environmentTracking, /pending === this\.environmentObservedLoadPromise && id === this\.environmentObservedLoadId/u, "promise identity deduplication missing");
+assert.equal(source.match(/addEventListener\("webglcontextrestored", this\.boundEnvironmentContextRestored\)/gu)?.length, 1, "context-restored listener must attach exactly once per bind lifecycle");
+assert.equal(source.match(/removeEventListener\("webglcontextrestored", this\.boundEnvironmentContextRestored\)/gu)?.length, 1, "context-restored listener must detach exactly once per teardown lifecycle");
+const restoreNotification = source.slice(source.indexOf("  handleEnvironmentContextRestored(event)"), source.indexOf("  resetEnvironmentLoadObservation()"));
+assert.match(restoreNotification, /queueMicrotask/u);
+assert.match(restoreNotification, /!this\.isCurrent\(connectionGeneration, graph\)/u);
+assert.match(restoreNotification, /document\.hidden\) \{ this\.environmentLoadNeedsReconcile = true; return; \}/u);
+assert.match(restoreNotification, /this\.observeEnvironmentLoad\(graph\)/u);
+assert.doesNotMatch(controlsBrowserSource, /\.observeEnvironmentLoad\(/u, "browser coverage must not manually supply the production restore notification");
+assert.match(controlsBrowserSource, /frameTimer:0/u);
+assert.equal(environmentAssetCatalog.filter((entry) => entry.label.includes("comparison with source artifacts")).length, 0, "catalog labels must remain exact source labels");
+assert.deepEqual(environmentArtifactComparisonIds, ["snow-mountain-with-lake-photosphere", "igloo-toon-photosphere"]);
+assert.match(source, /environmentArtifactComparisonIds\.includes\(entry\.descriptor\.id\) \? `\$\{entry\.label\} — comparison with source artifacts`/u);
+for (const axis of ["x", "y", "z"]) assert.match(source, new RegExp(`data-environment-field="position-${axis}"[^>]*type="number"[^>]*min="-30"[^>]*max="30"`, "u"));
+assert.match(source, /Sphere radius scale/u);
+assert.match(source, /aria-controls="visual-test-authoring-body"/u);
+assert.match(source, /if \(this\.environmentControlsCollapsed\) this\.releaseDebugCameraControls\(\)/u);
+assert.match(source, /event\.isTrusted\) this\.openEnvironmentConfigPicker\(event\)/u);
+assert.match(source, /event\.isTrusted\) this\.exportEnvironmentConfig\(event\)/u);
+assert.match(source, /if \(!event\?\.isTrusted/u);
+assert.match(source, /if \(!event\.isTrusted\) \{ input\.value = ""; this\.environmentPickerRequest = null; return; \}/u);
 const snapshotBody = source.slice(source.indexOf("  getSnapshot()"), source.indexOf("  /** Terminal until", source.indexOf("  getSnapshot()")));
-assert.doesNotMatch(snapshotBody, /luminiousIceCave|environmentAsset|2210289|ff142b3c|d415e7de|524c7a56/u, "private environment identity or payload metadata entered public snapshots");
+assert.doesNotMatch(snapshotBody, /selectedEnvironmentId|environmentConfigs|environmentAssetCatalog|environmentStatus/u);
+const rendererTelemetryBody = source.slice(source.indexOf("function rendererTelemetry("), source.indexOf("function cadenceTelemetry("));
+assert.doesNotMatch(rendererTelemetryBody, /environment|sha256|bytes|url/u);
 
-const packed = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
-assert.equal(packed.length, 1); const packedPaths = packed[0].files.map((file) => file.path);
-const expectedPackedPayload = [`${environmentRoot}/luminious-ice-cave-photosphere.config.yaml`, `${environmentRoot}/luminious-ice-cave-photosphere.jpg`, `${environmentRoot}/manifest.json`];
-assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/environments/")), expectedPackedPayload, "npm package environment inventory drifted");
-assert.equal(packedPaths.some((path) => /(?:\.glb$|\.ply$|(?:^|\/)(?:pos|neg)_[xyz]\.png$)/iu.test(path) || REJECTED_CONTENT.some((token) => path.toLowerCase().includes(token.toLowerCase()))), false, "npm package contains rejected GLB, source PLY, standalone cube face, or obsolete environment path");
-assert.equal(hash(readFileSync(expectedPackedPayload[0])), CONFIG_HASH); assert.equal(hash(readFileSync(expectedPackedPayload[1])), JPEG_HASH); assert.equal(hash(readFileSync(expectedPackedPayload[2])), MANIFEST_HASH);
+const packed = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { encoding:"utf8", maxBuffer:16 * 1024 * 1024 }));
+const packedPaths = packed[0].files.map((file) => file.path);
+assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/environments/")).sort(), expectedPaths, "npm package environment inventory drifted");
+assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/gameplay/")).sort(), expectedGameplayPaths, "npm package gameplay 0.0.3 inventory drifted");
+const forbiddenPackageRoots = [".beads/", ".github/", ".plans/", ".tmp/", "demo/", "dist/", "docs/", "fixtures/", "release/", "test/"];
+assert.equal(packedPaths.some((path) => forbiddenPackageRoots.some((prefix) => path.startsWith(prefix)) || /(?:\.ply$|\.blend$|\.png$|\.ya?ml$)/iu.test(path)), false, "npm package contains forbidden evidence/source/release payload");
+assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.3/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
+const fingerprintEnvironment = listReleaseFingerprintInputs(root).map((path) => relative(root, path)).filter((path) => path.startsWith("assets/environments/")).sort();
+assert.deepEqual(fingerprintEnvironment, expectedPaths);
+assert.equal(expectedPaths.some((path) => /(?:\.ply$|(?:^|\/)(?:pos|neg)_[xyz]\.png$|\.ya?ml$)/iu.test(path)), false);
 
-const fingerprintInputs = listReleaseFingerprintInputs(root).map((path) => relative(root, path));
-assert.deepEqual(fingerprintInputs.filter((path) => path.startsWith("assets/environments/")), expectedPackedPayload, "release fingerprint omitted assembly environment source truth");
-const rendererInputs = fingerprintInputs.filter((path) => path.startsWith("../aerobeat-web-renderer/assets/gameplay/0.0.2/"));
-assert.equal(rendererInputs.length, 17, "release fingerprint must include all 17 linked renderer gameplay asset records");
-const rendererGlbs = rendererInputs.filter((path) => path.endsWith(".glb"));
-assert.equal(rendererGlbs.length, 7, "release fingerprint must include the seven linked renderer GLBs");
-const rendererInventoryPath = resolve(root, "../aerobeat-web-renderer/assets/gameplay/0.0.2/inventory.v1.json");
-const rendererProofPath = resolve(root, "../aerobeat-web-renderer/assets/gameplay/0.0.2/proof.v1.json");
-assert.equal(hash(readFileSync(rendererInventoryPath)), "1a5b66f543bae940b8bb789e9ab9979d073663b5f6ff12382e08f4ad10c0ff1b", "linked renderer gameplay inventory hash drifted");
-assert.equal(hash(readFileSync(rendererProofPath)), "90dcbe52b35d2ec11a01784a96f195b5cd01ac141000886cb950c74864eec288", "linked renderer gameplay proof hash drifted");
-const rendererInventory = JSON.parse(readFileSync(rendererInventoryPath, "utf8"));
-const expectedGlbs = rendererInventory.payload.filter((entry) => entry.path.endsWith(".glb"));
-assert.equal(expectedGlbs.length, 7);
-for (const entry of expectedGlbs) {
-  const path = resolve(root, "../aerobeat-web-renderer/assets/gameplay/0.0.2", entry.path);
-  assert(rendererGlbs.includes(relative(root, path)), `release fingerprint omitted renderer GLB ${entry.path}`);
-  const bytes = readFileSync(path); assert.equal(bytes.byteLength, entry.bytes); assert.equal(hash(bytes), entry.sha256);
-}
-
-const result = await build({ logLevel: "silent", build: { write: false } });
+const result = await build({ logLevel:"silent", build:{ write:false } });
 const outputs = (Array.isArray(result) ? result : [result]).flatMap((entry) => entry.output);
-const builtAssets = outputs.filter((entry) => entry.type === "asset").map((entry) => ({ fileName: entry.fileName, bytes: Buffer.from(entry.source) }));
-const expectedBuiltEnvironment = expectedPackedPayload.map((path) => ({ fileName: path, sha256: hash(readFileSync(path)) }));
-assert.deepEqual(builtAssets.filter(({ fileName }) => fileName.startsWith("assets/environments/")).map(({ fileName, bytes }) => ({ fileName, sha256: hash(bytes) })), expectedBuiltEnvironment, "Vite must emit exactly the owned JPEG/config/manifest at versioned paths");
-assert.equal(builtAssets.filter(({ bytes }) => bytes.byteLength === 2210289 && hash(bytes) === JPEG_HASH).length, 1, "Vite must emit exactly one copy of the exact photosphere JPEG");
-for (const entry of expectedGlbs) assert.equal(builtAssets.some(({ bytes }) => bytes.byteLength === entry.bytes && hash(bytes) === entry.sha256), true, `Vite omitted or changed renderer GLB ${entry.path}`);
-assert.equal(builtAssets.filter(({ fileName }) => fileName.endsWith(".glb")).length, 7, "Vite emitted a GLB outside the seven approved renderer gameplay assets");
-assert.equal(builtAssets.some(({ fileName }) => /\.ply$|(?:pos|neg)_[xyz]\.png$/iu.test(fileName) || REJECTED_CONTENT.some((token) => fileName.toLowerCase().includes(token.toLowerCase()))), false, "Vite emitted rejected source PLY/standalone cube face payload");
-const chunks = outputs.filter((entry) => entry.type === "chunk").map((entry) => entry.code).join("\n");
-assert.doesNotMatch(chunks, /aerobeat-branding|web-gameplay-assets|rasterizeBrandingIconAtlas/u, "build retained obsolete atlas code");
-assert.equal(REJECTED_CONTENT.some((token) => chunks.toLowerCase().includes(token.toLowerCase())), false, "build retained rejected third-party metadata");
-
-const currentFiles = ["README.md", "package.json", "package-lock.json", "vite.config.js"].map((path) => resolve(root, path)).concat(["src", "scripts", "assets", "docs"].flatMap((directory) => walkFiles(resolve(root, directory))));
-for (const path of currentFiles) {
-  if (!/\.(?:js|json|md|yaml|yml|html)$/u.test(path)) continue;
-  const text = readFileSync(path, "utf8").toLowerCase();
-  assert.equal(REJECTED_CONTENT.some((token) => text.includes(token.toLowerCase())), false, `current nonhistorical file retained rejected environment reference: ${relative(root, path)}`);
-}
-console.log(`Owned photosphere descriptor/privacy, no-atlas source, exact package/build payload, and fingerprint coverage passed (${packed[0].files.length} package files; ${rendererInputs.length} renderer asset inputs).`);
+const builtEnvironment = outputs.filter((entry) => entry.type === "asset" && entry.fileName.startsWith("assets/environments/")).map((entry) => ({ path:entry.fileName, bytes:Buffer.from(entry.source) })).sort((left, right) => left.path.localeCompare(right.path));
+assert.deepEqual(builtEnvironment.map(({ path }) => path), expectedPaths);
+for (const built of builtEnvironment) { const expected = environmentAssetFiles.find(({ path }) => path === built.path); assert(expected); assert.equal(built.bytes.byteLength, expected.bytes); assert.equal(hash(built.bytes), expected.sha256); }
+console.log(`Environment catalog/config/UI privacy and exact 24-file environment + ${expectedGameplayPaths.length}-file gameplay 0.0.3 npm package inventories, fingerprint, and Vite inventory passed (${packedPaths.length} packed files).`);
 
 /** @param {Uint8Array} bytes */
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
-/** @param {string} directory @returns {string[]} */
-function walkFiles(directory) { return readdirSync(directory).flatMap((entry) => { const path = resolve(directory, entry); return statSync(path).isDirectory() ? walkFiles(path) : [path]; }); }
+/** @param {string} repository @param {string[]} arguments_ */
+function git(repository, arguments_) { return execFileSync("git", ["-C", repository, ...arguments_], { encoding:"utf8", maxBuffer:1024 * 1024 }).trim(); }

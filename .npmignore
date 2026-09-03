@@ -1,0 +1,22 @@
+.beads/
+.github/
+.plans/
+.tmp/
+dist/
+release/
+assets/.gitkeep
+
+# Repository-only documentation, fixtures, and editable/review evidence.
+demo/
+docs/
+fixtures/
+test/
+**/.plans/
+**/.beads/
+**/review/
+**/source/
+**/*.blend
+**/*.ply
+**/*.png
+**/*.yaml
+**/*.yml

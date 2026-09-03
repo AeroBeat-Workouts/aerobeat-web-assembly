@@ -13,7 +13,15 @@ import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
-import { luminiousIceCavePhotosphereAsset } from "./luminious-ice-cave-photosphere-asset.js";
+import {
+  defaultEnvironmentAssetId,
+  environmentAssetCatalog,
+  environmentArtifactComparisonIds,
+  maximumEnvironmentConfigBytes,
+  normalizeEnvironmentConfig,
+  normalizeEnvironmentTransform,
+  serializeEnvironmentConfig
+} from "./environment-asset-catalog.js";
 import {
   exactGameplayVariant,
   firstUseBoxingRecipeId,
@@ -52,8 +60,6 @@ defineAeroUiElements();
 
 /** Full-container, reconnectable AeroBeat game root. */
 export class AeroGame extends HTMLElement {
-  #environmentAsset = luminiousIceCavePhotosphereAsset;
-
   constructor() {
     super();
     this.instanceId = this.getAttribute("instance-id") || `aero-game-${++instanceSequence}`;
@@ -112,6 +118,16 @@ export class AeroGame extends HTMLElement {
     this.transportSeekQueued = false;
     this.environmentMode = "aero";
     this.cameraCompositeMode = null;
+    this.selectedEnvironmentId = defaultEnvironmentAssetId;
+    this.environmentConfigs = new Map();
+    this.environmentControlsCollapsed = false;
+    this.environmentPickerRequest = null;
+    this.environmentStatus = "";
+    this.environmentLoadState = "idle";
+    this.environmentLoadGeneration = 0;
+    this.environmentObservedLoadPromise = null;
+    this.environmentObservedLoadId = null;
+    this.environmentLoadNeedsReconcile = false;
     this.musicPrerequisite = "";
     this.pendingLibrarySelection = null;
     this.menuFocusRestore = null;
@@ -130,7 +146,10 @@ export class AeroGame extends HTMLElement {
     this.boundUiIntent = (event) => this.handleUiIntent(event);
     this.boundLocalZip = (event) => { void this.handleLocalZip(event); };
     this.boundCameraPoseFile = (event) => { void this.handleDebugCameraPoseFile(event); };
+    this.boundEnvironmentConfigFile = (event) => { void this.handleEnvironmentConfigFile(event); };
+    this.boundEnvironmentContextRestored = (event) => this.handleEnvironmentContextRestored(event);
     this.boundInteractionClick = (event) => { void this.handleInteractionClick(event); };
+    this.boundInteractionInput = (event) => this.handleInteractionInput(event);
     this.boundInteractionKeydown = (event) => this.handleInteractionKeydown(event);
     this.boundDebugCameraPointerDown = (event) => this.handleDebugCameraPointerDown(event);
     this.boundDebugCameraPointerRelease = (event) => this.handleDebugCameraPointerRelease(event);
@@ -138,6 +157,7 @@ export class AeroGame extends HTMLElement {
     root.innerHTML = template();
     this.localZipPicker = document.createElement("input"); this.localZipPicker.type = "file"; this.localZipPicker.accept = ".zip,application/zip"; this.localZipPicker.hidden = true; root.prepend(this.localZipPicker);
     this.cameraPosePicker = document.createElement("input"); this.cameraPosePicker.type = "file"; this.cameraPosePicker.accept = ".json,application/json"; this.cameraPosePicker.hidden = true; this.cameraPosePicker.dataset.role = "debug-camera-pose-picker"; root.prepend(this.cameraPosePicker);
+    this.environmentConfigPicker = document.createElement("input"); this.environmentConfigPicker.type = "file"; this.environmentConfigPicker.accept = ".json,application/json"; this.environmentConfigPicker.hidden = true; this.environmentConfigPicker.dataset.role = "environment-config-picker"; root.prepend(this.environmentConfigPicker);
   }
 
   connectedCallback() {
@@ -147,7 +167,7 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = "";
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
@@ -176,10 +196,11 @@ export class AeroGame extends HTMLElement {
   disconnectedCallback() { this.teardown("disconnected"); }
 
   assertPrivateEnvironmentAsset() {
-    const asset = this.#environmentAsset;
-    if (asset.id !== "luminious-ice-cave-photosphere" || asset.mimeType !== "image/jpeg" || asset.bytes !== 2210289 || asset.sha256 !== "ff142b3ce3d3509ab3cfafcfc6a8cc2d3b0ff737852072d3a7aea8075478eed5" || asset.projection !== "equirectangular") throw new Error("Private environment descriptor drifted");
-    if (typeof asset.url !== "string" || asset.url.length < 1 || asset.url.length > 2048) throw new Error("Private environment asset URL is unavailable");
+    if (environmentAssetCatalog.length !== 8 || !this.environmentEntry()) throw new Error("Private environment catalog drifted");
   }
+
+  environmentEntry(id = this.selectedEnvironmentId) { return environmentAssetCatalog.find((entry) => entry.descriptor.id === id) ?? null; }
+  environmentConfig(id = this.selectedEnvironmentId) { const entry = this.environmentEntry(id); if (!entry) throw new Error("Environment selection is unavailable"); return this.environmentConfigs.get(id) ?? entry.defaultConfig; }
 
   /** Configure plain host-owned options without starting media. */
   configure(options = {}) {
@@ -392,6 +413,7 @@ export class AeroGame extends HTMLElement {
     this.assertConnected();
     this.graph.input.resetCalibration("explicit_reset");
     try { this.graph.gameplay.reset(performance.now()); } catch { /* not configured */ }
+    this.resetEnvironmentLoadObservation(); this.observeEnvironmentLoad();
     this.publish("calibration_changed");
     return this.getSnapshot();
   }
@@ -628,8 +650,10 @@ export class AeroGame extends HTMLElement {
   destroy() { this.teardown("destroyed"); return this.getSnapshot(); }
 
   attachStableSurfaces() {
-    this.graph.renderer.setEnvironmentAsset(this.#environmentAsset);
-    this.graph.renderer.attach(this.canvasElement()); this.graph.renderer.clear({ color: [0, 0, 0, 0] });
+    const entry = this.environmentEntry(); const config = this.environmentConfig();
+    this.graph.renderer.setEnvironmentTransform(config.transform);
+    this.graph.renderer.setEnvironmentAsset(entry.descriptor);
+    this.graph.renderer.attach(this.canvasElement()); this.trackEnvironmentLoad(entry.descriptor.id); this.graph.renderer.clear({ color: [0, 0, 0, 0] });
     const video = this.videoElement();
     video.muted = true; video.playsInline = true;
   }
@@ -662,12 +686,16 @@ export class AeroGame extends HTMLElement {
     document.addEventListener("fullscreenchange", this.boundFullscreen);
     this.shadowRoot?.addEventListener(aeroUiIntentEventName, this.boundUiIntent);
     this.shadowRoot?.addEventListener("click", this.boundInteractionClick);
+    this.shadowRoot?.addEventListener("input", this.boundInteractionInput);
+    this.shadowRoot?.addEventListener("change", this.boundInteractionInput);
     this.shadowRoot?.addEventListener("keydown", this.boundInteractionKeydown);
     this.shadowRoot?.addEventListener("pointerdown", this.boundDebugCameraPointerDown);
     for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.addEventListener(type, this.boundDebugCameraPointerRelease);
     this.shadowRoot?.addEventListener("pointerleave", this.boundDebugCameraPointerRelease, true);
     this.localZipInput().addEventListener("change", this.boundLocalZip);
     this.cameraPoseInput().addEventListener("change", this.boundCameraPoseFile);
+    this.environmentConfigInput().addEventListener("change", this.boundEnvironmentConfigFile);
+    this.canvasElement().addEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
     this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.measureContainer()) : null;
     this.resizeObserver?.observe(this);
     globalThis.addEventListener("resize", this.boundFullscreen);
@@ -758,7 +786,7 @@ export class AeroGame extends HTMLElement {
     if (this.cameraCompositeMode !== compositeMode) {
       this.graph.renderer.setEnvironmentVisible(compositeMode === "aero");
       this.graph.renderer.setBackgroundProjection(visible ? CAMERA_BACKGROUND_PROJECTION : AERO_BACKGROUND_PROJECTION);
-      this.cameraCompositeMode = compositeMode;
+      this.cameraCompositeMode = compositeMode; this.renderEnvironmentControls(false);
     }
   }
 
@@ -881,7 +909,7 @@ export class AeroGame extends HTMLElement {
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
       } catch { /* unconfigured session */ }
-      this.syncCameraPresentation(); this.renderGameplay(graph); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
+      this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); this.renderGameplay(graph); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
       if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
       this.renderRuntimePresentation();
@@ -896,6 +924,7 @@ export class AeroGame extends HTMLElement {
     graph.video.setDocumentHidden(hidden);
     await graph.audio.setDocumentHidden(hidden);
     if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
+    if (!hidden) this.observeEnvironmentLoad(graph, this.environmentLoadNeedsReconcile);
     if (hidden) {
       this.stopPreview();
       this.stopFrameLoop(); await graph.cv.stop();
@@ -980,12 +1009,12 @@ export class AeroGame extends HTMLElement {
     const snapshot = this.debugCameraSnapshot();
     const renderer = this.graph.renderer;
     const before = typeof renderer.describe === "function" ? renderer.describe() : null;
-    if (before?.debugCameraEnabled === true && !snapshot.enabled) { this.releaseDebugCameraControls(); this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.setDebugCameraPoseStatus(""); }
+    if (before?.debugCameraEnabled === true && !snapshot.enabled) { this.releaseDebugCameraControls(); this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = ""; this.setDebugCameraPoseStatus(""); }
     if (typeof renderer.setDebugCameraEnabled === "function") renderer.setDebugCameraEnabled(snapshot.enabled);
     if (snapshot.enabled && typeof renderer.setDebugCameraSpeedMode === "function") renderer.setDebugCameraSpeedMode(this.debugCameraSpeedMode);
     const panel = this.shadowRoot?.querySelector("[data-role='debug-camera-controls']");
     if (panel instanceof HTMLElement) { panel.hidden = !snapshot.visible; panel.setAttribute("aria-hidden", snapshot.visible ? "false" : "true"); }
-    this.syncDebugCameraControlState(snapshot);
+    this.renderEnvironmentControls(); this.syncDebugCameraControlState(snapshot);
   }
 
   /** @param {{visible:boolean,enabled:boolean}} [snapshot] */
@@ -998,7 +1027,7 @@ export class AeroGame extends HTMLElement {
     const boostActive = raw.debugCameraBoostActive === true;
     this.debugCameraSpeedMode = speedMode;
     const pressedIntents = new Set(this.debugCameraControlPointers.values());
-    const signature = JSON.stringify([snapshot.visible, snapshot.enabled, captureMode, speedMode, boostActive, activeIntentCount, [...pressedIntents].sort()]);
+    const signature = JSON.stringify([snapshot.visible, snapshot.enabled, captureMode, speedMode, boostActive, activeIntentCount, this.environmentLoadState, [...pressedIntents].sort()]);
     if (signature === this.debugCameraUiSignature) return;
     this.debugCameraUiSignature = signature;
     const panel = this.shadowRoot?.querySelector("[data-role='debug-camera-controls']");
@@ -1019,6 +1048,9 @@ export class AeroGame extends HTMLElement {
     if (loadPose instanceof HTMLButtonElement) loadPose.disabled = !snapshot.enabled;
     const exportPose = this.shadowRoot?.querySelector("button[data-action='debug-camera-export']");
     if (exportPose instanceof HTMLButtonElement) exportPose.disabled = !snapshot.enabled;
+    for (const action of ["environment-config-load", "environment-config-save"]) { const button = this.shadowRoot?.querySelector(`button[data-action='${action}']`); if (button instanceof HTMLButtonElement) button.disabled = !snapshot.enabled; }
+    const retryEnvironment = this.shadowRoot?.querySelector("button[data-action='environment-asset-retry']");
+    if (retryEnvironment instanceof HTMLButtonElement) retryEnvironment.disabled = !snapshot.enabled || this.environmentLoadState !== "error";
     const state = this.shadowRoot?.querySelector("[data-role='debug-camera-state']");
     if (state instanceof HTMLOutputElement) {
       const captured = captureMode !== "none"; const effectiveSpeed = boostActive ? "Boost" : "Normal";
@@ -1127,6 +1159,125 @@ export class AeroGame extends HTMLElement {
     if (!(output instanceof HTMLOutputElement)) return;
     output.textContent = String(message).slice(0, 96); output.dataset.error = error ? "true" : "false";
   }
+
+  handleEnvironmentContextRestored(event) {
+    const graph = this.graph; const connectionGeneration = this.connectedGeneration; const canvas = this.canvasElement();
+    if (!graph || event.target !== canvas) return;
+    queueMicrotask(() => {
+      if (!this.isCurrent(connectionGeneration, graph) || this.canvasElement() !== canvas) return;
+      if (document.hidden) { this.environmentLoadNeedsReconcile = true; return; }
+      this.observeEnvironmentLoad(graph);
+    });
+  }
+
+  resetEnvironmentLoadObservation() {
+    this.environmentLoadGeneration += 1;
+    this.environmentObservedLoadPromise = null;
+    this.environmentObservedLoadId = null;
+    this.environmentLoadNeedsReconcile = false;
+  }
+
+  observeEnvironmentLoad(graph = this.graph, force = false) {
+    if (!graph || graph !== this.graph || this.lifecycle !== "connected") return false;
+    const id = this.selectedEnvironmentId; const pending = graph.renderer.environmentLoadPromise;
+    if (!force && !this.environmentLoadNeedsReconcile && pending === this.environmentObservedLoadPromise && id === this.environmentObservedLoadId) return false;
+    return this.trackEnvironmentLoad(id, pending, force);
+  }
+
+  trackEnvironmentLoad(id, pending = this.graph?.renderer.environmentLoadPromise, force = false) {
+    if (!this.graph || id !== this.selectedEnvironmentId) return false;
+    if (!force && !this.environmentLoadNeedsReconcile && pending === this.environmentObservedLoadPromise && id === this.environmentObservedLoadId) return false;
+    const graph = this.graph; const connectionGeneration = this.connectedGeneration; const sessionGeneration = this.sessionGeneration; const generation = ++this.environmentLoadGeneration;
+    this.environmentObservedLoadPromise = pending; this.environmentObservedLoadId = id; this.environmentLoadNeedsReconcile = false;
+    this.environmentLoadState = "loading"; this.environmentStatus = "Environment loading."; this.debugCameraUiSignature = ""; this.renderEnvironmentStatus(); this.syncDebugCameraControlState();
+    void Promise.resolve(pending).then(() => this.settleEnvironmentLoad(graph, connectionGeneration, sessionGeneration, generation, id, pending), () => this.settleEnvironmentLoad(graph, connectionGeneration, sessionGeneration, generation, id, pending));
+    return true;
+  }
+
+  settleEnvironmentLoad(graph, connectionGeneration, sessionGeneration, generation, id, pending) {
+    if (this.graph !== graph || this.lifecycle !== "connected" || this.connectedGeneration !== connectionGeneration || this.environmentLoadGeneration !== generation || this.selectedEnvironmentId !== id || this.environmentObservedLoadPromise !== pending || this.environmentObservedLoadId !== id) return;
+    if (document.hidden || this.sessionGeneration !== sessionGeneration) { this.environmentLoadNeedsReconcile = true; return; }
+    const environment = graph.renderer.describe().environment;
+    if (environment?.id !== id || !["ready", "error"].includes(environment.state)) return;
+    this.environmentLoadNeedsReconcile = false;
+    this.environmentLoadState = environment.state;
+    this.environmentStatus = environment.state === "ready" ? "" : "Environment unavailable. Retry.";
+    this.debugCameraUiSignature = ""; this.renderEnvironmentControls(false); this.syncDebugCameraControlState();
+  }
+
+  selectEnvironment(id) {
+    const entry = this.environmentEntry(id); if (!this.graph || !entry || id === this.selectedEnvironmentId) return;
+    this.environmentPickerRequest = null; this.environmentConfigInput().value = ""; this.selectedEnvironmentId = id;
+    const config = this.environmentConfig(id);
+    this.graph.renderer.setEnvironmentTransform(config.transform);
+    this.graph.renderer.setEnvironmentAsset(entry.descriptor); this.trackEnvironmentLoad(id);
+    this.renderEnvironmentControls();
+  }
+
+  applyEnvironmentControls() {
+    if (!this.graph) return;
+    const number = (name) => { const input = this.shadowRoot?.querySelector(`[data-environment-field='${name}']`); return input instanceof HTMLInputElement ? Number(input.value) : Number.NaN; };
+    try {
+      const transform = normalizeEnvironmentTransform({ position:{ x:number("position-x"), y:number("position-y"), z:number("position-z") }, rotationDegrees:{ xPitch:number("pitch"), yYaw:number("yaw"), zRoll:number("roll") }, scale:number("scale") });
+      const entry = this.environmentEntry(); if (!entry) return;
+      const config = normalizeEnvironmentConfig({ schema:"aerobeat/environment_asset_config", version:1, id:entry.descriptor.id, projection:"equirectangular", transform }, entry.descriptor.id);
+      this.environmentConfigs.set(entry.descriptor.id, config); this.graph.renderer.setEnvironmentTransform(config.transform); this.environmentStatus = "Environment transform applied."; this.renderEnvironmentControls(false);
+    } catch { this.environmentStatus = "Environment transform is invalid."; this.renderEnvironmentStatus(true); }
+  }
+
+  renderEnvironmentControls(updateInputs = true) {
+    const entry = this.environmentEntry(); if (!entry) return;
+    const select = this.shadowRoot?.querySelector("select[data-action='environment-asset-select']"); if (select instanceof HTMLSelectElement) select.value = entry.descriptor.id;
+    const collapse = this.shadowRoot?.querySelector("button[data-action='debug-controls-collapse']"); const body = this.shadowRoot?.querySelector("[data-role='visual-test-authoring-body']");
+    if (collapse instanceof HTMLButtonElement) { collapse.setAttribute("aria-expanded", this.environmentControlsCollapsed ? "false" : "true"); collapse.setAttribute("aria-label", `${this.environmentControlsCollapsed ? "Expand" : "Collapse"} Visual Test controls`); collapse.textContent = this.environmentControlsCollapsed ? "›" : "⌄"; }
+    if (body instanceof HTMLElement) body.hidden = this.environmentControlsCollapsed;
+    if (updateInputs) {
+      const transform = this.environmentConfig().transform; const values = { "position-x":transform.position.x, "position-y":transform.position.y, "position-z":transform.position.z, pitch:transform.rotationDegrees.xPitch, yaw:transform.rotationDegrees.yYaw, roll:transform.rotationDegrees.zRoll, scale:transform.scale };
+      for (const [name, value] of Object.entries(values)) { const input = this.shadowRoot?.querySelector(`[data-environment-field='${name}']`); if (input instanceof HTMLInputElement) input.value = String(value); const output = this.shadowRoot?.querySelector(`[data-environment-output='${name}']`); if (output instanceof HTMLOutputElement) output.value = String(value); }
+    }
+    const background = this.shadowRoot?.querySelector("[data-role='environment-background-mode']"); if (background instanceof HTMLOutputElement) background.value = `Background: ${this.cameraCompositeMode === "camera" ? "Camera" : "Aero"}`;
+    this.renderEnvironmentStatus();
+  }
+
+  renderEnvironmentStatus(error = false) {
+    const output = this.shadowRoot?.querySelector("[data-role='environment-config-status']"); if (!(output instanceof HTMLOutputElement)) return;
+    const hidden = this.cameraCompositeMode === "camera" ? "Environment hidden by Camera background." : ""; output.value = String(hidden || this.environmentStatus).slice(0, 128); output.dataset.error = !hidden && (error || this.environmentLoadState === "error") ? "true" : "false";
+  }
+
+  toggleEnvironmentControls() { this.environmentControlsCollapsed = !this.environmentControlsCollapsed; if (this.environmentControlsCollapsed) this.releaseDebugCameraControls(); this.renderEnvironmentControls(false); }
+
+  retryEnvironmentAsset() {
+    const entry = this.environmentEntry(); if (!this.graph || !entry || this.environmentLoadState !== "error") return;
+    this.graph.renderer.setEnvironmentTransform(this.environmentConfig().transform); this.graph.renderer.setEnvironmentAsset(null); this.graph.renderer.setEnvironmentAsset(entry.descriptor); this.trackEnvironmentLoad(entry.descriptor.id);
+  }
+
+  exportEnvironmentConfig(event) {
+    if (!event?.isTrusted || !this.debugCameraSnapshot().enabled) return;
+    const artifact = serializeEnvironmentConfig(this.environmentConfig()); const blob = new Blob([artifact.bytes], { type:artifact.mimeType }); const url = URL.createObjectURL(blob); const anchor = document.createElement("a");
+    anchor.hidden = true; anchor.download = artifact.filename; anchor.href = url; this.shadowRoot?.append(anchor); try { anchor.click(); this.environmentStatus = "Environment config saved."; } finally { anchor.remove(); URL.revokeObjectURL(url); this.renderEnvironmentStatus(); }
+  }
+
+  openEnvironmentConfigPicker(event) {
+    if (!event?.isTrusted) return;
+    const graph = this.graph; const entry = this.environmentEntry(); if (!graph || !entry || !this.debugCameraSnapshot().enabled) return;
+    const input = this.environmentConfigInput(); input.value = ""; this.environmentPickerRequest = Object.freeze({ connectionGeneration:this.connectedGeneration, sessionGeneration:this.sessionGeneration, graph, selectedId:entry.descriptor.id }); this.environmentStatus = ""; this.renderEnvironmentStatus(); input.click();
+  }
+
+  /** @param {Event} event */
+  async handleEnvironmentConfigFile(event) {
+    const input = event.currentTarget; if (!(input instanceof HTMLInputElement)) return;
+    if (!event.isTrusted) { input.value = ""; this.environmentPickerRequest = null; return; }
+    const file = input.files?.[0] ?? null; const request = this.environmentPickerRequest; input.value = ""; this.environmentPickerRequest = null;
+    if (!file || !request || !this.isEnvironmentPickerRequestCurrent(request)) return;
+    try {
+      if (file.size > maximumEnvironmentConfigBytes) throw new Error("large"); const bytes = await file.arrayBuffer(); if (bytes.byteLength > maximumEnvironmentConfigBytes) throw new Error("large");
+      const value = JSON.parse(new TextDecoder("utf-8", { fatal:true }).decode(bytes)); const config = normalizeEnvironmentConfig(value, request.selectedId); if (!this.isEnvironmentPickerRequestCurrent(request)) return;
+      request.graph.renderer.setEnvironmentTransform(config.transform); if (!this.isEnvironmentPickerRequestCurrent(request)) return;
+      this.environmentConfigs.set(request.selectedId, config); this.environmentStatus = "Environment config loaded."; this.renderEnvironmentControls();
+    } catch { if (this.isEnvironmentPickerRequestCurrent(request)) { this.environmentStatus = "Environment config is invalid."; this.renderEnvironmentStatus(true); } }
+  }
+
+  isEnvironmentPickerRequestCurrent(request) { return request?.connectionGeneration === this.connectedGeneration && request?.sessionGeneration === this.sessionGeneration && request?.graph === this.graph && request?.selectedId === this.selectedEnvironmentId && this.debugCameraSnapshot().enabled && !document.hidden; }
 
   /** @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>|null} graph */
   isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) {
@@ -1425,7 +1576,17 @@ export class AeroGame extends HTMLElement {
     else if (action === "debug-camera-load" && event.isTrusted) this.openDebugCameraPosePicker();
     else if (action === "debug-camera-export" && event.isTrusted) this.exportDebugCameraPose();
     else if (action === "debug-camera-speed") this.toggleDebugCameraSpeed();
+    else if (action === "debug-controls-collapse") this.toggleEnvironmentControls();
+    else if (action === "environment-config-load" && event.isTrusted) this.openEnvironmentConfigPicker(event);
+    else if (action === "environment-config-save" && event.isTrusted) this.exportEnvironmentConfig(event);
+    else if (action === "environment-asset-retry") this.retryEnvironmentAsset();
     else if (action === "environment-select") { const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select"); if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value); }
+  }
+
+  handleInteractionInput(event) {
+    const target = event.target;
+    if (target instanceof HTMLSelectElement && target.dataset.action === "environment-asset-select" && event.type === "change") this.selectEnvironment(target.value);
+    else if (target instanceof HTMLInputElement && target.dataset.environmentField) this.applyEnvironmentControls();
   }
 
   handleInteractionKeydown(event) {
@@ -1632,10 +1793,11 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.resetEnvironmentLoadObservation(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
-    this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
+    this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
+    this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("input", this.boundInteractionInput); this.shadowRoot?.removeEventListener("change", this.boundInteractionInput); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.environmentConfigInput().removeEventListener("change", this.boundEnvironmentConfigFile); this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = "";
     this.releaseDebugCameraControls();
     for (const stop of this.unsubscribe.splice(0)) { try { stop(); } catch { /* isolated */ } }
     if (finalState === "destroyed") this.emitGameEvent("destroyed", { instanceId: this.instanceId });
@@ -1657,7 +1819,10 @@ export class AeroGame extends HTMLElement {
   videoElement() { const value = this.shadowRoot?.querySelector("video[data-role='media']"); if (!(value instanceof HTMLVideoElement)) throw new Error("Media surface missing"); return value; }
   localZipInput() { return this.localZipPicker; }
   cameraPoseInput() { return this.cameraPosePicker; }
+  environmentConfigInput() { return this.environmentConfigPicker; }
 }
+
+function environmentAssetOptions() { return environmentAssetCatalog.map((entry) => { const label = environmentArtifactComparisonIds.includes(entry.descriptor.id) ? `${entry.label} — comparison with source artifacts` : entry.label; return `<option value="${entry.descriptor.id}"${entry.descriptor.id === defaultEnvironmentAssetId ? " selected" : ""}>${label}</option>`; }).join(""); }
 
 /** Define the public root without an aerobeat-app alias. */
 export function defineAeroGame() { if (!customElements.get(elementNames.game)) customElements.define(elementNames.game, AeroGame); }
@@ -1667,7 +1832,8 @@ function template() { return `<style>
 :host{box-sizing:border-box;display:block;inline-size:100%;block-size:100%;min-inline-size:0;min-block-size:0;overflow:hidden;contain:layout paint style;color:var(--aero-color-ink,#eaf9ff);background:#06141f;font-family:var(--aero-font-family,system-ui,sans-serif)}
 *,*::before,*::after{box-sizing:border-box}[hidden]{display:none!important}.game{position:relative;inline-size:100%;block-size:100%;overflow:hidden}.environment,.media,.renderer{position:absolute;inset:0;inline-size:100%;block-size:100%}.environment{z-index:0}.media{z-index:1;object-fit:cover;transform:scaleX(-1);opacity:0;visibility:hidden}.media[data-preview-visible="true"]{opacity:1;visibility:visible}.renderer{z-index:2}.hud{position:absolute;z-index:10;inset:0;pointer-events:none}.hud>*{pointer-events:auto}.status{position:absolute;z-index:24;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-end:max(8px,env(safe-area-inset-bottom));max-inline-size:calc(100% - 72px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:rgba(0,0,0,.72);border-radius:999px;padding:7px 11px;font:700 12px system-ui}.menu-button{min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.92);color:inherit;font:700 16px system-ui;touch-action:manipulation}.start-action{display:block}.menu-button{position:absolute;z-index:60;inset-inline-end:max(8px,env(safe-area-inset-right));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:48px;block-size:48px;background:#03131f;color:#fff;font-size:0}.menu-icon{display:block;inline-size:24px;block-size:20px;position:absolute;inset:0;margin:auto}.menu-icon::before,.menu-icon::after,.menu-icon-line{background:#fff;border-radius:999px;content:"";display:block;inline-size:24px;block-size:4px;position:absolute;inset-inline-start:0;transform-origin:center}.menu-icon::before{inset-block-start:0}.menu-icon-line{inset-block-start:8px}.menu-icon::after{inset-block-start:16px}.menu-button[data-menu-state="open"] .menu-icon::before{inset-block-start:8px;transform:rotate(45deg)}.menu-button[data-menu-state="open"] .menu-icon::after{inset-block-start:8px;transform:rotate(-45deg)}.menu-button[data-menu-state="open"] .menu-icon-line{opacity:0}.backdrop{position:absolute;z-index:30;inset:0;border:0;background:rgba(0,8,15,.58)}.drawer{position:absolute;z-index:50;inset-block:0;inset-inline-end:0;inline-size:min(420px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;background:transparent;padding:max(68px,calc(env(safe-area-inset-top) + 60px)) max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) 12px}.drawer-surface{--aero-color-ink:#08202c;--aero-color-focus:#00677f;background:#f3f8fa;border:1px solid #9bb8c5;border-radius:16px;box-shadow:-12px 0 32px rgba(0,0,0,.42);color:#08202c;display:grid;gap:10px;padding:14px}.start-action{inline-size:100%;margin:0;background:#00566b;border-color:#00566b;color:#fff}.drawer-content{display:grid;gap:8px}.drawer-content>*{min-inline-size:0}@media(min-width:800px){.drawer{inline-size:min(400px,42%)}.menu-button{inset-inline-end:12px;inset-block-start:12px}}
 .drawer-section{display:grid;gap:8px;border-block-start:1px solid rgba(8,32,44,.22);padding-block-start:12px}.drawer-section:first-child{border-block-start:0;padding-block-start:0}.drawer-section>h2{margin:0;font:800 18px system-ui}.environment-choice{border:0;display:grid;gap:4px;margin:0;min-inline-size:0;padding:0}.environment-choice legend{font:700 13px system-ui;padding:0}.environment-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.environment-option{align-items:center;border:1px solid rgba(8,32,44,.28);border-radius:10px;display:flex;font:700 14px system-ui;gap:8px;min-block-size:42px;padding:6px 9px}.environment-option:has(input:checked){background:#d5f3fb;border-color:#00677f}.environment-option input{accent-color:#00677f;block-size:20px;inline-size:20px;margin:0}.drawer-section:focus{outline:2px solid var(--aero-color-focus,#72dcff);outline-offset:3px}.drawer-action{margin:0;padding:9px 11px;border-radius:10px;background:#fff0cf;color:#4a3000;font-weight:700}.hud-presenter{display:none!important}.transient-cue{position:absolute;z-index:25;inset-inline:0;inset-block-start:18%;margin:auto;inline-size:max-content;max-inline-size:calc(100% - 32px);background:#03131f;border:1px solid rgba(255,255,255,.34);border-radius:12px;color:#fff;font:900 clamp(24px,8vw,52px)/1 system-ui;padding:8px 10px;text-align:center;text-shadow:0 2px 8px #000}.status{position:absolute!important;block-size:1px!important;inline-size:1px!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;overflow:hidden!important;white-space:nowrap!important;margin:-1px!important;padding:0!important;border:0!important;background:transparent!important}.debug-camera-controls{position:absolute;z-index:26;inset-inline-start:max(8px,env(safe-area-inset-left));inset-block-start:max(8px,env(safe-area-inset-top));inline-size:220px;max-inline-size:calc(100% - max(72px,calc(env(safe-area-inset-right) + 64px)));display:grid;gap:4px;border:1px solid rgba(255,255,255,.34);border-radius:12px;background:rgba(3,19,31,.88);padding:6px;color:#fff;pointer-events:auto}.debug-camera-grid{display:grid;grid-template-columns:repeat(4,minmax(44px,1fr));gap:4px}.debug-camera-actions{display:grid;grid-template-columns:repeat(3,minmax(44px,1fr));gap:4px}.debug-camera-grid button,.debug-camera-actions button{display:grid;place-items:center;min-inline-size:44px;min-block-size:44px;border:1px solid rgba(255,255,255,.34);border-radius:9px;background:#0d2a3b;color:#fff;font:900 16px/1 system-ui;touch-action:none;user-select:none;-webkit-user-select:none}.debug-camera-grid button:focus-visible,.debug-camera-actions button:focus-visible{outline:3px solid var(--aero-color-focus,#72dcff);outline-offset:1px}.debug-camera-grid button[aria-pressed="true"],.debug-camera-grid button[data-active="true"]{background:#08728a;border-color:#9ff1ff}.debug-camera-grid button:disabled,.debug-camera-actions button:disabled{opacity:.46}.debug-camera-controls output{display:block;min-block-size:20px;text-align:center;color:#d9f8ff;font:800 12px/20px system-ui;white-space:nowrap}.debug-camera-controls[data-capture-mode="pointer"] output,.debug-camera-controls[data-capture-mode="fallback"] output,.debug-camera-controls[data-capture-mode="touch"] output{color:#9ff1ff}@media(max-height:300px){.debug-camera-controls{padding:4px}.debug-camera-grid{gap:2px}.debug-camera-grid button{min-block-size:44px}}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-controls" class="debug-camera-controls" role="group" aria-label="Visual Test camera controls" aria-describedby="debug-camera-state" aria-hidden="true" hidden><div class="debug-camera-grid" role="group" aria-label="Camera movement"><button data-action="debug-camera-move" data-debug-camera-intent="forward" type="button" aria-label="Move camera forward" aria-keyshortcuts="W" aria-pressed="false"><span aria-hidden="true">F</span></button><button data-action="debug-camera-move" data-debug-camera-intent="back" type="button" aria-label="Move camera back" aria-keyshortcuts="S" aria-pressed="false"><span aria-hidden="true">B</span></button><button data-action="debug-camera-move" data-debug-camera-intent="up" type="button" aria-label="Move camera up" aria-keyshortcuts="E" aria-pressed="false"><span aria-hidden="true">U</span></button><button data-action="debug-camera-speed" type="button" aria-label="Camera movement speed Normal. Activate Boost." aria-pressed="false"><span data-role="debug-camera-speed-symbol" aria-hidden="true">N</span></button><button data-action="debug-camera-move" data-debug-camera-intent="left" type="button" aria-label="Move camera left" aria-keyshortcuts="A" aria-pressed="false"><span aria-hidden="true">L</span></button><button data-action="debug-camera-move" data-debug-camera-intent="right" type="button" aria-label="Move camera right" aria-keyshortcuts="D" aria-pressed="false"><span aria-hidden="true">R</span></button><button data-action="debug-camera-move" data-debug-camera-intent="down" type="button" aria-label="Move camera down" aria-keyshortcuts="Q" aria-pressed="false"><span aria-hidden="true">D</span></button></div><div class="debug-camera-actions" role="group" aria-label="Camera pose actions"><button data-action="debug-camera-reset" type="button" aria-label="Reset camera"><span aria-hidden="true">↺ Reset</span></button><button data-action="debug-camera-load" type="button" aria-label="Load camera pose"><span aria-hidden="true">Load</span></button><button data-action="debug-camera-export" type="button" aria-label="Export camera pose"><span aria-hidden="true">Export</span></button></div><output id="debug-camera-state" data-role="debug-camera-state" aria-live="polite" aria-label="Camera look not captured; movement speed Normal; 0 active movement intents.">○ · Normal</output><output data-role="debug-camera-pose-status" aria-live="polite"></output></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
+.debug-controls-collapse{min-inline-size:44px;min-block-size:44px;justify-self:start;font-size:24px}.visual-test-authoring-body{display:grid;gap:8px;max-block-size:min(58vh,620px);overflow:auto;overscroll-behavior:contain;padding-inline-end:2px}.environment-authoring,.environment-fields{display:grid;gap:6px}.environment-authoring{border-block-start:1px solid rgba(255,255,255,.25);padding-block-start:8px}.environment-authoring select,.environment-authoring button,.environment-authoring input[type=number]{min-block-size:44px;touch-action:manipulation}.environment-authoring select,.environment-authoring input[type=number]{inline-size:100%;font:inherit}.environment-fields label{display:grid;grid-template-columns:minmax(74px,1fr) minmax(80px,1fr) auto;align-items:center;gap:4px;font:700 12px system-ui}.environment-fields input[type=range]{min-block-size:44px;touch-action:manipulation}.environment-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}.environment-authoring output{font:700 11px system-ui;overflow-wrap:anywhere}.environment-authoring [data-error=true]{color:#ffb4b4}.debug-camera-controls :focus-visible{outline:3px solid var(--aero-color-focus,#72dcff);outline-offset:2px}
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-controls" class="debug-camera-controls" role="group" aria-label="Visual Test authoring controls" aria-describedby="debug-camera-state environment-config-status" aria-hidden="true" hidden><button class="debug-controls-collapse" data-action="debug-controls-collapse" type="button" aria-controls="visual-test-authoring-body" aria-expanded="true" aria-label="Collapse Visual Test controls">⌄</button><div id="visual-test-authoring-body" data-role="visual-test-authoring-body" class="visual-test-authoring-body"><div class="debug-camera-grid" role="group" aria-label="Camera movement"><button data-action="debug-camera-move" data-debug-camera-intent="forward" type="button" aria-label="Move camera forward" aria-keyshortcuts="W" aria-pressed="false"><span aria-hidden="true">F</span></button><button data-action="debug-camera-move" data-debug-camera-intent="back" type="button" aria-label="Move camera back" aria-keyshortcuts="S" aria-pressed="false"><span aria-hidden="true">B</span></button><button data-action="debug-camera-move" data-debug-camera-intent="up" type="button" aria-label="Move camera up" aria-keyshortcuts="E" aria-pressed="false"><span aria-hidden="true">U</span></button><button data-action="debug-camera-speed" type="button" aria-label="Camera movement speed Normal. Activate Boost." aria-pressed="false"><span data-role="debug-camera-speed-symbol" aria-hidden="true">N</span></button><button data-action="debug-camera-move" data-debug-camera-intent="left" type="button" aria-label="Move camera left" aria-keyshortcuts="A" aria-pressed="false"><span aria-hidden="true">L</span></button><button data-action="debug-camera-move" data-debug-camera-intent="right" type="button" aria-label="Move camera right" aria-keyshortcuts="D" aria-pressed="false"><span aria-hidden="true">R</span></button><button data-action="debug-camera-move" data-debug-camera-intent="down" type="button" aria-label="Move camera down" aria-keyshortcuts="Q" aria-pressed="false"><span aria-hidden="true">D</span></button></div><div class="debug-camera-actions" role="group" aria-label="Camera pose actions"><button data-action="debug-camera-reset" type="button" aria-label="Reset camera"><span aria-hidden="true">↺ Reset</span></button><button data-action="debug-camera-load" type="button" aria-label="Load camera pose"><span aria-hidden="true">Load</span></button><button data-action="debug-camera-export" type="button" aria-label="Export camera pose"><span aria-hidden="true">Export</span></button></div><output id="debug-camera-state" data-role="debug-camera-state" aria-live="polite" aria-label="Camera look not captured; movement speed Normal; 0 active movement intents.">○ · Normal</output><output data-role="debug-camera-pose-status" aria-live="polite"></output><section class="environment-authoring" aria-label="Environment alignment"><label for="environment-asset-select">Environment</label><select id="environment-asset-select" data-action="environment-asset-select">${environmentAssetOptions()}</select><output data-role="environment-background-mode">Background: Aero</output><div class="environment-fields"><label>Position X <input data-environment-field="position-x" type="number" min="-30" max="30" step="0.1"><output data-environment-output="position-x"></output></label><label>Position Y <input data-environment-field="position-y" type="number" min="-30" max="30" step="0.1"><output data-environment-output="position-y"></output></label><label>Position Z <input data-environment-field="position-z" type="number" min="-30" max="30" step="0.1"><output data-environment-output="position-z"></output></label><label>Pitch <input data-environment-field="pitch" type="range" min="-180" max="180" step="0.1"><output data-environment-output="pitch"></output>°</label><label>Yaw <input data-environment-field="yaw" type="range" min="-180" max="180" step="0.1"><output data-environment-output="yaw"></output>°</label><label>Roll <input data-environment-field="roll" type="range" min="-180" max="180" step="0.1"><output data-environment-output="roll"></output>°</label><label>Sphere radius scale <input data-environment-field="scale" type="range" min="0.25" max="4" step="0.01"><output data-environment-output="scale"></output></label></div><small>At centered position, sphere radius scale does not change angular view or zoom.</small><div class="environment-actions"><button data-action="environment-config-load" type="button">Load config</button><button data-action="environment-config-save" type="button">Save config</button><button data-action="environment-asset-retry" type="button">Retry</button></div><output data-role="environment-config-status" id="environment-config-status" role="status" aria-live="polite"></output></section></div></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><aero-prototype-selector compact scope="visuals"></aero-prototype-selector><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p><aero-fullscreen-button compact></aero-fullscreen-button></section></div></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }
