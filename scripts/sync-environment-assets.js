@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourceRepository = resolve(root, "../aerobeat-environment-community");
-const sourceCommit = "2a3072ff21236ee3d47c3ff3eb813d85eb1ef6c2";
+const sourceCommit = "543686003c36eb0ddface684925b373260d8f1d9";
 const sourceRelative = ".testbed/assets/images/luminious-ice-cave-photosphere";
 const sourceRoot = resolve(sourceRepository, sourceRelative);
 const payloadRoot = resolve(root, "assets/environments/luminious-ice-cave-photosphere/1.0.0");

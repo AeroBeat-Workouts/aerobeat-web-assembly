@@ -93,3 +93,63 @@ Verification test: Two rounds of three concurrent validators, isolated validator
 Related files/components: scripts/validate-mobile-gameplay-menu.js; src/index.js runDisplayFrame; input calibration freshness state.
 Remaining uncertainty: Host-specific source of scheduling delay; irrelevant once mock freshness no longer depends on an 80 ms/100 ms margin.
 ```
+
+## Follow-up: continuous frames fixed tracking loss but exposed driver timeout
+
+### Exact observed follow-up
+
+The first narrow implementation added the recommended 15 Hz monotonic CV getter. Its isolated validator passed, but the first three-way contention round failed `0/3`. All three now failed only at `captureOrderedCountdown()` line 374 while awaiting countdown value `3`; the earlier line-208 `tracking_lost`/`T-pose` failure did not recur.
+
+### Revised causal path
+
+The first correction removed stale input frames, confirming the leading freshness diagnosis for the original symptom. A second independent wall-clock race remains in the test driver:
+
+1. `captureOrderedCountdown()` starts a 4,000 ms wait for countdown `3`.
+2. The test then calls `releaseHold()`, which performs 17 sequential `pushPose()` operations.
+3. Every `pushPose()` waits a fixed 80 ms for an uncontrolled requestAnimationFrame to consume the newly assigned mock frame.
+4. Nominal driver time is already 1,360 ms. Under three Chromium instances, Node/page scheduling can push the 17 serial wall waits beyond the separately running 4,000 ms countdown wait.
+5. The capture promise rejects before `releaseHold()` finishes driving cooldown and entering countdown. This is a test-driver timeout, not evidence that the production countdown skipped value `3`.
+
+The countdown coordinator itself advances exactly one state per call (`three → two → one → complete`) and resets each step start timestamp, so delayed animation frames cannot skip countdown values. The failure occurring while the test is still serially manufacturing release frames distinguishes this from a countdown-state defect.
+
+### Why the first correction was insufficient
+
+Continuous timestamps made each polled frame fresh, but `pushPose()` still relies on an 80 ms sleep as an implicit acknowledgement that some future animation frame consumed it. The sleep is neither an acknowledgement nor bounded under contention. Fixing data freshness did not fix driver synchronization.
+
+### Revised recommended fix and verification
+
+Keep the 15 Hz live-stream behavior. Make `pushPose()` set the requested pose and synchronously invoke the element's existing public test seam `runDisplayFrame()` once, so the exact frame is consumed before the helper returns. Set the cadence marker so that synchronous consumption observes the explicit timestamp. Remove the arbitrary per-sample 80 ms sleep; calibration duration remains driven by the explicit monotonic synthetic timestamps, not wall sleep. Do not change production code, stale thresholds, countdown step duration, capture timeouts, or assertions.
+
+Repeat two three-way contention rounds. This verifies both original freshness and follow-up driver synchronization under the exact failing load.
+
+## Instrumented correction: screenshot work misses later countdown values
+
+The synchronous driver experiment removed the release-loop wall delay but three stressed runs still failed. Temporary in-page diagnostics identified the exact expected value and MutationObserver history. All three were waiting for expected `2` after the first screenshot, while current countdown was already complete/playing. Their observer records were complete and ordered:
+
+- Run 1: `3@9705.3`, `2@10713.2`, `1@11723.8`, empty/complete `@12735.7`.
+- Run 2: `3@9636.7`, `2@10653.5`, `1@11655.6`, empty/complete `@12670.3`.
+- Run 3: `3@9557.9`, `2@10582.4`, `1@11602.5`, empty/complete `@12608.8`.
+
+Every production countdown step therefore rendered in order with a dwell above 1,000 ms. The Playwright screenshot and pixel-analysis work for `3` consumed long enough under contention that the test began polling for `2` only after `2`, `1`, and completion had already occurred. This disproves the follow-up hypothesis that release driving itself exceeded the initial 4-second wait; the timeout is a test-observer race after correct product transitions.
+
+The minimal robust correction is to make the already-test-only MutationObserver pause the existing display-loop seam synchronously whenever it observes numeric cue `3`, `2`, or `1`. The validator captures that frozen cue's exact DOM style and pixels, then explicitly restarts the same loop before awaiting the next value. This does not change production code, countdown duration, assertions, or timeouts, and prevents test screenshot overhead from consuming subsequent states. Combined with synchronous explicit pose consumption and the 15 Hz live mock, it removes both independently proven scheduler dependencies.
+
+## Second instrumented correction: recovery observer must precede unfreeze
+
+Pausing each observed numeric cue fixed the initial countdown, but the next three-way stress run failed `3/3` at the recovery dwell assertion. All runs captured `[3,2,1]`; only the computed first dwell was short (`591–625 ms`). The recovery path resolved the delayed audio pause before `captureOrderedCountdown()` installed its observer. Value `3` therefore started before the first observer record; the fallback mixed the gameplay snapshot timestamp with later MutationObserver `performance.now()` timestamps, undercounting only the first dwell. The initial-start path had already registered the observer before releasing calibration and did not have this flaw.
+
+Registering `beginCountdownDwellProof()` before resolving the delayed pause is the smallest causal fix. The observer then records/stops `3` at its actual DOM transition just as it does for the initial countdown. One stressed screenshot also captured incomplete third-cue raster contrast even though computed CSS was correct; after the observer stops the game loop, awaiting one independent browser animation frame before screenshot allows that DOM mutation to paint without advancing gameplay. These are test-only synchronization seams, not timeout/assertion relaxation.
+
+## Independent review correction: do not count screenshot freeze as proof
+
+Independent review correctly found that stopping immediately at each transition and asserting MutationObserver-to-MutationObserver wall time could let slow screenshot work satisfy `dwell >= 800` even if the coordinator's natural step duration regressed. That would stabilize the test by weakening what its measurement proves.
+
+The corrected design delays the test-only stop until the same numeric cue has remained unchanged for an independently scheduled 850 ms minimum-dwell probe. The timer marks that specific transition as naturally proven only if the cue is still identical, then stops the game loop for exact screenshot capture. `captureOrderedCountdown()` waits for that proof marker, not merely the numeric value; all three markers are required in addition to ordered values, style, pixels, and existing dwell reporting. A duration regression below 800 ms transitions before the 850 ms probe and therefore fails rather than being masked by screenshot time.
+
+## Corrected verification
+
+- Isolated corrected validator: PASS.
+- First corrected three-process contention round: `3/3` PASS.
+- Second corrected three-process contention round: `3/3` PASS.
+- Independent code review initially found the screenshot-freeze measurement weakness above; after the 850 ms cue-specific pre-freeze proof was added, re-review closed the finding with no new findings.
+- The production assembly frame loop, input stale threshold, gameplay countdown coordinator, timeout bounds, visual assertions, and runtime source files were not modified.
