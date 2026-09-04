@@ -6,6 +6,7 @@ import {
   elementNames,
   isGameCommand,
   isSafeIframePayload,
+  maximumFlowObstaclesPerChart,
   prototypeJudgementDefaults,
   rulesetIds
 } from "@aerobeat/web-contracts";
@@ -48,7 +49,10 @@ const AERO_BACKGROUND_PROJECTION = Object.freeze({ kind: "linear-gradient", colo
 const CAMERA_BACKGROUND_PROJECTION = Object.freeze({ kind: "solid", colors: Object.freeze(["#00000000"]), angleDeg: 180 });
 const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "play" });
 const VISUAL_TEST_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "visual_test" });
-const FLOW_REIMPORT_MESSAGE = "This downloaded song uses the legacy Flow orientation. Reimport it to play.";
+const FLOW_REIMPORT_MESSAGES = Object.freeze({
+  flow_orientation_reimport_required: "This downloaded song uses the legacy Flow orientation. Reimport it to play.",
+  flow_obstacle_reimport_required: "This downloaded song lacks source-faithful Flow obstacle geometry. Reimport it to play."
+});
 const MAXIMUM_VISUAL_TEST_DURATION_MS = 86_400_000;
 const GAMEPLAY_CURSOR_GRID = Object.freeze({ x:0, y:0, width:1, height:1 });
 const DEBUG_CAMERA_MOVEMENT_INTENTS = Object.freeze(["forward", "back", "left", "right", "up", "down"]);
@@ -1374,14 +1378,14 @@ export class AeroGame extends HTMLElement {
     try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); }
     catch (error) {
       if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-      if (isFlowOrientationReimportError(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
+      if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
       throw error;
     }
     if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
     try { await this.selectContent({ kind: "persistence", handle: loaded.handle }); }
     catch (error) {
       if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-      if (isFlowOrientationReimportError(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
+      if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
       throw error;
     }
     if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
@@ -1393,7 +1397,7 @@ export class AeroGame extends HTMLElement {
     const selected = equivalent ?? fallback;
     if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.selectVariant(selected.variantId, modifierIds);
     if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-    if (this.lastError?.code === "flow_orientation_reimport_required") { this.lastError = null; this.renderPresenters(); }
+    if (flowReimportReason(this.lastError)) { this.lastError = null; this.renderPresenters(); }
     return Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
   }
 
@@ -1404,7 +1408,8 @@ export class AeroGame extends HTMLElement {
     this.desiredLibrarySelection = null;
     this.stopPreview({ render: false });
     this.libraryView = Object.freeze({ ...this.libraryView, selectedCollectionId: null, selectedPackageId: null });
-    this.lastError = Object.freeze({ code: "flow_orientation_reimport_required", message: FLOW_REIMPORT_MESSAGE });
+    const reason=flowReimportReason(error)??Object.freeze({code:"flow_obstacle_reimport_required",message:FLOW_REIMPORT_MESSAGES.flow_obstacle_reimport_required});
+    this.lastError = reason;
     this.emitGameEvent("error", this.lastError);
     await this.refreshLibrary(generation, { autoSelect: false });
     if (this.isCurrent(generation)) this.renderPresenters();
@@ -1857,7 +1862,11 @@ function errorMessage(error) { const message = ownDataValue(error, "message"); r
 function ownDataValue(record, key) { if (!record || typeof record !== "object") return undefined; const descriptor = Object.getOwnPropertyDescriptor(record, key); return descriptor && "value" in descriptor ? descriptor.value : undefined; }
 function inputTelemetry(snapshot) { const calibration=snapshot?.calibration??{};const tracking=snapshot?.tracking??{};return Object.freeze({schema:snapshot?.schema,version:snapshot?.version,readiness:calibration.readiness??null,gameplayPaused:tracking.gameplayPaused===true,freshCalibrationRequired:tracking.freshCalibrationRequired===true,countdownFrozen:snapshot?.countdownFrozen===true}); }
 function contentTelemetry(snapshot) { const result = {}; for (const key of Object.keys(snapshot)) if (key !== "resolvedEvents") result[key] = snapshot[key]; result.resolvedEventCount = Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0; return Object.freeze(result); }
-function gameplayTelemetry(snapshot) { const modifiers=Array.isArray(snapshot.selectedVariant?.modifierIds)?snapshot.selectedVariant.modifierIds:[];const accessibilityMode=modifiers.includes("no_obstacles")?"no_obstacles":modifiers.includes("obstacle_visual_only")?"obstacle_visual_only":"default";const outcomes=Array.isArray(snapshot.obstacleOutcomes)?snapshot.obstacleOutcomes:[];const publicSession=Object.freeze(Object.fromEntries(Object.entries(snapshot.session??{}).filter(([key])=>key!=="calibrationId")));const obstacleCounts=Object.freeze({contact:outcomes.filter((entry)=>entry?.result==="contact").length,avoided:outcomes.filter((entry)=>entry?.result==="avoided").length,unevaluatedTracking:outcomes.filter((entry)=>entry?.result==="unevaluated_tracking").length});return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: publicSession, countdown: snapshot.countdown, safety: snapshot.safety, lease: snapshot.lease, selectedVariant: snapshot.selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventCount: snapshot.activeEventIds.length, judgedEventCount: snapshot.judgedEventIds.length, latestJudgement: snapshot.judgements.at(-1) ?? null, latestShadowJudgement: snapshot.shadowJudgements.at(-1) ?? null, scorePartitions: snapshot.scorePartitions, obstacleCounts, accessibilityMode, error: snapshot.error }); }
+function gameplayTelemetry(snapshot) { const selectedVariant=publicGameplayVariant(snapshot.selectedVariant),modifiers=Array.isArray(selectedVariant?.modifierIds)?selectedVariant.modifierIds:[];const accessibilityMode=modifiers.includes("no_obstacles")?"no_obstacles":modifiers.includes("obstacle_visual_only")?"obstacle_visual_only":"default";const outcomes=Array.isArray(snapshot.obstacleOutcomes)?snapshot.obstacleOutcomes:[];const count=(result)=>Math.min(maximumFlowObstaclesPerChart,outcomes.filter((entry)=>ownDataValue(entry,"result")===result).length);const obstacleCounts=Object.freeze({contact:count("contact"),avoided:count("avoided"),unevaluatedTracking:count("unevaluated_tracking")});return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: telemetryFields(snapshot.session,["schema","version","sessionId","state","purpose","timestampMs","timelinePositionMs","packageId","chartId","rulesetId","recipeId","ranked","pauseReason"]), countdown: telemetryFields(snapshot.countdown,["schema","version","state","reason","value","timestampMs","gameplayTimeFrozen"]), safety: telemetryFields(snapshot.safety,["ready","freshCalibrationRequired"]), lease: snapshot.lease, selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventCount: Array.isArray(snapshot.activeEventIds)?snapshot.activeEventIds.length:0, judgedEventCount: Array.isArray(snapshot.judgedEventIds)?snapshot.judgedEventIds.length:0, latestJudgement: Array.isArray(snapshot.judgements)?snapshot.judgements.at(-1)??null:null, latestShadowJudgement: Array.isArray(snapshot.shadowJudgements)?snapshot.shadowJudgements.at(-1)??null:null, scorePartitions: Array.isArray(snapshot.scorePartitions)?Object.freeze(snapshot.scorePartitions.map(publicScorePartition)):Object.freeze([]), obstacleCounts, accessibilityMode, error: snapshot.error }); }
+function telemetryFields(record,keys){const result={};for(const key of keys){const value=ownDataValue(record,key);if(value!==undefined)result[key]=value;}return Object.freeze(result);}
+function publicContentHash(value){return telemetryFields(value,["schema","version","algorithm","value"]);}
+function publicGameplayVariant(value){if(!value||typeof value!=="object")return null;const base=telemetryFields(value,["variantId","chartId","mode","rulesetId","recipeId","modifierIds","ranked","localOnly"]);return Object.freeze({...base,mapHash:publicContentHash(ownDataValue(value,"mapHash")),scoreIdentityHash:publicContentHash(ownDataValue(value,"scoreIdentityHash")),provenance:telemetryFields(ownDataValue(value,"provenance"),["schema","version","kind","baseVariantId","requestedModifierIds","effectiveModifierIds"])});}
+function publicScorePartition(value){const base=telemetryFields(value,["partitionId","variantId","chartId","rulesetId","recipeId","modifierIds","profileId","profileVersion","profileHash","profileClass","regenerationRequired","scoringSettingsIdentity","ranked","localOnly","hits","misses","ignored","obstacleContacts","score","maxCombo","combo"]);return Object.freeze({...base,mapHash:publicContentHash(ownDataValue(value,"mapHash")),scoreIdentityHash:publicContentHash(ownDataValue(value,"scoreIdentityHash")),scoringSettings:telemetryFields(ownDataValue(value,"scoringSettings"),["comboBonusPerHit","hitPoints","missPenalty"])}); }
 function emptyBeatSaverView() { return Object.freeze({ state: "idle", query: "", results: Object.freeze([]), selectedMap: null, versions: Object.freeze([]), difficulties: Object.freeze([]), selectedVersionHash: "", selectedDifficulty: "", errorMessage: "" }); }
 function emptyPreviewView() { return previewView("idle", { mapId: "", versionHash: "", packageId: "" }, ""); }
 function previewView(state, target, errorMessage) { const safeState = ["idle", "loading", "playing", "ended", "error"].includes(state) ? state : "idle"; return Object.freeze({ state: safeState, mapId: boundedString(target?.mapId, "").slice(0, 256), versionHash: boundedString(target?.versionHash, "").slice(0, 256), packageId: boundedString(target?.packageId, "").slice(0, 1024), errorMessage: boundedString(errorMessage, "").slice(0, 256) }); }
@@ -1947,7 +1956,7 @@ function gameplayCursorRecords(menuOpen, session, input) {
 }
 function profileSessionState(gameplay) { const countdown = dataValue(gameplay, "countdown"); const session = dataValue(gameplay, "session"); if (dataValue(countdown, "value") !== null && dataValue(countdown, "value") !== undefined) return "countdown"; return typeof dataValue(session, "state") === "string" ? dataValue(session, "state") : "idle"; }
 function profilePresentationId(variant) { return selectedGameplayProfileId(variant); }
-function isFlowOrientationReimportError(error) { return ownDataValue(error, "code") === "flow_orientation_reimport_required"; }
+function flowReimportReason(error) { const code=ownDataValue(error,"code");if(code!=="flow_orientation_reimport_required"&&code!=="flow_obstacle_reimport_required")return null;return Object.freeze({code,message:FLOW_REIMPORT_MESSAGES[code]}); }
 function tuningIdentity(profile, regenerationRequired) { return Object.freeze({ schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: profile.profileId, profileVersion: profile.profileVersion, contentHash: profile.contentHash, class: profile.class, regenerationRequired }); }
 function profileTelemetry(snapshot) { return Object.freeze({ schema: snapshot.schema, version: snapshot.version, generation: snapshot.generation, destroyed: snapshot.destroyed, bundleVersion: snapshot.bundleVersion, profileCount: snapshot.profiles.length, active: Object.freeze({ visual: snapshot.active.visual.identity, scoring: snapshot.active.scoring.identity, converter: snapshot.active.converter.identity }), appliedConverterHash: snapshot.appliedConverterHash, pendingConverterHash: snapshot.pendingConverterHash, regenerationRequired: snapshot.regenerationRequired, experimental: true }); }
 function rendererTelemetry(snapshot) { return Object.freeze({ serviceId: dataValue(snapshot, "serviceId"), engine: dataValue(snapshot, "engine"), state: dataValue(snapshot, "state"), supported: dataValue(snapshot, "supported"), attached: dataValue(snapshot, "attached"), contextLost: dataValue(snapshot, "contextLost"), widthCssPx: dataValue(snapshot, "widthCssPx"), heightCssPx: dataValue(snapshot, "heightCssPx"), devicePixelRatio: dataValue(snapshot, "devicePixelRatio"), manualRendering: dataValue(snapshot, "manualRendering") === true, debugCameraEnabled: dataValue(snapshot, "debugCameraEnabled") === true, pointerLockActive: dataValue(snapshot, "pointerLockActive") === true, visualProfileIdentity: dataValue(snapshot, "visualProfileIdentity"), iconAtlasReady: dataValue(snapshot, "iconAtlasReady") === true, iconAtlasError: boundedString(dataValue(snapshot, "iconAtlasError"), "") || null, tuningRequiresRegeneration: false, experimental: true, errorMessage: dataValue(snapshot, "errorMessage") }); }
