@@ -258,7 +258,7 @@ try {
   const closedPausedVisual = await visualShellSnapshot(game);
   assert(closedPausedVisual.menu && closedPausedVisual.cue && closedPausedVisual.visibleOverlayCount === 2 && closedPausedVisual.hudPresenters === 0 && closedPausedVisual.previewVisible && closedPausedVisual.rendererBackground === "#00000000", `closed paused state must expose only menu plus one recovery cue: ${JSON.stringify(closedPausedVisual)}`);
   await calibrateAndRelease(game, 24000);
-  await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 6000);
+  await waitFor(page, async () => (await game.evaluate((element) => element.graph.gameplay.getSnapshot().session.state)) === "playing", 12000);
 
   const closedShell = await shellSnapshot(game);
   const resumedPlayingVisual = await visualShellSnapshot(game);

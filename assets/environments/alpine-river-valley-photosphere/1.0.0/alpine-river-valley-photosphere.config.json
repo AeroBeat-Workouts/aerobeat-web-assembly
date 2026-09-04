@@ -11,7 +11,7 @@
     },
     "rotationDegrees": {
       "xPitch": 0,
-      "yYaw": 0,
+      "yYaw": 180,
       "zRoll": 0
     },
     "scale": 1

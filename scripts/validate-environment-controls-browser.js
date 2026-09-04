@@ -73,10 +73,11 @@ try {
             const hostRect = rect(game), panelRect = rect(panel), menuRect = rect(menu), transportRect = rect(transport);
             const controls = [root.querySelector("[data-action='debug-controls-collapse']"), ...root.querySelectorAll(".environment-authoring button,.environment-authoring select,.environment-authoring input")].filter((node) => !node.hidden).map((node) => ({ tag:node.tagName, type:node.type, action:node.dataset.action ?? "", ...rect(node) }));
             const select = root.querySelector("[data-action='environment-asset-select']");
+            const environmentValues=[...root.querySelectorAll("[data-environment-field]")].map((input)=>{const output=root.querySelector(`[data-environment-output='${input.dataset.environmentField}']`),wrapper=output.parentElement,unit=wrapper.querySelector("span");const inputRect=rect(input),outputRect=rect(output),wrapperRect=rect(wrapper),unitRect=unit?rect(unit):null;return{field:input.dataset.environmentField,inputId:input.id,describedBy:input.getAttribute("aria-describedby"),outputFor:output.getAttribute("for"),wrapperId:wrapper.id,whiteSpace:getComputedStyle(wrapper).whiteSpace,inputRect,outputRect,wrapperRect,unitRect,unitLabel:unit?.getAttribute("aria-label")??null,within:wrapperRect.left>=panelRect.left&&wrapperRect.right<=panelRect.right&&wrapper.scrollWidth<=wrapper.clientWidth+1,sameLine:!unitRect||Math.abs(outputRect.top-unitRect.top)<=1};});
             return {
               origins:{ child:location.origin, parent:document.referrer ? new URL(document.referrer).origin : null },
               hostRect, panelRect, menuRect, transportRect,
-              controls, options:[...select.options].map((option) => ({ value:option.value, label:option.textContent })),
+              controls, options:[...select.options].map((option) => ({ value:option.value, label:option.textContent })), selected:select.value, defaultYaw:game.environmentConfig().transform.rotationDegrees.yYaw, environmentValues,
               panelWithin:panelRect.left >= hostRect.left && panelRect.top >= hostRect.top && panelRect.right <= hostRect.right && panelRect.bottom <= hostRect.bottom,
               noMenuOverlap:!overlap(panelRect, menuRect), noTransportOverlap:!overlap(panelRect, transportRect),
               body:{ clientHeight:body.clientHeight, scrollHeight:body.scrollHeight, overflowY:getComputedStyle(body).overflowY }
@@ -86,6 +87,9 @@ try {
           assert.equal(evidence.options.length, 8);
           assert.equal(new Set(evidence.options.map(({ value }) => value)).size, 8);
           assert.equal(evidence.options.filter(({ label }) => label.includes("comparison with source artifacts")).length, 2);
+          assert.equal(evidence.selected, "alpine-river-valley-photosphere"); assert.equal(evidence.defaultYaw, 180);
+          assert.equal(evidence.environmentValues.length, 7);
+          for (const value of evidence.environmentValues) { assert.equal(value.outputFor, value.inputId); assert.equal(value.describedBy, value.wrapperId); assert.equal(value.whiteSpace, "nowrap"); assert.ok(value.within && value.sameLine, `environment value/unit wrapped or overflowed: ${JSON.stringify(value)}`); if (["pitch","yaw","roll"].includes(value.field)) assert.equal(value.unitLabel, " degrees"); }
           assert.ok(evidence.controls.length >= 12 && evidence.controls.every(({ width, height }) => width >= 44 && height >= 44), `sub-44px controls: ${JSON.stringify(evidence.controls)}`);
           if (!(evidence.panelWithin && evidence.noMenuOverlap && evidence.noTransportOverlap)) failures.push(`${embedding}:${viewport.name}:DPR${dpr} unsafe layout (panelWithin=${evidence.panelWithin}, noMenuOverlap=${evidence.noMenuOverlap}, noTransportOverlap=${evidence.noTransportOverlap})`);
           assert.ok(evidence.body.clientHeight <= evidence.body.scrollHeight && ["auto", "scroll"].includes(evidence.body.overflowY), `internal scrolling unavailable: ${JSON.stringify(evidence.body)}`);
@@ -138,21 +142,28 @@ try {
   });
 
   const behavior = await game.evaluate(async (element) => {
-    const select=element.shadowRoot.querySelector("[data-action='environment-asset-select']"), ids=[...select.options].map((option)=>option.value), first=ids[0], second=ids[1];
-    element.selectEnvironment(second); const switchCalls=globalThis.__environmentAudit.calls.slice(-2);
-    const yaw=element.shadowRoot.querySelector("[data-environment-field='yaw']");yaw.value="37";yaw.dispatchEvent(new Event("input",{bubbles:true,composed:true}));
-    element.selectEnvironment(first);element.selectEnvironment(second);const remembered=element.environmentConfig(second).transform.rotationDegrees.yYaw;
+    const select=element.shadowRoot.querySelector("[data-action='environment-asset-select']"), ids=[...select.options].map((option)=>option.value), defaultId="alpine-river-valley-photosphere", selectedId=ids[1];
+    const fresh={selected:element.selectedEnvironmentId,yaw:element.environmentConfig().transform.rotationDegrees.yYaw};
+    element.selectEnvironment(selectedId); const switchCalls=globalThis.__environmentAudit.calls.slice(-2);
+    const yaw=element.shadowRoot.querySelector("[data-environment-field='yaw']"),yawOutput=element.shadowRoot.querySelector("[data-environment-output='yaw']");yaw.value="37.1234567";const normalized=yaw.value;yaw.dispatchEvent(new Event("input",{bubbles:true,composed:true}));
+    const liveInput={input:yaw.value,output:yawOutput.value,config:String(element.environmentConfig().transform.rotationDegrees.yYaw),renderer:String(globalThis.__environmentAudit.calls.filter(({type})=>type==="transform").at(-1).transform.rotationDegrees.yYaw),status:element.shadowRoot.querySelector("[data-role='environment-config-status']").value,normalized};
+    yaw.value="-22.5";yaw.dispatchEvent(new Event("change",{bubbles:true,composed:true}));const liveChange={input:yaw.value,output:yawOutput.value,config:String(element.environmentConfig().transform.rotationDegrees.yYaw),renderer:String(globalThis.__environmentAudit.calls.filter(({type})=>type==="transform").at(-1).transform.rotationDegrees.yYaw),status:element.shadowRoot.querySelector("[data-role='environment-config-status']").value,normalized:"-22.5"};
+    element.renderPresenters();element.activeSessionAction="play";element.renderPresenters();const selectedThroughRenderAndPlay=element.selectedEnvironmentId;element.activeSessionAction="";
+    element.selectEnvironment(ids[0]);element.selectEnvironment(selectedId);const remembered=element.environmentConfig(selectedId).transform.rotationDegrees.yYaw;
     element.cameraCompositeMode="camera";element.renderEnvironmentStatus();const hiddenStatus=element.shadowRoot.querySelector("[data-role='environment-config-status']").value;const selectedWhileHidden=element.selectedEnvironmentId;element.cameraCompositeMode="aero";element.renderEnvironmentControls(false);
     const peer=document.createElement("aero-game");peer.setAttribute("instance-id","environment-peer");element.parentElement.append(peer);await new Promise((resolve)=>setTimeout(resolve,20));
-    const independent=peer.selectedEnvironmentId===first&&peer.environmentConfig(first).transform.rotationDegrees.yYaw===0&&peer.environmentConfigs!==element.environmentConfigs;
+    const independent=peer.selectedEnvironmentId===defaultId&&peer.environmentConfig(defaultId).transform.rotationDegrees.yYaw===180&&peer.environmentConfigs!==element.environmentConfigs;
     peer.environmentControlsCollapsed=true;const parent=element.parentElement,oldGraph=peer.graph;peer.remove();parent.append(peer);await new Promise((resolve)=>setTimeout(resolve,20));
-    const reconnect=peer.graph!==oldGraph&&peer.selectedEnvironmentId===first&&peer.environmentConfig(first).transform.rotationDegrees.yYaw===0&&!peer.environmentControlsCollapsed;
+    const reconnect=peer.graph!==oldGraph&&peer.selectedEnvironmentId===defaultId&&peer.environmentConfig(defaultId).transform.rotationDegrees.yYaw===180&&!peer.environmentControlsCollapsed;
     peer.remove();
-    return { ids, switchCalls, remembered, hiddenStatus, selectedWhileHidden, selectedAfter:element.selectedEnvironmentId, independent, reconnect };
+    return { ids, fresh, switchCalls, liveInput, liveChange, remembered, selectedThroughRenderAndPlay, hiddenStatus, selectedWhileHidden, selectedAfter:element.selectedEnvironmentId, independent, reconnect };
   });
   assert.equal(behavior.ids.length, 8);
+  assert.deepEqual(behavior.fresh,{selected:"alpine-river-valley-photosphere",yaw:180});
   assert.deepEqual(behavior.switchCalls.map(({ type }) => type), ["transform", "asset"], "environment selection must apply transform before asset");
-  assert.equal(behavior.remembered, 37);
+  for (const live of [behavior.liveInput, behavior.liveChange]) { assert.deepEqual({input:live.input,output:live.output,config:live.config,renderer:live.renderer},{input:live.normalized,output:live.normalized,config:live.normalized,renderer:live.normalized},`live input/output/config/renderer projection drifted: ${JSON.stringify(live)}`); assert.equal(live.status, "", "live transform must clear stale success state"); }
+  assert.equal(behavior.remembered, -22.5);
+  assert.equal(behavior.selectedThroughRenderAndPlay, behavior.selectedAfter);
   assert.match(behavior.hiddenStatus, /hidden by Camera/u);
   assert.equal(behavior.selectedWhileHidden, behavior.selectedAfter, "Camera/Aero must retain environment selection");
   assert.ok(behavior.independent && behavior.reconnect, `instance/reconnect reset failed: ${JSON.stringify(behavior)}`);
@@ -170,8 +181,8 @@ try {
   assert.deepEqual(restoreErrorLoading,{frameTimer:0,identityChanged:true,observedIdentity:true,generationDelta:1,pending:1,state:"loading",status:"Environment loading."},`${embedding} stopped-loop real context restore notification failed`);
   await game.evaluate(async (element) => { const restore=globalThis.__environmentAudit.restore,request=restore.pending.shift();request.reject(new Error("forced restore failure"));await element.graph.renderer.environmentLoadPromise;await Promise.resolve(); });
   const retry = game.locator("[data-action='environment-asset-retry']");
-  const restoreError = await game.evaluate((element) => ({state:element.environmentLoadState,status:element.shadowRoot.querySelector("[data-role='environment-config-status']").value,renderer:element.graph.renderer.describe().environment.state}));
-  assert.deepEqual(restoreError,{state:"error",status:"Environment unavailable. Retry.",renderer:"error"},`${embedding} real context restore error failed`);
+  const restoreError = await game.evaluate((element) => ({state:element.environmentLoadState,status:element.shadowRoot.querySelector("[data-role='environment-config-status']").value,renderer:element.graph.renderer.describe().environment.state,selected:element.selectedEnvironmentId}));
+  assert.deepEqual(restoreError,{state:"error",status:"Environment unavailable. Retry.",renderer:"error",selected:behavior.selectedAfter},`${embedding} real context restore error failed`);
   assert.equal(await retry.isEnabled(), true);
   await game.evaluate(() => { globalThis.__environmentAudit.calls.length=0; });
   await retry.click();
@@ -180,8 +191,8 @@ try {
   assert.deepEqual(retryCalls.map(({ type }) => type), ["transform", "asset", "asset"]);
   assert.equal(retryCalls[1].id, null);
   await game.evaluate(async (element) => { const restore=globalThis.__environmentAudit.restore,request=restore.pending.shift();request.resolve(await restore.originalFetch(...request.args));await element.graph.renderer.environmentLoadPromise;await Promise.resolve(); });
-  const restoreReady = await game.evaluate((element) => ({state:element.environmentLoadState,status:element.shadowRoot.querySelector("[data-role='environment-config-status']").value,renderer:element.graph.renderer.describe().environment.state}));
-  assert.deepEqual(restoreReady,{state:"ready",status:"",renderer:"ready"},`${embedding} Retry must reconcile ready`);
+  const restoreReady = await game.evaluate((element) => ({state:element.environmentLoadState,status:element.shadowRoot.querySelector("[data-role='environment-config-status']").value,renderer:element.graph.renderer.describe().environment.state,selected:element.selectedEnvironmentId}));
+  assert.deepEqual(restoreReady,{state:"ready",status:"",renderer:"ready",selected:behavior.selectedAfter},`${embedding} Retry must reconcile ready without changing selection`);
   assert.equal(await retry.isDisabled(), true, "Retry must be enabled only for renderer error state");
 
   const save = game.locator("[data-action='environment-config-save']");
@@ -206,6 +217,9 @@ try {
     });
     await page.waitForTimeout(30);
   };
+  await load("saved-roundtrip.json", Buffer.from(saved.created.text));
+  const roundtrip = await game.evaluate((element) => ({ config:element.environmentConfig(), renderer:structuredClone(globalThis.__environmentAudit.calls.filter(({type})=>type==="transform").at(-1).transform), input:element.shadowRoot.querySelector("[data-environment-field='yaw']").value, output:element.shadowRoot.querySelector("[data-environment-output='yaw']").value }));
+  const savedConfig = JSON.parse(saved.created.text); assert.deepEqual(roundtrip.config, savedConfig); assert.deepEqual(roundtrip.renderer, savedConfig.transform); assert.equal(roundtrip.input, String(savedConfig.transform.rotationDegrees.yYaw)); assert.equal(roundtrip.output, roundtrip.input);
   const exactText = JSON.stringify(makeConfig());
   const exact = Buffer.from(exactText + " ".repeat(16 * 1024 - Buffer.byteLength(exactText)));
   assert.equal(exact.byteLength, 16 * 1024);
@@ -219,7 +233,12 @@ try {
     ["malformed.json", Buffer.from("{")],
     ["wrong-id.json", Buffer.from(JSON.stringify(makeConfig({id:"igloo-toon-photosphere"})))],
     ["projection.json", Buffer.from(JSON.stringify(makeConfig({projection:"cubemap"})))],
-    ["range.json", Buffer.from(JSON.stringify(makeConfig({transform:{position:{x:0,y:0,z:0},rotationDegrees:{xPitch:0,yYaw:999,zRoll:0},scale:1}})))]
+    ["schema.json", Buffer.from(JSON.stringify(makeConfig({schema:"wrong"})))],
+    ["version.json", Buffer.from(JSON.stringify(makeConfig({version:2})))],
+    ["unknown-key.json", Buffer.from(JSON.stringify({...makeConfig(),extra:true}))],
+    ["missing-transform.json", Buffer.from(JSON.stringify((({transform,...rest})=>rest)(makeConfig())))],
+    ["range.json", Buffer.from(JSON.stringify(makeConfig({transform:{position:{x:0,y:0,z:0},rotationDegrees:{xPitch:0,yYaw:999,zRoll:0},scale:1}})))],
+    ["outside-sphere.json", Buffer.from(JSON.stringify(makeConfig({transform:{position:{x:30,y:0,z:0},rotationDegrees:{xPitch:0,yYaw:0,zRoll:0},scale:1}})))]
   ];
   for (const [name, bytes] of invalids) {
     const before = await game.evaluate((element) => ({ config:JSON.stringify(element.environmentConfig()), calls:globalThis.__environmentAudit.calls.length, renderer:JSON.stringify(element.graph.renderer.describe().environment.transform) }));

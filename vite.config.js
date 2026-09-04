@@ -9,9 +9,11 @@ import { environmentAssetFiles } from "./src/environment-asset-catalog.js";
 const basePath = process.env.AEROBEAT_BASE_PATH ?? "/";
 const tailscaleHost = "derrick-alienware-aurora-r13.tail613fcb.ts.net";
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
-const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.3/", import.meta.url);
+const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.5/", import.meta.url);
 const rendererGameplayInventoryBytes = readFileSync(new URL("inventory.v1.json", rendererGameplayRoot));
-if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "69b88d38113a56061dfc0ea5e92ec51a0b181fcade6a99e1dcc5df1baecdde03") throw new Error("Linked renderer gameplay inventory hash drifted");
+if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "4984cca24b8121bc6657153304726f1f7ef05d878ca5220f3c3e2b6f2457a102") throw new Error("Linked renderer gameplay inventory hash drifted");
+const rendererGameplayProofBytes = readFileSync(new URL("proof.v1.json", rendererGameplayRoot));
+if (createHash("sha256").update(rendererGameplayProofBytes).digest("hex") !== "4aac2274a9803a05e9ff533c02958cf1c5def66e0af1bf2fae3cc4479319f350") throw new Error("Linked renderer gameplay proof hash drifted");
 const rendererGameplayInventory = JSON.parse(rendererGameplayInventoryBytes.toString("utf8"));
 const rendererGameplayGlbs = rendererGameplayInventory.payload.filter((entry) => entry.path.endsWith(".glb"));
 if (rendererGameplayGlbs.length !== 7) throw new Error("Linked renderer gameplay GLB inventory drifted");
@@ -33,7 +35,7 @@ export default {
       for (const asset of rendererGameplayGlbs) {
         const source = readFileSync(new URL(asset.path, rendererGameplayRoot));
         if (source.byteLength !== asset.bytes || createHash("sha256").update(source).digest("hex") !== asset.sha256) throw new Error(`Linked renderer gameplay asset drifted: ${asset.path}`);
-        this.emitFile({ type: "asset", fileName: `assets/gameplay/0.0.3/${asset.path}`, source });
+        this.emitFile({ type: "asset", fileName: `assets/gameplay/0.0.5/${asset.path}`, source });
       }
       for (const asset of environmentAssetFiles) {
         const source = readFileSync(new URL(`./${asset.path}`, import.meta.url));

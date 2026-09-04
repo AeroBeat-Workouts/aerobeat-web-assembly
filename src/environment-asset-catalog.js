@@ -1,5 +1,14 @@
 // @ts-check
 
+import alpineRiverValleyConfig from "../assets/environments/alpine-river-valley-photosphere/1.0.0/alpine-river-valley-photosphere.config.json" with { type: "json" };
+import icebergsOnSeaShoreConfig from "../assets/environments/icebergs-on-sea-shore-photosphere/1.0.0/icebergs-on-sea-shore-photosphere.config.json" with { type: "json" };
+import icelandWaterfallConfig from "../assets/environments/iceland-waterfall-photosphere/1.0.0/iceland-waterfall-photosphere.config.json" with { type: "json" };
+import iglooToonConfig from "../assets/environments/igloo-toon-photosphere/1.0.0/igloo-toon-photosphere.config.json" with { type: "json" };
+import luminiousIceCaveConfig from "../assets/environments/luminious-ice-cave-photosphere/1.0.0/luminious-ice-cave-photosphere.config.json" with { type: "json" };
+import saltLakeConfig from "../assets/environments/salt-lake-photosphere/1.0.0/salt-lake-photosphere.config.json" with { type: "json" };
+import saltLake2Config from "../assets/environments/salt-lake-2-photosphere/1.0.0/salt-lake-2-photosphere.config.json" with { type: "json" };
+import snowMountainWithLakeConfig from "../assets/environments/snow-mountain-with-lake-photosphere/1.0.0/snow-mountain-with-lake-photosphere.config.json" with { type: "json" };
+
 const VERSION = "1.0.0";
 const CONFIG_SCHEMA = "aerobeat/environment_asset_config";
 const CONFIG_VERSION = 1;
@@ -17,9 +26,20 @@ const definitions = [
   ["igloo-toon-photosphere", "Igloo Toon", "comparison-with-artifacts", 1624217, "c8deae4e235ba529c093ce9ec28aed9d0088d94c379dafe7a23b9c82aac06477", 325, "481329192d693584da295139d800647c326016c5c2ff5f2c29efa6c6a9ebc271", 4074, "d66a0b5f49590dfe63c6a27454b8b21194b6b93be9ca86edcaf197b4495018a1"],
   ["salt-lake-photosphere", "Salt Lake", "strong-comparison", 2010461, "2768567c95424d33a0b1727f1c50a48e3e063902d021132642ea7b6f5851185c", 324, "4f602515f85343c8e44ebc0271b5ccadd6a8848d917bb311cc742deea04af5c7", 4079, "f955189d3002f484940fa9ad6aa8f656400667eab8e26f88277ee6e455508121"],
   ["salt-lake-2-photosphere", "Salt Lake 2", "strong-comparison", 1974340, "beebe837d370302e201b4e0dbf6ac28010afc35dc9ec115b01256032737ed474", 326, "f651188606f49506bfe9c627bf06718fa8c616f5dec30a1a55065fbfd0c6600f", 4076, "36c3c0f7ceb0fcd5e881a615157f30563ebe0b4720c47f2b86cf66c52cc88c48"],
-  ["alpine-river-valley-photosphere", "Alpine River Valley", "strong-comparison", 2664010, "7a529a6e0c1bee343633273d672a22f346f8ffc7406bf6a40812ae5435f3260b", 334, "c1cda19a958cee99c4d021baf9455ed95e0d0fd9cc420bfe1857ee5b7da1f5e6", 4147, "5f01074a8eebfd2246587b68dc3a162a77d431c4350700a5df38ba67cb00d201"]
+  ["alpine-river-valley-photosphere", "Alpine River Valley", "strong-comparison", 2664010, "7a529a6e0c1bee343633273d672a22f346f8ffc7406bf6a40812ae5435f3260b", 336, "69a62f73bc1193b0e9414c2698a269e24ed06c309616dc345a3f5cf80966f977", 4147, "10be1ad8a8847239df7ad75aa8e4ad010972b5f218b441e028cafc32bfbfe8fc"]
+];
+const packagedConfigs = [
+  luminiousIceCaveConfig,
+  icebergsOnSeaShoreConfig,
+  snowMountainWithLakeConfig,
+  icelandWaterfallConfig,
+  iglooToonConfig,
+  saltLakeConfig,
+  saltLake2Config,
+  alpineRiverValleyConfig
 ];
 const knownEnvironmentIds = new Set(definitions.map(([id]) => id));
+const classifications = Object.freeze(definitions.map(([, , classification]) => classification));
 const artifactComparisonIds = Object.freeze(["snow-mountain-with-lake-photosphere", "igloo-toon-photosphere"]);
 
 function assertNoProxyGraph(value, label) {
@@ -82,12 +102,11 @@ export function serializeEnvironmentConfig(config) {
   return Object.freeze({ data: normalized, text, bytes, filename: `${normalized.id}.environment-config.v1.json`, mimeType: "application/json" });
 }
 
-function makeEntry(definition) {
+function makeEntry(definition, index) {
   const [id, label, , imageBytes, imageHash, configBytes, configHash, manifestBytes, manifestHash] = definition;
   const root = `../assets/environments/${id}/${VERSION}`;
-  const transform = normalizeEnvironmentTransform({ position:{x:0,y:0,z:0}, rotationDegrees:{xPitch:0,yYaw:0,zRoll:0}, scale:1 });
   const descriptor = Object.freeze({ id, url:new URL(`${root}/${id}.jpg`, import.meta.url).href, mimeType:"image/jpeg", bytes:imageBytes, sha256:imageHash, projection:"equirectangular", dimensions, centerForward, worldUp });
-  const defaultConfig = Object.freeze({ schema:CONFIG_SCHEMA, version:CONFIG_VERSION, id, projection:"equirectangular", transform });
+  const defaultConfig = normalizeEnvironmentConfig(packagedConfigs[index], id);
   const files = Object.freeze([
     Object.freeze({ path:`assets/environments/${id}/${VERSION}/${id}.jpg`, bytes:imageBytes, sha256:imageHash }),
     Object.freeze({ path:`assets/environments/${id}/${VERSION}/${id}.config.json`, bytes:configBytes, sha256:configHash }),
@@ -98,7 +117,8 @@ function makeEntry(definition) {
 
 export const environmentAssetCatalog = Object.freeze(definitions.map(makeEntry));
 export const environmentArtifactComparisonIds = artifactComparisonIds;
-export const defaultEnvironmentAssetId = "luminious-ice-cave-photosphere";
+export const environmentAssetClassifications = classifications;
+export const defaultEnvironmentAssetId = "alpine-river-valley-photosphere";
 export const environmentAssetFiles = Object.freeze(environmentAssetCatalog.flatMap((entry) => entry.files));
 export const maximumEnvironmentConfigBytes = MAXIMUM_CONFIG_BYTES;
 

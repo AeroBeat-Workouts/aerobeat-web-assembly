@@ -92,8 +92,8 @@
     "path": ".testbed/assets/images/alpine-river-valley-photosphere/alpine-river-valley-photosphere.config.json",
     "schema": "aerobeat/environment_asset_config",
     "version": 1,
-    "sha256": "c1cda19a958cee99c4d021baf9455ed95e0d0fd9cc420bfe1857ee5b7da1f5e6",
-    "bytes": 334,
+    "sha256": "69a62f73bc1193b0e9414c2698a269e24ed06c309616dc345a3f5cf80966f977",
+    "bytes": 336,
     "parityIntent": "One-to-one future photosphere/splat transform parity; no runtime splat integration in this package."
   },
   "rights": {
