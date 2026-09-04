@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** SERVED-BYTE AUDIT PASS — DERRICK PHYSICAL REVIEW REJECTED; DEFECT DETAILS/ATTACHMENTS PENDING
+**Status:** RAW `0.0.37` PHYSICAL REVIEW REJECTED — DIAGNOSIS IN PROGRESS; NO FIX AUTHORIZED BEFORE ARROW FINDINGS REPORT
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -624,6 +624,9 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Live external BeatSaver was available and also passed from the actual insecure Tailscale page: exact map/version `53F26` / `addd9d6f8e7340ad6f5633947136d8475a7a99b5` fetched only the expected BeatSaver API and CDN URLs, authored/persisted one package, reached content `ready` with exact source/lineage hash and five variants, emitted no failures/noise, and was deleted from the ephemeral browser context afterward.
 - Post-audit all-file fetch and canonical manifest recheck remained byte-identical; PID/listener/cwd/argv were unchanged; the repository remained clean at the initial commit before this evidence edit. No matching local/remote tag exists, GitHub Release list is empty, and npm returned expected `E404` for `@aerobeat/web-assembly@0.0.37`. No release/raw/predecessor byte, server state, asset, splat, publication, or history was changed. This served-byte subaudit leaves both `aerobeat-web-assembly-k72.17` and umbrella `aerobeat-web-assembly-i4u` in progress: Derrick's physical review and approval are still required.
 
-## Derrick physical review of raw `0.0.37` — REJECTED; details pending (2026-09-04)
+## Derrick physical review of raw `0.0.37` — REJECTED; diagnosis only (2026-09-04)
 
-- Derrick selected **Needs changes** for raw `0.0.37` after the renewed physical-review handoff. He will provide the complete defect report in chat with attachments; no defect description or reproduction steps have been supplied yet. Raw `0.0.37` remains immutable and the managed review server remains available solely as reference evidence. Do not diagnose, implement, reserve, or build another successor until the report and attachments are received and recorded. `aerobeat-web-assembly-k72.17` and umbrella `aerobeat-web-assembly-i4u` remain in progress.
+- Derrick supplied four physical-review screenshots and exact follow-up requirements. Directional arrows still render visually clear/translucent rather than opaque; he explicitly requires a root-cause report before any arrow fix is implemented. Diagnosis Bead: `aerobeat-web-assembly-10c`.
+- The review was incorrectly exposed over insecure `http://` even though earlier AeroBeat physical review used a secure Tailscale route that allowed camera permission across connected tailnet machines. Research must recover and verify the prior secure serving topology before replacing the current reference server. Bead: `aerobeat-web-assembly-0mx`.
+- Pitch/yaw/roll/scale transforms apply live, but their numeric labels do not update until Reset or Play; the degree symbol wraps onto a second row. Remove the texts `At centered position, sphere radius scale does not change angular view or zoom.` and `Environment transform applied.` Set the default environment to `Alpine River Valley`, and use `alpine-river-valley-photosphere.environment-config.v1.json` as that environment's config because it contains the updated rotation. Diagnosis Bead: `aerobeat-web-assembly-sl3`.
+- Raw `0.0.37` remains immutable. This phase is diagnosis/research only: do not implement an arrow fix or authorize/build a successor until Derrick receives the requested findings. `aerobeat-web-assembly-k72.17` and umbrella `aerobeat-web-assembly-i4u` remain in progress.
