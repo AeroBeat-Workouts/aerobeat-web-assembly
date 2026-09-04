@@ -11,6 +11,9 @@ const goldenV4Info = '{"version":"4.0.0","song":{"title":"Provider Hash Golden",
 const archives = Object.freeze({
   v4: storedZip(goldenV4Entries(false)),
   tamperedV4: storedZip(goldenV4Entries(true)),
+  unsupportedV5: storedZip(goldenV4Entries(false, "5.0.0")),
+  malformedVersion: storedZip(goldenV4Entries(false, "4.0.0junk")),
+  versionlessV4: storedZip(goldenV4Entries(false, null)),
   v2: storedZip(syntheticLegacyEntries(2)),
   v3: storedZip(syntheticLegacyEntries(3))
 });
@@ -51,6 +54,13 @@ try {
   await game.evaluate((element, fixture) => { globalThis.__v4AssemblyFixture.archive = Uint8Array.from(fixture.archive); }, { archive: [...archives.v4] });
   const inspectedGolden = await game.evaluate(async (element) => { const acquired = await element.graph.vendor.importLocalArchive(globalThis.__v4AssemblyFixture.archive); return { sourceHash: acquired.sourceHash, hashInputPaths: acquired.source.manifest.hashInputPaths, hashInputs: acquired.source.manifest.hashInputPaths.map((path) => new TextDecoder().decode(acquired.source.readEntry(path))) }; });
   assert.equal(inspectedGolden.sourceHash, goldenV4Hash, `independently hard-coded v4 golden source hash: ${JSON.stringify(inspectedGolden)}`);
+  const versionAdmission = await game.evaluate(async (element, fixture) => {
+    const inspect = async (bytesValue) => { try { const acquired = await element.graph.vendor.importLocalArchive(Uint8Array.from(bytesValue)); return { accepted: true, major: acquired.source.manifest.sourceFormatMajor }; } catch (error) { return { accepted: false, code: error?.code, message: error?.message }; } };
+    return { v5: await inspect(fixture.v5), malformed: await inspect(fixture.malformed), versionless: await inspect(fixture.versionless) };
+  }, { v5: [...archives.unsupportedV5], malformed: [...archives.malformedVersion], versionless: [...archives.versionlessV4] });
+  assert.equal(versionAdmission.v5.accepted, false); assert.equal(versionAdmission.v5.code, "unsupported"); assert.match(versionAdmission.v5.message, /unsupported or malformed/u);
+  assert.equal(versionAdmission.malformed.accepted, false); assert.equal(versionAdmission.malformed.code, "unsupported"); assert.match(versionAdmission.malformed.message, /unsupported or malformed/u);
+  assert.deepEqual(versionAdmission.versionless, { accepted: true, major: 4 });
   const maps = await game.evaluate((element) => element.browseBeatSaver({ text: "golden" }));
   assert.equal(maps.maps.length, 1); assert.equal(maps.maps[0].mapId, "V4GOLD"); assert.equal(maps.maps[0].versions[0].hash, goldenV4Hash);
   const uiBefore = await game.evaluate((element) => { const presenter = element.shadowRoot.querySelector("aero-beatsaver-browser"); const checked = presenter.shadowRoot.querySelector("input[type='radio']:checked"); const button = presenter.shadowRoot.querySelector("button[data-intent='beatsaver-import']"); return { mapRadios: presenter.shadowRoot.querySelectorAll("input[type='radio']").length, checked: checked?.value, importDisabled: button?.disabled, cameraRequests: globalThis.__v4CameraRequests }; });
@@ -85,8 +95,8 @@ async function integrationSnapshot(game) { return game.evaluate(async (element) 
 function noProductionWinner(snapshot) { const text = JSON.stringify(snapshot); return !/production.?winner/iu.test(text) && !/"winner"\s*:/iu.test(text); }
 async function waitFor(page, predicate, timeoutMs) { const started = Date.now(); while (Date.now() - started < timeoutMs) { if (await predicate()) return; await page.waitForTimeout(50); } throw new Error("Timed out waiting for v4 assembly import"); }
 
-function goldenV4Entries(tampered) { return Object.freeze({
-  "Info.dat": bytes(goldenV4Info), "Song.egg": Uint8Array.of(71,79,76,68,69,78),
+function goldenV4Entries(tampered, declaredVersion = "4.0.0") { const info = JSON.parse(goldenV4Info); if (declaredVersion === null) delete info.version; else info.version = declaredVersion; return Object.freeze({
+  "Info.dat": bytes(JSON.stringify(info)), "Song.egg": Uint8Array.of(71,79,76,68,69,78),
   "AudioData.dat": bytes(tampered ? '{"version":"4.0.0","songChecksum":"tampered"}' : '{"version":"4.0.0","songChecksum":"golden"}'),
   "Cover.png": Uint8Array.of(137,80,78,71), "EasyLightshow.dat": bytes('{"version":"4.0.0","basicBeatmapEvents":[]}'),
   "SharedLightshow.dat": bytes('{"version":"4.0.0","lightColorEventBoxGroups":[{"b":1}]}'),

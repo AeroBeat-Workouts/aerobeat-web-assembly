@@ -43,7 +43,7 @@ Every connection creates isolated BeatSaver vendor, browser authoring Worker/Ind
 
 ### Owned photosphere runtime catalog
 
-The versioned `assets/environments/` payload contains an ordered catalog of eight AeroBeat-controlled RGB `4096 × 2048` equirectangular JPEGs, each with one exact JSON default config and one rights/source manifest (24 files total) from clean environment commit `e962fe2a8a48b7e2019d1a55c337abeb6ffd24d4`. Assembly is pinned to clean renderer commit `1626fa89235c3d56d98004f89103c1389dc9cf30`, gameplay source `8b8b40593b9deb54d32654e39fd7c1c1c4a9dc1a`, and exact immutable gameplay `0.0.3` tree `aa37bf534cc592a4057127876d567eadc3496f49`. `npm run sync:environment-assets` copies only that catalog-derived inventory, and `npm run verify:environment-assets` fails closed on source commit, catalog identity/order, file membership, bytes, or hashes. Luminious Ice Cave is the default. Snow Mountain with Lake and Igloo Toon are labeled as comparisons with source artifacts rather than represented as artifact-free conversions.
+The versioned `assets/environments/` payload contains an ordered catalog of eight AeroBeat-controlled RGB `4096 × 2048` equirectangular JPEGs, each with one exact JSON default config and one rights/source manifest (24 files total) from clean environment commit `e962fe2a8a48b7e2019d1a55c337abeb6ffd24d4`. Assembly is pinned to clean renderer commit `8d2554b6a9cd08636afd189e292b19a8bd75a1ad`, gameplay package commit `e7e83edacd20a6691b297e3e220708f3034e4f34`, gameplay asset source `8b8b40593b9deb54d32654e39fd7c1c1c4a9dc1a`, and exact immutable gameplay `0.0.3` tree `aa37bf534cc592a4057127876d567eadc3496f49`. `npm run sync:environment-assets` copies only that catalog-derived inventory, and `npm run verify:environment-assets` fails closed on source commit, catalog identity/order, file membership, bytes, or hashes. Luminious Ice Cave is the default. Snow Mountain with Lake and Igloo Toon are labeled as comparisons with source artifacts rather than represented as artifact-free conversions.
 
 Visual Test exposes the private per-instance environment authoring controls. The eight-entry selector retains one live config per environment with bounded position X/Y/Z, pitch/yaw/roll, and uniform **Sphere radius scale** controls. At centered position, radius scale does not change angular view or zoom. Config load/save uses strict schema `aerobeat/environment_asset_config` version 1 JSON, a 16 KiB local limit, deterministic `<id>.environment-config.v1.json` bytes, trusted local activation, and no storage, public snapshot/event/message, upload, or telemetry surface. Every switch applies its remembered transform before selecting the asset. Computed Camera composition hides the current environment behind retained mirrored video; Aero restores that same selection/config without mutating the stored background preference or retaining an eight-texture cache. Disconnect/reconnect and separate elements receive fresh independent defaults, pickers, collapse state, and renderer ownership.
 
@@ -95,6 +95,24 @@ The child owns fullscreen and requests it only from a child UI gesture. Parent p
 
 Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, releases the media lease, cancels Worker/fetch/CV generations, destroys input/gameplay/content/renderer services, and tears down audio/video ownership. Late completions cannot publish through the invalidated connection generation. Reconnecting the same element creates a new graph.
 
+## Portable integrity and exact source pins
+
+Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-web-hash"` link so Vite resolves one audited implementation into both the main Window bundle and the real module Worker bundle. The shared implementation retains native WebCrypto only as an exact fast path and bundles deterministic incremental SHA-1/SHA-256 fallback code; production has no external hash URL, dynamic network acquisition, WASM hashing path, or integrity skip. Exact release fingerprinting binds both recursive source bytes and the following Git commit/tree provenance, rather than trusting lockfile text alone:
+
+| Package | Commit | Tree |
+|---|---|---|
+| `@aerobeat/web-hash` | `be7249b0bdfffcab568b760c1b582bfe2a0c1e92` | `b423c6742c07f56dde196d9f60f2e23c51ad913c` |
+| `@aerobeat/web-vendor-beatsaver` | `4d2479df0d4b12305cc8190dbe918995abae5d03` | `40c8055acab241614272fb922a51c1d092e6dd08` |
+| `@aerobeat/web-content-authoring` | `08b330d9f519113793eb5041d942aa1e8e2095dc` | `5b8e64f42f1f2d9e341c90fe6fc5688646051fa0` |
+| `@aerobeat/web-content` | `501bddac3fcf2aa6332690dc6ac16ad73e8140e2` | `89e57f58598763cd6ef11fb49b227c7691cbb4ca` |
+| `@aerobeat/web-audio` | `2bd5c6bc96d001f9755b6d8b2a79c57cd8e196f1` | `4bb2a110ddeab77559d1f7ffcf5d3e348a93f027` |
+| `@aerobeat/web-renderer` | `8d2554b6a9cd08636afd189e292b19a8bd75a1ad` | `b2d9dabe7aa602e161e0c599ee267ff28f07c711` |
+| `@aerobeat/web-gameplay` | `e7e83edacd20a6691b297e3e220708f3034e4f34` | `3da9eeafed18a230dd2baa1996c93443af7dd217` |
+
+Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Lanes/Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
+
+Raw `0.0.36` remains immutable failed physical evidence. This source integration does not bump `0.0.36`, create `0.0.37`, alter its managed review server, or claim camera/physical approval.
+
 ## Validation
 
 ### Reproducible npm pack modes
@@ -118,6 +136,8 @@ The current deterministic raw release proof is `0.0.36`. Its immutable predecess
 
 ```bash
 npm run verify:environment-assets
+npm run test:hash-provenance
+npm run test:insecure-hash-integration
 npm run check
 npm test
 npm run test:browser

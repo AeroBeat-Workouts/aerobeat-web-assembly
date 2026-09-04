@@ -3,8 +3,9 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { build } from "vite";
-import { computeReleaseFingerprint } from "./release-fingerprint.js";
+import { computeReleaseFingerprint, readReleaseDependencyProvenance } from "./release-fingerprint.js";
 import { claimAppendOnlyReleaseTarget } from "./release-target-policy.js";
+import { validateProductionHashBundle } from "./production-hash-bundle-policy.js";
 
 const packageJson = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
 const proofVersion = packageJson.version;
@@ -35,6 +36,11 @@ const absoluteArtifactFiles = walkFiles(releaseRoot);
 const artifactFiles = absoluteArtifactFiles.map((filePath) => relative(releaseRoot, filePath));
 const runtimeWasmAssets = artifactFiles.filter((filePath) => filePath.endsWith(".wasm"));
 const runtimeJavaScriptAssets = artifactFiles.filter((filePath) => filePath.endsWith(".js"));
+if (runtimeWasmAssets.length !== 0) throw new Error("Release contains an unexpected WASM runtime asset");
+const hashBundleEvidence = validateProductionHashBundle([
+  ...runtimeJavaScriptAssets.map((fileName) => ({ type: "chunk", fileName, code: readFileSync(resolve(releaseRoot, fileName), "utf8") })),
+  ...artifactFiles.filter((fileName) => fileName.endsWith(".js.map")).map((fileName) => ({ type: "asset", fileName, source: readFileSync(resolve(releaseRoot, fileName)) }))
+]);
 const totalArtifactBytesBeforeManifest = absoluteArtifactFiles
   .reduce((total, filePath) => total + statSync(filePath).size, 0);
 const forbiddenRuntimeAsset = artifactFiles.find((filePath) => /(?:movenet|onnx|ort-wasm|pose-detection|tensorflow)/iu.test(filePath));
@@ -69,6 +75,7 @@ writeFileSync(
       packageName: "@aerobeat/web-assembly",
       proofVersion,
       sourceFingerprint,
+      dependencyProvenance: readReleaseDependencyProvenance(),
       minified: false,
       basePath,
       productionPoseConfiguration: {
@@ -88,6 +95,7 @@ writeFileSync(
       poseBackends: ["mediapipe"],
       runtimeJavaScriptAssets,
       runtimeWasmAssets,
+      hashBundleEvidence,
       totalArtifactBytesBeforeManifest,
       forbiddenRuntimeAssetPatternsChecked: ["movenet", "onnx", "ort-wasm", "pose-detection", "tensorflow"],
       forbiddenRuntimeMarkersChecked

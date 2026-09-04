@@ -48,11 +48,14 @@ export default {
     __AEROBEAT_PACKAGE_VERSION__: JSON.stringify(packageJson.version)
   },
   resolve: {
-    alias: [{ find: /^@aerobeat\/web-ui$/u, replacement: fileURLToPath(new URL("../aerobeat-web-ui/src/index.js", import.meta.url)) }],
+    alias: [
+      { find: /^@aerobeat\/web-hash$/u, replacement: fileURLToPath(new URL("../aerobeat-web-hash/src/index.js", import.meta.url)) },
+      { find: /^@aerobeat\/web-ui$/u, replacement: fileURLToPath(new URL("../aerobeat-web-ui/src/index.js", import.meta.url)) }
+    ],
     preserveSymlinks: false
   },
   optimizeDeps: {
-    exclude: ["@aerobeat/web-content-authoring", "@aerobeat/web-contracts", "@aerobeat/web-gameplay", "@aerobeat/web-renderer", "@aerobeat/web-ui"]
+    exclude: ["@aerobeat/web-content-authoring", "@aerobeat/web-contracts", "@aerobeat/web-gameplay", "@aerobeat/web-hash", "@aerobeat/web-renderer", "@aerobeat/web-ui"]
   },
   server: {
     allowedHosts: [tailscaleHost],
