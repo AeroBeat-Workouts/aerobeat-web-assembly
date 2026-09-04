@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** RAW `0.0.38` INDEPENDENT RELEASE QA/AUDIT PASS — SECURE REVIEW SERVING ACTIVE; PHYSICAL APPROVAL PENDING
+**Status:** RAW `0.0.38` PHYSICALLY REJECTED — DIAGNOSIS IN PROGRESS; IMMUTABLE SUCCESSOR REQUIRED
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -726,3 +726,13 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Exact-byte parity passed for all `41` files and all `27,834,715` bytes through both loopback HTTP and tailnet HTTPS against immutable raw `0.0.38`. The served proof reports `proofVersion: 0.0.38` and exact source fingerprint `03288323640ec1c52105dd26f9c20dd51c723c454a9ef5481603dc93d53893c3`.
 - Headless Chromium loaded the actual HTTPS route with status `200`, title `AeroBeat Web Assembly`, `isSecureContext=true`, no console/page errors, a reachable renderer canvas through the composed tree, exact release proof fetch, and `Alpine River Valley` present in the composed UI. The first smoke probe's document-only text assertion could not see shadow-root content; a recursive composed-tree read confirmed Alpine without any source or server change.
 - Physical gate `k72.17` remains in progress pending Derrick's explicit PASS or exact revision requests. Serving authorization remains review-only; npm publication, tags, GitHub Releases, alternate bytes, and any physical-approval claim remain forbidden.
+
+## Raw `0.0.38` Derrick physical review — REJECTED (2026-09-04)
+
+- Derrick tested live-camera gameplay over the secure review route and rejected raw `0.0.38`. Nose and wrist landmark spheres exhibit the same clear/low-visibility rendering symptom previously corrected for directional notes; this must be diagnosed from actual marker materials, depth, layering, environment contrast, and camera-facing geometry rather than described as alpha transparency without evidence.
+- In BeatSaver map `3c9d` (`Dance Dance Revolution [DDRMIX]`), obstacles around `37 s` occupy a full column in BeatSaver ArcViewer but appear as only one cell in AeroBeat. Diagnosis must compare the downloaded source obstacle records, BeatSaver/Beat Saber width semantics, conversion output, cell identity mapping, and renderer geometry before changing collision or scoring behavior.
+- Derrick requested that dynamic green/yellow/red success bands become tinted tiles applied directly over the lane surface, preserving data-driven counts while visually aligning with the lane grid rather than floating as a separate overlay.
+- Directional-note white outlines and the white right-timing flash were physically confirmed good. Additional timing cues are a future requirement but are intentionally unspecified in this rejection and must not be invented during the bounded correction.
+- Miss behavior must retain the passed note temporarily, gray its role color, and let it continue past the athlete instead of hiding immediately. `Miss` text should be larger and perform a short left-right-back-and-forth head-shake animation before disappearing. Hit behavior should use larger `Great` text with a brief bouncy entrance/exit motion.
+- Beats and obstacles need a directly-below projected shadow/depth cue to improve non-VR depth perception. The correction must define placement, recipient types, transparency/depth ordering, lifecycle, and collision-free/non-scoring behavior before implementation.
+- Diagnosis Bead `aerobeat-web-assembly-0wn` is claimed/in progress. It must produce a durable debug report before source edits and then decompose a mandatory coder → independent QA → independent audit → immutable successor build/audit → Derrick physical-review chain. Raw `0.0.38` remains immutable and may continue only as rejected physical evidence; it must never be rebuilt or modified.
