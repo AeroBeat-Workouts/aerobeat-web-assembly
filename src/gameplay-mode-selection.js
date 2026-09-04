@@ -2,11 +2,11 @@
 
 import { conversionRecipeIds, rulesetIds } from "@aerobeat/web-contracts";
 
-export const gameplayRulesetIds = Object.freeze({ flow: rulesetIds[0], boxingLanes: rulesetIds[1], boxingGrid: rulesetIds[2] });
+export const gameplayRulesetIds = Object.freeze({ flow: "flow_grid_v2", boxingLanes: "boxing_semantic_track_v1", boxingGrid: "boxing_spatial_grid_v1" });
 export const boxingRecipeIds = Object.freeze({ balancedHeight: conversionRecipeIds[0], sourceHeight: conversionRecipeIds[1] });
 export const firstUseBoxingRecipeId = boxingRecipeIds.balancedHeight;
 
-const rulesetValues = rulesetIds;
+const rulesetValues = Object.freeze(Object.values(gameplayRulesetIds));
 const recipeValues = conversionRecipeIds;
 
 /** Read one exact, own, enumerable scalar UI intent without invoking accessors. */

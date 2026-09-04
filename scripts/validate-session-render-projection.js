@@ -35,30 +35,38 @@ const syntheticSecond=projectSessionTargets(events,testTruth,2181); assert.equal
 assert.equal(JSON.stringify(testTruth),truthBefore,"synthetic projection must not mutate gameplay judgement or score truth");
 assert.equal(projectSessionTargets(events,testTruth,2531)[0].feedbackProgress,1); assert.equal(projectSessionTargets(events,testTruth,2532).length,0);
 
+const crouchGeometry = Object.freeze({schema:"aerobeat/flow_obstacle_geometry",version:1,coordinateSpace:"beatsaber_lane_layer",x:1,y:2,width:1,height:3});
 const actualObstacle = Object.freeze({
   eventId:"ab-chart-dance-dance-revolution-ddrmix-flow-easy:event:20",
   centerTimestampMs:29839.999389648438,
-  endTimestampMs:29864.999389648438,
-  authoredBeat:Object.freeze({start:74.5999984741211,end:74.6624984741211,type:"obstacle",cells:Object.freeze([1])})
+  intervalStartTimestampMs:29839.999389648438, intervalEndTimestampMs:29864.999389648438,
+  authoredBeat:Object.freeze({start:74.5999984741211,end:74.6624984741211,type:"obstacle",geometry:crouchGeometry,gridMask:Object.freeze([1])})
 });
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500).length,1,"actual obstacle enters at exact 2500 ms approach boundary");
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500.001).length,0,"actual obstacle stays hidden before approach boundary");
-for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.endTimestampMs)/2, actualObstacle.endTimestampMs]) {
+for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.intervalEndTimestampMs)/2, actualObstacle.intervalEndTimestampMs]) {
   assert.deepEqual(projectSessionTargets([actualObstacle],testTruth,nowMs),[{
-    id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1],lane:null,
-    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.endTimestampMs
+    id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1],geometry:crouchGeometry,lane:null,
+    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.intervalEndTimestampMs
   }],`actual obstacle remains exact and feedback-free at ${nowMs}`);
 }
-assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.endTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
 const obstacleEarlier=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
-projectSessionTargets([actualObstacle],testTruth,actualObstacle.endTimestampMs);
+projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs);
 const obstacleEarlierAfterForward=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
 assert.deepEqual(obstacleEarlierAfterForward,obstacleEarlier,"forward-then-backward projection reconstructs the exact earlier obstacle state");
-const longObstacle=Object.freeze({eventId:"long-obstacle",centerTimestampMs:1000,endTimestampMs:2000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",cells:Object.freeze([1,2,5,6])})});
+const longGeometry=Object.freeze({...crouchGeometry,x:1,y:1,width:2,height:2});
+const longObstacle=Object.freeze({eventId:"long-obstacle",centerTimestampMs:1000,intervalStartTimestampMs:1000,intervalEndTimestampMs:2000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",geometry:longGeometry,gridMask:Object.freeze([1,2,5,6])})});
 assert.deepEqual({ start:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalStartMs, end:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalEndMs },{ start:1000,end:2000 },"long obstacle publishes its exact renderer duration interval beyond generic feedback lifetime");
 assert.equal(projectSessionTargets([longObstacle],testTruth,2001).length,0,"long obstacle uses exact interval end");
 const falseObstacleHit=Object.freeze({...testTruth,judgements:Object.freeze([{eventId:"long-obstacle",result:"hit",shadow:false,committedTimelinePositionMs:1000}])});
 assert.equal(projectSessionTargets([longObstacle],falseObstacleHit,1200)[0]?.judgement,undefined,"obstacle ignores all synthetic/real feedback");
+const noObstacleTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze(["no_obstacles"])})});
+assert.deepEqual(projectSessionTargets([longObstacle],noObstacleTruth,1200),[],"no_obstacles suppresses Flow visuals");
+const contactTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze([])}),obstacleOutcomes:Object.freeze([{eventId:"long-obstacle",result:"contact",firstContactTimelinePositionMs:1100}])});
+assert.equal(projectSessionTargets([longObstacle],contactTruth,1100)[0]?.contactPulseProgress,0,"contact pulse starts at exact first contact");
+assert.equal(projectSessionTargets([longObstacle],contactTruth,1275)[0]?.contactPulseProgress,.5);
+assert.equal(projectSessionTargets([longObstacle],contactTruth,1451)[0]?.contactPulseProgress,undefined,"contact pulse is bounded to 350 ms");
 const bombs=Object.freeze(Array.from({length:12},(_,placement)=>Object.freeze({eventId:`bomb-${placement}`,centerTimestampMs:1000+placement,authoredBeat:Object.freeze({type:"bomb",placement})})));
 const projectedBombs=projectSessionTargets(bombs,testTruth,-1500);
 assert.equal(projectedBombs.length,1,"bomb enters at its exact shared 2500 ms approach boundary");

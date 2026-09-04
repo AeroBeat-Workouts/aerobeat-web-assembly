@@ -1,5 +1,7 @@
 // @ts-check
 
+import { isFlowObstacleGeometry, isFlowObstacleGridMask } from "@aerobeat/web-contracts/flow-obstacle-contracts";
+
 const FEEDBACK_DURATION_MS = 350;
 const SYNTHETIC_MISS_COMMIT_OFFSET_MS = 181;
 const FLOW_APPROACH_LEAD_MS = 2500;
@@ -20,7 +22,12 @@ const BOXING_PUNCH_TYPES = Object.freeze(new Set(["straight_left", "straight_rig
 export function projectSessionTargets(events, gameplay, nowMs) {
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
+  const selectedVariant = recordValue(gameplay, "selectedVariant");
+  const modifierValue = recordValue(selectedVariant, "modifierIds");
+  const modifiers = Array.isArray(modifierValue) ? modifierValue : [];
   const judgementsValue = recordValue(gameplay, "judgements");
+  const obstacleOutcomesValue = recordValue(gameplay, "obstacleOutcomes");
+  const obstacleOutcomes = new Map((visualTest ? [] : Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
   const orderedEvents = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort((left, right) => { const time = finiteNumber(recordValue(left.event, "centerTimestampMs")) - finiteNumber(recordValue(right.event, "centerTimestampMs")); if (time !== 0) return time; const leftId = String(recordValue(left.event, "eventId") ?? ""), rightId = String(recordValue(right.event, "eventId") ?? ""); return leftId < rightId ? -1 : leftId > rightId ? 1 : left.sourceIndex - right.sourceIndex; });
@@ -29,7 +36,8 @@ export function projectSessionTargets(events, gameplay, nowMs) {
   for (const { event } of orderedEvents) {
     const beat = authoredBeatFor(event); const type = String(recordValue(beat, "type") ?? "note");
     if (type === "obstacle") {
-      const target = flowObstacleTarget(event, beat, nowMs);
+      if (modifiers.includes("no_obstacles")) continue;
+      const target = flowObstacleTarget(event, beat, nowMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
       if (target) targets.push(target);
     } else if (type === "bomb") {
       const target = flowBombTarget(event, beat, nowMs);
@@ -59,14 +67,16 @@ export function projectSessionTargets(events, gameplay, nowMs) {
   return targets;
 }
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs */
-function flowObstacleTarget(event, beat, nowMs) {
-  const startMs = optionalFiniteNumber(recordValue(event, "centerTimestampMs"));
-  const endMs = optionalFiniteNumber(recordValue(event, "endTimestampMs"));
-  const cells = recordValue(beat, "cells");
-  if (startMs === null || endMs === null || endMs < startMs || !Array.isArray(cells) || cells.length === 0 || cells.length > 12 || cells.some((cell) => !Number.isInteger(cell) || Number(cell) < 0 || Number(cell) > 11) || new Set(cells).size !== cells.length) return null;
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {Record<string, unknown>|null} outcome */
+function flowObstacleTarget(event, beat, nowMs, outcome) {
+  const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
+  const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
+  const gridMask = recordValue(beat, "gridMask"); const geometry = recordValue(beat, "geometry");
+  if (startMs === null || endMs === null || endMs <= startMs || !isFlowObstacleGeometry(geometry) || !isFlowObstacleGridMask(gridMask, geometry)) return null;
   if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...cells], lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs };
+  const firstContactMs = outcome?.result === "contact" ? optionalFiniteNumber(recordValue(outcome, "firstContactTimelinePositionMs")) : null;
+  const contactPulseProgress = firstContactMs !== null && nowMs >= firstContactMs && nowMs <= firstContactMs + FEEDBACK_DURATION_MS ? clamp01((nowMs - firstContactMs) / FEEDBACK_DURATION_MS) : undefined;
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], geometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
 }
 
 /** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs */
