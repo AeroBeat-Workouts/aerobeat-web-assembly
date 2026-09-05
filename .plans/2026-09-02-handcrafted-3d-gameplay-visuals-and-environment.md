@@ -907,3 +907,20 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - `iiv` — exactly one immutable successor builder, blocked by `s1q`.
 - `v4h` — independent successor release QA/audit, blocked by `iiv`; also blocks `k72.17`.
 - Dependency cycle check: none. No implementation starts until Derrick approves the corrected BeatSaver/ArcViewer-parity plan and remaining playtest feedback is incorporated.
+
+## Raw `0.0.39` continued physical review — ADDITIONAL DEFECTS RECORDED (2026-09-05)
+
+- `k72.17` comment `01a0721e-5231-7b94-8e6e-fe9228d2a1f6` records Derrick's additional physical findings:
+  1. Boxing Grid obstacles remain single-cell/non-continuous and do not use the Flow wall asset/geometry.
+  2. Boxing Lanes obstacles are absent or unobservable in gameplay.
+  3. Live Flow nose/wrist marker GLBs still appear transparent and hard to see; alpha, shader/lighting, depth, z-fighting, scale, and live-video composition require pixel/material diagnosis rather than assumption.
+  4. Song completion enters a dead-end state: menu mode changes, close, seek, and continued testing cannot resume without page reload.
+  5. Camera-enabled Flow has materially lower framerate than camera-off on Bug, though still playable; measured MediaPipe/render contention needs paired profiling.
+- Positive physical evidence: directly-below beat/obstacle shadows improve depth and remain approved. Great/Miss motion is decent. Their current 8-bit font is provisional, not rejected; typography and an art bible are intentionally deferred until core gameplay is fun.
+- New blockers of `k72.17`: `bnf` Boxing obstacles, `vm4` marker visibility, `4in` post-song restart, and `mi6` camera performance. Deferred non-blocking art task: `2tu`.
+- Read-only research launches were verified in the direct-child registry:
+  - Boxing obstacle trace `905e56cc-1653-4d3d-8977-f7dc9e712eee` — running.
+  - Live marker diagnosis `dc1240d2-2243-4ea5-935b-0ba7aa4310e6` — running.
+  - Post-song state trace `13a7631f-a300-4449-adf1-66b52f22945c` — running.
+  - Camera performance profile `995bcf62-c7be-4172-a677-2f724e268ab8` — running.
+- Raw `0.0.39` remains immutable and rejected comparison evidence. Do not code these slices until diagnoses are durable, remaining playtest feedback is incorporated, and Derrick approves the consolidated repair plan.
