@@ -865,3 +865,39 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Existing Tailscale Serve stayed unchanged: tailnet-only HTTPS `:8443 → http://127.0.0.1:5173`; DSH GUI `:8444 → http://127.0.0.1:3082` remained untouched; no Funnel change.
 - Loopback and secure `:8443` both returned HTTP 200, `proofVersion:0.0.39`, fingerprint `84cbbaa7445a24095dccc21af2c5f504840d136891798577739696101e1a879a`, renderer commit `9f0db611d27a2d282cc547e9b1654380d80b4294`, and exact served marker SHA-256 `b2316b8ec013e9d9087a0bd6d9e5dcef643a34132f9c51fc2526c68d317f7530`.
 - Physical-review Bead `k72.17` records readiness comment `01a06f38-94d6-73aa-b0e4-355b1cdb6f68`. Await Derrick's explicit PASS or exact revision request; do not close the Bead or claim physical approval before Derrick responds.
+
+## Raw `0.0.39` physical review — VERTICAL OCCUPANCY REJECTED / FIX PLAN AWAITS APPROVAL (2026-09-05)
+
+### Derrick's exact feedback
+
+> “the obstacles are appearing as a larger column now, but they should be taking up the other grid cells below them in the test DDR song we're testing against.”
+
+- Screenshot and physical report are recorded on `k72.17` via comment `01a071ee-b8ec-7519-8934-fa20d3949e40`. Raw `0.0.39` remains immutable and served only as rejected comparison evidence while Derrick continues playtesting.
+- P0 defect `mzz` is claimed and blocks physical approval. Independent source-semantics child `18c745ba-e383-434e-8bd1-b342ebde5086` and renderer-projection child `dbf8f960-da24-4e57-b39c-fcbdfe733cc5` both completed read-only diagnosis with clean repos.
+
+### Diagnosis
+
+- Current code is internally consistent with the previously approved source-faithful ceiling/crouch interpretation. Exact `3c9d` Hard v2 type `1` normalizes to `{x:1,y:2,width:1,height:3}`. Because source Y is bottom-origin and height extends upward, only source layer `2` intersects the bounded 4×3 grid; mask is `[1]`, renderer center is `(-0.5,3)`, visual dimensions are `0.94×2.94×0.15`, and continuous nose collision spans logical Y `1.5..4.5`.
+- No facade, GLB pivot, opacity, overlay, or hidden-lower-wall defect exists. Raw `0.0.39` tests deliberately lock top-only intersection and reject `[1,5,9]`.
+- Derrick's newest physical requirement therefore changes AeroBeat product semantics: the top-row cell becomes the anchor for a downward full displayed column. Visual, occupancy, and collision must change together; a UI-only fake mask is forbidden.
+- Full debug record: `.plans/debug/2026-09-05-raw-0.0.39-obstacle-vertical-occupancy.md`.
+
+### Proposed correction contract
+
+1. Version the Flow obstacle record to preserve two explicit truths rather than silently reinterpret v1 `beatsaber_lane_layer` geometry:
+   - `sourceGeometry`: immutable Beat Saber provenance.
+   - `gameplayGeometry`: AeroBeat render/collision/grid-occupancy authority.
+2. For v2 type `1`, retain source `{x:1,y:2,width:1,height:3}` but derive gameplay `{x:1,y:0,width:1,height:3}` and gameplay mask `[1,5,9]`. Render one continuous wall centered `(-0.5,1)` with dimensions `0.94×2.94×0.15`; all three displayed rows collide during the exact source interval.
+3. Preserve v2 type `0`. Preserve v3/v4 explicit geometry by defaulting gameplay geometry to source geometry; do not globally invert modern map geometry.
+4. Bump chart/package/resolved-event/persistence provenance monotonically. Existing prior-contract stored packages remain list/export/delete-only and require reimport for Play/Test. DB migration labels provenance only; never rewrite stored package bytes/hashes.
+5. Update contracts, authoring, content, gameplay, renderer, UI/assembly, docs, fixtures, and exact `3c9d` golden gates. Preserve scoring, uncertainty, episode/combo reset, privacy, lifecycle, accessibility, environment order/default, arrows, white cue, exact `80 ms` hit removal, timing tiles, markers, miss/great behavior, and shadows.
+6. Preserve raw assembly `0.0.35–0.0.39` and asset raw/review `0.0.1–0.0.7`. Run coder→independent QA→independent auditor, then exactly one separately authorized immutable successor build, release QA/audit, secure review, and Derrick physical retest.
+
+### Durable execution chain
+
+- `mzz` — coder/contract implementation after Derrick approves this plan.
+- `9tf` — independent QA, blocked by `mzz`.
+- `s1q` — independent source auditor, blocked by `9tf`.
+- `iiv` — exactly one immutable successor builder, blocked by `s1q`.
+- `v4h` — independent successor release QA/audit, blocked by `iiv`; also blocks `k72.17`.
+- Dependency cycle check: none. No implementation starts until Derrick approves the proposed semantic adaptation and remaining playtest feedback is incorporated.
