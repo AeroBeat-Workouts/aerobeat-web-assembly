@@ -113,6 +113,11 @@ export class AeroGame extends HTMLElement {
     this.lastError = null;
     this.menuOpen = false;
     this.menuPauseArmed = false;
+    this.menuDisposition = "none";
+    this.menuTransitionGeneration = 0;
+    this.menuPauseTail = Promise.resolve();
+    this.terminalServiceTail = Promise.resolve();
+    this.terminalReconciledSessionGeneration = -1;
     this.menuStarting = false;
     this.sessionStartRequested = false;
     this.sessionGeneration = 0;
@@ -172,7 +177,7 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = "";
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
@@ -229,17 +234,19 @@ export class AeroGame extends HTMLElement {
 
   async start() { return this.startSession("play", { requireDownloaded: false }); }
 
-  /** Start or restart one exact purpose from song time zero. @param {"play"|"visual_test"} purpose @param {{requireDownloaded?:boolean}} [options] */
+  /** Start or restart one exact purpose from song time zero. @param {"play"|"visual_test"} purpose @param {{requireDownloaded?:boolean,transportAlreadySerialized?:boolean}} [options] */
   async startSession(purpose, options = {}) {
     this.assertConnected();
     if (purpose !== "play" && purpose !== "visual_test") throw new TypeError("Session purpose is invalid");
     this.stopPreview();
-    const connectionGeneration = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant; const previousTransportTail = this.transportIntentTail;
+    const connectionGeneration = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant; const previousTransportTail = this.transportIntentTail; const previousTerminalTail = this.terminalServiceTail; const previousMenuPauseTail = this.menuPauseTail;
     const sessionGeneration = ++this.sessionGeneration; const action = purpose === "visual_test" ? "test" : "start";
-    this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.audioSyncPending = false;
+    this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.audioSyncPending = false; this.terminalReconciledSessionGeneration = -1; this.menuDisposition = "none"; this.menuPauseArmed = false;
     this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
     try {
-      await previousTransportTail;
+      if (options.transportAlreadySerialized !== true) await previousTransportTail;
+      await previousMenuPauseTail;
+      await previousTerminalTail;
       if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
       if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
       if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
@@ -289,7 +296,7 @@ export class AeroGame extends HTMLElement {
     await Promise.allSettled([graph.audio.pause(), graph.cv.stop()]);
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
     graph.video.pause(this.videoElement());
-    try { graph.gameplay.pause(performance.now(), boundedString(reason, "manual")); this.synchronizePausedClock(graph); } catch { /* not configured */ }
+    try { graph.gameplay.pause(performance.now(), boundedString(reason, "manual")); if (graph.gameplay.getSnapshot().session.state === "paused_manual") this.synchronizePausedClock(graph); } catch { /* not configured */ }
     this.syncContentPlayback(); this.publish("session_changed");
     return this.getSnapshot();
   }
@@ -361,6 +368,11 @@ export class AeroGame extends HTMLElement {
   /** @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>} graph */
   async resumeVisualTestTransport(connectionGeneration, sessionGeneration, graph) {
     if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || document.hidden) return;
+    const session = graph.gameplay.getSnapshot().session; const durationMs = this.visualTestDurationMs(graph);
+    if (durationMs > 0 && Number(session.timelinePositionMs) >= durationMs) {
+      await this.startSession("visual_test", { requireDownloaded: false, transportAlreadySerialized: true });
+      return;
+    }
     await aeroGameMediaLeaseCoordinator.requestResources(this.leaseParticipant, Object.freeze(["audio"]));
     if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || document.hidden) return;
     graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
@@ -639,7 +651,7 @@ export class AeroGame extends HTMLElement {
       app: { version: appMetadata.packageVersion, buildStamp: appMetadata.buildStamp, cacheBust: appMetadata.cacheBust },
       lifecycle: this.lifecycle, generation: this.connectedGeneration, container: this.container,
       capabilities: this.capabilities(), fullscreen: this.fullscreenSnapshot(),
-      interaction: { menuOpen: this.menuOpen, menuPauseArmed: this.menuPauseArmed, menuStarting: this.menuStarting },
+      interaction: { menuOpen: this.menuOpen, menuDisposition: this.menuDisposition, menuPauseArmed: this.menuPauseArmed, menuStarting: this.menuStarting },
       iframe: this.bridge?.getSnapshot() ?? { schema: "aerobeat/iframe_bridge_snapshot", version: 1, framed: false, connected: false, parentOrigin: null },
       lease: aeroGameMediaLeaseCoordinator.snapshot(), cvProfile: lockedProductionCvProfile,
       services: graph ? {
@@ -678,7 +690,7 @@ export class AeroGame extends HTMLElement {
     const graph = this.graph; const generation = this.connectedGeneration;
     const participant = {
       instanceId: this.instanceId,
-      pauseForLease: async () => { if (!this.isCurrent(generation, graph)) return; this.stopFrameLoop(); await Promise.allSettled([graph.audio.pauseForLease(), graph.cv.stop()]); if (!this.isCurrent(generation, graph)) return; graph.video.pauseForLease(); graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot()); try { graph.gameplay.pause(performance.now(), "media_lease_transferred"); this.synchronizePausedClock(graph); } catch { /* not configured */ } this.syncContentPlayback(); },
+      pauseForLease: async () => { if (!this.isCurrent(generation, graph)) return; this.stopFrameLoop(); await Promise.allSettled([graph.audio.pauseForLease(), graph.cv.stop()]); if (!this.isCurrent(generation, graph)) return; graph.video.pauseForLease(); graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot()); try { graph.gameplay.pause(performance.now(), "media_lease_transferred"); if (graph.gameplay.getSnapshot().session.state === "paused_manual") this.synchronizePausedClock(graph); } catch { /* not configured */ } this.syncContentPlayback(); },
       activateLease: async (context) => { if (!this.isCurrent(generation, graph)) return; if (context?.resources.includes("camera")) graph.video.activateLease(); else graph.video.releaseLease({ releaseStream: false }); await graph.audio.activateLease(); },
       releaseLease: async () => { graph.video.releaseLease({ releaseStream: false }); await graph.audio.releaseLease(); }
     };
@@ -915,6 +927,7 @@ export class AeroGame extends HTMLElement {
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
       } catch { /* unconfigured session */ }
       this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); this.renderGameplay(graph); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
+      if (graph.gameplay.getSnapshot().session.state === "completed") void this.reconcileTerminalServices(graph);
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
       if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
       this.renderRuntimePresentation();
@@ -922,6 +935,25 @@ export class AeroGame extends HTMLElement {
   }
 
   stopFrameLoop() { const loop = this.frameLoop; this.frameLoop = null; this.frameTimer = 0; loop?.stop(); }
+
+  /** Quiesce a completed run exactly once without mutating terminal gameplay truth. */
+  reconcileTerminalServices(graph = this.graph) {
+    if (!graph || !this.isCurrent(this.connectedGeneration, graph) || graph.gameplay.getSnapshot().session.state !== "completed") return this.terminalServiceTail;
+    const sessionGeneration = this.sessionGeneration;
+    if (this.terminalReconciledSessionGeneration === sessionGeneration) return this.terminalServiceTail;
+    this.terminalReconciledSessionGeneration = sessionGeneration;
+    const connectionGeneration = this.connectedGeneration; const participant = this.leaseParticipant;
+    this.stopFrameLoop(); this.releaseDebugCameraControls(); graph.video.pause(this.videoElement());
+    this.terminalServiceTail = (async () => {
+      if (graph.audio.getStatus().state === "playing") await graph.audio.pause();
+      await graph.cv.stop();
+      await aeroGameMediaLeaseCoordinator.release(participant);
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return;
+      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+      this.activeCvSource = null; this.syncContentPlayback(); this.syncCameraPresentation(); this.renderPresenters(); this.publish("session_changed");
+    })().catch((error) => { if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) this.handleError(error); });
+    return this.terminalServiceTail;
+  }
 
   async applyVisibility() {
     if (!this.graph) return;
@@ -934,7 +966,7 @@ export class AeroGame extends HTMLElement {
       this.stopPreview();
       this.stopFrameLoop(); await graph.cv.stop();
       if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
-      try { graph.gameplay.pause(Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), "document_hidden"); this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
+      try { graph.gameplay.pause(Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), "document_hidden"); if (graph.gameplay.getSnapshot().session.state === "paused_manual") this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
     } else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
       graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
       const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
@@ -1609,21 +1641,34 @@ export class AeroGame extends HTMLElement {
 
   setMenuOpen(open, options = {}) {
     if (!this.graph || this.menuOpen === open) return;
-    const graph = this.graph; const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
+    const graph = this.graph; const session = graph.gameplay.getSnapshot().session; const visualTest = session.purpose === "visual_test"; const transitionGeneration = ++this.menuTransitionGeneration;
     if (open) {
       this.menuFocusRestore = this.menuButtonElement();
-      this.menuOpen = true; this.menuPauseArmed = true;
-      const now = Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0));
-      if (!visualTest) graph.input.resetCalibration("menu_open");
-      try { graph.gameplay.pause(now, "configuration_menu"); this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
-      void Promise.allSettled([graph.audio.pause(), graph.cv.stop()]).then(() => { if (this.graph !== graph) return; try { this.synchronizePausedClock(graph); } catch { /* unconfigured */ } });
+      this.menuOpen = true; this.menuPauseArmed = false;
+      if (session.state === "completed" || session.state === "stopped") {
+        this.menuDisposition = "terminal";
+        this.menuPauseTail = this.reconcileTerminalServices(graph);
+      } else {
+        this.menuDisposition = "active-paused";
+        const now = Math.max(performance.now(), Number(session.timestampMs ?? 0));
+        if (!visualTest) graph.input.resetCalibration("menu_open");
+        try { graph.gameplay.pause(now, "configuration_menu"); } catch { /* unconfigured */ }
+        this.menuPauseTail = Promise.allSettled([graph.audio.pause(), graph.cv.stop()]).then(() => {
+          if (!this.isCurrent(this.connectedGeneration, graph)) return;
+          try { this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
+          if (this.menuOpen && this.menuTransitionGeneration === transitionGeneration && this.menuDisposition === "active-paused") { this.menuPauseArmed = true; this.renderPresenters(); }
+        });
+      }
     } else {
       this.stopPreview();
-      this.menuOpen = false; this.menuPauseArmed = true;
-      if (options.freshSession !== true) {
-        if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph); }
-        else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)); }
-      }
+      const disposition = this.menuDisposition; const pauseTail = this.menuPauseTail;
+      this.menuOpen = false; this.menuPauseArmed = false; this.menuDisposition = "none";
+      if (options.freshSession !== true && disposition === "active-paused") void pauseTail.then(() => {
+        if (!this.isCurrent(this.connectedGeneration, graph) || this.menuOpen || this.menuTransitionGeneration !== transitionGeneration) return;
+        this.menuPauseArmed = true;
+        if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
+        else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
+      });
     }
     this.renderPresenters(); this.publish("session_changed");
     queueMicrotask(() => requestAnimationFrame(() => {
@@ -1657,7 +1702,6 @@ export class AeroGame extends HTMLElement {
       await this.startSession(purpose, { requireDownloaded: true });
       const expectedAction = purpose === "visual_test" ? "test" : "start";
       if (!this.isCurrent(generation, graph) || !this.sessionStartRequested || this.activeSessionAction !== expectedAction) return;
-      this.menuPauseArmed = true;
       this.setMenuOpen(false, { freshSession: true });
     } catch (error) { if (this.isCurrent(generation, graph)) { this.handleError(error); this.menuOpen = true; this.renderPresenters(); } }
   }

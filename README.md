@@ -99,6 +99,8 @@ The child owns fullscreen and requests it only from a child UI gesture. Parent p
 
 Disconnect/destroy aborts current work, unregisters listeners/observers/bridge, releases the media lease, cancels Worker/fetch/CV generations, destroys input/gameplay/content/renderer services, and tears down audio/video ownership. Late completions cannot publish through the invalidated connection generation. Reconnecting the same element creates a new graph.
 
+Completion is a between-run state, never an ordinary resumable menu pause. Menu state records an explicit `active-paused` or `terminal` disposition; `menuPauseArmed` becomes true only after the active pause has settled and is consumed on close. Terminal close never starts audio, gameplay, CV, video, or a media lease. A completed Visual Test may seek backward into an exact `paused_manual` timeline. Pressing Play at exact duration intentionally performs a fresh zero-time Visual Test generation, while explicit Start/Test first await stale transport and terminal reconciliation, quiesce old media, seek zero, configure selected content, clear run truth through a fresh gameplay generation, and reacquire only camera+audio for Play or audio-only for Test.
+
 ## Portable integrity and exact source pins
 
 Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-web-hash"` link so Vite resolves one audited implementation into both the main Window bundle and the real module Worker bundle. The shared implementation retains native WebCrypto only as an exact fast path and bundles deterministic incremental SHA-1/SHA-256 fallback code; production has no external hash URL, dynamic network acquisition, WASM hashing path, or integrity skip. Exact release fingerprinting binds both recursive source bytes and the following Git commit/tree provenance, rather than trusting lockfile text alone:
@@ -109,9 +111,9 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-vendor-beatsaver` | `4d2479df0d4b12305cc8190dbe918995abae5d03` | `40c8055acab241614272fb922a51c1d092e6dd08` |
 | `@aerobeat/web-content-authoring` | `5a2fb2e26b5c4dffd1d624c4806bb5c83d31c039` | `7221fc5379cea44649dae4870a366ebfaabc41a4` |
 | `@aerobeat/web-content` | `174631f5d64aa03415c7060bc8fe32b9db293656` | `2dfb42118be383e24654b4336752ab1f60830d58` |
-| `@aerobeat/web-audio` | `2bd5c6bc96d001f9755b6d8b2a79c57cd8e196f1` | `4bb2a110ddeab77559d1f7ffcf5d3e348a93f027` |
+| `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
 | `@aerobeat/web-renderer` | `1ba6d281865dfdd84ac08b3c48d4808302215856` | `db80530c4ee957bacda73f3554809728e7968a88` |
-| `@aerobeat/web-gameplay` | `b775a8790bb86ea8ad16394ee57d0731c5bbf7d8` | `1435b15f9a85616e340e471ca37cc26ce321bda7` |
+| `@aerobeat/web-gameplay` | `a8f3400384b1adcece82bda202c02623194ce8f2` | `ee14aebaf031ecb90e5d975e5e7b2d879d6d7b9a` |
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Lanes/Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 
