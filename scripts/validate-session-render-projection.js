@@ -105,9 +105,18 @@ assert.deepEqual(projectSessionTargets([boxingEvents[1]],testTruth,1100),project
 assert.equal(projectSessionTargets(events,playSession,0).length,2);
 assert.equal(projectSessionTargets(Array.from({length:200},(_,index)=>({eventId:`event-${index}`,centerTimestampMs:index,authoredBeat:{type:"note"}})),testTruth,0).length,128,"projection remains bounded");
 
-const parityEvents=Object.freeze([...Array.from({length:5000},(_,index)=>Object.freeze({eventId:`parity-${String(index).padStart(4,"0")}`,centerTimestampMs:index*17,authoredBeat:Object.freeze({type:index%29===0?"bomb":"note",placement:index%12,hand:index%2?"right":"left",direction:index%8})})),longObstacle,...boxingEvents].reverse());
+const PARITY_GENERATED_EVENT_COUNT=5997;
+const PARITY_CORPUS_COUNT=6003;
+const parityEvents=Object.freeze([...Array.from({length:PARITY_GENERATED_EVENT_COUNT},(_,index)=>Object.freeze({eventId:`parity-${String(index).padStart(4,"0")}`,centerTimestampMs:index*17,authoredBeat:Object.freeze({type:index%29===0?"bomb":"note",placement:index%12,hand:index%2?"right":"left",direction:index%8})})),longObstacle,...boxingEvents].reverse());
+assert.equal(parityEvents.length,PARITY_CORPUS_COUNT,"acceptance corpus must contain exactly 6,003 identities");
+assert.equal(new Set(parityEvents.map((event)=>event.eventId)).size,PARITY_CORPUS_COUNT,"all 6,003 acceptance-corpus event identities must be unique");
+assert.deepEqual(parityEvents.slice(0,6).map((event)=>event.eventId),["squat","guard","weave-right","weave-left","punch-left","long-obstacle"],"reversed corpus must retain the explicit Flow plus Boxing boundary identities");
+assert.equal(parityEvents.at(-1)?.eventId,"parity-0000","reversed generated corpus identity/order sentinel must remain exact");
 const parityIndex=createSessionTargetIndex(parityEvents);
-const farCommitTruth=Object.freeze({...playSession,judgements:Object.freeze([{eventId:"parity-4999",result:"hit",shadow:false,committedTimelinePositionMs:120000}])});
-for(const truth of [playSession,testTruth,farCommitTruth,noObstacleTruth,contactTruth])for(const nowMs of [-2500,0,531,2500,120000,120175,120350,120351,40000,85000])assert.equal(JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs,parityIndex)),JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs)),`indexed projection must preserve exact target bytes/order at ${nowMs}/${truth.session.purpose}`);
-assert.equal(createSessionTargetIndex(parityEvents).orderedEntries.length,parityEvents.length,"pre-index retains every event exactly once");
-console.log("Real 350 ms feedback, lane cue semantics, Grid cells, byte/order-identical indexed windows, and unscored alternating visual Test projection passed.");
+const farCommitTruth=Object.freeze({...playSession,judgements:Object.freeze([{eventId:`parity-${PARITY_GENERATED_EVENT_COUNT-1}`,result:"hit",shadow:false,committedTimelinePositionMs:120000}])});
+const parityTimes=Object.freeze([-2500,-0.001,0,0.001,531,999.999,1000,1000.001,1099.999,1100,1100.001,1199.999,1200,1200.001,1399.999,1400,1400.001,1999.999,2000,2000.001,2500,120000,120175,120350,120351,40000,85000]);
+let parityComparisons=0;
+for(const truth of [playSession,testTruth,farCommitTruth,noObstacleTruth,contactTruth])for(const nowMs of parityTimes){assert.equal(JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs,parityIndex)),JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs)),`indexed projection must preserve exact target bytes/order at ${nowMs}/${truth.session.purpose}`);parityComparisons+=1;}
+assert.equal(parityComparisons,5*parityTimes.length,"every declared session/boundary parity row must execute");
+assert.equal(createSessionTargetIndex(parityEvents).orderedEntries.length,PARITY_CORPUS_COUNT,"pre-index retains every one of the exact 6,003 events once");
+console.log(`ORACLE indexed-full-projection-parity PASS: corpus=${PARITY_CORPUS_COUNT}, unique=${PARITY_CORPUS_COUNT}, comparisons=${parityComparisons}, generatedNotesBombs=${PARITY_GENERATED_EVENT_COUNT}, continuousFlow=1, boxingIntervals=${boxingEvents.filter((event)=>event.authoredBeat.type==="weave_left"||event.authoredBeat.type==="weave_right"||event.authoredBeat.type==="squat").length}`);

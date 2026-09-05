@@ -12,6 +12,18 @@ import { createBrowserVideoMediaFacade } from "@aerobeat/web-video";
 import { createLockedProductionCvService } from "./production-cv-service.js";
 export { lockedProductionCvProfile } from "./production-cv-profile.js";
 
+/** Exact production adapter factory; exported only for screenshot-free acceptance inspection. */
+export function createLockedProductionPoseAdapter() {
+  return createMediaPipeWorkerPoseAdapter({
+    sourceId: mediaPipeLiveSourceId,
+    mirrored: true,
+    delegate: mediaPipeDelegates.cpuWasm,
+    minPoseDetectionConfidence: 0.5,
+    minPosePresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+}
+
 /** @typedef {ReturnType<typeof createAeroGameServiceGraph>} AeroGameServiceGraph */
 
 /** Create a complete, isolated service graph for one connected game instance. */
@@ -23,14 +35,7 @@ export function createAeroGameServiceGraph(options = {}) {
     readAsset: (handle, path) => authoring.readAsset(handle, path),
     exportPackage: (handle) => authoring.exportPackage(handle)
   }});
-  const poseAdapter = createMediaPipeWorkerPoseAdapter({
-    sourceId: mediaPipeLiveSourceId,
-    mirrored: true,
-    delegate: mediaPipeDelegates.cpuWasm,
-    minPoseDetectionConfidence: 0.5,
-    minPosePresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5
-  });
+  const poseAdapter = createLockedProductionPoseAdapter();
   const video = createBrowserVideoMediaFacade();
   const audio = createAeroWebAudioService({ initialLeaseActive: false });
   const cv = createLockedProductionCvService({ poseAdapter, submissionCadenceTargetFps: 15 });

@@ -7,6 +7,7 @@ import { isAeroGameIframeValueWithinLimits } from "../src/iframe-bridge.js";
 import { AeroGameMediaLeaseCoordinator } from "../src/media-lease-coordinator.js";
 import { createLockedProductionCvService } from "../src/production-cv-service.js";
 import { lockedProductionCvProfile } from "../src/production-cv-profile.js";
+import { createLockedProductionPoseAdapter } from "../src/service-graph.js";
 
 const source = readFileSync("src/index.js", "utf8");
 const projectionSource = readFileSync("src/session-render-projection.js", "utf8");
@@ -22,6 +23,10 @@ assert.deepEqual(lockedProductionCvProfile, {
   providerId: "cpu-wasm", executionLocation:"worker", minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
   trackingProfile: "fast", performancePresetId: "full", resizePath: "none", gameplaySource: "measured", submissionCadenceTargetFps: 15
 });
+const productionPoseAdapter=createLockedProductionPoseAdapter();
+assert.deepEqual(productionPoseAdapter.getExecutionStatus(),{mode:"worker",delegate:"cpu-wasm",detail:"MediaPipe Tasks Vision CPU/WASM in dedicated classic worker / thresholds detection 0.5 presence 0.5 tracking 0.5"},"production must construct the inspected CPU-WASM worker adapter, not only describe it in profile metadata");
+assert.deepEqual(productionPoseAdapter.getExecutionTelemetry(),{location:"worker",provider:undefined,detail:"MediaPipe Tasks Vision CPU/WASM in dedicated classic worker / thresholds detection 0.5 presence 0.5 tracking 0.5",fallback:false,loadDurationMs:undefined,estimateDurationMs:undefined,runtimeInferenceDurationMs:undefined,postprocessDurationMs:undefined,workerRoundTripDurationMs:undefined,transferFrameType:undefined});
+await productionPoseAdapter.dispose();
 const exactBridgeBytes = [...Array.from({ length: 7 }, () => "x".repeat(8192)), "x".repeat(8167)];
 assert.equal(new TextEncoder().encode(JSON.stringify(exactBridgeBytes)).byteLength, 64 * 1024); assert.equal(isAeroGameIframeValueWithinLimits(exactBridgeBytes), true);
 exactBridgeBytes[7] += "x"; assert.equal(isAeroGameIframeValueWithinLimits(exactBridgeBytes), false);
