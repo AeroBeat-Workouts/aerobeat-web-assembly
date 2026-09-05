@@ -39,6 +39,9 @@ export function projectSessionTargets(events, gameplay, nowMs) {
       if (modifiers.includes("no_obstacles")) continue;
       const target = flowObstacleTarget(event, beat, nowMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
       if (target) targets.push(target);
+    } else if (type === "squat" || type === "weave_left" || type === "weave_right") {
+      const target = boxingObstacleTarget(event, beat, type, nowMs);
+      if (target) targets.push(target);
     } else if (type === "bomb") {
       const target = flowBombTarget(event, beat, nowMs);
       if (target) targets.push(target);
@@ -79,6 +82,20 @@ function flowObstacleTarget(event, beat, nowMs, outcome) {
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
 }
 
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {string} type @param {number} nowMs */
+function boxingObstacleTarget(event, beat, type, nowMs) {
+  const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
+  const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
+  const gridMask = recordValue(beat, "gridMask"); const blockedCells = recordValue(beat, "blockedCells"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
+  if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry) || !sameCells(blockedCells, gridMask)) return null;
+  if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
+  const weaveHand = type === "weave_left" ? "left" : type === "weave_right" ? "right" : null;
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:weaveHand ?? "neutral", family:type === "squat" ? "squat" : "weave", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:weaveHand, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs };
+}
+
+/** @param {unknown} left @param {unknown} right */
+function sameCells(left, right) { return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((cell, index) => Number.isInteger(cell) && cell === right[index]); }
+
 /** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs */
 function flowBombTarget(event, beat, nowMs) {
   const centerMs = optionalFiniteNumber(recordValue(event, "centerTimestampMs"));
@@ -95,14 +112,13 @@ function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgre
   const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) };
   if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...feedback };
   if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...feedback }; }
-  if (type === "squat" || type.startsWith("weave")) { const blockedCells = recordValue(beat, "blockedCells"); const weaveHand = type === "weave_left" ? "left" : type === "weave_right" ? "right" : null; return { id: eventId, kind: "obstacle", hand: weaveHand ?? "neutral", family: type === "squat" ? "squat" : "weave", cell: null, cells: Array.isArray(blockedCells) ? blockedCells : [], lane: weaveHand, beatCenterMs, ...feedback }; }
   if (!BOXING_PUNCH_TYPES.has(type)) return null;
   const hand = type.endsWith("right") ? "right" : "left"; const family = type.startsWith("hook") ? "hook" : type.startsWith("uppercut") ? "uppercut" : "straight"; const spatialTarget = recordValue(beat, "spatialTarget");
   return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...feedback };
 }
 
 /** @param {string} type */
-function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || type === "squat" || type.startsWith("weave") || BOXING_PUNCH_TYPES.has(type); }
+function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || BOXING_PUNCH_TYPES.has(type); }
 /** @param {Record<string, unknown>} event */
 function authoredBeatFor(event) { const value = recordValue(event, "authoredBeat"); return isRecord(value) ? value : {}; }
 /** @param {unknown} value */

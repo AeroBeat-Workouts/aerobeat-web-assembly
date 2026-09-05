@@ -85,19 +85,22 @@ const omittedFlowNonNotes=Object.freeze(["arc","burst"].map((type,index)=>Object
 assert.deepEqual(projectSessionTargets(omittedFlowNonNotes,testTruth,900),[],"Flow arc/burst remain explicitly omitted rather than misprojected as Boxing punches");
 assert.deepEqual(projectSessionTargets([{eventId:"unknown",centerTimestampMs:1000,authoredBeat:{type:"future_unknown"}}],testTruth,900),[],"unrecognized authored types cannot reach the recognized-only Boxing punch branch");
 
+function boxingObstacleEvent(eventId,centerTimestampMs,type,geometry){const gridMask=Object.freeze(Array.from({length:geometry.width*geometry.height},(_,index)=>(geometry.y+Math.floor(index/geometry.width))*4+geometry.x+index%geometry.width));return Object.freeze({eventId,centerTimestampMs,intervalStartTimestampMs:centerTimestampMs,intervalEndTimestampMs:centerTimestampMs+200,authoredBeat:Object.freeze({start:centerTimestampMs/1000,end:(centerTimestampMs+200)/1000,type,sourceGeometry:Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v3_obstacle_rect",kind:"v3_rect",...geometry}),gameplayGeometry:Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",...geometry}),gridMask,blockedCells:gridMask,checkpoint:Object.freeze({kind:"instantaneous",freshnessMs:150,timingWindowMs:180,noseSafeCells:Object.freeze(Array.from({length:12},(_,cell)=>cell).filter((cell)=>!gridMask.includes(cell)))})})});}
 const boxingEvents = Object.freeze([
   Object.freeze({ eventId:"punch-left",centerTimestampMs:1000,authoredBeat:Object.freeze({type:"hook_left",spatialTarget:Object.freeze({targetCell:5,entryDirection:"up"})}) }),
-  Object.freeze({ eventId:"weave-left",centerTimestampMs:1100,authoredBeat:Object.freeze({type:"weave_left",blockedCells:Object.freeze([0,1,4,5])}) }),
-  Object.freeze({ eventId:"weave-right",centerTimestampMs:1200,authoredBeat:Object.freeze({type:"weave_right",blockedCells:Object.freeze([2,3,6,7])}) }),
+  boxingObstacleEvent("weave-left",1100,"weave_left",{x:2,y:0,width:2,height:2}),
+  boxingObstacleEvent("weave-right",1200,"weave_right",{x:0,y:0,width:2,height:2}),
   Object.freeze({ eventId:"guard",centerTimestampMs:1300,authoredBeat:Object.freeze({type:"guard",guardTarget:Object.freeze({leftCell:4,rightCell:7})}) }),
-  Object.freeze({ eventId:"squat",centerTimestampMs:1400,authoredBeat:Object.freeze({type:"squat",blockedCells:Object.freeze([8,9,10,11])}) })
+  boxingObstacleEvent("squat",1400,"squat",{x:0,y:2,width:4,height:1})
 ]);
 const boxing = projectSessionTargets(boxingEvents,playSession,900);
 assert.equal(boxing.find((entry)=>entry.id==="punch-left")?.lane,"left","punch lane follows authored hand");
-assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-left")?.hand,lane:boxing.find((entry)=>entry.id==="weave-left")?.lane,cells:boxing.find((entry)=>entry.id==="weave-left")?.cells},{hand:"left",lane:"left",cells:[0,1,4,5]},"left weave keeps directional lane and exact Grid blocked cells");
-assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-right")?.hand,lane:boxing.find((entry)=>entry.id==="weave-right")?.lane,cells:boxing.find((entry)=>entry.id==="weave-right")?.cells},{hand:"right",lane:"right",cells:[2,3,6,7]},"right weave keeps directional lane and exact Grid blocked cells");
+assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-left")?.hand,lane:boxing.find((entry)=>entry.id==="weave-left")?.lane,cells:boxing.find((entry)=>entry.id==="weave-left")?.cells},{hand:"left",lane:"left",cells:[2,3,6,7]},"left weave keeps directional lane and exact Grid blocked cells");
+assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-right")?.hand,lane:boxing.find((entry)=>entry.id==="weave-right")?.lane,cells:boxing.find((entry)=>entry.id==="weave-right")?.cells},{hand:"right",lane:"right",cells:[0,1,4,5]},"right weave keeps directional lane and exact Grid blocked cells");
 assert.deepEqual({lane:boxing.find((entry)=>entry.id==="guard")?.lane,cells:boxing.find((entry)=>entry.id==="guard")?.cells},{lane:null,cells:[4,7]},"guard remains neutral for lane duplication and preserves Grid cells");
 assert.deepEqual({hand:boxing.find((entry)=>entry.id==="squat")?.hand,lane:boxing.find((entry)=>entry.id==="squat")?.lane,cells:boxing.find((entry)=>entry.id==="squat")?.cells},{hand:"neutral",lane:null,cells:[8,9,10,11]},"squat remains neutral for lane duplication and preserves Grid cells");
+for(const target of boxing.filter((entry)=>entry.kind==="obstacle")){assert.ok(target.sourceGeometry&&target.gameplayGeometry&&target.intervalEndMs-target.intervalStartMs===200,"Boxing projection must privately retain source/gameplay geometry and exact interval");assert.equal(target.judgement,undefined,"Boxing walls never receive Flow or synthetic continuous outcomes");}
+assert.deepEqual(projectSessionTargets([boxingEvents[1]],testTruth,1100),projectSessionTargets([boxingEvents[1]],playSession,1100),"unranked Test must project the same feedback-free Boxing wall without gameplay truth");
 
 assert.equal(projectSessionTargets(events,playSession,0).length,2);
 assert.equal(projectSessionTargets(Array.from({length:200},(_,index)=>({eventId:`event-${index}`,centerTimestampMs:index,authoredBeat:{type:"note"}})),testTruth,0).length,128,"projection remains bounded");

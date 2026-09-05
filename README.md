@@ -17,6 +17,8 @@ There is no `aerobeat-app` alias.
 
 ## Public API
 
+Assembly keeps provider obstacle geometry, normalized gameplay geometry, intervals, masks, and calibrated checkpoint evidence inside the private content→gameplay→renderer service graph. Boxing projections render the canonical continuous wall without exporting obstacle/body evidence through snapshots, events, iframe messages, telemetry, or persistence; Semantic Track remains action-only, Spatial Grid remains action-plus-instantaneous nose-safe checkpoint, and Test remains unranked.
+
 Each connected game exposes serializable `getSnapshot()` state and these direct commands:
 
 - `configure(options)`
@@ -45,7 +47,7 @@ Assembly passes the calibrated marker request as `sizeCssPx: 18` in both direct 
 
 ### Owned photosphere runtime catalog
 
-The versioned `assets/environments/` payload contains an ordered catalog of eight AeroBeat-controlled RGB `4096 × 2048` equirectangular JPEGs, each with one exact JSON default config and one rights/source manifest (24 files total) from clean environment commit `c8fedde5a940c93b6e4d9fa35d5eba43ca3e6e23`. Assembly is pinned to clean renderer commit `39f6c11b9a47061d5f4e40282ee2432864000e64`, gameplay package commit `cbc32686b375076dd7af60a37e3cd8f6bd51dec2`, gameplay asset source `7dec076e243571144b7ead638d3e3f4780bcb9f4`, and exact immutable gameplay `0.0.7` tree `846c41297230b5077ab1119880b729cc120e1098`. `npm run sync:environment-assets` copies only that catalog-derived inventory, and `npm run verify:environment-assets` fails closed on source commit, catalog identity/order, file membership, bytes, or hashes. Alpine River Valley is the default. Snow Mountain with Lake and Igloo Toon are labeled as comparisons with source artifacts rather than represented as artifact-free conversions.
+The versioned `assets/environments/` payload contains an ordered catalog of eight AeroBeat-controlled RGB `4096 × 2048` equirectangular JPEGs, each with one exact JSON default config and one rights/source manifest (24 files total) from clean environment commit `c8fedde5a940c93b6e4d9fa35d5eba43ca3e6e23`. Assembly is pinned to clean renderer commit `777b1998ef558915054079a168742242a531c2f6`, gameplay package commit `b775a8790bb86ea8ad16394ee57d0731c5bbf7d8`, gameplay asset source `7dec076e243571144b7ead638d3e3f4780bcb9f4`, and exact immutable gameplay `0.0.7` tree `846c41297230b5077ab1119880b729cc120e1098`. `npm run sync:environment-assets` copies only that catalog-derived inventory, and `npm run verify:environment-assets` fails closed on source commit, catalog identity/order, file membership, bytes, or hashes. Alpine River Valley is the default. Snow Mountain with Lake and Igloo Toon are labeled as comparisons with source artifacts rather than represented as artifact-free conversions.
 
 Visual Test exposes the private per-instance environment authoring controls. The eight-entry selector retains one live config per environment with bounded position X/Y/Z, pitch/yaw/roll, and uniform **Sphere radius scale** controls. Config load/save uses strict schema `aerobeat/environment_asset_config` version 1 JSON, a 16 KiB local limit, deterministic `<id>.environment-config.v1.json` bytes, trusted local activation, and no storage, public snapshot/event/message, upload, or telemetry surface. Every switch applies its remembered transform before selecting the asset. Computed Camera composition hides the current environment behind retained mirrored video; Aero restores that same selection/config without mutating the stored background preference or retaining an eight-texture cache. Disconnect/reconnect and separate elements receive fresh independent defaults, pickers, collapse state, and renderer ownership.
 
@@ -105,11 +107,11 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 |---|---|---|
 | `@aerobeat/web-hash` | `be7249b0bdfffcab568b760c1b582bfe2a0c1e92` | `b423c6742c07f56dde196d9f60f2e23c51ad913c` |
 | `@aerobeat/web-vendor-beatsaver` | `4d2479df0d4b12305cc8190dbe918995abae5d03` | `40c8055acab241614272fb922a51c1d092e6dd08` |
-| `@aerobeat/web-content-authoring` | `403f1e2d8673bef34d460dc51bb32d2909c6a567` | `2d713088c1867feb3b48d92d5d607931a1b447fa` |
-| `@aerobeat/web-content` | `ac2d41add88ec9a0a5e044ca5888243e3b9874f4` | `5935a9949ee9cde32f63644127edeb4e543ab305` |
+| `@aerobeat/web-content-authoring` | `5a2fb2e26b5c4dffd1d624c4806bb5c83d31c039` | `7221fc5379cea44649dae4870a366ebfaabc41a4` |
+| `@aerobeat/web-content` | `174631f5d64aa03415c7060bc8fe32b9db293656` | `2dfb42118be383e24654b4336752ab1f60830d58` |
 | `@aerobeat/web-audio` | `2bd5c6bc96d001f9755b6d8b2a79c57cd8e196f1` | `4bb2a110ddeab77559d1f7ffcf5d3e348a93f027` |
-| `@aerobeat/web-renderer` | `39f6c11b9a47061d5f4e40282ee2432864000e64` | `59e1fac7cb4382a79a7b12cc1d30bf0b210e2d3a` |
-| `@aerobeat/web-gameplay` | `cbc32686b375076dd7af60a37e3cd8f6bd51dec2` | `07b4fb264966e34ffeb76a8ba8510e37ae0a293d` |
+| `@aerobeat/web-renderer` | `777b1998ef558915054079a168742242a531c2f6` | `54082c3a7f2db62526b358042ae816691409ea83` |
+| `@aerobeat/web-gameplay` | `b775a8790bb86ea8ad16394ee57d0731c5bbf7d8` | `1435b15f9a85616e340e471ca37cc26ce321bda7` |
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Lanes/Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 

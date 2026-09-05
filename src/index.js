@@ -963,9 +963,8 @@ export class AeroGame extends HTMLElement {
     const presentation = rendererPresentationForVariant(selected);
     const events = Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
     const targets = projectSessionTargets(events, gameplay, nowMs);
-    const blockedCells = presentation === "boxing_spatial_grid" ? Object.freeze([...new Set(targets.filter((target) => target.kind === "obstacle").flatMap((target) => target.cells).filter((cell) => Number.isInteger(cell) && cell >= 0 && cell < 12))]) : undefined;
     return {
-      presentation, nowMs, targets, blockedCells,
+      presentation, nowMs, targets,
       timingWindowBeforeMs: prototypeJudgementDefaults.timingWindowBeforeMs,
       timingWindowAfterMs: prototypeJudgementDefaults.timingWindowAfterMs,
       countdown: null, overlay: "none", calibrationDim: 0
