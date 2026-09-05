@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "asset_id": "luminious-ice-cave-photosphere",
+  "asset_role": "AeroBeat-controlled lightweight equirectangular photosphere source",
+  "source": {
+    "path": ".testbed/assets/splats/luminious-ice-cave/luminious-ice-cave.compressed.ply",
+    "sha256": "a5732239888a0c6967d85693b504248733dbd48e7981cf39a348c32badc3c56a",
+    "bytes": 55619663,
+    "point_count": 2200000,
+    "aabb": {
+      "position": [-13.19479, -6.108843, -20.97153],
+      "size": [42.97656, 9.789062, 77.45679]
+    }
+  },
+  "capture": {
+    "tool": ".testbed/tools/photosphere/capture_cubemap.gd",
+    "scene": ".testbed/tools/photosphere/capture_cubemap.tscn",
+    "viewpoint": [0.0, 0.0, 4.0],
+    "selected_preview_target": [0.0, 0.0, 0.0],
+    "selected_preview_forward": [0.0, 0.0, -1.0],
+    "vertical_fov_degrees": 90.0,
+    "face_dimensions": [1920, 1920],
+    "face_order": ["pos_x", "neg_x", "pos_y", "neg_y", "pos_z", "neg_z"],
+    "face_forward_up": {
+      "pos_x": {"forward": [1, 0, 0], "up": [0, 1, 0]},
+      "neg_x": {"forward": [-1, 0, 0], "up": [0, 1, 0]},
+      "pos_y": {"forward": [0, 1, 0], "up": [0, 0, 1]},
+      "neg_y": {"forward": [0, -1, 0], "up": [0, 0, -1]},
+      "pos_z": {"forward": [0, 0, 1], "up": [0, 1, 0]},
+      "neg_z": {"forward": [0, 0, -1], "up": [0, 1, 0]}
+    },
+    "load_count": 1,
+    "ui_rendered": false,
+    "required_execution": "visible Vulkan Forward+; headless is unsupported because GDGS draw completion does not arrive reliably",
+    "versions": {
+      "godot": "4.6.2.stable.official.71f334935",
+      "gdgs_upstream": "2.2.0",
+      "aerobeat_vendor_gdgs_commit": "f5d5e1b6d580ba1342022d1ceac8ac982f9597fb",
+      "gpu": "NVIDIA GeForce RTX 3080",
+      "gpu_driver": "580.173.02",
+      "vulkan_reported_by_godot": "1.4.312",
+      "rendering_method": "forward_plus",
+      "rendering_driver": "vulkan",
+      "display_server": "X11"
+    }
+  },
+  "stitch": {
+    "tool": ".testbed/tools/photosphere/cube_to_equirect.py",
+    "mapping": "longitude wraps horizontally; -Z is center, +X is right quarter, -X is left quarter, +Z is wrap seam, +Y/-Y are poles",
+    "sampling": "bilinear RGB sampling with half-texel pixel-center convention and face-edge clamp",
+    "versions": {
+      "python": "3.14.2",
+      "pillow": "12.1.0",
+      "numpy": "2.4.2"
+    }
+  },
+  "output": {
+    "path": ".testbed/assets/images/luminious-ice-cave-photosphere/luminious-ice-cave-photosphere.jpg",
+    "dimensions": [4096, 2048],
+    "mode": "RGB",
+    "encoding": "JPEG",
+    "color_space": "sRGB",
+    "jpeg": {
+      "quality": 92,
+      "subsampling": 0,
+      "optimize": false,
+      "progressive": false
+    },
+    "sha256": "ff142b3ce3d3509ab3cfafcfc6a8cc2d3b0ff737852072d3a7aea8075478eed5",
+    "bytes": 2210289,
+    "orientation": {
+      "yaw_degrees": 0.0,
+      "pitch_degrees": 0.0,
+      "roll_degrees": 0.0,
+      "center_forward": [0.0, 0.0, -1.0]
+    }
+  },
+  "derivative_chain": [
+    "Pinned purchased compressed PLY source",
+    "One visible Forward+/Vulkan GDGS load and six transient square lossless PNG face captures",
+    "Deterministic offline cube-to-equirect bilinear stitch",
+    "Pinned canonical 4096x2048 RGB JPEG",
+    "Downscaled review panorama and labeled cubemap cross"
+  ],
+  "review": {
+    "folder": ".plans/review/2026-09-03-luminious-ice-cave-photosphere",
+    "record": "stitch-report.json",
+    "full_resolution_faces_retained": false,
+    "reproducibility_limit": "The six full-resolution GPU face PNGs are intentionally omitted to avoid retaining roughly 20 MB of intermediate evidence. Their exact hashes and byte sizes remain in stitch-report.json, but those bytes cannot be reconstructed from hashes. The offline stitch is deterministic for fixed face bytes and pinned versions; a fresh GDGS/GPU capture can vary because device rendering, splat sorting, and driver behavior are not guaranteed byte-deterministic."
+  },
+  "validation": {
+    "tool": ".testbed/tools/photosphere/validate_photosphere.py",
+    "continuity_thresholds": {
+      "seam_mean_rgb_delta": 5.0,
+      "seam_p95_rgb_delta": 16.0,
+      "pole_top_channel_spread": 3.0,
+      "pole_bottom_channel_spread": 3.0
+    }
+  },
+  "rights": {
+    "control": "This selected splat and this photosphere derivative are commercially controlled by AeroBeat.",
+    "derrick_statement": "Derrick explicitly stated that the selected generated-and-purchased luminious-ice-cave splat and its derivatives may be used commercially without attribution.",
+    "attribution_required": false,
+    "repository_license_exception": "This asset is not licensed under the repository's currently defective root CC BY-NC text.",
+    "scope_limit": "This records only Derrick's stated commercial-use-without-attribution right for the selected splat and derivatives. It does not claim public sublicensing rights or any broader grant."
+  }
+}
