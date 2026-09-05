@@ -8,7 +8,7 @@ const result = await build({ configFile: "vite.config.js", logLevel: "silent", b
 const outputs = (Array.isArray(result) ? result : [result]).flatMap((entry) => entry.output);
 const evidence = validateProductionHashBundle(outputs);
 assert.ok(evidence.scripts >= 2, "main and module Worker JavaScript must both be production bundled");
-assert.ok(evidence.sharedAttributions.some((fileName) => /(?:^|\/)index(?:-[\w]+)?\.js$/u.test(fileName)), "main entry must own shared hashing");
-assert.ok(evidence.sharedAttributions.some((fileName) => /(?:^|\/)conversion-worker(?:-[\w]+)?\.js$/u.test(fileName)), "conversion Worker must own shared hashing");
+assert.ok(evidence.sharedAttributions.some((fileName) => /(?:^|\/)index(?:-[A-Za-z0-9_-]+)?\.js$/u.test(fileName)), "main entry must own shared hashing");
+assert.ok(evidence.sharedAttributions.some((fileName) => /(?:^|\/)conversion-worker(?:-[A-Za-z0-9_-]+)?\.js$/u.test(fileName)), "conversion Worker must own shared hashing");
 assert.equal(outputs.some((output) => output.fileName.endsWith(".wasm")), false, "production build must contain no WASM");
 console.log(`Production hash bundle ownership passed: ${evidence.scripts} scripts, ${evidence.sourceMaps} deduplicated maps, exact ${evidence.sharedAttributions.join(" + ")} ownership.`);

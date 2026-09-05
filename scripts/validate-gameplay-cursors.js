@@ -71,7 +71,7 @@ async function runContext(context) {
     assert(frame.serviceId==="aero.renderer.playcanvas",`${label} must use the PlayCanvas renderer: ${JSON.stringify(frame)}`);
     assert(frame.call.cursors.length===3&&JSON.stringify(frame.call.cursors.map((cursor)=>cursor.role))===JSON.stringify(["nose","left_wrist","right_wrist"]),`${label} canonical cursor roles missing: ${JSON.stringify(frame.call)}`);
     assert(frame.call.cursors.every((cursor)=>JSON.stringify(Object.keys(cursor).sort())===JSON.stringify(["confidence","role","x","y"])),`${label} cursors must be exact bounded records: ${JSON.stringify(frame.call.cursors)}`);
-    assert(JSON.stringify(frame.call.options.grid)===JSON.stringify({x:0,y:0,width:1,height:1})&&frame.call.options.minConfidence===.5&&frame.call.options.sizeCssPx===18,`${label} cursor options must use the exact assembly projection grid: ${JSON.stringify(frame.call.options)}`);
+    assert(JSON.stringify(frame.call.options.grid)===JSON.stringify({x:0,y:0,width:1,height:1})&&frame.call.options.minConfidence===.5&&frame.call.options.sizeCssPx===32,`${label} cursor options must use the exact assembly projection grid: ${JSON.stringify(frame.call.options)}`);
     assert(frame.call.result.cursorCount===3&&frame.scene.length===3&&frame.changedPixels>0,`${label} PlayCanvas cursor entities must alter displayed canvas pixels: ${JSON.stringify(frame)}`);
     const left=frame.scene.find((entry)=>entry.name==="cursor-left_wrist"); assert(frame.call.cursors[1].x===.9&&left?.x>0,`${label} camera x=.1 projected athlete x=.9 must remain athlete-right without a second mirror: ${JSON.stringify(frame.scene)}`);
   }

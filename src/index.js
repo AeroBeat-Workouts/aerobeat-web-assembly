@@ -976,7 +976,7 @@ export class AeroGame extends HTMLElement {
     const result = graph.renderer.renderGameplayFrame(this.rendererFrame());
     if (typeof graph.renderer.renderGameplayCursors !== "function") return result;
     const cursors = gameplayCursorRecords(this.menuOpen, graph.gameplay.getSnapshot().session, graph.input.getSnapshot());
-    graph.renderer.renderGameplayCursors(cursors, { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 18 });
+    graph.renderer.renderGameplayCursors(cursors, { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 });
     return result;
   }
 
