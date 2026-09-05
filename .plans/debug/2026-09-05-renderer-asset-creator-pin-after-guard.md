@@ -90,3 +90,31 @@ A disposable shared-clone fixture now runs under `npm run check:assets`. It acce
 Renderer commit `24dac468ff2f2dc9bd3ed983198d6d61470ca83e` (tree `cf319eb753d6ac317d5c1cb85501343ba43d04b9`) is pushed. The exact previously failing `npm test`, full renderer Chromium suite, asset `0.0.7` validation, and renderer dry pack passed. Dry pack remains exactly 39 public package files including the exact 17-file gameplay payload; test scripts are not packaged.
 
 Assembly's exact immutable-source pin remains intentionally unchanged at renderer `48af4340ff74bfed28be44641f89628292a14f1d` / tree `90129f441c1327d22f64fca9e9d84e1fe01de45c`. Therefore aggregate assembly `npm test` correctly fails its public-main synchronization check after renderer `main` advances; changing that pin would mutate current assembly source and falsely rewrite frozen `0.0.39` provenance. Immutable snapshot/mutation and linked asset/package checks passed with the renderer detached at the exact frozen pin. Full assembly browser validation passed on retry after one isolated 3-second mobile transition timeout; the focused mobile gate passed immediately between attempts, so no speculative timeout edit was made. No release build, serve, publication, tag, GitHub Release, or frozen payload mutation occurred.
+
+## Follow-up diagnosis: current-source integration pin versus frozen raw proof
+
+### Exact observed follow-up failure
+
+With renderer `main` clean at `24dac468ff2f2dc9bd3ed983198d6d61470ca83e` / tree `cf319eb753d6ac317d5c1cb85501343ba43d04b9`, assembly `npm test` fails while loading Vite configuration:
+
+```text
+Error: Release dependency provenance drifted for @aerobeat/web-renderer
+```
+
+The path is `npm test` → `npm run check` → `check:console` → Vite config → `computeReleaseFingerprint()` → `readReleaseDependencyProvenance()` → current renderer commit/tree comparison in `scripts/release-fingerprint.js`. `scripts/validate-environment-assembly.js` and the README current dependency table independently retain the same stale renderer pin.
+
+### Corrected distinction and root cause
+
+The prior CODER conclusion conflated two different authorities. `releaseDependencyPins` binds the **current assembly source graph** consumed by ordinary tests/builds; advancing it to an intentional clean renderer successor does not modify or rewrite any frozen raw release. In contrast, raw `0.0.39`'s stored source fingerprint `84cbbaa7445a24095dccc21af2c5f504840d136891798577739696101e1a879a`, raw tree `799c9b346f1e1bffc96bf8e0cd01d8edd5e33928`, proof bytes, and immutable validator baseline describe the already-built frozen payload and must remain unchanged.
+
+Root cause: the renderer fix was pushed without advancing the three current-source assembly pin authorities. The smallest correction is to update only current-source renderer commit/tree constants and documentation to `24dac468ff2f2dc9bd3ed983198d6d61470ca83e` / `cf319eb753d6ac317d5c1cb85501343ba43d04b9`, allow the current fingerprint to derive naturally, and retain all frozen raw fingerprint/tree/proof fixtures exactly.
+
+Verification must distinguish these authorities: ordinary assembly tests/build/browser and current-source fingerprint validators pass at the new renderer pin, while immutable snapshot/mutation gates reproduce every existing raw tree and raw `0.0.39` stored fingerprint unchanged. No `build-release`, serve, or publication operation is permitted.
+
+## Follow-up implementation and verification
+
+Only three current-source authorities changed: the renderer commit/tree row in `scripts/release-fingerprint.js`, the matching linked-renderer assertions in `scripts/validate-environment-assembly.js`, and the README current integration/table pins. The derived current-source fingerprint is now `817d6ef3a84460771fb8621918d2957f829c697a9a1e3334ccfee31faea0b9e2` over 202 inputs. No raw proof or immutable baseline fixture was rewritten.
+
+PASS: assembly `npm test`; normal `npm run build`; `npm run test:q7g-oracles`; full `npm run test:browser`; immutable snapshot and one-byte mutation rejection; release-target and release-pack policy; and `npm pack --dry-run --json` (`119` files, `16,195,032` packed / `17,222,207` unpacked bytes, SHA-1 `46e18e4ff9f62353c90c51a006f3b1deedbf2060`). The first two aggregate q7g attempts reached the final terminal shard and encountered Playwright `locator.evaluate: Resulting promise was garbage collected` during first-load Vite dependency optimization; a focused desktop terminal shard and a traced full terminal matrix passed, then the complete q7g command passed after the optimizer cache reported a consistent hash. No code or timeout workaround was introduced for that transient harness condition.
+
+Frozen raw trees remain exact: `0.0.35` `bd69d3bd309660125d1a5ac3da6d07896c49bb96`; `0.0.36` `ce125ba4a596f7d6cad84c9e3bf983c5ccf0ed77`; `0.0.37` `6d2b8c4e39d3677f28e48ad076bc6259abcd47b9`; `0.0.38` `9c4225c83b8697a6404190bddcbfcbee0a5d60f3`; `0.0.39` `799c9b346f1e1bffc96bf8e0cd01d8edd5e33928`. Raw `0.0.39` retains stored source fingerprint `84cbbaa7445a24095dccc21af2c5f504840d136891798577739696101e1a879a` and proof SHA-256 `a7687d39d0447b65f786c4de947d2c645a010e078cd976690cc2f8998415417d`.
