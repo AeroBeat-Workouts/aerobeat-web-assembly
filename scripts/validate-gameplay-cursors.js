@@ -45,11 +45,10 @@ async function runContext(context) {
   await game.waitFor();
   const athleteLeftWrist = cameraPreviewToAthlete({ x: 0.1, y: 0.47 });
   const result = await game.evaluate((element, athleteLeftWrist) => {
-    const originalGraph = element.graph; const renderer = originalGraph.renderer; const originalFrame = renderer.renderGameplayFrame.bind(renderer); const originalCursors = renderer.renderGameplayCursors.bind(renderer);
-    const canvas = element.shadowRoot.querySelector("canvas[data-role='renderer']"); const calls = []; let baseline = null; let latestCursorCall = null;
+    const originalGraph = element.graph; const renderer = originalGraph.renderer; const originalFrame = renderer.renderGameplayFrame.bind(renderer); const originalCombined = renderer.renderGameplayFrameWithCursors.bind(renderer); const originalManualTick=renderer.manualTick.bind(renderer);
+    const canvas = element.shadowRoot.querySelector("canvas[data-role='renderer']"); const calls = []; let baseline = null; let latestCursorCall = null; let manualTickCount=0; renderer.manualTick=()=>{manualTickCount+=1;return originalManualTick();};
     const displayedPixels = () => { const copy=document.createElement("canvas"); const scale=Math.min(1,256/Math.max(canvas.width,canvas.height)); copy.width=Math.max(1,Math.round(canvas.width*scale)); copy.height=Math.max(1,Math.round(canvas.height*scale)); const context=copy.getContext("2d",{willReadFrequently:true}); context.drawImage(canvas,0,0,copy.width,copy.height); return context.getImageData(0,0,copy.width,copy.height).data; };
-    renderer.renderGameplayFrame = (frame) => { calls.push("gameplay"); const value = originalFrame(frame); baseline = displayedPixels(); return value; };
-    renderer.renderGameplayCursors = (cursors, options) => { calls.push("cursors"); const value=originalCursors(cursors,options); latestCursorCall = { cursors:structuredClone(cursors),options:structuredClone(options),result:structuredClone(value) }; return value; };
+    renderer.renderGameplayFrameWithCursors = (frame,cursors,options) => { originalFrame(frame); baseline=displayedPixels(); calls.push("gameplay","cursors"); const beforeTicks=manualTickCount,value=originalCombined(frame,cursors,options); latestCursorCall={cursors:structuredClone(cursors),options:structuredClone(options),result:structuredClone(value),manualTickDelta:manualTickCount-beforeTicks};return value; };
     const cursorInput = (overrides = {}) => ({ tracking:{ gameplayPaused:false,freshCalibrationRequired:false,allRequiredAnchorsVisible:true },retainedGeometryDimmed:false,countdownFrozen:false,anchors:[{ anchor:"nose",valid:true,x:.17,y:.23,confidence:.99 },{ anchor:"left_wrist",valid:true,x:athleteLeftWrist.x,y:athleteLeftWrist.y,confidence:.98 },{ anchor:"right_wrist",valid:true,x:.53,y:.71,confidence:.97 }],...overrides });
     let input = cursorInput(); let session = { state:"playing",timelinePositionMs:0 };
     const content = { state:"ready",packageId:"cursor-fixture",selectedVariant:{ variantId:"cursor-flow",mode:"flow",rulesetId:"flow_grid_v2" },resolvedEvents:[] };
@@ -62,8 +61,8 @@ async function runContext(context) {
     input=cursorInput(); element.menuOpen=true; const menu=render("#071426","aero");
     element.menuOpen=false; session={state:"calibrating",timelinePositionMs:0}; const calibrating=render("#071426","aero");
     session={state:"countdown",timelinePositionMs:0}; const countdown=render("#071426","aero");
-    renderer.renderGameplayFrame=originalFrame; renderer.renderGameplayCursors=originalCursors; element.graph=originalGraph; const snapshotText=JSON.stringify(element.getSnapshot());
-    return {dark,light,stale,lowConfidence,menu,calibrating,countdown,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels/u.test(snapshotText),devicePixelRatio};
+    renderer.renderGameplayFrameWithCursors=originalCombined;renderer.manualTick=originalManualTick;element.graph=originalGraph; const snapshotText=JSON.stringify(element.getSnapshot());
+    return {dark,light,stale,lowConfidence,menu,calibrating,countdown,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels|private_performance|mediaPipeRuntime|poseAge|cameraFormat/u.test(snapshotText),devicePixelRatio};
   },athleteLeftWrist);
   const label=`${context.kind}:${context.width}x${context.height}@${context.dpr}`;
   for(const frame of [result.dark,result.light,result.countdown]){
@@ -72,7 +71,7 @@ async function runContext(context) {
     assert(frame.call.cursors.length===3&&JSON.stringify(frame.call.cursors.map((cursor)=>cursor.role))===JSON.stringify(["nose","left_wrist","right_wrist"]),`${label} canonical cursor roles missing: ${JSON.stringify(frame.call)}`);
     assert(frame.call.cursors.every((cursor)=>JSON.stringify(Object.keys(cursor).sort())===JSON.stringify(["confidence","role","x","y"])),`${label} cursors must be exact bounded records: ${JSON.stringify(frame.call.cursors)}`);
     assert(JSON.stringify(frame.call.options.grid)===JSON.stringify({x:0,y:0,width:1,height:1})&&frame.call.options.minConfidence===.5&&frame.call.options.sizeCssPx===32,`${label} cursor options must use the exact assembly projection grid: ${JSON.stringify(frame.call.options)}`);
-    assert(frame.call.result.cursorCount===3&&frame.scene.length===3&&frame.changedPixels>0,`${label} PlayCanvas cursor entities must alter displayed canvas pixels: ${JSON.stringify(frame)}`);
+    assert(frame.call.result.cursorCount===3&&frame.call.manualTickDelta===1&&frame.scene.length===3&&frame.changedPixels>0,`${label} staged gameplay/cursors must use one PlayCanvas tick and alter displayed canvas pixels: ${JSON.stringify(frame)}`);
     const left=frame.scene.find((entry)=>entry.name==="cursor-left_wrist"); assert(frame.call.cursors[1].x===.9&&left?.x>0,`${label} camera x=.1 projected athlete x=.9 must remain athlete-right without a second mirror: ${JSON.stringify(frame.scene)}`);
   }
   assert(result.dark.call.cursors.map((cursor)=>JSON.stringify(cursor)).join("|")===result.light.call.cursors.map((cursor)=>JSON.stringify(cursor)).join("|"),`${label} Aero/Camera cursor coordinates must match`);

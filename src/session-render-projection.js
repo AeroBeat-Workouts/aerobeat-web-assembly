@@ -8,6 +8,36 @@ const FLOW_APPROACH_LEAD_MS = 2500;
 const FLOW_DIRECTIONS = Object.freeze(["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"]);
 const FLOW_OMITTED_TYPES = Object.freeze(new Set(["arc", "burst"]));
 const BOXING_PUNCH_TYPES = Object.freeze(new Set(["straight_left", "straight_right", "hook_left", "hook_right", "uppercut_left", "uppercut_right"]));
+const INDEXED_FEEDBACK_LOOKBACK_MS = FEEDBACK_DURATION_MS + SYNTHETIC_MISS_COMMIT_OFFSET_MS;
+const sessionTargetIndexIdentity = Symbol("aerobeat.sessionTargetIndex");
+
+/**
+ * Pre-sort immutable resolved events and build a point-query interval tree once per content identity.
+ * The index stays inside the assembly service graph and is never placed in snapshots or events.
+ * @param {readonly Record<string, unknown>[]} events
+ */
+export function createSessionTargetIndex(events) {
+  if (!Array.isArray(events)) throw new TypeError("Resolved events must be an array");
+  let feedbackIndex = 0;
+  const orderedEntries = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries).map((entry, orderedIndex) => {
+    const type = String(recordValue(authoredBeatFor(entry.event), "type") ?? "note");
+    const indexed = Object.freeze({ ...entry, orderedIndex, centerTimestampMs:finiteNumber(recordValue(entry.event, "centerTimestampMs")), feedbackIndex:isRenderableFeedbackType(type) ? feedbackIndex++ : -1 });
+    return indexed;
+  });
+  const intervals = [];
+  const eventIndices = new Map();
+  for (const entry of orderedEntries) {
+    const eventId = String(recordValue(entry.event, "eventId") ?? "");
+    const positions = eventIndices.get(eventId) ?? [];
+    positions.push(entry.orderedIndex); eventIndices.set(eventId, positions);
+    const type = String(recordValue(authoredBeatFor(entry.event), "type") ?? "note");
+    if (type !== "obstacle" && type !== "squat" && type !== "weave_left" && type !== "weave_right") continue;
+    const startMs = optionalFiniteNumber(recordValue(entry.event, "intervalStartTimestampMs"));
+    const endMs = optionalFiniteNumber(recordValue(entry.event, "intervalEndTimestampMs"));
+    if (startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:startMs-FLOW_APPROACH_LEAD_MS, end:endMs, orderedIndex:entry.orderedIndex }));
+  }
+  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals) });
+}
 
 /**
  * Project gameplay-owned real judgements or renderer-local visual Test outcomes.
@@ -18,8 +48,9 @@ const BOXING_PUNCH_TYPES = Object.freeze(new Set(["straight_left", "straight_rig
  * @param {readonly Record<string, unknown>[]} events
  * @param {Record<string, unknown>} gameplay
  * @param {number} nowMs
+ * @param {ReturnType<typeof createSessionTargetIndex>} [index]
  */
-export function projectSessionTargets(events, gameplay, nowMs) {
+export function projectSessionTargets(events, gameplay, nowMs, index) {
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
   const selectedVariant = recordValue(gameplay, "selectedVariant");
@@ -30,10 +61,12 @@ export function projectSessionTargets(events, gameplay, nowMs) {
   const obstacleOutcomes = new Map((visualTest ? [] : Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
-  const orderedEvents = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort((left, right) => { const time = finiteNumber(recordValue(left.event, "centerTimestampMs")) - finiteNumber(recordValue(right.event, "centerTimestampMs")); if (time !== 0) return time; const leftId = String(recordValue(left.event, "eventId") ?? ""), rightId = String(recordValue(right.event, "eventId") ?? ""); return leftId < rightId ? -1 : leftId > rightId ? 1 : left.sourceIndex - right.sourceIndex; });
+  const orderedEntries = validSessionTargetIndex(index, events) ? indexedCandidateEntries(index, nowMs, realJudgements) : createOrderedEntries(events);
   const targets = [];
-  let feedbackIndex = 0;
-  for (const { event } of orderedEvents) {
+  let fallbackFeedbackIndex = 0;
+  for (const entry of orderedEntries) {
+    const { event } = entry;
+    const feedbackIndex = Number.isInteger(entry.feedbackIndex) && entry.feedbackIndex >= 0 ? entry.feedbackIndex : fallbackFeedbackIndex;
     const beat = authoredBeatFor(event); const type = String(recordValue(beat, "type") ?? "note");
     if (type === "obstacle") {
       if (modifiers.includes("no_obstacles")) continue;
@@ -63,12 +96,29 @@ export function projectSessionTargets(events, gameplay, nowMs) {
         const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress);
         if (target) targets.push(target);
       }
-      feedbackIndex += 1;
+      fallbackFeedbackIndex += 1;
     }
     if (targets.length >= 128) break;
   }
   return targets;
 }
+
+/** @param {readonly Record<string, unknown>[]} events */
+function createOrderedEntries(events) { return events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries); }
+/** @param {{event:Record<string,unknown>,sourceIndex:number}} left @param {{event:Record<string,unknown>,sourceIndex:number}} right */
+function compareEventEntries(left, right) { const time=finiteNumber(recordValue(left.event,"centerTimestampMs"))-finiteNumber(recordValue(right.event,"centerTimestampMs"));if(time!==0)return time;const leftId=String(recordValue(left.event,"eventId")??""),rightId=String(recordValue(right.event,"eventId")??"");return leftId<rightId?-1:leftId>rightId?1:left.sourceIndex-right.sourceIndex; }
+/** @param {unknown} candidate @param {readonly Record<string, unknown>[]} events */
+function validSessionTargetIndex(candidate,events){return isRecord(candidate)&&candidate[sessionTargetIndexIdentity]===true&&candidate.events===events&&Array.isArray(candidate.orderedEntries)&&candidate.eventIndices instanceof Map;}
+/** @param {ReturnType<typeof createSessionTargetIndex>} index @param {number} nowMs @param {Map<string,Record<string,unknown>>} realJudgements */
+function indexedCandidateEntries(index,nowMs,realJudgements){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-INDEXED_FEEDBACK_LOOKBACK_MS),end=upperBound(entries,nowMs+FLOW_APPROACH_LEAD_MS);for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
+/** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
+function lowerBound(entries,value){let low=0,high=entries.length;while(low<high){const middle=(low+high)>>>1;if(entries[middle].centerTimestampMs<value)low=middle+1;else high=middle;}return low;}
+/** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
+function upperBound(entries,value){let low=0,high=entries.length;while(low<high){const middle=(low+high)>>>1;if(entries[middle].centerTimestampMs<=value)low=middle+1;else high=middle;}return low;}
+/** @param {readonly {start:number,end:number,orderedIndex:number}[]} intervals */
+function buildIntervalTree(intervals){if(intervals.length===0)return null;const centers=intervals.map(interval=>(interval.start+interval.end)/2).sort((left,right)=>left-right),center=centers[centers.length>>>1],left=[],right=[],overlap=[];for(const interval of intervals){if(interval.end<center)left.push(interval);else if(interval.start>center)right.push(interval);else overlap.push(interval);}return Object.freeze({center,byStart:Object.freeze([...overlap].sort((a,b)=>a.start-b.start)),byEnd:Object.freeze([...overlap].sort((a,b)=>b.end-a.end)),left:buildIntervalTree(left),right:buildIntervalTree(right)});}
+/** @param {ReturnType<typeof buildIntervalTree>} tree @param {number} point @param {Set<number>} positions */
+function queryIntervalTree(tree,point,positions){if(!tree)return;if(point<tree.center){for(const interval of tree.byStart){if(interval.start>point)break;if(interval.end>=point)positions.add(interval.orderedIndex);}queryIntervalTree(tree.left,point,positions);return;}if(point>tree.center){for(const interval of tree.byEnd){if(interval.end<point)break;if(interval.start<=point)positions.add(interval.orderedIndex);}queryIntervalTree(tree.right,point,positions);return;}for(const interval of tree.byStart)positions.add(interval.orderedIndex);}
 
 /** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {Record<string, unknown>|null} outcome */
 function flowObstacleTarget(event, beat, nowMs, outcome) {

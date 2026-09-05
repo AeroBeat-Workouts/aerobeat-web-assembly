@@ -72,6 +72,10 @@ export function createLockedProductionCvService(options) {
     },
     submitFrame() { void estimate(generation); },
     getLatestPoseFrame() { return latestPoseFrame; },
+    getPerformanceSample() {
+      const execution = adapter.getExecutionTelemetry?.();
+      return Object.freeze({ running:lifecycleState === "running", submittedFrameCount, poseFrameCount, runtimeInferenceDurationMs:finiteDuration(execution?.runtimeInferenceDurationMs), estimateDurationMs:finiteDuration(execution?.estimateDurationMs) });
+    },
     getStatus() {
       const execution = adapter.getExecutionTelemetry?.();
       return Object.freeze({
@@ -100,7 +104,9 @@ export function createLockedProductionCvService(options) {
     try {
       const rawTimestamp = source.getTimestampMs();
       const timestampMs = Math.max(lastTimestampMs + 0.001, Number.isFinite(rawTimestamp) ? rawTimestamp : now());
-      const frame = await enqueueAdapter(() => adapter.estimateNormalizedPoseFrame(source.frameSource, { sourceId: source.sourceId, timestampMs, mirrored: source.mirrored, flipHorizontal: false, frameWidth: source.frameWidth(), frameHeight: source.frameHeight() }));
+      const executionMode=adapter.getExecutionStatus?.().mode;
+      const frameSource=executionMode==="worker"?createTransferFrame(source.frameSource,timestampMs):source.frameSource;
+      const frame = await enqueueAdapter(() => adapter.estimateNormalizedPoseFrame(frameSource, { sourceId: source.sourceId, timestampMs, mirrored: source.mirrored, flipHorizontal: false, frameWidth: source.frameWidth(), frameHeight: source.frameHeight() }));
       if (token !== generation || lifecycleState !== "running") return;
       lastTimestampMs = timestampMs; latestPoseFrame = frame; latestPoseGeneration = token; poseFrameCount += 1; lastError = null;
     } catch (error) {
@@ -137,5 +143,9 @@ function normalizeSource(source) {
   return source;
 }
 
+/** @param {HTMLVideoElement} video @param {number} timestampMs */
+function createTransferFrame(video,timestampMs){if(typeof VideoFrame!=="function")throw new Error("Production MediaPipe worker requires transferable VideoFrame support");return new VideoFrame(video,{timestamp:Math.round(timestampMs*1000)});}
+/** @param {unknown} value */
+function finiteDuration(value) { if(value===null||value===undefined)return null;const number=Number(value);return Number.isFinite(number)&&number>=0?number:null; }
 /** @param {unknown} error */
 function errorMessage(error) { if (!error || typeof error !== "object") return "Production CV failed"; const descriptor = Object.getOwnPropertyDescriptor(error, "message"); return descriptor && "value" in descriptor && typeof descriptor.value === "string" ? descriptor.value.slice(0, 2048) : "Production CV failed"; }

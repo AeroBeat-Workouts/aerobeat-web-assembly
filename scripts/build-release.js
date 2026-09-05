@@ -50,7 +50,7 @@ if (forbiddenRuntimeAsset) {
 const assembledJavaScript = runtimeJavaScriptAssets
   .map((filePath) => readFileSync(resolve(releaseRoot, filePath), "utf8"))
   .join("\n");
-for (const requiredMarker of ["Pose Landmarker Lite float16 /1/", "mediapipe", "gpu-webgl", "standard", "measured", "submissionCadenceTargetFps"]) {
+for (const requiredMarker of ["Pose Landmarker Lite float16 /1/", "mediapipe", "cpu-wasm", "VideoFrame", "standard", "measured", "submissionCadenceTargetFps"]) {
   if (!assembledJavaScript.includes(requiredMarker)) {
     throw new Error(`Release omitted locked MediaPipe marker ${requiredMarker}.`);
   }
@@ -80,7 +80,9 @@ writeFileSync(
       basePath,
       productionPoseConfiguration: {
         backend: "mediapipe",
-        provider: "gpu-webgl",
+        provider: "cpu-wasm",
+        executionLocation: "worker",
+        transferFrameType: "VideoFrame",
         model: "pose-landmarker-lite",
         modelVariant: "float16/1",
         tasksVisionVersion: "1.0.1",

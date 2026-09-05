@@ -1,0 +1,233 @@
+{
+  "schema": "aerobeat/private_worker_benchmark",
+  "version": 1,
+  "windowMs": 4000,
+  "runs": [
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "direct-gpu-B",
+      "durationMs": 4076.2999999523163,
+      "displayFrameCount": 17,
+      "displayRateFps": 3.925,
+      "displayIntervals": {
+        "count": 16,
+        "p50": 216.7,
+        "p95": 483.3,
+        "max": 483.3
+      },
+      "missedVsyncCount": 215,
+      "rendererCpuMs": {
+        "count": 17,
+        "p50": 36.2,
+        "p95": 146.2,
+        "max": 146.2
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 17,
+        "p50": 172.3,
+        "p95": 189.1,
+        "max": 189.1
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 17,
+        "p50": 172.3,
+        "p95": 189.1,
+        "max": 189.1
+      },
+      "poseAgeMs": {
+        "count": 17,
+        "p50": 209.7,
+        "p95": 318.6,
+        "max": 318.6
+      },
+      "cv": {
+        "submittedFrameCount": 16,
+        "poseFrameCount": 16,
+        "submissionRateFps": 3.925
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "direct-gpu-C",
+      "durationMs": 4017.899999976158,
+      "displayFrameCount": 18,
+      "displayRateFps": 4.231,
+      "displayIntervals": {
+        "count": 17,
+        "p50": 216.7,
+        "p95": 233.4,
+        "max": 233.4
+      },
+      "missedVsyncCount": 212,
+      "rendererCpuMs": {
+        "count": 18,
+        "p50": 35.3,
+        "p95": 39,
+        "max": 39
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 18,
+        "p50": 174.8,
+        "p95": 183.6,
+        "max": 183.6
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 18,
+        "p50": 174.8,
+        "p95": 183.6,
+        "max": 183.6
+      },
+      "poseAgeMs": {
+        "count": 18,
+        "p50": 209.9,
+        "p95": 219,
+        "max": 219
+      },
+      "cv": {
+        "submittedFrameCount": 17,
+        "poseFrameCount": 17,
+        "submissionRateFps": 4.231
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "worker-gpu-B",
+      "durationMs": 4046.899999976158,
+      "displayFrameCount": 58,
+      "displayRateFps": 14.085,
+      "displayIntervals": {
+        "count": 57,
+        "p50": 50,
+        "p95": 200,
+        "max": 200
+      },
+      "missedVsyncCount": 182,
+      "rendererCpuMs": {
+        "count": 58,
+        "p50": 35.4,
+        "p95": 45.9,
+        "max": 54.8
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 11,
+        "p50": 332.8,
+        "p95": 347.5,
+        "max": 347.5
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 11,
+        "p50": 381.9,
+        "p95": 397.7,
+        "max": 397.7
+      },
+      "poseAgeMs": {
+        "count": 58,
+        "p50": 520.7,
+        "p95": 817.3,
+        "max": 825.6
+      },
+      "cv": {
+        "submittedFrameCount": 10,
+        "poseFrameCount": 10,
+        "submissionRateFps": 2.471
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "worker-gpu-C",
+      "durationMs": 4029.7000000476837,
+      "displayFrameCount": 65,
+      "displayRateFps": 15.882,
+      "displayIntervals": {
+        "count": 64,
+        "p50": 33.4,
+        "p95": 183.4,
+        "max": 200
+      },
+      "missedVsyncCount": 174,
+      "rendererCpuMs": {
+        "count": 65,
+        "p50": 23.1,
+        "p95": 37.2,
+        "max": 43
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 12,
+        "p50": 295,
+        "p95": 302.9,
+        "max": 302.9
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 12,
+        "p50": 330.6,
+        "p95": 338.3,
+        "max": 338.3
+      },
+      "poseAgeMs": {
+        "count": 65,
+        "p50": 439.3,
+        "p95": 698.3,
+        "max": 707.8
+      },
+      "cv": {
+        "submittedFrameCount": 11,
+        "poseFrameCount": 11,
+        "submissionRateFps": 2.73
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      }
+    }
+  ],
+  "worker": {
+    "oneInFlight": true,
+    "latestWinsAdmissionBeforeTransfer": true,
+    "acceptedFrameClosedInWorker": true,
+    "rejectedFrameClosedByAdapter": true,
+    "exactCaptureTimestamp": true,
+    "submitted": 26,
+    "poses": 25,
+    "rejected": 0,
+    "execution": {
+      "location": "worker",
+      "detail": "MediaPipe Tasks Vision GPU/WebGL in dedicated classic worker / thresholds detection 0.5 presence 0.5 tracking 0.5",
+      "fallback": false,
+      "loadDurationMs": 164.89999997615814,
+      "estimateDurationMs": 297,
+      "runtimeInferenceDurationMs": 296.7999999523163,
+      "postprocessDurationMs": 0,
+      "workerRoundTripDurationMs": 297,
+      "transferFrameType": "VideoFrame"
+    }
+  },
+  "privacy": {
+    "screenshots": false,
+    "traceSnapshots": false,
+    "rawPoses": false,
+    "pixels": false,
+    "deviceIds": false,
+    "privateGeometry": false
+  },
+  "noise": []
+}

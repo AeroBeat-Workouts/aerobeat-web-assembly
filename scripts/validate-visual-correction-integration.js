@@ -52,9 +52,9 @@ try {
           {anchor:"nose",valid:true,x:.5,y:.25,confidence:1},{anchor:"left_wrist",valid:true,x:.25,y:.65,confidence:1},{anchor:"right_wrist",valid:true,x:.75,y:.65,confidence:1}
         ]};
         const graph={...originalGraph,content:{...originalGraph.content,getSnapshot:()=>({selectedVariant:variant,resolvedEvents:events})},gameplay:{...originalGraph.gameplay,getSnapshot:()=>gameplay},input:{...originalGraph.input,getSnapshot:()=>input}};
-        const cursorCalls=[], originalCursors=renderer.renderGameplayCursors.bind(renderer);
-        renderer.renderGameplayCursors=(cursors,options)=>{cursorCalls.push({cursors:structuredClone(cursors),options:structuredClone(options)});return originalCursors(cursors,options);};
-        game.graph=graph; const frame=game.rendererFrame(); const result=game.renderGameplay(graph); const cursorStatus=renderer.describe().cursors; game.graph=originalGraph; renderer.renderGameplayCursors=originalCursors;
+        const cursorCalls=[], originalCombined=renderer.renderGameplayFrameWithCursors.bind(renderer);
+        renderer.renderGameplayFrameWithCursors=(renderFrame,cursors,options)=>{cursorCalls.push({cursors:structuredClone(cursors),options:structuredClone(options)});return originalCombined(renderFrame,cursors,options);};
+        game.graph=graph; const frame=game.rendererFrame(); const result=game.renderGameplay(graph); const cursorStatus=renderer.describe().cursors; game.graph=originalGraph; renderer.renderGameplayFrameWithCursors=originalCombined;
         const objects=result.model.objects, timing=objects.filter((entry)=>entry.kind==="timing"), timingBounds={};
         for(const segment of result.model.timingZone.segments){const tiles=timing.filter((entry)=>entry.id.startsWith(`timing-${segment.name}-`));timingBounds[segment.name]={count:tiles.length,lanes:[...new Set(tiles.map((entry)=>entry.position.x))],start:Math.min(...tiles.map((entry)=>entry.position.z-entry.scale.z/2)),end:Math.max(...tiles.map((entry)=>entry.position.z+entry.scale.z/2)),expectedStart:segment.startZ,expectedEnd:segment.endZ};}
         const byTarget=(id,kind)=>objects.filter((entry)=>entry.targetId===id&&entry.kind===kind),feedback=(id)=>byTarget(id,"feedback")[0]?.feedback??null;

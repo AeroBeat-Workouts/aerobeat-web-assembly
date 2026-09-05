@@ -7,7 +7,7 @@ import { createAeroGameplaySessionCoordinator, createAeroPrototypeProfileRegistr
 import { createAeroBodyGridService } from "@aerobeat/web-input";
 import { createAeroPlayCanvasRenderer } from "@aerobeat/web-renderer";
 import { createAeroBeatSaverVendorService } from "@aerobeat/web-vendor-beatsaver";
-import { createMediaPipePoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId } from "@aerobeat/web-vendor-mediapipe";
+import { createMediaPipeWorkerPoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId } from "@aerobeat/web-vendor-mediapipe";
 import { createBrowserVideoMediaFacade } from "@aerobeat/web-video";
 import { createLockedProductionCvService } from "./production-cv-service.js";
 export { lockedProductionCvProfile } from "./production-cv-profile.js";
@@ -23,10 +23,10 @@ export function createAeroGameServiceGraph(options = {}) {
     readAsset: (handle, path) => authoring.readAsset(handle, path),
     exportPackage: (handle) => authoring.exportPackage(handle)
   }});
-  const poseAdapter = createMediaPipePoseAdapter({
+  const poseAdapter = createMediaPipeWorkerPoseAdapter({
     sourceId: mediaPipeLiveSourceId,
     mirrored: true,
-    delegate: mediaPipeDelegates.gpuWebgl,
+    delegate: mediaPipeDelegates.cpuWasm,
     minPoseDetectionConfidence: 0.5,
     minPosePresenceConfidence: 0.5,
     minTrackingConfidence: 0.5

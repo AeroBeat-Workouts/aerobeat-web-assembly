@@ -37,8 +37,9 @@ import { getAudioMixSnapshot, setAudioMixSnapshot, subscribeAudioMix } from "./a
 import { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
 import { createLockedVideoFrameSource } from "./production-cv-service.js";
 import { createAeroDisplayLoop } from "./runtime-cadence.js";
+import { createPrivatePerformanceRecorder } from "./private-performance-recorder.js";
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
-import { projectSessionTargets } from "./session-render-projection.js";
+import { createSessionTargetIndex, projectSessionTargets } from "./session-render-projection.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
@@ -96,6 +97,10 @@ export class AeroGame extends HTMLElement {
     this.runtimeUiCommitCount = 0;
     this.runtimeUiSignature = "";
     this.contentPresenterSignature = "";
+    this.renderEventSource = null;
+    this.renderEventIndex = null;
+    this.privatePerformance = createPrivatePerformanceRecorder();
+    this.privatePerformance.reset("rolling", performance.now());
     this.activeCvSource = null;
     this.lastCameraIdentity = "";
     this.browsedMaps = new Map();
@@ -926,7 +931,7 @@ export class AeroGame extends HTMLElement {
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
       } catch { /* unconfigured session */ }
-      this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); this.renderGameplay(graph); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
+      this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); const rendererStartedAtMs=performance.now(); this.renderGameplay(graph); const rendererCpuMs=performance.now()-rendererStartedAtMs; this.privatePerformance.record({ timestampMs:frameNow, rendererCpuMs, poseTimestampMs:graph.cv.getStatus().running&&this.latestPoseTimestampMs>=0?this.latestPoseTimestampMs:null, cv:graph.cv.getPerformanceSample?.(), camera:cameraPerformanceFormat(graph,this.videoElement()) }); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
       if (graph.gameplay.getSnapshot().session.state === "completed") void this.reconcileTerminalServices(graph);
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
       if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
@@ -994,7 +999,8 @@ export class AeroGame extends HTMLElement {
     const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0);
     const presentation = rendererPresentationForVariant(selected);
     const events = Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
-    const targets = projectSessionTargets(events, gameplay, nowMs);
+    if (events !== this.renderEventSource) { this.renderEventSource = events; this.renderEventIndex = createSessionTargetIndex(events); }
+    const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex);
     return {
       presentation, nowMs, targets,
       timingWindowBeforeMs: prototypeJudgementDefaults.timingWindowBeforeMs,
@@ -1005,11 +1011,8 @@ export class AeroGame extends HTMLElement {
 
   renderGameplay(graph = this.graph) {
     if (!graph) return null;
-    const result = graph.renderer.renderGameplayFrame(this.rendererFrame());
-    if (typeof graph.renderer.renderGameplayCursors !== "function") return result;
     const cursors = gameplayCursorRecords(this.menuOpen, graph.gameplay.getSnapshot().session, graph.input.getSnapshot());
-    graph.renderer.renderGameplayCursors(cursors, { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 });
-    return result;
+    return graph.renderer.renderGameplayFrameWithCursors(this.rendererFrame(), cursors, { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 });
   }
 
   /** @param {ReturnType<typeof createAeroGameServiceGraph>} [graph] */
@@ -1826,6 +1829,12 @@ export class AeroGame extends HTMLElement {
 
   leaseSnapshotForGameplay() { return aeroGameMediaLeaseCoordinator.snapshot(); }
 
+  /** Test/profile-only local seam; never included in public snapshots, events, or iframe messages. */
+  resetPrivatePerformanceWindow(label) { this.privatePerformance.reset(label, performance.now()); }
+
+  /** Test/profile-only aggregate read; contains no poses, pixels, device IDs, or geometry. */
+  privatePerformanceSnapshot() { return this.privatePerformance.snapshot(performance.now()); }
+
   cadenceSnapshot() {
     const elapsedMs = this.displayFrameCount > 1 && this.cadenceLatestFrameAtMs > this.cadenceStartedAtMs ? this.cadenceLatestFrameAtMs - this.cadenceStartedAtMs : 0;
     const displayRateFps = elapsedMs > 0 ? Math.round(((this.displayFrameCount - 1) * 10000) / elapsedMs) / 10 : null;
@@ -1846,7 +1855,7 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.resetEnvironmentLoadObservation(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
@@ -1983,6 +1992,7 @@ function libraryPackageTarget(collections, packageIdValue) {
 }
 function activateLibraryCollection(collections, collectionId, packageId) { return Object.freeze(collections.map((collection) => collection.collectionId === collectionId && collection.difficulties.some((entry) => entry.packageId === packageId) ? Object.freeze({ ...collection, activePackageId: packageId }) : collection)); }
 function currentDpr() { return Number.isFinite(globalThis.devicePixelRatio) && globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1; }
+function cameraPerformanceFormat(graph,video){let settings={};try{const track=graph.video.getRetainedCameraStream?.()?.getVideoTracks?.()[0];settings=track?.getSettings?.()??{};}catch{/* unavailable camera settings remain null */}const width=Number(settings.width??video.videoWidth),height=Number(settings.height??video.videoHeight),frameRate=Number(settings.frameRate);return Object.freeze({width:Number.isFinite(width)&&width>0?width:null,height:Number.isFinite(height)&&height>0?height:null,frameRate:Number.isFinite(frameRate)&&frameRate>0?frameRate:null});}
 function audioClockAlignedWithGameplay(session, clock) { return clock?.playing === false && Number(clock.positionSeconds) * 1000 === Number(session?.timelinePositionMs ?? 0); }
 function cssPixels(value) { const parsed = Number.parseFloat(value); return Number.isFinite(parsed) ? parsed : 0; }
 function gameplayCursorRecords(menuOpen, session, input) {

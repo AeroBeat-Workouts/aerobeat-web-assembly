@@ -1,7 +1,7 @@
 // @ts-check
 
 import assert from "node:assert/strict";
-import { projectSessionTargets } from "../src/session-render-projection.js";
+import { createSessionTargetIndex, projectSessionTargets } from "../src/session-render-projection.js";
 
 const events = Object.freeze([
   Object.freeze({ eventId:"flow-1", centerTimestampMs:1000, authoredBeat:Object.freeze({type:"note",hand:"left",placement:4,direction:2}) }),
@@ -104,4 +104,10 @@ assert.deepEqual(projectSessionTargets([boxingEvents[1]],testTruth,1100),project
 
 assert.equal(projectSessionTargets(events,playSession,0).length,2);
 assert.equal(projectSessionTargets(Array.from({length:200},(_,index)=>({eventId:`event-${index}`,centerTimestampMs:index,authoredBeat:{type:"note"}})),testTruth,0).length,128,"projection remains bounded");
-console.log("Real 350 ms feedback, lane cue semantics, Grid cells, and unscored alternating visual Test projection passed.");
+
+const parityEvents=Object.freeze([...Array.from({length:5000},(_,index)=>Object.freeze({eventId:`parity-${String(index).padStart(4,"0")}`,centerTimestampMs:index*17,authoredBeat:Object.freeze({type:index%29===0?"bomb":"note",placement:index%12,hand:index%2?"right":"left",direction:index%8})})),longObstacle,...boxingEvents].reverse());
+const parityIndex=createSessionTargetIndex(parityEvents);
+const farCommitTruth=Object.freeze({...playSession,judgements:Object.freeze([{eventId:"parity-4999",result:"hit",shadow:false,committedTimelinePositionMs:120000}])});
+for(const truth of [playSession,testTruth,farCommitTruth,noObstacleTruth,contactTruth])for(const nowMs of [-2500,0,531,2500,120000,120175,120350,120351,40000,85000])assert.equal(JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs,parityIndex)),JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs)),`indexed projection must preserve exact target bytes/order at ${nowMs}/${truth.session.purpose}`);
+assert.equal(createSessionTargetIndex(parityEvents).orderedEntries.length,parityEvents.length,"pre-index retains every event exactly once");
+console.log("Real 350 ms feedback, lane cue semantics, Grid cells, byte/order-identical indexed windows, and unscored alternating visual Test projection passed.");
