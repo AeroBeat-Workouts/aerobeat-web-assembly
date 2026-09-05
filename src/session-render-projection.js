@@ -1,6 +1,6 @@
 // @ts-check
 
-import { isFlowObstacleGeometry, isFlowObstacleGridMask } from "@aerobeat/web-contracts/flow-obstacle-contracts";
+import { isObstacleGameplayGeometry, isObstacleGridMask, isObstacleSourceGeometry } from "@aerobeat/web-contracts/obstacle-contracts";
 
 const FEEDBACK_DURATION_MS = 350;
 const SYNTHETIC_MISS_COMMIT_OFFSET_MS = 181;
@@ -71,12 +71,12 @@ export function projectSessionTargets(events, gameplay, nowMs) {
 function flowObstacleTarget(event, beat, nowMs, outcome) {
   const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
   const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
-  const gridMask = recordValue(beat, "gridMask"); const geometry = recordValue(beat, "geometry");
-  if (startMs === null || endMs === null || endMs <= startMs || !isFlowObstacleGeometry(geometry) || !isFlowObstacleGridMask(gridMask, geometry)) return null;
+  const gridMask = recordValue(beat, "gridMask"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
+  if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry)) return null;
   if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
   const firstContactMs = outcome?.result === "contact" ? optionalFiniteNumber(recordValue(outcome, "firstContactTimelinePositionMs")) : null;
   const contactPulseProgress = firstContactMs !== null && nowMs >= firstContactMs && nowMs <= firstContactMs + FEEDBACK_DURATION_MS ? clamp01((nowMs - firstContactMs) / FEEDBACK_DURATION_MS) : undefined;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], geometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
 }
 
 /** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs */

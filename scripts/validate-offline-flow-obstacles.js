@@ -20,7 +20,7 @@ const flowVariant = content.getSnapshot().variants.find((entry) => entry.mode ==
 const snapshot = content.getSnapshot();
 const obstacle = snapshot.resolvedEvents.find((event) => event.authoredBeat.type === "obstacle" && event.authoredBeat.start === 92.5999984741211);
 assert.ok(obstacle, JSON.stringify({selected:snapshot.selectedVariant,eventTypes:snapshot.resolvedEvents.map((event)=>event.authoredBeat.type)}));
-assert.deepEqual(JSON.parse(JSON.stringify({ start:obstacle.centerTimestampMs,end:obstacle.intervalEndTimestampMs,geometry:obstacle.authoredBeat.geometry,gridMask:obstacle.authoredBeat.gridMask })), { start:37039.99938964844,end:37064.99938964844,geometry:{schema:"aerobeat/flow_obstacle_geometry",version:1,coordinateSpace:"beatsaber_lane_layer",x:1,y:2,width:1,height:3},gridMask:[1] });
+assert.deepEqual(JSON.parse(JSON.stringify({start:obstacle.centerTimestampMs,end:obstacle.intervalEndTimestampMs,sourceGeometry:obstacle.authoredBeat.sourceGeometry,gameplayGeometry:obstacle.authoredBeat.gameplayGeometry,gridMask:obstacle.authoredBeat.gridMask})),{start:37039.99938964844,end:37064.99938964844,sourceGeometry:{schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_1",x:1,y:2,width:1,height:3},gameplayGeometry:{schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:1,y:0,width:1,height:3},gridMask:[1,5,9]});
 const gameplay = createAeroGameplaySessionCoordinator({sessionId:"offline-3c9d"});
 gameplay.configureContent({packageId:snapshot.packageId,selectedVariant:snapshot.selectedVariant,resolvedEvents:snapshot.resolvedEvents});
 const targets = projectSessionTargets([obstacle], gameplay.getSnapshot(), obstacle.centerTimestampMs);
@@ -29,7 +29,7 @@ const model = buildGameplaySceneModel({presentation:"flow",nowMs:obstacle.center
 const walls = model.objects.filter((entry) => entry.targetId === obstacle.eventId && entry.kind === "obstacle");
 const shadows = model.objects.filter((entry) => entry.targetId === obstacle.eventId && entry.kind === "shadow");
 assert.equal(walls.length,1); assert.equal(shadows.length,1,"exact 3c9d wall owns one renderer-only shadow");
-assert.deepEqual({x:walls[0].position.x,y:walls[0].position.y},{x:-.5,y:3});
+assert.deepEqual({x:walls[0].position.x,y:walls[0].position.y},{x:-.5,y:1});
 assert.ok(Math.abs(walls[0].scale.x-1)<1e-12 && Math.abs(walls[0].scale.y-2.94/.94)<1e-12 && Math.abs(walls[0].scale.z-.15)<1e-12);
 assert.deepEqual({x:shadows[0].position.x,y:shadows[0].position.y},{x:-.5,y:-.702}); assert.deepEqual(shadows[0].scale,{x:.94,y:.012,z:.15}); assert.equal(shadows[0].transparent,true);
 assert.equal(gameplay.getJudgements().length,0);

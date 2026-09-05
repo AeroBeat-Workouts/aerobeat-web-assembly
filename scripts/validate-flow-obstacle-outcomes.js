@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createAeroGameplaySessionCoordinator } from "@aerobeat/web-gameplay";
 
 const HASH="a".repeat(64);
-const GEOMETRY=Object.freeze({schema:"aerobeat/flow_obstacle_geometry",version:1,coordinateSpace:"beatsaber_lane_layer",x:1,y:2,width:1,height:3});
+const SOURCE_GEOMETRY=Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_1",x:1,y:2,width:1,height:3});const GAMEPLAY_GEOMETRY=Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:1,y:0,width:1,height:3});
 
 // Staggered overlapping walls resolve separately but apply one aggregate consequence.
 {
@@ -47,7 +47,7 @@ const GEOMETRY=Object.freeze({schema:"aerobeat/flow_obstacle_geometry",version:1
 console.log("Assembly staggered-overlap outcomes and paused future-variant obstacle partition proof passed.");
 
 function variant(id){return {variantId:id,chartId:`chart-${id}`,mode:"flow",rulesetId:"flow_grid_v2",recipeId:null,modifierIds:[],ranked:false,mapHash:{schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:HASH},scoreIdentityHash:{schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:HASH},provenance:{baseVariantId:id}};}
-function wall(eventId,startMs,endMs,selected){return {schema:"aerobeat/resolved_content_event",version:2,eventId,variantId:selected.variantId,chartId:selected.chartId,centerTimestampMs:startMs,intervalStartTimestampMs:startMs,intervalEndTimestampMs:endMs,sourceEventIds:[`source-${eventId}`],authoredBeat:{start:startMs/1000,end:endMs/1000,type:"obstacle",geometry:GEOMETRY,gridMask:[1]}};}
+function wall(eventId,startMs,endMs,selected){return {schema:"aerobeat/resolved_content_event",version:3,eventId,variantId:selected.variantId,chartId:selected.chartId,centerTimestampMs:startMs,intervalStartTimestampMs:startMs,intervalEndTimestampMs:endMs,sourceEventIds:[`source-${eventId}`],authoredBeat:{start:startMs/1000,end:endMs/1000,type:"obstacle",sourceGeometry:SOURCE_GEOMETRY,gameplayGeometry:GAMEPLAY_GEOMETRY,gridMask:[1,5,9]}};}
 function configuration(events,selected,profileVersion="1",contentHash=HASH){return {packageId:"assembly-obstacle-package",selectedVariant:selected,resolvedEvents:events,profileIdentity:{schema:"aerobeat/prototype_tuning_identity",version:1,profileId:"assembly-profile",profileVersion,contentHash,class:"between_run_ruleset",regenerationRequired:false},shadowVariants:[]};}
 function clock(positionMs,playing){return {contextTimeSeconds:positionMs/1000,positionSeconds:positionMs/1000,playing};}
 function frame(timestampMs,positionMs,evidenceValue,playing=true){return {timestampMs,clock:clock(positionMs,playing),...(evidenceValue?{input:input(timestampMs,evidenceValue)}:{})};}
