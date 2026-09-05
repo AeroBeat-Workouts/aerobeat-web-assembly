@@ -26,10 +26,12 @@ gameplay.configureContent({packageId:snapshot.packageId,selectedVariant:snapshot
 const targets = projectSessionTargets([obstacle], gameplay.getSnapshot(), obstacle.centerTimestampMs);
 assert.equal(targets.length,1);
 const model = buildGameplaySceneModel({presentation:"flow",nowMs:obstacle.centerTimestampMs,targets});
-const walls = model.objects.filter((entry) => entry.targetId === obstacle.eventId);
-assert.equal(walls.length,1);
+const walls = model.objects.filter((entry) => entry.targetId === obstacle.eventId && entry.kind === "obstacle");
+const shadows = model.objects.filter((entry) => entry.targetId === obstacle.eventId && entry.kind === "shadow");
+assert.equal(walls.length,1); assert.equal(shadows.length,1,"exact 3c9d wall owns one renderer-only shadow");
 assert.deepEqual({x:walls[0].position.x,y:walls[0].position.y},{x:-.5,y:3});
 assert.ok(Math.abs(walls[0].scale.x-1)<1e-12 && Math.abs(walls[0].scale.y-2.94/.94)<1e-12 && Math.abs(walls[0].scale.z-.15)<1e-12);
+assert.deepEqual({x:shadows[0].position.x,y:shadows[0].position.y},{x:-.5,y:-.702}); assert.deepEqual(shadows[0].scale,{x:.94,y:.012,z:.15}); assert.equal(shadows[0].transparent,true);
 assert.equal(gameplay.getJudgements().length,0);
 gameplay.destroy();content.destroy();
 console.log("Offline exact 3c9d Hard package→content→gameplay→assembly→renderer obstacle gate passed.");

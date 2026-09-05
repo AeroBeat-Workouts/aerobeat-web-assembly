@@ -37,10 +37,10 @@ assert.equal(projectSessionTargets(events,testTruth,2531)[0].feedbackProgress,1)
 
 const crouchGeometry = Object.freeze({schema:"aerobeat/flow_obstacle_geometry",version:1,coordinateSpace:"beatsaber_lane_layer",x:1,y:2,width:1,height:3});
 const actualObstacle = Object.freeze({
-  eventId:"ab-chart-dance-dance-revolution-ddrmix-flow-easy:event:20",
-  centerTimestampMs:29839.999389648438,
-  intervalStartTimestampMs:29839.999389648438, intervalEndTimestampMs:29864.999389648438,
-  authoredBeat:Object.freeze({start:74.5999984741211,end:74.6624984741211,type:"obstacle",geometry:crouchGeometry,gridMask:Object.freeze([1])})
+  eventId:"ab-chart-dance-dance-revolution-ddrmix-flow-hard:event:20",
+  centerTimestampMs:37039.99938964844,
+  intervalStartTimestampMs:37039.99938964844, intervalEndTimestampMs:37064.99938964844,
+  authoredBeat:Object.freeze({start:92.5999984741211,end:92.6624984741211,type:"obstacle",geometry:crouchGeometry,gridMask:Object.freeze([1])})
 });
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500).length,1,"actual obstacle enters at exact 2500 ms approach boundary");
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500.001).length,0,"actual obstacle stays hidden before approach boundary");
