@@ -875,23 +875,29 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Screenshot and physical report are recorded on `k72.17` via comment `01a071ee-b8ec-7519-8934-fa20d3949e40`. Raw `0.0.39` remains immutable and served only as rejected comparison evidence while Derrick continues playtesting.
 - P0 defect `mzz` is claimed and blocks physical approval. Independent source-semantics child `18c745ba-e383-434e-8bd1-b342ebde5086` and renderer-projection child `dbf8f960-da24-4e57-b39c-fcbdfe733cc5` both completed read-only diagnosis with clean repos.
 
-### Diagnosis
+### Derrick's contract clarification
 
-- Current code is internally consistent with the previously approved source-faithful ceiling/crouch interpretation. Exact `3c9d` Hard v2 type `1` normalizes to `{x:1,y:2,width:1,height:3}`. Because source Y is bottom-origin and height extends upward, only source layer `2` intersects the bounded 4×3 grid; mask is `[1]`, renderer center is `(-0.5,3)`, visual dimensions are `0.94×2.94×0.15`, and continuous nose collision spans logical Y `1.5..4.5`.
-- No facade, GLB pivot, opacity, overlay, or hidden-lower-wall defect exists. Raw `0.0.39` tests deliberately lock top-only intersection and reject `[1,5,9]`.
-- Derrick's newest physical requirement therefore changes AeroBeat product semantics: the top-row cell becomes the anchor for a downward full displayed column. Visual, occupancy, and collision must change together; a UI-only fake mask is forbidden.
-- Full debug record: `.plans/debug/2026-09-05-raw-0.0.39-obstacle-vertical-occupancy.md`.
+> “we're trying to match the contract beatsaver gives us. The obstacles in the DDR song map appear in the top row, and extend down to the bottom row. Our older contract was single cell only, which was incorrect. Our updated contract was multi cell is allowed, however the obstacles in the same timestamp we're testing against are appearing above the within the top row and above the cell grid, not taking up the middle and bottom rows to match the beatsaver arcviewer app. So our contract is either incorrect or not being enforced correctly.”
+
+### Corrected diagnosis
+
+- The updated contract is enforced consistently, but its vertical normalization is incorrect for required BeatSaver/ArcViewer parity. Exact `3c9d` Hard v2 type `1` currently normalizes to internal `{x:1,y:2,width:1,height:3}` and incorrectly carries the bottom-origin/upward interpretation into AeroBeat world space. This yields `[1]`, renderer center `(-0.5,3)`, dimensions `0.94×2.94×0.15`, and top-only collision Y `1.5..4.5`.
+- No facade, GLB pivot, opacity, overlay, or hidden-lower-wall defect exists. The renderer and collision engine faithfully enforce the wrong normalized contract.
+- The correct external-compatibility footprint is top-row anchored and extends downward through the canonical grid: `[1,5,9]`, center `(-0.5,1)`, Y AABB `-0.47..2.47`, with aligned all-row calibrated-nose collision.
+- Prior plan/test language calling `[1,5,9]` fake or a product adaptation is superseded. QA/audit previously proved internal consistency rather than the physically observed ArcViewer footprint.
+- Full corrected debug record: `.plans/debug/2026-09-05-raw-0.0.39-obstacle-vertical-occupancy.md`.
 
 ### Proposed correction contract
 
-1. Version the Flow obstacle record to preserve two explicit truths rather than silently reinterpret v1 `beatsaber_lane_layer` geometry:
-   - `sourceGeometry`: immutable Beat Saber provenance.
-   - `gameplayGeometry`: AeroBeat render/collision/grid-occupancy authority.
-2. For v2 type `1`, retain source `{x:1,y:2,width:1,height:3}` but derive gameplay `{x:1,y:0,width:1,height:3}` and gameplay mask `[1,5,9]`. Render one continuous wall centered `(-0.5,1)` with dimensions `0.94×2.94×0.15`; all three displayed rows collide during the exact source interval.
-3. Preserve v2 type `0`. Preserve v3/v4 explicit geometry by defaulting gameplay geometry to source geometry; do not globally invert modern map geometry.
+1. Version the Flow obstacle record and correct the coordinate-space boundary rather than silently reusing v1 `beatsaber_lane_layer` geometry as canonical gameplay geometry:
+   - `sourceGeometry`/source metadata preserves exact provider provenance and intermediate legacy evidence.
+   - `gameplayGeometry` is explicitly `aerobeat_top_left_grid` and is the sole normalized render/collision/grid-occupancy authority.
+2. For v2 type `1`, retain exact source evidence but normalize gameplay to `{x:1,y:0,width:1,height:3}` with downward height and exact mask `[1,5,9]`. Render one continuous wall centered `(-0.5,1)` with dimensions `0.94×2.94×0.15`; all three displayed rows collide during the source interval.
+3. Define explicit conversion fixtures for v2 type `0` and v3/v4 source rectangles. Never carry a source coordinate space directly into the canonical renderer by assumption, and never apply an unproved global inversion.
 4. Bump chart/package/resolved-event/persistence provenance monotonically. Existing prior-contract stored packages remain list/export/delete-only and require reimport for Play/Test. DB migration labels provenance only; never rewrite stored package bytes/hashes.
-5. Update contracts, authoring, content, gameplay, renderer, UI/assembly, docs, fixtures, and exact `3c9d` golden gates. Preserve scoring, uncertainty, episode/combo reset, privacy, lifecycle, accessibility, environment order/default, arrows, white cue, exact `80 ms` hit removal, timing tiles, markers, miss/great behavior, and shadows.
-6. Preserve raw assembly `0.0.35–0.0.39` and asset raw/review `0.0.1–0.0.7`. Run coder→independent QA→independent auditor, then exactly one separately authorized immutable successor build, release QA/audit, secure review, and Derrick physical retest.
+5. Replace incorrect `[1]`/center-Y-`3`/top-only acceptance locks with exact same-timestamp source→normalized mask→collision→scene AABB→direct/iframe pixel parity. Update contracts, authoring, content, gameplay, renderer, UI/assembly, docs, and fixtures.
+6. Preserve scoring, uncertainty, episode/combo reset, privacy, lifecycle, accessibility, environment order/default, arrows, white cue, exact `80 ms` hit removal, timing tiles, markers, miss/great behavior, and shadows.
+7. Preserve raw assembly `0.0.35–0.0.39` and asset raw/review `0.0.1–0.0.7`. Run coder→independent QA→independent auditor, then exactly one separately authorized immutable successor build, release QA/audit, secure review, and Derrick physical retest.
 
 ### Durable execution chain
 
@@ -900,4 +906,4 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - `s1q` — independent source auditor, blocked by `9tf`.
 - `iiv` — exactly one immutable successor builder, blocked by `s1q`.
 - `v4h` — independent successor release QA/audit, blocked by `iiv`; also blocks `k72.17`.
-- Dependency cycle check: none. No implementation starts until Derrick approves the proposed semantic adaptation and remaining playtest feedback is incorporated.
+- Dependency cycle check: none. No implementation starts until Derrick approves the corrected BeatSaver/ArcViewer-parity plan and remaining playtest feedback is incorporated.
