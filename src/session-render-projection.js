@@ -1,5 +1,6 @@
 // @ts-check
 
+import { isPrivateNoteAppearance } from "@aerobeat/web-contracts";
 import { isObstacleGameplayGeometry, isObstacleGridMask, isObstacleSourceGeometry } from "@aerobeat/web-contracts/obstacle-contracts";
 
 const FEEDBACK_DURATION_MS = 350;
@@ -159,14 +160,16 @@ function flowBombTarget(event, beat, nowMs) {
 function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress) {
   const beat = authoredBeatFor(event);
   const eventId = String(recordValue(event, "eventId") ?? ""); const beatCenterMs = finiteNumber(recordValue(event, "centerTimestampMs"));
-  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) };
-  if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...feedback };
+  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event);
+  if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...(appearance?{appearanceColor:appearance}:{}), ...feedback };
   if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...feedback }; }
   if (!BOXING_PUNCH_TYPES.has(type)) return null;
   const hand = type.endsWith("right") ? "right" : "left"; const family = type.startsWith("hook") ? "hook" : type.startsWith("uppercut") ? "uppercut" : "straight"; const spatialTarget = recordValue(beat, "spatialTarget");
-  return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...feedback };
+  return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...(appearance?{appearanceColor:appearance}:{}), ...feedback };
 }
 
+/** @param {Record<string,unknown>} event */
+function privateAppearanceColor(event){const candidate={appearanceColor:recordValue(event,"appearanceColor")};return isPrivateNoteAppearance(candidate)?candidate.appearanceColor:null;}
 /** @param {string} type */
 function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || BOXING_PUNCH_TYPES.has(type); }
 /** @param {Record<string, unknown>} event */

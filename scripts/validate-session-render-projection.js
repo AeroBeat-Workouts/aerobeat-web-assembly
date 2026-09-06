@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 import { createSessionTargetIndex, projectSessionTargets } from "../src/session-render-projection.js";
 
 const events = Object.freeze([
-  Object.freeze({ eventId:"flow-1", centerTimestampMs:1000, authoredBeat:Object.freeze({type:"note",hand:"left",placement:4,direction:2}) }),
-  Object.freeze({ eventId:"flow-2", centerTimestampMs:2000, authoredBeat:Object.freeze({type:"note",hand:"right",placement:7,direction:"up"}) })
+  Object.freeze({ eventId:"flow-1", centerTimestampMs:1000, appearanceColor:"#FF0000", authoredBeat:Object.freeze({type:"note",hand:"left",placement:4,direction:2}) }),
+  Object.freeze({ eventId:"flow-2", centerTimestampMs:2000, appearanceColor:"#808080", authoredBeat:Object.freeze({type:"note",hand:"right",placement:7,direction:"up"}) })
 ]);
 const playSession = Object.freeze({ session:Object.freeze({purpose:"play"}), judgements:Object.freeze([]), shadowJudgements:Object.freeze([]), scorePartitions:Object.freeze([]) });
 const pending = projectSessionTargets(events, playSession, 900);
-assert.equal(pending.length,2); assert.equal(pending[0].judgement,"pending"); assert.equal(pending[0].direction,"left");
+assert.equal(pending.length,2); assert.equal(pending[0].judgement,"pending"); assert.equal(pending[0].direction,"left");assert.deepEqual(pending.map((target)=>target.appearanceColor),["#FF0000","#808080"],"validated private Flow appearance reaches renderer targets");const invalidAppearance=projectSessionTargets([{eventId:"invalid-color",centerTimestampMs:1000,appearanceColor:"#ff0000",authoredBeat:{type:"note",hand:"left",placement:4,direction:2}}],playSession,900)[0];assert.equal(Object.hasOwn(invalidAppearance,"appearanceColor"),false,"noncanonical private appearance is not forwarded");
 
 const hit = Object.freeze({ eventId:"flow-1",result:"hit",shadow:false,committedTimelinePositionMs:1000 });
 const playHit = Object.freeze({ ...playSession, judgements:Object.freeze([hit]) });
@@ -87,17 +87,17 @@ assert.deepEqual(projectSessionTargets([{eventId:"unknown",centerTimestampMs:100
 
 function boxingObstacleEvent(eventId,centerTimestampMs,type,geometry){const gridMask=Object.freeze(Array.from({length:geometry.width*geometry.height},(_,index)=>(geometry.y+Math.floor(index/geometry.width))*4+geometry.x+index%geometry.width));return Object.freeze({eventId,centerTimestampMs,intervalStartTimestampMs:centerTimestampMs,intervalEndTimestampMs:centerTimestampMs+200,authoredBeat:Object.freeze({start:centerTimestampMs/1000,end:(centerTimestampMs+200)/1000,type,sourceGeometry:Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v3_obstacle_rect",kind:"v3_rect",...geometry}),gameplayGeometry:Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",...geometry}),gridMask,blockedCells:gridMask,checkpoint:Object.freeze({kind:"instantaneous",freshnessMs:150,timingWindowMs:180,noseSafeCells:Object.freeze(Array.from({length:12},(_,cell)=>cell).filter((cell)=>!gridMask.includes(cell)))})})});}
 const boxingEvents = Object.freeze([
-  Object.freeze({ eventId:"punch-left",centerTimestampMs:1000,authoredBeat:Object.freeze({type:"hook_left",spatialTarget:Object.freeze({targetCell:5,entryDirection:"up"})}) }),
+  Object.freeze({ eventId:"punch-left",centerTimestampMs:1000,appearanceColor:"#FF0000",authoredBeat:Object.freeze({type:"hook_left",spatialTarget:Object.freeze({targetCell:5,entryDirection:"up"})}) }),
   boxingObstacleEvent("weave-left",1100,"weave_left",{x:2,y:0,width:2,height:2}),
   boxingObstacleEvent("weave-right",1200,"weave_right",{x:0,y:0,width:2,height:2}),
-  Object.freeze({ eventId:"guard",centerTimestampMs:1300,authoredBeat:Object.freeze({type:"guard",guardTarget:Object.freeze({leftCell:4,rightCell:7})}) }),
+  Object.freeze({ eventId:"guard",centerTimestampMs:1300,appearanceColor:"#808080",authoredBeat:Object.freeze({type:"guard",guardTarget:Object.freeze({leftCell:4,rightCell:7})}) }),
   boxingObstacleEvent("squat",1400,"squat",{x:0,y:2,width:4,height:1})
 ]);
 const boxing = projectSessionTargets(boxingEvents,playSession,900);
-assert.equal(boxing.find((entry)=>entry.id==="punch-left")?.lane,"left","punch lane follows authored hand");
+assert.equal(boxing.find((entry)=>entry.id==="punch-left")?.lane,"left","punch lane follows authored hand");assert.equal(boxing.find((entry)=>entry.id==="punch-left")?.appearanceColor,"#FF0000","validated private Boxing punch appearance reaches renderer target");
 assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-left")?.hand,lane:boxing.find((entry)=>entry.id==="weave-left")?.lane,cells:boxing.find((entry)=>entry.id==="weave-left")?.cells},{hand:"left",lane:"left",cells:[2,3,6,7]},"left weave keeps directional lane and exact Grid blocked cells");
 assert.deepEqual({hand:boxing.find((entry)=>entry.id==="weave-right")?.hand,lane:boxing.find((entry)=>entry.id==="weave-right")?.lane,cells:boxing.find((entry)=>entry.id==="weave-right")?.cells},{hand:"right",lane:"right",cells:[0,1,4,5]},"right weave keeps directional lane and exact Grid blocked cells");
-assert.deepEqual({lane:boxing.find((entry)=>entry.id==="guard")?.lane,cells:boxing.find((entry)=>entry.id==="guard")?.cells},{lane:null,cells:[4,7]},"guard remains neutral for lane duplication and preserves Grid cells");
+assert.deepEqual({lane:boxing.find((entry)=>entry.id==="guard")?.lane,cells:boxing.find((entry)=>entry.id==="guard")?.cells,appearanceColor:boxing.find((entry)=>entry.id==="guard")?.appearanceColor},{lane:null,cells:[4,7],appearanceColor:undefined},"guard remains fixed-color despite a hostile private appearance and preserves Grid cells");
 assert.deepEqual({hand:boxing.find((entry)=>entry.id==="squat")?.hand,lane:boxing.find((entry)=>entry.id==="squat")?.lane,cells:boxing.find((entry)=>entry.id==="squat")?.cells},{hand:"neutral",lane:null,cells:[8,9,10,11]},"squat remains neutral for lane duplication and preserves Grid cells");
 for(const target of boxing.filter((entry)=>entry.kind==="obstacle")){assert.ok(target.sourceGeometry&&target.gameplayGeometry&&target.intervalEndMs-target.intervalStartMs===200,"Boxing projection must privately retain source/gameplay geometry and exact interval");assert.equal(target.judgement,undefined,"Boxing walls never receive Flow or synthetic continuous outcomes");}
 assert.deepEqual(projectSessionTargets([boxingEvents[1]],testTruth,1100),projectSessionTargets([boxingEvents[1]],playSession,1100),"unranked Test must project the same feedback-free Boxing wall without gameplay truth");

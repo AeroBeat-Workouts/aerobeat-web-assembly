@@ -46,6 +46,7 @@ export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./
 export { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 
 const GAME_EVENT_NAME = "aero-game-event";
+const INTERNAL_CONTENT_RENDER_PROJECTION = Symbol.for("aerobeat.web-content.internal-render-projection");
 const AERO_BACKGROUND_PROJECTION = Object.freeze({ kind: "linear-gradient", colors: Object.freeze(["#071426", "#153b5d"]), angleDeg: 180 });
 const CAMERA_BACKGROUND_PROJECTION = Object.freeze({ kind: "solid", colors: Object.freeze(["#00000000"]), angleDeg: 180 });
 const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "play" });
@@ -1055,10 +1056,12 @@ export class AeroGame extends HTMLElement {
   }
 
   rendererFrame() {
-    const content = this.graph.content.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
+    const contentService=this.graph.content,content = contentService.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
     const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0);
     const presentation = rendererPresentationForVariant(selected);
-    const events = Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
+    const renderProjection=/** @type {Record<PropertyKey,unknown>} */(contentService)[INTERNAL_CONTENT_RENDER_PROJECTION];
+    const projected=typeof renderProjection==="function"?renderProjection.call(contentService):null;
+    const events = Array.isArray(projected)?projected:Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
     if (events !== this.renderEventSource) { this.renderEventSource = events; this.renderEventIndex = createSessionTargetIndex(events); }
     const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex);
     return {
