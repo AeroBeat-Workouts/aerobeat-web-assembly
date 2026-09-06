@@ -55,7 +55,7 @@ try {
   const inspectedGolden = await game.evaluate(async (element) => { const acquired = await element.graph.vendor.importLocalArchive(globalThis.__v4AssemblyFixture.archive); return { sourceHash: acquired.sourceHash, hashInputPaths: acquired.source.manifest.hashInputPaths, hashInputs: acquired.source.manifest.hashInputPaths.map((path) => new TextDecoder().decode(acquired.source.readEntry(path))) }; });
   assert.equal(inspectedGolden.sourceHash, goldenV4Hash, `independently hard-coded v4 golden source hash: ${JSON.stringify(inspectedGolden)}`);
   const versionAdmission = await game.evaluate(async (element, fixture) => {
-    const inspect = async (bytesValue) => { try { const acquired = await element.graph.vendor.importLocalArchive(Uint8Array.from(bytesValue)); return { accepted: true, major: acquired.source.manifest.sourceFormatMajor }; } catch (error) { return { accepted: false, code: error?.code, message: error?.message }; } };
+    const inspect = async (bytesValue) => { try { const acquired = await element.graph.vendor.importLocalArchive(Uint8Array.from(bytesValue)); return { accepted: true, major: acquired.source.manifest.infoFormatMajor }; } catch (error) { return { accepted: false, code: error?.code, message: error?.message }; } };
     return { v5: await inspect(fixture.v5), malformed: await inspect(fixture.malformed), versionless: await inspect(fixture.versionless) };
   }, { v5: [...archives.unsupportedV5], malformed: [...archives.malformedVersion], versionless: [...archives.versionlessV4] });
   assert.equal(versionAdmission.v5.accepted, false); assert.equal(versionAdmission.v5.code, "unsupported"); assert.match(versionAdmission.v5.message, /unsupported or malformed/u);
