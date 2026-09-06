@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** IMMUTABLE RAW `0.0.41` INDEPENDENT RELEASE AUDIT PASS — EXACT TREE/PROOF BYTES AUTHORIZED FOR SECURE TAILNET PHYSICAL REVIEW; NO PUBLICATION OR PHYSICAL/BUG CLAIM
+**Status:** IMMUTABLE RAW `0.0.41` SECURE TAILNET PHYSICAL REVIEW ACTIVE — EXACT AUDITED BYTES SERVED; DERRICK APPROVAL/BUG PROFILE PENDING
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -1227,3 +1227,10 @@ Derrick approved Task 1 after the camera-loader successor was ready and approved
 - Both raw maps are complete (800/800 main plus 12/12 worker source contents); 97 relevant embedded sources byte-match pinned Git. Emitted bytes bind DB7 reconstruction/callback/first-cause behavior, stale selection clearing, full-column/vertical obstacle projection, all three modes, 32px live markers, terminal recovery, CPU-WASM performance posture, and bounded public privacy. Full source validation passed assembly test/build/q7g/uncapped browser, direct/iframe portrait/landscape DPR1/3, exact 3c9d, marker, terminal, performance, privacy/docs/Vite/release gates, plus authoring full test/browser and exact 10-valid/18-hostile/4-race/3-service callback matrix. One redundant standalone terminal call hit the known Playwright `Resulting promise was garbage collected` fixture-install harness failure after the same gate had passed in q7g; unchanged immediate retry passed all 36 rows, with no source/test change or product/page error.
 - Live checks found no 0.0.41 local/remote tag, npm version, GitHub Release, public Funnel, or port 5173 listener. All 15 repos were fetched, clean, and aligned. The existing tailnet-only 8443 route and 8444 DSH route/listener were observed unchanged. Audit-created loopback/Chromium/Vite processes were gone.
 - **Disposition:** independent release QA/audit PASS. Close `4bd`; only exact raw `0.0.41` tree `0b5f7841ef65779d84f028a544724a6d76cd06a1` and proof `8640745a387bf510c762a3d62e80b1e3a095386d3857f24c7e561f8614f9c76c` bytes are authorized to serve through the existing secure tailnet physical-review route. `k72.17` remains in progress for Derrick's physical Flow/Boxing and authoritative Bug profile. No publication, physical approval, or Bug PASS is claimed.
+
+## Raw `0.0.41` secure physical-review serving — ACTIVE (2026-09-06)
+
+- After independent `4bd` PASS, managed job `bash-318` began serving only canonical `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/release/raw/0.0.41` on loopback `127.0.0.1:5173`. No source build or alternate release bytes were served.
+- Existing tailnet-only Tailscale Serve topology remains exact: HTTPS `:8443` proxies to `127.0.0.1:5173`; HTTPS `:8444` remains unchanged at `127.0.0.1:3082`. No Funnel or public route is enabled.
+- Loopback and secure `:8443` both returned HTTP `200`; fetched `aerobeat-release-proof.json` bytes independently hash to exact audited SHA-256 `8640745a387bf510c762a3d62e80b1e3a095386d3857f24c7e561f8614f9c76c` for raw tree `0b5f7841ef65779d84f028a544724a6d76cd06a1`.
+- `k72.17` remains in progress. Derrick must first retest the previously failing existing-library download/migration path, then complete Flow/Boxing/marker/terminal and Bug A/B/C/C/B/A review. No physical approval or Bug PASS is claimed.
