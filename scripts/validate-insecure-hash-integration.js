@@ -131,8 +131,8 @@ async function runRow(browserInstance, row, origin) {
   assert.equal(capabilities.public.secureContext, expectedSecure); assert.equal(capabilities.public.camera, expectedSecure); assert.equal(capabilities.public.limitations.includes("camera_unavailable"), !expectedSecure);
   assert.equal(capabilities.authoring.conversionWorker, true); assert.equal(capabilities.authoring.indexedDb, true);
   await waitFor(page, () => game.evaluate((element) => { const state = element.graph.renderer.describe(); return state.gameplayAssets.state === "ready" && state.environment.state === "ready"; }), 30_000, `${row.trust}/${row.kind} initial assets`);
-  const raw = await game.evaluate(async (element) => { const bytes = new Uint8Array(await (await fetch("/__fixture/4858.zip")).arrayBuffer()); const acquired = await element.graph.vendor.importLocalArchive(bytes); return { archiveSha1: acquired.archiveSha1, sourceHash: acquired.sourceHash, sourceFormatMajor: acquired.source.manifest.sourceFormatMajor }; });
-  assert.equal(raw.archiveSha1, fixtureRawSha1); assert.equal(raw.sourceHash, VERSION_HASH); assert.ok([2, 3, 4].includes(raw.sourceFormatMajor));
+  const raw = await game.evaluate(async (element) => { const bytes = new Uint8Array(await (await fetch("/__fixture/4858.zip")).arrayBuffer()); const acquired = await element.graph.vendor.importLocalArchive(bytes); return { archiveSha1: acquired.archiveSha1, sourceHash: acquired.sourceHash, infoFormatMajor: acquired.source.manifest.infoFormatMajor,beatMapFormatMajors:acquired.source.manifest.difficulties.map((entry)=>entry.beatMapFormatMajor) }; });
+  assert.equal(raw.archiveSha1, fixtureRawSha1); assert.equal(raw.sourceHash, VERSION_HASH); assert.equal(raw.infoFormatMajor,2);assert.deepEqual(raw.beatMapFormatMajors,[2,2,2]);
   await game.evaluate((element) => element.browseLatestBeatSaver({ pageSize: 1 }));
   await game.evaluate((element) => element.browseBeatSaver({ text: "4858", pageSize: 1 }));
   if (row.importKind === "remote") {
