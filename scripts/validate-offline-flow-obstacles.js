@@ -19,8 +19,8 @@ const audioContentHash = `sha256:${createHash("sha256").update(audioBytes).diges
 const converted = await convertDifficulty(summary, {
   difficulty:"Hard", songToken:"3c9d", songName:"Dance Dance Revolution - DDRMix", bpm:150,
   sourceProvider:"beatsaver", sourceId:"3C9D", sourceVersionHash:oracle.source.versionHash,
-  sourceDifficultyPath:oracle.source.path, sourceBeatmapVersion:oracle.source.format,
-  sourceDifficultyHash:`sha256:${oracle.source.sha256}`, audioPath:"song.ogg", audioContentHash
+  sourceInfoFormat:"v2",sourceInfoVersion:"2.0.0",sourceInfoHash:`sha256:${"0".repeat(64)}`,sourceDifficultyPath:oracle.source.path,sourceBeatmapFormat:"v2", sourceBeatmapVersion:oracle.source.format,
+  sourceDifficultyHash:`sha256:${oracle.source.sha256}`,notePalette:null, audioPath:"song.ogg", audioContentHash
 });
 const content = createAeroContentRuntime();
 await content.loadPackage({package:converted.package,assets:[{path:"song.ogg",bytes:audioBytes}]});
