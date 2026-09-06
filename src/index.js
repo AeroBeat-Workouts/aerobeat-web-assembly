@@ -128,6 +128,9 @@ export class AeroGame extends HTMLElement {
     this.sessionGeneration = 0;
     this.pendingSessionAction = "";
     this.activeSessionAction = "";
+    this.lifecycleIntentGeneration = 0;
+    this.lifecycleIntentActiveGeneration = 0;
+    this.lifecycleIntentTail = Promise.resolve(null);
     this.transportIntentTail = Promise.resolve();
     this.desiredTransportSeekMs = null;
     this.transportSeekQueued = false;
@@ -182,7 +185,7 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = "";
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = "";
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
@@ -239,59 +242,84 @@ export class AeroGame extends HTMLElement {
 
   async start() { return this.startSession("play", { requireDownloaded: false }); }
 
+  /** Serialize every content/selection/action intent in physical user order. The active token—not merely connection liveness—owns every continuation commit. */
+  enqueueLifecycleIntent(kind, operation) {
+    this.assertConnected();
+    const generation = ++this.lifecycleIntentGeneration; const connectionGeneration = this.connectedGeneration; const graph = this.graph;
+    const owner = Object.freeze({ generation, connectionGeneration, graph, kind });
+    const previous = this.lifecycleIntentTail;
+    const result = previous.catch(() => null).then(async () => {
+      if (!this.isCurrent(connectionGeneration, graph)) return this.getSnapshot();
+      this.lifecycleIntentActiveGeneration = generation;
+      try { return await operation(owner); }
+      finally { if (this.lifecycleIntentActiveGeneration === generation) this.lifecycleIntentActiveGeneration = 0; }
+    });
+    this.lifecycleIntentTail = result.catch(() => null);
+    return result;
+  }
+
+  isLifecycleIntentOwner(owner) { return this.lifecycleIntentActiveGeneration === owner.generation && this.lifecycleIntentGeneration >= owner.generation && this.isCurrent(owner.connectionGeneration, owner.graph); }
+  isActionIntentOwner(owner, sessionGeneration) { return this.isLifecycleIntentOwner(owner) && this.isSessionCurrent(sessionGeneration, owner.connectionGeneration, owner.graph); }
+
   /** Start or restart one exact purpose from song time zero. @param {"play"|"visual_test"} purpose @param {{requireDownloaded?:boolean,transportAlreadySerialized?:boolean}} [options] */
   async startSession(purpose, options = {}) {
     this.assertConnected();
     if (purpose !== "play" && purpose !== "visual_test") throw new TypeError("Session purpose is invalid");
     this.stopPreview();
-    const connectionGeneration = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant; const previousTransportTail = this.transportIntentTail; const previousTerminalTail = this.terminalServiceTail; const previousMenuPauseTail = this.menuPauseTail;
-    const sessionGeneration = ++this.sessionGeneration; const action = purpose === "visual_test" ? "test" : "start";
+    const connectionGeneration = this.connectedGeneration; const graph = this.graph; const sessionGeneration = ++this.sessionGeneration; const action = purpose === "visual_test" ? "test" : "start";
+    const previousTransportTail = this.transportIntentTail; const previousTerminalTail = this.terminalServiceTail; const previousMenuPauseTail = this.menuPauseTail;
     this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.audioSyncPending = false; this.terminalReconciledSessionGeneration = -1; this.menuDisposition = "none"; this.menuPauseArmed = false;
     this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
-    try {
-      if (options.transportAlreadySerialized !== true) await previousTransportTail;
-      await previousMenuPauseTail;
-      await previousTerminalTail;
-      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-      if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
-      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-      if (options.requireDownloaded === true && !this.downloadedPlayable()) throw new Error("Download Music first.");
-      const contentPlayable = playableContent(graph.content.getSnapshot());
-      this.stopFrameLoop();
-      await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
-      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-      graph.video.pause(this.videoElement());
-      if (typeof graph.audio.seek === "function") await graph.audio.seek(0);
-      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-      if (contentPlayable) this.configureGameplayFromContent(false);
-      const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
-      await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
-      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-      if (purpose === "play") {
-        if (!graph.video.getRetainedCameraStream()) {
-          const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
-          if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-          if (result.status !== "granted") throw new Error(result.message);
-        }
-        this.attachRetainedCamera();
-        await graph.video.play(this.videoElement());
-        if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-        await this.startCv();
-      } else {
+    return this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
+      const participant = this.leaseParticipant;
+      try {
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        if (options.transportAlreadySerialized !== true) await previousTransportTail;
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        await previousMenuPauseTail;
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        await previousTerminalTail;
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        if (options.requireDownloaded === true && !this.selectedDownloadedContentPlayable()) throw new Error("Download Music first.");
+        const contentPlayable = playableContent(graph.content.getSnapshot());
+        this.stopFrameLoop();
+        await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         graph.video.pause(this.videoElement());
-        this.activeCvSource = null;
+        if (typeof graph.audio.seek === "function") await graph.audio.seek(0);
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        if (contentPlayable) this.configureGameplayFromContent(false);
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
+        await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+        if (purpose === "play") {
+          if (!graph.video.getRetainedCameraStream()) {
+            const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
+            if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+            if (result.status !== "granted") throw new Error(result.message);
+          }
+          this.attachRetainedCamera();
+          await graph.video.play(this.videoElement());
+          if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+          await this.startCv();
+        } else {
+          graph.video.pause(this.videoElement());
+          this.activeCvSource = null;
+        }
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+        this.sessionStartRequested = true; this.activeSessionAction = action;
+        graph.gameplay.requestStart(performance.now(), purpose === "visual_test" ? VISUAL_TEST_START_REQUEST : PLAY_START_REQUEST);
+        if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback();
+        this.publish("session_changed");
+        return this.getSnapshot();
+      } finally {
+        if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) { this.pendingSessionAction = ""; this.menuStarting = false; this.renderPresenters(); }
       }
-      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) return this.getSnapshot();
-      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-      this.sessionStartRequested = true; this.activeSessionAction = action;
-      graph.gameplay.requestStart(performance.now(), purpose === "visual_test" ? VISUAL_TEST_START_REQUEST : PLAY_START_REQUEST);
-      this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback();
-      this.publish("session_changed");
-      return this.getSnapshot();
-    } finally {
-      if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) { this.pendingSessionAction = ""; this.menuStarting = false; this.renderPresenters(); }
-    }
+    });
   }
 
   async pause(reason = "manual") {
@@ -442,21 +470,25 @@ export class AeroGame extends HTMLElement {
 
   /** @param {unknown} source */
   async selectContent(source) {
-    this.assertConnected();
-    this.invalidatePendingSessionStart(); this.stopPreview();
-    const generation = this.connectedGeneration; const graph = this.graph;
-    const normalized = contentSource(source); const kind = normalized.kind;
+    this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview();
+    const normalized = contentSource(source);
+    return this.enqueueLifecycleIntent("content-select", (owner) => this.performSelectContent(normalized, owner));
+  }
+
+  async performSelectContent(normalized, owner) {
+    const graph = owner.graph; const kind = normalized.kind;
     let profilePackage = kind === "direct" ? packageFromEnvelope(normalized.package) : null;
     try {
-      if (kind === "persistence") { const loaded = await graph.authoring.loadPackage(normalized.handle); profilePackage = loaded.package; await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions()); }
+      if (kind === "persistence") { const loaded = await graph.authoring.loadPackage(normalized.handle); if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot(); profilePackage = loaded.package; await graph.content.loadPersistenceHandle(normalized.handle, this.contentLoadOptions()); }
       else if (kind === "external") await graph.content.loadExternalPackage(normalized.url, this.contentLoadOptions());
       else if (kind === "direct") await graph.content.loadPackage(normalized.package, this.contentLoadOptions());
       else throw new TypeError("Unsupported content source kind");
-    } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-    try { await this.loadSelectedAudio(graph); } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+    } catch (error) { if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot(); throw error; }
+    if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
+    try { await this.loadSelectedAudio(graph); } catch (error) { if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot(); throw error; }
+    if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
     if (profilePackage) this.synchronizeConverterProvenance(profilePackage);
+    if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
     this.configureGameplayFromContent(false); this.syncContentPlayback();
     this.publish("content_changed");
     return this.getSnapshot();
@@ -464,18 +496,25 @@ export class AeroGame extends HTMLElement {
 
   async selectVariant(variantId, modifierIds = []) {
     this.assertConnected(); this.invalidatePendingSessionStart();
-    const generation = this.connectedGeneration; const graph = this.graph;
+    const normalizedVariantId = boundedString(variantId, ""); const normalizedModifierIds = stringList(modifierIds, 16);
+    return this.enqueueLifecycleIntent("variant-select", (owner) => this.performSelectVariant(normalizedVariantId, normalizedModifierIds, owner));
+  }
+
+  async performSelectVariant(variantId, modifierIds, owner) {
+    const graph = owner.graph;
+    if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
     this.syncContentPlayback();
     const gameplay = graph.gameplay.getSnapshot();
     const configured = gameplay.session?.packageId === graph.content.getSnapshot().packageId;
     const futureOnly = configured && ["calibrating", "paused_manual", "paused_tracking"].includes(gameplay.session.state);
     try {
-      if (futureOnly) await graph.content.swapFutureVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
-      else await graph.content.selectVariant(boundedString(variantId, ""), { modifierIds: stringList(modifierIds, 16) });
-    } catch (error) { if (!this.isCurrent(generation, graph)) return this.getSnapshot(); throw error; }
-    if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+      if (futureOnly) await graph.content.swapFutureVariant(variantId, { modifierIds });
+      else await graph.content.selectVariant(variantId, { modifierIds });
+    } catch (error) { if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot(); throw error; }
+    if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
     const selectedRecipeId = graph.content.getSnapshot().selectedVariant?.recipeId;
     if (conversionRecipeIds.includes(selectedRecipeId)) this.lastBoxingRecipeId = selectedRecipeId;
+    if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
     this.configureGameplayFromContent(futureOnly); this.syncContentPlayback();
     this.publish("content_changed");
     return this.getSnapshot();
@@ -486,10 +525,13 @@ export class AeroGame extends HTMLElement {
     this.assertConnected();
     if (!rulesetIds.includes(rulesetId)) throw new TypeError("Gameplay ruleset intent is invalid");
     if (rulesetId !== gameplayRulesetIds.flow && !conversionRecipeIds.includes(recipeId)) throw new TypeError("Boxing conversion intent is invalid");
-    const target = exactGameplayVariant(this.graph.content.getSnapshot().variants, rulesetId, recipeId);
-    if (!target?.variantId) throw new Error("Selected gameplay variant is unavailable");
-    if (rulesetId !== gameplayRulesetIds.flow) this.lastBoxingRecipeId = recipeId;
-    return this.selectVariant(target.variantId);
+    this.invalidatePendingSessionStart();
+    return this.enqueueLifecycleIntent("gameplay-mode-select", async (owner) => {
+      const target = exactGameplayVariant(owner.graph.content.getSnapshot().variants, rulesetId, recipeId);
+      if (!target?.variantId) throw new Error("Selected gameplay variant is unavailable");
+      if (rulesetId !== gameplayRulesetIds.flow) this.lastBoxingRecipeId = recipeId;
+      return this.performSelectVariant(target.variantId, Object.freeze([]), owner);
+    });
   }
 
   /** Select one registered experimental profile by bounded ID. */
@@ -559,41 +601,48 @@ export class AeroGame extends HTMLElement {
   async browseLatestBeatSaver(options = {}) { return this.browseBeatSaver({ ...safeData(options, 0, 32), latest: true }); }
 
   async importBeatSaver(map, versionIdentifier, authoringOptions) {
-    this.assertConnected();
-    this.stopPreview();
-    const generation = this.connectedGeneration; const graph = this.graph;
-    let acquired;
-    try { acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), typeof versionIdentifier === "string" ? versionIdentifier : undefined, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isCurrent(generation, graph)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } }); }
-    catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
-    if (!this.isCurrent(generation, graph)) return null;
-    return this.convertAcquired(acquired, authoringOptions);
+    this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview();
+    const safeMap = safeData(map, 0, 64); const safeVersion = typeof versionIdentifier === "string" ? versionIdentifier : undefined;
+    return this.enqueueLifecycleIntent("beatsaver-import", async (owner) => {
+      let acquired;
+      try { acquired = await owner.graph.vendor.acquireVersion(safeMap, safeVersion, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isLifecycleIntentOwner(owner)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } }); }
+      catch (error) { if (!this.isLifecycleIntentOwner(owner)) return null; throw error; }
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      return this.convertAcquired(acquired, authoringOptions, owner);
+    });
   }
 
   async importBeatSaverById(mapId, versionIdentifier, authoringOptions, requireBrowsed = false) {
-    this.assertConnected();
-    const generation = this.connectedGeneration; const graph = this.graph; const safeMapId = boundedIdentifier(mapId, "BeatSaver map ID");
-    let map = this.browsedMaps.get(safeMapId.toUpperCase());
-    if (!map && requireBrowsed) throw new Error("Iframe import must reference a child-browsed BeatSaver map");
-    if (!map) { try { map = await graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal }); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; } }
-    if (!this.isCurrent(generation, graph)) return null;
-    return this.importBeatSaver(map, versionIdentifier, authoringOptions);
+    this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview();
+    const safeMapId = boundedIdentifier(mapId, "BeatSaver map ID"); const safeVersion = typeof versionIdentifier === "string" ? versionIdentifier : undefined;
+    const browsedMap = this.browsedMaps.get(safeMapId.toUpperCase());
+    if (browsedMap && this.importBeatSaver !== AeroGame.prototype.importBeatSaver) return this.importBeatSaver(browsedMap, safeVersion, authoringOptions);
+    return this.enqueueLifecycleIntent("beatsaver-id-import", async (owner) => {
+      let map = this.browsedMaps.get(safeMapId.toUpperCase());
+      if (!map && requireBrowsed) throw new Error("Iframe import must reference a child-browsed BeatSaver map");
+      if (!map) { try { map = await owner.graph.vendor.getMapById(safeMapId, { signal: this.activeAbort.signal }); } catch (error) { if (!this.isLifecycleIntentOwner(owner)) return null; throw error; } }
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      const acquired = await owner.graph.vendor.acquireVersion(safeData(map, 0, 64), safeVersion, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isLifecycleIntentOwner(owner)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } });
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      return this.convertAcquired(acquired, authoringOptions, owner);
+    });
   }
 
   async importLocalZip(input, authoringOptions) {
-    this.assertConnected();
-    this.stopPreview();
+    this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview();
     if (!(input instanceof Blob || input instanceof ArrayBuffer || input instanceof Uint8Array)) throw new TypeError("Local import requires Blob, ArrayBuffer, or Uint8Array");
-    const generation = this.connectedGeneration; const graph = this.graph;
-    let acquired;
-    try { acquired = await graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal }); }
-    catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
-    if (!this.isCurrent(generation, graph)) return null;
-    return this.convertAcquired(acquired, authoringOptions);
+    return this.enqueueLifecycleIntent("local-import", async (owner) => {
+      let acquired;
+      try { acquired = await owner.graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal }); }
+      catch (error) { if (!this.isLifecycleIntentOwner(owner)) return null; throw error; }
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      return this.convertAcquired(acquired, authoringOptions, owner);
+    });
   }
 
-  cancelImport() { this.assertConnected(); return this.graph.authoring.cancel(); }
-  async deletePackage(handle) { this.assertConnected(); this.stopPreview(); const generation = this.connectedGeneration; const graph = this.graph; const deleted = await graph.authoring.deletePackage(safeData(handle, 0, 16)); if (this.isCurrent(generation, graph)) { this.desiredLibrarySelection = null; await this.refreshLibrary(generation); if (this.isCurrent(generation, graph)) this.publish("content_changed"); } return deleted; }
-  async deleteLibraryCollection(collectionIdValue) { this.assertConnected(); this.stopPreview(); const generation = this.connectedGeneration; const graph = this.graph; const collectionId = boundedString(collectionIdValue, ""); if (!collectionId) throw new Error("Downloaded song is unavailable"); this.librarySelectionGeneration += 1; this.desiredLibrarySelection = null; const legacyTarget = this.libraryView.collections.find((entry) => entry.collectionId === collectionId)?.difficulties[0]; const deleted = typeof graph.authoring.deleteCollection === "function" ? await graph.authoring.deleteCollection(collectionId) : legacyTarget ? await graph.authoring.deletePackage({ key: legacyTarget.packageKey, packageId: legacyTarget.packageId }) : false; if (this.isCurrent(generation, graph)) { await this.refreshLibrary(generation); if (this.isCurrent(generation, graph)) this.publish("content_changed"); } return deleted; }
+  cancelImport() { this.assertConnected(); this.invalidatePendingSessionStart(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; return this.graph.authoring.cancel(); }
+  async deletePackage(handle) { this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview(); const safeHandle = safeData(handle, 0, 16); return this.enqueueLifecycleIntent("package-delete", async (owner) => { const deleted = await owner.graph.authoring.deletePackage(safeHandle); if (!this.isLifecycleIntentOwner(owner)) return deleted; this.desiredLibrarySelection = null; await this.refreshLibrary(owner.connectionGeneration, { autoSelect: false }); if (this.isLifecycleIntentOwner(owner)) this.publish("content_changed"); return deleted; }); }
+  async deleteLibraryCollection(collectionIdValue) { this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview(); const collectionId = boundedString(collectionIdValue, ""); if (!collectionId) throw new Error("Downloaded song is unavailable"); this.librarySelectionGeneration += 1; this.desiredLibrarySelection = null; const legacyTarget = this.libraryView.collections.find((entry) => entry.collectionId === collectionId)?.difficulties[0]; return this.enqueueLifecycleIntent("collection-delete", async (owner) => { const graph = owner.graph; const deleted = typeof graph.authoring.deleteCollection === "function" ? await graph.authoring.deleteCollection(collectionId) : legacyTarget ? await graph.authoring.deletePackage({ key: legacyTarget.packageKey, packageId: legacyTarget.packageId }) : false; if (!this.isLifecycleIntentOwner(owner)) return deleted; await this.refreshLibrary(owner.connectionGeneration, { autoSelect: false }); if (this.isLifecycleIntentOwner(owner)) this.publish("content_changed"); return deleted; }); }
 
   setTheme(theme) {
     this.assertConnected();
@@ -730,8 +779,9 @@ export class AeroGame extends HTMLElement {
     this.bridge = createAeroGameIframeBridge({ parentWindow: globalThis.parent, instanceId: this.instanceId, expectedOrigin, onConnect: () => this.emitGameEvent("ready", { snapshot: this.getSnapshot() }), onCommand: (command) => { Promise.resolve(this.executeCommand(command)).catch((error) => this.handleError(error)); }, onError: (error) => this.handleError(error) });
   }
 
-  async convertAcquired(acquired, options) {
+  async convertAcquired(acquired, options, owner) {
     const generation = this.connectedGeneration; const graph = this.graph;
+    const ownsImport = () => owner ? this.isLifecycleIntentOwner(owner) : this.isCurrent(generation, graph);
     const raw = options === undefined ? Object.freeze({}) : safeData(options, 0, 32);
     const converter = graph.profiles.getActive("converter_regeneration");
     let result;
@@ -742,14 +792,24 @@ export class AeroGame extends HTMLElement {
       modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: true,
       converterProfile: converter.profile,
       signal: this.activeAbort.signal
-    }); } catch (error) { if (!this.isCurrent(generation, graph)) return null; throw error; }
-    if (!this.isCurrent(generation, graph)) return null;
+    }); } catch (error) { if (!ownsImport()) return null; throw error; }
+    if (!ownsImport()) return null;
     const defaultLoaded = await graph.authoring.loadPackage(result.defaultPackage.handle);
-    if (!this.isCurrent(generation, graph)) return null;
+    if (!ownsImport()) return null;
     if (!packageCarriesConverterProfile(defaultLoaded.package, converter.profile)) throw new Error("Authored package converter provenance is incomplete");
     graph.profiles.select(converter.profile.profileId, { sessionState: profileSessionState(graph.gameplay.getSnapshot()), regeneratedPackageProfileHash: converter.profile.contentHash });
+    if (!ownsImport()) return null;
     this.emitGameEvent("import_changed", { collectionId: result.collection.collectionId, packageCount: result.packages.length });
-    await this.refreshLibrary(generation, { preferredCollectionId: result.collection.collectionId, preferredPackageId: result.defaultPackage.packageId });
+    await this.refreshLibrary(generation, { autoSelect: false });
+    if (!ownsImport()) return null;
+    const target = librarySelectionTarget(this.libraryView.collections, result.collection.collectionId, result.defaultPackage.packageId);
+    if (target && owner) {
+      const selectionGeneration = ++this.librarySelectionGeneration;
+      this.desiredLibrarySelection = Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
+      const activatedCollections = activateLibraryCollection(this.libraryView.collections, target.collectionId, target.packageId);
+      this.libraryView = Object.freeze({ ...this.libraryView, selectedCollectionId: target.collectionId, selectedPackageId: target.packageId, collections: activatedCollections, songs: publicLibrarySongs(activatedCollections) });
+      await this.selectLibraryPackage(target, selectionGeneration, owner);
+    }
     return result;
   }
 
@@ -1400,9 +1460,10 @@ export class AeroGame extends HTMLElement {
     this.beatSaverView = Object.freeze({ ...this.beatSaverView, selectedVersionHash: version.hash, difficulties, selectedDifficulty: difficulties[0] }); this.renderPresenters();
   }
 
-  async selectLibraryPackage(target, selectionGeneration) {
+  async selectLibraryPackage(target, selectionGeneration, owner) {
     this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph;
-    if (selectionGeneration !== this.librarySelectionGeneration) return null;
+    const ownsSelection = () => this.isLifecycleIntentOwner(owner) && selectionGeneration === this.librarySelectionGeneration;
+    if (!ownsSelection()) return null;
     const before = graph.content.getSnapshot();
     const retainedRulesetId = rulesetIds.includes(before.selectedVariant?.rulesetId) ? before.selectedVariant.rulesetId : gameplayRulesetIds.flow;
     const retainedRecipeId = conversionRecipeIds.includes(before.selectedVariant?.recipeId) ? before.selectedVariant.recipeId : this.lastBoxingRecipeId;
@@ -1411,32 +1472,32 @@ export class AeroGame extends HTMLElement {
     let loaded;
     try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); }
     catch (error) {
-      if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-      if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
+      if (!ownsSelection()) return null;
+      if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error, owner);
       throw error;
     }
-    if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-    try { await this.selectContent({ kind: "persistence", handle: loaded.handle }); }
+    if (!ownsSelection()) return null;
+    try { await this.performSelectContent(contentSource({ kind: "persistence", handle: loaded.handle }), owner); }
     catch (error) {
-      if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
-      if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error);
+      if (!ownsSelection()) return null;
+      if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error, owner);
       throw error;
     }
-    if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+    if (!ownsSelection()) return null;
     const content = graph.content.getSnapshot();
     const equivalent = retainedRulesetId === gameplayRulesetIds.flow
       ? content.variants.find((variant) => variant.rulesetId === gameplayRulesetIds.flow)
       : content.variants.find((variant) => variant.rulesetId === retainedRulesetId && variant.recipeId === retainedRecipeId);
     const fallback = content.variants.find((variant) => variant.rulesetId === gameplayRulesetIds.flow) ?? content.variants[0];
     const selected = equivalent ?? fallback;
-    if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.selectVariant(selected.variantId, modifierIds);
-    if (!this.isCurrent(generation, graph) || selectionGeneration !== this.librarySelectionGeneration) return null;
+    if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.performSelectVariant(selected.variantId, modifierIds, owner);
+    if (!ownsSelection()) return null;
     if (flowReimportReason(this.lastError)) { this.lastError = null; this.renderPresenters(); }
     return Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
   }
 
-  async clearStaleLibrarySelection(selectionGeneration, error) {
-    if (selectionGeneration !== this.librarySelectionGeneration) return null;
+  async clearStaleLibrarySelection(selectionGeneration, error, owner = null) {
+    if (selectionGeneration !== this.librarySelectionGeneration || (owner && !this.isLifecycleIntentOwner(owner))) return null;
     const generation = this.connectedGeneration;
     this.librarySelectionGeneration += 1;
     this.desiredLibrarySelection = null;
@@ -1446,7 +1507,7 @@ export class AeroGame extends HTMLElement {
     this.lastError = reason;
     this.emitGameEvent("error", this.lastError);
     await this.refreshLibrary(generation, { autoSelect: false });
-    if (this.isCurrent(generation)) this.renderPresenters();
+    if (this.isCurrent(generation) && (!owner || this.isLifecycleIntentOwner(owner))) this.renderPresenters();
     return null;
   }
 
@@ -1459,8 +1520,8 @@ export class AeroGame extends HTMLElement {
     const activatedCollections = activateLibraryCollection(this.libraryView.collections, target.collectionId, target.packageId);
     this.libraryView = Object.freeze({ ...this.libraryView, selectedCollectionId: target.collectionId, selectedPackageId: target.packageId, collections: activatedCollections, songs: publicLibrarySongs(activatedCollections) });
     this.stopPreview(); this.renderPresenters();
-    const selection = this.librarySelectionTail.catch(() => null).then(() => this.selectLibraryPackage(target, selectionGeneration));
-    this.librarySelectionTail = selection;
+    const selection = this.enqueueLifecycleIntent("library-select", (owner) => this.selectLibraryPackage(target, selectionGeneration, owner));
+    this.librarySelectionTail = selection.catch(() => null);
     this.pendingLibrarySelection = selection;
     selection.catch((error) => { if (selectionGeneration === this.librarySelectionGeneration) this.handleError(error); }).finally(() => { if (this.pendingLibrarySelection === selection) { this.pendingLibrarySelection = null; this.renderPresenters(); } });
     return selection;
@@ -1695,9 +1756,7 @@ export class AeroGame extends HTMLElement {
     if (!this.graph || this.menuStarting) return;
     const graph = this.graph; const generation = this.connectedGeneration;
     try {
-      if (this.pendingLibrarySelection) await this.pendingLibrarySelection;
-      if (!this.isCurrent(generation, graph)) return;
-      if (!this.downloadedPlayable()) {
+      if (!this.downloadedPlayable() && !this.pendingLibrarySelection) {
         this.musicPrerequisite = "Download Music first.";
         this.menuOpen = true; this.renderPresenters(); this.focusMusicSection();
         return;
@@ -1722,12 +1781,14 @@ export class AeroGame extends HTMLElement {
     return false;
   }
 
-  downloadedPlayable() {
-    if (!this.graph || this.pendingLibrarySelection) return false;
+  selectedDownloadedContentPlayable() {
+    if (!this.graph) return false;
     const packageId = this.libraryView.selectedPackageId;
     const target = librarySelectionTarget(this.libraryView.collections, this.libraryView.selectedCollectionId, packageId);
     return Boolean(target && packageId && this.graph.content.getSnapshot().packageId === packageId && playableContent(this.graph.content.getSnapshot()));
   }
+
+  downloadedPlayable() { return !this.pendingLibrarySelection && this.selectedDownloadedContentPlayable(); }
 
   sessionActionsSnapshot() { return Object.freeze({ downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction }); }
   invalidatePendingSessionStart() { if (!this.pendingSessionAction && !this.menuStarting) return false; this.sessionGeneration += 1; this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = ""; this.menuStarting = false; this.stopFrameLoop(); this.renderPresenters(); return true; }
@@ -1855,7 +1916,7 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionGeneration += 1; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
