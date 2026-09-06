@@ -103,28 +103,32 @@ async function verifyCurrentPopoverMatrix(browser, sourceUrl, noise) {
     ["iframe-landscape-dpr1", "iframe", 844, 390, 1],
     ["iframe-landscape-dpr3", "iframe", 844, 390, 3]
   ];
-  for (const [name, mode, width, height, deviceScaleFactor] of contexts) {
-    const context = await browser.newContext({ viewport:{ width, height }, deviceScaleFactor });
-    const page = await context.newPage();
-    page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${name}:${message.type()}:${message.text()}`); });
-    page.on("pageerror", (error) => noise.push(`${name}:pageerror:${error.message}`));
-    try {
-      await page.goto(sourceUrl, { waitUntil:"networkidle" });
-      let target = page;
-      if (mode === "iframe") {
-        await page.evaluate((url) => {
-          const iframe = document.createElement("iframe");
-          iframe.id = "assembly-popover-frame";
-          iframe.src = url;
-          iframe.style.cssText = "border:0;display:block;width:100vw;height:100vh";
-          document.body.replaceChildren(iframe);
-        }, sourceUrl);
-        const handle = await page.waitForSelector("#assembly-popover-frame");
-        const frame = await handle.contentFrame();
-        if (!frame) throw new Error(`${name}: iframe unavailable`);
-        target = frame;
-      }
-      await target.waitForFunction(() => { const game=document.querySelector("aero-game"); return typeof game?.getSnapshot === "function" && game.getSnapshot().lifecycle === "connected"; });
+  const parentServer = createStaticServer((_request, response) => {
+    response.setHeader("content-type", "text/html; charset=utf-8");
+    response.end(`<!doctype html><style>html,body,iframe{border:0;margin:0;width:100%;height:100%;display:block}</style><iframe id="assembly-popover-frame" allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${sourceUrl}"></iframe>`);
+  });
+  await new Promise((resolveListen) => parentServer.listen(0, "127.0.0.1", resolveListen));
+  const parentAddress = parentServer.address();
+  if (!parentAddress || typeof parentAddress === "string") throw new Error("Popover parent server unavailable");
+  const parentUrl = `http://localhost:${parentAddress.port}/`;
+  try {
+    for (const [name, mode, width, height, deviceScaleFactor] of contexts) {
+      const context = await browser.newContext({ viewport:{ width, height }, deviceScaleFactor });
+      const page = await context.newPage();
+      page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${name}:${message.type()}:${message.text()}`); });
+      page.on("pageerror", (error) => noise.push(`${name}:pageerror:${error.message}`));
+      try {
+        await page.goto(mode === "iframe" ? parentUrl : sourceUrl, { waitUntil:"networkidle" });
+        let target = page;
+        if (mode === "iframe") {
+          const handle = await page.waitForSelector("#assembly-popover-frame");
+          const frame = await handle.contentFrame();
+          if (!frame) throw new Error(`${name}: iframe unavailable`);
+          const origins = await frame.evaluate(() => ({ child:location.origin, parent:new URL(document.referrer).origin }));
+          assert(origins.child !== origins.parent, `${name}: iframe must use distinct parent and child origins`);
+          target = frame;
+        }
+        await target.waitForFunction(() => { const game=document.querySelector("aero-game"); return typeof game?.getSnapshot === "function" && game.getSnapshot().lifecycle === "connected"; });
       const result = await target.evaluate(() => {
         const game = document.querySelector("aero-game");
         const transport = game?.shadowRoot?.querySelector("aero-visual-test-transport");
@@ -163,9 +167,12 @@ async function verifyCurrentPopoverMatrix(browser, sourceUrl, noise) {
         assert(state.hidden === false && state.display === "grid" && state.geometry[0] > 0 && state.geometry[1] > 0 && state.geometry[2] > 0 && state.expanded === "true", `${name}:open-${index} did not render as a nonzero grid: ${JSON.stringify(state)}`);
         assert(JSON.stringify(state.values) === JSON.stringify(["0.29", "0.73"]), `${name}:open-${index} changed volume truth: ${JSON.stringify(state)}`);
       }
-    } finally {
-      await context.close();
+      } finally {
+        await context.close();
+      }
     }
+  } finally {
+    await new Promise((resolveClose) => parentServer.close(resolveClose));
   }
 }
 
