@@ -9,6 +9,15 @@ import { environmentAssetFiles } from "./src/environment-asset-catalog.js";
 const basePath = process.env.AEROBEAT_BASE_PATH ?? "/";
 const tailscaleHost = "derrick-alienware-aurora-r13.tail613fcb.ts.net";
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const assemblyRoot = fileURLToPath(new URL(".", import.meta.url));
+export const viteAllowedFileSystemRoots = Object.freeze([assemblyRoot, ...Object.entries(packageJson.dependencies)
+  .filter(([, spec]) => typeof spec === "string" && spec.startsWith("file:"))
+  .map(([packageName, spec]) => {
+    const packageRoot = new URL(`${spec.slice("file:".length).replace(/\/$/u, "")}/`, import.meta.url);
+    const ownedPackage = JSON.parse(readFileSync(new URL("package.json", packageRoot), "utf8"));
+    if (ownedPackage.name !== packageName) throw new Error(`Linked dependency ownership mismatch for ${packageName}`);
+    return fileURLToPath(packageRoot);
+  })]);
 const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.7/", import.meta.url);
 const rendererGameplayInventoryBytes = readFileSync(new URL("inventory.v1.json", rendererGameplayRoot));
 if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "ba3f40ad3b178da9845a74c89d3a89115d13fa5bd86b291bf41031df70eabbf4") throw new Error("Linked renderer gameplay inventory hash drifted");
@@ -61,7 +70,7 @@ export default {
   },
   server: {
     allowedHosts: [tailscaleHost],
-    fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
+    fs: { strict: true, allow: viteAllowedFileSystemRoots },
     host: "127.0.0.1",
     port: 5173,
     strictPort: false

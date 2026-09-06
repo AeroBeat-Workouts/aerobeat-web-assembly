@@ -3,8 +3,8 @@
 /** @typedef {import("@aerobeat/web-contracts/pose-adapter").AeroPoseAdapter} AeroPoseAdapter */
 
 /**
- * Narrow live-camera CV service used by the product root. It intentionally has
- * no replay, fallback, backend selector, resize, prediction, or worker route.
+ * Narrow live-camera CPU-WASM worker CV service used by the product root. It
+ * intentionally has no replay, fallback, backend selector, resize, or prediction route.
  *
  * @param {{poseAdapter:AeroPoseAdapter,submissionCadenceTargetFps?:number,now?:()=>number}} options
  */
@@ -40,7 +40,7 @@ export function createLockedProductionCvService(options) {
       const normalized = normalizeSource(source);
       const token = ++generation;
       stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "loading"; lastError = null;
-      const operation = enqueueAdapter(() => adapter.load()); loading = operation;
+      const operation = enqueueAdapter(async () => { await adapter.load(); validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.()); }); loading = operation;
       try { await operation; }
       catch (error) { if (token !== generation || lifecycleState === "disposed") return; lastError = errorMessage(error); lifecycleState = "error"; throw new Error(lastError); }
       finally { if (loading === operation) loading = null; }
@@ -73,16 +73,16 @@ export function createLockedProductionCvService(options) {
     submitFrame() { void estimate(generation); },
     getLatestPoseFrame() { return latestPoseFrame; },
     getPerformanceSample() {
-      const execution = adapter.getExecutionTelemetry?.();
+      const execution = validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.());
       return Object.freeze({ running:lifecycleState === "running", submittedFrameCount, poseFrameCount, runtimeInferenceDurationMs:finiteDuration(execution?.runtimeInferenceDurationMs), estimateDurationMs:finiteDuration(execution?.estimateDurationMs) });
     },
     getStatus() {
-      const execution = adapter.getExecutionTelemetry?.();
+      validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.());
       return Object.freeze({
         serviceId: "aero.cv.pose", lifecycleState, running: lifecycleState === "running", sourceKind: "live-camera",
         sourceId: activeSource?.sourceId ?? "aero.mediapipe.live", mirrored: activeSource?.mirrored ?? true,
         selectedVendorId: adapter.vendorId, selectedBackendId: "mediapipe", requestedBackendId: "mediapipe",
-        providerId: execution?.provider ?? "gpu-webgl", gameplaySource: "measured", resizePath: "none",
+        providerId: "cpu-wasm", executionLocation: "worker", gameplaySource: "measured", resizePath: "none",
         submissionCadenceTargetFps: targetFps, submittedFrameCount, poseFrameCount, droppedFrameCount,
         latestPoseTimestampMs: latestPoseFrame?.timestampMs ?? null, error: lastError
       });
@@ -107,6 +107,7 @@ export function createLockedProductionCvService(options) {
       const executionMode=adapter.getExecutionStatus?.().mode;
       const frameSource=executionMode==="worker"?createTransferFrame(source.frameSource,timestampMs):source.frameSource;
       const frame = await enqueueAdapter(() => adapter.estimateNormalizedPoseFrame(frameSource, { sourceId: source.sourceId, timestampMs, mirrored: source.mirrored, flipHorizontal: false, frameWidth: source.frameWidth(), frameHeight: source.frameHeight() }));
+      validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.());
       if (token !== generation || lifecycleState !== "running") return;
       lastTimestampMs = timestampMs; latestPoseFrame = frame; latestPoseGeneration = token; poseFrameCount += 1; lastError = null;
     } catch (error) {
@@ -145,6 +146,16 @@ function normalizeSource(source) {
 
 /** @param {HTMLVideoElement} video @param {number} timestampMs */
 function createTransferFrame(video,timestampMs){if(typeof VideoFrame!=="function")throw new Error("Production MediaPipe worker requires transferable VideoFrame support");return new VideoFrame(video,{timestamp:Math.round(timestampMs*1000)});}
+/** @param {unknown} telemetry */
+function validateLockedExecutionTelemetry(telemetry) {
+  if (telemetry === undefined) return undefined;
+  if (!telemetry || typeof telemetry !== "object") throw new Error("Production CV execution telemetry is invalid");
+  const execution = /** @type {{location?:unknown,provider?:unknown,fallback?:unknown,runtimeInferenceDurationMs?:unknown,estimateDurationMs?:unknown}} */ (telemetry);
+  if (execution.location !== undefined && execution.location !== "worker") throw new Error("Production CV execution location contradicted locked worker route");
+  if (execution.provider !== undefined && execution.provider !== "wasm") throw new Error("Production CV execution provider contradicted locked CPU-WASM route");
+  if (execution.fallback !== undefined && execution.fallback !== false) throw new Error("Production CV execution fallback contradicted locked route");
+  return execution;
+}
 /** @param {unknown} value */
 function finiteDuration(value) { if(value===null||value===undefined)return null;const number=Number(value);return Number.isFinite(number)&&number>=0?number:null; }
 /** @param {unknown} error */

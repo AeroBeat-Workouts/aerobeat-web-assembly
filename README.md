@@ -61,7 +61,7 @@ Production startup has one route:
 
 - MediaPipe Pose Landmarker Lite float16 `/1/`
 - `@mediapipe/tasks-vision` `1.0.1`
-- GPU-WebGL
+- CPU-WASM in the dedicated MediaPipe Worker
 - detection/presence/tracking thresholds `0.5 / 0.5 / 0.5`
 - Fast tracking
 - Direct full input, no resize
