@@ -110,7 +110,7 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-hash` | `be7249b0bdfffcab568b760c1b582bfe2a0c1e92` | `b423c6742c07f56dde196d9f60f2e23c51ad913c` |
 | `@aerobeat/web-vendor-beatsaver` | `d5d9afccfed1138b267e6e876a6e6e7f8d813d1a` | `92c3864f010e37d8e2c7c42f8c455c74052820f8` |
 | `@aerobeat/web-content-authoring` | `8db847e21369f77ce9e1abf3c08a5474fc4a8af6` | `942ae1b7bbbf5b8ae2834ff452afd207904a8a90` |
-| `@aerobeat/web-content` | `b5057218116630c7e1f452ee17aac7e33ff28097` | `46c4af179ac03eaecc607d821688cca06e4a1d38` |
+| `@aerobeat/web-content` | `8e906f273b2da81ddc52b90bcf9d171cccd1f5c9` | `87efbbf131b13762aa5fca587d85f7faa90fc141` |
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
 | `@aerobeat/web-renderer` | `b01f6ac4f8cb252f60a39794db5699a140e705b9` | `01293d62004d36ef87fe661d5bbe785f189c2756` |
 | `@aerobeat/web-gameplay` | `a8f3400384b1adcece82bda202c02623194ce8f2` | `ee14aebaf031ecb90e5d975e5e7b2d879d6d7b9a` |
