@@ -12,7 +12,7 @@ The renderer canvas, media video, and named UI presenters are stable across stat
 
 One process-wide `AeroGameMediaLeaseCoordinator` serializes active camera/audio ownership across instances. Transfer pauses the previous participant before activating the next. The coordinator never owns streams, audio contexts, tracks, or DOM surfaces; video/audio services determine resource cleanup, including never stopping host-owned injected streams.
 
-The production CV composition is immutable MediaPipe Pose Landmarker Lite float16 `/1/`, Tasks Vision 1.0.1, GPU-WebGL, standard 0.5 thresholds, Fast tracking, full/no-resize input, measured/current routing and a 15fps submission ceiling. Historical selectors/predictive routing remain outside the production root.
+The production CV composition is immutable MediaPipe Pose Landmarker Lite float16 `/1/`, Tasks Vision 1.0.1, CPU-WASM in the dedicated MediaPipe Worker, standard `0.5/0.5/0.5` thresholds, Fast tracking, direct full input with no resize, measured-current routing only, and a 15 FPS submission ceiling (`<=15.01` measurement tolerance). The production root has no backend/provider selector and no replay/provider fallback; permission, model, runtime/execution-identity, and tracking-freshness failures fail closed. Historical selectors and predictive routing remain outside the production root.
 
 Iframe delivery is a per-instance adapter bound to `window.parent`, one exact origin and one instance ID. It requires the finalized v1 handshake and exact contracts before accepting commands. Messages are bounded to 64 KiB plain data. Raw frames, media objects, ZIP/audio bytes, files, pixels, screenshots and transferables are forbidden. Child-local acquisition/conversion/persistence keeps raw bundles inside the iframe.
 
