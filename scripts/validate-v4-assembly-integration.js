@@ -6,7 +6,7 @@ import { createServer as createViteServer } from "vite";
 
 const goldenV4Hash = "96e68173fffd6454bfb38740acaf58653da11320";
 const v2Hash = "f8ed950c666baf9148a18e5f3b9731b3f2f23cb0";
-const v3Hash = "f40cee1a11222c29ccdabb3193c83b9d25a837a4";
+const v3Hash = "044f279f3d43ef84380b9679b7c02cdb417765c1";
 const goldenV4Info = '{"version":"4.0.0","song":{"title":"Provider Hash Golden","subTitle":"","author":"AeroBeat"},"audio":{"songFilename":"Song.egg","audioDataFilename":"AudioData.dat","bpm":120,"previewStartTime":0,"previewDuration":10},"coverImageFilename":"Cover.png","difficultyBeatmaps":[{"characteristic":"Lightshow","difficulty":"Easy","difficultyRank":1,"beatmapDataFilename":"EasyLightshow.dat","lightshowDataFilename":"SharedLightshow.dat","noteJumpMovementSpeed":10,"noteJumpStartBeatOffset":0},{"characteristic":"Standard","difficulty":"ExpertPlus","difficultyRank":9,"beatmapDataFilename":"ExpertPlusStandard.dat","lightshowDataFilename":"SharedLightshow.dat","noteJumpMovementSpeed":18,"noteJumpStartBeatOffset":0}]}';
 const archives = Object.freeze({
   v4: storedZip(goldenV4Entries(false)),
