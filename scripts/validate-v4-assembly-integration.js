@@ -73,12 +73,12 @@ try {
 
   const legacyEvidence = await game.evaluate(async (element, fixture) => {
     const v2 = await element.importLocalZip(Uint8Array.from(fixture.v2), { sourceId: "LOCAL-V2" });
-    const v2Loaded = await element.graph.authoring.loadPackage(v2.defaultPackage.handle); const v2Source = v2Loaded.package.source.sourceVersionHash; const v2Major = v2Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion;
+    const v2Loaded = await element.graph.authoring.loadPackage(v2.defaultPackage.handle); const v2Source = v2Loaded.package.source.sourceVersionHash; const v2Version = v2Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion;
     const v3 = await element.importLocalZip(Uint8Array.from(fixture.v3), { sourceId: "LOCAL-V3" });
     const v3Loaded = await element.graph.authoring.loadPackage(v3.defaultPackage.handle); const packages = await element.graph.authoring.listPackages(); const content = element.graph.content.getSnapshot();
-    return { v2Source, v2Major, v3Source: v3Loaded.package.source.sourceVersionHash, v3Major: v3Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion, packageCount: packages.length, selectedPackageId: content.packageId, selectedVariantId: content.selectedVariant?.variantId, cameraRequests: globalThis.__v4CameraRequests };
+    return { v2Source, v2Version, v3Source: v3Loaded.package.source.sourceVersionHash, v3Version: v3Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion, packageCount: packages.length, selectedPackageId: content.packageId, selectedVariantId: content.selectedVariant?.variantId, cameraRequests: globalThis.__v4CameraRequests };
   }, { v2: [...archives.v2], v3: [...archives.v3] });
-  assert.equal(legacyEvidence.v2Source, v2Hash); assert.equal(legacyEvidence.v3Source, v3Hash); assert.equal(legacyEvidence.v2Major, "v2"); assert.equal(legacyEvidence.v3Major, "v3"); assert.equal(legacyEvidence.packageCount, 3); assert.ok(legacyEvidence.selectedPackageId); assert.ok(legacyEvidence.selectedVariantId); assert.equal(legacyEvidence.cameraRequests, 0);
+  assert.equal(legacyEvidence.v2Source, v2Hash); assert.equal(legacyEvidence.v3Source, v3Hash); assert.equal(legacyEvidence.v2Version, "2.6.0"); assert.equal(legacyEvidence.v3Version, "3.3.0"); assert.equal(legacyEvidence.packageCount, 3); assert.ok(legacyEvidence.selectedPackageId); assert.ok(legacyEvidence.selectedVariantId); assert.equal(legacyEvidence.cameraRequests, 0);
 
   const finalEvidence = await integrationSnapshot(game);
   assert.equal(finalEvidence.libraryCount, 3); assert.equal(finalEvidence.musicReady, true); assert.equal(finalEvidence.rawExposure.length, 0); assert.equal(noProductionWinner(finalEvidence.publicSnapshot), true); assert.deepEqual(noise, []);
