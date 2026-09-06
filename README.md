@@ -109,7 +109,7 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 |---|---|---|
 | `@aerobeat/web-hash` | `be7249b0bdfffcab568b760c1b582bfe2a0c1e92` | `b423c6742c07f56dde196d9f60f2e23c51ad913c` |
 | `@aerobeat/web-vendor-beatsaver` | `4d2479df0d4b12305cc8190dbe918995abae5d03` | `40c8055acab241614272fb922a51c1d092e6dd08` |
-| `@aerobeat/web-content-authoring` | `9cd5136e26318ed9dd37ea9c6fe2fc5dccfa7ac5` | `5932d4b7c8ac470754ac400f16dbf9a6b977564f` |
+| `@aerobeat/web-content-authoring` | `90d91175085ffa59b0c9655c01a0be5c6f89823c` | `27439525afc79c97f5f0ee004eb436432a0663cb` |
 | `@aerobeat/web-content` | `174631f5d64aa03415c7060bc8fe32b9db293656` | `2dfb42118be383e24654b4336752ab1f60830d58` |
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
 | `@aerobeat/web-renderer` | `24dac468ff2f2dc9bd3ed983198d6d61470ca83e` | `cf319eb753d6ac317d5c1cb85501343ba43d04b9` |
@@ -117,7 +117,7 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Lanes/Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 
-Raw `0.0.36` remains immutable failed physical evidence, and raw `0.0.37`, `0.0.38`, and `0.0.39` remain immutable rejected physical evidence. Raw `0.0.40` is the append-only automated successor; it has not been independently release-QA audited, served, or physically approved. The current post-`0.0.40` source integration pins the complete DB7 authoring callback repair above and derives fingerprint `63db87c1e16119a4366beed4fd3a4c2cddc0ed0b1044c0a34e8808878b2e5acf` across 202 inputs; this does not alter or supersede any immutable raw release.
+Raw `0.0.36` remains immutable failed physical evidence, and raw `0.0.37`, `0.0.38`, and `0.0.39` remain immutable rejected physical evidence. Raw `0.0.40` is the append-only automated successor; it has not been independently release-QA audited, served, or physically approved. The current post-`0.0.40` source integration pins the complete DB7 authoring callback and first-cause repair above and derives fingerprint `80ef365cb8c811ed01f3da9df76ff92d4203d627d4c5d87840885a481a5136e6` across 202 inputs; this does not alter or supersede any immutable raw release.
 
 ## Validation
 
