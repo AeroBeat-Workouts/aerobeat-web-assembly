@@ -8,7 +8,7 @@ const SYNTHETIC_MISS_COMMIT_OFFSET_MS = 181;
 const FLOW_APPROACH_LEAD_MS = 2500;
 const FLOW_DIRECTIONS = Object.freeze(["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"]);
 const FLOW_OMITTED_TYPES = Object.freeze(new Set(["arc", "burst"]));
-const BOXING_PUNCH_TYPES = Object.freeze(new Set(["straight_left", "straight_right", "hook_left", "hook_right", "uppercut_left", "uppercut_right"]));
+const BOXING_PUNCH_TYPES=/** @type {Readonly<Record<string,Readonly<{hand:"left"|"right",family:"straight"|"hook"|"uppercut"}>>>} */(Object.freeze({straight_left:Object.freeze({hand:"left",family:"straight"}),straight_right:Object.freeze({hand:"right",family:"straight"}),hook_left:Object.freeze({hand:"left",family:"hook"}),hook_right:Object.freeze({hand:"right",family:"hook"}),uppercut_left:Object.freeze({hand:"left",family:"uppercut"}),uppercut_right:Object.freeze({hand:"right",family:"uppercut"})}));
 const INDEXED_FEEDBACK_LOOKBACK_MS = FEEDBACK_DURATION_MS + SYNTHETIC_MISS_COMMIT_OFFSET_MS;
 const sessionTargetIndexIdentity = Symbol("aerobeat.sessionTargetIndex");
 
@@ -163,15 +163,15 @@ function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgre
   const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event);
   if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...(appearance?{appearanceColor:appearance}:{}), ...feedback };
   if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...feedback }; }
-  if (!BOXING_PUNCH_TYPES.has(type)) return null;
-  const hand = type.endsWith("right") ? "right" : "left"; const family = type.startsWith("hook") ? "hook" : type.startsWith("uppercut") ? "uppercut" : "straight"; const spatialTarget = recordValue(beat, "spatialTarget");
+  const punch=Object.hasOwn(BOXING_PUNCH_TYPES,type)?BOXING_PUNCH_TYPES[type]:null;if(!punch)return null;
+  const {hand,family}=punch; const spatialTarget = recordValue(beat, "spatialTarget");
   return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...(appearance?{appearanceColor:appearance}:{}), ...feedback };
 }
 
 /** @param {Record<string,unknown>} event */
 function privateAppearanceColor(event){const candidate={appearanceColor:recordValue(event,"appearanceColor")};return isPrivateNoteAppearance(candidate)?candidate.appearanceColor:null;}
 /** @param {string} type */
-function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || BOXING_PUNCH_TYPES.has(type); }
+function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || Object.hasOwn(BOXING_PUNCH_TYPES,type); }
 /** @param {Record<string, unknown>} event */
 function authoredBeatFor(event) { const value = recordValue(event, "authoredBeat"); return isRecord(value) ? value : {}; }
 /** @param {unknown} value */
