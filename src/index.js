@@ -845,7 +845,8 @@ export class AeroGame extends HTMLElement {
 
   gameplayContentPurpose() {
     const session = this.graph?.gameplay.getSnapshot().session;
-    return this.pendingSessionAction === "test" || (this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test") ? "visual_test" : "play";
+    const activeVisualTest = this.menuDisposition !== "terminal" && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test" && ["playing", "paused_manual"].includes(session.state);
+    return this.pendingSessionAction === "test" || activeVisualTest ? "visual_test" : "play";
   }
 
   applyActiveVisualProfile() {

@@ -17,6 +17,11 @@ assert.doesNotMatch(html + source, /<aerobeat-app\b|customElements\.define\(["']
 assert.doesNotMatch(source, /history\.|location\.(?:assign|replace)|100vh/u);
 assert.match(source, /connectedCallback\(\)/u);
 assert.match(source, /disconnectedCallback\(\)/u);
+const purposeSelectionSource = source.match(/gameplayContentPurpose\(\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
+assert.match(purposeSelectionSource, /this\.pendingSessionAction === "test" \|\| activeVisualTest/u, "pending Test action must own exact Visual Test configuration");
+assert.match(purposeSelectionSource, /this\.menuDisposition !== "terminal"/u, "terminal between-run selection must not inherit completed Visual Test purpose");
+assert.match(purposeSelectionSource, /\["playing", "paused_manual"\]\.includes\(session\.state\)/u, "only active or manually paused current Visual Test may preserve purpose through selection");
+assert.doesNotMatch(purposeSelectionSource, /\[.*completed|session\?\.purpose === "visual_test"\) \? "visual_test"/u, "completed Visual Test must not use the former unbounded purpose predicate");
 assert.match(projectionSource, /FLOW_DIRECTIONS = Object\.freeze\(\["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"\]\)/u, "assembly must preserve all Beat Saber Flow directions for the renderer");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
