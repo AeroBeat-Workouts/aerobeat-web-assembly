@@ -95,3 +95,23 @@ Verification test: Hyphenated positive Worker-map fixture plus absent/missing/in
 Related files/components: scripts/production-hash-bundle-policy.js; scripts/build-release.js; release/raw/0.0.42/assets/conversion-worker-C-m--G1i.js.map.
 Remaining uncertainty: Complete future Vite hash alphabet and whether other generated-name recognizers share this defect.
 ```
+
+## Policy repair coder result — PASS / independent QA pending
+
+**Repair Bead:** `aerobeat-web-assembly-xrww`
+**QA Bead:** `aerobeat-web-assembly-6qqf`
+**Disposition:** Source policy and focused adversarial coverage repaired; raw `0.0.42` remains incomplete and immutable; no successor release is authorized by this result
+
+The generated-name audit found the same `\w+` limitation in both the conversion Worker recognizer and the main-entry fallback. Both now use the narrow Vite/Rollup base64url-style hash alphabet `[A-Za-z0-9_-]+`; no arbitrary basename widening was introduced. The policy requires exactly one main source-map identity and exactly one conversion Worker source-map identity, requires each identity to attribute the exact shared hash module with complete `sourcesContent`, and rejects unsafe absolute, traversal, empty-segment, backslash, and colon-bearing JavaScript output paths.
+
+Focused fixtures now prove positive `assets/index-C-m--G1i.js` plus `assets/conversion-worker-C-m--G1i.js` ownership and fail closed for an absent Worker, incomplete Worker map, missing shared attribution, ambiguous Workers, ambiguous fallback mains, path injection, and a malformed dotted hash. The fixture matrix runs before the actual Vite production bundle check in `scripts/validate-production-hash-bundle.js`.
+
+Coder validation passed:
+
+- `node scripts/validate-production-hash-bundle.js`
+- `npm test`
+- `npm run build`
+- `npm run test:release-pack-policy`
+- focused `git diff --check`
+
+No `version:patch` or `build-release` command was run. No byte under `release/raw/0.0.42` was edited. Post-validation evidence remains exactly `38` regular files / `28,197,018` bytes, path-order aggregate `4f5d94e0fc1bdc6af6489cc233462e336909e35948732223f9c14e17caf1ff66`, and globally line-sorted complete-manifest aggregate `0c8c44c705293923daa0b2ae6c18c381e8bbb4661e5add7b8668c6c1aa1cc687`, with no proof file. Version, release assertion, Beads dirt, and the ignored raw target remain excluded from the source-policy commit. `xrww` remains open for independent QA through `6qqf`.
