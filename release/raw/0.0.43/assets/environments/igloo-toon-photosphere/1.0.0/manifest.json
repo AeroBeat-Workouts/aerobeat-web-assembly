@@ -1,0 +1,129 @@
+{
+  "schema": "aerobeat.photosphere-derivative/v1",
+  "id": "igloo-toon-photosphere",
+  "source": {
+    "path": ".testbed/assets/splats/igloo-toon/igloo-toon.compressed.ply",
+    "sha256": "88dca765c2cf56f76786140d592f82cd2b3059cfa1966d025147776926f1abbf",
+    "bytes": 55619664,
+    "pointCount": 2200000,
+    "aabb": {
+      "position": [
+        -126.1886,
+        -112.1255,
+        -144.0924
+      ],
+      "size": [
+        233.9084,
+        136.1228,
+        267.8364
+      ]
+    }
+  },
+  "capture": {
+    "tool": ".testbed/tools/photosphere/capture_cubemap.gd",
+    "scene": ".testbed/tools/photosphere/capture_cubemap.tscn",
+    "viewpoint": [
+      0,
+      0,
+      4
+    ],
+    "centerForward": [
+      0,
+      0,
+      -1
+    ],
+    "worldUp": [
+      0,
+      1,
+      0
+    ],
+    "faceSize": 1920,
+    "faceOrder": [
+      "pos_x",
+      "neg_x",
+      "pos_y",
+      "neg_y",
+      "pos_z",
+      "neg_z"
+    ],
+    "loadCount": 1,
+    "requiredExecution": "visible Vulkan Forward+",
+    "versions": {
+      "godot": "4.6.2-stable (official)",
+      "gdgsUpstream": "2.2.0",
+      "aerobeatVendorGdgsCommit": "f5d5e1b6d580ba1342022d1ceac8ac982f9597fb",
+      "gpu": "NVIDIA GeForce RTX 3080",
+      "gpuDriver": "580.173.02",
+      "vulkanReportedByGodot": "1.4.312",
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "displayServer": "X11"
+    }
+  },
+  "stitch": {
+    "tool": ".testbed/tools/photosphere/cube_to_equirect.py",
+    "mapping": "longitude wraps horizontally; -Z center, +Y/-Y poles",
+    "sampling": "bilinear RGB, half-texel pixel centers, face-edge clamp",
+    "versions": {
+      "python": "3.14.2",
+      "pillow": "12.1.0",
+      "numpy": "2.4.2"
+    }
+  },
+  "output": {
+    "path": ".testbed/assets/images/igloo-toon-photosphere/igloo-toon-photosphere.jpg",
+    "dimensions": [
+      4096,
+      2048
+    ],
+    "mode": "RGB",
+    "encoding": "JPEG",
+    "colorSpace": "sRGB",
+    "jpeg": {
+      "quality": 92,
+      "subsampling": 0,
+      "optimize": false,
+      "progressive": false
+    },
+    "sha256": "c8deae4e235ba529c093ce9ec28aed9d0088d94c379dafe7a23b9c82aac06477",
+    "bytes": 1624217
+  },
+  "config": {
+    "path": ".testbed/assets/images/igloo-toon-photosphere/igloo-toon-photosphere.config.json",
+    "schema": "aerobeat/environment_asset_config",
+    "version": 1,
+    "sha256": "481329192d693584da295139d800647c326016c5c2ff5f2c29efa6c6a9ebc271",
+    "bytes": 325,
+    "parityIntent": "One-to-one future photosphere/splat transform parity; no runtime splat integration in this package."
+  },
+  "rights": {
+    "authority": "Derrick Barra direct project instruction on 2026-09-03",
+    "statement": "The listed splats were generated and then purchased by AeroBeat and may be used commercially without attribution.",
+    "attributionRequired": false,
+    "scopeLimit": "Applies only to the listed purchased splats and their photosphere derivatives; it does not apply to the rejected third-party alien-moon GLB and does not assert public sublicensing rights."
+  },
+  "continuity": {
+    "metrics": {
+      "seamMeanRgbDelta": 3.0647786458333335,
+      "seamP95RgbDelta": 9.549999999999955,
+      "poleTopChannelSpread": 0.18875717856796204,
+      "poleBottomChannelSpread": 0.7407578638488909
+    },
+    "thresholds": {
+      "seamMeanRgbDelta": 5,
+      "seamP95RgbDelta": 16,
+      "poleTopChannelSpread": 16,
+      "poleBottomChannelSpread": 16
+    }
+  },
+  "conversionAssessment": {
+    "classification": "comparison-with-artifacts",
+    "note": "Bright complete stylized ice world retained with two conspicuous dark soft source artifacts at the horizon."
+  },
+  "review": {
+    "folder": ".plans/review/2026-09-03-owned-photosphere-catalog/igloo-toon",
+    "report": "stitch-report.json",
+    "fullResolutionFacesRetained": false
+  },
+  "reproducibilityLimit": "Offline stitching is deterministic only for fixed face bytes and pinned versions. Full-resolution GPU faces are omitted; a fresh GDGS/GPU capture may differ due to device rendering, splat sorting, and driver behavior."
+}
