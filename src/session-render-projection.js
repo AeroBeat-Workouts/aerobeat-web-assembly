@@ -16,13 +16,21 @@ const sessionTargetIndexIdentity = Symbol("aerobeat.sessionTargetIndex");
  * Pre-sort immutable resolved events and build a point-query interval tree once per content identity.
  * The index stays inside the assembly service graph and is never placed in snapshots or events.
  * @param {readonly Record<string, unknown>[]} events
+ * @param {{mapBeatToTimelineMs?:(beat:number)=>number,leadBeats?:number}} [options]
  */
-export function createSessionTargetIndex(events) {
+export function createSessionTargetIndex(events, options = {}) {
   if (!Array.isArray(events)) throw new TypeError("Resolved events must be an array");
-  let feedbackIndex = 0;
+  const mapBeat=typeof options.mapBeatToTimelineMs==="function"?options.mapBeatToTimelineMs:null;
+  const leadBeats=Number(options.leadBeats);
+  let feedbackIndex = 0, timingMismatchCount=0, leadLimited=false;
   const orderedEntries = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries).map((entry, orderedIndex) => {
-    const type = String(recordValue(authoredBeatFor(entry.event), "type") ?? "note");
-    const indexed = Object.freeze({ ...entry, orderedIndex, centerTimestampMs:finiteNumber(recordValue(entry.event, "centerTimestampMs")), feedbackIndex:isRenderableFeedbackType(type) ? feedbackIndex++ : -1 });
+    const beat=authoredBeatFor(entry.event),type = String(recordValue(beat, "type") ?? "note"),centerTimestampMs=finiteNumber(recordValue(entry.event, "centerTimestampMs"));
+    let bounceStartMs=null;
+    if(isRenderableFeedbackType(type)&&mapBeat&&Number.isFinite(leadBeats)){
+      const authoredStart=Number(recordValue(beat,"start"));
+      if(Number.isFinite(authoredStart))try{const mappedHit=mapBeat(authoredStart);if(Math.abs(mappedHit-centerTimestampMs)<=0.001){const rawStart=mapBeat(Math.max(0,authoredStart-leadBeats)),limited=Math.max(0,centerTimestampMs-10_000,rawStart);bounceStartMs=limited;leadLimited ||= rawStart<centerTimestampMs-10_000;}else timingMismatchCount+=1;}catch{timingMismatchCount+=1;}
+    }
+    const indexed = Object.freeze({ ...entry, orderedIndex, centerTimestampMs, feedbackIndex:isRenderableFeedbackType(type) ? feedbackIndex++ : -1, bounceStartMs });
     return indexed;
   });
   const intervals = [];
@@ -37,7 +45,7 @@ export function createSessionTargetIndex(events) {
     const endMs = optionalFiniteNumber(recordValue(entry.event, "intervalEndTimestampMs"));
     if (startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:startMs-FLOW_APPROACH_LEAD_MS, end:endMs, orderedIndex:entry.orderedIndex }));
   }
-  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals) });
+  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), timingMismatchCount, leadLimited });
 }
 
 /**
@@ -91,10 +99,11 @@ export function projectSessionTargets(events, gameplay, nowMs, index) {
       const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
       const result = realCommitted ? realResult : visualTest && commitMs !== null && nowMs >= commitMs ? feedbackIndex % 2 === 0 ? "hit" : "miss" : null;
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs <= Number(commitMs) + FEEDBACK_DURATION_MS;
-      const pendingVisible = result !== "hit" && result !== "miss" && centerMs >= nowMs - 500 && centerMs <= nowMs + FLOW_APPROACH_LEAD_MS;
+      const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null;
+      const pendingVisible = result !== "hit" && result !== "miss" && centerMs >= nowMs - 500 && (bounceStartMs===null?centerMs <= nowMs + FLOW_APPROACH_LEAD_MS:nowMs>=bounceStartMs&&nowMs<=centerMs);
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined;
-        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress);
+        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress, bounceStartMs);
         if (target) targets.push(target);
       }
       fallbackFeedbackIndex += 1;
@@ -111,7 +120,7 @@ function compareEventEntries(left, right) { const time=finiteNumber(recordValue(
 /** @param {unknown} candidate @param {readonly Record<string, unknown>[]} events */
 function validSessionTargetIndex(candidate,events){return isRecord(candidate)&&candidate[sessionTargetIndexIdentity]===true&&candidate.events===events&&Array.isArray(candidate.orderedEntries)&&candidate.eventIndices instanceof Map;}
 /** @param {ReturnType<typeof createSessionTargetIndex>} index @param {number} nowMs @param {Map<string,Record<string,unknown>>} realJudgements */
-function indexedCandidateEntries(index,nowMs,realJudgements){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-INDEXED_FEEDBACK_LOOKBACK_MS),end=upperBound(entries,nowMs+FLOW_APPROACH_LEAD_MS);for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
+function indexedCandidateEntries(index,nowMs,realJudgements){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-INDEXED_FEEDBACK_LOOKBACK_MS),end=upperBound(entries,nowMs+10_000);for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
 function lowerBound(entries,value){let low=0,high=entries.length;while(low<high){const middle=(low+high)>>>1;if(entries[middle].centerTimestampMs<value)low=middle+1;else high=middle;}return low;}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
@@ -156,16 +165,16 @@ function flowBombTarget(event, beat, nowMs) {
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs };
 }
 
-/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress */
-function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress) {
+/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|null} bounceStartMs */
+function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress, bounceStartMs = null) {
   const beat = authoredBeatFor(event);
   const eventId = String(recordValue(event, "eventId") ?? ""); const beatCenterMs = finiteNumber(recordValue(event, "centerTimestampMs"));
-  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event);
-  if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...(appearance?{appearanceColor:appearance}:{}), ...feedback };
-  if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...feedback }; }
+  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event),bounce=bounceStartMs===null?{}:{bounceStartMs};
+  if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...(appearance?{appearanceColor:appearance}:{}), ...bounce, ...feedback };
+  if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...bounce, ...feedback }; }
   const punch=Object.hasOwn(BOXING_PUNCH_TYPES,type)?BOXING_PUNCH_TYPES[type]:null;if(!punch)return null;
   const {hand,family}=punch; const spatialTarget = recordValue(beat, "spatialTarget");
-  return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...(appearance?{appearanceColor:appearance}:{}), ...feedback };
+  return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...(appearance?{appearanceColor:appearance}:{}), ...bounce, ...feedback };
 }
 
 /** @param {Record<string,unknown>} event */

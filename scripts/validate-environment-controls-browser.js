@@ -59,7 +59,7 @@ try {
           assert.ok(target, "Real cross-origin child frame missing");
           await target.waitForSelector("aero-game");
           const evidence = await target.locator("aero-game").evaluate((game) => {
-            game.debugCameraSnapshot = () => Object.freeze({ visible:true, enabled:true });
+            game.debugCameraSnapshot = () => Object.freeze({ visible:true, enabled:true }); game.beatBounceAuthoringSnapshot = () => Object.freeze({ visible:true, enabled:true });
             game.menuOpen = false;
             game.syncDebugCameraPresentation();
             const root = game.shadowRoot;
@@ -71,7 +71,7 @@ try {
             const rect = (node) => node.getBoundingClientRect().toJSON();
             const overlap = (a,b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
             const hostRect = rect(game), panelRect = rect(panel), menuRect = rect(menu), transportRect = rect(transport);
-            const controls = [root.querySelector("[data-action='debug-controls-collapse']"), ...root.querySelectorAll(".environment-authoring button,.environment-authoring select,.environment-authoring input")].filter((node) => !node.hidden).map((node) => ({ tag:node.tagName, type:node.type, action:node.dataset.action ?? "", ...rect(node) }));
+            const controls = [root.querySelector("[data-action='debug-controls-collapse']"), ...root.querySelectorAll(".environment-authoring button,.environment-authoring select,.environment-authoring input,.beat-bounce-authoring button,.beat-bounce-authoring select,.beat-bounce-authoring input")].filter((node) => !node.hidden).map((node) => ({ tag:node.tagName, type:node.type, action:node.dataset.action ?? "", ...rect(node) }));
             const select = root.querySelector("[data-action='environment-asset-select']");
             const environmentValues=[...root.querySelectorAll("[data-environment-field]")].map((input)=>{const output=root.querySelector(`[data-environment-output='${input.dataset.environmentField}']`),wrapper=output.parentElement,unit=wrapper.querySelector("span");const inputRect=rect(input),outputRect=rect(output),wrapperRect=rect(wrapper),unitRect=unit?rect(unit):null;return{field:input.dataset.environmentField,inputId:input.id,describedBy:input.getAttribute("aria-describedby"),outputFor:output.getAttribute("for"),wrapperId:wrapper.id,whiteSpace:getComputedStyle(wrapper).whiteSpace,inputRect,outputRect,wrapperRect,unitRect,unitLabel:unit?.getAttribute("aria-label")??null,within:wrapperRect.left>=panelRect.left&&wrapperRect.right<=panelRect.right&&wrapper.scrollWidth<=wrapper.clientWidth+1,sameLine:!unitRect||Math.abs(outputRect.top-unitRect.top)<=1};});
             return {
@@ -121,14 +121,16 @@ try {
   await game.waitFor();
   await game.evaluate((element) => {
     element.debugCameraSnapshot = () => Object.freeze({ visible:true, enabled:true });
+    element.beatBounceAuthoringSnapshot = () => Object.freeze({ visible:true, enabled:true });
     element.setMenuOpen(false);
     element.syncDebugCameraPresentation();
-    globalThis.__environmentAudit = { calls:[], storage:[], events:[], messages:[], trustedLoadActivations:[], urls:{ created:[], revoked:[], anchors:[] } };
-    element.shadowRoot.addEventListener("click", (event) => { if (event.composedPath().some((node) => node?.dataset?.action === "environment-config-load")) globalThis.__environmentAudit.trustedLoadActivations.push(event.isTrusted); }, true);
+    globalThis.__environmentAudit = { calls:[], storage:[], events:[], messages:[], trustedLoadActivations:[], trustedBounceActivations:[], urls:{ created:[], revoked:[], anchors:[] } };
+    element.shadowRoot.addEventListener("click", (event) => { const action=event.composedPath().find((node)=>node?.dataset?.action)?.dataset?.action;if(action==="environment-config-load")globalThis.__environmentAudit.trustedLoadActivations.push(event.isTrusted);if(action==="beat-bounce-load")globalThis.__environmentAudit.trustedBounceActivations.push(event.isTrusted); }, true);
     // Playwright's CDP file injection emits an untrusted change even though the picker-opening
     // click is trusted. Keep the real chooser/input and feed its File through the component's
     // handler with the recorded trusted activation so only that automation limitation is bridged.
     element.environmentConfigInput().removeEventListener("change", element.boundEnvironmentConfigFile);
+    element.beatBounceInput().removeEventListener("change", element.boundBeatBounceFile);
     for (const storage of [localStorage, sessionStorage]) for (const method of ["setItem", "removeItem", "clear"]) { const original=storage[method].bind(storage); storage[method]=(...args)=>{globalThis.__environmentAudit.storage.push([method,...args]);return original(...args);}; }
     element.addEventListener("aero-game-event", (event) => globalThis.__environmentAudit.events.push(structuredClone(event.detail)));
     addEventListener("message", (event) => globalThis.__environmentAudit.messages.push(structuredClone(event.data)));
@@ -156,7 +158,8 @@ try {
     peer.environmentControlsCollapsed=true;const parent=element.parentElement,oldGraph=peer.graph;peer.remove();parent.append(peer);await new Promise((resolve)=>setTimeout(resolve,20));
     const reconnect=peer.graph!==oldGraph&&peer.selectedEnvironmentId===defaultId&&peer.environmentConfig(defaultId).transform.rotationDegrees.yYaw===180&&!peer.environmentControlsCollapsed;
     peer.remove();
-    return { ids, fresh, switchCalls, liveInput, liveChange, remembered, selectedThroughRenderAndPlay, hiddenStatus, selectedWhileHidden, selectedAfter:element.selectedEnvironmentId, independent, reconnect };
+    const lead=element.shadowRoot.querySelector("[data-beat-bounce-field='leadBeats']"),height=element.shadowRoot.querySelector("[data-beat-bounce-field='heightWorldUnits']"),beforeBounce=JSON.stringify(element.beatBounceConfig);lead.value="6.1234567";lead.dispatchEvent(new Event("change",{bubbles:true,composed:true}));const updatedBounce=JSON.stringify(element.beatBounceConfig);height.value="99";height.dispatchEvent(new Event("change",{bubbles:true,composed:true}));const invalidAtomic=JSON.stringify(element.beatBounceConfig)===updatedBounce;element.resetBeatBounce();const resetBounce=JSON.stringify(element.beatBounceConfig),publicLeak=JSON.stringify(element.getSnapshot()).includes("leadBeats")||JSON.stringify(element.getSnapshot()).includes("beat_bounce");
+    return { ids, fresh, switchCalls, liveInput, liveChange, remembered, selectedThroughRenderAndPlay, hiddenStatus, selectedWhileHidden, selectedAfter:element.selectedEnvironmentId, independent, reconnect, bounce:{beforeBounce,updatedBounce,invalidAtomic,resetBounce,publicLeak} };
   });
   assert.equal(behavior.ids.length, 8);
   assert.deepEqual(behavior.fresh,{selected:"alpine-river-valley-photosphere",yaw:180});
@@ -167,6 +170,7 @@ try {
   assert.match(behavior.hiddenStatus, /hidden by Camera/u);
   assert.equal(behavior.selectedWhileHidden, behavior.selectedAfter, "Camera/Aero must retain environment selection");
   assert.ok(behavior.independent && behavior.reconnect, `instance/reconnect reset failed: ${JSON.stringify(behavior)}`);
+  assert.notEqual(behavior.bounce.updatedBounce,behavior.bounce.beforeBounce);assert.match(behavior.bounce.updatedBounce,/6\.123457/u);assert.equal(behavior.bounce.invalidAtomic,true);assert.equal(behavior.bounce.resetBounce,behavior.bounce.beforeBounce);assert.equal(behavior.bounce.publicLeak,false,"bounce config must not enter public snapshot");
 
   const restoreErrorLoading = await game.evaluate(async (element) => {
     await element.graph.renderer.environmentLoadPromise;
@@ -203,6 +207,8 @@ try {
   assert.equal(saved.anchors[0].download, `${behavior.selectedAfter}.environment-config.v1.json`);
   assert.deepEqual(saved.revoked, [saved.created.value]);
   assert.equal(JSON.parse(saved.created.text).id, behavior.selectedAfter);
+  await game.locator("[data-action='beat-bounce-save']").click();const bounceSaved=await game.evaluate(async()=>{const audit=globalThis.__environmentAudit,created=audit.urls.created.at(-1),anchor=audit.urls.anchors.at(-1);return{type:created.type,text:await created.blob.text(),download:anchor.download,revoked:audit.urls.revoked.at(-1)===created.value};});assert.equal(bounceSaved.type,"application/json");assert.equal(bounceSaved.download,"aerobeat-beat-bounce-config.v1.json");assert.equal(bounceSaved.revoked,true);assert.ok(bounceSaved.text.endsWith("\n"));assert.deepEqual(Object.keys(JSON.parse(bounceSaved.text)),["schema","version","leadBeats","heightWorldUnits","apexFraction","riseEasing","fallEasing"]);
+  const bounceLoadButton=game.locator("[data-action='beat-bounce-load']"),loadBounce=async(name,buffer)=>{const chooserPromise=page.waitForEvent("filechooser");await bounceLoadButton.click();const chooser=await chooserPromise;await chooser.setFiles({name,mimeType:"application/json",buffer});await game.evaluate(async(element)=>{const trusted=globalThis.__environmentAudit.trustedBounceActivations.at(-1)===true;await element.handleBeatBounceFile({currentTarget:element.beatBounceInput(),isTrusted:trusted});});};const bounceCandidate={...JSON.parse(bounceSaved.text),heightWorldUnits:1.2},bounceText=JSON.stringify(bounceCandidate),bounceExact=Buffer.from(bounceText+" ".repeat(16*1024-Buffer.byteLength(bounceText)));await loadBounce("exact-bounce.json",bounceExact);assert.equal(await game.evaluate(element=>element.beatBounceConfig.heightWorldUnits),1.2);for(const [name,bytes]of [["oversize-bounce.json",Buffer.alloc(16*1024+1,0x20)],["utf8-bounce.json",Buffer.from([0xc3,0x28])],["unknown-bounce.json",Buffer.from(JSON.stringify({...bounceCandidate,extra:1}))]]){const before=await game.evaluate(element=>JSON.stringify(element.beatBounceConfig));await loadBounce(name,bytes);const after=await game.evaluate(element=>({config:JSON.stringify(element.beatBounceConfig),status:element.shadowRoot.querySelector("[data-role='beat-bounce-status']").value}));assert.equal(after.config,before);assert.match(after.status,/invalid/u);}
 
   const loadButton = game.locator("[data-action='environment-config-load']");
   const makeConfig = (overrides = {}) => ({ schema:"aerobeat/environment_asset_config", version:1, id:behavior.selectedAfter, projection:"equirectangular", transform:{ position:{x:0,y:0,z:0}, rotationDegrees:{xPitch:0,yYaw:41,zRoll:0}, scale:1 }, ...overrides });
@@ -303,9 +309,9 @@ try {
     return { storage:audit.storage, events:JSON.stringify(audit.events), messages:JSON.stringify(audit.messages), snapshot:JSON.stringify(document.querySelector("aero-game").getSnapshot()), urlCount:audit.urls.created.length };
   });
   assert.deepEqual(privacy.storage, []);
-  for (const surface of [privacy.events,privacy.messages,privacy.snapshot]) assert.doesNotMatch(surface, /environment_asset_config|environment-config|photosphere|selectedEnvironment|environmentLoadPromise/u);
-  assert.equal(privacy.urlCount, 1);
-  behaviorContexts.push({ embedding, trustedSave:true, trustedExact16KiBLoad:true, atomicRejects:invalids.map(([name])=>name), stale, privacy:true });
+  for (const surface of [privacy.events,privacy.messages,privacy.snapshot]) assert.doesNotMatch(surface, /environment_asset_config|environment-config|photosphere|selectedEnvironment|environmentLoadPromise|beat_bounce_config|leadBeats|heightWorldUnits/u);
+  assert.equal(privacy.urlCount, 2);
+  behaviorContexts.push({ embedding, trustedSave:true, trustedBounceSave:true, trustedExact16KiBLoad:true, trustedBounceExact16KiBLoad:true, atomicRejects:invalids.map(([name])=>name), stale, privacy:true });
   await page.close();
   }
 
