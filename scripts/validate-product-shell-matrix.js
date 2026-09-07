@@ -85,6 +85,7 @@ async function runContext(context) {
     assert(iframeBounds?.x === 0 && iframeBounds?.y === 0 && iframeBounds.width === context.width && iframeBounds.height === context.height, `${label(context)} iframe element bounds must be exact: ${JSON.stringify(iframeBounds)}`);
   }
   assert(childBounds.innerWidth === context.width && childBounds.innerHeight === context.height && childBounds.game?.x === 0 && childBounds.game?.y === 0 && childBounds.game.width === context.width && childBounds.game.height === context.height && childBounds.parent?.width === context.width && childBounds.parent.height === context.height, `${label(context)} embedded child/game bounds must be exact: ${JSON.stringify(childBounds)}`);
+  if(terminalOracle)await game.evaluate(async()=>{const module=await import("/node_modules/@aerobeat/web-audio/src/index.js");globalThis.__shellMatrixCreateAudio=module.createAeroWebAudioService;return true;});
   await installFixture(game);
   await waitFor(page,()=>game.evaluate((element)=>element.graph.renderer.describe().environment.state==="ready"&&element.graph.renderer.describe().gameplayAssets.state==="ready"));
   const reconnectedEnvironment=await game.evaluate((element)=>({environment:element.graph.renderer.describe().environment,requests:performance.getEntriesByType("resource").filter((entry)=>entry.name.includes("alpine-river-valley-photosphere")&&entry.name.includes(".jpg")).length}));assert(reconnectedEnvironment.environment.state==="ready"&&reconnectedEnvironment.environment.visible===true&&reconnectedEnvironment.environment.count===1&&reconnectedEnvironment.environment.fallback===false&&reconnectedEnvironment.requests===2,`${label(context)} fixture reconnect must dispose the old owner and load exactly one fresh photosphere generation: ${JSON.stringify(reconnectedEnvironment)}`);
@@ -219,8 +220,8 @@ async function runContext(context) {
 
 /** @param {import("playwright").Locator} game */
 async function installFixture(game) {
-  await game.evaluate(async(element,terminalOracle) => {
-    const {createAeroWebAudioService}=terminalOracle?await import("/node_modules/@aerobeat/web-audio/src/index.js"):{createAeroWebAudioService:null};const originalFactory = element.serviceGraphFactory; element.remove();
+  await game.evaluate((element,terminalOracle) => {
+    const createAeroWebAudioService=terminalOracle?globalThis.__shellMatrixCreateAudio:null;if(terminalOracle&&typeof createAeroWebAudioService!=="function")throw new Error("Terminal audio fixture module was not preloaded");const originalFactory = element.serviceGraphFactory; element.remove();
     element.serviceGraphFactory = (options) => {
       const original = originalFactory(options); const hash = "a".repeat(64);
       const variant = (packageId, id) => ({ variantId: `${packageId}-${id}`, chartId: `${packageId}-${id}-chart`, mode: id === "flow" ? "flow" : "boxing", rulesetId: id === "flow" ? "flow_grid_v2" : id === "boxing-lanes" ? "boxing_semantic_track_v1" : "boxing_spatial_grid_v1", recipeId: id === "flow" ? null : "row_family_balanced_height_v1", modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: `${packageId}-${id}` } });

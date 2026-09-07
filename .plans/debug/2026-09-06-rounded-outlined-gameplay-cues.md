@@ -312,3 +312,11 @@ Verification test: Cardinal/oblique asset renders plus direct/iframe actual-pixe
 Related files/components: asset tools/generate.py, tools/validate.py, raw/review 0.0.7 cue GLBs/manifests, renderer gameplay-assets.js, sync-gameplay-assets.js, renderer-facade.js.
 Remaining uncertainty: Derrick's preferred A/B/C softness and exact target-device apparent cue sizes require render and physical selection.
 ```
+
+## Renderer/assembly implementation verification — CODER PASS (2026-09-07)
+
+- Exact audited immutable authority integrated: asset commit/tree `8b190eecffdbdfc5dc914ea8e1d2f724bbcdc4d0` / `9469446a4ad018b5554ff453ebf357a205b042bd`; raw tree `e26ec4e8278860c60568bd2a89983cd09555ee75`; inventory/proof `ac30d6b70cbae96115a7c97f5ad02b3da21fde7fb77f69083f1090e268bab5ac` / `ba8a52cf747ec5ab58dcd024c90f813a5c477541892f71da698ead6a65ca4758`.
+- Renderer `6f554cd45c15cfda868196cd46e6147e72cb86e1` / tree `625a717235d7196dd99965cd87aca7d63fb39b18` and assembly product `9af34e3a3a28ae5e1a7b542a9365cb808e8d04d9` / tree `21b26a5b9166a32945542cba28013ee417ea2f1d` are pushed.
+- Owned sync validates explicit changed-cue material roles before copying. Runtime uses the mirrored validated role table because PlayCanvas does not expose material GLB extras: only arrow/any `note_fill` receives private left/right palette and success tint; all outline roles and fixed guard/bomb/wall/track classes remain authored. Exact kind/family checks preserve six Boxing punch colors and fixed paired guards. Marker tint remains its separate validated legacy core contract.
+- Renderer unit and full direct/genuine-iframe portrait/landscape DPR browser/pixel/hash/lifecycle gates passed. Assembly focused direct/genuine-iframe matrix, full unit/raw/privacy/provenance/build/release-pack/dry-pack gates passed; complete browser and sequential terminal retry are recorded in the active plan when settled.
+- The implementation did not modify asset raw/review, create an immutable web successor, publish, tag, alter serving, or claim physical approval. `aerobeat-web-assembly-7znm` remains open for independent QA/audit and target-device visual risk remains with Derrick's later physical review.
