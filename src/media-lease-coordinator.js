@@ -38,13 +38,16 @@ export class AeroGameMediaLeaseCoordinator {
   /** Preserve the legacy full camera+audio request. @param {AeroGameMediaLeaseParticipant} participant @param {AeroGameLeaseCallbackContext} [callbackContext] */
   async request(participant, callbackContext) { return this.requestResources(participant, Object.freeze(["camera", "audio"]), callbackContext); }
 
-  /** Request an exact bounded resource set for Play or visual Test. @param {AeroGameMediaLeaseParticipant} participant @param {unknown} resourcesValue @param {AeroGameLeaseCallbackContext} [callbackContext] */
-  async requestResources(participant, resourcesValue, callbackContext) {
+  /** Renew exact action ownership even when the participant already owns the same resources. @param {AeroGameMediaLeaseParticipant} participant @param {unknown} resourcesValue */
+  async requestActionResources(participant, resourcesValue) { return this.requestResources(participant, resourcesValue, undefined, true); }
+
+  /** Request an exact bounded resource set for Play or visual Test. @param {AeroGameMediaLeaseParticipant} participant @param {unknown} resourcesValue @param {AeroGameLeaseCallbackContext} [callbackContext] @param {boolean} [renewOwnership] */
+  async requestResources(participant, resourcesValue, callbackContext, renewOwnership = false) {
     this.assertNotReentrant(participant, callbackContext); this.requireRegistration(participant);
     const requestedResources = normalizeResources(resourcesValue);
     return this.enqueue(async () => {
       const registered = this.requireRegistration(participant);
-      if (this.owner === registered && !this.transferring && sameResources(this.ownerResources, requestedResources)) return this.snapshot();
+      if (this.owner === registered && !this.transferring && sameResources(this.ownerResources, requestedResources)) { if (renewOwnership) ++this.generation; return this.snapshot(); }
       const token = ++this.generation; const previous = this.owner ?? this.candidate; const previousResources = this.owner === previous ? this.ownerResources : this.candidateResources; let previousPaused = false; let activationAttempted = false;
       this.owner = null; this.ownerResources = Object.freeze([]); this.candidate = registered; this.candidateResources = requestedResources; this.transferring = true;
       try {

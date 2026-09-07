@@ -274,7 +274,7 @@ export class AeroGame extends HTMLElement {
     this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
     return this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
       const participant = this.leaseParticipant;
-      let acquiredLeaseGeneration = null; let retainedCameraBefore = null; let cameraAcquisitionAttempted = false; let videoPlayAttempted = false; let cvStartAttempted = false; let sessionCommitted = false; let operationError = null;
+      let mediaLeaseGeneration = null; let mediaLeaseAcquired = false; let retainedCameraBefore = null; let cameraAcquisitionAttempted = false; let videoPlayAttempted = false; let cvStartAttempted = false; let sessionCommitted = false; let operationError = null;
       try {
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         if (options.transportAlreadySerialized !== true) await previousTransportTail;
@@ -295,8 +295,8 @@ export class AeroGame extends HTMLElement {
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
         const leaseBefore = aeroGameMediaLeaseCoordinator.snapshot();
-        const leaseAfter = await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
-        if (leaseAfter.generation !== leaseBefore.generation) acquiredLeaseGeneration = leaseAfter.generation;
+        const leaseAfter = await aeroGameMediaLeaseCoordinator.requestActionResources(participant, resources);
+        mediaLeaseGeneration = leaseAfter.generation; mediaLeaseAcquired = leaseAfter.generation !== leaseBefore.generation;
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
         if (purpose === "play") {
@@ -327,8 +327,8 @@ export class AeroGame extends HTMLElement {
       } catch (error) { operationError = error; throw error; }
       finally {
         let rollbackError = null;
-        if (!sessionCommitted && (acquiredLeaseGeneration !== null || cameraAcquisitionAttempted || videoPlayAttempted || cvStartAttempted)) {
-          try { await this.rollbackUncommittedSessionStart(graph, participant, acquiredLeaseGeneration, retainedCameraBefore, cameraAcquisitionAttempted); }
+        if (!sessionCommitted && (mediaLeaseGeneration !== null || cameraAcquisitionAttempted || videoPlayAttempted || cvStartAttempted)) {
+          try { await this.rollbackUncommittedMediaAction(graph, participant, mediaLeaseGeneration, mediaLeaseAcquired, retainedCameraBefore, cameraAcquisitionAttempted, false); }
           catch (error) { rollbackError = error; }
         }
         if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) { this.pendingSessionAction = ""; this.menuStarting = false; this.renderPresenters(); }
@@ -337,21 +337,28 @@ export class AeroGame extends HTMLElement {
     });
   }
 
-  /** Compensate only media owned or partially activated by one uncommitted Start/Test action. */
-  async rollbackUncommittedSessionStart(graph, participant, acquiredLeaseGeneration, retainedCameraBefore, cameraAcquisitionAttempted) {
-    let releaseError = null; let released = false;
-    if (acquiredLeaseGeneration !== null) {
-      try { released = (await aeroGameMediaLeaseCoordinator.releaseOwnedGeneration(participant, acquiredLeaseGeneration)).released; }
-      catch (error) { releaseError = error; released = aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId !== participant?.instanceId; }
+  /** Compensate media owned or partially activated by one uncommitted action without disturbing a later lease generation. */
+  async rollbackUncommittedMediaAction(graph, participant, leaseGeneration, leaseAcquired, retainedCameraBefore, cameraAcquisitionAttempted, pauseGameplay) {
+    let rollbackError = null; let ownsSideEffects = false;
+    if (leaseGeneration !== null) {
+      if (leaseAcquired) {
+        try { ownsSideEffects = (await aeroGameMediaLeaseCoordinator.releaseOwnedGeneration(participant, leaseGeneration)).released; }
+        catch (error) { rollbackError = error; ownsSideEffects = aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId !== participant?.instanceId; }
+      } else {
+        const currentLease = aeroGameMediaLeaseCoordinator.snapshot();
+        ownsSideEffects = currentLease.generation === leaseGeneration && currentLease.ownerInstanceId === participant?.instanceId;
+      }
     }
-    if (released || cameraAcquisitionAttempted) {
+    if (ownsSideEffects) {
       this.stopFrameLoop();
       await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
       try { graph.video.pause(this.videoElement()); } catch { /* disconnected stable surface or disposed video */ }
-      if (cameraAcquisitionAttempted && graph.video.getRetainedCameraStream() !== retainedCameraBefore) { try { graph.video.releaseLease({ releaseStream: true }); } catch { /* preserve the first release failure */ } }
+      if (cameraAcquisitionAttempted && graph.video.getRetainedCameraStream() !== retainedCameraBefore) { try { graph.video.releaseLease({ releaseStream: true }); } catch { /* preserve the first rollback failure */ } }
+      if (pauseGameplay) { try { graph.gameplay.pause(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)), "media_action_rollback"); this.synchronizePausedClock(graph); } catch { /* stale or unconfigured gameplay */ } }
       if (this.graph === graph) this.activeCvSource = null;
     }
-    if (releaseError) throw releaseError;
+    if (this.graph === graph && this.lifecycle === "connected") { try { graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot()); } catch (error) { if (!rollbackError) rollbackError = error; } }
+    if (rollbackError) throw rollbackError;
   }
 
   async pause(reason = "manual") {
@@ -368,20 +375,33 @@ export class AeroGame extends HTMLElement {
 
   async resume() {
     this.assertConnected();
-    const generation = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant;
-    const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
-    await aeroGameMediaLeaseCoordinator.requestResources(participant, visualTest ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]));
-    if (!this.isCurrent(generation, graph) || document.hidden) return this.getSnapshot();
-    graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-    if (!visualTest) {
-      if (graph.video.getRetainedCameraStream()) { this.attachRetainedCamera(); await graph.video.play(this.videoElement()); }
-      if (!this.isCurrent(generation, graph)) return this.getSnapshot();
-      await this.startCv();
-      if (!this.isCurrent(generation, graph)) return this.getSnapshot();
+    const connectionGeneration = this.connectedGeneration; const sessionGeneration = this.sessionGeneration; const graph = this.graph; const participant = this.leaseParticipant;
+    const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test"; const retainedCameraBefore = graph.video.getRetainedCameraStream();
+    let mediaLeaseGeneration = null; let mediaLeaseAcquired = false; let mediaActivated = false; let gameplayResumed = false; let resumeCommitted = false; let operationError = null;
+    try {
+      const leaseBefore = aeroGameMediaLeaseCoordinator.snapshot();
+      const leaseAfter = await aeroGameMediaLeaseCoordinator.requestActionResources(participant, visualTest ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]));
+      mediaLeaseGeneration = leaseAfter.generation; mediaLeaseAcquired = leaseAfter.generation !== leaseBefore.generation;
+      if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) || document.hidden) return this.getSnapshot();
+      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+      if (!visualTest) {
+        if (retainedCameraBefore) { this.attachRetainedCamera(); mediaActivated = true; await graph.video.play(this.videoElement()); }
+        if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) || document.hidden) return this.getSnapshot();
+        mediaActivated = true; await this.startCv();
+        if (!this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) || document.hidden) return this.getSnapshot();
+      }
+      try { graph.gameplay.resume(performance.now()); gameplayResumed = true; } catch { /* not configured */ }
+      if (!gameplayResumed || !this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) || document.hidden) return this.getSnapshot();
+      resumeCommitted = true;
+      this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback(); this.publish("session_changed");
+      return this.getSnapshot();
+    } catch (error) { operationError = error; throw error; }
+    finally {
+      if (!resumeCommitted && (mediaLeaseGeneration !== null || mediaActivated)) {
+        try { await this.rollbackUncommittedMediaAction(graph, participant, mediaLeaseGeneration, mediaLeaseAcquired, retainedCameraBefore, false, gameplayResumed); }
+        catch (rollbackError) { if (!operationError) throw rollbackError; }
+      }
     }
-    try { graph.gameplay.resume(performance.now()); } catch { /* not configured */ }
-    this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback(); this.publish("session_changed");
-    return this.getSnapshot();
   }
 
   /** Serialize one current Visual Test transport operation without leaking rejection state into later intents. @param {()=>Promise<void>} operation @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>} graph */
@@ -438,24 +458,37 @@ export class AeroGame extends HTMLElement {
       await this.startSession("visual_test", { requireDownloaded: false, transportAlreadySerialized: true });
       return;
     }
-    await aeroGameMediaLeaseCoordinator.requestResources(this.leaseParticipant, Object.freeze(["audio"]));
-    if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || document.hidden) return;
-    graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
-    try { graph.gameplay.resume(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0))); } catch { /* unconfigured or already playing */ }
-    if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
-    this.audioSyncPending = true;
+    const participant = this.leaseParticipant; const retainedCameraBefore = graph.video.getRetainedCameraStream();
+    let mediaLeaseGeneration = null; let mediaLeaseAcquired = false; let gameplayResumed = false; let transportCommitted = false; let operationError = null;
     try {
-      await graph.audio.play();
-    } catch (error) {
-      if (this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) {
-        try { graph.gameplay.pause(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)), "visual_test_transport_audio_failed"); this.synchronizePausedClock(graph); } catch { /* current session may already be paused */ }
+      const leaseBefore = aeroGameMediaLeaseCoordinator.snapshot();
+      const leaseAfter = await aeroGameMediaLeaseCoordinator.requestActionResources(participant, Object.freeze(["audio"]));
+      mediaLeaseGeneration = leaseAfter.generation; mediaLeaseAcquired = leaseAfter.generation !== leaseBefore.generation;
+      if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || document.hidden) return;
+      graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
+      try { graph.gameplay.resume(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0))); gameplayResumed = true; } catch { /* unconfigured or already playing */ }
+      if (!gameplayResumed || !this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || document.hidden) return;
+      this.audioSyncPending = true;
+      try {
+        await graph.audio.play();
+      } catch (error) {
+        if (this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) {
+          try { graph.gameplay.pause(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)), "visual_test_transport_audio_failed"); this.synchronizePausedClock(graph); } catch { /* current session may already be paused */ }
+        }
+        throw error;
+      } finally {
+        if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) this.audioSyncPending = false;
       }
-      throw error;
-    } finally {
-      if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) this.audioSyncPending = false;
+      if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || document.hidden) return;
+      transportCommitted = true;
+      this.startFrameLoop(); this.syncContentPlayback(); this.renderVisualTestTransport(); this.publish("session_changed");
+    } catch (error) { operationError = error; throw error; }
+    finally {
+      if (!transportCommitted && mediaLeaseGeneration !== null) {
+        try { await this.rollbackUncommittedMediaAction(graph, participant, mediaLeaseGeneration, mediaLeaseAcquired, retainedCameraBefore, false, gameplayResumed); }
+        catch (rollbackError) { if (!operationError) throw rollbackError; }
+      }
     }
-    if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
-    this.startFrameLoop(); this.syncContentPlayback(); this.renderVisualTestTransport(); this.publish("session_changed");
   }
 
   /** @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>} graph */
