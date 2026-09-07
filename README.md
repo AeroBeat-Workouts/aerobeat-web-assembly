@@ -113,11 +113,11 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-content` | `de4917a3c7630b6666b64eeb7e60c1b98a486cc7` | `313dc33e83ed4711e20c01e01ef6f6b5e4aa4f89` |
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
 | `@aerobeat/web-renderer` | `b01f6ac4f8cb252f60a39794db5699a140e705b9` | `01293d62004d36ef87fe661d5bbe785f189c2756` |
-| `@aerobeat/web-gameplay` | `a8f3400384b1adcece82bda202c02623194ce8f2` | `ee14aebaf031ecb90e5d975e5e7b2d879d6d7b9a` |
+| `@aerobeat/web-gameplay` | `2ba22596398c9ef36a555ef5240b802ea02cc437` | `1970855fa2828ea607bb913760e9a39adc3263fe` |
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Lanes/Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 
-Raw `0.0.36` remains immutable failed physical evidence, and raw `0.0.37`, `0.0.38`, and `0.0.39` remain immutable rejected physical evidence. Raw `0.0.40` is the append-only automated successor; it has not been independently release-QA audited, served, or physically approved. The current post-`0.0.40` source integration pins the complete DB7 authoring callback and first-cause repair above and derives fingerprint `80ef365cb8c811ed01f3da9df76ff92d4203d627d4c5d87840885a481a5136e6` across 202 inputs; this does not alter or supersede any immutable raw release.
+Raw `0.0.36` remains immutable failed physical evidence, and raw `0.0.37` through `0.0.41` remain immutable rejected physical evidence. Raw `0.0.41` passed its independent release audit and remains available only as comparison evidence; it is not physically approved. The current post-`0.0.41` source integration pins purpose-aware Visual Test configuration plus the complete palette/timing stack above and derives fingerprint `1b366d1d87b4b5c739a27e0283c01b43168c49740eda67255ca12c1a92c72408` across 206 inputs; this does not alter or supersede any immutable raw release.
 
 ## Validation
 

@@ -51,6 +51,7 @@ const AERO_BACKGROUND_PROJECTION = Object.freeze({ kind: "linear-gradient", colo
 const CAMERA_BACKGROUND_PROJECTION = Object.freeze({ kind: "solid", colors: Object.freeze(["#00000000"]), angleDeg: 180 });
 const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "play" });
 const VISUAL_TEST_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "visual_test" });
+const VISUAL_TEST_CONTENT_OPTIONS = Object.freeze({ purpose: "visual_test" });
 const FLOW_REIMPORT_MESSAGES = Object.freeze({
   flow_orientation_reimport_required: "This downloaded song uses the legacy Flow orientation. Reimport it to play.",
   flow_obstacle_reimport_required: "This downloaded song lacks source-faithful Flow obstacle geometry. Reimport it to play."
@@ -289,7 +290,7 @@ export class AeroGame extends HTMLElement {
         graph.video.pause(this.videoElement());
         if (typeof graph.audio.seek === "function") await graph.audio.seek(0);
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
-        if (contentPlayable) this.configureGameplayFromContent(false);
+        if (contentPlayable) this.configureGameplayFromContent(false, purpose);
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
         await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
@@ -832,13 +833,19 @@ export class AeroGame extends HTMLElement {
     await graph.audio.load({ id: `${content.packageId}:audio`, kind: "array-buffer", label: content.song?.name ?? "AeroBeat song", arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), contentType: "application/octet-stream", ...(hash ? { expectedHash: { algorithm: "SHA-256", value: hash } } : {}) }, { signal: this.activeAbort.signal });
   }
 
-  configureGameplayFromContent(futureOnly) {
+  /** Configure content for the explicit action purpose, preserving active Visual Test truth without entering Play calibration. @param {boolean} futureOnly @param {"play"|"visual_test"} [purpose] */
+  configureGameplayFromContent(futureOnly, purpose = this.gameplayContentPurpose()) {
     const content = this.graph.content.getSnapshot();
     if (content.state !== "ready" || !content.selectedVariant) return;
     const scoring = this.graph.profiles.getActive("between_run_ruleset");
     const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
-    else this.graph.gameplay.configureContent(configuration);
+    else this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined);
+  }
+
+  gameplayContentPurpose() {
+    const session = this.graph?.gameplay.getSnapshot().session;
+    return this.pendingSessionAction === "test" || (this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test") ? "visual_test" : "play";
   }
 
   applyActiveVisualProfile() {
