@@ -18,11 +18,11 @@ export const viteAllowedFileSystemRoots = Object.freeze([assemblyRoot, ...Object
     if (ownedPackage.name !== packageName) throw new Error(`Linked dependency ownership mismatch for ${packageName}`);
     return fileURLToPath(packageRoot);
   })]);
-const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.7/", import.meta.url);
+const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.8/", import.meta.url);
 const rendererGameplayInventoryBytes = readFileSync(new URL("inventory.v1.json", rendererGameplayRoot));
-if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "ba3f40ad3b178da9845a74c89d3a89115d13fa5bd86b291bf41031df70eabbf4") throw new Error("Linked renderer gameplay inventory hash drifted");
+if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "ac30d6b70cbae96115a7c97f5ad02b3da21fde7fb77f69083f1090e268bab5ac") throw new Error("Linked renderer gameplay inventory hash drifted");
 const rendererGameplayProofBytes = readFileSync(new URL("proof.v1.json", rendererGameplayRoot));
-if (createHash("sha256").update(rendererGameplayProofBytes).digest("hex") !== "ebeb42ffaa351bcdbd7ae8120b62762d16d8957acd8a4b1286b324ffa5e6cfdb") throw new Error("Linked renderer gameplay proof hash drifted");
+if (createHash("sha256").update(rendererGameplayProofBytes).digest("hex") !== "ba8a52cf747ec5ab58dcd024c90f813a5c477541892f71da698ead6a65ca4758") throw new Error("Linked renderer gameplay proof hash drifted");
 const rendererGameplayInventory = JSON.parse(rendererGameplayInventoryBytes.toString("utf8"));
 const rendererGameplayGlbs = rendererGameplayInventory.payload.filter((entry) => entry.path.endsWith(".glb"));
 if (rendererGameplayGlbs.length !== 7) throw new Error("Linked renderer gameplay GLB inventory drifted");
@@ -44,7 +44,7 @@ export default {
       for (const asset of rendererGameplayGlbs) {
         const source = readFileSync(new URL(asset.path, rendererGameplayRoot));
         if (source.byteLength !== asset.bytes || createHash("sha256").update(source).digest("hex") !== asset.sha256) throw new Error(`Linked renderer gameplay asset drifted: ${asset.path}`);
-        this.emitFile({ type: "asset", fileName: `assets/gameplay/0.0.7/${asset.path}`, source });
+        this.emitFile({ type: "asset", fileName: `assets/gameplay/0.0.8/${asset.path}`, source });
       }
       for (const asset of environmentAssetFiles) {
         const source = readFileSync(new URL(`./${asset.path}`, import.meta.url));
