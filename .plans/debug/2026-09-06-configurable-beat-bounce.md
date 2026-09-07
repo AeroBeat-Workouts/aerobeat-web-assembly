@@ -585,3 +585,71 @@ Remaining uncertainty: Repeated mobile runtime cost only; no unresolved product-
 - Focused green gates: renderer hostile config/semantic matrix; assembly direct+genuine-iframe controls matrix; repeated standalone mobile (three consecutive plus final focused passes). Full renderer `npm test`, renderer Chromium/pixel suite, exact 40-file pack, assembly `npm test`, raw/mutation/privacy/provenance/release-pack 121-file checks, and final production build passed. Two consecutive unchanged complete assembly `npm run test:browser` runs passed from console/hash/audio/mobile through all direct/iframe matrices and live-marker visibility. Final fingerprint is `5813225950b4404327987295852637caf90a12431099b21b347e6d5009edef95` over 207 inputs.
 - Earlier red evidence is retained: QA reproductions for all four blockers, the instrumented future clock (`~50406` versus `~24320`), and local pre-fix/partial-fix mobile failures. Two aggregate attempts invalidated during active repair by an intentionally dirty renderer dependency/HMR source edit are not counted as stability evidence; the final two clean consecutive aggregates are.
 - This remains repair-coder evidence. `nooh`, `lmgt`, `4kkt`, and `xy7l` remain open for independent re-QA/audit. Asset `0.0.8` and unrelated commits remain untouched. No asset integration, release, tag, publication, serving change, or physical approval occurred.
+
+## Self-erasing accessor boundary diagnosis — `ywxv` (2026-09-07, before edits)
+
+### Exact Observed Failure
+
+Independent review constructed a valid-looking config whose enumerable `leadBeats` getter increments a counter, replaces itself with an ordinary data property, and returns `4`. At renderer `252fa0b`, `normalizeBeatBounceConfig()` calls `structuredClone(value)` first. Native clone invokes the getter; the getter erases its accessor descriptor; the later source descriptor pass sees ordinary data and accepts the config. Direct reproduction returned a normalized config and getter count `1`. A stable getter is rejected, and a Proxy is rejected with zero traps, but the self-erasing accessor is admitted.
+
+### Expected Behavior
+
+- Every arbitrary direct object—including stable accessors, self-mutating accessors, Proxies, forged lookalikes, structured clones, and cross-realm records—must be rejected without property access, getter execution, or Proxy traps.
+- Only module-created unforgeable safe configs and strict JSON text parsed inside the owning module may cross the renderer mutation boundary.
+- Trusted UI construction must validate primitive fields before branding. JSON load must retain exact schema/version/key/type/range/easing checks, canonical bytes, atomicity, and privacy.
+
+### Execution Path
+
+Current path: arbitrary object → `normalizeBeatBounceConfig` → native structured clone → accessor `[[Get]]` → accessor rewrites source descriptor → source prototype/key/descriptor checks → cloned values normalize → accepted config → facade assignment. The clone-first order protects Proxy traps but necessarily executes ordinary getters; descriptor-first protects getters but necessarily invokes Proxy internal methods. No ordering of generic object introspection satisfies both invariants.
+
+### Most Likely Root Cause
+
+The public mutation boundary accepts arbitrary object graphs and tries to establish safety by introspection. In ECMAScript, WeakSet identity lookup is non-observable, but generic prototype/key/descriptor/clone operations are not simultaneously Proxy- and accessor-non-observable. The root cause is therefore architectural, not another ordering bug: untrusted arbitrary records and trusted normalized configs share one API shape with no unforgeable provenance.
+
+### Alternative Hypotheses
+
+1. Compare source and clone after preflight: disproved; the self-erasing getter makes both appear as equivalent data records.
+2. Clone twice: disproved; the first clone already mutates the source, so later clones see stable data.
+3. Freeze/seal after clone: insufficient; the malicious getter has already run and can also freeze its rewritten source.
+4. Patch `defineProperty`: insufficient; mutation can use deletion/assignment, captured intrinsics, or other reflective paths.
+5. Detect Proxy through standard reflection first: violates the zero-trap invariant by definition.
+
+### Why Previous Fixes Failed
+
+- Descriptor-first normalization preserved non-executing accessor rejection but invoked hostile Proxy traps before native clone rejection.
+- Clone-first normalization fixed Proxy observability but assumed source descriptors remained stable during clone. That assumption is false because the structured-clone algorithm reads enumerable property values and therefore executes getters.
+- The prior targeted accessor test used a stable getter only and did not model mutation during preflight.
+
+### Unknowns
+
+- All required consumers must be enumerated so no unbranded object mutation path remains. Current search identifies renderer facade/model/tests and assembly UI/file load; pack/browser probes will verify no hidden caller.
+- Cross-realm branded identity behavior must be asserted explicitly: a clone or other-realm lookalike must lose/reject the brand, while its canonical JSON text must parse successfully through the strict parser.
+
+### Minimal Reproduction
+
+Create a valid record, replace `leadBeats` with a configurable enumerable getter that redefines itself as `{value:4,writable:true,enumerable:true,configurable:true}`, then call the current normalizer. Before repair, it returns a valid config and increments the getter counter once. A Proxy around a valid record rejects with zero traps, demonstrating the irreconcilable generic-object ordering.
+
+### Proposed Verification
+
+- Call every public arbitrary-object normalization/setter/serializer path with stable and self-erasing getters; invocation counts remain exactly zero and calls throw.
+- Call with a Proxy whose `getPrototypeOf`, `ownKeys`, descriptor, `get`, `has`, and extensibility traps count; all counts remain zero.
+- Spread, `Object.assign`, `structuredClone`, symbol-copy, and cross-realm lookalikes of a branded config reject.
+- Module trusted primitive constructor produces a deeply frozen branded config; strict JSON parser round-trips canonical bytes and rejects schema/version/key/type/range/easing failures.
+- Facade setter is atomic for every untrusted input and accepts only branded values; reset restores branded defaults.
+- Assembly direct/iframe exact-16-KiB JSON load and controls use only strict parser/trusted constructor and preserve picker ownership/privacy.
+
+### Recommended Fix
+
+Introduce a module-private `WeakSet` brand. Export a trusted constructor taking only separately validated primitives and a strict JSON-text parser that parses internally before exact record validation and branding. Make `normalizeBeatBounceConfig`, serializer, analytic offset, and facade setter accept only WeakSet-branded values; `WeakSet.has(value)` rejects arbitrary objects/Proxies without introspection or traps. Never export the brand or a generic object-branding function. Migrate assembly controls to the primitive constructor and file load to the strict text parser. Treat structured clones and cross-realm records as untrusted; they must travel as canonical JSON text.
+
+### Debugging Record
+
+Problem: Clone-first direct-object normalization admits a self-erasing accessor.
+Observed symptom: Getter count 1 and malicious config accepted after descriptor rewrite.
+Root cause: One arbitrary-object API attempts mutually incompatible Proxy-safe and accessor-safe introspection without provenance.
+Evidence: Independent reproduction at renderer `252fa0b`; ECMAScript structured clone invokes enumerable getters.
+Failed approaches: Descriptor-first, clone-first, repeated clone, post-clone compare/freeze.
+Corrective action: Unforgeable module-private WeakSet brand plus primitive constructor and strict JSON-text parser; reject all arbitrary objects by identity only.
+Verification test: Zero-count stable/self-erasing getters and all Proxy traps; forgery/clone/cross-realm rejection; JSON/atomic/canonical success.
+Related files/components: renderer bounce config/index/facade/tests; assembly index/controls browser/provenance docs.
+Remaining uncertainty: Consumer inventory only, resolved by repository search and full gates; no product-design decision remains.
