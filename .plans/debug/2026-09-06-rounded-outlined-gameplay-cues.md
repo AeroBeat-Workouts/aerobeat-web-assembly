@@ -116,12 +116,12 @@ All numeric values are local world units after final normalization.
 #### Directional arrow
 
 - Overall AABB: exactly `[-0.39,+0.39] X`, `[-0.39,+0.39] Y`, `[-0.09,+0.09] Z`; pivot/origin `[0,0,0]`; dimensions remain `0.78 × 0.78 × 0.18`.
-- Preserve the seven-anchor proportion family: shaft half-width target `0.155`, shoulder Y `0.055`, head half-width `0.390`, tail Y `−0.390`, tip Y `+0.390`.
+- Preserve the seven-anchor proportion family with the minimum deterministic shaft correction required by the stroke/readability contract: shaft half-width `0.175` (not the contradictory research estimate `0.155`), shoulder Y `0.055`, head half-width `0.390`, tail Y `−0.390`, tip Y `+0.390`. After the `0.086` fill-boundary inset, the nominal straight shaft remains `0.178` wide, satisfying the required `≥0.170` fill shaft without narrowing any clarity band.
 - Preserve a broad arrowhead and concave shoulder; do not add the historical DDR V-tail notch. This keeps the result original and avoids reducing small-size stem mass.
 - Tangent fillet radii: tip `0.055`; two outer head/shoulder corners `0.060`; two concave neck corners `0.045`; two tail corners `0.050`.
 - Build fillets against the anchor polygon, then normalize the resulting curve extrema independently to exact `0.78 × 0.78`; reported radii after normalization must remain within `±0.002` of targets.
 - Each quarter-circle equivalent gets at least 4 equal-angle segments; maximum XY chord error `≤0.0015`. No segment turn may exceed `11.25°` on convex fillets or `15°` on concave fillets.
-- Fill must retain a connected shaft width `≥0.170`, connected neck width `≥0.145`, head-tip local radius `≥0.045`, and projected fill area `≥42%` of outer face area. These guards preserve eight-direction readability at small size.
+- Fill must retain a connected shaft width `≥0.170`, connected neck width `≥0.145`, and head-tip local radius `≥0.045`. The earlier `42% colored-fill` estimate is impossible with the approved outer silhouette and non-narrowing cumulative `0.086` stroke: exhaustive semantic re-rounding reaches at most `36.105%`. The corrected deterministic bounds are colored fill area `≥35%` and interior readability footprint after the white stroke (fixed inner charcoal plus fill) `≥42%`; the authored `.175` shaft construction measures about `35.59%` and `49.06%`, respectively. These guards preserve eight-direction readability without falsifying stroke width.
 
 #### Any-direction circle
 
@@ -149,13 +149,13 @@ Face-band order from outer silhouette inward, identical on both `+Z` and `−Z`:
 3. fixed inner charcoal separator: normal width `0.020`;
 4. role fill.
 
-For the circle these become exact radii `0.350 / 0.336 / 0.284 / 0.264`, with fill radius `0.264`. For arrow and shield use true inward curve offsets, not origin scaling; reject self-intersections and any band narrower than `90%` of its target. Miter joins are forbidden. Offset curves use round joins with the same local radius family.
+For the circle these remain exact concentric analytic radii `0.350 / 0.336 / 0.284 / 0.264`, with fill radius `0.264`. Arrow and shield instead use deterministic topology-changing morphological erosion: independently inset each seven-anchor polygon by cumulative distances `0.014 / 0.066 / 0.086`, remove collapsed/self-intersecting offset features, and apply explicit tangent re-rounded joins. Nominal `0.014 / 0.052 / 0.020` widths are exact on surviving straight runs; collapsed high-curvature joins may widen but must never narrow a band. Collapsed joins use semantic non-negative re-round floors rather than naive negative radii; the arrow fill tip alone retains the required `0.045` minimum while shoulders/necks may tighten to preserve non-overlapping tangent runs. Miter joins and origin scaling are forbidden. Validators must prove simple nested boundaries, no self-intersection, exact straight-run widths, non-narrowing join transitions, fill connectivity/area, and arrow fill-tip radius/readability.
 
 Depth-edge bevel:
 
 - Arrow/circle axial bevel `0.012` on each face; guard axial bevel `0.010` on each face.
 - Bevel uses 3 equal-angle segments over 90°; maximum normal-angle step `30°`.
-- The front/rear white region continues onto the face bevel. The central longitudinal side wall is fixed charcoal, producing a stable dark silhouette at near-side-on angles.
+- The outer charcoal keyline wraps the face bevel and the white region begins at the exact silhouette-relative `0.014` boundary. For arrow/circle this allocates `0.012` to bevel plus `0.002` to planar outer charcoal; guard allocates `0.010 + 0.004`. This preserves the circle's exact projected radii `0.350 / 0.336 / 0.284 / 0.264`. The central longitudinal side wall is fixed charcoal, producing a stable dark silhouette at near-side-on angles.
 - Cap interiors remain planar. Normals are explicit: planar cap normals exactly `±Z`, smooth radial bevel normals, and hard-normal boundaries at cap-to-band material seams where needed for crisp color separation.
 
 The result must have:
@@ -167,7 +167,9 @@ The result must have:
 - `doubleSided:false`, back-face culling, alpha `1.0`, `alphaMode:"OPAQUE"`, depth test/write true for every cue material;
 - no polygon offset, depth bias, screen-space outline, transparent blend, stencil dependency, or always-on-top pass.
 
-Triangle budgets: arrow `≤360`, circle `≤520`, guard `≤420`. These are upper bounds, not targets. The generator must produce explicit normals for the changed cues and validators must prove geometric/NORMAL agreement (`dot > 0.90`) for every referenced corner.
+Triangle budgets: arrow `≤2432`, circle `≤2176`, guard `≤1536`. These corrected ceilings replace the incompatible research estimates `360/520/420`; they are upper bounds, not targets. The generator must produce explicit normals for the changed cues and validators must prove geometric/NORMAL agreement (`dot > 0.90`) for every referenced corner.
+
+The correction follows the exact closed-shell lower bound for `N` corresponding samples on each of the four cap loops. Two faces contain six annuli (`12N` triangles) plus two triangulated fill caps (`2N−4`); two three-segment bevels contribute `12N`; and the central longitudinal wall contributes `2N`, for deterministic total `T(N)=28N−4`. A filleted polygon corner needing `s` arc segments contributes `s+1` distinct perimeter vertices because its incoming and outgoing tangent endpoints are separated from adjacent corners by a straight run. Alternative B's chord/turn rules therefore produce arrow arc segments `62`, `N=69`, `T=1928`; the required closed circle uses `N=64`, `T=1788`; and the shield uses arc segments `35`, `N=42`, `T=1172`. The corrected ceilings are the smallest 128-triangle-rounded limits retaining at least 20% headroom: `2432/2176/1536`, all below the absolute per-cue ceiling `4096`. Asset validation must also report the exact counts and enforce a separate renderer-visible-window aggregate triangle/draw-call oracle so these larger per-cue limits cannot silently regress cadence.
 
 ### 3. Material roles and tint contract
 
