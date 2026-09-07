@@ -274,6 +274,7 @@ export class AeroGame extends HTMLElement {
     this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
     return this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
       const participant = this.leaseParticipant;
+      let acquiredLeaseGeneration = null; let retainedCameraBefore = null; let cameraAcquisitionAttempted = false; let videoPlayAttempted = false; let cvStartAttempted = false; let sessionCommitted = false; let operationError = null;
       try {
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         if (options.transportAlreadySerialized !== true) await previousTransportTail;
@@ -293,19 +294,23 @@ export class AeroGame extends HTMLElement {
         if (contentPlayable) this.configureGameplayFromContent(false, purpose);
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
-        await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
+        const leaseBefore = aeroGameMediaLeaseCoordinator.snapshot();
+        const leaseAfter = await aeroGameMediaLeaseCoordinator.requestResources(participant, resources);
+        if (leaseAfter.generation !== leaseBefore.generation) acquiredLeaseGeneration = leaseAfter.generation;
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
         graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
         if (purpose === "play") {
-          if (!graph.video.getRetainedCameraStream()) {
+          retainedCameraBefore = graph.video.getRetainedCameraStream();
+          if (!retainedCameraBefore) {
+            cameraAcquisitionAttempted = true;
             const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
             if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
             if (result.status !== "granted") throw new Error(result.message);
           }
           this.attachRetainedCamera();
-          await graph.video.play(this.videoElement());
+          videoPlayAttempted = true; await graph.video.play(this.videoElement());
           if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
-          await this.startCv();
+          cvStartAttempted = true; await this.startCv();
         } else {
           graph.video.pause(this.videoElement());
           this.activeCvSource = null;
@@ -315,13 +320,38 @@ export class AeroGame extends HTMLElement {
         this.sessionStartRequested = true; this.activeSessionAction = action;
         graph.gameplay.requestStart(performance.now(), purpose === "visual_test" ? VISUAL_TEST_START_REQUEST : PLAY_START_REQUEST);
         if (!this.isActionIntentOwner(owner, sessionGeneration)) return this.getSnapshot();
+        sessionCommitted = true;
         this.syncAudioForGameplay(); this.startFrameLoop(); this.syncContentPlayback();
         this.publish("session_changed");
         return this.getSnapshot();
-      } finally {
+      } catch (error) { operationError = error; throw error; }
+      finally {
+        let rollbackError = null;
+        if (!sessionCommitted && (acquiredLeaseGeneration !== null || cameraAcquisitionAttempted || videoPlayAttempted || cvStartAttempted)) {
+          try { await this.rollbackUncommittedSessionStart(graph, participant, acquiredLeaseGeneration, retainedCameraBefore, cameraAcquisitionAttempted); }
+          catch (error) { rollbackError = error; }
+        }
         if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) { this.pendingSessionAction = ""; this.menuStarting = false; this.renderPresenters(); }
+        if (!operationError && rollbackError) throw rollbackError;
       }
     });
+  }
+
+  /** Compensate only media owned or partially activated by one uncommitted Start/Test action. */
+  async rollbackUncommittedSessionStart(graph, participant, acquiredLeaseGeneration, retainedCameraBefore, cameraAcquisitionAttempted) {
+    let releaseError = null; let released = false;
+    if (acquiredLeaseGeneration !== null) {
+      try { released = (await aeroGameMediaLeaseCoordinator.releaseOwnedGeneration(participant, acquiredLeaseGeneration)).released; }
+      catch (error) { releaseError = error; released = aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId !== participant?.instanceId; }
+    }
+    if (released || cameraAcquisitionAttempted) {
+      this.stopFrameLoop();
+      await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
+      try { graph.video.pause(this.videoElement()); } catch { /* disconnected stable surface or disposed video */ }
+      if (cameraAcquisitionAttempted && graph.video.getRetainedCameraStream() !== retainedCameraBefore) { try { graph.video.releaseLease({ releaseStream: true }); } catch { /* preserve the first release failure */ } }
+      if (this.graph === graph) this.activeCvSource = null;
+    }
+    if (releaseError) throw releaseError;
   }
 
   async pause(reason = "manual") {

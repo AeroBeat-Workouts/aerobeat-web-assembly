@@ -72,6 +72,24 @@ export class AeroGameMediaLeaseCoordinator {
     });
   }
 
+  /** Release only the exact ownership generation acquired by one obsolete action. A later transfer or same-participant request is never released. @param {AeroGameMediaLeaseParticipant} participant @param {number} expectedGeneration */
+  async releaseOwnedGeneration(participant, expectedGeneration) {
+    this.assertNotReentrant(participant);
+    return this.enqueue(async () => {
+      const registered = this.registrations.get(participant);
+      if (!registered || this.owner !== registered || this.transferring || this.generation !== expectedGeneration) return Object.freeze({ released: false, snapshot: this.snapshot() });
+      const resources = this.ownerResources; ++this.generation;
+      this.owner = null; this.ownerResources = Object.freeze([]); this.candidate = registered; this.candidateResources = resources; this.transferring = true;
+      let releaseError = null;
+      try { await this.invoke(registered, registered.releaseLease, resources); }
+      catch (error) { releaseError = error; }
+      this.activatedParticipants.delete(registered); this.candidate = null; this.candidateResources = Object.freeze([]); this.transferring = false;
+      const result = Object.freeze({ released: true, snapshot: this.snapshot() });
+      if (releaseError) throw releaseError;
+      return result;
+    });
+  }
+
   /** @param {AeroGameMediaLeaseParticipant} participant @param {AeroGameLeaseCallbackContext} [callbackContext] */
   async release(participant, callbackContext) {
     this.assertNotReentrant(participant, callbackContext);
