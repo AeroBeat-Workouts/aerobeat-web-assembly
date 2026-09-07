@@ -494,3 +494,85 @@ No production or test implementation in this research slice. No asset edit, easi
 - Focused renderer model/type and actual PlayCanvas pixel tests passed. Renderer Chromium suite and final full `npm test` passed after the concurrent gameplay-asset release landed cleanly; exact dry pack contains 40 files including the new boundary and unchanged 17 gameplay members.
 - Assembly focused projection, strict controls direct/genuine-iframe matrix, standalone mobile, all-eight product-shell/24-camera matrix, full `npm test`, production build, raw immutability/mutation, privacy/provenance fingerprint, release-target/pack-policy, and 121-file dry pack passed. The first aggregate browser run stopped in the known host-sensitive mobile fixture with a transient undefined audit pose owner; the unchanged standalone mobile suite immediately passed, then the unchanged complete `npm run test:browser` rerun passed every gate through live-marker visibility without timing relaxation.
 - This is coder evidence only. No raw successor, asset successor, tag, publication, serving change, or physical approval was created; `lmgt` remains open for independent QA/audit.
+
+## Independent QA FAIL repair diagnosis — `nooh` (2026-09-07, before repair edits)
+
+### Exact Observed Failure
+
+1. QA comment `01a07c41-66f4-753c-bc26-2f89dce27d8f` proved that an in-flight bounce file read can survive a transient disabled state. `syncDebugCameraPresentation()` clears only `beatBouncePickerRequest`; `handleBeatBounceFile()` keeps its captured request and later calls `isBeatBounceRequestCurrent()`, whose immutable connection/session/graph/purpose/lifecycle fields plus current `enabled` state can all become true again after menu close or visibility restoration.
+2. A hostile Proxy probe observed `getPrototypeOf`, `ownKeys`, and descriptor traps from `normalizeBeatBounceConfig()` before rejection. The source performs those operations at lines 25–28 and only then calls `structuredClone` at line 29.
+3. QA rendered contradictory targets: `{kind:"punch",family:"bomb"}` bounced the bomb GLB, and `{kind:"flow",family:"squat"}` used paired lane placement while bouncing. Bounce eligibility checks only `kind`; asset and placement consult both `kind` and `family`.
+4. Repeated unchanged mobile runs failed at `validate-mobile-gameplay-menu.js:307`. Captured failure truth was `paused_tracking/recalibrating`, `holdProgressMs=0`, `latestPoseTimestampMs≈50406`, and `lastFreshPoseAtMs≈24320`. The fixture’s first pose timestamp is `requestedTimestamp + performance.now()`, then it advances by requested synthetic deltas, placing measured evidence tens of seconds ahead of the actual performance clock used by assembly/gameplay freshness.
+
+### Expected Behavior
+
+- Any disable or owner transition must monotonically invalidate an opened picker and every continuation of its read/decode/parse/normalize/apply chain; re-enable cannot resurrect it.
+- A hostile Proxy must be rejected by the required native structured-clone preflight before any user-observable Proxy trap or getter runs. Cloneable plain objects must still face exact prototype/key/symbol/data-descriptor/accessor validation.
+- Bounce requires an exact intentional `(kind,family)` semantic pair; every contradictory or unknown pair remains static even if it owns `bounceStartMs`.
+- Mobile fixture measurements and assembly frame/freshness time must share the real `performance.now()` clock. Test acceleration cannot manufacture future evidence that production correctly rejects.
+
+### Execution Path
+
+- Picker: trusted click → immutable request capture → `File.arrayBuffer()` await → current-owner checks → fatal decode → parse → renderer normalization → commit. Current disable clears only the shared slot and does not mutate the captured request or a monotonic generation.
+- Proxy: normalizer entry → `Object.getPrototypeOf(proxy)` → `Reflect.ownKeys(proxy)` → descriptors → `structuredClone(proxy)` rejection. Rejection is correct but observably late.
+- Semantic target: `targetObjects()` computes positions through family-sensitive `targetPositions()`, computes kind-only `bounceEligible`, then selects family-sensitive asset in `assetForTarget()`.
+- Mobile: `pushPose(requested)` initializes `fixturePoseClockMs=requested+performance.now()` and accumulates synthetic request deltas; `runDisplayFrame()` records real `frameNow=performance.now()`. Input evidence therefore has `measurementTimestampMs > gameplay/frameNow`; `getFreshEvidence()` requires non-negative age and returns null, so recovery cannot enter playing.
+
+### Most Likely Root Cause
+
+- Picker root cause: ownership is represented only by a replaceable object plus reversible state predicates, not a monotonic token checked by exact request identity.
+- Proxy root cause: strict structural inspection was incorrectly ordered before the non-observable Proxy rejection primitive.
+- Eligibility root cause: semantic identity is split across kind/family but the allowlist uses only half of that identity.
+- Mobile root cause: the fixture mixes a synthetic chart-like timestamp domain with the browser monotonic performance domain. The product’s fail-closed freshness rule exposes the mismatch correctly.
+
+### Alternative Hypotheses
+
+1. Product calibration regression: contradicted by multiple isolated passes and the exact future-evidence capture; still guarded by unchanged product thresholds and repeated aggregate runs.
+2. Slow host scheduling alone: can change when the race manifests, but cannot explain or legitimize a pose timestamp ~26 seconds ahead of `performance.now()`.
+3. Renderer asset bug: contradicted by direct source path—the contradictory asset/placement is selected exactly as coded; semantic validation is missing.
+4. Clearing the file input is sufficient cancellation: contradicted because `arrayBuffer()` already owns the `File` and captured request.
+
+### Why Previous Fixes Failed
+
+- The initial picker implementation checked multiple owner dimensions but assumed current disabled state could not later return to the same values. It treated state predicates as cancellation rather than requiring monotonic invalidation.
+- The accessor repair moved descriptor inspection before structured clone to avoid executing a plain getter, but this inverted the explicitly required Proxy-preflight order and made Proxy traps observable.
+- Initial bounce tests used internally consistent targets only, so kind-only gating appeared equivalent to semantic gating.
+- Earlier aggregate mobile failures were classified as host-sensitive after standalone passes; that treated the intermittent symptom rather than instrumenting the fixture’s two incompatible clocks.
+
+### Unknowns
+
+- Native `structuredClone` rejects a Proxy without invoking its `getPrototypeOf`, `ownKeys`, descriptor, or `get` traps. Native clone does invoke a getter on a non-Proxy plain accessor object; JavaScript has no generic browser primitive that can both distinguish a Proxy without traps and inspect a plain descriptor first. The required ordering is therefore clone preflight first, followed by strict original descriptor rejection for cloneable objects; the zero-observation guarantee applies to the hostile Proxy boundary.
+- Exact repeated mobile wall-clock cost after replacing synthetic future time with real bounded waits is not yet measured. Repeated focused runs will establish stability without changing product thresholds.
+
+### Minimal Reproduction
+
+- Picker: open trusted picker, begin deferred `arrayBuffer`, open menu or hide document, restore enabled state, resolve read; current code applies stale config.
+- Proxy: wrap a valid config with traps counting `getPrototypeOf`, `ownKeys`, and `getOwnPropertyDescriptor`; normalize; counters are nonzero.
+- Semantic: render at apex with `kind=punch/family=bomb` or `kind=flow/family=squat`; icon Y rises.
+- Mobile: run the existing test repeatedly; when recovery checks freshness against real frame time while fixture evidence is future-dated, line 307 times out.
+
+### Proposed Verification
+
+- Deferred exact file test with disable→enable and unchanged connection/session/graph/purpose/lifecycle; assert no setter call and no config mutation. Also cover every owner transition and exact request identity.
+- Proxy with `getPrototypeOf`, `ownKeys`, descriptor, and `get` traps counted; normalization must throw with total count zero. Cloneable accessor/plain hostile inputs must still reject by the original strict descriptor/prototype/key rules after preflight.
+- Full consistent/contradictory/unknown kind+family matrix at apex; only `(flow,flow)`, punch with `straight|hook|uppercut`, and guard with `guard|crossed_guard` may move.
+- Instrument pose/frame timestamps, repeat standalone mobile runs, then repeat aggregate browser; require pose timestamps never exceed the actual performance clock used for the frame and retain unchanged calibration/freshness/timeouts.
+
+### Recommended Fix
+
+- Add a monotonic bounce-picker ownership generation. Increment it on open, every disable, and teardown/owner change; embed generation plus unique request identity and require both shared exact identity and generation at every async boundary through apply.
+- Call native `structuredClone` immediately after the availability check. A hostile Proxy fails there with zero user traps. Only after successful clone preflight, inspect the original plain object’s exact prototype/keys/descriptors so symbols, accessors, hidden fields, and custom prototypes remain rejected; read canonical data values only from the clone.
+- Define one exact kind+family allowlist helper and use it solely for bounce. Contradictions remain renderable under existing fallback behavior but static.
+- Make mobile `pushPose` wait bounded real time according to requested progression and stamp frames from `performance.now()`, preserving all production timing/freshness thresholds.
+
+### Debugging Record
+
+Problem: Four independent QA blockers in bounce picker ownership, Proxy preflight, semantic eligibility, and mobile fixture time.
+Observed symptom: Stale apply after re-enable; Proxy traps before rejection; contradictory bomb/squat bounce; intermittent line-307 recovery timeout with future pose timestamp.
+Root cause: Reversible owner predicates; wrong validation order; kind-only semantic gate; mixed fixture/performance clocks.
+Evidence: QA comment `01a07c41-66f4-753c-bc26-2f89dce27d8f`, exact source paths above, captured timestamps `~50406` versus `~24320`.
+Failed approaches: Shared-request clearing only; descriptor-first accessor fix; consistent-target-only tests; waiving mobile as host timing.
+Corrective action: Monotonic exact request token; clone-first validation authority; kind+family allowlist; real-clock fixture frames.
+Verification test: Deferred disable/re-enable, zero-trap Proxy, contradiction matrix, repeated standalone and aggregate mobile.
+Related files/components: assembly `src/index.js`, controls browser oracle, mobile oracle; renderer config and scene model/tests.
+Remaining uncertainty: Repeated mobile runtime cost only; no unresolved product-design decision.
