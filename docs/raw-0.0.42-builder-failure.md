@@ -115,3 +115,25 @@ Coder validation passed:
 - focused `git diff --check`
 
 No `version:patch` or `build-release` command was run. No byte under `release/raw/0.0.42` was edited. Post-validation evidence remains exactly `38` regular files / `28,197,018` bytes, path-order aggregate `4f5d94e0fc1bdc6af6489cc233462e336909e35948732223f9c14e17caf1ff66`, and globally line-sorted complete-manifest aggregate `0c8c44c705293923daa0b2ae6c18c381e8bbb4661e5add7b8668c6c1aa1cc687`, with no proof file. Version, release assertion, Beads dirt, and the ignored raw target remain excluded from the source-policy commit. `xrww` remains open for independent QA through `6qqf`.
+
+## Final bounded auditor result — PASS / one raw 0.0.43 build authorized
+
+**Audit Bead:** `aerobeat-web-assembly-xz9r`
+
+**Audited repair:** `1eb25bd061c4353be58cc615ecffbe2b93a54b71` / tree `9087e1f9ab159bd8757ea6ffaf4e3452aca41091`
+
+**Closed QA evidence:** `aerobeat-web-assembly-6qqf`, PASS comment `01a07d6f-96b1-76e1-aa06-8168d19b97f0`
+
+The final audit inspected the complete policy and focused validator rather than relying only on QA output. The repair narrowly changes both generated-name recognizers from `\w+` to the Vite/Rollup base64url-style hash alphabet `[A-Za-z0-9_-]+`, requires exactly one main and one conversion-Worker JavaScript/source-map identity, requires complete exact shared-hash source attribution for both, and rejects absolute, traversal, empty-segment, backslash, and colon-bearing JavaScript paths. Release scanning remains supported through chunk-form JavaScript plus asset-form source maps; the normal Vite validator exercises the in-memory bundle representation.
+
+Independent audit validation passed:
+
+- `node scripts/validate-production-hash-bundle.js`: `3` scripts / `2` deduplicated maps with exact main and conversion-Worker ownership.
+- Independent read-only policy matrix: `2` positives, including hyphenated chunk and asset-map representations, plus `14` fail-closed adversaries spanning missing/incomplete/unattributed maps, absent/duplicate identities, unsafe paths, and malformed/empty hashes.
+- `npm run test:release-pack-policy`: release-target append-only policy and release-pack self-test PASS.
+- `node scripts/validate-immutable-raw-snapshot.js`: all `17` committed raws through `0.0.41` remain exact; newest locked trees remain `0.0.35` `bd69d3bd309660125d1a5ac3da6d07896c49bb96`, `0.0.36` `ce125ba4a596f7d6cad84c9e3bf983c5ccf0ed77`, `0.0.37` `6d2b8c4e39d3677f28e48ad076bc6259abcd47b9`, `0.0.38` `9c4225c83b8697a6404190bddcbfcbee0a5d60f3`, `0.0.39` `799c9b346f1e1bffc96bf8e0cd01d8edd5e33928`, `0.0.40` `7e73b56e512ff877f17dc44a0bc8a19fd2104987`, and `0.0.41` `0b5f7841ef65779d84f028a544724a6d76cd06a1`.
+- Repair diff hygiene passed and contains no raw path. `HEAD == origin/main` matched the audited repair before documentation-only audit recording.
+
+The incomplete ignored raw `0.0.42` was independently recomputed as exactly `38` files / `28,197,018` bytes, path-order aggregate `4f5d94e0fc1bdc6af6489cc233462e336909e35948732223f9c14e17caf1ff66`, globally line-sorted complete-manifest aggregate `0c8c44c705293923daa0b2ae6c18c381e8bbb4661e5add7b8668c6c1aa1cc687`, and no proof. Categories remain JavaScript `3 / 4,405,181 B`; source maps `2 / 7,367,202 B`; environments `24 / 16,013,893 B`; gameplay GLBs `7 / 408,912 B`; CSS `1 / 1,303 B`; HTML `1 / 527 B`; proof `0 / 0 B`. Intentional package/lock/HTML `0.0.42`, `1uze` assertion, Beads interactions, and ignored raw dirt were preserved and excluded from the audit commit.
+
+**Disposition:** PASS. Raw `0.0.42` is permanently failed, incomplete, and unservable; it must never be rebuilt, completed, deleted, edited, tagged, published, or served. Exactly one canonical append-only raw `0.0.43` build is authorized from the exact pushed documentation-only audit commit recorded in the `xz9r` closure comment and final handoff. No other source identity or repeated build is authorized. This audit itself performed no version, build-release, tag, publish, serve, or physical-approval action.
