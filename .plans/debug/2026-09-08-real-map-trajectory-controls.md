@@ -3,7 +3,7 @@
 **Date:** 2026-09-08  
 **Bead:** `aerobeat-web-assembly-zrmj`  
 **Related QA Bead:** `aerobeat-web-assembly-q25l`  
-**Disposition:** DIAGNOSED; no product-code change and no fix claim
+**Disposition:** IMPLEMENTED and coder-verified; awaiting independent QA (`q25l`) and audit (`jbhb`), with no release authorization
 
 ## Exact Observed Failure
 
@@ -139,6 +139,18 @@ Also add an explicit private diagnostic for mapper-construction failure; `timing
 
 Regression risk is concentrated at strict data-shape/security boundaries, tempo/stop mapping, event-index invalidation, seek/restart, and privacy. The real-package direct/iframe/mobile regression above is required.
 
+## Implemented repair and coder verification
+
+Content commit `cce1ee215d428358863798c00459054c54898ce4` (tree `cd3808b595397dcc52deaed612fdba1a30a9a74d`) adds exactly one non-enumerable/non-writable/non-configurable `Symbol.for("aerobeat.web-content.internal-timing-mapper")` property. Its accessor returns the exact already-validated `loadedBeatToTimelineMs` function only for the current ready content generation. Idle, loading, error, stale-generation and destroyed reads return `null`; the mapper is neither publicly exported nor serialized. Content tests explicitly preserve the null-prototype timing records, prove the public authored-timing validator still rejects them (red-before), prove the private validated mapper maps the same record correctly (green-after), and cover reload/destroy invalidation and privacy.
+
+Assembly removes its public timing reconstruction and asks that private accessor with the content snapshot's exact generation. Index construction now distinguishes unavailable mapper count from true mapper mismatch, retains only configured straight-approach visibility when either fails, and has no fixed note-approach fallback. Exact event/index identities are preserved. The index's bounded candidate lookahead derives from the earliest private presentation timestamp so the `72` world-unit plus `10,000 ms` extreme is not truncated at the prior 10-second query horizon.
+
+The real extreme exposed one adjacent renderer cull after the repaired index: explicit trajectory targets beginning more than the generic 10-second future window were still discarded. Renderer commit `cbf91252d9e1b6b76d3b4dad558e5235338b9b63` (tree `43bd4ab8f464ac1d795366c59c6c5e79b0412ee0`) makes complete private trajectory timestamps—not an inferred fallback—the visibility bound while retaining the generic cull for excluded targets. Gameplay release `0.0.9` assets and their immutable subtree/proofs remain byte-identical.
+
+`validate-real-3c9d-trajectory-controls.js` now runs the exact `89,424`-byte / SHA-256 `4db5b3393a389c7bcaba6d7a02aec57c10801bcfd74de91523b8e9cdad859b55` fixture through the real browser module Worker, IndexedDB write and reload, downloaded collection selection, and a trusted real Test-button click. Four bounded Chromium rows cover direct and genuine cross-origin iframe at desktop and mobile dimensions. Each row proves null-prototype timing, current/stale mapper behavior, exact private projection/index identities, default timestamps `[18400,17500,17500]`, extreme timestamps `[16800,8000,0]`, actual input/change configuration, sky start/join, exact `Z=-72` normal spawn, bounce apex, exact `Y/Z` landing, framebuffer difference, real Boxing lane separation, exclusions, public privacy, disconnect invalidation and reconnect with a fresh service/mapper.
+
+Coder gates completed: content `npm test`, `npm run test:browser`, and dry-run pack; renderer `npm test`, `npm run test:browser`, and dry-run pack; assembly `npm test` including immutable raw/mutation/release-target/asset provenance gates, focused exact-3c9d matrix, production `npm run build`, and dry-run pack. Full assembly `npm run test:browser` passed its complete bounded direct/iframe/mobile browser matrix, including the new real-3c9d rows. No version, release build, serve, immutable raw, or release target was changed.
+
 ## Debugging Record
 
 ```text
@@ -147,8 +159,8 @@ Observed symptom: Exact 3c9d first note stays absent until 5900 ms, then travels
 Root cause: Assembly passes canonical null-prototype content snapshot timing directly to the strict ordinary-object authored timing mapper, catches `Invalid authored song timing`, and builds the index without a mapper.
 Evidence: Exact real conversion/persistence/selection/Test; beat 21 == 8400 ms at 150 BPM; null timing/segment prototypes; stable event identity; config reaches renderer; adapted ordinary timing derives exact timestamps; raw and mutable relevant sources match.
 Failed approaches: Synthetic ordinary-object trajectory tests and exact-3c9d obstacle-only browser pixels never crossed canonical downloaded timing shape through the actual Test action.
-Corrective action: Adapt trusted timing to exact ordinary records in assembly, or consume content's validated mapper through a private symbol; add explicit mapper-unavailable diagnostics.
+Corrective action: Consume content's exact generation-bound validated mapper through the private symbol; distinguish unavailable/mismatch diagnostics; derive index and renderer visibility from complete private trajectory timestamps.
 Verification test: Exact 3c9d Worker conversion → IndexedDB downloaded selection → trusted Test → real control input/change → private timestamp/model/framebuffer assertions across direct/iframe/mobile.
 Related files/components: assembly src/index.js rendererFrame; src/session-render-projection.js; content runtime/package-content/runtime-data; contracts authored-timing; renderer gameplay-scene-model/test-presentation-config.
-Remaining uncertainty: Assembly-local adapter versus private validated-mapper seam; Derrick's final physical tuning defaults.
+Remaining uncertainty: Independent QA/audit and Derrick's final physical tuning review; no implementation-path uncertainty remains.
 ```

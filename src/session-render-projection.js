@@ -22,13 +22,17 @@ export function createSessionTargetIndex(events, options = {}) {
   if (!Array.isArray(events)) throw new TypeError("Resolved events must be an array");
   const mapBeat=typeof options.mapBeatToTimelineMs==="function"?options.mapBeatToTimelineMs:null;
   const leadBeats=Number(options.bounceLeadBeats),normalSpawnLeadMs=Number(options.normalSpawnLeadMs),skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off";
-  let feedbackIndex = 0, timingMismatchCount=0, leadLimited=false;
+  let feedbackIndex = 0, timingMismatchCount=0, timingMapperUnavailableCount=0, leadLimited=false,maximumPresentationLeadMs=FLOW_APPROACH_LEAD_MS;
   const orderedEntries = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries).map((entry, orderedIndex) => {
     const beat=authoredBeatFor(entry.event),type = String(recordValue(beat, "type") ?? "note"),centerTimestampMs=finiteNumber(recordValue(entry.event, "centerTimestampMs"));
     let bounceStartMs=null,normalSpawnMs=null,skyPreludeStartMs=null;
-    if(isRenderableFeedbackType(type)&&mapBeat&&Number.isFinite(leadBeats)&&Number.isFinite(normalSpawnLeadMs)&&normalSpawnLeadMs>=0&&Number.isFinite(skyPreludeDurationMs)&&skyPreludeDurationMs>=0){
+    if(isRenderableFeedbackType(type)&&Number.isFinite(leadBeats)&&Number.isFinite(normalSpawnLeadMs)&&normalSpawnLeadMs>=0&&Number.isFinite(skyPreludeDurationMs)&&skyPreludeDurationMs>=0){
+      normalSpawnMs=Math.max(0,centerTimestampMs-normalSpawnLeadMs);
       const authoredStart=Number(recordValue(beat,"start"));
-      if(Number.isFinite(authoredStart))try{const mappedHit=mapBeat(authoredStart);if(Math.abs(mappedHit-centerTimestampMs)<=0.001){const rawStart=mapBeat(Math.max(0,authoredStart-leadBeats)),limited=Math.max(0,centerTimestampMs-10_000,rawStart);bounceStartMs=limited;normalSpawnMs=Math.max(0,centerTimestampMs-normalSpawnLeadMs);skyPreludeStartMs=Math.max(0,normalSpawnMs-(skyMode==="prelude"?skyPreludeDurationMs:0));leadLimited ||= rawStart<centerTimestampMs-10_000;}else timingMismatchCount+=1;}catch{timingMismatchCount+=1;}
+      if(!mapBeat)timingMapperUnavailableCount+=1;
+      else if(Number.isFinite(authoredStart))try{const mappedHit=mapBeat(authoredStart);if(Math.abs(mappedHit-centerTimestampMs)<=0.001){const rawStart=mapBeat(Math.max(0,authoredStart-leadBeats)),limited=Math.max(0,centerTimestampMs-10_000,rawStart);bounceStartMs=limited;skyPreludeStartMs=Math.max(0,normalSpawnMs-(skyMode==="prelude"?skyPreludeDurationMs:0));leadLimited ||= rawStart<centerTimestampMs-10_000;}else timingMismatchCount+=1;}catch{timingMismatchCount+=1;}
+      else timingMismatchCount+=1;
+      maximumPresentationLeadMs=Math.max(maximumPresentationLeadMs,centerTimestampMs-(skyPreludeStartMs??normalSpawnMs));
     }
     const indexed = Object.freeze({ ...entry, orderedIndex, centerTimestampMs, feedbackIndex:isRenderableFeedbackType(type) ? feedbackIndex++ : -1, bounceStartMs,normalSpawnMs,skyPreludeStartMs });
     return indexed;
@@ -45,7 +49,7 @@ export function createSessionTargetIndex(events, options = {}) {
     const endMs = optionalFiniteNumber(recordValue(entry.event, "intervalEndTimestampMs"));
     if (startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:startMs-FLOW_APPROACH_LEAD_MS, end:endMs, orderedIndex:entry.orderedIndex }));
   }
-  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), timingMismatchCount, leadLimited });
+  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs });
 }
 
 /**
@@ -101,7 +105,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index) {
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs <= Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
-      const pendingVisible = result !== "hit" && result !== "miss" && centerMs >= nowMs - 500 && (presentationStartMs===null?centerMs <= nowMs + FLOW_APPROACH_LEAD_MS:nowMs>=presentationStartMs&&nowMs<=centerMs);
+      const pendingVisible = result !== "hit" && result !== "miss" && centerMs >= nowMs - 500 && presentationStartMs!==null && nowMs>=presentationStartMs&&nowMs<=centerMs;
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined;
         const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress, bounceStartMs,normalSpawnMs,skyPreludeStartMs);
@@ -121,7 +125,7 @@ function compareEventEntries(left, right) { const time=finiteNumber(recordValue(
 /** @param {unknown} candidate @param {readonly Record<string, unknown>[]} events */
 function validSessionTargetIndex(candidate,events){return isRecord(candidate)&&candidate[sessionTargetIndexIdentity]===true&&candidate.events===events&&Array.isArray(candidate.orderedEntries)&&candidate.eventIndices instanceof Map;}
 /** @param {ReturnType<typeof createSessionTargetIndex>} index @param {number} nowMs @param {Map<string,Record<string,unknown>>} realJudgements */
-function indexedCandidateEntries(index,nowMs,realJudgements){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-INDEXED_FEEDBACK_LOOKBACK_MS),end=upperBound(entries,nowMs+10_000);for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
+function indexedCandidateEntries(index,nowMs,realJudgements){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-INDEXED_FEEDBACK_LOOKBACK_MS),end=upperBound(entries,nowMs+Math.max(0,Number(index.maximumPresentationLeadMs)||0));for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
 function lowerBound(entries,value){let low=0,high=entries.length;while(low<high){const middle=(low+high)>>>1;if(entries[middle].centerTimestampMs<value)low=middle+1;else high=middle;}return low;}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */

@@ -10,7 +10,6 @@ import {
   prototypeJudgementDefaults,
   rulesetIds
 } from "@aerobeat/web-contracts";
-import { createAuthoredBeatToTimelineMs } from "@aerobeat/web-content";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { createTestPresentationConfig, defaultTestPresentationConfig, maximumTestPresentationConfigBytes, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
@@ -50,6 +49,7 @@ export { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service
 const GAME_EVENT_NAME = "aero-game-event";
 const CANONICAL_WORLD_UNITS_PER_MS=.006;
 const INTERNAL_CONTENT_RENDER_PROJECTION = Symbol.for("aerobeat.web-content.internal-render-projection");
+const INTERNAL_CONTENT_TIMING_MAPPER = Symbol.for("aerobeat.web-content.internal-timing-mapper");
 const AERO_BACKGROUND_PROJECTION = Object.freeze({ kind: "linear-gradient", colors: Object.freeze(["#071426", "#153b5d"]), angleDeg: 180 });
 const CAMERA_BACKGROUND_PROJECTION = Object.freeze({ kind: "solid", colors: Object.freeze(["#00000000"]), angleDeg: 180 });
 const PLAY_START_REQUEST = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "play" });
@@ -1149,9 +1149,11 @@ export class AeroGame extends HTMLElement {
     const events = Array.isArray(projected)?projected:Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
     if (events !== this.renderEventSource || this.renderPresentationConfig !== this.testPresentationConfig) {
       this.renderEventSource = events; this.renderPresentationConfig = this.testPresentationConfig;
-      let mapBeatToTimelineMs = null; try { if (content.song?.timing) mapBeatToTimelineMs = createAuthoredBeatToTimelineMs(content.song.timing); } catch { /* invalid timing already fails content load */ }
-      this.renderEventIndex = createSessionTargetIndex(events, { mapBeatToTimelineMs:mapBeatToTimelineMs ?? undefined, bounceLeadBeats:this.testPresentationConfig.bounceLeadBeats, normalSpawnLeadMs:this.testPresentationConfig.normalSpawnDistanceWorldUnits/CANONICAL_WORLD_UNITS_PER_MS, skyMode:this.testPresentationConfig.skyMode, skyPreludeDurationMs:this.testPresentationConfig.skyPreludeDurationMs });
-      if (this.renderEventIndex.timingMismatchCount > 0) this.setTestPresentationStatus("Bounce timing mismatch; straight approach retained.", true);
+      const timingProjection=/** @type {Record<PropertyKey,unknown>} */(contentService)[INTERNAL_CONTENT_TIMING_MAPPER];
+      const mapBeatToTimelineMs=typeof timingProjection==="function"?timingProjection.call(contentService,content.generation):null;
+      this.renderEventIndex = createSessionTargetIndex(events, { mapBeatToTimelineMs:typeof mapBeatToTimelineMs==="function"?mapBeatToTimelineMs:undefined, bounceLeadBeats:this.testPresentationConfig.bounceLeadBeats, normalSpawnLeadMs:this.testPresentationConfig.normalSpawnDistanceWorldUnits/CANONICAL_WORLD_UNITS_PER_MS, skyMode:this.testPresentationConfig.skyMode, skyPreludeDurationMs:this.testPresentationConfig.skyPreludeDurationMs });
+      if (this.renderEventIndex.timingMapperUnavailableCount > 0) this.setTestPresentationStatus("Trajectory timing unavailable; straight approach retained.", true);
+      else if (this.renderEventIndex.timingMismatchCount > 0) this.setTestPresentationStatus("Trajectory timing mismatch; straight approach retained.", true);
       else if (this.renderEventIndex.leadLimited) this.setTestPresentationStatus("Lead limited to 10 s for this tempo.");
     }
     const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex);
