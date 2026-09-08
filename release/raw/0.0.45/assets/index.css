@@ -1,0 +1,40 @@
+:root {
+  --aero-color-sky: #8fd7ff;
+  --aero-color-water: #2fb8c6;
+  --aero-color-leaf: #7ccf55;
+  --aero-color-sun: #ffe06b;
+  --aero-color-ink: #103447;
+  --aero-color-surface: rgba(244, 252, 255, 0.84);
+  --aero-color-surface-strong: rgba(255, 255, 255, 0.94);
+  --aero-color-border: rgba(53, 141, 175, 0.42);
+  --aero-color-focus: #0a84ff;
+  --aero-space-1: 4px;
+  --aero-space-2: 8px;
+  --aero-space-3: 12px;
+  --aero-space-4: 16px;
+  --aero-space-6: 24px;
+  --aero-radius-control: 8px;
+  --aero-radius-panel: 8px;
+  --aero-shadow-panel: 0 16px 38px rgba(16, 52, 71, 0.18);
+  --aero-font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --aero-role-left: #2693ff;
+  --aero-role-right: #39c96b;
+  --aero-role-guard: #9a67ea;
+  --aero-role-obstacle: #e5484d;
+  --aero-role-receptor: #d9f5ff;
+  --aero-role-safe: #56d6c9;
+  --aero-playfield-background-start: #071426;
+  --aero-playfield-background-end: #153b5d;
+  --aero-playfield-receptor-opacity: 0.22;
+  --aero-playfield-obstacle-hatch-opacity: 0.72;
+  --aero-feedback-hit-flash: #ffffff;
+  --aero-feedback-miss-desaturate: 0.82;
+  --aero-overlay-dim-opacity: 0.62;
+}
+
+body {
+  background: linear-gradient(180deg, #d7f4ff 0%, #f7fdff 46%, #d9f7df 100%);
+  color: var(--aero-color-ink);
+  font-family: var(--aero-font-family);
+  margin: 0;
+}

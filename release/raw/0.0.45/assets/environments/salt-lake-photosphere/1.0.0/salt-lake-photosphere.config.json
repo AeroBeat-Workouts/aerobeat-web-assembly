@@ -1,0 +1,19 @@
+{
+  "schema": "aerobeat/environment_asset_config",
+  "version": 1,
+  "id": "salt-lake-photosphere",
+  "projection": "equirectangular",
+  "transform": {
+    "position": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "rotationDegrees": {
+      "xPitch": 0,
+      "yYaw": 0,
+      "zRoll": 0
+    },
+    "scale": 1
+  }
+}
