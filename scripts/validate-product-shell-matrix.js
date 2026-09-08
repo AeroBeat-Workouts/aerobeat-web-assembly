@@ -44,7 +44,7 @@ const terminalOracle=process.env.AEROBEAT_TERMINAL_ORACLE==="1";
 const defaultContexts=contexts.filter((context)=>context.width!==1280);
 const selectedContexts=contextFilter?contexts.filter((context)=>`${context.kind}:${context.width}x${context.height}@${context.dpr}`===contextFilter):terminalOracle?contexts.filter((context)=>context.dpr===1):defaultContexts;
 if(selectedContexts.length===0)throw new Error(`Unknown AEROBEAT_SHELL_CONTEXT ${contextFilter}`);
-const baseDrawerText = Object.freeze(["Start", "Test", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "No Obstacles", "Visual Only", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
+const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "No Obstacles", "Visual Only", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [],cameraPoseExportHashes=new Set();
 try {

@@ -21,12 +21,12 @@ const sessionTargetIndexIdentity = Symbol("aerobeat.sessionTargetIndex");
 export function createSessionTargetIndex(events, options = {}) {
   if (!Array.isArray(events)) throw new TypeError("Resolved events must be an array");
   const mapBeat=typeof options.mapBeatToTimelineMs==="function"?options.mapBeatToTimelineMs:null;
-  const leadBeats=Number(options.bounceLeadBeats),normalSpawnLeadMs=Number(options.normalSpawnLeadMs),skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off";
-  let feedbackIndex = 0, timingMismatchCount=0, timingMapperUnavailableCount=0, leadLimited=false,maximumPresentationLeadMs=FLOW_APPROACH_LEAD_MS;
+  const leadBeats=Number(options.bounceLeadBeats),configuredNormalSpawnLeadMs=Number(options.normalSpawnLeadMs),normalSpawnLeadMs=Number.isFinite(configuredNormalSpawnLeadMs)&&configuredNormalSpawnLeadMs>=0?configuredNormalSpawnLeadMs:FLOW_APPROACH_LEAD_MS,skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off";
+  let feedbackIndex = 0, timingMismatchCount=0, timingMapperUnavailableCount=0, leadLimited=false,maximumPresentationLeadMs=normalSpawnLeadMs;
   const orderedEntries = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries).map((entry, orderedIndex) => {
     const beat=authoredBeatFor(entry.event),type = String(recordValue(beat, "type") ?? "note"),centerTimestampMs=finiteNumber(recordValue(entry.event, "centerTimestampMs"));
     let bounceStartMs=null,normalSpawnMs=null,skyPreludeStartMs=null;
-    if(isRenderableFeedbackType(type)&&Number.isFinite(leadBeats)&&Number.isFinite(normalSpawnLeadMs)&&normalSpawnLeadMs>=0&&Number.isFinite(skyPreludeDurationMs)&&skyPreludeDurationMs>=0){
+    if(isRenderableFeedbackType(type)&&Number.isFinite(leadBeats)&&Number.isFinite(skyPreludeDurationMs)&&skyPreludeDurationMs>=0){
       normalSpawnMs=Math.max(0,centerTimestampMs-normalSpawnLeadMs);
       const authoredStart=Number(recordValue(beat,"start"));
       if(!mapBeat)timingMapperUnavailableCount+=1;
@@ -47,9 +47,9 @@ export function createSessionTargetIndex(events, options = {}) {
     if (type !== "obstacle" && type !== "squat" && type !== "weave_left" && type !== "weave_right") continue;
     const startMs = optionalFiniteNumber(recordValue(entry.event, "intervalStartTimestampMs"));
     const endMs = optionalFiniteNumber(recordValue(entry.event, "intervalEndTimestampMs"));
-    if (startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:startMs-FLOW_APPROACH_LEAD_MS, end:endMs, orderedIndex:entry.orderedIndex }));
+    if (startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:Math.max(0,startMs-normalSpawnLeadMs), end:endMs, orderedIndex:entry.orderedIndex }));
   }
-  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs });
+  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), normalSpawnLeadMs, timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs });
 }
 
 /**
@@ -62,8 +62,10 @@ export function createSessionTargetIndex(events, options = {}) {
  * @param {Record<string, unknown>} gameplay
  * @param {number} nowMs
  * @param {ReturnType<typeof createSessionTargetIndex>} [index]
+ * @param {number} [timingWindowAfterMs]
  */
-export function projectSessionTargets(events, gameplay, nowMs, index) {
+export function projectSessionTargets(events, gameplay, nowMs, index, timingWindowAfterMs = 180) {
+  if(!Number.isFinite(timingWindowAfterMs)||timingWindowAfterMs<0||timingWindowAfterMs>10_000)throw new TypeError("Authoritative late timing window is invalid");
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
   const selectedVariant = recordValue(gameplay, "selectedVariant");
@@ -74,7 +76,8 @@ export function projectSessionTargets(events, gameplay, nowMs, index) {
   const obstacleOutcomes = new Map((visualTest ? [] : Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
-  const orderedEntries = validSessionTargetIndex(index, events) ? indexedCandidateEntries(index, nowMs, realJudgements) : createOrderedEntries(events);
+  const indexed=validSessionTargetIndex(index,events);const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements) : createOrderedEntries(events);
+  const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS;
   const targets = [];
   let fallbackFeedbackIndex = 0;
   for (const entry of orderedEntries) {
@@ -83,10 +86,10 @@ export function projectSessionTargets(events, gameplay, nowMs, index) {
     const beat = authoredBeatFor(event); const type = String(recordValue(beat, "type") ?? "note");
     if (type === "obstacle") {
       if (modifiers.includes("no_obstacles")) continue;
-      const target = flowObstacleTarget(event, beat, nowMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
+      const target = flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
       if (target) targets.push(target);
     } else if (type === "squat" || type === "weave_left" || type === "weave_right") {
-      const target = boxingObstacleTarget(event, beat, type, nowMs);
+      const target = boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs);
       if (target) targets.push(target);
     } else if (type === "bomb") {
       const target = flowBombTarget(event, beat, nowMs);
@@ -105,7 +108,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index) {
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs <= Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
-      const pendingVisible = result !== "hit" && result !== "miss" && centerMs >= nowMs - 500 && presentationStartMs!==null && nowMs>=presentationStartMs&&nowMs<=centerMs;
+      const pendingVisible = result !== "hit" && result !== "miss" && centerMs + timingWindowAfterMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined;
         const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress, bounceStartMs,normalSpawnMs,skyPreludeStartMs);
@@ -135,27 +138,27 @@ function buildIntervalTree(intervals){if(intervals.length===0)return null;const 
 /** @param {ReturnType<typeof buildIntervalTree>} tree @param {number} point @param {Set<number>} positions */
 function queryIntervalTree(tree,point,positions){if(!tree)return;if(point<tree.center){for(const interval of tree.byStart){if(interval.start>point)break;if(interval.end>=point)positions.add(interval.orderedIndex);}queryIntervalTree(tree.left,point,positions);return;}if(point>tree.center){for(const interval of tree.byEnd){if(interval.end<point)break;if(interval.start<=point)positions.add(interval.orderedIndex);}queryIntervalTree(tree.right,point,positions);return;}for(const interval of tree.byStart)positions.add(interval.orderedIndex);}
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {Record<string, unknown>|null} outcome */
-function flowObstacleTarget(event, beat, nowMs, outcome) {
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs @param {Record<string, unknown>|null} outcome */
+function flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, outcome) {
   const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
   const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
   const gridMask = recordValue(beat, "gridMask"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
   if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry)) return null;
-  if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
+  const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs);if (nowMs < normalSpawnMs || nowMs > endMs) return null;
   const firstContactMs = outcome?.result === "contact" ? optionalFiniteNumber(recordValue(outcome, "firstContactTimelinePositionMs")) : null;
   const contactPulseProgress = firstContactMs !== null && nowMs >= firstContactMs && nowMs <= firstContactMs + FEEDBACK_DURATION_MS ? clamp01((nowMs - firstContactMs) / FEEDBACK_DURATION_MS) : undefined;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, normalSpawnMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
 }
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {string} type @param {number} nowMs */
-function boxingObstacleTarget(event, beat, type, nowMs) {
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {string} type @param {number} nowMs @param {number} normalSpawnLeadMs */
+function boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs) {
   const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
   const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
   const gridMask = recordValue(beat, "gridMask"); const blockedCells = recordValue(beat, "blockedCells"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
   if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry) || !sameCells(blockedCells, gridMask)) return null;
-  if (nowMs < startMs - FLOW_APPROACH_LEAD_MS || nowMs > endMs) return null;
+  const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs);if (nowMs < normalSpawnMs || nowMs > endMs) return null;
   const weaveHand = type === "weave_left" ? "left" : type === "weave_right" ? "right" : null;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:weaveHand ?? "neutral", family:type === "squat" ? "squat" : "weave", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:weaveHand, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs };
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:weaveHand ?? "neutral", family:type === "squat" ? "squat" : "weave", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:weaveHand, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs,normalSpawnMs };
 }
 
 /** @param {unknown} left @param {unknown} right */

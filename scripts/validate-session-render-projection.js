@@ -52,7 +52,7 @@ assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.cen
 for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.intervalEndTimestampMs)/2, actualObstacle.intervalEndTimestampMs]) {
   assert.deepEqual(projectSessionTargets([actualObstacle],testTruth,nowMs),[{
     id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1,5,9],sourceGeometry,gameplayGeometry,lane:null,
-    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.intervalEndTimestampMs
+    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.intervalEndTimestampMs,normalSpawnMs:actualObstacle.centerTimestampMs-2500
   }],`actual obstacle remains exact and feedback-free at ${nowMs}`);
 }
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
@@ -120,6 +120,14 @@ assert.equal(extremeTrajectoryIndex.maximumPresentationLeadMs,20000,"extreme sky
 assert.equal(projectSessionTargets(realTrajectoryEvents,testTruth,-0.001,extremeTrajectoryIndex).length,0,"target is absent before exact sky start");
 assert.equal(projectSessionTargets(realTrajectoryEvents,testTruth,0,extremeTrajectoryIndex)[0]?.skyPreludeStartMs,0,"target enters at exact sky start despite a 20 s lead");
 assert.equal(projectSessionTargets(events,playSession,0,straightIndex).length,2);
+const obstacleDistanceEvents=Object.freeze([longObstacle]),obstacleDistanceIndex=createSessionTargetIndex(obstacleDistanceEvents,{normalSpawnLeadMs:5000});
+assert.equal(projectSessionTargets(obstacleDistanceEvents,playSession,-.001,obstacleDistanceIndex).length,0,"obstacle remains absent before the timeline-clamped configured normal-spawn boundary");
+assert.equal(projectSessionTargets(obstacleDistanceEvents,playSession,0,obstacleDistanceIndex)[0]?.id,"long-obstacle","Flow obstacle appears at the same timeline-clamped configured normal-spawn boundary used by beats");
+const boxingDistanceEvents=Object.freeze([boxingEvents[1]]),boxingDistanceIndex=createSessionTargetIndex(boxingDistanceEvents,{normalSpawnLeadMs:5000});
+assert.equal(projectSessionTargets(boxingDistanceEvents,playSession,0,boxingDistanceIndex)[0]?.id,"weave-left","Boxing obstacle appears at the configured beat normal-spawn boundary");
+const missContinuityEvents=Object.freeze([{eventId:"even-hit",centerTimestampMs:1000,authoredBeat:{type:"note",start:1,placement:0,hand:"left"}},{eventId:"odd-miss",centerTimestampMs:1000,authoredBeat:{type:"note",start:1,placement:1,hand:"right"}}]),missContinuityIndex=createSessionTargetIndex(missContinuityEvents,{mapBeatToTimelineMs:()=>1000,normalSpawnLeadMs:2500,bounceLeadBeats:2,skyMode:"off",skyPreludeDurationMs:1000});
+for(const offset of[0,1,180]){const target=projectSessionTargets(missContinuityEvents,testTruth,1000+offset,missContinuityIndex,180).find(entry=>entry.id==="odd-miss");assert.equal(target?.judgement,"pending",`miss candidate must remain continuously pending through +${offset} ms`);}
+const committedMiss=projectSessionTargets(missContinuityEvents,testTruth,1181,missContinuityIndex,180).find(entry=>entry.id==="odd-miss");assert.deepEqual({id:committedMiss?.id,judgement:committedMiss?.judgement},{id:"odd-miss",judgement:"miss"},"same target identity atomically turns gray when the miss commits");
 const boundedEvents=Array.from({length:200},(_,index)=>({eventId:`event-${index}`,centerTimestampMs:index,authoredBeat:{type:"note"}})),boundedIndex=createSessionTargetIndex(boundedEvents,{bounceLeadBeats:4,normalSpawnLeadMs:2500,skyMode:"off",skyPreludeDurationMs:0});
 assert.equal(projectSessionTargets(boundedEvents,testTruth,0,boundedIndex).length,128,"projection remains bounded");
 
