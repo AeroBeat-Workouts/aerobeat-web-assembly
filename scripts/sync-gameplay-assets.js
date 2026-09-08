@@ -10,12 +10,12 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "f705737c17d8e12652490b5bb3e64609c3dc29c3";
-const rendererTree = "33ca0a460c683f1ceca81c25b7319bfa552328d1";
-const release = "0.0.9";
-const releaseTree = "541b693eabc11c716adca84931015213055ebfe8";
-const inventoryHash = "95ec22c1657d4931e42327e0544b86f782075288a3330a4d23b0fed07dce65fa";
-const proofHash = "e1726ca2bc3a0980cc86ba6184bf7da57079f7ee1e42e24094c47196a3dbace9";
+const rendererCommit = "2b2d71bebf4bc3575385058d553c9e30f8782201";
+const rendererTree = "e11cde7a10e9d048846e7e12241b64f1928aa860";
+const release = "0.0.10";
+const releaseTree = "0209faccacbd7a3157d32d198ac753e861731d41";
+const inventoryHash = "a8eb2ea1306a6bf760b66b835d4b0dd3359601b46b1df682fe3805ee7e7e2bc8";
+const proofHash = "017a6c0efaf48f85130380d774502f25785783a7ad69d400f8c0f2275855c242";
 const arguments_ = process.argv.slice(2);
 const sourceIndex = arguments_.indexOf("--source");
 const source = resolve(sourceIndex >= 0 ? arguments_[sourceIndex + 1] ?? "" : canonicalRenderer);
@@ -59,8 +59,8 @@ verifyTree(sourceRoot, "renderer source");
 
 if (mode === "sync") {
   const existingReleases = directories(payloadRoot);
-  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [release] : ["0.0.8"], "assembly mutable gameplay payload contains an unexpected release");
-  const staging = resolve(root, "assets/.gameplay-0.0.9-staging");
+  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [release] : ["0.0.9"], "assembly mutable gameplay payload contains an unexpected release");
+  const staging = resolve(root, "assets/.gameplay-0.0.10-staging");
   rmSync(staging, { recursive:true, force:true });
   try {
     mkdirSync(staging, { recursive:true });
@@ -75,7 +75,7 @@ if (mode === "sync") {
   }
 }
 verifyTree(targetRoot, "assembly payload");
-assert.deepEqual(directories(payloadRoot), [release], "assembly must package only gameplay 0.0.9");
+assert.deepEqual(directories(payloadRoot), [release], "assembly must package only gameplay 0.0.10");
 console.log(`Gameplay package ${mode} passed: renderer ${rendererCommit}/${rendererTree}, release tree ${releaseTree}, exact ${expectedFiles.length} files.`);
 
 function verifyTree(directory, label) {

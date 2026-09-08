@@ -45,7 +45,7 @@ try {
   }
 
   await expectAllowed(origin, path.join(assemblyRoot, "assets/environments/alpine-river-valley-photosphere/1.0.0/alpine-river-valley-photosphere.jpg"), "approved environment asset");
-  const gameplayRoot = path.join(parentRoot, "aerobeat-web-renderer/assets/gameplay/0.0.9");
+  const gameplayRoot = path.join(parentRoot, "aerobeat-web-renderer/assets/gameplay/0.0.10");
   const inventory = JSON.parse(readFileSync(path.join(gameplayRoot, "inventory.v1.json"), "utf8"));
   const gameplayGlb = inventory.payload.find((entry) => entry.path.endsWith(".glb"));
   assert.ok(gameplayGlb);
