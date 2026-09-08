@@ -12,7 +12,8 @@ const SUCCESSOR_BASELINE = "e00614e10e74bf084bed859e74c1c6c1f2d22eea";
 const DB7_SUCCESSOR_BASELINE = "d895b40776dcd5b8d1b67ab2e5cf5621013e5c7d";
 const RELEASE_043_BASELINE = "2454719e7210536b394071def4a327342288af38";
 const RELEASE_044_BASELINE = "d581aace7a508057d0351532a01066036bf777c9";
-for (const baseline of [BASELINE, SUCCESSOR_BASELINE, DB7_SUCCESSOR_BASELINE, RELEASE_043_BASELINE, RELEASE_044_BASELINE]) {
+const RELEASE_045_BASELINE = "992d0bb132b69b03ee25d22503b363df2bd5ce3f";
+for (const baseline of [BASELINE, SUCCESSOR_BASELINE, DB7_SUCCESSOR_BASELINE, RELEASE_043_BASELINE, RELEASE_044_BASELINE, RELEASE_045_BASELINE]) {
   assert.equal(git(["cat-file", "-t", baseline]), "commit");
   assert.equal(git(["merge-base", "--is-ancestor", baseline, "HEAD"], true), "", `${baseline} immutable assembly baseline must remain an ancestor`);
 }
@@ -23,13 +24,14 @@ const releases = [
   "040000 tree 7e73b56e512ff877f17dc44a0bc8a19fd2104987\t0.0.40",
   "040000 tree 0b5f7841ef65779d84f028a544724a6d76cd06a1\t0.0.41",
   "040000 tree 62b9475ec079849cd285b3e788357fc88fb52b91\t0.0.43",
-  "040000 tree 691aca00aae5ec23b5004b6df70c49ac9364fd9e\t0.0.44"
+  "040000 tree 691aca00aae5ec23b5004b6df70c49ac9364fd9e\t0.0.44",
+  "040000 tree 7f956672151127aceb748891ac4861f825cdb699\t0.0.45"
 ];
 const snapshots = [];
 for (const line of releases) {
   const match = /^040000 tree ([0-9a-f]{40})\t(.+)$/u.exec(line); assert.ok(match);
   const [, tree, version] = match; const path = `release/raw/${version}`;
-  const referenceCommit = version === "0.0.44" ? RELEASE_044_BASELINE : version === "0.0.43" ? RELEASE_043_BASELINE : version === "0.0.41" ? DB7_SUCCESSOR_BASELINE : version === "0.0.40" ? SUCCESSOR_BASELINE : BASELINE;
+  const referenceCommit = version === "0.0.45" ? RELEASE_045_BASELINE : version === "0.0.44" ? RELEASE_044_BASELINE : version === "0.0.43" ? RELEASE_043_BASELINE : version === "0.0.41" ? DB7_SUCCESSOR_BASELINE : version === "0.0.40" ? SUCCESSOR_BASELINE : BASELINE;
   assert.equal(git(["rev-parse", `${referenceCommit}:${path}`]), tree);
   assert.equal(git(["rev-parse", `HEAD:${path}`]), tree, `${version} tracked tree changed after baseline`);
   const entries = git(["ls-tree", "-r", referenceCommit, "--", path]).split("\n").filter(Boolean).map((entry) => {
@@ -54,9 +56,8 @@ for (const line of releases) {
   const completeManifestAggregate = createHash("sha256").update(completeManifestRows.sort().join("")).digest("hex");
   snapshots.push({ version, tree, files: tracked.length, bytes, modes: [...new Set(entries.map(({ mode }) => mode))], proofSha256, sourceFingerprint: proof?.sourceFingerprint ?? null, aggregate: aggregate.digest("hex"), completeManifestAggregate });
 }
-assert.equal(snapshots.at(-1)?.version, "0.0.44");
+assert.equal(snapshots.at(-1)?.version, "0.0.45");
 assert.deepEqual(snapshots.slice(-9).map(({ version, tree, files, bytes, proofSha256 }) => ({ version, tree, files, bytes, proofSha256 })), [
-  { version: "0.0.35", tree: "bd69d3bd309660125d1a5ac3da6d07896c49bb96", files: 20, bytes: 13878153, proofSha256: "22c41e8bf0630bb6b50523a96ab0e886b399a93c74a7d1e97bb2afe47a43c4ea" },
   { version: "0.0.36", tree: "ce125ba4a596f7d6cad84c9e3bf983c5ccf0ed77", files: 41, bytes: 27760611, proofSha256: "3d18dd99afe99fcac389bccee760073baf83cc44c66cdec6d0ac5d933d142daf" },
   { version: "0.0.37", tree: "6d2b8c4e39d3677f28e48ad076bc6259abcd47b9", files: 41, bytes: 27820403, proofSha256: "9415f1ee7f9ddc687b4756be84e5a2bec9dfa9521eb5ec8f6c6ddc5b9ee286f9" },
   { version: "0.0.38", tree: "9c4225c83b8697a6404190bddcbfcbee0a5d60f3", files: 41, bytes: 27834715, proofSha256: "86f08597e4c17d0191d1ba7fb70225c8188c21c0cbc7ffa21b32cb2cef2b6041" },
@@ -64,18 +65,19 @@ assert.deepEqual(snapshots.slice(-9).map(({ version, tree, files, bytes, proofSh
   { version: "0.0.40", tree: "7e73b56e512ff877f17dc44a0bc8a19fd2104987", files: 39, bytes: 27494704, proofSha256: "cce82e47d1c00f7f2ef49e095c414c2079cf564254f3d7e1d34267d024e73af3" },
   { version: "0.0.41", tree: "0b5f7841ef65779d84f028a544724a6d76cd06a1", files: 39, bytes: 27517598, proofSha256: "8640745a387bf510c762a3d62e80b1e3a095386d3857f24c7e561f8614f9c76c" },
   { version: "0.0.43", tree: "62b9475ec079849cd285b3e788357fc88fb52b91", files: 39, bytes: 28199850, proofSha256: "cb362e103db705ab0c3b7e9fc6666cafe8255a2d093acfd7a9a2dd5bc9b5f1c0" },
-  { version: "0.0.44", tree: "691aca00aae5ec23b5004b6df70c49ac9364fd9e", files: 39, bytes: 28219166, proofSha256: "26ce02f790178d6604a651f13239b29e428bfb3926523671e96e0676ca3bc01e" }
+  { version: "0.0.44", tree: "691aca00aae5ec23b5004b6df70c49ac9364fd9e", files: 39, bytes: 28219166, proofSha256: "26ce02f790178d6604a651f13239b29e428bfb3926523671e96e0676ca3bc01e" },
+  { version: "0.0.45", tree: "7f956672151127aceb748891ac4861f825cdb699", files: 39, bytes: 28222754, proofSha256: "86f5ae56b027452adad0d4d6062560a3d6c0eeb84d44bedf7bf44ba2c56ce57d" }
 ]);
 assert.deepEqual(snapshots.at(-1), {
-  version: "0.0.44",
-  tree: "691aca00aae5ec23b5004b6df70c49ac9364fd9e",
+  version: "0.0.45",
+  tree: "7f956672151127aceb748891ac4861f825cdb699",
   files: 39,
-  bytes: 28219166,
+  bytes: 28222754,
   modes: ["100644"],
-  proofSha256: "26ce02f790178d6604a651f13239b29e428bfb3926523671e96e0676ca3bc01e",
-  sourceFingerprint: "677825e1daa5405ac0418efa496bd8352b1d03822d466fb1e5417e428ab4ec19",
-  aggregate: "d5f2927841711cc90350a54a405423a5a574c4e31abb0d374da0cefe4af841fb",
-  completeManifestAggregate: "b9f6a1055b129af8dddc9d34ca66e3d334cd47d592b04c4e8975cec991b58e5a"
+  proofSha256: "86f5ae56b027452adad0d4d6062560a3d6c0eeb84d44bedf7bf44ba2c56ce57d",
+  sourceFingerprint: "4bab436b79590716668ed50b22c5cf4dc880ce33e2965e92e12fbb4972020150",
+  aggregate: "67a9bb31b3b46f08cd54493616fe3066c8593c0ca459abd8170d312958188fa6",
+  completeManifestAggregate: "87bd5cd6a86484f553a4fcf6060b92aa258c0210a7abe84f9c7fd5b359bec055"
 });
 console.log(`Immutable raw baseline snapshot passed for ${snapshots.length} releases: ${JSON.stringify(snapshots)}`);
 function walk(root) { return readdirSync(root).sort().flatMap((entry) => { const path = resolve(root, entry); return statSync(path).isDirectory() ? walk(path) : [path]; }); }

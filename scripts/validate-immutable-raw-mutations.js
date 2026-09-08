@@ -17,7 +17,7 @@ try {
   execFileSync("git", ["worktree", "add", "--detach", worktree, "HEAD"], { cwd: ROOT, stdio: "pipe" });
   added = true;
 
-  for (const version of ["0.0.37", "0.0.38", "0.0.39", "0.0.40", "0.0.41", "0.0.43", "0.0.44"]) {
+  for (const version of ["0.0.37", "0.0.38", "0.0.39", "0.0.40", "0.0.41", "0.0.43", "0.0.44", "0.0.45"]) {
     const relativeProof = `release/raw/${version}/aerobeat-release-proof.json`;
     const proofPath = join(worktree, relativeProof);
     const original = readFileSync(proofPath);
@@ -41,4 +41,4 @@ try {
   rmSync(temporaryRoot, { recursive: true, force: true });
 }
 
-console.log("Immutable raw mutation rejection passed for 0.0.37, 0.0.38, 0.0.39, 0.0.40, 0.0.41, 0.0.43, and 0.0.44 in a disposable worktree");
+console.log("Immutable raw mutation rejection passed for 0.0.37, 0.0.38, 0.0.39, 0.0.40, 0.0.41, 0.0.43, 0.0.44, and 0.0.45 in a disposable worktree");
