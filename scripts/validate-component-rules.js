@@ -30,7 +30,7 @@ for (const root of ["src", "test", "demo"]) {
   }
   for (const file of collectFiles(root)) {
     const source = readFileSync(file, "utf8");
-    const withoutAssemblyShellButtons = source.replace(/<button\b(?=[^>]*\bdata-action="(?:menu-toggle|menu-close|menu-backdrop|debug-camera-move|debug-camera-speed|debug-camera-reset|debug-camera-load|debug-camera-export|debug-controls-collapse|environment-config-load|environment-config-save|environment-asset-retry|beat-bounce-reset|beat-bounce-load|beat-bounce-save)")[^>]*>/gu, "").replace(/<input\b(?=[^>]*(?:\bdata-action="environment-select"|\bdata-environment-field=|\bdata-beat-bounce-field=))[^>]*>/gu, "").replace(/<select\b(?=[^>]*(?:\bdata-action="environment-asset-select"|\bdata-beat-bounce-field=))[^>]*>/gu, "");
+    const withoutAssemblyShellButtons = source.replace(/<button\b(?=[^>]*\bdata-action="(?:menu-toggle|menu-close|menu-backdrop|debug-camera-move|debug-camera-speed|debug-camera-reset|debug-camera-load|debug-camera-export|debug-controls-collapse|environment-config-load|environment-config-save|environment-asset-retry|test-presentation-reset|test-presentation-load|test-presentation-save)")[^>]*>/gu, "").replace(/<input\b(?=[^>]*(?:\bdata-action="environment-select"|\bdata-environment-field=|\bdata-test-presentation-field=))[^>]*>/gu, "").replace(/<select\b(?=[^>]*(?:\bdata-action="environment-asset-select"|\bdata-test-presentation-field=))[^>]*>/gu, "");
     if (/<(?:button|input|select|textarea)\b/u.test(withoutAssemblyShellButtons)) {
       failures.push(`${file}: visible controls must be named aero-* Web Components or approved assembly interaction-shell buttons`);
     }
