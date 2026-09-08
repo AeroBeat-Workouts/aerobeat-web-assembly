@@ -10,7 +10,7 @@ const root = process.cwd();
 const parent = resolve(root, "..");
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
-assert.equal(packageJson.version, "0.0.45", "xa0p release source must use the exact authorized successor version");
+assert.equal(packageJson.version, "0.0.46", "lev0 release source must use the exact authorized successor version");
 assert.equal(packageJson.dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages[""].dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages["../aerobeat-web-hash"].name, "@aerobeat/web-hash");
