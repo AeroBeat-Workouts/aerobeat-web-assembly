@@ -143,6 +143,29 @@ try {
     renderer.setEnvironmentAsset=(descriptor)=>{globalThis.__environmentAudit.calls.push({type:"asset",id:descriptor?.id ?? null});return originalAsset(descriptor);};
   });
 
+  const origins = await target.evaluate(() => ({ child:location.origin, parent:document.referrer ? new URL(document.referrer).origin : null }));
+  if (embedding !== "direct") assert.notEqual(origins.child, origins.parent, "behavior iframe must be genuinely cross-origin");
+  const skyHeight = game.locator("[data-test-presentation-field='skyPreludeHeightWorldUnits']");
+  const skyDefault = await skyHeight.evaluate((input) => {
+    if (!(input instanceof HTMLInputElement)) throw new Error("Sky prelude height must be a native input");
+    return { type:input.type, min:input.min, max:input.max, step:input.step, value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow };
+  });
+  assert.deepEqual(skyDefault, { type:"number", min:"0", max:"50", step:"0.1", value:"24", valueAsNumber:24, valid:true, rangeOverflow:false }, `${embedding} sky-height native defaults drifted`);
+  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 24, `${embedding} private default must remain 24`);
+  await skyHeight.fill("50");
+  await skyHeight.press("Tab");
+  const skyAtMaximum = await skyHeight.evaluate((input) => ({ value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow }));
+  assert.deepEqual(skyAtMaximum, { value:"50", valueAsNumber:50, valid:true, rangeOverflow:false }, `${embedding} native sky-height maximum must be valid`);
+  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 50, `${embedding} native sky-height maximum must commit`);
+  await skyHeight.fill("51");
+  await skyHeight.press("Tab");
+  const skyAboveMaximum = await skyHeight.evaluate((input) => ({ value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow }));
+  assert.deepEqual(skyAboveMaximum, { value:"51", valueAsNumber:51, valid:false, rangeOverflow:true }, `${embedding} native sky-height value above 50 must be invalid`);
+  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 50, `${embedding} native sky-height value above 50 must not commit`);
+  await skyHeight.fill("24");
+  await skyHeight.press("Tab");
+  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 24, `${embedding} sky-height default restoration must commit`);
+
   const behavior = await game.evaluate(async (element) => {
     const select=element.shadowRoot.querySelector("[data-action='environment-asset-select']"), ids=[...select.options].map((option)=>option.value), defaultId="alpine-river-valley-photosphere", selectedId=ids[1];
     const fresh={selected:element.selectedEnvironmentId,yaw:element.environmentConfig().transform.rotationDegrees.yYaw};
