@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** RAW `0.0.46` BUILDER/AUDIT/SERVING PASS; AUTHORITATIVE BUG PROFILE PASS; DERRICK TARGET-DEVICE REVIEW / EXPLICIT PASS PENDING
+**Status:** RAW `0.0.46` PHYSICALLY REJECTED; THIRD-FEEDBACK CONCEPT DISCUSSION IN PROGRESS; NO CODE AUTHORIZED YET
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -1715,3 +1715,12 @@ Execution is coder → independent QA → final audit across renderer, asset sou
 - Both legacy and staged blocks preserved exact A/B/C/C/B/A order. The staged path passed the physical Bug thresholds in every window: display minimum `59.668 FPS` (target `>=45`); mean A/B/C rates `59.706 / 59.7025 / 59.688 FPS`; paired B/A ratio `0.99994` and C/B ratio `0.99976` (both target `>=0.90`); maximum camera-on CV submission `14.99 FPS` (target `<=15.01`); maximum measured pose age `90.8 ms` (fail-closed boundary `<500 ms`). Every staged window reported the same actual `640×480@30` camera contract.
 - A separate read-only threshold oracle parsed the committed evidence candidate and asserted schema/version/window/sequence/run count, exact privacy/noise fields, all staged display minima, paired ratios, CV ceiling, pose freshness, and camera settings. It passed without changing product or release bytes.
 - **Disposition:** authoritative Bug profile PASS only. `k72.17` remains in progress for Derrick's actual target-device visual/playability review and explicit PASS or revision feedback. No automated profile claims Derrick approval.
+
+## Raw `0.0.46` physical review — REJECTED / CONCEPT DISCUSSION BEFORE CODE (`pver`, 2026-09-08)
+
+- Derrick physically rejected the securely served immutable raw. Required defaults: Boxing Lanes separation becomes `1.8`; Flow and Boxing Grid sky prelude height becomes `50`.
+- In all three gameplay types, the continuous same-ID gray miss repair removed the disappear/reappear gap as intended, but the frozen miss is not the desired final behavior. After graying at the crossing, the same missed beat must continue traveling on/down the track as a visibly missed target before its bounded expiry. The `Miss` label must render above rather than below the gray beat.
+- Reentrant transport is physically broken: pressing Test from the open menu while a Test is active unloads the song without reloading; pressing Play while already playing similarly enters a bad state. The accepted contract must choose and consistently implement either an intentional restart/reload or an explicit no-op; an unloaded/corrupt intermediate state is forbidden.
+- Derrick requested concept discussion before any code: (1) improve attention order for dense nearby timing beyond shadows and bounce; (2) explore bounded horizontal/vertical gameplay-camera parallax driven by the active webcam nose landmark; (3) determine whether BeatSaver exposes song/difficulty-specific spawn-range data similar to Beat Bat.
+- BeatSaver research confirms `versions[].diffs[]` API rows expose `njs` and `offset`, while the underlying Info.dat difficulty row exposes `noteJumpMovementSpeed` / `noteJumpStartBeatOffset`. Live API read-back for `3c9d` returned Easy `6/1`, Normal `8/1`, Hard `10/1`, Expert `11/1`, ExpertPlus `17/1` for NJS/offset. The local vendor archive parser already retains both exact Info.dat values in `aerobeat.beatsaver-source-manifest.v2`, but `selectedDifficultyMetadata()` deliberately narrows the authoring request and drops both before content-package persistence. Runtime therefore cannot yet consume this authority without an explicit source→authoring→package contract extension.
+- P0 umbrella `aerobeat-web-assembly-pver` was created/claimed from `k72.17` and blocks that physical gate. Durable feedback/research evidence is comment `01a0839b-9b37-7295-bab1-4d0193502fbc`. No code, release bytes, serving route, or physical-PASS state changed; await Derrick's concept decisions before decomposition or implementation.
