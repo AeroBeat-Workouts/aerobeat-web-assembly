@@ -42,13 +42,13 @@ import { createAeroDisplayLoop } from "./runtime-cadence.js";
 import { createPrivatePerformanceRecorder } from "./private-performance-recorder.js";
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 import { createSessionTargetIndex, projectSessionTargets } from "./session-render-projection.js";
+import { canonicalWorldUnitsPerMs, rendererGameplayVisualConfig, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
 export { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 
 const GAME_EVENT_NAME = "aero-game-event";
-const CANONICAL_WORLD_UNITS_PER_MS=.006;
 const INTERNAL_CONTENT_RENDER_PROJECTION = Symbol.for("aerobeat.web-content.internal-render-projection");
 const INTERNAL_CONTENT_TIMING_MAPPER = Symbol.for("aerobeat.web-content.internal-timing-mapper");
 const INTERNAL_CONTENT_EFFECTIVE_PALETTE = Symbol.for("aerobeat.web-content.internal-effective-palette");
@@ -108,6 +108,7 @@ export class AeroGame extends HTMLElement {
     this.renderEventSource = null;
     this.renderEventIndex = null;
     this.renderPresentationConfig = null;
+    this.renderSpawnDistanceWorldUnits = null;
     this.privatePerformance = createPrivatePerformanceRecorder();
     this.privatePerformance.reset("rolling", performance.now());
     this.activeCvSource = null;
@@ -216,9 +217,10 @@ export class AeroGame extends HTMLElement {
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId });
       const graph = this.graph; const generation = this.connectedGeneration;
       if (typeof graph.renderer.setTestPresentationConfig === "function") graph.renderer.setTestPresentationConfig(this.testPresentationConfig);
+      this.applyGameSetup(graph);
       graph.audio.setMix(getAudioMixSnapshot());
       this.unsubscribe.push(subscribeAudioMix((mix) => { if (!this.isCurrent(generation, graph)) return; graph.audio.setMix(mix); this.renderVisualTestTransport(); }, false));
-      this.unsubscribe.push(subscribeGameSetup(() => { if (!this.isCurrent(generation, graph)) return; this.renderGameSetupControls(); this.renderGameplay(graph); }, false));
+      this.unsubscribe.push(subscribeGameSetup(() => { if (!this.isCurrent(generation, graph)) return; this.applyGameSetup(graph); this.renderGameSetupControls(); this.renderGameplay(graph); }, false));
       this.renderGameSetupControls();
       this.attachStableSurfaces();
       this.bindGraph();
@@ -1120,7 +1122,7 @@ export class AeroGame extends HTMLElement {
     } catch (error) { this.handleError(error); }
   }
 
-  stopFrameLoop() { const loop = this.frameLoop; this.frameLoop = null; this.frameTimer = 0; loop?.stop(); }
+  stopFrameLoop() { const loop = this.frameLoop; this.frameLoop = null; this.frameTimer = 0; loop?.stop();if(typeof this.graph?.renderer?.resetProductionCameraParallax==="function")this.graph.renderer.resetProductionCameraParallax(); }
 
   /** Quiesce a completed run exactly once without mutating terminal gameplay truth. */
   reconcileTerminalServices(graph = this.graph) {
@@ -1175,28 +1177,39 @@ export class AeroGame extends HTMLElement {
     this.renderPresenters();
   }
 
+  applyGameSetup(graph=this.graph) {
+    if(!graph)return;
+    const setup=getGameSetupSnapshot();
+    if(typeof graph.renderer.setGameplayVisualExperimentConfig==="function")graph.renderer.setGameplayVisualExperimentConfig(rendererGameplayVisualConfig(setup));
+    this.renderSpawnDistanceWorldUnits=null;
+  }
+
   rendererFrame() {
     const contentService=this.graph.content,content = contentService.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
-    const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0);
+    const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0),setup=getGameSetupSnapshot();
     const presentation = rendererPresentationForVariant(selected);
+    const spawnDistanceWorldUnits=selectedNormalSpawnDistanceWorldUnits(/** @type {Record<PropertyKey,unknown>} */(contentService),content,setup);
     const renderProjection=/** @type {Record<PropertyKey,unknown>} */(contentService)[INTERNAL_CONTENT_RENDER_PROJECTION];
     const projected=typeof renderProjection==="function"?renderProjection.call(contentService):null;
     const events = Array.isArray(projected)?projected:Array.isArray(content.resolvedEvents) ? content.resolvedEvents : [];
-    if (events !== this.renderEventSource || this.renderPresentationConfig !== this.testPresentationConfig) {
-      this.renderEventSource = events; this.renderPresentationConfig = this.testPresentationConfig;
+    if (events !== this.renderEventSource || this.renderPresentationConfig !== this.testPresentationConfig || !Object.is(this.renderSpawnDistanceWorldUnits,spawnDistanceWorldUnits)) {
+      this.renderEventSource = events; this.renderPresentationConfig = this.testPresentationConfig; this.renderSpawnDistanceWorldUnits=spawnDistanceWorldUnits;
       const timingProjection=/** @type {Record<PropertyKey,unknown>} */(contentService)[INTERNAL_CONTENT_TIMING_MAPPER];
       const mapBeatToTimelineMs=typeof timingProjection==="function"?timingProjection.call(contentService,content.generation):null;
-      this.renderEventIndex = createSessionTargetIndex(events, { mapBeatToTimelineMs:typeof mapBeatToTimelineMs==="function"?mapBeatToTimelineMs:undefined, bounceLeadBeats:this.testPresentationConfig.bounceLeadBeats, normalSpawnLeadMs:this.testPresentationConfig.normalSpawnDistanceWorldUnits/CANONICAL_WORLD_UNITS_PER_MS, skyMode:this.testPresentationConfig.skyMode, skyPreludeDurationMs:this.testPresentationConfig.skyPreludeDurationMs });
+      this.renderEventIndex = createSessionTargetIndex(events, { mapBeatToTimelineMs:typeof mapBeatToTimelineMs==="function"?mapBeatToTimelineMs:undefined, bounceLeadBeats:this.testPresentationConfig.bounceLeadBeats, normalSpawnLeadMs:spawnDistanceWorldUnits===null?null:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs, skyMode:this.testPresentationConfig.skyMode, skyPreludeDurationMs:this.testPresentationConfig.skyPreludeDurationMs });
       if (this.renderEventIndex.timingMapperUnavailableCount > 0) this.setTestPresentationStatus("Trajectory timing unavailable; straight approach retained.", true);
       else if (this.renderEventIndex.timingMismatchCount > 0) this.setTestPresentationStatus("Trajectory timing mismatch; straight approach retained.", true);
       else if (this.renderEventIndex.leadLimited) this.setTestPresentationStatus("Lead limited to 10 s for this tempo.");
     }
     const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, prototypeJudgementDefaults.timingWindowAfterMs);
+    const cameraActive=setup.noseCameraParallaxEnabled&&session.purpose==="play"&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
+    const cameraDeflection=sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);
     return {
       presentation, nowMs, targets,
       timingWindowBeforeMs: prototypeJudgementDefaults.timingWindowBeforeMs,
       timingWindowAfterMs: prototypeJudgementDefaults.timingWindowAfterMs,
-      showGameplayGrid:getGameSetupSnapshot().showGameplayGrid,
+      showGameplayGrid:setup.showGameplayGrid,
+      cameraDeflection,
       countdown: null, overlay: "none", calibrationDim: 0
     };
   }
@@ -1846,7 +1859,7 @@ export class AeroGame extends HTMLElement {
 
   handleInteractionInput(event) {
     const target = event.target;
-    if(target instanceof HTMLInputElement&&target.dataset.action==="show-gameplay-grid"&&event.type==="change")setGameSetupSnapshot({showGameplayGrid:target.checked});
+    if(target instanceof HTMLInputElement&&target.dataset.gameSetupField&&event.type==="change")this.applyGameSetupControl(target);
     else if (target instanceof HTMLSelectElement && target.dataset.action === "environment-asset-select" && event.type === "change") this.selectEnvironment(target.value);
     else if (target instanceof HTMLInputElement && target.dataset.environmentField) this.applyEnvironmentControls();
     else if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement) && target.dataset.testPresentationField) this.applyTestPresentationControls();
@@ -1964,8 +1977,9 @@ export class AeroGame extends HTMLElement {
     }));
   }
 
-  installGameSetupControls() { const content=this.drawerElement()?.querySelector(".drawer-content");if(!(content instanceof HTMLElement))return;const section=document.createElement("section");section.className="drawer-section";section.dataset.section="game-setup";section.tabIndex=-1;const heading=document.createElement("h2");heading.textContent="Game Setup";const label=document.createElement("label");label.className="environment-option";const input=document.createElement("input");input.type="checkbox";input.dataset.action="show-gameplay-grid";input.checked=true;const text=document.createElement("span");text.textContent="Show 4 × 3 grid";label.append(input,text);section.append(heading,label);content.prepend(section); }
-  renderGameSetupControls() { const input=this.shadowRoot?.querySelector("input[data-action='show-gameplay-grid']");if(input instanceof HTMLInputElement)input.checked=getGameSetupSnapshot().showGameplayGrid; }
+  installGameSetupControls() { const content=this.drawerElement()?.querySelector(".drawer-content");if(!(content instanceof HTMLElement))return;const section=document.createElement("section");section.className="drawer-section";section.dataset.section="game-setup";section.tabIndex=-1;const heading=document.createElement("h2");heading.textContent="Game Setup";section.append(heading);for(const [field,text] of [["showGameplayGrid","Show 4 × 3 grid"],["arrivalGroupNumbersEnabled","Arrival group numbers"],["attentionHaloEnabled","Attention halo"],["nextUpRibbonEnabled","Next-up ribbon"],["noseCameraParallaxEnabled","Nose camera parallax"],["spawnDistanceOverrideEnabled","Override spawn distance"]]){const label=document.createElement("label");label.className="environment-option";const input=document.createElement("input");input.type="checkbox";input.dataset.gameSetupField=field;if(field==="showGameplayGrid")input.dataset.action="show-gameplay-grid";const span=document.createElement("span");span.textContent=text;label.append(input,span);section.append(label);}for(const [field,text,min,max,step] of [["spawnDistanceOverrideWorldUnits","Spawn distance (world units)","3","72","0.1"],["noseCameraRangeXWorldUnits","Camera horizontal range","0","0.9","0.01"],["noseCameraRangeYWorldUnits","Camera vertical range","0","0.6","0.01"]]){const label=document.createElement("label");label.className="environment-option";const span=document.createElement("span");span.textContent=text;const input=document.createElement("input");input.type="number";input.min=min;input.max=max;input.step=step;input.dataset.gameSetupField=field;label.append(span,input);section.append(label);}content.prepend(section); }
+  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;let next=current;if(field==="showGameplayGrid"||field==="arrivalGroupNumbersEnabled"||field==="attentionHaloEnabled"||field==="nextUpRibbonEnabled"||field==="noseCameraParallaxEnabled")next={...current,[field]:input.checked};else if(field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:Number(input.value)}};else if(field==="noseCameraRangeXWorldUnits"||field==="noseCameraRangeYWorldUnits")next={...current,[field]:Number(input.value)};try{setGameSetupSnapshot(next);}catch{this.renderGameSetupControls();}}
+  renderGameSetupControls() { const setup=getGameSetupSnapshot();for(const input of this.shadowRoot?.querySelectorAll("input[data-game-setup-field]")??[]){if(!(input instanceof HTMLInputElement))continue;const field=input.dataset.gameSetupField;if(field==="spawnDistanceOverrideEnabled")input.checked=setup.spawnDistanceOverride.enabled;else if(field==="spawnDistanceOverrideWorldUnits"){input.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);input.disabled=!setup.spawnDistanceOverride.enabled;}else if(field==="noseCameraRangeXWorldUnits"||field==="noseCameraRangeYWorldUnits")input.value=String(setup[field]);else if(field&&field in setup&&typeof setup[field]==="boolean")input.checked=setup[field];} }
   drawerElement() { const value = this.shadowRoot?.querySelector("[data-role='drawer']"); return value instanceof HTMLElement ? value : null; }
   menuButtonElement() { const value = this.shadowRoot?.querySelector("[data-role='menu-button']"); return value instanceof HTMLButtonElement ? value : null; }
 
@@ -2081,7 +2095,7 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);

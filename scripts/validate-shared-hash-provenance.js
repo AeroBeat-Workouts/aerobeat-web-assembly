@@ -33,7 +33,7 @@ for (const pin of releaseDependencyPins) {
   assert.equal(git(repository, "remote", "get-url", "origin"), `git@github.com:AeroBeat-Workouts/${pin.directory}.git`, `${pin.name} public origin drifted`);
   const manifest = JSON.parse(readFileSync(resolve(repository, "package.json"), "utf8"));
   assert.equal(manifest.name, pin.name);
-  if (pin.name !== "@aerobeat/web-hash") {
+  if (pin.name !== "@aerobeat/web-hash" && pin.name !== "@aerobeat/web-input") {
     assert.equal(manifest.dependencies?.["@aerobeat/web-hash"], "file:../aerobeat-web-hash", `${pin.name} must directly own its shared hash dependency`);
     const lock = JSON.parse(readFileSync(resolve(repository, "package-lock.json"), "utf8"));
     assert.equal(lock.packages?.[""]?.dependencies?.["@aerobeat/web-hash"], "file:../aerobeat-web-hash", `${pin.name} lock lost shared hash ownership`);

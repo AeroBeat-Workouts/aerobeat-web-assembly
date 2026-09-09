@@ -17,10 +17,10 @@ const summary = parseBeatMapDifficulty(new Uint8Array(bytes), "v2");
 const audioBytes = new TextEncoder().encode("offline-3c9d-audio");
 const audioContentHash = `sha256:${createHash("sha256").update(audioBytes).digest("hex")}`;
 const converted = await convertDifficulty(summary, {
-  difficulty:"Hard", songToken:"3c9d", songName:"Dance Dance Revolution - DDRMix", bpm:150,
+  difficulty:"Hard", songToken:"3c9d", songName:"Dance Dance Revolution - DDRMix", bpm:150,noteJumpMovementSpeed:10,noteJumpStartBeatOffset:1,
   sourceProvider:"beatsaver", sourceId:"3C9D", sourceVersionHash:oracle.source.versionHash,
   sourceInfoFormat:"v2",sourceInfoVersion:"2.0.0",sourceInfoHash:`sha256:${"0".repeat(64)}`,sourceDifficultyPath:oracle.source.path,sourceBeatmapFormat:"v2", sourceBeatmapVersion:oracle.source.format,
-  sourceDifficultyHash:`sha256:${oracle.source.sha256}`,notePalette:null, audioPath:"song.ogg", audioContentHash
+  sourceDifficultyHash:`sha256:${oracle.source.sha256}`,notePalette:null,spawnTiming:{schema:"aerobeat/beatsaber_spawn_timing",version:1,algorithm:"beatsaber_core_hjd_v1",bpm:150,noteJumpMovementSpeed:10,noteJumpStartBeatOffset:1,maxHalfJumpDistance:17.999,startHalfJumpDurationBeats:4,minimumHalfJumpDurationBeats:.25,halfJumpDurationBeats:5,reactionTimeMs:2000,jumpDistanceMeters:40}, audioPath:"song.ogg", audioContentHash
 });
 const content = createAeroContentRuntime();
 await content.loadPackage({package:converted.package,assets:[{path:"song.ogg",bytes:audioBytes}]});
