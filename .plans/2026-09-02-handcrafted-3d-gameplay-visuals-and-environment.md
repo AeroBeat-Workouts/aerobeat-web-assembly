@@ -1,6 +1,6 @@
 # Handcrafted 3D Gameplay Visuals and Environment
 
-**Status:** RAW `0.0.46` PHYSICALLY REJECTED; THIRD-FEEDBACK EXECUTION ADDENDUM AWAITS DERRICK APPROVAL; NO CODE AUTHORIZED YET
+**Status:** THIRD-FEEDBACK EXECUTION ADDENDUM APPROVED; BEAD DECOMPOSITION / CODER WAVE 1 IN PROGRESS
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Planning Bead:** `aerobeat-web-assembly-k72`
 **Initial Task 1 chain:** coder `aerobeat-web-assembly-k72.1` → QA `aerobeat-web-assembly-k72.2` → audit `aerobeat-web-assembly-k72.3`
@@ -1731,7 +1731,7 @@ Execution is coder → independent QA → final audit across renderer, asset sou
 
 ### Confirmed architecture and contracts
 
-- **Mode defaults:** replace the stale renderer-owned Boxing Lanes separation `2.7` with `1.8`, producing lane centers `±0.9`. Split the currently shared sky-prelude height by presentation: Flow and Boxing Grid default to `50`; Boxing Lanes retains its existing value unless Derrick explicitly includes it. Fresh graph, reconnect, reset, direct/iframe, and strict JSON controls must agree.
+- **Mode defaults:** replace the stale renderer-owned Boxing Lanes separation `2.7` with `1.8`, producing lane centers `±0.9`. Derrick explicitly approved sky-prelude height `50` for Flow, Boxing Grid, and Boxing Lanes. Fresh graph, reconnect, reset, direct/iframe, and strict JSON controls must agree.
 - **Continuous moving miss:** preserve the same event ID and pending target at `Z=0` through the inclusive `+180 ms` late-hit boundary. Pending post-crossing remains the authored song color rather than the current white success tint. At `+181 ms`, that same ID atomically becomes gray at `Z=0`, then advances in `+Z` at the canonical `.006 world units/ms` for the existing bounded `350 ms` feedback life and expires once. Its icon, shadow, and billboarded `Miss` label travel together; the label anchors above the target with bounded clearance. Hits retain their existing crossing/`80 ms` behavior; scoring truth is unchanged.
 - **Every-action controlled restart:** first add deterministic settled and deferred production-like Test→Test / Play→Play reproductions around UI intent, lifecycle generation, media leases, audio source/clock, and gameplay generation. Replace the proven `menuStarting` intent drop and adjacent unawaited playback race with one generation-owned serialized action-intent queue. Every accepted Play/Test action performs complete stale-safe teardown, zero seek, exact selected-content configuration, purpose-resource reacquisition, `gameplay.requestStart`, and awaited initial audio commit. UI actions remain available for intentional restart; stale generations cannot pause/release the newest run.
 - **Beat Saber timing authority:** promote exact Info.dat `noteJumpMovementSpeed` and `noteJumpStartBeatOffset` through authoring request/worker/converter into a hash-bound `aerobeat.song-package.v5` source timing record. Pin algorithm identity and constants: starting HJD `4`, threshold `17.999`, pre-offset base floor `1`, final minimum `.25`, and exact operation order. Validate/recompute BPM, NJS, offset, HJD, reaction time, and diagnostic Beat Saber jump-distance meters at authoring and content load. Repair the latent `3c9d` Hard false oracle from offset `0` to exact `+1`; reject malformed camel/legacy field masking rather than coercing it to zero. Reject v4.1 relative-NJS-event maps with a stable unsupported code in this first slice rather than silently flattening dynamic events.
@@ -1751,6 +1751,6 @@ Execution is coder → independent QA → final audit across renderer, asset sou
 7. **One append-only successor:** after source QA/audit PASS, build exactly one immutable raw successor after `0.0.46`, independently audit bytes/proof/fingerprint, securely switch the existing serving route, and verify read-back. Never mutate raw `0.0.35–0.0.46` or gameplay asset `0.0.1–0.0.10`.
 8. **Physical and performance gate:** Derrick toggles each guidance treatment and parallax on the target device, retests Flow/Lanes/Grid/misses/restarts/spawn/markers/terminal behavior, and supplies explicit PASS or revisions. Run the authoritative Bug A/B/C/C/B/A profile against the accepted successor. Only explicit Derrick PASS permits final Bead closure and plan/Git wrap-up.
 
-### Approval boundary
+### Approval boundary — APPROVED
 
-- No executable child Beads, coder work, package/schema changes, runtime edits, build, release, or serving switch begins until Derrick approves this addendum. On approval, create role-specific implementation, QA, and audit Beads with the dependencies above, refresh the DSH goal/task mirror, and begin the red-path diagnostic phase.
+- Derrick approved the addendum with one explicit change: Boxing Lanes sky-prelude height also defaults to `50`, so all three gameplay presentations use `50`; lane separation remains `1.8`. Role-specific implementation, QA, audit, builder, and release-audit Beads may now be created and executed in dependency order. Immutable release creation remains gated on independent source audit PASS; secure serving, authoritative profiling, and final closure remain gated exactly as above.
