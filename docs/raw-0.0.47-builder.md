@@ -1,8 +1,8 @@
 # Raw 0.0.47 immutable builder evidence
 
-**Date:** 2026-09-09  
-**Bead:** `aerobeat-web-assembly-jzxg`  
-**Source/readiness audit:** `aerobeat-web-assembly-cvh4`, PASS evidence `01a0847d-c100-7039-b8a5-d21195ddfe04`  
+**Date:** 2026-09-09
+**Bead:** `aerobeat-web-assembly-jzxg`
+**Source/readiness audit:** `aerobeat-web-assembly-cvh4`, PASS evidence `01a0847d-c100-7039-b8a5-d21195ddfe04`
 **Disposition:** BUILDER RECOVERY PASS; leave `jzxg` open for independent audit `aerobeat-web-assembly-bkvz`
 
 ## Fail-closed preflight
@@ -46,6 +46,6 @@ Proof read-back confirms version `0.0.47`, raw/unminified artifact kind, base `/
 
 ## Validation and boundaries
 
-Pre-commit validation passed for exact source/proof fingerprint equality, full `npm test` after the strict version repair, append-only target policy, release-pack policy, proof/inventory/hash inspection, and `git diff --check`. The immutable snapshot anchor extends from raw `0.0.46` to exact raw `0.0.47` tree/count/bytes/proof/fingerprint/aggregates, and disposable one-byte proof mutation rejection extends through `0.0.47`. Full browser and post-commit immutable validation remain mandatory before parent closes `jzxg`.
+Pre-commit validation passed for exact source/proof fingerprint equality, full `npm test` after the strict version repair, append-only target policy, release-pack policy, and proof/inventory/hash inspection. A later clean-working-tree `git diff --check` did not inspect the committed payload and was initially recorded too broadly: recovery Bead `aerobeat-web-assembly-2ub0` reproduced three Markdown trailing-space findings in the exact non-raw release commit range, removed only those documentation hard breaks, and required the corrected non-raw range to pass before independent release-audit closure. Generated raw bytes were not changed. The immutable snapshot anchor extends from raw `0.0.46` to exact raw `0.0.47` tree/count/bytes/proof/fingerprint/aggregates, and disposable one-byte proof mutation rejection extends through `0.0.47`. Full browser and post-commit immutable validation remain mandatory before parent closes `jzxg`.
 
 No serving switch, public route, package publication, Git tag, GitHub Release, history rewrite, second build, non-assembly edit, gameplay asset builder, or `tools/build_uniform_wall_release.py` invocation occurred. Derrick physical PASS remains unavailable.
