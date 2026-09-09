@@ -15,6 +15,13 @@ const benchmark={
   legacyProjection:"projectSessionTargets(events, gameplay, timeline, undefined)",
   projectedTargetCountBounds:{min:59,max:64}
 };
+const graphicsBackend=evidence.graphicsBackend;
+assert(graphicsBackend&&typeof graphicsBackend==="object"&&!Array.isArray(graphicsBackend),"authoritative target evidence requires hardware WebGL backend identity");
+assert.deepEqual(Object.keys(graphicsBackend),["schema","version","authority","launchMode","api","vendor","renderer","webglVersion","backend","debugIdentity"]);
+assert.deepEqual({schema:graphicsBackend.schema,version:graphicsBackend.version,authority:graphicsBackend.authority,launchMode:graphicsBackend.launchMode,api:graphicsBackend.api,backend:graphicsBackend.backend,debugIdentity:graphicsBackend.debugIdentity},{schema:"aerobeat/webgl_backend",version:1,authority:"target-hardware",launchMode:"headed-x11",api:"webgl2",backend:"hardware",debugIdentity:true});
+for(const key of ["vendor","renderer","webglVersion"]){const value=graphicsBackend[key];assert(typeof value==="string"&&value.length>=1&&value.length<=256&&!/[\u0000-\u001f\u007f]/u.test(value),`invalid sanitized WebGL ${key}`);}
+assert.doesNotMatch(`${graphicsBackend.vendor} ${graphicsBackend.renderer} ${graphicsBackend.webglVersion}`,/swiftshader|llvmpipe|softpipe|lavapipe|software|basic renderer|microsoft basic/iu,"software WebGL backend cannot authorize target evidence");
+assert.deepEqual(evidence.backendVerification,{checks:25,driftDetected:false},"hardware backend must remain exact across pre-profile and every window boundary");
 assert.equal(evidence.schema,"aerobeat/private_abccba_profile");
 assert.equal(evidence.version,1);
 assert.equal(evidence.windowMs,4000,"authoritative target evidence requires exact four-second windows");
@@ -48,5 +55,5 @@ const stagedMean=mode=>mean(evidence.profileRuns.filter(run=>run.label.startsWit
 const stagedA=stagedMean("A"),stagedB=stagedMean("B"),stagedC=stagedMean("C"),ba=stagedB/stagedA,cb=stagedC/stagedB;
 assert(ba>=.90,`staged B/A ${ba} is below .90`);assert(cb>=.90,`staged C/B ${cb} is below .90`);
 const maxCv=Math.max(...evidence.profileRuns.map(run=>run.cv.submissionRateFps)),maxPose=Math.max(...evidence.profileRuns.filter(run=>/^staged-[BC]/u.test(run.label)).map(run=>run.poseAgeMs.max));
-console.log(`ORACLE target-abccba-evidence PASS: stagedMin=${Math.min(...evidence.profileRuns.filter(run=>run.label.startsWith("staged-")).map(run=>run.displayRateFps)).toFixed(3)}, B/A=${ba.toFixed(4)}, C/B=${cb.toFixed(4)}, cvMax=${maxCv.toFixed(3)}, poseMax=${maxPose.toFixed(1)}, workload=59..64@${benchmark.eventCount}`);
+console.log(`ORACLE target-abccba-evidence PASS: backend=${graphicsBackend.renderer}, stagedMin=${Math.min(...evidence.profileRuns.filter(run=>run.label.startsWith("staged-")).map(run=>run.displayRateFps)).toFixed(3)}, B/A=${ba.toFixed(4)}, C/B=${cb.toFixed(4)}, cvMax=${maxCv.toFixed(3)}, poseMax=${maxPose.toFixed(1)}, workload=59..64@${benchmark.eventCount}`);
 function mean(values){assert(values.length>0);return values.reduce((sum,value)=>sum+value,0)/values.length;}
