@@ -2,32 +2,33 @@
 
 import { isPrivateNoteAppearance } from "@aerobeat/web-contracts";
 import { isObstacleGameplayGeometry, isObstacleGridMask, isObstacleSourceGeometry } from "@aerobeat/web-contracts/obstacle-contracts";
+import { flowColliderSettingsBounds } from "@aerobeat/web-gameplay";
 
 const FEEDBACK_DURATION_MS = 350;
-const SYNTHETIC_MISS_COMMIT_OFFSET_MS = 181;
 const FLOW_APPROACH_LEAD_MS = 2500;
 const FLOW_DIRECTIONS = Object.freeze(["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"]);
 const FLOW_OMITTED_TYPES = Object.freeze(new Set(["arc", "burst"]));
 const BOXING_PUNCH_TYPES=/** @type {Readonly<Record<string,Readonly<{hand:"left"|"right",family:"straight"|"hook"|"uppercut"}>>>} */(Object.freeze({straight_left:Object.freeze({hand:"left",family:"straight"}),straight_right:Object.freeze({hand:"right",family:"straight"}),hook_left:Object.freeze({hand:"left",family:"hook"}),hook_right:Object.freeze({hand:"right",family:"hook"}),uppercut_left:Object.freeze({hand:"left",family:"uppercut"}),uppercut_right:Object.freeze({hand:"right",family:"uppercut"})}));
-const INDEXED_FEEDBACK_LOOKBACK_MS = FEEDBACK_DURATION_MS + SYNTHETIC_MISS_COMMIT_OFFSET_MS;
+const MAXIMUM_GUIDANCE_BEAT_TIMESTAMPS = 512;
 const sessionTargetIndexIdentity = Symbol("aerobeat.sessionTargetIndex");
 
 /**
  * Pre-sort immutable resolved events and build a point-query interval tree once per content identity.
  * The index stays inside the assembly service graph and is never placed in snapshots or events.
  * @param {readonly Record<string, unknown>[]} events
- * @param {{mapBeatToTimelineMs?:(beat:number)=>number,bounceLeadBeats?:number,normalSpawnLeadMs?:number|null,skyMode?:"off"|"prelude",skyPreludeDurationMs?:number}} [options]
+ * @param {{mapBeatToTimelineMs?:(beat:number)=>number,songDurationMs?:number,bounceLeadBeats?:number,normalSpawnLeadMs?:number|null,skyMode?:"off"|"prelude",skyPreludeDurationMs?:number}} [options]
  */
 export function createSessionTargetIndex(events, options = {}) {
   if (!Array.isArray(events)) throw new TypeError("Resolved events must be an array");
   const mapBeat=typeof options.mapBeatToTimelineMs==="function"?options.mapBeatToTimelineMs:null;
-  const leadBeats=Number(options.bounceLeadBeats),configuredNormalSpawnLeadMs=Number(options.normalSpawnLeadMs),spawnTimingAvailable=options.normalSpawnLeadMs!==null,normalSpawnLeadMs=spawnTimingAvailable?(Number.isFinite(configuredNormalSpawnLeadMs)&&configuredNormalSpawnLeadMs>=0?configuredNormalSpawnLeadMs:FLOW_APPROACH_LEAD_MS):null,skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off";
-  let feedbackIndex = 0, timingMismatchCount=0, timingMapperUnavailableCount=0, leadLimited=false,maximumPresentationLeadMs=Number(normalSpawnLeadMs)||0,arrivalGroupCount=0;
+  const leadBeats=Number(options.bounceLeadBeats),songDurationMs=Number(options.songDurationMs),configuredNormalSpawnLeadMs=Number(options.normalSpawnLeadMs),spawnTimingAvailable=options.normalSpawnLeadMs!==null,normalSpawnLeadMs=spawnTimingAvailable?(Number.isFinite(configuredNormalSpawnLeadMs)&&configuredNormalSpawnLeadMs>=0?configuredNormalSpawnLeadMs:FLOW_APPROACH_LEAD_MS):null,skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off";
+  let feedbackIndex = 0, timingMismatchCount=0, timingMapperUnavailableCount=0, leadLimited=false,maximumPresentationLeadMs=Number(normalSpawnLeadMs)||0,maximumAuthoredBeat=0;
   const arrivalGroupsByTimestamp=new Map();
   const orderedEntries = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries).map((entry, orderedIndex) => {
-    const beat=authoredBeatFor(entry.event),type = String(recordValue(beat, "type") ?? "note"),centerTimestampValue=recordValue(entry.event, "centerTimestampMs"),centerTimestampMs=finiteNumber(centerTimestampValue);
-    let arrivalGroupOrdinal=null,arrivalGroupIdentity=null;
-    if(isRenderableFeedbackType(type)&&typeof centerTimestampValue==="number"&&Number.isFinite(centerTimestampValue)){const existing=arrivalGroupsByTimestamp.get(centerTimestampValue);arrivalGroupOrdinal=existing??++arrivalGroupCount;if(existing===undefined)arrivalGroupsByTimestamp.set(centerTimestampValue,arrivalGroupOrdinal);arrivalGroupIdentity=`arrival-group-${arrivalGroupOrdinal}`;}
+    const beat=authoredBeatFor(entry.event),type = String(recordValue(beat, "type") ?? "note"),centerTimestampValue=recordValue(entry.event, "centerTimestampMs"),centerTimestampMs=finiteNumber(centerTimestampValue),authoredStart=Number(recordValue(beat,"start")),authoredEnd=Number(recordValue(beat,"end"));
+    if(Number.isFinite(authoredStart))maximumAuthoredBeat=Math.max(maximumAuthoredBeat,authoredStart);if(Number.isFinite(authoredEnd))maximumAuthoredBeat=Math.max(maximumAuthoredBeat,authoredEnd);
+    let arrivalGroupIdentity=null;
+    if(isRenderableFeedbackType(type)&&typeof centerTimestampValue==="number"&&Number.isFinite(centerTimestampValue)){const existing=arrivalGroupsByTimestamp.get(centerTimestampValue);arrivalGroupIdentity=existing??targetArrivalIdentity(centerTimestampValue);if(existing===undefined)arrivalGroupsByTimestamp.set(centerTimestampValue,arrivalGroupIdentity);}
     let bounceStartMs=null,normalSpawnMs=null,skyPreludeStartMs=null;
     if(isRenderableFeedbackType(type)&&normalSpawnLeadMs!==null)normalSpawnMs=Math.max(0,centerTimestampMs-normalSpawnLeadMs);
     if(normalSpawnMs!==null&&Number.isFinite(leadBeats)&&Number.isFinite(skyPreludeDurationMs)&&skyPreludeDurationMs>=0){
@@ -37,7 +38,7 @@ export function createSessionTargetIndex(events, options = {}) {
       else timingMismatchCount+=1;
       maximumPresentationLeadMs=Math.max(maximumPresentationLeadMs,centerTimestampMs-(skyPreludeStartMs??normalSpawnMs));
     }
-    const indexed = Object.freeze({ ...entry, orderedIndex, centerTimestampMs, feedbackIndex:isRenderableFeedbackType(type) ? feedbackIndex++ : -1, bounceStartMs,normalSpawnMs,skyPreludeStartMs,arrivalGroupOrdinal,arrivalGroupIdentity });
+    const indexed = Object.freeze({ ...entry, orderedIndex, centerTimestampMs, feedbackIndex:isRenderableFeedbackType(type) ? feedbackIndex++ : -1, bounceStartMs,normalSpawnMs,skyPreludeStartMs,arrivalGroupIdentity });
     return indexed;
   });
   const intervals = [];
@@ -52,8 +53,13 @@ export function createSessionTargetIndex(events, options = {}) {
     const endMs = optionalFiniteNumber(recordValue(entry.event, "intervalEndTimestampMs"));
     if (normalSpawnLeadMs !== null && startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:Math.max(0,startMs-normalSpawnLeadMs), end:endMs, orderedIndex:entry.orderedIndex }));
   }
-  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), normalSpawnLeadMs, spawnTimingAvailable, arrivalGroupCount, timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs });
+  const maximumWholeBeat=Math.min(100_000,Math.max(0,Math.ceil(maximumAuthoredBeat))),guidanceEndMs=Number.isFinite(songDurationMs)&&songDurationMs>=0?Math.min(86_400_000,songDurationMs):null,guidanceTimeline=[];if(mapBeat)for(let beat=0,prior=-1;beat<=100_000;beat+=1){if(guidanceEndMs===null&&beat>maximumWholeBeat)break;let timestamp;try{timestamp=Number(mapBeat(beat));}catch{break;}if(!Number.isFinite(timestamp)||timestamp<0||timestamp>86_400_000)continue;if(guidanceEndMs!==null&&timestamp>guidanceEndMs)break;if(timestamp>prior){guidanceTimeline.push(timestamp);prior=timestamp;}}
+  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), normalSpawnLeadMs, spawnTimingAvailable, timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs, guidanceTimeline:Object.freeze(guidanceTimeline) });
 }
+
+/** Return only the bounded mapped whole-beat timestamps needed by the current private renderer frame. */
+export function guidanceBeatTimestamps(index,nowMs,leadMs){if(!validSessionTargetIndex(index,index?.events)||!Array.isArray(index.guidanceTimeline)||!Number.isFinite(nowMs)||!Number.isFinite(leadMs)||leadMs<0)return Object.freeze([]);const minimum=Math.max(0,nowMs),maximum=Math.min(86_400_000,minimum+leadMs),start=lowerBoundNumber(index.guidanceTimeline,minimum),values=[];for(let cursor=start;cursor<index.guidanceTimeline.length&&values.length<MAXIMUM_GUIDANCE_BEAT_TIMESTAMPS;cursor+=1){const value=index.guidanceTimeline[cursor];if(value>maximum)break;values.push(value);}return Object.freeze(values);}
+
 
 /**
  * Project gameplay-owned real judgements or renderer-local visual Test outcomes.
@@ -68,7 +74,7 @@ export function createSessionTargetIndex(events, options = {}) {
  * @param {number} [timingWindowAfterMs]
  */
 export function projectSessionTargets(events, gameplay, nowMs, index, timingWindowAfterMs = 180) {
-  if(!Number.isFinite(timingWindowAfterMs)||timingWindowAfterMs<0||timingWindowAfterMs>10_000)throw new TypeError("Authoritative late timing window is invalid");
+  if(!Number.isFinite(timingWindowAfterMs)||timingWindowAfterMs<0||timingWindowAfterMs>flowColliderSettingsBounds.timingWindowMs.maximum)throw new TypeError("Authoritative late timing window is invalid");
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
   const selectedVariant = recordValue(gameplay, "selectedVariant");
@@ -79,7 +85,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   const obstacleOutcomes = new Map((visualTest ? [] : Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
-  const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements) : createOrderedEntries(events);
+  const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,timingWindowAfterMs) : createOrderedEntries(events);
   const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS;
   const targets = [];
   let fallbackFeedbackIndex = 0;
@@ -103,7 +109,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const eventId = String(recordValue(event, "eventId") ?? "");
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
       const real = visualTest ? null : realJudgements.get(eventId) ?? null;
-      const syntheticCommitMs = visualTest ? centerMs + (feedbackIndex % 2 === 0 ? 0 : SYNTHETIC_MISS_COMMIT_OFFSET_MS) : null;
+      const syntheticCommitMs = visualTest ? centerMs + (feedbackIndex % 2 === 0 ? 0 : timingWindowAfterMs + 1) : null;
       const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
       const realResult = real?.result;
       const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
@@ -113,8 +119,8 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
       const pendingVisible = result !== "hit" && result !== "miss" && centerMs + timingWindowAfterMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
-        const feedbackProgress = result && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined;
-        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress, bounceStartMs,normalSpawnMs,skyPreludeStartMs,Number.isSafeInteger(entry.arrivalGroupOrdinal)?Number(entry.arrivalGroupOrdinal):null,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null);
+        const feedbackProgress = result && Number.isFinite(commitMs) ? clamp01((nowMs - (result === "miss" ? centerMs : Number(commitMs))) / FEEDBACK_DURATION_MS) : undefined;
+        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress, bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null);
         if (target) targets.push(target);
       }
       fallbackFeedbackIndex += 1;
@@ -130,8 +136,10 @@ function createOrderedEntries(events) { return createSessionTargetIndex(events).
 function compareEventEntries(left, right) { const time=finiteNumber(recordValue(left.event,"centerTimestampMs"))-finiteNumber(recordValue(right.event,"centerTimestampMs"));if(time!==0)return time;const leftId=String(recordValue(left.event,"eventId")??""),rightId=String(recordValue(right.event,"eventId")??"");return leftId<rightId?-1:leftId>rightId?1:left.sourceIndex-right.sourceIndex; }
 /** @param {unknown} candidate @param {readonly Record<string, unknown>[]} events */
 function validSessionTargetIndex(candidate,events){return isRecord(candidate)&&candidate[sessionTargetIndexIdentity]===true&&candidate.events===events&&Array.isArray(candidate.orderedEntries)&&candidate.eventIndices instanceof Map;}
-/** @param {ReturnType<typeof createSessionTargetIndex>} index @param {number} nowMs @param {Map<string,Record<string,unknown>>} realJudgements */
-function indexedCandidateEntries(index,nowMs,realJudgements){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-INDEXED_FEEDBACK_LOOKBACK_MS),end=upperBound(entries,nowMs+Math.max(0,Number(index.maximumPresentationLeadMs)||0));for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
+/** @param {ReturnType<typeof createSessionTargetIndex>} index @param {number} nowMs @param {Map<string,Record<string,unknown>>} realJudgements @param {number} timingWindowAfterMs */
+function indexedCandidateEntries(index,nowMs,realJudgements,timingWindowAfterMs){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-(FEEDBACK_DURATION_MS+timingWindowAfterMs+1)),end=upperBound(entries,nowMs+Math.max(0,Number(index.maximumPresentationLeadMs)||0));for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
+/** @param {readonly number[]} values @param {number} value */
+function lowerBoundNumber(values,value){let low=0,high=values.length;while(low<high){const middle=(low+high)>>>1;if(values[middle]<value)low=middle+1;else high=middle;}return low;}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
 function lowerBound(entries,value){let low=0,high=entries.length;while(low<high){const middle=(low+high)>>>1;if(entries[middle].centerTimestampMs<value)low=middle+1;else high=middle;}return low;}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
@@ -176,11 +184,11 @@ function flowBombTarget(event, beat, nowMs) {
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs };
 }
 
-/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {number|null} arrivalGroupOrdinal @param {string|null} arrivalGroupIdentity */
-function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress, bounceStartMs = null,normalSpawnMs=null,skyPreludeStartMs=null,arrivalGroupOrdinal=null,arrivalGroupIdentity=null) {
+/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity */
+function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress, bounceStartMs = null,normalSpawnMs=null,skyPreludeStartMs=null,arrivalGroupIdentity=null) {
   const beat = authoredBeatFor(event);
   const eventId = String(recordValue(event, "eventId") ?? ""); const beatCenterMs = finiteNumber(recordValue(event, "centerTimestampMs"));
-  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupOrdinal===null||arrivalGroupIdentity===null?{}:{arrivalGroupOrdinal,arrivalGroupIdentity};
+  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupIdentity===null?{}:{arrivalGroupIdentity};
   if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...(appearance?{appearanceColor:appearance}:{}), ...trajectory, ...group, ...feedback };
   if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...trajectory, ...group, ...feedback }; }
   const punch=Object.hasOwn(BOXING_PUNCH_TYPES,type)?BOXING_PUNCH_TYPES[type]:null;if(!punch)return null;
@@ -188,6 +196,8 @@ function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgre
   return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...(appearance?{appearanceColor:appearance}:{}), ...trajectory, ...group, ...feedback };
 }
 
+/** Encode exact finite timestamp bits as an opaque stable private group identity. @param {number} timestampMs */
+function targetArrivalIdentity(timestampMs){const bytes=new Uint8Array(8);new DataView(bytes.buffer).setFloat64(0,Object.is(timestampMs,-0)?0:timestampMs,false);return `target-arrival-${[...bytes].map((value)=>value.toString(16).padStart(2,"0")).join("")}`;}
 /** @param {Record<string,unknown>} event */
 function privateAppearanceColor(event){const candidate={appearanceColor:recordValue(event,"appearanceColor")};return isPrivateNoteAppearance(candidate)?candidate.appearanceColor:null;}
 /** @param {string} type */

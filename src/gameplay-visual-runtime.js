@@ -1,5 +1,6 @@
 // @ts-check
 
+import { createFlowColliderSettings, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
 import { createGameplayVisualExperimentConfig } from "@aerobeat/web-renderer";
 
 export const canonicalWorldUnitsPerMs=.006;
@@ -33,7 +34,10 @@ export function selectedNormalSpawnDistanceWorldUnits(contentService,contentSnap
 }
 
 /** @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
-export function rendererGameplayVisualConfig(setup){return createGameplayVisualExperimentConfig(setup.arrivalGroupNumbersEnabled,setup.attentionHaloEnabled,setup.nextUpRibbonEnabled,setup.noseCameraParallaxEnabled,setup.noseCameraRangeXWorldUnits,setup.noseCameraRangeYWorldUnits,.04,120,3,2,180);}
+export function rendererGameplayVisualConfig(setup){return createGameplayVisualExperimentConfig(setup.guidanceBandMode,setup.noseCameraParallaxEnabled,setup.noseCameraRangeXWorldUnits,setup.noseCameraRangeYWorldUnits,.04,120,3,2,180);}
+
+/** Construct the exact run-locked gameplay authority from persisted scalar setup. @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
+export function gameplayFlowColliderSettings(setup){return createFlowColliderSettings({schema:defaultFlowColliderSettings.schema,version:defaultFlowColliderSettings.version,algorithm:defaultFlowColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs});}
 
 /**
  * Consume one measured-only sample without retaining a mirror and expose only normalized deflections.

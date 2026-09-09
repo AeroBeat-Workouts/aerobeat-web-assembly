@@ -2,7 +2,9 @@
 
 import { conversionRecipeIds, rulesetIds } from "@aerobeat/web-contracts";
 
-export const gameplayRulesetIds = Object.freeze({ flow: "flow_grid_v2", boxingLanes: "boxing_semantic_track_v1", boxingGrid: "boxing_spatial_grid_v1" });
+export const gameplayRulesetIds = Object.freeze({ flow: "flow_grid_v2", flowColliders: "flow_colliders_v1", boxingLanes: "boxing_semantic_track_v1", boxingGrid: "boxing_spatial_grid_v1" });
+export const flowGameplayRulesetIds = Object.freeze([gameplayRulesetIds.flow, gameplayRulesetIds.flowColliders]);
+export const boxingGameplayRulesetIds = Object.freeze([gameplayRulesetIds.boxingLanes, gameplayRulesetIds.boxingGrid]);
 export const boxingRecipeIds = Object.freeze({ balancedHeight: conversionRecipeIds[0], sourceHeight: conversionRecipeIds[1] });
 export const firstUseBoxingRecipeId = boxingRecipeIds.balancedHeight;
 
@@ -22,17 +24,18 @@ export function readBoxingRecipeIntent(payload) {
 /** Resolve only an exact variant already present in the selected package. */
 export function exactGameplayVariant(variants, rulesetId, retainedRecipeId) {
   if (!Array.isArray(variants)) return null;
-  if (rulesetId === gameplayRulesetIds.flow) {
-    return variants.find((variant) => ownValue(variant, "rulesetId") === gameplayRulesetIds.flow && (ownValue(variant, "recipeId") === null || ownValue(variant, "recipeId") === undefined)) ?? null;
+  if (flowGameplayRulesetIds.includes(rulesetId)) {
+    return variants.find((variant) => ownValue(variant, "rulesetId") === rulesetId && (ownValue(variant, "recipeId") === null || ownValue(variant, "recipeId") === undefined)) ?? null;
   }
   if (!recipeValues.includes(retainedRecipeId)) return null;
   return variants.find((variant) => ownValue(variant, "rulesetId") === rulesetId && ownValue(variant, "recipeId") === retainedRecipeId) ?? null;
 }
 
-/** Project the exact existing five-candidate identity expected by the product UI. */
+/** Project the exact six-candidate identity expected by the product UI. */
 export function selectedGameplayProfileId(variant) {
   const rulesetId = ownValue(variant, "rulesetId");
   if (rulesetId === gameplayRulesetIds.flow) return "flow";
+  if (rulesetId === gameplayRulesetIds.flowColliders) return "flow-colliders";
   const recipeId = ownValue(variant, "recipeId");
   if (rulesetId === gameplayRulesetIds.boxingLanes && recipeId === boxingRecipeIds.balancedHeight) return "semantic-row";
   if (rulesetId === gameplayRulesetIds.boxingGrid && recipeId === boxingRecipeIds.balancedHeight) return "spatial-row";
@@ -44,7 +47,7 @@ export function selectedGameplayProfileId(variant) {
 /** Map scoring ruleset truth to renderer presentation truth. */
 export function rendererPresentationForVariant(variant) {
   const rulesetId = ownValue(variant, "rulesetId");
-  if (rulesetId === gameplayRulesetIds.flow) return "flow";
+  if (flowGameplayRulesetIds.includes(rulesetId)) return "flow";
   if (rulesetId === gameplayRulesetIds.boxingLanes) return "boxing_lanes";
   return "boxing_spatial_grid";
 }
