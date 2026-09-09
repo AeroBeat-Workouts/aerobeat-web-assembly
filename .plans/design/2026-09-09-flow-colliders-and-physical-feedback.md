@@ -50,7 +50,8 @@ Authoritative Bead comments recorded during this research slice settle these poi
 - require reimport into a successor package contract for Flow Colliders rather than deriving it at runtime from old package bytes;
 - preserve the full `180 ms` late-hit window but expose it in bounded settings for both Test and Play; pending notes continue moving while still hittable rather than clamping at the plane;
 - force the 4 × 3 grid hidden once during v2 → v3 migration, not merely on fresh/reset setups;
-- expose bounded collider radius and optional direction tolerance in both Test and Play while physically tuning, then lock accepted production defaults.
+- expose bounded collider radius and optional direction tolerance in both Test and Play while physically tuning, then lock accepted production defaults;
+- the full green region is the note goal area: an owned wrist overlapping a note's logical footprint anywhere inside that area during the accepted timing window may score. The yellow nose landmark is never a note hit point; it evaluates walls only. Optional authored-direction enforcement applies to that wrist contact when enabled.
 
 The design below incorporates those decisions rather than asking Derrick to decide them again.
 
@@ -58,7 +59,7 @@ The design below incorporates those decisions rather than asking Derrick to deci
 
 ### Choice A — Swept calibrated 2.5D colliders (recommended)
 
-Treat fresh calibrated wrist/nose landmarks as small logical colliders in the canonical athlete-grid XY plane. Treat each approaching note as its canonical target collider crossing the athlete plane over the authoritative timing window. Clip the segment between consecutive measured samples against the target collider to avoid tunneling at the production 15 fps inference ceiling; interpolate the candidate contact song time. Directionless notes require contact only. Directional notes use the selected session-locked setting: default overlap-only also requires contact only; optional authored-direction mode additionally matches the measured wrist vector.
+Treat fresh calibrated wrist/nose landmarks as small logical colliders in the canonical athlete-grid XY plane. The full green region is the scoring goal area, not a single point or the yellow nose marker. While an approaching note is timing-eligible within that region, clip the owned wrist segment between consecutive measured samples against the note's logical footprint to avoid tunneling at the production 15 fps inference ceiling; interpolate the candidate contact song time. Directionless notes require contact only. Directional notes use the selected session-locked setting: default overlap-only also requires contact only; optional authored-direction mode additionally matches the measured wrist vector.
 
 **Advantages:** literal physical contact semantics; sub-cell precision; deterministic under viewport/DPR/camera parallax; reuses the wall segment-clipping model; stationary wrists can still be struck by an approaching directionless note; no screen-space coupling.
 
