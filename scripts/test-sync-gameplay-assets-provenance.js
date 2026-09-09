@@ -1,7 +1,7 @@
 // @ts-check
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
@@ -16,12 +16,17 @@ const expectFailure = (label, fragment) => { const result = run(); const output 
 try {
   execFileSync("git", ["clone", "--shared", "--quiet", canonicalRenderer, fixture]);
   expectPass("exact clean renderer authority");
+  const ledgerPath = resolve(fixture, ".beads/interactions.jsonl");
+  const ledgerBytes = readFileSync(ledgerPath);
+  writeFileSync(ledgerPath, Buffer.concat([ledgerBytes, Buffer.from("{\"fixture\":true}\n")]));
+  expectPass("exact protected unstaged renderer ledger authority");
+  writeFileSync(ledgerPath, ledgerBytes);
   execFileSync("git", ["checkout", "--quiet", "--detach", "HEAD^"], { cwd:fixture });
   expectFailure("wrong renderer authority", "renderer source commit drifted");
   execFileSync("git", ["checkout", "--quiet", "main"], { cwd:fixture });
   writeFileSync(resolve(fixture, "untracked-provenance-probe"), "dirty\n");
-  expectFailure("dirty renderer authority", "renderer source worktree is not fully clean");
-  console.log("Assembly gameplay provenance adversaries passed: exact clean renderer accepted; wrong commit and dirty worktree rejected before package mutation.");
+  expectFailure("dirty renderer authority", "Release dependency worktree is dirty for renderer gameplay source");
+  console.log("Assembly gameplay provenance adversaries passed: clean and sole exact protected ledger dirt accepted; wrong commit and all other dirt rejected before package mutation.");
 } finally {
   rmSync(temporaryRoot, { recursive:true, force:true });
 }

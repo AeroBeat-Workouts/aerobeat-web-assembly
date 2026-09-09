@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { build } from "vite";
-import { listReleaseFingerprintInputs } from "./release-fingerprint.js";
+import { listReleaseFingerprintInputs, validateReleaseDependencyStatus } from "./release-fingerprint.js";
 import {
   defaultEnvironmentAssetId,
   environmentArtifactComparisonIds,
@@ -49,7 +49,7 @@ const rendererRoot = resolve(root, "../aerobeat-web-renderer");
 const rendererCommit = "bd8ad9ebfe2107b11ffc5373e1c0f86349167b09";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "18c75a883979c2f76b56a76a9eca54f2dcea4360", "linked renderer tree drifted");
-assert.equal(git(rendererRoot, ["status", "--porcelain", "--untracked-files=no"]), "", "linked renderer tracked files are dirty");
+validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.10"]), "0209faccacbd7a3157d32d198ac753e861731d41", "linked gameplay raw tree drifted");
 assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.10"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
 for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly gameplay runtime member drifted: ${path}`);
@@ -211,4 +211,6 @@ console.log(`Environment catalog/config/UI privacy and exact 24-file environment
 /** @param {Uint8Array} bytes */
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 /** @param {string} repository @param {string[]} arguments_ */
-function git(repository, arguments_) { return execFileSync("git", ["-C", repository, ...arguments_], { encoding:"utf8", maxBuffer:1024 * 1024 }).trim(); }
+function git(repository, arguments_) { return gitRaw(repository, arguments_).trim(); }
+/** @param {string} repository @param {string[]} arguments_ */
+function gitRaw(repository, arguments_) { return execFileSync("git", ["-C", repository, ...arguments_], { encoding:"utf8", maxBuffer:1024 * 1024 }); }

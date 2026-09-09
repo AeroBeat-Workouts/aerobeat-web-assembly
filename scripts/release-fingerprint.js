@@ -34,6 +34,40 @@ export function computeReleaseFingerprint(root = process.cwd()) {
   return hash.digest("hex");
 }
 
+const protectedLedgerStatus = " M .beads/interactions.jsonl";
+
+/**
+ * Parse exact NUL-delimited porcelain-v1 status output without normalizing it.
+ *
+ * @param {string} output
+ * @returns {readonly string[]}
+ */
+export function parseReleaseDependencyStatus(output) {
+  if (typeof output !== "string") throw new TypeError("Release dependency status output must be a string");
+  if (output === "") return Object.freeze([]);
+  if (!output.endsWith("\0")) throw new Error("Release dependency status output is missing its NUL terminator");
+  const entries = output.slice(0, -1).split("\0");
+  if (entries.some((entry) => entry === "")) throw new Error("Release dependency status output contains an empty entry");
+  return Object.freeze(entries);
+}
+
+/**
+ * Accept a clean dependency or its sole exact protected unstaged ledger export.
+ *
+ * @param {string} output
+ * @param {string} dependencyName
+ */
+export function validateReleaseDependencyStatus(output, dependencyName) {
+  let entries;
+  try {
+    entries = parseReleaseDependencyStatus(output);
+  } catch (error) {
+    throw new Error(`Release dependency worktree status is malformed for ${dependencyName}`, { cause: error });
+  }
+  if (entries.length === 0 || (entries.length === 1 && entries[0] === protectedLedgerStatus)) return;
+  throw new Error(`Release dependency worktree is dirty for ${dependencyName}`);
+}
+
 /** Return exact Git identities that participate in release provenance. @param {string} [root] */
 export function readReleaseDependencyProvenance(root = process.cwd()) {
   const parent = resolve(root, "..");
@@ -41,7 +75,8 @@ export function readReleaseDependencyProvenance(root = process.cwd()) {
     const repository = resolve(parent, pin.directory);
     const commit = git(repository, "rev-parse", "HEAD"); const tree = git(repository, "rev-parse", "HEAD^{tree}");
     if (commit !== pin.commit || tree !== pin.tree) throw new Error(`Release dependency provenance drifted for ${pin.name}`);
-    if (git(repository, "status", "--porcelain") !== "") throw new Error(`Release dependency worktree is dirty for ${pin.name}`);
+    const status = execFileSync("git", ["-C", repository, "status", "--porcelain=v1", "-z", "--untracked-files=all"], { encoding: "utf8", maxBuffer: 1024 * 1024 });
+    validateReleaseDependencyStatus(status, pin.name);
     return Object.freeze({ name: pin.name, commit, tree });
   }));
 }

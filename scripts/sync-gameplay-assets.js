@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
@@ -36,7 +37,7 @@ assert.equal(realpathSync(installedRenderer), canonicalRenderer, "installed rend
 
 assert.equal(git(source, "rev-parse", "HEAD"), rendererCommit, "renderer source commit drifted");
 assert.equal(git(source, "rev-parse", "HEAD^{tree}"), rendererTree, "renderer source tree drifted");
-assert.equal(git(source, "status", "--porcelain", "--untracked-files=all"), "", "renderer source worktree is not fully clean");
+validateReleaseDependencyStatus(gitRaw(source, "status", "--porcelain=v1", "-z", "--untracked-files=all"), "renderer gameplay source");
 assert.equal(git(source, "rev-parse", `HEAD:assets/gameplay/${release}`), releaseTree, "renderer gameplay release tree drifted");
 const sourceRoot = resolve(source, "assets/gameplay", release);
 const payloadRoot = resolve(root, "assets/gameplay");
@@ -104,4 +105,5 @@ function makeDirectoriesWritable(directory) {
   for (const entry of readdirSync(directory, { withFileTypes:true })) if (entry.isDirectory()) makeDirectoriesWritable(resolve(directory, entry.name));
 }
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
-function git(repository, ...arguments_) { return execFileSync("git", ["-C", repository, ...arguments_], { encoding:"utf8", maxBuffer:16*1024*1024 }).trim(); }
+function git(repository, ...arguments_) { return gitRaw(repository, ...arguments_).trim(); }
+function gitRaw(repository, ...arguments_) { return execFileSync("git", ["-C", repository, ...arguments_], { encoding:"utf8", maxBuffer:16*1024*1024 }); }
