@@ -1754,3 +1754,9 @@ Execution is coder → independent QA → final audit across renderer, asset sou
 ### Approval boundary — APPROVED
 
 - Derrick approved the addendum with one explicit change: Boxing Lanes sky-prelude height also defaults to `50`, so all three gameplay presentations use `50`; lane separation remains `1.8`. Role-specific implementation, QA, audit, builder, and release-audit Beads may now be created and executed in dependency order. Immutable release creation remains gated on independent source audit PASS; secure serving, authoritative profiling, and final closure remain gated exactly as above.
+
+### Approved Bead dependency graph
+
+- Wave 1 foundations, independently ready: renderer defaults/moving miss `bc8g`; serialized every-action restart `4b23`; Beat Saber package-v5 timing path `wa7r`; private measured nose sample `49j7`.
+- Wave 2 integration: Game Setup v2/grouping/spawn/camera controls `lxmw` depends on `4b23`, `wa7r`, and `49j7`; renderer timing cues/camera `athw` depends on `bc8g` and `49j7`.
+- Gates: independent QA `6myg` depends on all implementation Beads; source auditor `cvh4` depends on QA; immutable builder `jzxg` depends on audit; immutable release audit/secure serving `bkvz` depends on builder and blocks umbrella `pver`, which continues to block physical gate `k72.17`.
