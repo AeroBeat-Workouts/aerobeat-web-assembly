@@ -1,6 +1,6 @@
 # Flow Colliders and Raw 0.0.48 Physical Feedback
 
-**Status:** RESEARCH / DESIGN PROPOSAL — PARTIAL DERRICK DECISIONS RECORDED; REMAINING DECISIONS REQUIRED; NO IMPLEMENTATION AUTHORIZED
+**Status:** RESEARCH / DESIGN COMPLETE — ALL DERRICK DECISIONS RECORDED; IMPLEMENTATION PLAN AWAITS APPROVAL
 **Date:** 2026-09-09
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Physical authority:** immutable raw `0.0.48` (rejected; no PASS)
@@ -44,7 +44,13 @@ Authoritative Bead comments recorded during this research slice settle these poi
 - bomb wrist contact and wall nose contact are negative outcomes;
 - direction enforcement is a gameplay setting: default **overlap-only**, optional measured authored-direction judgement;
 - the neutral 4 × 3 grid defaults hidden in both Flow Grid and Flow Colliders while remaining available;
-- implement both full-lane repeated guidance variants for physical comparison: **song beat-grid bands** and **target-arrival bands**, selectable in settings.
+- implement both full-lane repeated guidance variants for physical comparison: **song beat-grid bands** and **target-arrival bands**, selectable in settings;
+- use the recommended swept calibrated 2.5D model footprint;
+- one genuine wrist sweep may hit every genuinely intersected exact-same-time chord member; staggered targets require a later contact, and a simultaneous hazard still applies one deduplicated combo break after note scoring;
+- require reimport into a successor package contract for Flow Colliders rather than deriving it at runtime from old package bytes;
+- preserve the full `180 ms` late-hit window but expose it in bounded settings for both Test and Play; pending notes continue moving while still hittable rather than clamping at the plane;
+- force the 4 × 3 grid hidden once during v2 → v3 migration, not merely on fresh/reset setups;
+- expose bounded collider radius and optional direction tolerance in both Test and Play while physically tuning, then lock accepted production defaults.
 
 The design below incorporates those decisions rather than asking Derrick to decide them again.
 
@@ -86,7 +92,7 @@ Choose **A**. Keep collision truth in calibrated canonical XY plus authoritative
 - Use existing measured-only calibration bounds, athlete mirroring, source identity, and T-pose lifecycle. Do not add a second camera or screen calibration.
 - Add private previous/current measured samples for `left_wrist`, `right_wrist`, and `nose`, including only the minimum data needed for segment clipping. Reject duplicate, rollback, source-change, calibration-change, nonfinite, invalid, or stale samples.
 - Maximum interpolated segment gap is `150 ms`, matching current wall continuity and the judgement freshness contract. A larger gap starts a new segment and cannot fabricate contact across missing evidence.
-- Collider dimensions are logical world/grid values, not the 32 CSS px marker size. Start with an inscribed target collider and a small wrist inflation, both strict profile values; final radii/tolerance require Derrick's physical comparison. Do not infer collision from GLB visual bounds.
+- Collider dimensions are logical world/grid values, not the 32 CSS px marker size. Start with an inscribed target collider and a small wrist inflation; expose strict bounded collider radius and optional direction-tolerance settings in both Test and Play for Derrick's physical comparison, then lock accepted production defaults. Do not infer collision from GLB visual bounds.
 - Camera parallax remains visual-only. The canonical target and landmark coordinates used by collision never move when the production camera moves.
 
 ### Body-part ownership
@@ -134,7 +140,7 @@ Elbows and shoulders remain calibration/safety evidence only and never become ga
 
 ### Scoring and timing
 
-- Retain current Flow timing bounds and scoring arithmetic for normal notes. Use interpolated contact song time as evidence time/timing offset; use the audio-authoritative gameplay timeline as commit time.
+- Retain `180 ms` as the default Flow timing bound and current scoring arithmetic for normal notes. Expose the late-hit window within strict bounded settings in both Test and Play for physical tuning; bind its value at run start and include it in score identity. Use interpolated contact song time as evidence time/timing offset; use the audio-authoritative gameplay timeline as commit time.
 - Hit: normal hit points/combo. Miss: normal miss count/penalty/combo reset. Bomb/wall contact: no hit points, one hazard counter, one combo reset per episode. `avoided` and `unevaluated_tracking` do not award hit points.
 - Flow Grid and Flow Colliders require separate score partitions because ruleset identity and matching semantics differ. The collision profile identity (radii, selected overlap-only versus authored-direction mode, direction tolerance, and algorithm version) must participate in local score identity.
 - Flow Colliders remains unranked/local-only initially. Promotion to ranked is a separate product decision after target-device QA.
@@ -158,7 +164,7 @@ Elbows and shoulders remain calibration/safety evidence only and never become ga
 
 The visible pre-miss linger is **intentional**, not a transport stall: it is the late-hit grace period. Expected duration is about `180 ms` plus at most the next gameplay/display advancement needed to observe `>`; synthetic Test uses `181 ms` exactly. Audio and the gameplay timeline continue throughout. The subsequent gray target movement is separate feedback and lasts at most `350 ms` from commit.
 
-If Derrick dislikes the perceptual pause, the product change is to shorten/asymmetrically reshape the late timing window or stop visually clamping pending notes at `Z=0`; it is not a transport repair. Either change alters gameplay/readability and needs a separate physical decision. Research question `91yl` is conclusively answered and may close without source changes.
+Derrick selected the presentation-only correction: retain the full default `180 ms` late-hit eligibility, expose the late window within strict settings bounds for both Test and Play, and stop visually clamping pending notes at `Z=0`. They continue moving past the plane while still eligible, then gray at miss commit and continue the existing same-ID feedback path. Research question `91yl` is conclusively answered and may close without source changes.
 
 ## Why the Game Setup number inputs are unusable (`w9t3`)
 
@@ -191,9 +197,9 @@ Do not merely hide the controls. Remove both experiments end-to-end in the next 
 4. **Renderer config:** replace the strict experiment schema with a successor that has neither boolean. Remove halo and number config/parser fields, scene kinds, draw-order layers, entity pools/materials, glyph text/resources, diagnostics, and associated tests. Do not keep a dormant legacy renderer path.
 5. **Documentation/telemetry:** remove claims and inventories for both visuals. Raw `0.0.48` and older immutable releases remain untouched historical evidence.
 
-### Grid migration recommendation
+### Grid migration decision
 
-Fresh installs/default resets use hidden 4 × 3 grid (`showGameplayGrid:false`). For a valid stored v2, preserve the user's explicit stored grid boolean while discarding the rejected cue fields; this is the least surprising compatibility policy. If Derrick wants every existing v2 user forced to the new hidden default, that must be an explicit migration decision because v2 cannot distinguish a deliberate `true` from its former default.
+Fresh installs/default resets use hidden 4 × 3 grid (`showGameplayGrid:false`). Valid stored v2 records also force the grid hidden once during v3 migration while discarding the rejected cue fields. Users may explicitly re-enable the grid afterward.
 
 ## Next-up ribbon redesign (`mo2d`)
 
@@ -229,9 +235,9 @@ This implements repeated whole-beat guidance across the full lane in two intenti
 
 - Visible selector/HUD/copy: `Flow` → `Flow Grid` everywhere user-facing. Internal `flow_grid_v2` and renderer `flow` remain stable.
 - Add `flow_colliders_v1` to contracts, gameplay validation, UI selection, host command validation, tests, and bounded public ruleset identity. Keep it distinct from `flow_grid_v2`.
-- Recommended content strategy: derive a runtime-only Flow Colliders variant from the existing validated Flow chart/package, with a new score identity; do not duplicate chart bytes and do not require package reimport solely for this ruleset. Existing packages, exports, and Flow Grid scores remain valid.
+- Flow Colliders requires reimport into a successor package contract with a distinct ruleset and score identity. Existing Flow packages remain valid Flow Grid packages but are not silently promoted or reinterpreted as Flow Colliders.
 - Flow Grid remains first selector/package fallback for old hosts, unsupported content, and malformed/newer local setup. This is not a no-camera scoring claim: scored Flow Grid and Flow Colliders both require measured calibrated camera input; audio-only Visual Test remains synthetic/unscored. Do not auto-select Colliders for an existing session.
-- Game Setup v3 migrates valid v2 retained spawn override, camera ranges, parallax, and grid preference; `nextUpRibbonEnabled:true` becomes `guidanceBandMode:"target_arrivals"`, false becomes `off`; rejected number/halo fields are discarded. Fresh defaults: grid hidden in Flow Grid and Flow Colliders, guidance off, parallax off, spawn override off.
+- Game Setup v3 migrates valid v2 retained spawn override, camera ranges, and parallax; it forcibly writes `showGameplayGrid:false` once during migration. `nextUpRibbonEnabled:true` becomes `guidanceBandMode:"target_arrivals"`, false becomes `off`; rejected number/halo fields are discarded. Fresh defaults: grid hidden in Flow Grid and Flow Colliders, guidance off, parallax off, spawn override off.
 - Do not migrate or merge score/history between Flow Grid and Flow Colliders. The new mode begins a new local-only partition.
 - Existing raw releases remain byte-immutable; all compatibility work belongs to a separately approved source successor.
 
@@ -271,11 +277,11 @@ The strict local Game Setup may persist only the selected scalar `guidanceBandMo
 - Assert public counts are bounded and mode/ruleset partitioning is exact. Assert contact diagnostics contain only approved semantic codes.
 - Two instances, disconnect/reconnect, context loss/restore, content swap, restart, terminal replay, and stale async work must not share collision history, guidance-band state, or calibration evidence.
 
-## Derrick decisions required
+## Derrick decisions resolved
 
-1. **Collider footprint:** approve recommended swept analytic model-footprint 2.5D collision, or use the looser full-cell aperture? (Screen-space overlap is rejected.)
-2. **Simultaneous scoring:** approve exact-same-time multi-hit for every genuinely intersected chord member, earliest-only for staggered contacts, followed by one deduplicated hazard combo break?
-3. **Package compatibility:** derive a distinct runtime-only Colliders variant from existing valid Flow chart bytes, or require reimport into a successor package contract?
-4. **Migration/tuning:** preserve an existing v2 user's stored grid value (fresh/reset defaults are already decided hidden), and approve a bounded physical-tuning pass for collider radii/direction tolerance before constants are locked?
+1. **Collider footprint:** swept analytic model-footprint 2.5D collision is approved; screen overlap and full-cell collision are rejected.
+2. **Simultaneous scoring:** one genuine sweep hits every genuinely intersected exact-same-time chord member; staggered contacts require a later contact, and one deduplicated hazard combo break follows note scoring.
+3. **Package compatibility:** Flow Colliders requires reimport into a successor package contract.
+4. **Migration/tuning:** v2 → v3 forces the grid hidden once; collider radius, optional direction tolerance, and the `180 ms` late window remain bounded settings in Test and Play for physical tuning before accepted defaults are locked.
 
-After these decisions, implementation must be decomposed into separate contract/input/gameplay/content/UI/renderer coder Beads followed by independent QA, source audit, immutable successor authorization, and Derrick physical review. Keep `fxc0`, `w9t3`, `w75c`, and `mo2d` open until that approval/implementation chain completes.
+Implementation must be decomposed into separate contract/input/gameplay/content/UI/renderer coder Beads followed by independent QA, source audit, immutable successor authorization, and Derrick physical review. Keep `fxc0`, `w9t3`, `w75c`, and `mo2d` open until that approval/implementation chain completes.
