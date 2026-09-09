@@ -1951,4 +1951,42 @@ Execution is coder → independent QA → final audit across renderer, asset sou
 ## Combined successor hardware profile — DIAGNOSIS REQUIRED (`hl9k`, `x8u9`, 2026-09-09)
 
 - Final renderer QA and assembly `b4da` QA passed and closed all linked descriptor/lifecycle defects. Parent then ran the exact one-shot headed X11 target-hardware command against assembly `33ef1e9` / renderer `5d657de`, but `profile-camera-abccba.mjs:49` rejected browser noise before writing evidence: MediaPipe Tasks Vision emitted `landmark_projection_calculator.cc:81] Using NORM_RECT without IMAGE_DIMENSIONS is only supported for the square ROI. Provide IMAGE_DIMENSIONS or use PROJECTION_MATRIX.` from `vision_wasm_internal.js`. Exit was `1`; the reserved combined-successor evidence file remains absent, so no candidate evidence authority exists and no rerun is authorized before diagnosis.
-- Directly observed: the profiler's warning allowlist covers four known runtime messages but not NORM_RECT; it throws whenever any collected warning remains. Unknown: whether this warning reflects an application input/ROI regression, a stable Tasks Vision 1.0.1 internal warning newly surfaced by this run, camera dimension behavior, or a transient path. Linked P0 `x8u9` owns diagnosis. Required verification must trace production frame/options into Pose Landmarker, compare prior authoritative hardware evidence/runtime, reproduce focused headed camera behavior without producing successor evidence, and distinguish a real defect from safely classifiable third-party noise before any code change or authoritative rerun.
+### Exact observed failure
+
+- The exact target command exited `1` at `scripts/profile-camera-abccba.mjs:49` after all 12 windows, because the page console contained one warning from `/npm/@mediapipe/tasks-vision@1.0.1/wasm/vision_wasm_internal.js`: `landmark_projection_calculator.cc:81] Using NORM_RECT without IMAGE_DIMENSIONS is only supported for the square ROI. Provide IMAGE_DIMENSIONS or use PROJECTION_MATRIX.` The script deliberately throws before line 51, so the reserved successor evidence file was never created.
+
+### Expected behavior and execution path
+
+- The target profiler must preserve fail-closed browser-noise admission while allowing only proven, pinned third-party runtime diagnostics. Runtime flow is `getUserMedia({facingMode:"user"})` -> exact `640x480@30` live track -> `injectCameraStream` -> `@aerobeat/web-cv` transferable `VideoFrame` with `resizePath:"none"` -> pinned `@aerobeat/web-vendor-mediapipe` classic worker -> Tasks Vision `PoseLandmarker.createFromOptions(... runningMode:"VIDEO" ...)` -> `detectForVideo(frameSource,timestamp)`. AeroBeat never supplies a region of interest or NORM_RECT and has no supported Tasks Vision API for attaching calculator `IMAGE_DIMENSIONS` to that internal graph.
+
+### Root cause and evidence
+
+- **Conclusion:** this is a one-time pinned Tasks Vision 1.0.1 internal graph warning, not a combined-successor camera/ROI regression. The exact profiler SHA-256 is unchanged between the rejected raw source authority `616d3b7` and current source (`87b438465829e8580ed40301ca278c035ccae3b78e3d9b06ca566532990979dc`); the combined integration range changes no CV, MediaPipe, production-profile, or profile-camera file. Prior hardware evidence used the same exact script/runtime/camera path and recorded `noise:[]`, proving the diagnostic is nondeterministically surfaced rather than caused by successor code.
+- A focused headed X11 real-camera reproduction—not the authoritative profile and writing no evidence—ran 11 submissions/11 valid poses through the exact locked worker CPU-WASM route at `640x480@30`, `resizePath:"none"`, with finite inference telemetry and no service error. It emitted the NORM_RECT warning exactly once, on the first inference, alongside the already-classified pinned TFLite/OpenGL/feedback-manager messages; ten subsequent non-square frames emitted no repeat. This distinguishes an app ROI/projection failure (which would require an authored ROI, failed/incorrect pose flow, dimension drift, or repeated per-frame diagnostics) from pinned internal graph initialization behavior.
+
+### Alternatives, failed approaches, and unknowns
+
+- Lower-likelihood alternatives were camera dimension loss, accidental square cropping, a changed MediaPipe adapter, or invalid pose output. Exact track/video dimensions, `resizePath:"none"`, 11 successful poses, unchanged CV/vendor hashes, and absence of any app ROI option contradict them. A transient browser warning collector bug is contradicted by the focused reproduction capturing the same exact path/message once. The initial response correctly refused to blanket-ignore or blindly rerun; two delegated diagnosis turns were retired after producing no process, output, source, or plan effects. Remaining uncertainty is only whether future upstream runtime versions alter the warning text/frequency; the runtime is pinned to 1.0.1 and such drift must fail closed.
+
+### Proposed verification and smallest fix
+
+- Extract a pure profile console-noise collector. Admit this diagnostic only when all fields match: console type `warning`, exact pinned Tasks Vision 1.0.1 WASM pathname, exact calculator file/line and complete message with only the runtime timestamp/thread prefix variable, and at most one occurrence. Preserve all four existing accepted runtime diagnostics. Reject duplicate occurrences, type/path/message/version variants, suffixes, and application-generated lookalikes; all unrelated warning/error/HTTP/request/page errors remain fatal. Add a dedicated adversarial unit oracle, then run unit/full browser/build/package/provenance/fingerprint/diff gates before independent QA. Do not perform another authoritative target profile until that QA passes.
+
+### Debugging record
+
+```text
+Problem: target ABCCBA profiler rejects a pinned Tasks Vision initialization diagnostic.
+Observed symptom: one NORM_RECT/IMAGE_DIMENSIONS warning caused line 49 to exit 1 before evidence write.
+Root cause: Tasks Vision 1.0.1's internal Pose Landmarker graph emits a one-time projection-calculator warning although AeroBeat passes a full 640x480 VideoFrame and no ROI; pose inference remains valid.
+Evidence: unchanged profiler/CV path; prior same-path hardware evidence; focused headed 640x480@30 run with 11/11 poses, one first-inference warning, no repeats or service error.
+Failed approaches: no code fix or authoritative rerun attempted; two stalled diagnosis delegates were retired with no effects.
+Corrective action: narrowly admit at most one exact pinned warning tuple while preserving fail-closed noise handling.
+Verification test: exact singleton accepted; duplicate/type/path/version/line/text/suffix/lookalike variants and unrelated noise rejected; full package/browser/package-provenance gates pass.
+Related files/components: scripts/profile-camera-abccba.mjs; new profile-noise policy/oracle; Tasks Vision 1.0.1 worker path.
+Remaining uncertainty: future upstream warning drift, deliberately handled fail-closed.
+```
+
+### Coder result — READY FOR INDEPENDENT QA
+
+- Added `scripts/profile-browser-noise-policy.mjs` and its adversarial validator, wired the target profiler through the collector, and added the oracle to `npm test`. The exact singleton is admitted only for console type `warning`, pinned Tasks Vision 1.0.1 WASM pathname, exact calculator line/message, and a six-digit runtime timestamp/thread prefix; a second identical occurrence becomes fatal. Type/path/version/line/text/suffix/application lookalikes and unrelated console/HTTP/request/page errors remain fatal.
+- Parent validation PASS: focused policy oracle; full `npm test`; production build; append-only target and release-pack policy; exact 132-file dry package; `git diff --check`; and isolated full `npm run test:browser` through live marker visibility. Immutable raw `0.0.24–0.0.48` remained unchanged. The updated source fingerprint is `6f4067fa65f1cfc5ffef681b2fa36403b5116102d49ac40a82f319483ae6a1c6` over 214 inputs. No authoritative hardware rerun, evidence write, release build, serving change, or physical PASS occurred. `x8u9` remains open for independent QA.

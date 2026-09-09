@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { createProfileBrowserNoiseCollector } from "./profile-browser-noise-policy.mjs";
 
 const windowMs=Number(process.env.AEROBEAT_PROFILE_WINDOW_MS??4000);
 const output=resolve(process.env.AEROBEAT_PROFILE_OUTPUT??".plans/evidence/2026-09-05-mi6-local-abccba.json");
@@ -14,7 +15,7 @@ const browser=await chromium.launch({headless:profileMode==="software-diagnostic
 let result;
 try{
   const context=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:1,permissions:["camera"]});
-  const page=await context.newPage(),noise=[];await page.route("**/favicon.ico",route=>route.fulfill({status:204,body:""}));page.on("console",message=>{const text=message.text();if(["warning","error"].includes(message.type())&&!text.includes("Created TensorFlow Lite")&&!text.includes("GL Driver Message")&&!text.includes("OpenGL error checking is disabled")&&!text.includes("Feedback manager requires a model with a single signature inference"))noise.push(`${message.type()}:${text}:${message.location().url?new URL(message.location().url).pathname:"unknown"}`);});page.on("response",response=>{if(response.status()>=400)noise.push(`http:${response.status()}:${new URL(response.url()).pathname}`);});page.on("requestfailed",request=>noise.push(`requestfailed:${new URL(request.url()).pathname}:${request.failure()?.errorText??"unknown"}`));page.on("pageerror",error=>noise.push(`pageerror:${error.message}`));
+  const page=await context.newPage(),noiseCollector=createProfileBrowserNoiseCollector();await page.route("**/favicon.ico",route=>route.fulfill({status:204,body:""}));page.on("console",message=>{const location=message.location(),path=location.url?new URL(location.url).pathname:"unknown";noiseCollector.observeConsole(message.type(),message.text(),path);});page.on("response",response=>{if(response.status()>=400)noiseCollector.observeNoise(`http:${response.status()}:${new URL(response.url()).pathname}`);});page.on("requestfailed",request=>noiseCollector.observeNoise(`requestfailed:${new URL(request.url()).pathname}:${request.failure()?.errorText??"unknown"}`));page.on("pageerror",error=>noiseCollector.observeNoise(`pageerror:${error.message}`));
   await page.goto(baseUrl,{waitUntil:"networkidle",timeout:120000});
   const graphicsBackend=await page.evaluate(({profileMode})=>{
     const game=document.querySelector("aero-game"),canvas=game?.shadowRoot?.querySelector("canvas");if(!(canvas instanceof HTMLCanvasElement))throw new Error("Aero renderer canvas unavailable for backend authority");
@@ -46,6 +47,6 @@ try{
     observer?.disconnect();await graph.cv.stop();stream.getTracks().forEach(track=>track.stop());
     return{schema:"aerobeat/private_abccba_profile",version:1,windowMs,sequence,benchmark,graphicsBackend,backendVerification:{checks:25,driftDetected:false},profileRuns,privacy:{screenshots:false,traceSnapshots:false,rawPoses:false,pixels:false,deviceIds:false,privateGeometry:false}};
   },{windowMs,graphicsBackend});
-  result.noise=noise;if(noise.length)throw new Error(`Profile browser noise: ${noise.join(" | ")}`);await context.close();
+  const noise=noiseCollector.snapshot();result.noise=noise;if(noise.length)throw new Error(`Profile browser noise: ${noise.join(" | ")}`);await context.close();
 }finally{await browser.close();await vite.close();}
 await mkdir(dirname(output),{recursive:true});await writeFile(output,`${JSON.stringify(result,null,2)}\n`,"utf8");console.log(JSON.stringify({output,graphicsBackend:result.graphicsBackend,benchmark:result.benchmark,runs:result.profileRuns.map(run=>({label:run.label,displayRateFps:run.displayRateFps,p95:run.displayIntervals.p95,max:run.displayIntervals.max,missed:run.missedVsyncCount,rendererP95:run.rendererCpuMs.p95,cvRate:run.cv.submissionRateFps,mpP95:run.mediaPipeRuntimeMs.p95,poseAgeP95:run.poseAgeMs.p95,longTasks:run.longTaskCount,camera:run.camera,workload:run.workload}))},null,2));
