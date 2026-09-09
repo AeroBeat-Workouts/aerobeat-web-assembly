@@ -32,7 +32,7 @@ export class AeroGameSetupCoordinator{
   /** @param {AeroGameSetupSnapshot} snapshot */
   persistReset(snapshot){if(this.storage)try{this.storage.setItem(aeroGameSetupStorageKey,JSON.stringify(snapshot));}catch{/* in-memory setup remains authoritative */}}
   /** @param {GameSetupStorageEvent} event */
-  handleStorageEvent(event){try{if(!event)return;const key=storageEventValue(event,"key"),storageArea=storageEventValue(event,"storageArea"),newValue=storageEventValue(event,"newValue");if(key!==aeroGameSetupStorageKey)return;if(storageArea!=null&&this.storage!=null&&storageArea!==this.storage)return;const normalized=newValue===null?defaultAeroGameSetupSnapshot:typeof newValue==="string"?normalizeSerializedSetup(newValue):null;this.applySnapshot(normalized??defaultAeroGameSetupSnapshot,false);}catch{/* hostile or malformed storage event is ignored */}}
+  handleStorageEvent(event){try{const envelope=storageEventEnvelope(event);if(!envelope||envelope.key!==aeroGameSetupStorageKey)return;if(envelope.storageArea!=null&&this.storage!=null&&envelope.storageArea!==this.storage)return;const normalized=envelope.newValue===null?defaultAeroGameSetupSnapshot:typeof envelope.newValue==="string"?normalizeSerializedSetup(envelope.newValue):null;if(!normalized)return;this.applySnapshot(normalized,false);}catch{/* hostile or malformed storage event is ignored */}}
   /** @param {AeroGameSetupSnapshot} snapshot @param {boolean} persist */
   applySnapshot(snapshot,persist){const next=freezeSnapshot(snapshot);if(equalSetup(this.current,next))return this.getSnapshot();this.current=next;if(persist)this.persistReset(next);for(const callback of [...this.subscribers])try{callback(this.getSnapshot());}catch{/* isolate subscriber */}return this.getSnapshot();}
 }
@@ -55,8 +55,8 @@ function freezeSnapshot(value){const override=/** @type {Record<string,unknown>}
 /** @param {AeroGameSetupSnapshot} left @param {AeroGameSetupSnapshot} right */
 function equalSetup(left,right){return JSON.stringify(left)===JSON.stringify(right);}
 function deepFreeze(value){if(value&&typeof value==="object")for(const child of Object.values(value))deepFreeze(child);return Object.freeze(value);}
-/** Read plain hostile fixtures descriptor-safely while permitting native StorageEvent prototype accessors. */
-function storageEventValue(event,key){const prototype=Object.getPrototypeOf(event);if(prototype===Object.prototype||prototype===null){const descriptor=Object.getOwnPropertyDescriptor(event,key);return descriptor&&"value" in descriptor?descriptor.value:undefined;}return event[key];}
+/** Parse exact data fixtures or a genuine native StorageEvent without consulting forged prototype properties. @param {unknown} event */
+function storageEventEnvelope(event){if(event===null||typeof event!=="object"||Array.isArray(event))return null;const NativeStorageEvent=globalThis.StorageEvent;if(typeof NativeStorageEvent==="function"&&event instanceof NativeStorageEvent){const prototype=NativeStorageEvent.prototype,read=(key)=>{const descriptor=Object.getOwnPropertyDescriptor(prototype,key);if(!descriptor||typeof descriptor.get!=="function")throw new TypeError("Native StorageEvent descriptor is unavailable");return Reflect.apply(descriptor.get,event,[]);};return Object.freeze({key:read("key"),newValue:read("newValue"),storageArea:read("storageArea")});}if(!exactDataRecord(event,["key","newValue","storageArea"]))return null;const read=(key)=>Object.getOwnPropertyDescriptor(event,key)?.value;return Object.freeze({key:read("key"),newValue:read("newValue"),storageArea:read("storageArea")});}
 function browserStorage(){return typeof globalThis.localStorage==="undefined"?null:globalThis.localStorage;}
 function browserEventTarget(){return typeof globalThis.addEventListener==="function"?globalThis:null;}
 

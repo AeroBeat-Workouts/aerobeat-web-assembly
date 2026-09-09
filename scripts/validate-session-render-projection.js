@@ -2,6 +2,7 @@
 
 import assert from "node:assert/strict";
 import { createAuthoredBeatToTimelineMs } from "@aerobeat/web-content";
+import { buildGameplaySceneModel } from "@aerobeat/web-renderer";
 import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets } from "../src/session-render-projection.js";
 
 const events = Object.freeze([
@@ -20,24 +21,24 @@ const playHit = Object.freeze({ ...playSession, judgements:Object.freeze([hit]) 
 const hitBeforeCommit=projectSessionTargets(events,playHit,999,straightIndex)[0]; assert.equal(hitBeforeCommit.judgement,"pending","real hit remains pending before exact authoritative commit"); assert.equal(hitBeforeCommit.feedbackProgress,undefined);
 const hitStart=projectSessionTargets(events,playHit,1000,straightIndex)[0]; assert.equal(hitStart.judgement,"hit"); assert.equal(hitStart.feedbackProgress,0,"hit feedback starts at exact committed timeline");
 assert.equal(projectSessionTargets(events,playHit,1175,straightIndex)[0].feedbackProgress,.5);
-assert.equal(projectSessionTargets(events,playHit,1350,straightIndex)[0].feedbackProgress,1);
-assert.equal(projectSessionTargets(events,playHit,1351,straightIndex).some((entry)=>entry.id==="flow-1"),false,"judged target leaves immediately after common feedback window");
+assert.equal(projectSessionTargets(events,playHit,1349,straightIndex)[0].feedbackProgress,349/350);
+assert.equal(projectSessionTargets(events,playHit,1350,straightIndex).some((entry)=>entry.id==="flow-1"),false,"hit feedback leaves at the exact common feedback boundary");
 
 const miss = Object.freeze({ eventId:"flow-1",result:"miss",shadow:false,committedTimelinePositionMs:1181 });
 const playMiss = Object.freeze({ ...playSession, judgements:Object.freeze([miss]) });
 const missBeforeCommit=projectSessionTargets(events,playMiss,1180,straightIndex)[0]; assert.equal(missBeforeCommit.judgement,"pending","real miss remains pending before exact authoritative commit"); assert.equal(missBeforeCommit.feedbackProgress,undefined);
-const missStart=projectSessionTargets(events,playMiss,1181,straightIndex)[0]; assert.equal(missStart.judgement,"miss"); assert.equal(missStart.feedbackProgress,181/350,"late miss continues from its exact post-plane travel position");
-assert.equal(projectSessionTargets(events,playMiss,1531,straightIndex)[0].feedbackProgress,1);
-assert.equal(projectSessionTargets(events,playMiss,1532,straightIndex).some((entry)=>entry.id==="flow-1"),false);
+const missStart=projectSessionTargets(events,playMiss,1181,straightIndex)[0]; assert.equal(missStart.judgement,"miss"); assert.equal(missStart.missCommitMs,1181);assert.equal(missStart.feedbackProgress,undefined,"late miss owns a separate absolute commit clock rather than restarting travel progress");
+const missLate=projectSessionTargets(events,playMiss,1530,straightIndex)[0];assert.equal(missLate.missCommitMs,1181);assert.equal(projectSessionTargets(events,playMiss,1531,straightIndex).some((entry)=>entry.id==="flow-1"),false,"miss projection expires at exact commit plus 350 ms");
+const renderedMisses=[1181,1182,1530,1531].map((nowMs)=>{const targets=projectSessionTargets(events,playMiss,nowMs,straightIndex,180),model=buildGameplaySceneModel({presentation:"flow",nowMs,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets}),icon=model.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="icon"),shadow=model.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="shadow"),label=model.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="feedback");return{nowMs,targetId:targets.find((entry)=>entry.id==="flow-1")?.id??null,iconId:icon?.targetId??null,shadowId:shadow?.targetId??null,labelId:label?.targetId??null,z:icon?.position.z??null,color:icon?.appearanceColor??null,text:label?.feedback?.text??null};});assert.deepEqual(renderedMisses,[{nowMs:1181,targetId:"flow-1",iconId:"flow-1",shadowId:"flow-1",labelId:"flow-1",z:1.086,color:"#7c828c",text:"Miss"},{nowMs:1182,targetId:"flow-1",iconId:"flow-1",shadowId:"flow-1",labelId:"flow-1",z:1.092,color:"#7c828c",text:"Miss"},{nowMs:1530,targetId:"flow-1",iconId:"flow-1",shadowId:"flow-1",labelId:"flow-1",z:3.18,color:"#7c828c",text:"Miss"},{nowMs:1531,targetId:null,iconId:null,shadowId:null,labelId:null,z:null,color:null,text:null}],"same-ID gray moving miss and Miss label remain for full post-commit interval then cull exactly once");
 
 const shadowOnly=Object.freeze({ ...playSession, judgements:Object.freeze([{...hit,shadow:true}]) }); assert.equal(projectSessionTargets(events,shadowOnly,1100,straightIndex)[0].judgement,"pending","shadow judgement never drives production feedback");
 const testTruth=Object.freeze({ session:Object.freeze({purpose:"visual_test"}),judgements:Object.freeze([]),shadowJudgements:Object.freeze([]),scorePartitions:Object.freeze([]) });
 const truthBefore=JSON.stringify(testTruth);
 const syntheticFirst=projectSessionTargets(events,testTruth,1100,straightIndex); assert.equal(syntheticFirst[0].judgement,"hit"); assert.equal(syntheticFirst[1].judgement,"pending");
 const unsortedEvents=Object.freeze([events[1],events[0]]),unsortedIndex=createSessionTargetIndex(unsortedEvents,{bounceLeadBeats:4,normalSpawnLeadMs:2500,skyMode:"off",skyPreludeDurationMs:0}),syntheticUnsorted=projectSessionTargets(unsortedEvents,testTruth,1100,unsortedIndex); assert.equal(syntheticUnsorted[0].id,"flow-1"); assert.equal(syntheticUnsorted[0].judgement,"hit","stable timeline sort owns parity and always begins hit-first"); assert.equal(syntheticUnsorted[1].id,"flow-2"); assert.equal(syntheticUnsorted[1].judgement,"pending");
-const syntheticSecond=projectSessionTargets(events,testTruth,2181,straightIndex); assert.equal(syntheticSecond.length,1); assert.equal(syntheticSecond[0].id,"flow-2"); assert.equal(syntheticSecond[0].judgement,"miss"); assert.equal(syntheticSecond[0].feedbackProgress,181/350);
+const syntheticSecond=projectSessionTargets(events,testTruth,2181,straightIndex); assert.equal(syntheticSecond.length,1); assert.equal(syntheticSecond[0].id,"flow-2"); assert.equal(syntheticSecond[0].judgement,"miss"); assert.equal(syntheticSecond[0].missCommitMs,2181);assert.equal(syntheticSecond[0].feedbackProgress,undefined);
 assert.equal(JSON.stringify(testTruth),truthBefore,"synthetic projection must not mutate gameplay judgement or score truth");
-assert.equal(projectSessionTargets(events,testTruth,2531,straightIndex)[0].feedbackProgress,1); assert.equal(projectSessionTargets(events,testTruth,2532,straightIndex).length,0);
+assert.equal(projectSessionTargets(events,testTruth,2530,straightIndex)[0].missCommitMs,2181); assert.equal(projectSessionTargets(events,testTruth,2531,straightIndex).length,0);
 
 const sourceGeometry=Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_1",x:1,y:2,width:1,height:3});
 const gameplayGeometry=Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:1,y:0,width:1,height:3});

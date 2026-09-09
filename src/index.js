@@ -1641,15 +1641,15 @@ export class AeroGame extends HTMLElement {
     this.beatSaverView = Object.freeze({ ...this.beatSaverView, selectedVersionHash: version.hash, difficulties, selectedDifficulty: difficulties[0] }); this.renderPresenters();
   }
 
-  async selectLibraryPackage(target, selectionGeneration, owner) {
+  async selectLibraryPackage(target, selectionGeneration, owner, allowSamePackageRetention = false) {
     this.assertConnected(); const generation = this.connectedGeneration; const graph = this.graph;
     const ownsSelection = () => this.isLifecycleIntentOwner(owner) && selectionGeneration === this.librarySelectionGeneration;
     if (!ownsSelection()) return null;
-    const before = graph.content.getSnapshot();
-    const retainedRulesetId = rulesetIds.includes(before.selectedVariant?.rulesetId) ? before.selectedVariant.rulesetId : gameplayRulesetIds.flow;
-    const retainedRecipeId = conversionRecipeIds.includes(before.selectedVariant?.recipeId) ? before.selectedVariant.recipeId : this.lastBoxingRecipeId;
-    if (conversionRecipeIds.includes(retainedRecipeId)) this.lastBoxingRecipeId = retainedRecipeId;
-    const modifierIds = stringList(before.selectedVariant?.modifierIds ?? [], 16);
+    const before = graph.content.getSnapshot(),retainEquivalent=allowSamePackageRetention===true&&before.packageId===target.packageId;
+    const retainedRulesetId = retainEquivalent&&rulesetIds.includes(before.selectedVariant?.rulesetId) ? before.selectedVariant.rulesetId : gameplayRulesetIds.flow;
+    const retainedRecipeId = retainEquivalent&&conversionRecipeIds.includes(before.selectedVariant?.recipeId) ? before.selectedVariant.recipeId : this.lastBoxingRecipeId;
+    if (retainEquivalent&&conversionRecipeIds.includes(retainedRecipeId)) this.lastBoxingRecipeId = retainedRecipeId;
+    const modifierIds = retainEquivalent?stringList(before.selectedVariant?.modifierIds ?? [], 16):[];
     let loaded;
     try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); }
     catch (error) {
@@ -1701,7 +1701,7 @@ export class AeroGame extends HTMLElement {
     const activatedCollections = activateLibraryCollection(this.libraryView.collections, target.collectionId, target.packageId);
     this.libraryView = Object.freeze({ ...this.libraryView, selectedCollectionId: target.collectionId, selectedPackageId: target.packageId, collections: activatedCollections, songs: publicLibrarySongs(activatedCollections) });
     this.stopPreview(); this.renderPresenters();
-    const selection = this.enqueueLifecycleIntent("library-select", (owner) => this.selectLibraryPackage(target, selectionGeneration, owner));
+    const selection = this.enqueueLifecycleIntent("library-select", (owner) => this.selectLibraryPackage(target, selectionGeneration, owner, true));
     this.librarySelectionTail = selection.catch(() => null);
     this.pendingLibrarySelection = selection;
     selection.catch((error) => { if (selectionGeneration === this.librarySelectionGeneration) this.handleError(error); }).finally(() => { if (this.pendingLibrarySelection === selection) { this.pendingLibrarySelection = null; this.renderPresenters(); } });

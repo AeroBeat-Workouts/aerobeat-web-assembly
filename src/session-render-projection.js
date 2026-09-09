@@ -114,13 +114,13 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const realResult = real?.result;
       const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
       const result = realCommitted ? realResult : visualTest && commitMs !== null && nowMs >= commitMs ? feedbackIndex % 2 === 0 ? "hit" : "miss" : null;
-      const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs <= Number(commitMs) + FEEDBACK_DURATION_MS;
+      const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs < Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
       const pendingVisible = result !== "hit" && result !== "miss" && centerMs + timingWindowAfterMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
-        const feedbackProgress = result && Number.isFinite(commitMs) ? clamp01((nowMs - (result === "miss" ? centerMs : Number(commitMs))) / FEEDBACK_DURATION_MS) : undefined;
-        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress, bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null);
+        const feedbackProgress = result === "hit" && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined,missCommitMs=result==="miss"&&Number.isFinite(commitMs)?Number(commitMs):undefined;
+        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress,missCommitMs,bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null);
         if (target) targets.push(target);
       }
       fallbackFeedbackIndex += 1;
@@ -184,11 +184,11 @@ function flowBombTarget(event, beat, nowMs) {
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs };
 }
 
-/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity */
-function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress, bounceStartMs = null,normalSpawnMs=null,skyPreludeStartMs=null,arrivalGroupIdentity=null) {
+/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|undefined} missCommitMs @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity */
+function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress,missCommitMs,bounceStartMs = null,normalSpawnMs=null,skyPreludeStartMs=null,arrivalGroupIdentity=null) {
   const beat = authoredBeatFor(event);
   const eventId = String(recordValue(event, "eventId") ?? ""); const beatCenterMs = finiteNumber(recordValue(event, "centerTimestampMs"));
-  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupIdentity===null?{}:{arrivalGroupIdentity};
+  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}),...(judgement==="miss"&&Number.isFinite(missCommitMs)?{missCommitMs:Number(missCommitMs)}:{}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupIdentity===null?{}:{arrivalGroupIdentity};
   if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), ...(appearance?{appearanceColor:appearance}:{}), ...trajectory, ...group, ...feedback };
   if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...trajectory, ...group, ...feedback }; }
   const punch=Object.hasOwn(BOXING_PUNCH_TYPES,type)?BOXING_PUNCH_TYPES[type]:null;if(!punch)return null;
