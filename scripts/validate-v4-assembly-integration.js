@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const goldenV4Hash = "96e68173fffd6454bfb38740acaf58653da11320";
 const v2Hash = "f8ed950c666baf9148a18e5f3b9731b3f2f23cb0";
@@ -26,7 +27,7 @@ if (!pageUrl) throw new Error("Vite URL unavailable");
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 const noise = [];
-page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}:${message.text()}`); });
+page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,pageUrl)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
 page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
 await page.addInitScript(() => {
   globalThis.__v4CameraRequests = 0;

@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const fixture=await readFile(new URL("../../aerobeat-web-content-authoring/fixtures/flow-obstacle-3c9d-hard-v1.dat",import.meta.url));
 const golden=JSON.parse(await readFile(new URL("../../aerobeat-web-content-authoring/fixtures/obstacle-normalization-3c9d-hard-golden-v2.json",import.meta.url),"utf8"));
@@ -26,7 +27,7 @@ try{
   for(const viewport of [{name:"desktop",width:844,height:390},{name:"mobile",width:390,height:844}])for(const embedding of ["direct","genuine_cross_origin_iframe"]){
     const context=await browser.newContext({viewport:{width:viewport.width,height:viewport.height},deviceScaleFactor:1});
     const page=await context.newPage(),noise=[];
-    page.on("console",message=>{if(["warning","error"].includes(message.type())&&!message.text().includes("GL Driver Message"))noise.push(`${message.type()}:${message.text()}`);});
+    page.on("console",message=>{const type=message.type(),text=message.text(),location=message.location();if(["warning","error"].includes(type)&&!isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,childUrl))noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);});
     page.on("pageerror",error=>noise.push(`pageerror:${error.message}`));
     try{
       await page.goto(embedding==="direct"?childUrl:parentUrl,{waitUntil:"networkidle"});

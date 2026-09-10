@@ -2,6 +2,7 @@
 
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
 await vite.listen();
@@ -11,7 +12,7 @@ const browser = await chromium.launch();
 const noise = [];
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
-  page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}:${message.text()}`); });
+  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,url)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
   page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
   await page.goto(url, { waitUntil: "networkidle" });
   const game = page.locator("aero-game"); await game.waitFor();

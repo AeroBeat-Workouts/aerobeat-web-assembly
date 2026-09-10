@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const fixture=await readFile(new URL("../../aerobeat-web-content-authoring/fixtures/flow-obstacle-3c9d-hard-v1.dat",import.meta.url));
 const golden=JSON.parse(await readFile(new URL("../../aerobeat-web-content-authoring/fixtures/obstacle-normalization-3c9d-hard-golden-v2.json",import.meta.url),"utf8"));
@@ -12,7 +13,7 @@ assert.equal(createHash("sha256").update(fixture).digest("hex"),golden.source.sh
 const wav=makeSilentWav();
 const vite=await createViteServer({appType:"spa",configFile:"vite.config.js",logLevel:"error",plugins:[{name:"migration-seed",configureServer(server){server.middlewares.use("/migration-seed",(_request,response)=>{response.setHeader("content-type","text/html; charset=utf-8");response.end("<!doctype html><title>DB5 raw 0.0.39 seed</title>");});}}],server:{host:"127.0.0.1",port:0,hmr:false,watch:null}});
 await vite.listen();const url=vite.resolvedUrls?.local?.[0];if(!url)throw new Error("Vite URL unavailable");const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:844,height:390}}),noise=[];
-page.on("console",message=>{if(["warning","error"].includes(message.type())&&!message.text().includes("GL Driver Message"))noise.push(`${message.type()}:${message.text()}`);});page.on("pageerror",error=>noise.push(`pageerror:${error.message}`));
+page.on("console",message=>{const type=message.type(),text=message.text(),location=message.location();if(["warning","error"].includes(type)&&!isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,url))noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);});page.on("pageerror",error=>noise.push(`pageerror:${error.message}`));
 try{
   await page.goto(`${url}migration-seed`,{waitUntil:"networkidle"});
   const seed=await page.evaluate(async()=>{

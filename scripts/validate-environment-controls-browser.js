@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const HARD_TIMEOUT_MS = 90_000;
 const matrix = [];
@@ -51,7 +52,7 @@ try {
         context.setDefaultTimeout(8_000);
         const page = await context.newPage();
         const noise = [];
-        page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}:${message.text()}`); });
+        page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,childUrl)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
         page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
         try {
           await page.goto(embedding === "direct" ? childUrl : `${parentUrl}?width=${viewport.width}&height=${viewport.height}`, { waitUntil:"networkidle", timeout:15_000 });

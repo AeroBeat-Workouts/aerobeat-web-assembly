@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 /** @typedef {{width:number,height:number,canvasWidth:number,canvasHeight:number,devicePixelRatio:number,maxDevicePixelRatio:number,sourceSampledPixels:number,sourceVisiblePixels:number,sampledPixels:number,opaquePixels:number,backgroundPixels:number,nonBackground:number,configuredBackground:string|null,corner:[number,number,number,number]}} CanvasSampleEvidence */
 
@@ -61,7 +62,7 @@ try {
 async function runContext(context) {
   const noise = [];
   const page = await browser.newPage({ viewport: context.kind === "direct" ? { width: context.width, height: context.height } : { width: context.width + 24, height: context.height + 24 }, deviceScaleFactor: context.dpr });
-  page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}:${message.text()}`); });
+  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,childUrl)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
   page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
   await page.addInitScript(() => {
     globalThis.__shellMatrixCameraRequests = 0;

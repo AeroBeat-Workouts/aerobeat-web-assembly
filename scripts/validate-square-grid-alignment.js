@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const vite=await createViteServer({appType:"spa",configFile:"vite.config.js",logLevel:"error",server:{host:"127.0.0.1",port:0,hmr:false,watch:null}});await vite.listen();const childUrl=vite.resolvedUrls?.local?.[0];if(!childUrl)throw new Error("Vite URL unavailable");
 const parent=createHttpServer((request,response)=>{const url=new URL(request.url??"/","http://parent.invalid"),width=Number(url.searchParams.get("width"))||390,height=Number(url.searchParams.get("height"))||844;response.setHeader("content-type","text/html; charset=utf-8");response.end(`<!doctype html><style>html,body{margin:0}iframe{border:0;display:block;width:${width}px;height:${height}px}</style><iframe id="game" allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${childUrl}"></iframe>`);});
@@ -11,7 +12,7 @@ const browser=await chromium.launch({headless:true}),matrix=[];
 try{
   for(const embedding of["direct","real_cross_origin_iframe"])for(const viewport of[{name:"portrait",width:390,height:844},{name:"landscape",width:844,height:390}])for(const requestedDpr of[1,3]){
     const context=await browser.newContext({viewport:embedding==="direct"?{width:viewport.width,height:viewport.height}:{width:viewport.width+24,height:viewport.height+24},deviceScaleFactor:requestedDpr}),page=await context.newPage(),noise=[];
-    page.on("console",(message)=>{if(["warning","error"].includes(message.type())&&!message.text().includes("GL Driver Message"))noise.push(`${message.type()}:${message.text()}`);});page.on("pageerror",(error)=>noise.push(`pageerror:${error.message}`));
+    page.on("console",(message)=>{const type=message.type(),text=message.text(),location=message.location();if(["warning","error"].includes(type)&&!isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,childUrl))noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);});page.on("pageerror",(error)=>noise.push(`pageerror:${error.message}`));
     try{
       await page.goto(embedding==="direct"?childUrl:`${parentUrl}?width=${viewport.width}&height=${viewport.height}`,{waitUntil:"networkidle"});const target=embedding==="direct"?page:page.frames().find((frame)=>frame!==page.mainFrame());if(!target)throw new Error("Real cross-origin child missing");await target.waitForSelector("aero-game");await target.waitForFunction(()=>{const status=document.querySelector("aero-game")?.graph?.renderer?.describe?.();return status?.gameplayAssets?.state==="ready"&&status?.environment?.state==="ready";},{timeout:15000});
       const evidence=await target.evaluate(async({width,height,requestedDpr})=>{

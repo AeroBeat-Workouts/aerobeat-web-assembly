@@ -4,6 +4,7 @@ import { createServer as createHttpServer } from "node:http";
 import { cameraPreviewToAthlete } from "@aerobeat/web-contracts";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null } });
 await vite.listen();
@@ -37,7 +38,7 @@ try {
 async function runContext(context) {
   const browserContext = await browser.newContext({ viewport: context.kind === "direct" ? { width:context.width,height:context.height } : { width:context.width + 24,height:context.height + 24 }, deviceScaleFactor:context.dpr });
   const page = await browserContext.newPage(); const noise = [];
-  page.on("console", (message) => { if (["warning","error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}:${message.text()}`); });
+  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning","error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,childUrl)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
   page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
   let game;
   if (context.kind === "direct") { await page.goto(childUrl, { waitUntil:"networkidle" }); game = page.locator("aero-game"); }

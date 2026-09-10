@@ -1,6 +1,7 @@
 // @ts-check
 
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createServer as createHttpServer } from "node:http";
 import { readFile } from "node:fs/promises";
@@ -13,6 +14,7 @@ import {
 } from "./readpixels-console-policy.js";
 
 validateReadPixelsConsolePolicy();
+await validateAssemblyConsoleCollectorSources();
 
 const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
 await vite.listen();
@@ -26,7 +28,7 @@ const address = parentServer.address(); if (!address || typeof address === "stri
 const parentUrl = `http://127.0.0.1:${address.port}/`;
 const browser = await chromium.launch(); const noise = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1100, height: 760 } }); collectNoise(page, noise);
+  const page = await browser.newPage({ viewport: { width: 1100, height: 760 } }); collectNoise(page, noise, childUrl);
   await page.goto(childUrl, { waitUntil: "networkidle" }); await page.locator("aero-game").waitFor();
   const direct = await page.locator("aero-game").evaluate(async (game) => {
     const bodyStyleBefore=document.body.getAttribute("style")??"",hrefBefore=location.href,historyBefore=history.length;await game.configure({});const snapshot = game.getSnapshot(); const parent = game.parentElement.getBoundingClientRect();
@@ -129,7 +131,7 @@ try {
   const ownership=await page.evaluate(async()=>{const host=document.createElement("section");document.body.replaceChildren(host);document.body.setAttribute("class","host-owned");document.body.setAttribute("data-owner","embedder");document.body.style.cssText="margin:7px;background:rgb(1,2,3)";const attributesBefore=[...document.body.attributes].map((entry)=>[entry.name,entry.value]),childrenBefore=[...document.body.childNodes],hrefBefore=location.href,historyBefore=history.length;let historyCalls=0;const push=history.pushState,replace=history.replaceState;history.pushState=function(...args){historyCalls+=1;return push.apply(this,args)};history.replaceState=function(...args){historyCalls+=1;return replace.apply(this,args)};const game=document.createElement("aero-game");host.append(game);await new Promise((resolve)=>setTimeout(resolve,30));game.remove();await new Promise((resolve)=>setTimeout(resolve,20));history.pushState=push;history.replaceState=replace;return{attributesUnchanged:JSON.stringify(attributesBefore)===JSON.stringify([...document.body.attributes].map((entry)=>[entry.name,entry.value])),childrenUnchanged:childrenBefore.length===document.body.childNodes.length&&childrenBefore.every((entry,index)=>entry===document.body.childNodes[index]),hrefUnchanged:hrefBefore===location.href,historyUnchanged:historyBefore===history.length&&historyCalls===0}});if(!Object.values(ownership).every(Boolean))throw new Error(`Connection-time host ownership failed: ${JSON.stringify(ownership)}`);
   await page.close();
 
-  const parent = await browser.newPage(); collectNoise(parent, noise); await parent.goto(parentUrl, { waitUntil: "networkidle" }); const childOrigin = new URL(childUrl).origin;
+  const parent = await browser.newPage(); collectNoise(parent, noise, childUrl); await parent.goto(parentUrl, { waitUntil: "networkidle" }); const childOrigin = new URL(childUrl).origin;
   await parent.evaluate(({ childOrigin }) => { const frame = document.querySelector("iframe"); frame.contentWindow.postMessage(message("handshake_request", "hello", { protocolVersion: 1 }), childOrigin); function message(kind,id,payload){return{schema:"aerobeat/iframe_message",version:1,kind,messageId:id,instanceId:"aero-game-1",payload}}; }, { childOrigin });
   await parent.waitForFunction(() => window.messages.some((entry) => entry.data?.kind === "handshake_ack") && window.messages.some((entry) => entry.data?.kind === "event" && entry.data?.payload?.event?.type === "ready"));
   await parent.evaluate(({ childOrigin }) => {
@@ -194,7 +196,27 @@ function validateReadPixelsConsolePolicy() {
   ]) assert.equal(accepts(type, text, sourceUrl, lineNumber, columnNumber, expectedUrl), false, label);
 }
 
-function collectNoise(page, noise) { page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}: ${message.text()}`); }); page.on("pageerror", (error) => noise.push(`pageerror: ${error.message}`)); }
+async function validateAssemblyConsoleCollectorSources() {
+  const hostileBroadSource = `page.on("console", message => { if (!message.text().${"includes"}("GL Driver Message")) noise.push(message.text()); });`;
+  assert.deepEqual(consoleCollectorSourceFailures("broad.js", hostileBroadSource), ["broad.js: broad ReadPixels/GL-driver substring admission"]);
+  assert.deepEqual(consoleCollectorSourceFailures("unused.js", `import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";\npage.on("console", message => noise.push(message.text()));`), ["unused.js: imports isExpectedReadPixelsWarning without calling it"]);
+  const trackedScripts = execFileSync("git", ["ls-files", "-z", "--", "scripts"], { encoding:"utf8" }).split("\0").filter((path) => /\.(?:c|m)?js$/u.test(path));
+  const failures = [];
+  for (const path of trackedScripts) failures.push(...consoleCollectorSourceFailures(path, await readFile(path, "utf8")));
+  assert.deepEqual(failures, [], `Assembly console collector source policy failed:\n${failures.join("\n")}`);
+}
+
+function consoleCollectorSourceFailures(path, source) {
+  const broadAdmission = /\.includes\(\s*["'](?:GL Driver Message|GPU stall due to ReadPixels)["']\s*\)/u;
+  const helperImport = /import\s*\{[^}]*\bisExpectedReadPixelsWarning\b[^}]*\}\s*from\s*["']\.\/readpixels-console-policy\.js["']/su;
+  const helperCall = /\bisExpectedReadPixelsWarning\s*\(/u;
+  const failures = [];
+  if (broadAdmission.test(source)) failures.push(`${path}: broad ReadPixels/GL-driver substring admission`);
+  if (helperImport.test(source) && !helperCall.test(source.replace(helperImport, ""))) failures.push(`${path}: imports isExpectedReadPixelsWarning without calling it`);
+  return failures;
+}
+
+function collectNoise(page, noise, expectedPageUrl) { page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedPageUrl)) noise.push(`${type}: ${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); }); page.on("pageerror", (error) => noise.push(`pageerror: ${error.message}`)); }
 function hashBytes(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 function hashJson(value) { return hashBytes(new TextEncoder().encode(JSON.stringify(sort(value)))); }
 function sort(value) { if (Array.isArray(value)) return value.map(sort); if (value && typeof value === "object") { const result = {}; for (const key of Object.keys(value).sort()) result[key] = sort(value[key]); return result; } return value; }
