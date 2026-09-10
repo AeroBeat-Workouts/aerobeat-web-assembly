@@ -28,7 +28,8 @@ export function isExpectedMediaPipeRuntimeDiagnostic(type, text, path) {
   return acceptedRuntimeDiagnostics.some((diagnostic) => diagnostic.path !== "unknown" && diagnostic.type === type && diagnostic.path === path && diagnostic.pattern.test(text));
 }
 
-export function createProfileBrowserNoiseCollector() {
+export function createProfileBrowserNoiseCollector(options = {}) {
+  const allowUnknownReadPixels = options.allowUnknownReadPixels !== false;
   const noise = [];
   let normRectCount = 0;
   return Object.freeze({
@@ -37,7 +38,7 @@ export function createProfileBrowserNoiseCollector() {
       if (type === "warning" && path === tasksVisionWasmPath && normRectWarning.test(text)) {
         normRectCount += 1;
         if (normRectCount === 1) return;
-      } else if (isExpectedMediaPipeRuntimeDiagnostic(type, text, path) || acceptedRuntimeDiagnostics.some((diagnostic) => diagnostic.path === "unknown" && diagnostic.type === type && diagnostic.path === path && diagnostic.pattern.test(text))) {
+      } else if (isExpectedMediaPipeRuntimeDiagnostic(type, text, path) || (allowUnknownReadPixels && acceptedRuntimeDiagnostics.some((diagnostic) => diagnostic.path === "unknown" && diagnostic.type === type && diagnostic.path === path && diagnostic.pattern.test(text)))) {
         return;
       }
       noise.push(`${type}:${text}:${path}`);

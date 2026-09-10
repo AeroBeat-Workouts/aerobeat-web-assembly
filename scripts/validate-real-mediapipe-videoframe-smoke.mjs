@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import { isExpectedMediaPipeRuntimeDiagnostic } from "./profile-browser-noise-policy.mjs";
+import { createProfileBrowserNoiseCollector } from "./profile-browser-noise-policy.mjs";
 
 const baseUrl = process.env.AEROBEAT_SMOKE_URL ?? "http://127.0.0.1:5173/";
 const browser = await chromium.launch({ headless: true });
@@ -7,17 +7,17 @@ const results = [];
 try {
   for (const provider of ["cpu-wasm", "gpu-webgl"]) {
     const page = await browser.newPage({ viewport: { width: 432, height: 865 } });
-    const failures = [];
-    page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
+    const noiseCollector = createProfileBrowserNoiseCollector();
     page.on("console", (message) => {
-      const type = message.type();
-      const text = message.text();
       const location = message.location();
       const path = location.url ? new URL(location.url).pathname : "unknown";
-      if (type === "error" && !isExpectedMediaPipeRuntimeDiagnostic(type, text, path)) {
-        failures.push(`console:${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);
-      }
+      noiseCollector.observeConsole(message.type(), message.text(), path);
     });
+    page.on("response", (response) => {
+      if (response.status() >= 400) noiseCollector.observeNoise(`http:${response.status()}:${response.url()}`);
+    });
+    page.on("requestfailed", (request) => noiseCollector.observeNoise(`requestfailed:${request.url()}:${request.failure()?.errorText ?? "unknown"}`));
+    page.on("pageerror", (error) => noiseCollector.observeNoise(`pageerror:${error.message}`));
     await page.addInitScript(() => {
       Object.defineProperty(navigator, "mediaDevices", {
         configurable: true,
@@ -90,8 +90,9 @@ try {
     });
     await page.waitForTimeout(100);
     const telemetry = await page.evaluate(() => window.__videoFrameSmokeTelemetry ?? "");
-    if (!telemetry.includes("Transfer frame type: VideoFrame")) failures.push("telemetry omitted VideoFrame transfer truth");
-    if (!telemetry.includes("Resize path: direct HTMLVideoElement to transferable VideoFrame")) failures.push("telemetry omitted direct VideoFrame path");
+    if (!telemetry.includes("Transfer frame type: VideoFrame")) noiseCollector.observeNoise("telemetry omitted VideoFrame transfer truth");
+    if (!telemetry.includes("Resize path: direct HTMLVideoElement to transferable VideoFrame")) noiseCollector.observeNoise("telemetry omitted direct VideoFrame path");
+    const failures = noiseCollector.snapshot();
     if (failures.length) throw new Error(`${provider} smoke failed: ${failures.join(" | ")}`);
     results.push({ provider, ...evidence, telemetry });
     await page.close();

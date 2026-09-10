@@ -204,9 +204,15 @@ async function validateAssemblyConsoleCollectorSources() {
   assert.deepEqual(consoleCollectorSourceFailures("unused.js", `import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";\npage.on("console", message => noise.push(message.text()));`), ["unused.js: imports isExpectedReadPixelsWarning without calling it"]);
   const unusedMediaPipeHelperSource = `import { ${"isExpectedMediaPipeRuntimeDiagnostic"} } from "./profile-browser-noise-policy.mjs";\npage.on("console", message => noise.push(message.text()));`;
   assert.deepEqual(consoleCollectorSourceFailures("unused.mjs", unusedMediaPipeHelperSource), ["unused.mjs: imports isExpectedMediaPipeRuntimeDiagnostic without calling it"]);
+  const errorOnlySource = `page.on("console", message => { if (message.type() === "${"error"}") noise.push(message.text()); });`;
+  assert.deepEqual(consoleCollectorSourceFailures("error-only.mjs", errorOnlySource), ["error-only.mjs: error-only console collection"]);
+  assert.deepEqual(mjsCollectorContractFailures("scripts/benchmark-mediapipe-worker.mjs", `page.on("console", message => noise.push(message.text()));`), ["scripts/benchmark-mediapipe-worker.mjs: missing exact profile collector call", "scripts/benchmark-mediapipe-worker.mjs: missing warning/error policy routing", "scripts/benchmark-mediapipe-worker.mjs: missing HTTP failure collection", "scripts/benchmark-mediapipe-worker.mjs: missing request failure collection", "scripts/benchmark-mediapipe-worker.mjs: missing page error collection", "scripts/benchmark-mediapipe-worker.mjs: missing exact ReadPixels routing"]);
   const trackedScripts = execFileSync("git", ["ls-files", "-z", "--", "scripts"], { encoding:"utf8" }).split("\0").filter((path) => /\.(?:c|m)?js$/u.test(path));
   const failures = [];
-  for (const path of trackedScripts) failures.push(...consoleCollectorSourceFailures(path, await readFile(path, "utf8")));
+  for (const path of trackedScripts) {
+    const source = await readFile(path, "utf8");
+    failures.push(...consoleCollectorSourceFailures(path, source), ...mjsCollectorContractFailures(path, source));
+  }
   assert.deepEqual(failures, [], `Assembly console collector source policy failed:\n${failures.join("\n")}`);
 }
 
@@ -214,12 +220,26 @@ function consoleCollectorSourceFailures(path, source) {
   const broadAdmission = /\.includes\(\s*["'](?:GL Driver Message|GPU stall due to ReadPixels|Created TensorFlow Lite(?: XNNPACK delegate for CPU)?|OpenGL error checking is disabled|Feedback manager requires a model with a single signature inference)["']\s*\)/u;
   const helperPolicies = [
     { name:"isExpectedReadPixelsWarning", importPattern:/import\s*\{[^}]*\bisExpectedReadPixelsWarning\b[^}]*\}\s*from\s*["']\.\/readpixels-console-policy\.js["']/su, callPattern:/\bisExpectedReadPixelsWarning\s*\(/u },
-    { name:"isExpectedMediaPipeRuntimeDiagnostic", importPattern:/import\s*\{[^}]*\bisExpectedMediaPipeRuntimeDiagnostic\b[^}]*\}\s*from\s*["']\.\/profile-browser-noise-policy\.mjs["']/su, callPattern:/\bisExpectedMediaPipeRuntimeDiagnostic\s*\(/u }
+    { name:"isExpectedMediaPipeRuntimeDiagnostic", importPattern:/import\s*\{[^}]*\bisExpectedMediaPipeRuntimeDiagnostic\b[^}]*\}\s*from\s*["']\.\/profile-browser-noise-policy\.mjs["']/su, callPattern:/\bisExpectedMediaPipeRuntimeDiagnostic\s*\(/u },
+    { name:"createProfileBrowserNoiseCollector", importPattern:/import\s*\{[^}]*\bcreateProfileBrowserNoiseCollector\b[^}]*\}\s*from\s*["']\.\/profile-browser-noise-policy\.mjs["']/su, callPattern:/\bcreateProfileBrowserNoiseCollector\s*\(/u }
   ];
   const failures = [];
   if (broadAdmission.test(source)) failures.push(`${path}: broad browser-diagnostic substring admission`);
+  if (/page\.on\(["']console["']/u.test(source) && /(?:message\.type\(\)|\btype)\s*===\s*["']error["']/u.test(source)) failures.push(`${path}: error-only console collection`);
   for (const policy of helperPolicies) if (policy.importPattern.test(source) && !policy.callPattern.test(source.replace(policy.importPattern, ""))) failures.push(`${path}: imports ${policy.name} without calling it`);
   return failures;
+}
+
+function mjsCollectorContractFailures(path, source) {
+  const common = [
+    [/\bcreateProfileBrowserNoiseCollector\s*\(/u, "missing exact profile collector call"],
+    [/\.observeConsole\s*\(/u, "missing warning/error policy routing"],
+    [/page\.on\(["']response["']/u, "missing HTTP failure collection"],
+    [/page\.on\(["']requestfailed["']/u, "missing request failure collection"],
+    [/page\.on\(["']pageerror["']/u, "missing page error collection"]
+  ];
+  const requirements = path === "scripts/benchmark-mediapipe-worker.mjs" ? [...common, [/\bisExpectedReadPixelsWarning\s*\(/u, "missing exact ReadPixels routing"]] : path === "scripts/validate-real-mediapipe-videoframe-smoke.mjs" ? common : [];
+  return requirements.filter(([pattern]) => !pattern.test(source)).map(([, label]) => `${path}: ${label}`);
 }
 
 function collectNoise(page, noise, expectedPageUrl) { page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedPageUrl)) noise.push(`${type}: ${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); }); page.on("pageerror", (error) => noise.push(`pageerror: ${error.message}`)); }

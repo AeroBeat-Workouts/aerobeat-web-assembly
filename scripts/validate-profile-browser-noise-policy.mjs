@@ -33,6 +33,14 @@ for (const [type, text, sourcePath] of exactRuntimeDiagnostics.filter((entry) =>
 }
 assert.equal(isExpectedMediaPipeRuntimeDiagnostic("error", "application failure: Created TensorFlow Lite XNNPACK delegate for CPU.", path), false);
 
+const exactReadPixels = exactRuntimeDiagnostics.find((entry) => entry[2] === "unknown");
+assert.ok(exactReadPixels);
+const benchmarkPolicy = createProfileBrowserNoiseCollector({ allowUnknownReadPixels:false });
+benchmarkPolicy.observeConsole(...exactReadPixels);
+benchmarkPolicy.observeConsole("warning", normRect, path);
+for (const entry of exactRuntimeDiagnostics.filter((candidate) => candidate[2] !== "unknown")) benchmarkPolicy.observeConsole(...entry);
+assert.deepEqual(benchmarkPolicy.snapshot(), [`${exactReadPixels.join(":")}`]);
+
 const duplicate = createProfileBrowserNoiseCollector();
 duplicate.observeConsole("warning", normRect, path);
 duplicate.observeConsole("warning", normRect, path);
