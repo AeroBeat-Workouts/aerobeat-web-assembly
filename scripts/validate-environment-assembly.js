@@ -26,45 +26,45 @@ const controlsBrowserSource = readFileSync("scripts/validate-environment-control
 const packageJson = JSON.parse(readFileSync("package.json", "utf8"));
 const expectedPaths = environmentAssetFiles.map((entry) => entry.path).sort();
 const expectedGameplayPaths = [
-  "assets/gameplay/0.0.10/any-note/outlined-circle-v1.glb",
-  "assets/gameplay/0.0.10/athlete-marker/sphere-v1.glb",
-  "assets/gameplay/0.0.10/bomb/urchin-v1.glb",
-  "assets/gameplay/0.0.10/directional-arrow/rounded-outline-v1.glb",
-  "assets/gameplay/0.0.10/guard/outlined-shield-v1.glb",
-  "assets/gameplay/0.0.10/inventory.v1.json",
-  "assets/gameplay/0.0.10/manifests/any-note/outlined-circle-v1.v1.json",
-  "assets/gameplay/0.0.10/manifests/athlete-marker/sphere-v1.v1.json",
-  "assets/gameplay/0.0.10/manifests/bomb/urchin-v1.v1.json",
-  "assets/gameplay/0.0.10/manifests/directional-arrow/rounded-outline-v1.v1.json",
-  "assets/gameplay/0.0.10/manifests/guard/outlined-shield-v1.v1.json",
-  "assets/gameplay/0.0.10/manifests/track/blue-glass-v1.v1.json",
-  "assets/gameplay/0.0.10/manifests/wall/red-glass-v1.v1.json",
-  "assets/gameplay/0.0.10/proof.v1.json",
-  "assets/gameplay/0.0.10/sets/default-v1.json",
-  "assets/gameplay/0.0.10/track/blue-glass-v1.glb",
-  "assets/gameplay/0.0.10/wall/red-glass-v1.glb"
+  "assets/gameplay/0.0.11/any-note/outlined-circle-v1.glb",
+  "assets/gameplay/0.0.11/athlete-marker/sphere-v1.glb",
+  "assets/gameplay/0.0.11/bomb/urchin-v1.glb",
+  "assets/gameplay/0.0.11/directional-arrow/rounded-outline-v1.glb",
+  "assets/gameplay/0.0.11/guard/outlined-shield-v1.glb",
+  "assets/gameplay/0.0.11/inventory.v1.json",
+  "assets/gameplay/0.0.11/manifests/any-note/outlined-circle-v1.v1.json",
+  "assets/gameplay/0.0.11/manifests/athlete-marker/sphere-v1.v1.json",
+  "assets/gameplay/0.0.11/manifests/bomb/urchin-v1.v1.json",
+  "assets/gameplay/0.0.11/manifests/directional-arrow/rounded-outline-v1.v1.json",
+  "assets/gameplay/0.0.11/manifests/guard/outlined-shield-v1.v1.json",
+  "assets/gameplay/0.0.11/manifests/track/blue-glass-v1.v1.json",
+  "assets/gameplay/0.0.11/manifests/wall/red-glass-v1.v1.json",
+  "assets/gameplay/0.0.11/proof.v1.json",
+  "assets/gameplay/0.0.11/sets/default-v1.json",
+  "assets/gameplay/0.0.11/track/blue-glass-v1.glb",
+  "assets/gameplay/0.0.11/wall/red-glass-v1.glb"
 ];
 const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
 const rendererRoot = resolve(root, "../aerobeat-web-renderer");
-const rendererCommit = "df9d440a46cae9fc894dd185f6876210e1d7e81f";
+const rendererCommit = "b84376993a3873062ad25bcea616107d78dfb393";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
-assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "7cf111ae7f816119c6fc20a7ba372eab5b95c205", "linked renderer tree drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "9df7388de417f7a0a981354003eeb8a55a548474", "linked renderer tree drifted");
 validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");
-assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.10"]), "0209faccacbd7a3157d32d198ac753e861731d41", "linked gameplay raw tree drifted");
-assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.10"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.11"]), "af911e693622e5f21aa1f2c6f3321fb6541ed312", "linked gameplay raw tree drifted");
+assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.11"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
 for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly gameplay runtime member drifted: ${path}`);
 const rendererGameplaySource = readFileSync(resolve(rendererRoot, "src/gameplay-assets.js"), "utf8");
-assert.match(rendererGameplaySource, /gameplayAssetReleaseVersion="0\.0\.10"/u);
-assert.match(rendererGameplaySource, /gameplayAssetSourceCommit="30a131cebe563f150334c0c937959f43fbe98049"/u);
-assert.match(rendererGameplaySource, /gameplayAssetSourceTree="912a09a743dc9d565509f847ea406bb999c28881"/u);
-assert.match(rendererGameplaySource, /gameplayAssetAuditCommit="49f77ff7f41e83531e302f7cd06600277defed88"/u);
-assert.match(rendererGameplaySource, /gameplayAssetAuditTree="3c0e5038fc193d0042850bad90a092579ec1e3b8"/u);
-assert.match(rendererGameplaySource, /gameplayAssetRawTree="0209faccacbd7a3157d32d198ac753e861731d41"/u);
-assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="a8eb2ea1306a6bf760b66b835d4b0dd3359601b46b1df682fe3805ee7e7e2bc8"/u);
-assert.match(rendererGameplaySource, /gameplayAssetProofSha256="017a6c0efaf48f85130380d774502f25785783a7ad69d400f8c0f2275855c242"/u);
-const setManifest = JSON.parse(readFileSync("assets/gameplay/0.0.10/sets/default-v1.json", "utf8"));
+assert.match(rendererGameplaySource, /gameplayAssetReleaseVersion="0\.0\.11"/u);
+assert.match(rendererGameplaySource, /gameplayAssetSourceCommit="a157d930a07e971ae905a51fdf613b6e7af9e7d2"/u);
+assert.match(rendererGameplaySource, /gameplayAssetSourceTree="d027617131fe2e291e451c5414169c52a6a5b867"/u);
+assert.match(rendererGameplaySource, /gameplayAssetAuditCommit="a157d930a07e971ae905a51fdf613b6e7af9e7d2"/u);
+assert.match(rendererGameplaySource, /gameplayAssetAuditTree="d027617131fe2e291e451c5414169c52a6a5b867"/u);
+assert.match(rendererGameplaySource, /gameplayAssetRawTree="af911e693622e5f21aa1f2c6f3321fb6541ed312"/u);
+assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="e65571211e7a5a44224c378dbb654afd56263dc37f427a9b3f0af6453a6f1d23"/u);
+assert.match(rendererGameplaySource, /gameplayAssetProofSha256="0c194b1a8f290cfe387ee34154199cc0758ace8baf9b60fa4a3beb5bdddf4227"/u);
+const setManifest = JSON.parse(readFileSync("assets/gameplay/0.0.11/sets/default-v1.json", "utf8"));
 assert.deepEqual(setManifest.roles, {"any-note":"outlined-circle-v1","athlete-marker":"sphere-v1",bomb:"urchin-v1","directional-arrow":"rounded-outline-v1",guard:"outlined-shield-v1",track:"blue-glass-v1",wall:"red-glass-v1"});
-const wallManifest = JSON.parse(readFileSync("assets/gameplay/0.0.10/manifests/wall/red-glass-v1.v1.json", "utf8"));
+const wallManifest = JSON.parse(readFileSync("assets/gameplay/0.0.11/manifests/wall/red-glass-v1.v1.json", "utf8"));
 assert.deepEqual(wallManifest.geometry.dimensions, [0.94, 0.94, 1], "packaged moving wall must match the visible square-cell footprint");
 assert.deepEqual(wallManifest.materials.contract.unit_cell_footprint, [0.94, 0.94]);
 assert.deepEqual(wallManifest.materials.contract.cell_pitch, [1, 1]);
@@ -191,10 +191,10 @@ assert.doesNotMatch(rendererTelemetryBody, /environment|sha256|bytes|url/u);
 const packed = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { encoding:"utf8", maxBuffer:16 * 1024 * 1024 }));
 const packedPaths = packed[0].files.map((file) => file.path);
 assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/environments/")).sort(), expectedPaths, "npm package environment inventory drifted");
-assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/gameplay/")).sort(), expectedGameplayPaths, "npm package gameplay 0.0.10 inventory drifted");
+assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/gameplay/")).sort(), expectedGameplayPaths, "npm package gameplay 0.0.11 inventory drifted");
 const forbiddenPackageRoots = [".beads/", ".github/", ".plans/", ".tmp/", "demo/", "dist/", "docs/", "fixtures/", "release/", "test/"];
 assert.equal(packedPaths.some((path) => forbiddenPackageRoots.some((prefix) => path.startsWith(prefix)) || /(?:\.ply$|\.blend$|\.png$|\.ya?ml$)/iu.test(path)), false, "npm package contains forbidden evidence/source/release payload");
-assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.10/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
+assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.11/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
 const fingerprintEnvironment = listReleaseFingerprintInputs(root).map((path) => relative(root, path)).filter((path) => path.startsWith("assets/environments/")).sort();
 assert.deepEqual(fingerprintEnvironment, expectedPaths);
 assert.equal(expectedPaths.some((path) => /(?:\.ply$|(?:^|\/)(?:pos|neg)_[xyz]\.png$|\.ya?ml$)/iu.test(path)), false);
@@ -206,7 +206,7 @@ assert.doesNotMatch(builtText, /At centered position, sphere radius scale does n
 const builtEnvironment = outputs.filter((entry) => entry.type === "asset" && entry.fileName.startsWith("assets/environments/")).map((entry) => ({ path:entry.fileName, bytes:Buffer.from(entry.source) })).sort((left, right) => left.path.localeCompare(right.path));
 assert.deepEqual(builtEnvironment.map(({ path }) => path), expectedPaths);
 for (const built of builtEnvironment) { const expected = environmentAssetFiles.find(({ path }) => path === built.path); assert(expected); assert.equal(built.bytes.byteLength, expected.bytes); assert.equal(hash(built.bytes), expected.sha256); }
-console.log(`Environment catalog/config/UI privacy and exact 24-file environment + ${expectedGameplayPaths.length}-file gameplay 0.0.10 npm package inventories, fingerprint, and Vite inventory passed (${packedPaths.length} packed files).`);
+console.log(`Environment catalog/config/UI privacy and exact 24-file environment + ${expectedGameplayPaths.length}-file gameplay 0.0.11 npm package inventories, fingerprint, and Vite inventory passed (${packedPaths.length} packed files).`);
 
 /** @param {Uint8Array} bytes */
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }

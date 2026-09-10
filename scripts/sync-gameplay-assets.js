@@ -11,12 +11,12 @@ import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "df9d440a46cae9fc894dd185f6876210e1d7e81f";
-const rendererTree = "7cf111ae7f816119c6fc20a7ba372eab5b95c205";
-const release = "0.0.10";
-const releaseTree = "0209faccacbd7a3157d32d198ac753e861731d41";
-const inventoryHash = "a8eb2ea1306a6bf760b66b835d4b0dd3359601b46b1df682fe3805ee7e7e2bc8";
-const proofHash = "017a6c0efaf48f85130380d774502f25785783a7ad69d400f8c0f2275855c242";
+const rendererCommit = "b84376993a3873062ad25bcea616107d78dfb393";
+const rendererTree = "9df7388de417f7a0a981354003eeb8a55a548474";
+const release = "0.0.11";
+const releaseTree = "af911e693622e5f21aa1f2c6f3321fb6541ed312";
+const inventoryHash = "e65571211e7a5a44224c378dbb654afd56263dc37f427a9b3f0af6453a6f1d23";
+const proofHash = "0c194b1a8f290cfe387ee34154199cc0758ace8baf9b60fa4a3beb5bdddf4227";
 const arguments_ = process.argv.slice(2);
 const sourceIndex = arguments_.indexOf("--source");
 const source = resolve(sourceIndex >= 0 ? arguments_[sourceIndex + 1] ?? "" : canonicalRenderer);
@@ -53,6 +53,8 @@ assert.equal(inventory.immutable, true, "renderer gameplay immutable claim drift
 assert.equal(inventory.payload.length, 15, "renderer gameplay payload inventory drifted");
 assert.equal(proof.release, release, "renderer gameplay proof release drifted");
 assert.equal(proof.inventory_sha256, inventoryHash, "renderer gameplay proof inventory binding drifted");
+const markerEntry = inventory.payload.find((entry) => entry.path === "athlete-marker/sphere-v1.glb");
+assert.equal(markerEntry?.sha256, "f376934f218a25c11f2f31928c67684611aaf9c73aa1724548682ae280b5cbcc", "tint-dominant marker identity drifted");
 const expectedFiles = [...inventory.payload.map((entry) => entry.path), "inventory.v1.json", "proof.v1.json"].sort();
 assert.equal(expectedFiles.length, 17, "renderer gameplay exact file count drifted");
 assert.equal(new Set(expectedFiles).size, 17, "renderer gameplay inventory contains duplicates");
@@ -60,8 +62,8 @@ verifyTree(sourceRoot, "renderer source");
 
 if (mode === "sync") {
   const existingReleases = directories(payloadRoot);
-  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [release] : ["0.0.9"], "assembly mutable gameplay payload contains an unexpected release");
-  const staging = resolve(root, "assets/.gameplay-0.0.10-staging");
+  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [release] : ["0.0.10"], "assembly mutable gameplay payload contains an unexpected release");
+  const staging = resolve(root, "assets/.gameplay-0.0.11-staging");
   rmSync(staging, { recursive:true, force:true });
   try {
     mkdirSync(staging, { recursive:true });
@@ -76,7 +78,7 @@ if (mode === "sync") {
   }
 }
 verifyTree(targetRoot, "assembly payload");
-assert.deepEqual(directories(payloadRoot), [release], "assembly must package only gameplay 0.0.10");
+assert.deepEqual(directories(payloadRoot), [release], "assembly must package only gameplay 0.0.11");
 console.log(`Gameplay package ${mode} passed: renderer ${rendererCommit}/${rendererTree}, release tree ${releaseTree}, exact ${expectedFiles.length} files.`);
 
 function verifyTree(directory, label) {

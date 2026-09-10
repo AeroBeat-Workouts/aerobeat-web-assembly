@@ -50,19 +50,60 @@ const actualObstacle = Object.freeze({
   intervalStartTimestampMs:37039.99938964844, intervalEndTimestampMs:37064.99938964844,
   authoredBeat:Object.freeze({start:92.5999984741211,end:92.6624984741211,type:"obstacle",sourceGeometry,gameplayGeometry,gridMask:Object.freeze([1,5,9])})
 });
-assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500).length,1,"actual obstacle enters at exact 2500 ms approach boundary");
-assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-2500.001).length,0,"actual obstacle stays hidden before approach boundary");
+// q1j3 oracle D: obstacle entry boundary moves from center-2500 to intervalStart-normalSpawnLead (the visible spawn row). With the default no-index fallback lead of 2500 ms this equals intervalStart-2500.
+const dFallbackLead=2500;
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalStartTimestampMs-dFallbackLead).length,1,"D actual obstacle enters at exact intervalStart-normalSpawnLead visible spawn row");
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalStartTimestampMs-dFallbackLead-.001).length,0,"D actual obstacle stays hidden before the visible spawn row");
 for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.intervalEndTimestampMs)/2, actualObstacle.intervalEndTimestampMs]) {
   assert.deepEqual(projectSessionTargets([actualObstacle],testTruth,nowMs),[{
     id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1,5,9],sourceGeometry,gameplayGeometry,lane:null,
-    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.intervalEndTimestampMs,normalSpawnMs:actualObstacle.centerTimestampMs-2500
-  }],`actual obstacle remains exact and feedback-free at ${nowMs}`);
+    beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.intervalEndTimestampMs,normalSpawnMs:actualObstacle.intervalStartTimestampMs-dFallbackLead
+  }],`D actual obstacle remains exact and feedback-free at ${nowMs}`);
 }
 assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
 const obstacleEarlier=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
 projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs);
 const obstacleEarlierAfterForward=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
 assert.deepEqual(obstacleEarlierAfterForward,obstacleEarlier,"forward-then-backward projection reconstructs the exact earlier obstacle state");
+// q1j3 oracles A/B: wall rigid-column travel at exactly 0.006 WU/ms with head/tail ts2z parity, absent before / present at the visible spawn row.
+{
+  const S=20000,E=22000,LEAD_MS=50/0.006;
+  const longGeom=Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2});
+  const wall=Object.freeze({eventId:"travel-wall",centerTimestampMs:S,intervalStartTimestampMs:S,intervalEndTimestampMs:E,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:longGeom,gridMask:Object.freeze([1,2,5,6])})});
+  const wallIndex=createSessionTargetIndex([wall],{bounceLeadBeats:4,normalSpawnLeadMs:LEAD_MS,skyMode:"off",skyPreludeDurationMs:0});
+  const wallTarget=(nowMs)=>{const result=projectSessionTargets([wall],testTruth,nowMs,wallIndex);return result.find((entry)=>entry.id==="travel-wall")??null;};
+  // Find the exact admission boundary by bisection.
+  let lo=S-LEAD_MS-1,hi=S;for(let i=0;i<80;i+=1){const mid=(lo+hi)/2;if(wallTarget(mid))hi=mid;else lo=mid;}
+  const admissionRow=Math.ceil(hi);
+  assert.equal(wallTarget(admissionRow-1)?.id,undefined,`B wall is absent strictly before its admission row ${admissionRow}`);
+  const atRow=wallTarget(admissionRow);assert.equal(atRow?.id,"travel-wall",`B wall is present exactly at its admission row ${admissionRow} (regression guard for the pop-in)`);
+  assert.equal(typeof atRow.normalSpawnMs,"number",`B wall carries a finite song-derived normalSpawnMs at its admission row`);
+  const modelFor=(nowMs)=>buildGameplaySceneModel({presentation:"flow",nowMs,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[...(wallTarget(nowMs)?[wallTarget(nowMs)]:[])]});
+  assert.equal(modelFor(admissionRow-1).objects.some((entry)=>entry.targetId==="travel-wall"&&entry.kind==="obstacle"),false,"A wall scene object is culled strictly before its admission row");
+  assert.ok(modelFor(admissionRow).objects.some((entry)=>entry.targetId==="travel-wall"&&entry.kind==="obstacle"),"B wall scene object is present at its admission row");
+  // A: rigid column at exactly 0.006 WU/ms with head/tail ts2z parity across the full visible window.
+  const samples=[];for(let nowMs=admissionRow;nowMs<=E+200;nowMs+=16){const target=wallTarget(nowMs);if(!target)continue;const wallObj=modelFor(nowMs).objects.find((entry)=>entry.targetId==="travel-wall"&&entry.kind==="obstacle");if(!wallObj)break;const zHead=(nowMs-S)*0.006,zTail=(nowMs-E)*0.006;samples.push({nowMs,z:wallObj.position.z,depth:wallObj.scale.z,expectedCenter:(zHead+zTail)/2,expectedDepth:Math.abs(zTail-zHead)});}assert.ok(samples.length>=20,"A wall must sample across its visible travel window");samples.forEach((sample,index)=>{assert.ok(Math.abs(sample.z-sample.expectedCenter)<1e-9,`A wall center z equals head/tail ts2z midpoint at ${sample.nowMs}`);assert.ok(Math.abs(sample.depth-sample.expectedDepth)<1e-9,`A wall depth spans the exact authored interval at ${sample.nowMs}`);if(index>0){const previous=samples[index-1],velocity=(previous.z-sample.z)/(sample.nowMs-previous.nowMs);assert.ok(Math.abs(Math.abs(velocity)-0.006)<1e-12,`A wall travels as one rigid column at exactly 0.006 WU/ms between ${previous.nowMs} and ${sample.nowMs}`);}});
+}
+// q1j3 oracle C: bomb/note travel parity (same normalSpawnMs, same z at sampled times, same entry boundary).
+{
+  const C=20000,LEAD_MS=8334,lead=LEAD_MS;
+  const noteEvent=Object.freeze({eventId:"parity-note",centerTimestampMs:C,appearanceColor:"#FF0000",authoredBeat:Object.freeze({type:"note",hand:"left",placement:4,direction:2})});
+  const bombEvent=Object.freeze({eventId:"parity-bomb",centerTimestampMs:C,authoredBeat:Object.freeze({type:"bomb",placement:4})});
+  const bothEvents=Object.freeze([noteEvent,bombEvent]);
+  const index=createSessionTargetIndex(bothEvents,{bounceLeadBeats:4,normalSpawnLeadMs:lead,skyMode:"off",skyPreludeDurationMs:0});
+  const noteAtC=projectSessionTargets(bothEvents,testTruth,C,index).find((entry)=>entry.id==="parity-note");
+  const bombAtC=projectSessionTargets(bothEvents,testTruth,C,index).find((entry)=>entry.id==="parity-bomb");
+  assert.equal(noteAtC?.normalSpawnMs,C-lead,"C note carries the song-derived normalSpawnMs");
+  assert.equal(bombAtC?.normalSpawnMs,C-lead,"C bomb now carries the same song-derived normalSpawnMs");
+  const entryNote=projectSessionTargets(bothEvents,testTruth,C-lead,index).some((entry)=>entry.id==="parity-note");
+  const entryBomb=projectSessionTargets(bothEvents,testTruth,C-lead,index).some((entry)=>entry.id==="parity-bomb");
+  const preEntryNote=projectSessionTargets(bothEvents,testTruth,C-lead-1,index).some((entry)=>entry.id==="parity-note");
+  const preEntryBomb=projectSessionTargets(bothEvents,testTruth,C-lead-1,index).some((entry)=>entry.id==="parity-bomb");
+  assert.deepEqual([entryNote,entryBomb],[true,true],"C note and bomb both enter visibility at the same nowMs=C-LEAD");
+  assert.deepEqual([preEntryNote,preEntryBomb],[false,false],"C note and bomb are both absent strictly before C-LEAD");
+  const modelNow=(nowMs)=>{const targets=projectSessionTargets(bothEvents,testTruth,nowMs,index);return buildGameplaySceneModel({presentation:"flow",nowMs,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets});};
+  for(const offset of [lead,Math.round(lead/2),0]){const nowMs=C-offset;const model=modelNow(nowMs);const noteIcon=model.objects.find((entry)=>entry.targetId==="parity-note"&&entry.kind==="icon");const bombIcon=model.objects.find((entry)=>entry.targetId==="parity-bomb"&&entry.kind==="icon");const expectedZ=(nowMs-C)*0.006;if(noteIcon&&bombIcon){assert.ok(Math.abs(noteIcon.position.z-expectedZ)<1e-9,`C note z equals canonical (now-C)*0.006 at ${nowMs}`);assert.ok(Math.abs(bombIcon.position.z-expectedZ)<1e-9,`C bomb z equals canonical (now-C)*0.006 at ${nowMs}`);assert.equal(noteIcon.position.z,bombIcon.position.z,`C note and bomb share identical z at ${nowMs}`);}else if(offset===0){assert.ok(noteIcon&&bombIcon,"C both targets remain visible at center");}}
+}
 const longGameplayGeometry=Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2});
 const longObstacle=Object.freeze({eventId:"long-obstacle",centerTimestampMs:1000,intervalStartTimestampMs:1000,intervalEndTimestampMs:2000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:longGameplayGeometry,gridMask:Object.freeze([1,2,5,6])})});
 assert.deepEqual({ start:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalStartMs, end:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalEndMs },{ start:1000,end:2000 },"long obstacle publishes its exact renderer duration interval beyond generic feedback lifetime");
@@ -71,14 +112,23 @@ const falseObstacleHit=Object.freeze({...testTruth,judgements:Object.freeze([{ev
 assert.equal(projectSessionTargets([longObstacle],falseObstacleHit,1200)[0]?.judgement,undefined,"obstacle ignores all synthetic/real feedback");
 const noObstacleTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze(["no_obstacles"])})});
 assert.deepEqual(projectSessionTargets([longObstacle],noObstacleTruth,1200),[],"no_obstacles suppresses Flow visuals");
+// q1j3 oracle D (R4): a no_obstacles-suppressed wall stays absent through its full visible travel window (the fix must not resurrect or hide it incorrectly).
+{
+  const S=10000,E=12000,LEAD_MS=8334;
+  const longGeomS=Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2}),suppressedWall=Object.freeze({eventId:"suppressed-wall",centerTimestampMs:S,intervalStartTimestampMs:S,intervalEndTimestampMs:E,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:longGeomS,gridMask:Object.freeze([1,2,5,6])})});
+  for(const nowMs of [S-LEAD_MS,S-1,S,(S+E)/2,E]){assert.deepEqual(projectSessionTargets([suppressedWall],noObstacleTruth,nowMs),[],`D no_obstacles wall stays absent at ${nowMs} despite the new visible-spawn gate`);}
+  assert.equal(projectSessionTargets([suppressedWall],noObstacleTruth,S+1)[0]?.judgement,undefined,"D suppressed wall never acquires a synthetic outcome");
+}
 const contactTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze([])}),obstacleOutcomes:Object.freeze([{eventId:"long-obstacle",result:"contact",firstContactTimelinePositionMs:1100}])});
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1100)[0]?.contactPulseProgress,0,"contact pulse starts at exact first contact");
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1275)[0]?.contactPulseProgress,.5);
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1451)[0]?.contactPulseProgress,undefined,"contact pulse is bounded to 350 ms");
 const bombs=Object.freeze(Array.from({length:12},(_,placement)=>Object.freeze({eventId:`bomb-${placement}`,centerTimestampMs:1000+placement,authoredBeat:Object.freeze({type:"bomb",placement})})));
-const projectedBombs=projectSessionTargets(bombs,testTruth,-1500);
-assert.equal(projectedBombs.length,1,"bomb enters at its exact shared 2500 ms approach boundary");
-assert.deepEqual(projectedBombs[0],{id:"bomb-0",kind:"bomb",hand:"neutral",family:"bomb",cell:0,cells:[],lane:null,beatCenterMs:1000},"bomb projection is truthful, neutral and feedback-free");
+const projectedBombsAtBoundary=projectSessionTargets(bombs,testTruth,-1);
+assert.equal(projectedBombsAtBoundary.length,0,"bomb is absent strictly before its clamped-to-zero normalSpawnMs boundary");
+const projectedBombs=projectSessionTargets(bombs,testTruth,0);
+assert.ok(projectedBombs.some((entry)=>entry.id==="bomb-0"),"bomb enters at its clamped-to-zero normalSpawnMs visible spawn row (default fallback lead)");
+assert.deepEqual(projectedBombs.find((entry)=>entry.id==="bomb-0"),{id:"bomb-0",kind:"bomb",hand:"neutral",family:"bomb",cell:0,cells:[],lane:null,beatCenterMs:1000,normalSpawnMs:Math.max(0,1000-dFallbackLead)},"bomb now carries the song-derived normalSpawnMs and remains truthful, neutral and feedback-free");
 const allBombs=projectSessionTargets(bombs,testTruth,1000);
 assert.equal(allBombs.length,12,"all authored placements 0..11 project in the bounded visibility window");
 assert.deepEqual(allBombs.map(({id,cell})=>({id,cell})),Array.from({length:12},(_,cell)=>({id:`bomb-${cell}`,cell})),"bomb IDs, timeline ordering and exact authored placements are preserved");

@@ -101,7 +101,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const target = boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs);
       if (target) targets.push(target);
     } else if (type === "bomb") {
-      const target = flowBombTarget(event, beat, nowMs);
+      const target = flowBombTarget(event, beat, nowMs, normalSpawnLeadMs);
       if (target) targets.push(target);
     } else if (FLOW_OMITTED_TYPES.has(type)) {
       // Explicitly omitted: current gameplay and renderer have no truthful arc/burst presentation contract.
@@ -175,13 +175,13 @@ function boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs) {
 /** @param {unknown} left @param {unknown} right */
 function sameCells(left, right) { return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((cell, index) => Number.isInteger(cell) && cell === right[index]); }
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs */
-function flowBombTarget(event, beat, nowMs) {
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs */
+function flowBombTarget(event, beat, nowMs, normalSpawnLeadMs) {
   const centerMs = optionalFiniteNumber(recordValue(event, "centerTimestampMs"));
   const placement = recordValue(beat, "placement");
   if (centerMs === null || !Number.isInteger(placement) || Number(placement) < 0 || Number(placement) > 11) return null;
-  if (nowMs < centerMs - FLOW_APPROACH_LEAD_MS || nowMs > centerMs + 500) return null;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs };
+  const normalSpawnMs=Math.max(0,centerMs-normalSpawnLeadMs);if (nowMs < normalSpawnMs || nowMs > centerMs + 500) return null;
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs,normalSpawnMs };
 }
 
 /** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|undefined} missCommitMs @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity */
