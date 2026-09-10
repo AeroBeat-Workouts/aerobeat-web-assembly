@@ -36,9 +36,14 @@ Diagnosis Bead first (content projection: do wall/bomb targets carry full spawn-
 
 Diagnosis Bead first (in-session mode-switch path in session coordinator + assembly action routing). The switch must be the same FIFO controlled fresh restart as cold Play: transport stops, song restarts, calibration starts for the Test→Play case. Add the in-session Test→Play and Play→Test axes to the terminal/action-order oracle.
 
-## 7. Landmark P0 — `uo1y` (pending investigation)
+## 7. Landmark P0 — `uo1y` (root cause VERIFIED)
 
-Two read-only subagents are running: PlayCanvas GLTF load-path/material-naming archaeology (+ asset material-name collision audit) and a deterministic headless pixel harness (fixed wrist/nose cursors, per-mesh-instance material readback, canvas pixel samples). **QA policy change either way**: successor QA must assert per-marker material readback and pixel color (tint patch equals expected wrist/nose color in a real rendered frame) — diagnostics-only oracles are no longer acceptable for this surface.
+Investigation verdict (both read-only subagents; pixel-harness evidence + PlayCanvas 2.21.4 engine forensics):
+
+- **Material application is provably correct** — exact authored material names, correct role mapping, exact tints (nose `#F4C20D`, wrists song `#2693FF`/`#39C96B`), opacity 1, no blending. Name-collision and primitive-mismatch theories falsified with engine file:line evidence.
+- **Root cause: authored asset composition.** The marker's exact geometric center sits on structural `mat/white` triangles; the front face is ~52% white / 45% tint / 3% charcoal, and the white patch is forced to unlit pale `(0.88,0.92,0.98)`. Against the bright alpine sky the white center is effectively invisible → the "transparent circular cutout" Derrick sees, and the wrists never read as song-colored. The 0.0.49 `1.0×` tint fix (B1) never touched the white-dominant geometry, so the symptom persisted since 0.0.38; prior oracles (patch presence, aggregate contrast) could never catch it.
+
+**Fix (recommended): B2** — new immutable asset release `0.0.11` with the role color as the dominant face (tint-dominant sphere, thin white/charcoal keyline retained), pinned into `0.0.50`. Verification: deterministic pixel harness asserts marker-center pixel equals the wrist/nose role color and tint ≥ 80% of projected front area, plus a live-session palette-equality check (wrists = exact song left/right, never theme fallback; `assembly/src/index.js:968-974` boundary). Renderer-only fallback if asset authoring stalls: extend the marker tint to the `marker_structure_white` patch under the same verification.
 
 ## Execution shape
 
