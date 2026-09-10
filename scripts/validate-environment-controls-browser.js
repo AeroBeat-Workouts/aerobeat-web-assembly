@@ -151,8 +151,8 @@ try {
     if (!(input instanceof HTMLInputElement)) throw new Error("Sky prelude height must be a native input");
     return { type:input.type, min:input.min, max:input.max, step:input.step, value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow };
   });
-  assert.deepEqual(skyDefault, { type:"number", min:"0", max:"50", step:"0.1", value:"24", valueAsNumber:24, valid:true, rangeOverflow:false }, `${embedding} sky-height native defaults drifted`);
-  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 24, `${embedding} private default must remain 24`);
+  assert.deepEqual(skyDefault, { type:"number", min:"0", max:"50", step:"0.1", value:"50", valueAsNumber:50, valid:true, rangeOverflow:false }, `${embedding} sky-height native defaults drifted`);
+  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 50, `${embedding} private default must remain 50`);
   await skyHeight.fill("50");
   await skyHeight.press("Tab");
   const skyAtMaximum = await skyHeight.evaluate((input) => ({ value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow }));
@@ -163,9 +163,9 @@ try {
   const skyAboveMaximum = await skyHeight.evaluate((input) => ({ value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow }));
   assert.deepEqual(skyAboveMaximum, { value:"51", valueAsNumber:51, valid:false, rangeOverflow:true }, `${embedding} native sky-height value above 50 must be invalid`);
   assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 50, `${embedding} native sky-height value above 50 must not commit`);
-  await skyHeight.fill("24");
+  await skyHeight.fill("50");
   await skyHeight.press("Tab");
-  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 24, `${embedding} sky-height default restoration must commit`);
+  assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 50, `${embedding} sky-height default restoration must commit`);
 
   const behavior = await game.evaluate(async (element) => {
     const select=element.shadowRoot.querySelector("[data-action='environment-asset-select']"), ids=[...select.options].map((option)=>option.value), defaultId="alpine-river-valley-photosphere", selectedId=ids[1];
