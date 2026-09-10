@@ -117,14 +117,14 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-content` | `4f06b266a03b12b1e1ca44c99d05feaccc02da0b` | `0204062dc3962787e43cb04b03082a068d98fa39` |
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
 | `@aerobeat/web-contracts` | `d6fb3b979eb8ba8a5ac8c51ae759b533955ba793` | `51c7b07462b9d3107f1142d4de1f1b792673aeb0` |
-| `@aerobeat/web-renderer` | `5d657de690eab676cde71c912868f284a6c72919` | `72623238ddef658a30e4840376c0f1ee5aafbf50` |
+| `@aerobeat/web-renderer` | `df9d440a46cae9fc894dd185f6876210e1d7e81f` | `7cf111ae7f816119c6fc20a7ba372eab5b95c205` |
 | `@aerobeat/web-gameplay` | `7fc290fd66fc2deb1aca62c5f2448d316e30a9e7` | `b3e2a3875fcb2fa6302a73f27a47dcde1ceb2282` |
 | `@aerobeat/web-input` | `f724672d5a431c455d7061e4f7f07effe25aaa2d` | `29e7a3b6647216275b8eae50fec7585041878041` |
-| `@aerobeat/web-ui` | `622bb0cb8eef6e873d27f81ddfc4de870fe74486` | `7cb35267a0532ea146ae051d826d1a1f60ac619b` |
+| `@aerobeat/web-ui` | `4758bb1f7a7c1b66b1490a9be3419b5d858652e3` | `57785e71007dce9b9ce98cb298fbef3c233c5f67` |
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow Grid/Flow Colliders/Boxing Lanes/Boxing Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 
-Raw `0.0.36` remains immutable failed physical evidence, and raw `0.0.37` through `0.0.41` remain immutable rejected physical evidence. Raw `0.0.41` passed its independent release audit and remains available only as comparison evidence; it is not physically approved. The current post-`0.0.48` source integration pins the combined Flow Grid/Flow Colliders successor plus the complete private collider/guidance/timing stack above and derives fingerprint `ae5b614ecad2b14fe2d8bec55b1d938b52fb8dc4832e3a18167ef24edc4518b8` across 214 inputs; this does not alter or supersede any immutable raw release.
+Raw `0.0.36` remains immutable failed physical evidence, and raw `0.0.37` through `0.0.41` remain immutable rejected physical evidence. Raw `0.0.41` passed its independent release audit and remains available only as comparison evidence; it is not physically approved. The current source-only `0.0.49` authority pins the combined Flow Grid/Flow Colliders successor plus the complete private collider/guidance/timing stack above and derives fingerprint `510faed6a6a1c221c7c53d49191a94e082ebc2722ca07d4bd3e54ecb5d8d3a65` across 214 inputs; raw `0.0.49` remains absent, so this source stage does not alter or supersede any immutable raw release.
 
 ## Validation
 
