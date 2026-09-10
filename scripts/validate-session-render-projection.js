@@ -119,6 +119,16 @@ assert.deepEqual(projectSessionTargets([longObstacle],noObstacleTruth,1200),[],"
   for(const nowMs of [S-LEAD_MS,S-1,S,(S+E)/2,E]){assert.deepEqual(projectSessionTargets([suppressedWall],noObstacleTruth,nowMs),[],`D no_obstacles wall stays absent at ${nowMs} despite the new visible-spawn gate`);}
   assert.equal(projectSessionTargets([suppressedWall],noObstacleTruth,S+1)[0]?.judgement,undefined,"D suppressed wall never acquires a synthetic outcome");
 }
+// id8w migration: a stored/stale Game Setup v3 value carrying the retired obstacle_visual_only modifier must load as Disabled — the conservative migration never starts scoring hazards the player was told do not count, so presentation suppression honors it exactly like no_obstacles.
+{
+  const migratedTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze(["no_obstacles"]),provenance:Object.freeze({requestedModifierIds:Object.freeze(["obstacle_visual_only"]),effectiveModifierIds:Object.freeze(["no_obstacles"])})})});
+  const enabledOnlyTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze([])})});
+  assert.deepEqual(projectSessionTargets([longObstacle],migratedTruth,1200),[],"id8w stored obstacle_visual_only migrates to no_obstacles (Disabled) and suppresses Flow obstacles");
+  assert.equal(projectSessionTargets([longObstacle],enabledOnlyTruth,1200).length,1,"id8w Enabled (no modifier) keeps Flow obstacles visible");
+  // The retired id itself, if ever present in a hostile or pre-migration runtime snapshot, is also suppressed rather than rendered.
+  const staleRetiredTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze(["obstacle_visual_only"])})});
+  assert.deepEqual(projectSessionTargets([longObstacle],staleRetiredTruth,1200),[],"id8w a live retired obstacle_visual_only modifier still suppresses (never re-scores) Flow obstacles");
+}
 const contactTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze([])}),obstacleOutcomes:Object.freeze([{eventId:"long-obstacle",result:"contact",firstContactTimelinePositionMs:1100}])});
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1100)[0]?.contactPulseProgress,0,"contact pulse starts at exact first contact");
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1275)[0]?.contactPulseProgress,.5);

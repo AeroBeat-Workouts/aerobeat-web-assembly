@@ -146,6 +146,7 @@ export class AeroGame extends HTMLElement {
     this.sessionGeneration = 0;
     this.sessionActionGeneration = 0;
     this.sessionActionIntentOrdinal = 0;
+    this.visualTestTransportArmedOrdinal = -1;
     this.pendingSessionActionOrdinal = 0;
     this.pendingSessionAction = "";
     this.activeSessionAction = "";
@@ -306,57 +307,64 @@ export class AeroGame extends HTMLElement {
     return this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
       const participant = this.leaseParticipant; const sessionGeneration = ++this.sessionGeneration;
       const previousTransportTail = this.transportIntentTail; const previousTerminalTail = this.terminalServiceTail; const previousMenuPauseTail = this.menuPauseTail; const previousAudioSyncTail = this.audioSyncTail;
-      this.stopPreview(); this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuDisposition = "none"; this.menuPauseArmed = false; this.sessionStartRequested = false; this.activeSessionAction = "";
-      let mediaLeaseGeneration = null; let mediaLeaseAcquired = false; let retainedCameraBefore = null; let cameraAcquisitionAttempted = false; let videoPlayAttempted = false; let cvStartAttempted = false; let gameplayStartAttempted = false; let sessionCommitted = false; let operationError = null;
+      // Atomic mode swap: the outgoing mode's transport truth (sessionStartRequested/activeSessionAction) is NOT cleared here — it flips only at the commit point below, so the old transport stays visible until the new session commits.
+      this.stopPreview(); this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuDisposition = "none"; this.menuPauseArmed = false;
+      let mediaLeaseGeneration = null; let mediaLeaseAcquired = false; let retainedCameraBefore = null; let cameraAcquisitionAttempted = false; let videoPlayAttempted = false; let cvStartAttempted = false; let gameplayStartAttempted = false; let sessionCommitted = false; let operationError = null; let ownershipBailed = false;
+      // Ownership bails: a SUPERSEDED action (a newer ordinal was accepted) is a clean no-op. But the NEWEST accepted action must never silently abandon an in-flight restart — UNLESS it was deliberately invalidated by a user intent (profile/gesture selection calls invalidatePendingSessionStart, which clears pendingSessionActionOrdinal and menuStarting); that path already restored coherent idle truth, so we honor it as a clean no-op too. A genuine ownership race on the newest still-active action sets ownershipBailed=true so its finally rolls back media and restores actionable idle.
+      const deliberatelyInvalidated = () => this.pendingSessionActionOrdinal !== actionIntentOrdinal && !this.menuStarting;
+      const checkOwnership = () => { if (this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return undefined; if (actionIntentOrdinal === this.sessionActionIntentOrdinal && !deliberatelyInvalidated()) { ownershipBailed = true; return undefined; } return this.getSnapshot(); };
       try {
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (checkOwnership()) return this.getSnapshot();
         if (options.transportAlreadySerialized !== true) await previousTransportTail;
         await previousAudioSyncTail;
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         this.audioSyncPending = false;
         await previousMenuPauseTail;
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         await previousTerminalTail;
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         if (options.requireDownloaded === true && !this.selectedDownloadedContentPlayable()) throw new Error("Download Music first.");
         const contentPlayable = playableContent(graph.content.getSnapshot());
         this.stopFrameLoop();
         await Promise.allSettled([graph.audio.stop(), graph.cv.stop()]);
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         graph.video.pause(this.videoElement());
         if (typeof graph.audio.seek === "function") await graph.audio.seek(0);
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         if (contentPlayable) this.configureGameplayFromContent(false, purpose,true);
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         const resources = purpose === "visual_test" ? Object.freeze(["audio"]) : Object.freeze(["camera", "audio"]);
         const leaseBefore = aeroGameMediaLeaseCoordinator.snapshot();
         const leaseAfter = await aeroGameMediaLeaseCoordinator.requestActionResources(participant, resources);
         mediaLeaseGeneration = leaseAfter.generation; mediaLeaseAcquired = leaseAfter.generation !== leaseBefore.generation;
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
         if (purpose === "play") {
           retainedCameraBefore = graph.video.getRetainedCameraStream();
           if (!retainedCameraBefore) {
             cameraAcquisitionAttempted = true;
             const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
-            if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+            if (ownershipBailed || checkOwnership()) return this.getSnapshot();
             if (result.status !== "granted") throw new Error(result.message);
           }
           this.attachRetainedCamera();
           videoPlayAttempted = true; await graph.video.play(this.videoElement());
-          if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+          if (ownershipBailed || checkOwnership()) return this.getSnapshot();
           cvStartAttempted = true; await this.startCv();
         } else {
           graph.video.pause(this.videoElement());
           this.activeCvSource = null;
         }
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
+        // Commit-point lifecycle guard: an accepted action must never commit onto a destroyed/disconnected element — that would leave active/pending truth with no live transport (a committed split state). The finally rolls the uncommitted media back and clears pending truth for any other owner.
+        if (this.lifecycle !== "connected" || this.graph !== graph) { ownershipBailed = true; return this.getSnapshot(); }
         graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
         this.sessionStartRequested = true; this.activeSessionAction = action; gameplayStartAttempted = true;
+        if (action === "test") this.visualTestTransportArmedOrdinal = this.sessionActionIntentOrdinal;
         graph.gameplay.requestStart(performance.now(), purpose === "visual_test" ? VISUAL_TEST_START_REQUEST : PLAY_START_REQUEST);
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         await this.commitInitialAudioForAction(owner, sessionGeneration, actionGeneration);
-        if (!this.isActionIntentOwner(owner, sessionGeneration, actionGeneration)) return this.getSnapshot();
+        if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         sessionCommitted = true;
         this.startFrameLoop(); this.syncContentPlayback();
         this.publish("session_changed");
@@ -559,7 +567,7 @@ export class AeroGame extends HTMLElement {
   async stop() {
     this.assertConnected();
     const generation = this.connectedGeneration; const graph = this.graph; const participant = this.leaseParticipant; const previousTransportTail = this.transportIntentTail;
-    this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = ""; this.pendingSessionActionOrdinal = 0; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.audioSyncPending = false;
+    this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionAction = ""; this.pendingSessionActionOrdinal = 0; this.visualTestTransportArmedOrdinal = -1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.audioSyncPending = false;
     this.stopFrameLoop();
     await previousTransportTail;
     if (!this.isCurrent(generation, graph)) return this.getSnapshot();
@@ -1561,7 +1569,7 @@ export class AeroGame extends HTMLElement {
 
   /** @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>|null} graph */
   isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) {
-    return Boolean(graph && this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) && this.sessionStartRequested && this.activeSessionAction === "test" && graph.gameplay.getSnapshot().session.purpose === "visual_test");
+    return Boolean(graph && this.isSessionCurrent(sessionGeneration, connectionGeneration, graph) && this.sessionStartRequested && this.activeSessionAction === "test" && graph.gameplay.getSnapshot().session.purpose === "visual_test" && (this.visualTestTransportArmedOrdinal === -1 || this.visualTestTransportArmedOrdinal >= this.sessionActionIntentOrdinal));
   }
 
   renderPresenters() {
@@ -1575,7 +1583,7 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-tracking-pause", { active: false });
     setPresenter(this, "aero-resume-countdown", { active: false });
     const selectorSnapshot = profilePresenterSnapshot(this.graph.profiles.getSnapshot(), content.selectedVariant, session.state);
-    const gameplaySelector=this.shadowRoot?.querySelector("aero-prototype-selector[scope='gameplay']");if(gameplaySelector instanceof HTMLElement){const modifiers=content.selectedVariant?.modifierIds??[];gameplaySelector.setAttribute("obstacle-mode",modifiers.includes("no_obstacles")?"no_obstacles":modifiers.includes("obstacle_visual_only")?"obstacle_visual_only":"default");}
+    const gameplaySelector=this.shadowRoot?.querySelector("aero-prototype-selector[scope='gameplay']");if(gameplaySelector instanceof HTMLElement){const modifiers=content.selectedVariant?.modifierIds??[];gameplaySelector.setAttribute("obstacle-mode",modifiers.includes("no_obstacles")||modifiers.includes("obstacle_visual_only")?"no_obstacles":"default");}
     setPresenter(this, "aero-prototype-selector[scope='gameplay']", selectorSnapshot);
     setPresenter(this, "aero-prototype-selector[scope='visuals']", selectorSnapshot);
     setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
@@ -1920,7 +1928,8 @@ export class AeroGame extends HTMLElement {
       if (options.freshSession !== true && disposition === "active-paused") void pauseTail.then(() => {
         if (!this.isCurrent(this.connectedGeneration, graph) || this.menuOpen || this.menuTransitionGeneration !== transitionGeneration) return;
         this.menuPauseArmed = true;
-        if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
+        if (visualTest && (this.pendingSessionAction !== "" || this.menuStarting)) { /* auto-resume guard: a newly queued/starting action owns the next controlled fresh restart, so do not resume the outgoing Test transport here */ }
+        else if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
         else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
       });
     }
@@ -2037,7 +2046,7 @@ export class AeroGame extends HTMLElement {
       catch (error) { this.handleError(error); }
     }
     else if (detail.type === "flow-obstacle-mode-select") {
-      const mode=dataValue(detail.payload,"mode");const selected=this.graph.content.getSnapshot().selectedVariant;if(flowGameplayRulesetIds.includes(selected?.rulesetId)&&["default","no_obstacles","obstacle_visual_only"].includes(String(mode)))void this.selectVariant(selected.provenance?.baseVariantId??selected.variantId,mode==="default"?[]:[String(mode)]).catch((error)=>this.handleError(error));
+      const mode=dataValue(detail.payload,"mode");const selected=this.graph.content.getSnapshot().selectedVariant;if(flowGameplayRulesetIds.includes(selected?.rulesetId)&&["default","no_obstacles"].includes(String(mode)))void this.selectVariant(selected.provenance?.baseVariantId??selected.variantId,mode==="default"?[]:[String(mode)]).catch((error)=>this.handleError(error));else if(String(mode)==="obstacle_visual_only")this.handleError(Object.freeze({code:"obstacle_mode_retired",message:"Visual Only obstacles are no longer available."}));
     }
     else if (detail.type === "boxing-conversion-select") {
       try {
@@ -2118,7 +2127,7 @@ export class AeroGame extends HTMLElement {
   teardown(finalState) {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
@@ -2178,7 +2187,7 @@ function errorMessage(error) { const message = ownDataValue(error, "message"); r
 function ownDataValue(record, key) { if (!record || typeof record !== "object") return undefined; const descriptor = Object.getOwnPropertyDescriptor(record, key); return descriptor && "value" in descriptor ? descriptor.value : undefined; }
 function inputTelemetry(snapshot) { const calibration=snapshot?.calibration??{};const tracking=snapshot?.tracking??{};return Object.freeze({schema:snapshot?.schema,version:snapshot?.version,readiness:calibration.readiness??null,gameplayPaused:tracking.gameplayPaused===true,freshCalibrationRequired:tracking.freshCalibrationRequired===true,countdownFrozen:snapshot?.countdownFrozen===true}); }
 function contentTelemetry(snapshot) { const result = {}; for (const key of Object.keys(snapshot)) if (key !== "resolvedEvents") result[key] = snapshot[key]; result.resolvedEventCount = Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0; return Object.freeze(result); }
-function gameplayTelemetry(snapshot) { const selectedVariant=publicGameplayVariant(snapshot.selectedVariant),modifiers=Array.isArray(selectedVariant?.modifierIds)?selectedVariant.modifierIds:[];const accessibilityMode=modifiers.includes("no_obstacles")?"no_obstacles":modifiers.includes("obstacle_visual_only")?"obstacle_visual_only":"default";const outcomes=Array.isArray(snapshot.obstacleOutcomes)?snapshot.obstacleOutcomes:[];const count=(result)=>Math.min(maximumObstaclesPerChart,outcomes.filter((entry)=>ownDataValue(entry,"result")===result).length);const obstacleCounts=Object.freeze({contact:count("contact"),avoided:count("avoided"),unevaluatedTracking:count("unevaluated_tracking")}),flowCollidersSummary=selectedVariant?.rulesetId===gameplayRulesetIds.flow?publicFlowCollidersSummary(snapshot):null;return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: telemetryFields(snapshot.session,["schema","version","sessionId","state","purpose","timestampMs","timelinePositionMs","packageId","chartId","rulesetId","recipeId","ranked","pauseReason"]), countdown: telemetryFields(snapshot.countdown,["schema","version","state","reason","value","timestampMs","gameplayTimeFrozen"]), safety: telemetryFields(snapshot.safety,["ready","freshCalibrationRequired"]), lease: snapshot.lease, selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventCount: Math.min(flowCollidersPublicCountMaximum,Array.isArray(snapshot.activeEventIds)?snapshot.activeEventIds.length:0), judgedEventCount: Math.min(flowCollidersPublicCountMaximum,Array.isArray(snapshot.judgedEventIds)?snapshot.judgedEventIds.length:0), latestJudgement:publicSemanticJudgement(Array.isArray(snapshot.judgements)?snapshot.judgements.at(-1):null), latestShadowJudgement:publicSemanticJudgement(Array.isArray(snapshot.shadowJudgements)?snapshot.shadowJudgements.at(-1):null), scorePartitions: Array.isArray(snapshot.scorePartitions)?Object.freeze(snapshot.scorePartitions.map(publicScorePartition)):Object.freeze([]), obstacleCounts, ...(flowCollidersSummary?{flowCollidersSummary}:{}), accessibilityMode, error: snapshot.error }); }
+function gameplayTelemetry(snapshot) { const selectedVariant=publicGameplayVariant(snapshot.selectedVariant),modifiers=Array.isArray(selectedVariant?.modifierIds)?selectedVariant.modifierIds:[];const accessibilityMode=modifiers.includes("no_obstacles")||modifiers.includes("obstacle_visual_only")?"no_obstacles":"default";const outcomes=Array.isArray(snapshot.obstacleOutcomes)?snapshot.obstacleOutcomes:[];const count=(result)=>Math.min(maximumObstaclesPerChart,outcomes.filter((entry)=>ownDataValue(entry,"result")===result).length);const obstacleCounts=Object.freeze({contact:count("contact"),avoided:count("avoided"),unevaluatedTracking:count("unevaluated_tracking")}),flowCollidersSummary=selectedVariant?.rulesetId===gameplayRulesetIds.flow?publicFlowCollidersSummary(snapshot):null;return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: telemetryFields(snapshot.session,["schema","version","sessionId","state","purpose","timestampMs","timelinePositionMs","packageId","chartId","rulesetId","recipeId","ranked","pauseReason"]), countdown: telemetryFields(snapshot.countdown,["schema","version","state","reason","value","timestampMs","gameplayTimeFrozen"]), safety: telemetryFields(snapshot.safety,["ready","freshCalibrationRequired"]), lease: snapshot.lease, selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventCount: Math.min(flowCollidersPublicCountMaximum,Array.isArray(snapshot.activeEventIds)?snapshot.activeEventIds.length:0), judgedEventCount: Math.min(flowCollidersPublicCountMaximum,Array.isArray(snapshot.judgedEventIds)?snapshot.judgedEventIds.length:0), latestJudgement:publicSemanticJudgement(Array.isArray(snapshot.judgements)?snapshot.judgements.at(-1):null), latestShadowJudgement:publicSemanticJudgement(Array.isArray(snapshot.shadowJudgements)?snapshot.shadowJudgements.at(-1):null), scorePartitions: Array.isArray(snapshot.scorePartitions)?Object.freeze(snapshot.scorePartitions.map(publicScorePartition)):Object.freeze([]), obstacleCounts, ...(flowCollidersSummary?{flowCollidersSummary}:{}), accessibilityMode, error: snapshot.error }); }
 function telemetryFields(record,keys){const result={};for(const key of keys){const value=ownDataValue(record,key);if(value!==undefined)result[key]=value;}return Object.freeze(result);}
 function publicContentHash(value){return telemetryFields(value,["schema","version","algorithm","value"]);}
 function publicGameplayVariant(value){if(!value||typeof value!=="object")return null;const base=telemetryFields(value,["variantId","chartId","mode","rulesetId","recipeId","modifierIds","ranked","localOnly"]);return Object.freeze({...base,mapHash:publicContentHash(ownDataValue(value,"mapHash")),scoreIdentityHash:publicContentHash(ownDataValue(value,"scoreIdentityHash")),provenance:telemetryFields(ownDataValue(value,"provenance"),["schema","version","kind","baseVariantId","requestedModifierIds","effectiveModifierIds"])});}

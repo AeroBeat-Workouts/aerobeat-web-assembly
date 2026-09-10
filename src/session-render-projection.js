@@ -94,7 +94,8 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
     const feedbackIndex = Number.isInteger(entry.feedbackIndex) && entry.feedbackIndex >= 0 ? entry.feedbackIndex : fallbackFeedbackIndex;
     const beat = authoredBeatFor(event); const type = String(recordValue(beat, "type") ?? "note");
     if (type === "obstacle") {
-      if (modifiers.includes("no_obstacles")) continue;
+      // Obstacles are Enabled/Disabled only: the disabled modifier suppresses presentation. The retired visual-only modifier also disables scoring hazards, so it is honored identically for stored/stale values.
+      if (modifiers.includes("no_obstacles") || modifiers.includes("obstacle_visual_only")) continue;
       const target = flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
       if (target) targets.push(target);
     } else if (type === "squat" || type === "weave_left" || type === "weave_right") {
