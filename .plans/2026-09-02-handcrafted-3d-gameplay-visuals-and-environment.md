@@ -1990,3 +1990,26 @@ Remaining uncertainty: future upstream warning drift, deliberately handled fail-
 
 - Added `scripts/profile-browser-noise-policy.mjs` and its adversarial validator, wired the target profiler through the collector, and added the oracle to `npm test`. The exact singleton is admitted only for console type `warning`, pinned Tasks Vision 1.0.1 WASM pathname, exact calculator line/message, and a six-digit runtime timestamp/thread prefix; a second identical occurrence becomes fatal. Type/path/version/line/text/suffix/application lookalikes and unrelated console/HTTP/request/page errors remain fatal.
 - Parent validation PASS: focused policy oracle; full `npm test`; production build; append-only target and release-pack policy; exact 132-file dry package; `git diff --check`; and isolated full `npm run test:browser` through live marker visibility. Immutable raw `0.0.24–0.0.48` remained unchanged. The updated source fingerprint is `6f4067fa65f1cfc5ffef681b2fa36403b5116102d49ac40a82f319483ae6a1c6` over 214 inputs. No authoritative hardware rerun, evidence write, release build, serving change, or physical PASS occurred. `x8u9` remains open for independent QA.
+
+### Independent QA failure — REPAIR REQUIRED (`x8u9`, `iiaj`)
+
+- **Exact observed failure:** QA found that `acceptedRuntimeFragments.some(text.includes)` executes before/outside the exact NORM_RECT admission and is scoped by neither console type nor source path. Two minimal counterexamples incorrectly snapshot as clean: the exact NORM_RECT message suffixed with ` Created TensorFlow Lite`, and an application error `application failure: Created TensorFlow Lite` from `/src/application.js`. The checked-in oracle did not compose the new diagnostic with the legacy fragment admission.
+- **Expected / execution path / root cause:** every accepted browser diagnostic must match a complete pinned tuple; then any suffix, cross-message composition, wrong type, or app path must remain fatal. The collector instead mixed one exact tuple with four legacy substring exceptions, so a rejected input could route through a broader later exception. This is a classifier-order and legacy-admission exactness defect, not a MediaPipe camera/runtime defect. The original coder tested each new NORM_RECT mutation in isolation and assumed the pre-existing fragment allowlist could not overlap it.
+- **Verification before repair:** add cross-classifier composition cases plus app-path/type/path/version/suffix variants for every legacy diagnostic. Replace substring admission with anchored, type/path-aware pinned tuples; classify only after the complete tuple is known. Preserve at-most-one NORM_RECT and fatal transport/page noise. Rerun the dedicated oracle and prescribed package gates, then independent QA again before hardware profiling.
+
+```text
+Problem: broad legacy profile-noise fragments bypass exact NORM_RECT rejection and mask app errors.
+Observed symptom: NORM_RECT+TFLite suffix and /src application TFLite error both yield empty noise.
+Root cause: unscoped substring exceptions run before/outside complete tuple admission.
+Evidence: independent QA minimal counterexamples at pushed a9eead2; ordinary isolated mutations still passed.
+Failed approaches: first oracle tested classifier families independently and missed cross-family overlap.
+Corrective action: exact anchored type/path/message tuples for every admitted runtime diagnostic.
+Verification test: cross-family suffixes and all wrong type/path/version/message forms reject; exact pinned tuples only pass.
+Related files/components: profile-browser-noise-policy.mjs; validate-profile-browser-noise-policy.mjs.
+Remaining uncertainty: exact GL-driver source pathname variants, to be admitted only from directly evidenced paths or remain fail-closed.
+```
+
+### Follow-up repair result — READY FOR RE-QA
+
+- Replaced every legacy substring exception with an anchored tuple: expected console type, exact pinned source pathname (or exact `unknown` for the one established Chromium GL-driver diagnostic), and complete known message grammar. NORM_RECT is evaluated as its own exact tuple; no later classifier can accept a suffixed or composed variant. The initially proposed variable GL-driver payload was itself rejected by the strengthened suffix oracle before full validation and tightened to the exact established `GPU stall due to ReadPixels` message.
+- Expanded the oracle to cover five exact accepted tuples, duplicate NORM_RECT, cross-family NORM_RECT+TFLite composition, application-origin TFLite errors, and per-diagnostic wrong type/path/version/text/suffix variants, plus immutable snapshots and transport/page failures. Targeted oracle, full `npm test`, production build, release-target/release-pack policy, exact 132-file dry pack, and `git diff --check` pass; fingerprint remains `6f4067fa65f1cfc5ffef681b2fa36403b5116102d49ac40a82f319483ae6a1c6` over 214 production inputs. No authoritative profile rerun or downstream action occurred. `iiaj` and `x8u9` remain open for independent re-QA.
