@@ -2,8 +2,11 @@
 
 import { conversionRecipeIds, rulesetIds } from "@aerobeat/web-contracts";
 
-export const gameplayRulesetIds = Object.freeze({ flow: "flow_grid_v2", flowColliders: "flow_colliders_v1", boxingLanes: "boxing_semantic_track_v1", boxingGrid: "boxing_spatial_grid_v1" });
-export const flowGameplayRulesetIds = Object.freeze([gameplayRulesetIds.flow, gameplayRulesetIds.flowColliders]);
+/** The sole Flow ruleset is the canonical flow_colliders_v1 ID; visible copy says exactly "Flow". */
+export const gameplayRulesetIds = Object.freeze({ flow: "flow_colliders_v1", boxingLanes: "boxing_semantic_track_v1", boxingGrid: "boxing_spatial_grid_v1" });
+/** Retained alias so historical telemetry/oracles keep resolving the Flow ruleset by its canonical ID. */
+export const flowCollidersGameplayRulesetId = "flow_colliders_v1";
+export const flowGameplayRulesetIds = Object.freeze([gameplayRulesetIds.flow]);
 export const boxingGameplayRulesetIds = Object.freeze([gameplayRulesetIds.boxingLanes, gameplayRulesetIds.boxingGrid]);
 export const boxingRecipeIds = Object.freeze({ balancedHeight: conversionRecipeIds[0], sourceHeight: conversionRecipeIds[1] });
 export const firstUseBoxingRecipeId = boxingRecipeIds.balancedHeight;
@@ -34,8 +37,6 @@ export function exactGameplayVariant(variants, rulesetId, retainedRecipeId) {
 /** Project the exact six-candidate identity expected by the product UI. */
 export function selectedGameplayProfileId(variant) {
   const rulesetId = ownValue(variant, "rulesetId");
-  if (rulesetId === gameplayRulesetIds.flow) return "flow";
-  if (rulesetId === gameplayRulesetIds.flowColliders) return "flow-colliders";
   const recipeId = ownValue(variant, "recipeId");
   if (rulesetId === gameplayRulesetIds.boxingLanes && recipeId === boxingRecipeIds.balancedHeight) return "semantic-row";
   if (rulesetId === gameplayRulesetIds.boxingGrid && recipeId === boxingRecipeIds.balancedHeight) return "spatial-row";

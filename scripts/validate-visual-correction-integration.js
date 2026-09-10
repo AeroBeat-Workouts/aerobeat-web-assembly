@@ -37,7 +37,7 @@ try {
       const evidence = await target.evaluate(async({width,height,requestedDpr}) => {
         const game = document.querySelector("aero-game"), originalGraph = game.graph, renderer = originalGraph.renderer;
         game.stopFrameLoop(); const spawnOverride=game.shadowRoot.querySelector("input[data-game-setup-field='spawnDistanceOverrideEnabled']");if(!(spawnOverride instanceof HTMLInputElement))throw new Error("Game Setup v2 spawn override control missing");if(!spawnOverride.checked)spawnOverride.click();await game.lifecycleIntentTail; game.setMenuOpen(false); renderer.resize({widthCssPx:width,heightCssPx:height,devicePixelRatio:requestedDpr}); renderer.setEnvironmentVisible(false); renderer.setBackgroundProjection({kind:"solid",colors:["#071426"],angleDeg:180});
-        const projectionSymbol=Symbol.for("aerobeat.web-content.internal-render-projection"),variant={variantId:"visual-contract-flow",chartId:"visual-contract-chart",mode:"flow",rulesetId:"flow_grid_v2",recipeId:null,modifierIds:[],ranked:false};
+        const projectionSymbol=Symbol.for("aerobeat.web-content.internal-render-projection"),variant={variantId:"visual-contract-flow",chartId:"visual-contract-chart",mode:"flow",rulesetId:"flow_colliders_v1",recipeId:null,modifierIds:[],ranked:false};
         const events=[
           {eventId:"pending-right",centerTimestampMs:1211,authoredBeat:{type:"note",hand:"right",placement:6,direction:"right"}},
           {eventId:"hit-visible",centerTimestampMs:1102,authoredBeat:{type:"note",hand:"right",placement:7,direction:"right"}},

@@ -14,7 +14,6 @@ import {
 
 const variants = Object.freeze([
   variant("flow", gameplayRulesetIds.flow, null),
-  variant("flow-colliders", gameplayRulesetIds.flowColliders, null),
   variant("semantic-row", gameplayRulesetIds.boxingLanes, boxingRecipeIds.balancedHeight),
   variant("spatial-row", gameplayRulesetIds.boxingGrid, boxingRecipeIds.balancedHeight),
   variant("semantic-cut", gameplayRulesetIds.boxingLanes, boxingRecipeIds.sourceHeight),
@@ -25,8 +24,6 @@ assert.equal(firstUseBoxingRecipeId, boxingRecipeIds.balancedHeight, "Balanced H
 const matrix = [
   [gameplayRulesetIds.flow, boxingRecipeIds.balancedHeight, "flow", "flow"],
   [gameplayRulesetIds.flow, boxingRecipeIds.sourceHeight, "flow", "flow"],
-  [gameplayRulesetIds.flowColliders, boxingRecipeIds.balancedHeight, "flow-colliders", "flow"],
-  [gameplayRulesetIds.flowColliders, boxingRecipeIds.sourceHeight, "flow-colliders", "flow"],
   [gameplayRulesetIds.boxingLanes, boxingRecipeIds.balancedHeight, "semantic-row", "boxing_lanes"],
   [gameplayRulesetIds.boxingLanes, boxingRecipeIds.sourceHeight, "semantic-cut", "boxing_lanes"],
   [gameplayRulesetIds.boxingGrid, boxingRecipeIds.balancedHeight, "spatial-row", "boxing_spatial_grid"],
@@ -39,7 +36,8 @@ for (const [rulesetId, recipeId, expectedId, expectedPresentation] of matrix) {
   assert.equal(rendererPresentationForVariant(selected), expectedPresentation);
 }
 assert.equal(exactGameplayVariant(variants.filter((entry)=>entry.variantId!=="spatial-cut"), gameplayRulesetIds.boxingGrid, boxingRecipeIds.sourceHeight), null, "selection never fabricates a missing variant");
-assert.equal(exactGameplayVariant(variants.filter((entry)=>entry.variantId!=="flow-colliders"), gameplayRulesetIds.flowColliders, boxingRecipeIds.sourceHeight), null, "Colliders never synthesizes from Grid");
+assert.throws(() => readGameplayRulesetIntent({ rulesetId: "flow_grid_v2" }), /invalid/u, "the retired Flow Grid ID is no longer an accepted selection intent");
+assert.equal(exactGameplayVariant(variants.filter((entry)=>entry.variantId!=="flow"), gameplayRulesetIds.flow, boxingRecipeIds.sourceHeight), null, "Flow selection never synthesizes a missing variant");
 assert.equal(readGameplayRulesetIntent({ rulesetId: gameplayRulesetIds.boxingLanes }), gameplayRulesetIds.boxingLanes);
 assert.equal(readBoxingRecipeIntent({ recipeId: boxingRecipeIds.sourceHeight }), boxingRecipeIds.sourceHeight);
 for (const hostile of [
@@ -51,6 +49,6 @@ for (const hostile of [
 let getterCalls = 0; const accessor = {}; Object.defineProperty(accessor, "recipeId", { enumerable: true, get() { getterCalls += 1; return boxingRecipeIds.balancedHeight; } });
 assert.throws(() => readBoxingRecipeIntent(accessor), /invalid/u); assert.equal(getterCalls, 0, "scalar intent validation never executes accessors");
 assert.throws(() => readBoxingRecipeIntent({ recipeId: boxingRecipeIds.balancedHeight, bundle: { private: true } }), /invalid/u, "objects cannot cross the scalar UI boundary");
-console.log("Exact six-variant mode/conversion matrix, independent Flow selection, shared presentation, and scalar privacy validation passed.");
+console.log("Exact five-variant mode/conversion matrix with the sole Flow (colliders) ruleset, shared presentation, and scalar privacy validation passed.");
 
 function variant(variantId, rulesetId, recipeId) { return Object.freeze({ variantId, rulesetId, recipeId }); }
