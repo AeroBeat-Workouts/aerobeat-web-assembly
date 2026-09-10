@@ -198,8 +198,12 @@ function validateReadPixelsConsolePolicy() {
 
 async function validateAssemblyConsoleCollectorSources() {
   const hostileBroadSource = `page.on("console", message => { if (!message.text().${"includes"}("GL Driver Message")) noise.push(message.text()); });`;
-  assert.deepEqual(consoleCollectorSourceFailures("broad.js", hostileBroadSource), ["broad.js: broad ReadPixels/GL-driver substring admission"]);
+  assert.deepEqual(consoleCollectorSourceFailures("broad.js", hostileBroadSource), ["broad.js: broad browser-diagnostic substring admission"]);
+  const hostileMediaPipeSource = `page.on("console", message => { if (!message.text().${"includes"}("Created TensorFlow Lite XNNPACK delegate for CPU")) noise.push(message.text()); });`;
+  assert.deepEqual(consoleCollectorSourceFailures("broad-mediapipe.mjs", hostileMediaPipeSource), ["broad-mediapipe.mjs: broad browser-diagnostic substring admission"]);
   assert.deepEqual(consoleCollectorSourceFailures("unused.js", `import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";\npage.on("console", message => noise.push(message.text()));`), ["unused.js: imports isExpectedReadPixelsWarning without calling it"]);
+  const unusedMediaPipeHelperSource = `import { ${"isExpectedMediaPipeRuntimeDiagnostic"} } from "./profile-browser-noise-policy.mjs";\npage.on("console", message => noise.push(message.text()));`;
+  assert.deepEqual(consoleCollectorSourceFailures("unused.mjs", unusedMediaPipeHelperSource), ["unused.mjs: imports isExpectedMediaPipeRuntimeDiagnostic without calling it"]);
   const trackedScripts = execFileSync("git", ["ls-files", "-z", "--", "scripts"], { encoding:"utf8" }).split("\0").filter((path) => /\.(?:c|m)?js$/u.test(path));
   const failures = [];
   for (const path of trackedScripts) failures.push(...consoleCollectorSourceFailures(path, await readFile(path, "utf8")));
@@ -207,12 +211,14 @@ async function validateAssemblyConsoleCollectorSources() {
 }
 
 function consoleCollectorSourceFailures(path, source) {
-  const broadAdmission = /\.includes\(\s*["'](?:GL Driver Message|GPU stall due to ReadPixels)["']\s*\)/u;
-  const helperImport = /import\s*\{[^}]*\bisExpectedReadPixelsWarning\b[^}]*\}\s*from\s*["']\.\/readpixels-console-policy\.js["']/su;
-  const helperCall = /\bisExpectedReadPixelsWarning\s*\(/u;
+  const broadAdmission = /\.includes\(\s*["'](?:GL Driver Message|GPU stall due to ReadPixels|Created TensorFlow Lite(?: XNNPACK delegate for CPU)?|OpenGL error checking is disabled|Feedback manager requires a model with a single signature inference)["']\s*\)/u;
+  const helperPolicies = [
+    { name:"isExpectedReadPixelsWarning", importPattern:/import\s*\{[^}]*\bisExpectedReadPixelsWarning\b[^}]*\}\s*from\s*["']\.\/readpixels-console-policy\.js["']/su, callPattern:/\bisExpectedReadPixelsWarning\s*\(/u },
+    { name:"isExpectedMediaPipeRuntimeDiagnostic", importPattern:/import\s*\{[^}]*\bisExpectedMediaPipeRuntimeDiagnostic\b[^}]*\}\s*from\s*["']\.\/profile-browser-noise-policy\.mjs["']/su, callPattern:/\bisExpectedMediaPipeRuntimeDiagnostic\s*\(/u }
+  ];
   const failures = [];
-  if (broadAdmission.test(source)) failures.push(`${path}: broad ReadPixels/GL-driver substring admission`);
-  if (helperImport.test(source) && !helperCall.test(source.replace(helperImport, ""))) failures.push(`${path}: imports isExpectedReadPixelsWarning without calling it`);
+  if (broadAdmission.test(source)) failures.push(`${path}: broad browser-diagnostic substring admission`);
+  for (const policy of helperPolicies) if (policy.importPattern.test(source) && !policy.callPattern.test(source.replace(policy.importPattern, ""))) failures.push(`${path}: imports ${policy.name} without calling it`);
   return failures;
 }
 

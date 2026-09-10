@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { isExpectedMediaPipeRuntimeDiagnostic } from "./profile-browser-noise-policy.mjs";
 
 const baseUrl = process.env.AEROBEAT_SMOKE_URL ?? "http://127.0.0.1:5173/";
 const browser = await chromium.launch({ headless: true });
@@ -9,8 +10,12 @@ try {
     const failures = [];
     page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
     page.on("console", (message) => {
-      if (message.type() === "error" && !message.text().includes("Created TensorFlow Lite XNNPACK delegate for CPU")) {
-        failures.push(`console: ${message.text()}`);
+      const type = message.type();
+      const text = message.text();
+      const location = message.location();
+      const path = location.url ? new URL(location.url).pathname : "unknown";
+      if (type === "error" && !isExpectedMediaPipeRuntimeDiagnostic(type, text, path)) {
+        failures.push(`console:${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);
       }
     });
     await page.addInitScript(() => {

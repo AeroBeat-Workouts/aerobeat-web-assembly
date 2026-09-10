@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createProfileBrowserNoiseCollector } from "./profile-browser-noise-policy.mjs";
+import { createProfileBrowserNoiseCollector, isExpectedMediaPipeRuntimeDiagnostic } from "./profile-browser-noise-policy.mjs";
 
 const path = "/npm/@mediapipe/tasks-vision@1.0.1/wasm/vision_wasm_internal.js";
 const prefix = "W0909 23:41:30.520999 2196592 ";
@@ -25,6 +25,13 @@ function assertFatal(type, text, sourcePath) {
 
 assertClean([["warning", normRect, path]]);
 assertClean(exactRuntimeDiagnostics);
+for (const [type, text, sourcePath] of exactRuntimeDiagnostics.filter((entry) => entry[2] !== "unknown")) {
+  assert.equal(isExpectedMediaPipeRuntimeDiagnostic(type, text, sourcePath), true);
+  assert.equal(isExpectedMediaPipeRuntimeDiagnostic(type === "warning" ? "error" : "warning", text, sourcePath), false);
+  assert.equal(isExpectedMediaPipeRuntimeDiagnostic(type, `${text} suffix`, sourcePath), false);
+  assert.equal(isExpectedMediaPipeRuntimeDiagnostic(type, text, "/src/application.js"), false);
+}
+assert.equal(isExpectedMediaPipeRuntimeDiagnostic("error", "application failure: Created TensorFlow Lite XNNPACK delegate for CPU.", path), false);
 
 const duplicate = createProfileBrowserNoiseCollector();
 duplicate.observeConsole("warning", normRect, path);

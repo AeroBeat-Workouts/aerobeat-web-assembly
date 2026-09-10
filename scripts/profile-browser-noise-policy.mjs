@@ -24,6 +24,10 @@ const acceptedRuntimeDiagnostics = Object.freeze([
 ]);
 const normRectWarning = new RegExp(`^${wasmWarningPrefix}landmark_projection_calculator\\.cc:81\\] Using NORM_RECT without IMAGE_DIMENSIONS is only supported for the square ROI\\. Provide IMAGE_DIMENSIONS or use PROJECTION_MATRIX\\.$`, "u");
 
+export function isExpectedMediaPipeRuntimeDiagnostic(type, text, path) {
+  return acceptedRuntimeDiagnostics.some((diagnostic) => diagnostic.path !== "unknown" && diagnostic.type === type && diagnostic.path === path && diagnostic.pattern.test(text));
+}
+
 export function createProfileBrowserNoiseCollector() {
   const noise = [];
   let normRectCount = 0;
@@ -33,7 +37,7 @@ export function createProfileBrowserNoiseCollector() {
       if (type === "warning" && path === tasksVisionWasmPath && normRectWarning.test(text)) {
         normRectCount += 1;
         if (normRectCount === 1) return;
-      } else if (acceptedRuntimeDiagnostics.some((diagnostic) => diagnostic.type === type && diagnostic.path === path && diagnostic.pattern.test(text))) {
+      } else if (isExpectedMediaPipeRuntimeDiagnostic(type, text, path) || acceptedRuntimeDiagnostics.some((diagnostic) => diagnostic.path === "unknown" && diagnostic.type === type && diagnostic.path === path && diagnostic.pattern.test(text))) {
         return;
       }
       noise.push(`${type}:${text}:${path}`);
