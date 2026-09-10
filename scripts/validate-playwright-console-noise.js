@@ -1,10 +1,18 @@
 // @ts-check
 
+import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer as createHttpServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import {
+  isExpectedReadPixelsWarning,
+  READ_PIXELS_WARNING_BODY,
+  READ_PIXELS_WARNING_REPEAT_SUFFIX
+} from "./readpixels-console-policy.js";
+
+validateReadPixelsConsolePolicy();
 
 const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0 } });
 await vite.listen();
@@ -151,6 +159,40 @@ try {
 } finally { await browser.close(); await vite.close(); await new Promise((resolve) => parentServer.close(resolve)); }
 if (noise.length) throw new Error(noise.join("\n"));
 console.log("Chromium actual graph, exact sizing, user fullscreen, reconnect, lease, six variants and adversarial cross-origin iframe validation passed.");
+
+function validateReadPixelsConsolePolicy() {
+  const expectedPageUrl = "http://127.0.0.1:4173/";
+  const warning = `[.WebGL-0x12ab09]${READ_PIXELS_WARNING_BODY}`;
+  const repeatedWarning = `${warning}${READ_PIXELS_WARNING_REPEAT_SUFFIX}`;
+  const accepts = (type, text, sourceUrl, lineNumber, columnNumber, expectedUrl = expectedPageUrl) => (
+    isExpectedReadPixelsWarning(type, text, sourceUrl, lineNumber, columnNumber, expectedUrl)
+  );
+  assert.equal(accepts("warning", warning, expectedPageUrl, 0, 0), true, "exact Chromium warning");
+  assert.equal(accepts("warning", repeatedWarning, expectedPageUrl, 0, 0), true, "exact repeated-warning suffix");
+  assert.equal(accepts("warning", warning, expectedPageUrl, 0, 0), true, "duplicate exact warning remains accepted");
+  for (const [type, text, sourceUrl, lineNumber, columnNumber, expectedUrl, label] of [
+    ["error", warning, expectedPageUrl, 0, 0, expectedPageUrl, "wrong type error"],
+    ["log", warning, expectedPageUrl, 0, 0, expectedPageUrl, "wrong type log"],
+    ["warning", warning, "http://127.0.0.1:4173/src/app.js", 0, 0, expectedPageUrl, "application URL"],
+    ["warning", warning, "http://localhost:4173/", 0, 0, expectedPageUrl, "wrong URL origin"],
+    ["warning", warning, "http://127.0.0.1:4174/", 0, 0, expectedPageUrl, "wrong URL port"],
+    ["warning", warning, "http://127.0.0.1:4173/other", 0, 0, expectedPageUrl, "wrong URL path"],
+    ["warning", warning, `${expectedPageUrl}?debug=1`, 0, 0, expectedPageUrl, "URL query"],
+    ["warning", warning, `${expectedPageUrl}#debug`, 0, 0, expectedPageUrl, "URL fragment"],
+    ["warning", warning, expectedPageUrl, 1, 0, expectedPageUrl, "nonzero line sentinel"],
+    ["warning", warning, expectedPageUrl, 0, 1, expectedPageUrl, "nonzero column sentinel"],
+    ["warning", `[.WebGL-0x]${READ_PIXELS_WARNING_BODY}`, expectedPageUrl, 0, 0, expectedPageUrl, "empty WebGL id"],
+    ["warning", `[.WebGL-0xAB12]${READ_PIXELS_WARNING_BODY}`, expectedPageUrl, 0, 0, expectedPageUrl, "uppercase WebGL id"],
+    ["warning", `[.WebGL-0x12xz]${READ_PIXELS_WARNING_BODY}`, expectedPageUrl, 0, 0, expectedPageUrl, "nonhex WebGL id"],
+    ["warning", `prefix ${warning}`, expectedPageUrl, 0, 0, expectedPageUrl, "message prefix"],
+    ["warning", `${warning} suffix`, expectedPageUrl, 0, 0, expectedPageUrl, "message suffix"],
+    ["warning", `${warning}\napplication failure`, expectedPageUrl, 0, 0, expectedPageUrl, "message composition"],
+    ["warning", `${warning}\n`, expectedPageUrl, 0, 0, expectedPageUrl, "trailing newline"],
+    ["warning", `${warning} (this message may no longer repeat)`, expectedPageUrl, 0, 0, expectedPageUrl, "mutated repeat suffix"],
+    ["warning", "unrelated warning", expectedPageUrl, 0, 0, expectedPageUrl, "unrelated warning"],
+    ["error", "unrelated error", expectedPageUrl, 0, 0, expectedPageUrl, "unrelated error"]
+  ]) assert.equal(accepts(type, text, sourceUrl, lineNumber, columnNumber, expectedUrl), false, label);
+}
 
 function collectNoise(page, noise) { page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !message.text().includes("GL Driver Message")) noise.push(`${message.type()}: ${message.text()}`); }); page.on("pageerror", (error) => noise.push(`pageerror: ${error.message}`)); }
 function hashBytes(bytes) { return createHash("sha256").update(bytes).digest("hex"); }

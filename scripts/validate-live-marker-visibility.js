@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const sizes = [18, 24, 28, 32, 36];
 const environmentIds = [
@@ -15,6 +16,7 @@ const vite = await createViteServer({ appType:"spa", configFile:"vite.config.js"
 await vite.listen();
 const childUrl = vite.resolvedUrls?.local?.[0];
 if (!childUrl) throw new Error("Vite URL unavailable");
+const expectedPageUrl = childUrl;
 const parent = createHttpServer((request, response) => {
   const url = new URL(request.url ?? "/", "http://parent.invalid"), width=Number(url.searchParams.get("width"))||390, height=Number(url.searchParams.get("height"))||844;
   response.setHeader("content-type", "text/html; charset=utf-8");
@@ -29,7 +31,7 @@ try {
   for (const embedding of ["direct","genuine_iframe"]) for (const viewport of viewports) for (const requestedDpr of [1,3]) {
     const context=await browser.newContext({viewport:embedding==="direct"?{width:viewport.width,height:viewport.height}:{width:viewport.width+24,height:viewport.height+24},deviceScaleFactor:requestedDpr});
     const page=await context.newPage(),noise=[];
-    page.on("console",(message)=>{if(["warning","error"].includes(message.type())&&!message.text().includes("GL Driver Message")&&!message.text().includes("GPU stall due to ReadPixels"))noise.push(`${message.type()}:${message.text()}`);});
+    page.on("console",(message)=>{const type=message.type(),text=message.text(),location=message.location();if(["warning","error"].includes(type)&&!isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedPageUrl))noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);});
     page.on("pageerror",(error)=>noise.push(`pageerror:${error.message}`));
     try {
       await page.goto(embedding==="direct"?childUrl:`${parentUrl}?width=${viewport.width}&height=${viewport.height}`,{waitUntil:"networkidle"});

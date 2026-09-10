@@ -10,6 +10,7 @@ import { chromium } from "playwright";
 import { build } from "vite";
 import { sha256Hex } from "@aerobeat/web-hash";
 import { computeBeatSaverMapHash, inspectBeatSaverArchive } from "@aerobeat/web-vendor-beatsaver";
+import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
 
 const VERSION_HASH = "431ffaa53a1e45ffab6c81a895e456f6aad1e038";
 const FIXTURE_PATHS = [
@@ -80,6 +81,7 @@ try {
 }
 
 async function runRow(browserInstance, row, origin) {
+  const expectedPageUrl = origin.child;
   const context = await browserInstance.newContext({ viewport: { width: 390, height: 844 } });
   const noise = []; const requests = []; let tamperAssetKind = null;
   const allowedLocalOrigins = new Set([new URL(origin.child).origin, ...(row.kind === "iframe" ? [new URL(origin.parent).origin] : [])]);
@@ -109,7 +111,7 @@ async function runRow(browserInstance, row, origin) {
     noise.push(`network-escape:${route.request().url()}`); await route.abort("blockedbyclient");
   });
   const page = await context.newPage();
-  page.on("console", (message) => { if (["warning", "error"].includes(message.type()) && !/^\[\.WebGL-0x[0-9a-f]+\]GL Driver Message \(OpenGL, Performance, GL_CLOSE_PATH_NV, High\): GPU stall due to ReadPixels(?: \(this message will no longer repeat\))?$/u.test(message.text())) noise.push(`${message.type()}:${message.text()}`); });
+  page.on("console", (message) => { const type = message.type(); const text = message.text(); const location = message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type, text, location.url, location.lineNumber, location.columnNumber, expectedPageUrl)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
   page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
   page.on("requestfailed", (request) => { if (!request.failure()?.errorText.includes("ERR_ABORTED")) noise.push(`requestfailed:${request.url()}:${request.failure()?.errorText}`); });
   let game;
