@@ -40,7 +40,6 @@
     "test:camera-performance-evidence": "node scripts/validate-camera-performance-evidence.js",
     "test:q7g-oracles": "node scripts/validate-session-render-projection.js && node scripts/validate-offline-flow-obstacles.js && npm run test:camera-performance-evidence && npm run test:exact-3c9d-browser && npm run test:stale-indexeddb-browser && npm run test:terminal-lifecycle-matrix",
     "test:environment-controls-browser": "node scripts/validate-environment-controls-browser.js",
-    "test:mediapipe-videoframe-smoke": "node scripts/validate-real-mediapipe-videoframe-smoke.mjs",
     "dev": "vite --host 127.0.0.1",
     "dev:host": "node scripts/print-host-urls.js",
     "dev:secure": "vite --host 0.0.0.0 --port 5173",

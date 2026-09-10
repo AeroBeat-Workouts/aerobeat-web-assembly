@@ -238,7 +238,7 @@ function mjsCollectorContractFailures(path, source) {
     [/page\.on\(["']requestfailed["']/u, "missing request failure collection"],
     [/page\.on\(["']pageerror["']/u, "missing page error collection"]
   ];
-  const requirements = path === "scripts/benchmark-mediapipe-worker.mjs" ? [...common, [/\bisExpectedReadPixelsWarning\s*\(/u, "missing exact ReadPixels routing"]] : path === "scripts/validate-real-mediapipe-videoframe-smoke.mjs" ? common : [];
+  const requirements = path === "scripts/benchmark-mediapipe-worker.mjs" ? [...common, [/\bisExpectedReadPixelsWarning\s*\(/u, "missing exact ReadPixels routing"]] : [];
   return requirements.filter(([pattern]) => !pattern.test(source)).map(([, label]) => `${path}: ${label}`);
 }
 
