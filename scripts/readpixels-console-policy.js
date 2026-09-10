@@ -5,7 +5,7 @@ export const READ_PIXELS_WARNING_REPEAT_SUFFIX = " (this message will no longer 
 export const READ_PIXELS_WARNING_PATTERN = /^\[\.WebGL-0x[0-9a-f]+\]GL Driver Message \(OpenGL, Performance, GL_CLOSE_PATH_NV, High\): GPU stall due to ReadPixels(?: \(this message will no longer repeat\))?$(?![\s\S])/;
 
 /**
- * Returns whether a Playwright console tuple is the established Chromium 140
+ * Returns whether a Playwright console tuple is the established managed-browser
  * ReadPixels warning for one exact validation page.
  *
  * @param {string} type
