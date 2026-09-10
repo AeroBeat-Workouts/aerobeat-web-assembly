@@ -17,14 +17,23 @@ Exactly two options: `Enabled` (`default`) and `Disabled` (`no_obstacles`). `Vis
 
 ## 3. Visuals percentage — `tenl`
 
-Replace the Default/Compact selector with one bounded numeric **Visual scale (%)**: min 10, max 200, step 1, default 100 (Game Setup v3 field `visualScalePercent`).
+Derrick Q&A decision (2026-09-10): expose scale options **per class** rather than one global knob — find the right sizes once, then lock the chosen values in as the new shipped defaults and stop touching them.
 
-- Mapping: `S/100` multiplies **both** `targetSize` and `roleScale` (100% is exactly today's Default; Compact's historical 98%/86% disappears as an asymmetric special case).
-- Internal `aero.visual.default`/`aero.visual.compact` profiles remain valid prototype-profile inputs (compat), but the product selector is removed; the percentage applies at session start under the existing tuning-application contract.
+Terminology (for the record): a **marker** is a 3D wrist/nose sphere that tracks the player; **role-layer** items are everything attached to the player instead of the track (the markers plus the Great/Miss feedback glyphs). A **beat** in scale terms = every cue that travels down the track: notes (directional arrows + any-direction circles), guards, obstacle walls, bombs.
+
+Code facts that shaped this: all track cues are currently sized by one internal `roleScale` factor (`gameplay-scene-model.js:180` icon scale); the `targetSize` tuning key is **vestigial** (carried but never consumed — verified by grep); markers use a separate CSS-pixel size path (`stageGameplayCursors` → `worldScaleForCssPx`). Per-class controls are the only honest shape.
+
+- Replace the Default/Compact selector with **four** bounded numeric controls, each 10–200, step 1, default 100, persisted in Game Setup v3:
+  - `noteScalePercent` — notes: directional arrows, any-direction circles, guards
+  - `obstacleScalePercent` — obstacle walls
+  - `bombScalePercent` — bombs
+  - `markerScalePercent` — wrist/nose markers + Great/Miss feedback glyphs
+- Implementation: new bounded renderer tuning keys; the scene model applies the per-kind factor at icon scale (target-kind guards already exist); the marker/feedback path applies `markerScalePercent` to its size path. Internal `aero.visual.default`/`aero.visual.compact` profiles remain valid prototype-profile inputs (compat); the product selector is removed. 100% on all four is exactly today's behavior.
+- Follow-up: after Derrick tunes, his chosen values are baked in as the new shipped defaults in a follow-up successor (controls remain).
 
 ## 4. Guidance bands — `er3m`
 
-- **Extent**: bands emit across the whole visible window, not only at in-window beat timestamps. `song_beat_grid` mode renders the beat grid itself; `target_arrivals` keeps bands at target-arrival timestamps but continues the track length with low-alpha (halved) continuation bands so the effect extends the track. *Decision point for Derrick: are continuation bands wanted in target-arrival mode, or extent extension only in song mode?*
+- **Extent (Derrick decision 2026-09-10: reduced-alpha continuation in both modes)**: bands emit across the whole visible window, not only at in-window beat timestamps. `song_beat_grid` mode renders the beat grid itself; `target_arrivals` keeps full-alpha bands at target-arrival timestamps and continues the track length with reduced-alpha (halved) continuation bands so arrivals stay distinct.
 - **Alignment**: target-arrival band z already equals beat-center z via shared `timestampToWorldZ`; the observed beat-behind-band offset is a clock/nowMs-source or band-thickness artifact. Fix: band center z and target travel use the identical frame nowMs so beat centers align exactly with bands.
 - **Live**: `guidanceBandMode` becomes a per-frame renderer input — switching Off/Song/Target mid-session applies immediately without restart. All other experiment-config keys stay next-Start/Test gated; drawer copy updates accordingly.
 
