@@ -1,7 +1,13 @@
 // @ts-check
 
 import { createFlowColliderSettings, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
-import { createGameplayVisualExperimentConfig } from "@aerobeat/web-renderer";
+import { createGameplayVisualExperimentConfig, rendererVisualScalesIdentity } from "@aerobeat/web-renderer";
+
+/** Derive the four per-class visual scale percentages from a Game Setup v3 snapshot. */
+export function rendererVisualScales(setup){return Object.freeze({noteScalePercent:setup.noteScalePercent,obstacleScalePercent:setup.obstacleScalePercent,bombScalePercent:setup.bombScalePercent,markerScalePercent:setup.markerScalePercent});}
+
+/** Deterministic content-hashed tuning identity for the active per-class scales (tenl). */
+export function rendererVisualScalesId(setup){return rendererVisualScalesIdentity(rendererVisualScales(setup));}
 
 export const canonicalWorldUnitsPerMs=.006;
 export const measuredNoseParallaxMaximumAgeMs=150;

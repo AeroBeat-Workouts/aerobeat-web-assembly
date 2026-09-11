@@ -45,7 +45,7 @@ const terminalOracle=process.env.AEROBEAT_TERMINAL_ORACLE==="1";
 const defaultContexts=contexts.filter((context)=>context.width!==1280);
 const selectedContexts=contextFilter?contexts.filter((context)=>`${context.kind}:${context.width}x${context.height}@${context.dpr}`===contextFilter):terminalOracle?contexts.filter((context)=>context.dpr===1):defaultContexts;
 if(selectedContexts.length===0)throw new Error(`Unknown AEROBEAT_SHELL_CONTEXT ${contextFilter}`);
-const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Gameplay timing and collider changes apply on next Start/Test.", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "Enabled", "Disabled", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
+const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Note scale (%)", "Obstacle scale (%)", "Bomb scale (%)", "Marker scale (%)", "Timing and collider changes apply on next Start/Test. Scale and guidance changes apply live.", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [],cameraPoseExportHashes=new Set();
 try {
@@ -190,6 +190,47 @@ async function runContext(context) {
   await calibrateAndRelease(game, 30000); await waitFor(page, async () => (await shellSnapshot(game)).sessionState === "playing", 6000);
   const resumedPlay = await shellSnapshot(game); assertSteady(resumedPlay, context, "resumed play"); assert(!resumedPlay.previewVisible && resumedPlay.rendererBackground === "#071426", `${label(context)} resumed default play must hide preview: ${JSON.stringify(resumedPlay)}`);
   const setupRunLock=await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js"),original=module.getGameSetupSnapshot(),before=element.activeSessionSetup?.timingWindowMs;module.setGameSetupSnapshot({...original,timingWindowMs:225});await element.lifecycleIntentTail;await element.selectGameplayAxes("flow_colliders_v1");const during={active:element.activeSessionSetup?.timingWindowMs,desired:element.desiredGameSetup.timingWindowMs,frame:element.rendererFrame().timingWindowAfterMs};await element.startSession("visual_test",{requireDownloaded:true});const fresh={active:element.activeSessionSetup?.timingWindowMs,frame:element.rendererFrame().timingWindowAfterMs,purpose:element.graph.gameplay.getSnapshot().session.purpose};await element.stop();module.setGameSetupSnapshot(original);await element.lifecycleIntentTail;return{before,during,fresh};});assert(JSON.stringify(setupRunLock)===JSON.stringify({before:180,during:{active:180,desired:225,frame:180},fresh:{active:225,frame:225,purpose:"visual_test"}}),`${label(context)} setup edit and active mode selection must preserve run lock until fresh Test: ${JSON.stringify(setupRunLock)}`);
+  // tenl: per-class scale controls — 150% note + 200% marker apply on next Start/Test and land in renderer tuning.
+  const scaleProof=await game.evaluate(async(element)=>{element.setMenuOpen(true);const before={scalesId:element.lastAppliedScaleId};const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();const note=element.shadowRoot.querySelector("input[data-game-setup-field='noteScalePercent']"),marker=element.shadowRoot.querySelector("input[data-game-setup-field='markerScalePercent']");note.value="150";note.dispatchEvent(new Event("change",{bubbles:true}));marker.value="200";marker.dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;const desired=module.getGameSetupSnapshot(),applied={scales:[desired.noteScalePercent,desired.obstacleScalePercent,desired.bombScalePercent,desired.markerScalePercent],renderer:element.graph.renderer.describe(),lastAppliedScaleId:element.lastAppliedScaleId};module.setGameSetupSnapshot(original);await element.lifecycleIntentTail;return{before,desired,applied};});
+  assert(scaleProof.desired.noteScalePercent===150&&scaleProof.desired.markerScalePercent===200&&scaleProof.applied.scales.join(",")==="150,100,100,200",`${label(context)} four bounded scale controls must persist exact Game Setup v3 values: ${JSON.stringify(scaleProof.applied)}`);
+  const scaleFactors=String(scaleProof.applied.renderer.visualScalesId??"").split("|");assert(scaleFactors.length===4&&Number(scaleFactors[0])===1.5&&Number(scaleFactors[1])===1&&Number(scaleFactors[2])===1&&Number(scaleFactors[3])===2,`${label(context)} renderer describe must expose the four per-class scale factors (tenl): ${JSON.stringify(scaleProof.applied.renderer.visualScalesId)}`);
+  await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();module.setGameSetupSnapshot({...original,noteScalePercent:100,obstacleScalePercent:100,bombScalePercent:100,markerScalePercent:100});await element.lifecycleIntentTail;});
+  // er3m: guidance band mode is a live per-frame renderer input — the persisted Game Setup snapshot drives every rendered frame, so switching Off→Song→Target changes the frame and rendered model with no session/generation or transport mutation.
+  const liveGuidanceProof = await game.evaluate(async (element) => {
+    element.setMenuOpen(false);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    element.setMenuOpen(true);
+    const baseline = { generation: element.sessionGeneration, gameplayGeneration: element.graph.gameplay.getSnapshot().generation };
+    const off = element.rendererFrame().guidanceBandMode;
+    const switchTo = async (mode) => {
+      const select = element.shadowRoot.querySelector("select[data-game-setup-field='guidanceBandMode']");
+      if (!select) return "no-select";
+      select.value = mode;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      let applied = null;
+      let deadline = performance.now() + 4000;
+      while (performance.now() < deadline) {
+        applied = element.desiredGameSetup.guidanceBandMode;
+        if (applied === mode) break;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      return applied;
+    };
+    let songModel, targetModel, songFrame, targetFrame, afterOff;
+    const observed = [];
+    observed.push(await switchTo("song_beat_grid"));
+    songFrame = element.rendererFrame();
+    songModel = element.graph.renderer.renderGameplayScene(songFrame, null, null).model;
+    observed.push(await switchTo("target_arrivals"));
+    targetFrame = element.rendererFrame();
+    targetModel = element.graph.renderer.renderGameplayScene(targetFrame, null, null).model;
+    observed.push(await switchTo("off"));
+    afterOff = element.rendererFrame().guidanceBandMode;
+    const select = element.shadowRoot.querySelector("select[data-game-setup-field='guidanceBandMode']");
+    return { baseline, off, observed, songFrameMode: songFrame.guidanceBandMode, songBands: songModel.guidance, targetFrameMode: targetFrame.guidanceBandMode, targetBands: targetModel.guidance, afterOff, selectSynced: select ? select.value === "off" : false, desiredAfter: element.desiredGameSetup.guidanceBandMode, activeAfter: element.activeSessionSetup?.guidanceBandMode ?? null, generationAfter: element.sessionGeneration, gameplayGenerationAfter: element.graph.gameplay.getSnapshot().generation };
+  });
+  assert(liveGuidanceProof.off==="off"&&liveGuidanceProof.observed[0]==="song_beat_grid"&&liveGuidanceProof.observed[1]==="target_arrivals"&&liveGuidanceProof.afterOff==="off"&&liveGuidanceProof.selectSynced&&liveGuidanceProof.generationAfter===liveGuidanceProof.baseline.generation&&liveGuidanceProof.gameplayGenerationAfter===liveGuidanceProof.baseline.gameplayGeneration,`${label(context)} guidance band mode must be a live per-frame renderer input with no session/generation or transport mutation (er3m): ${JSON.stringify(liveGuidanceProof)}`);
+  assert(liveGuidanceProof.songBands.mode==="song_beat_grid"&&liveGuidanceProof.songBands.visibleBandCount>0&&liveGuidanceProof.targetBands.mode==="target_arrivals"&&liveGuidanceProof.targetBands.visibleBandCount>=0,`${label(context)} rendered scene models must reflect the switched band set immediately (er3m): ${JSON.stringify({song:liveGuidanceProof.songBands,target:liveGuidanceProof.targetBands})}`);
   if(context.width===390&&context.height===844&&context.dpr===1)await verifyStorageSynchronization(page,game,context);
   const visualTestProof=await verifyVisualTestScenePixels(page,game,context),transportMatrix=visualTestProof.transport;
   assert(!transportMatrix.hidden&&transportMatrix.snapshot.active&&transportMatrix.snapshot.durationMs===120005&&transportMatrix.bottom===0&&transportMatrix.left===0&&transportMatrix.right===0&&transportMatrix.within&&transportMatrix.minimum>=42&&transportMatrix.order&&transportMatrix.maximum==="120005"&&transportMatrix.cameraRequests===1&&transportMatrix.judgements===0&&transportMatrix.scores===0&&transportMatrix.debug.visible&&transportMatrix.debug.ariaHidden==="false"&&!transportMatrix.debug.resetDisabled&&transportMatrix.debug.enabled&&transportMatrix.debug.serviceId==="aero.renderer.playcanvas"&&transportMatrix.debug.captureMode==="none"&&transportMatrix.debug.speedMode==="normal"&&!/Hold right|Move with|mouse/iu.test(transportMatrix.debug.text),`${label(context)} Visual Test transport and compact camera panel must fit exact direct/iframe safe-area bounds at DPR1/3 without help prose, camera reacquire or gameplay truth: ${JSON.stringify(transportMatrix)}`);
