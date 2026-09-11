@@ -45,7 +45,7 @@ const terminalOracle=process.env.AEROBEAT_TERMINAL_ORACLE==="1";
 const defaultContexts=contexts.filter((context)=>context.width!==1280);
 const selectedContexts=contextFilter?contexts.filter((context)=>`${context.kind}:${context.width}x${context.height}@${context.dpr}`===contextFilter):terminalOracle?contexts.filter((context)=>context.dpr===1):defaultContexts;
 if(selectedContexts.length===0)throw new Error(`Unknown AEROBEAT_SHELL_CONTEXT ${contextFilter}`);
-const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Note scale (%)", "Obstacle scale (%)", "Bomb scale (%)", "Marker scale (%)", "Timing and collider changes apply on next Start/Test. Scale and guidance changes apply live.", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
+const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Note scale (%)", "Obstacle scale (%)", "Bomb scale (%)", "Marker scale (%)", "Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, and guidance changes apply live.", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [],cameraPoseExportHashes=new Set();
 try {
@@ -194,6 +194,49 @@ async function runContext(context) {
   const scaleProof=await game.evaluate(async(element)=>{element.setMenuOpen(true);const before={scalesId:element.lastAppliedScaleId};const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();const note=element.shadowRoot.querySelector("input[data-game-setup-field='noteScalePercent']"),marker=element.shadowRoot.querySelector("input[data-game-setup-field='markerScalePercent']");note.value="150";note.dispatchEvent(new Event("change",{bubbles:true}));marker.value="200";marker.dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;const desired=module.getGameSetupSnapshot(),applied={scales:[desired.noteScalePercent,desired.obstacleScalePercent,desired.bombScalePercent,desired.markerScalePercent],renderer:element.graph.renderer.describe(),lastAppliedScaleId:element.lastAppliedScaleId};module.setGameSetupSnapshot(original);await element.lifecycleIntentTail;return{before,desired,applied};});
   assert(scaleProof.desired.noteScalePercent===150&&scaleProof.desired.markerScalePercent===200&&scaleProof.applied.scales.join(",")==="150,100,100,200",`${label(context)} four bounded scale controls must persist exact Game Setup v3 values: ${JSON.stringify(scaleProof.applied)}`);
   const scaleFactors=String(scaleProof.applied.renderer.visualScalesId??"").split("|");assert(scaleFactors.length===4&&Number(scaleFactors[0])===1.5&&Number(scaleFactors[1])===1&&Number(scaleFactors[2])===1&&Number(scaleFactors[3])===2,`${label(context)} renderer describe must expose the four per-class scale factors (tenl): ${JSON.stringify(scaleProof.applied.renderer.visualScalesId)}`);
+  // 4bj9: live scale change must resize rendered note icons on the VERY NEXT frame with no restart.
+  const liveScaleProof=await game.evaluate(async(element)=>{
+    const module=await import("/src/game-setup-coordinator.js");
+    const original=module.getGameSetupSnapshot();
+    // 4bj9: the renderer's per-class scale factors drive icon sizing. Measure them before and after a live change.
+    const parseScales=(idStr)=>String(idStr??"").split("|").map(Number);
+    const baselineScales=parseScales(element.graph.renderer.describe().visualScalesId);
+    // Change note scale to 150% live
+    const noteInput=element.shadowRoot.querySelector("input[data-game-setup-field='noteScalePercent']");
+    noteInput.value="150";noteInput.dispatchEvent(new Event("change",{bubbles:true}));
+    await element.lifecycleIntentTail;
+    const nextScales=parseScales(element.graph.renderer.describe().visualScalesId);
+    // Marker scale live-resizes the cursors
+    const markerInput=element.shadowRoot.querySelector("input[data-game-setup-field='markerScalePercent']");
+    markerInput.value="150";markerInput.dispatchEvent(new Event("change",{bubbles:true}));
+    await element.lifecycleIntentTail;
+    const markerFrame=element.rendererFrame();
+    const markerRendererScale=element.graph.renderer.describe().visualScalesId;
+    // Grid toggle live
+    const gridBefore=element.rendererFrame().showGameplayGrid;
+    const gridCheckbox=element.shadowRoot.querySelector("input[data-action='show-gameplay-grid']");
+    gridCheckbox.click();
+    await element.lifecycleIntentTail;
+    const gridAfter=element.rendererFrame().showGameplayGrid;
+    const gridModel=element.graph.renderer.renderGameplayScene(element.rendererFrame(),null,null).model;
+    const gridCells=gridModel.objects.filter(o=>o.kind==="cell"&&o.role==="neutral").length;
+    // Negative control: collider timing window does NOT change mid-session
+    const timingBefore=element.rendererFrame().timingWindowAfterMs;
+    const timingInput=element.shadowRoot.querySelector("input[data-game-setup-field='timingWindowMs']");
+    if(timingInput){timingInput.value="250";timingInput.dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;}
+    const timingAfter=element.rendererFrame().timingWindowAfterMs;
+    // Restore
+    module.setGameSetupSnapshot(original);
+    await element.lifecycleIntentTail;
+    return{baselineScales,nextScales,markerRendererScale,gridBefore,gridAfter,gridCells,timingBefore,timingAfter};
+  });
+  assert(liveScaleProof.baselineScales.join(",")==="1,1,1,1",`${label(context)} 4bj9: baseline renderer scales must be exact 1|1|1|1: ${liveScaleProof.baselineScales.join("|")}`);
+  assert(Math.abs(liveScaleProof.nextScales[0]-1.5)<0.001,`${label(context)} 4bj9: live note scale 100→150 must land as 1.5 in the renderer tuning on the very next frame without restart: ${JSON.stringify(liveScaleProof.nextScales)}`);
+  assert(liveScaleProof.nextScales[1]===1,`${label(context)} 4bj9: obstacle scale must stay at 1.0 during a live note-scale change`);
+  assert(liveScaleProof.nextScales[2]===1,`${label(context)} 4bj9: bomb scale must stay at 1.0 during a live note-scale change`);
+  assert(liveScaleProof.gridAfter===!liveScaleProof.gridBefore,`${label(context)} 4bj9: live grid toggle must flip showGameplayGrid on the next frame without restart: ${liveScaleProof.gridBefore} → ${liveScaleProof.gridAfter}`);
+  assert((liveScaleProof.gridAfter?1:0)===(liveScaleProof.gridCells>0?1:0),`${label(context)} 4bj9: grid cells must appear/disappear consistently with the live toggle: ${liveScaleProof.gridCells} cells`);
+  assert(liveScaleProof.timingBefore===liveScaleProof.timingAfter,`${label(context)} 4bj9 negative control: run-gated collider timing window must NOT change mid-session without a restart: ${liveScaleProof.timingBefore} vs ${liveScaleProof.timingAfter}`);
   await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();module.setGameSetupSnapshot({...original,noteScalePercent:100,obstacleScalePercent:100,bombScalePercent:100,markerScalePercent:100});await element.lifecycleIntentTail;});
   // er3m: guidance band mode is a live per-frame renderer input — the persisted Game Setup snapshot drives every rendered frame, so switching Off→Song→Target changes the frame and rendered model with no session/generation or transport mutation.
   const liveGuidanceProof = await game.evaluate(async (element) => {
