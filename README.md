@@ -116,8 +116,8 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-content-authoring` | `f1cff362755cf1a5a3a7f23df0878780ba5acc85` | `5d615a7c1867a52ac065a867a9d0b63756c06050` |
 | `@aerobeat/web-content` | `7012b9f830c25920a316da459f854a16a1a0ff16` | `73d3dfe62b6bcd985be7ef4ef32c2ad859a1abb5` |
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
-| `@aerobeat/web-contracts` | `c1bc9c397f90c506100f77b84d90d3fc2b482b1c` | `8248f0abfcb948f4eae38e719f42ffa15b392a49` |
-| `@aerobeat/web-renderer` | `c30845fa6bdb1826ab0b972e09aaa1660ddc9918` | `4829cd9a439d6e9efa983c120e00ab27edad5298` |
+| `@aerobeat/web-contracts` | `10d771a8499e033cb859b75b7dd56d41521f0621` | `d29cb1ce06dcb257984c79170d81938587ac581e` |
+| `@aerobeat/web-renderer` | `fb29fb0f15b22ebc2dded0bed75400d0451d08f2` | `eaf9a68a0e1edc51e7782cd8e55d82f2d6bec32c` |
 | `@aerobeat/web-gameplay` | `5cfeeb61043903923385077ad9d0f8634190a7a0` | `bc2b79aa4f86d9d8b5548ec20aaf27c5090cefb4` |
 | `@aerobeat/web-input` | `f724672d5a431c455d7061e4f7f07effe25aaa2d` | `29e7a3b6647216275b8eae50fec7585041878041` |
 | `@aerobeat/web-ui` | `0102fd80dd030394a9c2e429c9eea77a2a3350ad` | `9c0898c7ce20a19ce9bd710dff69642c81ca2505` |
