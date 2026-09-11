@@ -21,7 +21,7 @@ const sessionTargetIndexIdentity = Symbol("aerobeat.sessionTargetIndex");
 export function createSessionTargetIndex(events, options = {}) {
   if (!Array.isArray(events)) throw new TypeError("Resolved events must be an array");
   const mapBeat=typeof options.mapBeatToTimelineMs==="function"?options.mapBeatToTimelineMs:null;
-  const leadBeats=Number(options.bounceLeadBeats),songDurationMs=Number(options.songDurationMs),configuredNormalSpawnLeadMs=Number(options.normalSpawnLeadMs),spawnTimingAvailable=options.normalSpawnLeadMs!==null,normalSpawnLeadMs=spawnTimingAvailable?(Number.isFinite(configuredNormalSpawnLeadMs)&&configuredNormalSpawnLeadMs>=0?configuredNormalSpawnLeadMs:FLOW_APPROACH_LEAD_MS):null,skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off";
+  const leadBeats=Number(options.bounceLeadBeats),songDurationMs=Number(options.songDurationMs),configuredNormalSpawnLeadMs=Number(options.normalSpawnLeadMs),spawnTimingAvailable=options.normalSpawnLeadMs!==null,normalSpawnLeadMs=spawnTimingAvailable?(Number.isFinite(configuredNormalSpawnLeadMs)&&configuredNormalSpawnLeadMs>=0?configuredNormalSpawnLeadMs:FLOW_APPROACH_LEAD_MS):null,skyPreludeDurationMs=Number(options.skyPreludeDurationMs),skyMode=options.skyMode==="prelude"?"prelude":"off",skyLeadMs=skyMode==="prelude"&&normalSpawnLeadMs!==null&&Number.isFinite(skyPreludeDurationMs)&&skyPreludeDurationMs>=0?skyPreludeDurationMs:0;
   let feedbackIndex = 0, timingMismatchCount=0, timingMapperUnavailableCount=0, leadLimited=false,maximumPresentationLeadMs=Number(normalSpawnLeadMs)||0,maximumAuthoredBeat=0;
   const arrivalGroupsByTimestamp=new Map();
   const orderedEntries = events.map((event, sourceIndex) => ({ event, sourceIndex })).sort(compareEventEntries).map((entry, orderedIndex) => {
@@ -51,10 +51,14 @@ export function createSessionTargetIndex(events, options = {}) {
     if (type !== "obstacle" && type !== "squat" && type !== "weave_left" && type !== "weave_right") continue;
     const startMs = optionalFiniteNumber(recordValue(entry.event, "intervalStartTimestampMs"));
     const endMs = optionalFiniteNumber(recordValue(entry.event, "intervalEndTimestampMs"));
-    if (normalSpawnLeadMs !== null && startMs !== null && endMs !== null && endMs > startMs) intervals.push(Object.freeze({ start:Math.max(0,startMs-normalSpawnLeadMs), end:endMs, orderedIndex:entry.orderedIndex }));
+    if (normalSpawnLeadMs !== null && startMs !== null && endMs !== null && endMs > startMs) {
+      const intervalSkyStartMs=Math.max(0,startMs-normalSpawnLeadMs-skyLeadMs);
+      maximumPresentationLeadMs=Math.max(maximumPresentationLeadMs,startMs-intervalSkyStartMs);
+      intervals.push(Object.freeze({ start:intervalSkyStartMs, end:endMs, orderedIndex:entry.orderedIndex }));
+    }
   }
   const maximumWholeBeat=Math.min(100_000,Math.max(0,Math.ceil(maximumAuthoredBeat))),guidanceEndMs=Number.isFinite(songDurationMs)&&songDurationMs>=0?Math.min(86_400_000,songDurationMs):null,guidanceTimeline=[];if(mapBeat)for(let beat=0,prior=-1;beat<=100_000;beat+=1){if(guidanceEndMs===null&&beat>maximumWholeBeat)break;let timestamp;try{timestamp=Number(mapBeat(beat));}catch{break;}if(!Number.isFinite(timestamp)||timestamp<0||timestamp>86_400_000)continue;if(guidanceEndMs!==null&&timestamp>guidanceEndMs)break;if(timestamp>prior){guidanceTimeline.push(timestamp);prior=timestamp;}}
-  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), normalSpawnLeadMs, spawnTimingAvailable, timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs, guidanceTimeline:Object.freeze(guidanceTimeline) });
+  return Object.freeze({ [sessionTargetIndexIdentity]:true, events, orderedEntries:Object.freeze(orderedEntries), eventIndices, intervalTree:buildIntervalTree(intervals), normalSpawnLeadMs, spawnTimingAvailable, skyMode, skyPreludeDurationMs, timingMismatchCount, timingMapperUnavailableCount, leadLimited, maximumPresentationLeadMs, guidanceTimeline:Object.freeze(guidanceTimeline) });
 }
 
 /** Return only the bounded mapped whole-beat timestamps needed by the current private renderer frame. */
@@ -85,8 +89,9 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   const obstacleOutcomes = new Map((visualTest ? [] : Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
-  const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,timingWindowAfterMs) : createOrderedEntries(events);
-  const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS;
+  const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];
+  const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS,skyMode=indexed&&index.skyMode==="prelude"?"prelude":"off",skyPreludeDurationMs=indexed&&skyMode==="prelude"&&Number.isFinite(index.skyPreludeDurationMs)&&index.skyPreludeDurationMs>=0?index.skyPreludeDurationMs:0,skyLeadMs=skyMode==="prelude"?skyPreludeDurationMs:0;
+  const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,timingWindowAfterMs,skyLeadMs) : createOrderedEntries(events);
   const targets = [];
   let fallbackFeedbackIndex = 0;
   for (const entry of orderedEntries) {
@@ -96,13 +101,13 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
     if (type === "obstacle") {
       // Obstacles are Enabled/Disabled only: the disabled modifier suppresses presentation. The retired visual-only modifier also disables scoring hazards, so it is honored identically for stored/stale values.
       if (modifiers.includes("no_obstacles") || modifiers.includes("obstacle_visual_only")) continue;
-      const target = flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
+      const target = flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs, obstacleOutcomes.get(String(recordValue(event, "eventId") ?? "")) ?? null);
       if (target) targets.push(target);
     } else if (type === "squat" || type === "weave_left" || type === "weave_right") {
-      const target = boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs);
+      const target = boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs);
       if (target) targets.push(target);
     } else if (type === "bomb") {
-      const target = flowBombTarget(event, beat, nowMs, normalSpawnLeadMs);
+      const target = flowBombTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs);
       if (target) targets.push(target);
     } else if (FLOW_OMITTED_TYPES.has(type)) {
       // Explicitly omitted: current gameplay and renderer have no truthful arc/burst presentation contract.
@@ -138,7 +143,7 @@ function compareEventEntries(left, right) { const time=finiteNumber(recordValue(
 /** @param {unknown} candidate @param {readonly Record<string, unknown>[]} events */
 function validSessionTargetIndex(candidate,events){return isRecord(candidate)&&candidate[sessionTargetIndexIdentity]===true&&candidate.events===events&&Array.isArray(candidate.orderedEntries)&&candidate.eventIndices instanceof Map;}
 /** @param {ReturnType<typeof createSessionTargetIndex>} index @param {number} nowMs @param {Map<string,Record<string,unknown>>} realJudgements @param {number} timingWindowAfterMs */
-function indexedCandidateEntries(index,nowMs,realJudgements,timingWindowAfterMs){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-(FEEDBACK_DURATION_MS+timingWindowAfterMs+1)),end=upperBound(entries,nowMs+Math.max(0,Number(index.maximumPresentationLeadMs)||0));for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
+function indexedCandidateEntries(index,nowMs,realJudgements,timingWindowAfterMs,skyLeadMs){const entries=index.orderedEntries,positions=new Set(),start=lowerBound(entries,nowMs-(FEEDBACK_DURATION_MS+timingWindowAfterMs+1+Math.max(0,Number(index.maximumPresentationLeadMs)||0))),end=upperBound(entries,nowMs+Math.max(0,Number(index.maximumPresentationLeadMs)||0));for(let position=start;position<end;position+=1)positions.add(position);queryIntervalTree(index.intervalTree,nowMs,positions,skyLeadMs);for(const [eventId,judgement] of realJudgements){const commitMs=optionalFiniteNumber(recordValue(judgement,"committedTimelinePositionMs"));if(commitMs===null||nowMs<commitMs||nowMs>commitMs+FEEDBACK_DURATION_MS)continue;for(const position of index.eventIndices.get(eventId)??[])positions.add(position);}return [...positions].sort((left,right)=>left-right).map(position=>entries[position]);}
 /** @param {readonly number[]} values @param {number} value */
 function lowerBoundNumber(values,value){let low=0,high=values.length;while(low<high){const middle=(low+high)>>>1;if(values[middle]<value)low=middle+1;else high=middle;}return low;}
 /** @param {readonly {centerTimestampMs:number}[]} entries @param {number} value */
@@ -148,41 +153,43 @@ function upperBound(entries,value){let low=0,high=entries.length;while(low<high)
 /** @param {readonly {start:number,end:number,orderedIndex:number}[]} intervals */
 function buildIntervalTree(intervals){if(intervals.length===0)return null;const centers=intervals.map(interval=>(interval.start+interval.end)/2).sort((left,right)=>left-right),center=centers[centers.length>>>1],left=[],right=[],overlap=[];for(const interval of intervals){if(interval.end<center)left.push(interval);else if(interval.start>center)right.push(interval);else overlap.push(interval);}return Object.freeze({center,byStart:Object.freeze([...overlap].sort((a,b)=>a.start-b.start)),byEnd:Object.freeze([...overlap].sort((a,b)=>b.end-a.end)),left:buildIntervalTree(left),right:buildIntervalTree(right)});}
 /** @param {ReturnType<typeof buildIntervalTree>} tree @param {number} point @param {Set<number>} positions */
-function queryIntervalTree(tree,point,positions){if(!tree)return;if(point<tree.center){for(const interval of tree.byStart){if(interval.start>point)break;if(interval.end>=point)positions.add(interval.orderedIndex);}queryIntervalTree(tree.left,point,positions);return;}if(point>tree.center){for(const interval of tree.byEnd){if(interval.end<point)break;if(interval.start<=point)positions.add(interval.orderedIndex);}queryIntervalTree(tree.right,point,positions);return;}for(const interval of tree.byStart)positions.add(interval.orderedIndex);}
+function queryIntervalTree(tree,point,positions,span=0){if(!tree)return;if(point-span<tree.center){for(const interval of tree.byStart){if(interval.start>point)break;if(interval.end>=point-span)positions.add(interval.orderedIndex);}queryIntervalTree(tree.left,point,positions,span);return;}if(point+span>tree.center){for(const interval of tree.byEnd){if(interval.end<point-span)break;if(interval.start<=point+span)positions.add(interval.orderedIndex);}queryIntervalTree(tree.right,point,positions,span);return;}for(const interval of tree.byStart)positions.add(interval.orderedIndex);}
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs @param {Record<string, unknown>|null} outcome */
-function flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, outcome) {
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs @param {"off"|"prelude"} skyMode @param {number} skyLeadMs @param {Record<string, unknown>|null} outcome */
+function flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs, outcome) {
   const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
   const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
   const gridMask = recordValue(beat, "gridMask"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
   if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry)) return null;
-  const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs);if (nowMs < normalSpawnMs || nowMs > endMs) return null;
+  const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs),skyPreludeStartMs=skyMode==="prelude"?Math.max(0,normalSpawnMs-skyLeadMs):null,wallGateMs=skyPreludeStartMs??normalSpawnMs;
+  if (nowMs < wallGateMs || nowMs > endMs) return null;
   const firstContactMs = outcome?.result === "contact" ? optionalFiniteNumber(recordValue(outcome, "firstContactTimelinePositionMs")) : null;
   const contactPulseProgress = firstContactMs !== null && nowMs >= firstContactMs && nowMs <= firstContactMs + FEEDBACK_DURATION_MS ? clamp01((nowMs - firstContactMs) / FEEDBACK_DURATION_MS) : undefined;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, normalSpawnMs, ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, normalSpawnMs, ...(skyPreludeStartMs === null ? {} : { skyPreludeStartMs }), ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
 }
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {string} type @param {number} nowMs @param {number} normalSpawnLeadMs */
-function boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs) {
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {string} type @param {number} nowMs @param {number} normalSpawnLeadMs @param {"off"|"prelude"} skyMode @param {number} skyLeadMs */
+function boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs) {
   const startMs = optionalFiniteNumber(recordValue(event, "intervalStartTimestampMs"));
   const endMs = optionalFiniteNumber(recordValue(event, "intervalEndTimestampMs"));
   const gridMask = recordValue(beat, "gridMask"); const blockedCells = recordValue(beat, "blockedCells"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
   if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry) || !sameCells(blockedCells, gridMask)) return null;
-  const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs);if (nowMs < normalSpawnMs || nowMs > endMs) return null;
+  const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs),skyPreludeStartMs=skyMode==="prelude"?Math.max(0,normalSpawnMs-skyLeadMs):null,wallGateMs=skyPreludeStartMs??normalSpawnMs;
+  if (nowMs < wallGateMs || nowMs > endMs) return null;
   const weaveHand = type === "weave_left" ? "left" : type === "weave_right" ? "right" : null;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:weaveHand ?? "neutral", family:type === "squat" ? "squat" : "weave", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:weaveHand, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs,normalSpawnMs };
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:weaveHand ?? "neutral", family:type === "squat" ? "squat" : "weave", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:weaveHand, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs,normalSpawnMs,...(skyPreludeStartMs === null ? {} : { skyPreludeStartMs }) };
 }
 
 /** @param {unknown} left @param {unknown} right */
 function sameCells(left, right) { return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((cell, index) => Number.isInteger(cell) && cell === right[index]); }
 
-/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs */
-function flowBombTarget(event, beat, nowMs, normalSpawnLeadMs) {
+/** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs @param {"off"|"prelude"} skyMode @param {number} skyLeadMs */
+function flowBombTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs) {
   const centerMs = optionalFiniteNumber(recordValue(event, "centerTimestampMs"));
   const placement = recordValue(beat, "placement");
   if (centerMs === null || !Number.isInteger(placement) || Number(placement) < 0 || Number(placement) > 11) return null;
-  const normalSpawnMs=Math.max(0,centerMs-normalSpawnLeadMs);if (nowMs < normalSpawnMs || nowMs > centerMs + 500) return null;
-  return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs,normalSpawnMs };
+  const normalSpawnMs=Math.max(0,centerMs-normalSpawnLeadMs),skyPreludeStartMs=skyMode==="prelude"?Math.max(0,normalSpawnMs-skyLeadMs):null,bombGateMs=skyPreludeStartMs??normalSpawnMs;if (nowMs < bombGateMs || nowMs > centerMs + 500) return null;
+  return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs,normalSpawnMs,...(skyPreludeStartMs === null ? {} : { skyPreludeStartMs }) };
 }
 
 /** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|undefined} missCommitMs @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity */

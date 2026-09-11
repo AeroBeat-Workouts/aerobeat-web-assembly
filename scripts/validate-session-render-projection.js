@@ -50,10 +50,27 @@ const actualObstacle = Object.freeze({
   intervalStartTimestampMs:37039.99938964844, intervalEndTimestampMs:37064.99938964844,
   authoredBeat:Object.freeze({start:92.5999984741211,end:92.6624984741211,type:"obstacle",sourceGeometry,gameplayGeometry,gridMask:Object.freeze([1,5,9])})
 });
-// q1j3 oracle D: obstacle entry boundary moves from center-2500 to intervalStart-normalSpawnLead (the visible spawn row). With the default no-index fallback lead of 2500 ms this equals intervalStart-2500.
+// zcsh oracle D: with sky prelude on, the obstacle's first visible frame is the shared note boundary (S-L-D); the head is exact (now-S)*0.006 there, and the wall is absent 1 ms before.
 const dFallbackLead=2500;
-assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalStartTimestampMs-dFallbackLead).length,1,"D actual obstacle enters at exact intervalStart-normalSpawnLead visible spawn row");
-assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalStartTimestampMs-dFallbackLead-.001).length,0,"D actual obstacle stays hidden before the visible spawn row");
+{
+  const dSkyD=500;
+  const dStart=actualObstacle.intervalStartTimestampMs;
+  const dEvents=Object.freeze([actualObstacle]);
+  const dPreludeIndex=createSessionTargetIndex(dEvents,{bounceLeadBeats:4,normalSpawnLeadMs:dFallbackLead,skyMode:"prelude",skyPreludeDurationMs:dSkyD});
+  assert.equal(projectSessionTargets(dEvents,testTruth,dStart-dFallbackLead-dSkyD-.001,dPreludeIndex).length,0,"D prelude obstacle stays hidden strictly before the shared sky start S-L-D");
+  assert.equal(projectSessionTargets(dEvents,testTruth,dStart-dFallbackLead-dSkyD,dPreludeIndex).length,1,"D prelude obstacle enters at the exact shared sky start S-L-D");
+  const dAtSky=projectSessionTargets(dEvents,testTruth,dStart-dFallbackLead-dSkyD,dPreludeIndex)[0];
+  const dModel=buildGameplaySceneModel({presentation:"flow",nowMs:dStart-dFallbackLead-dSkyD,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[dAtSky]});
+  const dWall=dModel.objects.find((entry)=>entry.targetId===actualObstacle.eventId&&entry.kind==="obstacle");
+  assert.ok(dWall,"D prelude obstacle scene object is present at the shared sky start");
+  const dExpectedHead=(actualObstacle.intervalStartTimestampMs-dFallbackLead-dSkyD-actualObstacle.intervalStartTimestampMs)*0.006;
+  assert.ok(Math.abs((dWall.position.z+dWall.scale.z/2)-dExpectedHead)<1e-9,`D prelude obstacle leading face equals exact (now-S)*0.006 at the sky start: ${JSON.stringify(dWall.position)}`);
+  const dOffLead=8334;
+  const dOffIndex=createSessionTargetIndex(dEvents,{bounceLeadBeats:4,normalSpawnLeadMs:dOffLead,skyMode:"off",skyPreludeDurationMs:dSkyD});
+  assert.equal(projectSessionTargets(dEvents,testTruth,dStart-dOffLead,dOffIndex).length,1,"D off-mode obstacle still enters at the normal spawn row S-L");
+  assert.equal(projectSessionTargets(dEvents,testTruth,dStart-dOffLead-.001,dOffIndex).length,0,"D off-mode obstacle stays hidden before S-L");
+}
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalStartTimestampMs-dFallbackLead-.001).length,0,"D off default: obstacle stays hidden before the visible spawn row");
 for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTimestampMs+actualObstacle.intervalEndTimestampMs)/2, actualObstacle.intervalEndTimestampMs]) {
   assert.deepEqual(projectSessionTargets([actualObstacle],testTruth,nowMs),[{
     id:actualObstacle.eventId,kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1,5,9],sourceGeometry,gameplayGeometry,lane:null,
@@ -133,6 +150,120 @@ const contactTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1100)[0]?.contactPulseProgress,0,"contact pulse starts at exact first contact");
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1275)[0]?.contactPulseProgress,.5);
 assert.equal(projectSessionTargets([longObstacle],contactTruth,1451)[0]?.contactPulseProgress,undefined,"contact pulse is bounded to 350 ms");
+// zcsh oracles: shared first-visible frame (wall==note), bomb/note parity, plumbing, no-motion, and edge cases.
+// Use a simple linear mapper (500 ms per beat) so notes derive exact skyPreludeStartMs.
+{
+  const L=8334,D=1000,S=20000,E=22000,C=25000;
+  const wallGeom=Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2});
+  const wall=Object.freeze({eventId:"zcsh-wall",centerTimestampMs:S,intervalStartTimestampMs:S,intervalEndTimestampMs:E,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:wallGeom,gridMask:Object.freeze([1,2,5,6])})});
+  const note=Object.freeze({eventId:"zcsh-note",centerTimestampMs:S,appearanceColor:"#FF0000",authoredBeat:Object.freeze({type:"note",start:S/500,hand:"left",placement:4,direction:2})});
+  const bomb=Object.freeze({eventId:"zcsh-bomb",centerTimestampMs:C,authoredBeat:Object.freeze({type:"bomb",placement:4})});
+  const bombNote=Object.freeze({eventId:"zcsh-bomb-note",centerTimestampMs:C,appearanceColor:"#00FF00",authoredBeat:Object.freeze({type:"note",start:C/500,hand:"right",placement:7,direction:1})});
+  const allEvents=Object.freeze([wall,note,bomb,bombNote]);
+  const zcshMapBeat=(beat)=>beat*500;
+  const preludeIndex=createSessionTargetIndex(allEvents,{mapBeatToTimelineMs:zcshMapBeat,bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"prelude",skyPreludeDurationMs:D});
+  const offIndex=createSessionTargetIndex(allEvents,{mapBeatToTimelineMs:zcshMapBeat,bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"off",skyPreludeDurationMs:D});
+  const find=(nowMs,index,id)=>projectSessionTargets(allEvents,testTruth,nowMs,index).find((entry)=>entry.id===id)??null;
+  const modelFor=(nowMs,index,id)=>{const target=find(nowMs,index,id);return{target,model:buildGameplaySceneModel({presentation:"flow",nowMs,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:target?[target]:[]})};};
+  // Shared first-visible frame: wall [S,E] absent at S-L-D-1, present at S-L-D, with rigid z; side-by-side a note at the same center produces an icon on the SAME frame.
+  const wallAtGate=find(S-L-D,preludeIndex,"zcsh-wall"),noteAtGate=find(S-L-D,preludeIndex,"zcsh-note");
+  assert.ok(wallAtGate,"wall target present at shared gate S-L-D");assert.ok(noteAtGate,"note target present at shared gate S-L-D");
+  assert.equal(find(S-L-D-1,preludeIndex,"zcsh-wall"),null,"wall absent at S-L-D-1");assert.equal(find(S-L-D-1,preludeIndex,"zcsh-note"),null,"note absent at S-L-D-1");
+  const {model:gatedModel}=modelFor(S-L-D,preludeIndex,"zcsh-wall");
+  const gatedWall=gatedModel.objects.find((entry)=>entry.targetId==="zcsh-wall"&&entry.kind==="obstacle");
+  assert.ok(gatedWall,"wall scene object present at the shared first-visible frame");
+  const gatedNoteModel=modelFor(S-L-D,preludeIndex,"zcsh-note").model;
+  const gatedIcon=gatedNoteModel.objects.find((entry)=>entry.targetId==="zcsh-note"&&entry.kind==="icon");
+  assert.ok(gatedIcon,"note icon present on the same frame as the wall gate");
+  assert.equal(gatedWall.position.z,( (S-L-D-S)*0.006+(S-L-D-E)*0.006 )/2,"wall position.z is the exact ts2z midpoint at the gate");
+  assert.equal(gatedWall.scale.z,Math.abs((S-L-D-E)*0.006-(S-L-D-S)*0.006),"wall scale.z is the exact authored interval depth at the gate");
+  // Plumbing: projected wall/bomb carry finite skyPreludeStartMs === max(0, normalSpawnMs - D) when prelude on, absent when off.
+  assert.equal(wallAtGate.normalSpawnMs,S-L);assert.equal(wallAtGate.skyPreludeStartMs,S-L-D,"wall carries exact skyPreludeStartMs under prelude");
+  const bombAtGate=find(C-L-D,preludeIndex,"zcsh-bomb");const bombNoteAtGate=find(C-L-D,preludeIndex,"zcsh-bomb-note");
+  assert.ok(bombAtGate&&bombNoteAtGate,"bomb and its co-temporal note present at C-L-D");
+  assert.equal(bombAtGate.normalSpawnMs,C-L);assert.equal(bombAtGate.skyPreludeStartMs,C-L-D,"bomb carries exact skyPreludeStartMs under prelude");
+  assert.equal(find(C-L-D-1,preludeIndex,"zcsh-bomb"),null,"bomb absent at C-L-D-1");
+  const offWall=find(S-L-1,offIndex,"zcsh-wall");const offNote=find(S-L-1,offIndex,"zcsh-note");const offWallAt=find(S-L,offIndex,"zcsh-wall");const offNoteAt=find(S-L,offIndex,"zcsh-note");
+  assert.equal(offWall,null,"off mode: wall absent at S-L-1");assert.equal(offNote,null,"off mode: note absent at S-L-1");
+  assert.ok(offWallAt&&offNoteAt,"off mode: wall and note both present at S-L");
+  assert.equal(Object.hasOwn(offWallAt,"skyPreludeStartMs"),false,"off mode: wall omits skyPreludeStartMs");
+  assert.equal(Object.hasOwn(find(C-L,offIndex,"zcsh-bomb")??{},"skyPreludeStartMs"),false,"off mode: bomb omits skyPreludeStartMs");
+  // Bomb/note z parity at sampled times.
+  for(const nowMs of [C-L-D,C-Math.round(L/2),C]){const b=modelFor(nowMs,preludeIndex,"zcsh-bomb").model.objects.find((entry)=>entry.targetId==="zcsh-bomb"&&entry.kind==="icon");const n=modelFor(nowMs,preludeIndex,"zcsh-bomb-note").model.objects.find((entry)=>entry.targetId==="zcsh-bomb-note"&&entry.kind==="icon");assert.ok(b&&n,`bomb+note icons present at ${nowMs}`);assert.equal(b.position.z,n.position.z,`bomb z == note z at ${nowMs}`);assert.ok(Math.abs(b.position.z-(nowMs-C)*0.006)<1e-9,`bomb z canonical at ${nowMs}`);}
+  // No-motion guard: across [gate, E] the wall x is constant; wall y is elevated above the base lane during the prelude and returns to exactly the base lane at/after the join (sky offset zero); the note icon Y is constant after the join.
+  const wallXY=(nowMs)=>modelFor(nowMs,preludeIndex,"zcsh-wall").model.objects.find((entry)=>entry.targetId==="zcsh-wall"&&entry.kind==="obstacle")?.position??null;
+  const noteIconY=(nowMs)=>modelFor(nowMs,preludeIndex,"zcsh-note").model.objects.find((entry)=>entry.targetId==="zcsh-note"&&entry.kind==="icon")?.position.y??null;
+  const wallBaseY=wallXY(S)?.y??null;assert.ok(wallBaseY!==null,"wall present at join for base-Y reference");
+  let priorX=null;for(let nowMs=S-L-D;nowMs<=E;nowMs+=100){const w=wallXY(nowMs);assert.ok(w,`wall present at ${nowMs}`);if(priorX!==null)assert.equal(w.x,priorX,"wall x is rigid-constant across the visible window");priorX=w.x;
+    if(nowMs<S-L)assert.ok(w.y>wallBaseY,`wall y is elevated above base lane (${wallBaseY}) during prelude at ${nowMs}: ${w.y}`);
+    else assert.ok(Math.abs(w.y-wallBaseY)<1e-9,`wall y is exactly at base lane at/after the join at ${nowMs}: ${w.y} vs base ${wallBaseY}`);}
+  const noteYAfterJoinA=noteIconY(S-L+1),noteYAfterJoinB=noteIconY(S-L+400);assert.ok(noteYAfterJoinA!==null&&noteYAfterJoinB!==null,"note icon present in the post-join visibility window");assert.equal(noteYAfterJoinA,noteYAfterJoinB,"note icon Y is constant after the sky join (no bounce/sky motion for a plain note)");
+  // Long wall edge case: tail z may exceed the frustum; the model stays truthful and scale.z equality holds.
+  const longWallEvents=Object.freeze([Object.freeze({eventId:"zcsh-long-wall",centerTimestampMs:30000,intervalStartTimestampMs:30000,intervalEndTimestampMs:60000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:wallGeom,gridMask:Object.freeze([1,2,5,6])})})]);
+  const longIndex=createSessionTargetIndex(longWallEvents,{bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"prelude",skyPreludeDurationMs:D});
+  const findLong=(nowMs)=>projectSessionTargets(longWallEvents,testTruth,nowMs,longIndex).find((entry)=>entry.id==="zcsh-long-wall")??null;
+  for(const nowMs of [30000-L-D,45000,60000]){const lw=findLong(nowMs);assert.ok(lw,`long wall present at ${nowMs}`);const lm=buildGameplaySceneModel({presentation:"flow",nowMs,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[lw]}).objects.find((entry)=>entry.targetId==="zcsh-long-wall"&&entry.kind==="obstacle");assert.equal(lm.scale.z,Math.abs((nowMs-60000)*0.006-(nowMs-30000)*0.006),`long wall scale.z exact at ${nowMs}`);assert.equal(lm.position.z,((nowMs-30000)*0.006+(nowMs-60000)*0.006)/2,`long wall center z exact at ${nowMs}`);}
+}
+// zcsh clamped-zero edge case: early-song wall with normalSpawnMs clamped to 0 hides before the clamped sky start and appears at the clamped row.
+{
+  const S=1000,E=3000,L=8334,D=1000;
+  const clampedWallEvents=Object.freeze([Object.freeze({eventId:"clamped-wall",centerTimestampMs:S,intervalStartTimestampMs:S,intervalEndTimestampMs:E,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2}),gridMask:Object.freeze([1,2,5,6])})})]);
+  const clampedIndex=createSessionTargetIndex(clampedWallEvents,{bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"prelude",skyPreludeDurationMs:D});
+  assert.equal(projectSessionTargets(clampedWallEvents,testTruth,-1,clampedIndex).length,0,"clamped-to-zero normalSpawnMs: wall hidden before the clamped sky start");
+  const clampedAtZero=projectSessionTargets(clampedWallEvents,testTruth,0,clampedIndex)[0];
+  assert.equal(clampedAtZero?.id,"clamped-wall","clamped wall present at the clamped sky start row 0");
+  assert.equal(clampedAtZero.normalSpawnMs,0,"clamped wall normalSpawnMs is clamped to 0");assert.equal(clampedAtZero.skyPreludeStartMs,0,"clamped wall skyPreludeStartMs is clamped to 0");
+  const clampedModel=buildGameplaySceneModel({presentation:"flow",nowMs:0,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[clampedAtZero]}).objects.find((entry)=>entry.targetId==="clamped-wall"&&entry.kind==="obstacle");
+  assert.ok(Math.abs((clampedModel.position.z+clampedModel.scale.z/2)-(0-S)*0.006)<1e-9,"clamped wall leading face exact at the clamped row");
+}
+// zcsh index admission: obstacles must be candidates from the widened start (S-L-D) even when the center-based timeline window excludes them.
+{
+  const S=20000,E=22000,L=8334,D=5000;
+  const earlyWallEvents=Object.freeze([Object.freeze({eventId:"early-admission-wall",centerTimestampMs:S,intervalStartTimestampMs:S,intervalEndTimestampMs:E,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2}),gridMask:Object.freeze([1,2,5,6])})})]);
+  const earlyIndex=createSessionTargetIndex(earlyWallEvents,{bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"prelude",skyPreludeDurationMs:D});
+  const atSkyStart=projectSessionTargets(earlyWallEvents,testTruth,S-L-D,earlyIndex).find((entry)=>entry.id==="early-admission-wall");
+  assert.ok(atSkyStart,"widened index admission admits the wall at S-L-D");
+  assert.equal(atSkyStart.skyPreludeStartMs,S-L-D,"widened admission row carries the exact skyPreludeStartMs");
+  assert.equal(projectSessionTargets(earlyWallEvents,testTruth,S-L-D-.001,earlyIndex).length,0,"widened admission stays closed 1 ms before S-L-D");
+}
+// zcsh no_obstacles suppression rows: a suppressed wall stays absent across the full [S-L-D, E] window and beyond.
+{
+  const S=10000,E=12000,L=8334,D=1000;
+  const suppressedWallEvents=Object.freeze([Object.freeze({eventId:"zcsh-suppressed",centerTimestampMs:S,intervalStartTimestampMs:S,intervalEndTimestampMs:E,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2}),gridMask:Object.freeze([1,2,5,6])})})]);
+  const suppressedIndex=createSessionTargetIndex(suppressedWallEvents,{bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"prelude",skyPreludeDurationMs:D});
+  for(const nowMs of [S-L-D-1,S-L-D,S-L-1,S-L,(S+E)/2,E,E+1]){assert.deepEqual(projectSessionTargets(suppressedWallEvents,noObstacleTruth,nowMs,suppressedIndex),[],`no_obstacles wall stays absent at ${nowMs} under the widened sky window`);}
+}
+// zcsh plumbing fallback equivalence: with skyPreludeStartMs ABSENT from the target, the renderer scene model derives identical values (the scene-model fallback is max(0,normalSpawnMs-D)) — renderer behavior is unchanged whether or not the field is present.
+{
+  const S=20000,E=22000,L=8334,D=1000;
+  const wallGeom2=Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2});
+  const bareWall=Object.freeze({id:"bare-wall",kind:"obstacle",hand:"neutral",family:"obstacle",cell:null,cells:[1,2,5,6],sourceGeometry,gameplayGeometry:wallGeom2,lane:null,beatCenterMs:S,intervalStartMs:S,intervalEndMs:E,normalSpawnMs:S-L});
+  const withField={...bareWall,skyPreludeStartMs:S-L-D};
+  const frame={presentation:"flow",nowMs:S-L-D,timingWindowBeforeMs:180,timingWindowAfterMs:180};
+  const fallbackModel=buildGameplaySceneModel({...frame,targets:[bareWall]});const plumbedModel=buildGameplaySceneModel({...frame,targets:[withField]});
+  const fallbackWall=fallbackModel.objects.find((entry)=>entry.targetId==="bare-wall"&&entry.kind==="obstacle");const plumbedWall=plumbedModel.objects.find((entry)=>entry.targetId==="bare-wall"&&entry.kind==="obstacle");
+  assert.ok(fallbackWall&&plumbedWall,"both bare and plumbed walls project at the shared gate");
+  assert.deepEqual(plumbedModel.objects.map((entry)=>({kind:entry.kind,position:entry.position,scale:entry.scale,alpha:entry.alpha})),fallbackModel.objects.map((entry)=>({kind:entry.kind,position:entry.position,scale:entry.scale,alpha:entry.alpha})),"scene model output is identical whether skyPreludeStartMs is plumbed or left to the renderer fallback");
+}
+// zcsh Boxing parity: Boxing Lanes/Grid obstacles get the identical sky entry.
+{
+  const S=15000,L=8334,D=1000;
+  const boxingWallEvents=Object.freeze([boxingObstacleEvent("zcsh-boxing-weave",S,"weave_left",{x:2,y:0,width:2,height:2})]);
+  const boxingPreludeIndex=createSessionTargetIndex(boxingWallEvents,{bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"prelude",skyPreludeDurationMs:D});
+  const boxingOffIndex=createSessionTargetIndex(boxingWallEvents,{bounceLeadBeats:4,normalSpawnLeadMs:L,skyMode:"off",skyPreludeDurationMs:D});
+  const atGate=projectSessionTargets(boxingWallEvents,testTruth,S-L-D,boxingPreludeIndex).find((entry)=>entry.id==="zcsh-boxing-weave");
+  const beforeGate=projectSessionTargets(boxingWallEvents,testTruth,S-L-D-.001,boxingPreludeIndex);
+  const offBefore=projectSessionTargets(boxingWallEvents,testTruth,S-L-1,boxingOffIndex);const offAt=projectSessionTargets(boxingWallEvents,testTruth,S-L,boxingOffIndex);
+  assert.ok(atGate,"Boxing obstacle present at the shared sky gate");assert.equal(beforeGate.length,0,"Boxing obstacle absent 1 ms before the shared sky gate");
+  assert.equal(atGate.skyPreludeStartMs,S-L-D,"Boxing obstacle carries the exact skyPreludeStartMs");
+  assert.equal(offBefore.length,0,"Boxing off mode: absent before S-L");assert.ok(offAt,"Boxing off mode: present at S-L");
+  const lanesModel=buildGameplaySceneModel({presentation:"boxing_lanes",nowMs:S-L-D,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[atGate]});
+  const lanesWall=lanesModel.objects.find((entry)=>entry.targetId==="zcsh-boxing-weave"&&entry.kind==="obstacle");
+  assert.ok(lanesWall,"Boxing Lanes wall scene object present at the shared gate");
+  const boxingNow=S-L-D,boxingEnd=S+200;
+  assert.ok(Math.abs(lanesWall.position.z-((boxingNow-S)*0.006+(boxingNow-boxingEnd)*0.006)/2)<1e-9,`Boxing wall z is the exact ts2z midpoint at the gate: ${lanesWall.position.z}`);
+}
+
 const bombs=Object.freeze(Array.from({length:12},(_,placement)=>Object.freeze({eventId:`bomb-${placement}`,centerTimestampMs:1000+placement,authoredBeat:Object.freeze({type:"bomb",placement})})));
 const projectedBombsAtBoundary=projectSessionTargets(bombs,testTruth,-1);
 assert.equal(projectedBombsAtBoundary.length,0,"bomb is absent strictly before its clamped-to-zero normalSpawnMs boundary");
