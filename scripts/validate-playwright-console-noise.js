@@ -129,6 +129,53 @@ try {
   });
   if (integration.owner !== "lease-second" || integration.log.filter((entry) => !entry.endsWith(":video-play")).slice(0, 3).join(",") !== "lease-first:activate,lease-first:pause,lease-second:activate" || !integration.log.includes("lease-first:video-play") || !integration.log.includes("lease-second:video-play") || !integration.log.includes("lease-second:hidden:true") || !integration.log.includes("lease-second:audio-hidden:true") || integration.variantCount !== 6 || integration.selected !== "spatial-cut" || integration.duplicateLifecycle !== "error" || !integration.childLocalImport || !integration.staleReconnectSafe || !integration.autoplayRejectionVisible) throw new Error(`Lease/hidden/six-variant integration failed: ${JSON.stringify(integration)}`);
   const ownership=await page.evaluate(async()=>{const host=document.createElement("section");document.body.replaceChildren(host);document.body.setAttribute("class","host-owned");document.body.setAttribute("data-owner","embedder");document.body.style.cssText="margin:7px;background:rgb(1,2,3)";const attributesBefore=[...document.body.attributes].map((entry)=>[entry.name,entry.value]),childrenBefore=[...document.body.childNodes],hrefBefore=location.href,historyBefore=history.length;let historyCalls=0;const push=history.pushState,replace=history.replaceState;history.pushState=function(...args){historyCalls+=1;return push.apply(this,args)};history.replaceState=function(...args){historyCalls+=1;return replace.apply(this,args)};const game=document.createElement("aero-game");host.append(game);await new Promise((resolve)=>setTimeout(resolve,30));game.remove();await new Promise((resolve)=>setTimeout(resolve,20));history.pushState=push;history.replaceState=replace;return{attributesUnchanged:JSON.stringify(attributesBefore)===JSON.stringify([...document.body.attributes].map((entry)=>[entry.name,entry.value])),childrenUnchanged:childrenBefore.length===document.body.childNodes.length&&childrenBefore.every((entry,index)=>entry===document.body.childNodes[index]),hrefUnchanged:hrefBefore===location.href,historyUnchanged:historyBefore===history.length&&historyCalls===0}});if(!Object.values(ownership).every(Boolean))throw new Error(`Connection-time host ownership failed: ${JSON.stringify(ownership)}`);
+ // ---------------------------------------------------------------------------
+ // kl80 console pass — classification of the pinned MediaPipe Tasks Vision 1.0.1
+ // cpu-wasm build's console output (Derrick physical review, 0.0.50).
+ //
+ // These lines originate INSIDE the dedicated MediaPipe pose worker
+ // (mediapipe-worker-adapter.js spawns a real `new Worker(...)`; TFLite/MediaPipe
+ // log to the worker-global console there). The page-level collector below can
+ // therefore never observe them: Playwright only routes same-document console
+ // messages to `page.on("console")`, and worker logs surface in DevTools' worker
+ // scope. Nothing is suppressible at the app layer without silencing genuine
+ // errors inside a vendored binary we do not own, so every line is Pinned
+ // Grammar, documented here AND enforced by scripts/profile-browser-noise-policy.mjs
+ // for the hardware profile collectors that DO run inside the worker scope:
+ //
+ //   Line                                                                    Class  Rationale
+ //   INFO: Created TensorFlow Lite XNNPACK delegate for CPU.                 Pinned TFLite runtime informational, logged at error level by the
+ //                                                                           wasm bridge; confirms the cpu-wasm delegate loaded.
+ //   W... gl_context.cc:<n>] OpenGL error checking is disabled              Pinned EGL/GL context init notice from MediaPipe's GL context code.
+ //   W... inference_feedback_manager.cc:121] Feedback manager requires ...  Pinned feedback-tensor capability probe (x2 across warm runs).
+ //   W... landmark_projection_calculator.cc:81] Using NORM_RECT without ... Pinned ROI projection fallback for the square-ROI pose landmark.
+ //   Graph successfully started running                                      Pinned TF graph start notice.
+ //   GL version: <driver string>                                             Pinned GL version banner.
+ //
+ // The page-level oracle below asserts the REAL-error classes stay clean and
+ // that the favicon 404 Derrick reported is gone.
+ // ---------------------------------------------------------------------------
+{
+  const faviconResponse = await page.evaluate(async () => {
+    const response = await fetch("/favicon.ico", { cache: "no-store" });
+    if (!response.ok) return { ok: false, status: response.status };
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return { ok: true, status: response.status, type: response.headers.get("content-type") ?? "", byteLength: bytes.byteLength, sha256: hex };
+  });
+  assert(faviconResponse.ok === true, `kl80: /favicon.ico must serve 200 over the dev server: ${JSON.stringify(faviconResponse)}`);
+  assert.equal(faviconResponse.status, 200, "favicon status must be 200");
+  assert.equal(faviconResponse.byteLength, 12114, `kl80: favicon byte length drifted from branding anchor: ${faviconResponse.byteLength} != 12114`);
+  assert.equal(faviconResponse.sha256, "5e8ac126cbef7a8a82b00b86c91ea656b61ea34d2afb1bd445c3edfe594ddc65", `kl80: favicon SHA-256 drifted from branding anchor: ${faviconResponse.sha256}`);
+  assert((faviconResponse.type ?? "").includes("image/x-icon") || (faviconResponse.type ?? "").includes("image/vnd.microsoft.icon"), `kl80: favicon content-type must be an ICO mime: ${faviconResponse.type}`);
+}
+const faviconFailureRequests = [];
+page.on("response", (response) => { if (response.url().endsWith("/favicon.ico") && response.status() >= 400) faviconFailureRequests.push({ url: response.url(), status: response.status() }); });
+await page.reload({ waitUntil: "networkidle" });
+assert(faviconFailureRequests.length === 0, `kl80: zero favicon requests may 404: ${JSON.stringify(faviconFailureRequests)}`);
+const faviconConsoleErrors = noise.filter((entry) => entry.toLowerCase().includes("favicon"));
+assert(faviconConsoleErrors.length === 0, `kl80: zero console errors may mention favicon: ${JSON.stringify(faviconConsoleErrors)}`);
   await page.close();
 
   const parent = await browser.newPage(); collectNoise(parent, noise, childUrl); await parent.goto(parentUrl, { waitUntil: "networkidle" }); const childOrigin = new URL(childUrl).origin;
@@ -159,6 +206,7 @@ try {
   const messageCountAfterDisconnect=await parent.evaluate(()=>window.messages.length);await parent.evaluate(({childOrigin})=>{const frame=document.querySelector("iframe");const message=(kind,id,payload)=>({schema:"aerobeat/iframe_message",version:1,kind,messageId:id,instanceId:"aero-game-1",payload});frame.contentWindow.postMessage(message("handshake_request","late-handshake",{protocolVersion:1}),childOrigin);frame.contentWindow.postMessage(message("command","late-command",{command:{schema:"aerobeat/game_command",version:1,commandId:"late-command",type:"configure",payload:{}}}),childOrigin)}, {childOrigin});await parent.waitForTimeout(100);const messagesAfterLateTraffic=await parent.evaluate(()=>window.messages.length);if(messagesAfterLateTraffic!==messageCountAfterDisconnect)throw new Error("Destroyed iframe graph responded to late handshake or command");
   await parent.close();
 } finally { await browser.close(); await vite.close(); await new Promise((resolve) => parentServer.close(resolve)); }
+
 if (noise.length) throw new Error(noise.join("\n"));
 console.log("Chromium actual graph, exact sizing, user fullscreen, reconnect, lease, six variants and adversarial cross-origin iframe validation passed.");
 

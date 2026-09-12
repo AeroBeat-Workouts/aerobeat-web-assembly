@@ -47,6 +47,8 @@ import { createPrivatePerformanceRecorder } from "./private-performance-recorder
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets } from "./session-render-projection.js";
 import { canonicalWorldUnitsPerMs, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
+import { projectGridCornersToScreen, solveVideoFit } from "./video-fit-solver.js";
+import { defaultVideoFit, normalizeVideoFit } from "@aerobeat/web-contracts/gameplay-contracts";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
@@ -114,6 +116,9 @@ export class AeroGame extends HTMLElement {
     this.renderEventIndex = null;
     this.renderPresentationConfig = null;
     this.renderSpawnDistanceWorldUnits = null;
+    // he8u: last applied affine video-fit state (derived, never stored per-device).
+    this.videoFitAppliedSignature = "";
+    this.lastVideoFitInputKey = "";
     this.desiredGameSetup = getGameSetupSnapshot();
     this.activeSessionSetup = null;
     this.gameSetupDrafts = new Map();
@@ -1135,7 +1140,7 @@ export class AeroGame extends HTMLElement {
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
       } catch { /* unconfigured session */ }
-      this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); const rendererStartedAtMs=performance.now(); this.renderGameplay(graph); const rendererCpuMs=performance.now()-rendererStartedAtMs; this.privatePerformance.record({ timestampMs:frameNow, rendererCpuMs, poseTimestampMs:graph.cv.getStatus().running&&this.latestPoseTimestampMs>=0?this.latestPoseTimestampMs:null, cv:graph.cv.getPerformanceSample?.(), camera:cameraPerformanceFormat(graph,this.videoElement()) }); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
+      this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); const rendererStartedAtMs=performance.now(); this.applyVideoFit(graph); this.renderGameplay(graph); const rendererCpuMs=performance.now()-rendererStartedAtMs; this.privatePerformance.record({ timestampMs:frameNow, rendererCpuMs, poseTimestampMs:graph.cv.getStatus().running&&this.latestPoseTimestampMs>=0?this.latestPoseTimestampMs:null, cv:graph.cv.getPerformanceSample?.(), camera:cameraPerformanceFormat(graph,this.videoElement()) }); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
       if (graph.gameplay.getSnapshot().session.state === "completed") void this.reconcileTerminalServices(graph);
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
       if (this.container.devicePixelRatio !== currentDpr()) this.measureContainer();
@@ -1235,7 +1240,7 @@ export class AeroGame extends HTMLElement {
     }
     const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, timingWindowMs);
     const cameraActive=setup.noseCameraParallaxEnabled&&session.purpose==="play"&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
-    const cameraDeflection=sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive),normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
+    const cameraDeflection=sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);this.lastNoseCameraDeflection=cameraDeflection;const normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
     const beatGuidance=setup.guidanceBandMode==="song_beat_grid"?guidanceBeatTimestamps(this.renderEventIndex,nowMs,normalSpawnLeadMs):null;
     return {
       presentation, nowMs, targets,
@@ -1247,6 +1252,80 @@ export class AeroGame extends HTMLElement {
       cameraDeflection,
       countdown: null, overlay: "none", calibrationDim: 0
     };
+  }
+
+  /** he8u: recompute the derived affine video fit when its inputs change, and apply it (or the cover fallback) to the `.media` element. */
+  applyVideoFit(graph) {
+    const video = this.videoElement();
+    const setup = normalizeVideoFit(this.desiredGameSetup?.videoFit);
+    const enabled = setup !== null && setup.enabled === true;
+    let envelope = null;
+    if (enabled) {
+      const calibration = graph?.input?.getSnapshot?.()?.calibration;
+      const bounds = calibration?.bounds;
+      if (bounds && Number.isFinite(bounds.left) && Number.isFinite(bounds.top) && Number.isFinite(bounds.right) && Number.isFinite(bounds.bottom) && bounds.right > bounds.left && bounds.bottom > bounds.top) {
+        // Calibrated bounds are in athlete-normalized coordinates [0..1]²
+        // (wrist span × 0.75 aspect, shoulder-midpoint centered, already
+        // mirror-consistent with the CSS scaleX(-1) selfie view). Map onto
+        // the displayed video box — the full-viewport .media element.
+        const widthCssPx = this.container.widthCssPx;
+        const heightCssPx = this.container.heightCssPx;
+        envelope = { left: bounds.left * widthCssPx, top: bounds.top * heightCssPx, right: bounds.right * widthCssPx, bottom: bounds.bottom * heightCssPx };
+      }
+    }
+    let gridCorners = null;
+    if (envelope !== null) {
+      const renderer = graph?.renderer;
+      const cameraEntity = renderer?.cameraEntity;
+      const camera = cameraEntity?.camera;
+      if (cameraEntity && camera) {
+        const position = cameraEntity.getPosition();
+        const deflection = this.lastNoseCameraDeflection;
+        const offset = deflection?.active ? { x: deflection.xDeflection * (this.desiredGameSetup?.noseCameraRangeXWorldUnits ?? 0), y: deflection.yDeflection * (this.desiredGameSetup?.noseCameraRangeYWorldUnits ?? 0) } : null;
+        // PlayCanvas getEulerAngles() returns a Vec3 where x=pitch(deg), y=yaw(deg),
+        // z=roll(deg) — map onto the solver's named-key pose record.
+        const euler = cameraEntity.getEulerAngles();
+        gridCorners = projectGridCornersToScreen(
+          { x: Number(position.x) + (offset?.x ?? 0), y: Number(position.y) + (offset?.y ?? 0), z: Number(position.z) },
+          { xPitch: Number(euler.x), yYaw: Number(euler.y), zRoll: Number(euler.z) },
+          { verticalFovDegrees: Number(camera.fov), nearClip: Number(camera.nearClip), farClip: Number(camera.farClip) },
+          { widthCssPx: this.container.widthCssPx, heightCssPx: this.container.heightCssPx },
+          0
+        );
+      }
+    }
+    const inputKey = [
+      enabled ? "on" : "off",
+      envelope ? `${envelope.left},${envelope.top},${envelope.right},${envelope.bottom}` : "none",
+      gridCorners ? gridCorners.map((corner) => `${corner.x.toFixed(3)},${corner.y.toFixed(3)}`).join("|") : "none",
+      this.container.widthCssPx, this.container.heightCssPx
+    ].join("\0");
+    if (inputKey === this.lastVideoFitInputKey) return;
+    this.lastVideoFitInputKey = inputKey;
+    const fit = envelope === null || gridCorners === null ? null : solveVideoFit({
+      envelope,
+      gridScreenCorners: gridCorners,
+      elementWidthCssPx: this.container.widthCssPx,
+      elementHeightCssPx: this.container.heightCssPx,
+      reference: setup.reference,
+      scalePercent: setup.scalePercent,
+      offsetXPercent: setup.offsetXPercent,
+      offsetYPercent: setup.offsetYPercent
+    });
+    if (fit === null) {
+      // Fit disabled or unavailable (pre-calibration / failed projection):
+      // exactly today's behavior — object-fit cover + mirror only.
+      video.style.objectFit = "";
+      video.style.transform = "";
+      this.videoFitAppliedSignature = "";
+      return;
+    }
+    // Compose WITH the existing mirror: translate → scale(sx·−1, sy) about the
+    // element center (CSS transform-origin defaults to 50% 50%).
+    video.style.objectFit = "fill";
+    video.style.transformOrigin = "50% 50%";
+    video.style.transform = `translate(${fit.translateX}px, ${fit.translateY}px) scale(${-fit.scaleX}, ${fit.scaleY})`;
+    this.videoFitAppliedSignature = JSON.stringify(fit);
   }
 
   renderGameplay(graph = this.graph) {
@@ -2020,15 +2099,18 @@ export class AeroGame extends HTMLElement {
 
   installGameSetupControls() {
     const content=this.drawerElement()?.querySelector(".drawer-content");if(!(content instanceof HTMLElement))return;const section=document.createElement("section");section.className="drawer-section";section.dataset.section="game-setup";section.tabIndex=-1;const heading=document.createElement("h2");heading.textContent="Game Setup";section.append(heading);
-    for(const [field,text] of [["showGameplayGrid","Show 4 × 3 grid"],["noseCameraParallaxEnabled","Nose camera parallax"],["spawnDistanceOverrideEnabled","Override spawn distance"],["enforceAuthoredDirection","Enforce authored direction"]]){const label=document.createElement("label");label.className="environment-option";const input=document.createElement("input");input.type="checkbox";input.dataset.gameSetupField=field;if(field==="showGameplayGrid")input.dataset.action="show-gameplay-grid";const span=document.createElement("span");span.textContent=text;label.append(input,span);section.append(label);}
+    for(const [field,text] of [["showGameplayGrid","Show 4 × 3 grid"],["noseCameraParallaxEnabled","Nose camera parallax"],["spawnDistanceOverrideEnabled","Override spawn distance"],["enforceAuthoredDirection","Enforce authored direction"],["videoFitEnabled","Video fit"]]){const label=document.createElement("label");label.className="environment-option";const input=document.createElement("input");input.type="checkbox";input.dataset.gameSetupField=field;if(field==="showGameplayGrid")input.dataset.action="show-gameplay-grid";const span=document.createElement("span");span.textContent=text;label.append(input,span);section.append(label);}
     const guidanceLabel=document.createElement("label");guidanceLabel.className="game-setup-select-row";const guidanceText=document.createElement("span");guidanceText.textContent="Guidance bands";const guidance=document.createElement("select");guidance.dataset.gameSetupField="guidanceBandMode";for(const [value,label] of [["off","Off"],["song_beat_grid","Song beat-grid bands"],["target_arrivals","Target-arrival bands"]]){const option=document.createElement("option");option.value=value;option.textContent=label;guidance.append(option);}guidanceLabel.append(guidanceText,guidance);section.append(guidanceLabel);
-    const rows=[["spawnDistanceOverrideWorldUnits","Spawn distance (world units)",...gameSetupBounds.normalSpawnDistanceWorldUnits,.1],["noseCameraRangeXWorldUnits","Camera horizontal range",...gameSetupBounds.noseCameraRangeXWorldUnits,.01],["noseCameraRangeYWorldUnits","Camera vertical range",...gameSetupBounds.noseCameraRangeYWorldUnits,.01],["timingWindowMs","Collider timing window (ms)",...gameSetupBounds.timingWindowMs,1],["colliderRadius","Collider radius",...gameSetupBounds.colliderRadius,.01],["directionToleranceDegrees","Direction tolerance (degrees)",...gameSetupBounds.directionToleranceDegrees,1],["noteScalePercent","Note scale (%)",...gameSetupBounds.noteScalePercent,1],["obstacleScalePercent","Obstacle scale (%)",...gameSetupBounds.obstacleScalePercent,1],["bombScalePercent","Bomb scale (%)",...gameSetupBounds.bombScalePercent,1],["markerScalePercent","Marker scale (%)",...gameSetupBounds.markerScalePercent,1]];
+    const rows=[["spawnDistanceOverrideWorldUnits","Spawn distance (world units)",...gameSetupBounds.normalSpawnDistanceWorldUnits,.1],["noseCameraRangeXWorldUnits","Camera horizontal range",...gameSetupBounds.noseCameraRangeXWorldUnits,.01],["noseCameraRangeYWorldUnits","Camera vertical range",...gameSetupBounds.noseCameraRangeYWorldUnits,.01],["timingWindowMs","Collider timing window (ms)",...gameSetupBounds.timingWindowMs,1],["colliderRadius","Collider radius",...gameSetupBounds.colliderRadius,.01],["directionToleranceDegrees","Direction tolerance (degrees)",...gameSetupBounds.directionToleranceDegrees,1],["noteScalePercent","Note scale (%)",...gameSetupBounds.noteScalePercent,1],["obstacleScalePercent","Obstacle scale (%)",...gameSetupBounds.obstacleScalePercent,1],["bombScalePercent","Bomb scale (%)",...gameSetupBounds.bombScalePercent,1],["markerScalePercent","Marker scale (%)",...gameSetupBounds.markerScalePercent,1],["videoFitScalePercent","Fit scale %",90,110,1],["videoFitOffsetXPercent","Fit offset X %",-10,10,1],["videoFitOffsetYPercent","Fit offset Y %",-10,10,1]];
     for(const [field,text,min,max,step] of rows){const label=document.createElement("label");label.className="game-setup-number-row";const span=document.createElement("span");span.textContent=String(text);const input=document.createElement("input");input.type="number";input.min=String(min);input.max=String(max);input.step=String(step);input.dataset.gameSetupField=String(field);input.setAttribute("aria-describedby",`game-setup-${field}-error`);const error=document.createElement("small");error.id=`game-setup-${field}-error`;error.dataset.gameSetupError=String(field);error.setAttribute("aria-live","polite");label.append(span,input,error);section.append(label);}
-    const note=document.createElement("p");note.className="game-setup-note";note.textContent="Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, and guidance changes apply live.";section.append(note);content.prepend(section);
+    const videoFitReferenceLabel=document.createElement("label");videoFitReferenceLabel.className="game-setup-select-row";const videoFitReferenceText=document.createElement("span");videoFitReferenceText.textContent="Fit reference";const videoFitReference=document.createElement("select");videoFitReference.dataset.gameSetupField="videoFitReference";for(const [value,text] of [["center","Center"],["far","Far"],["near","Near"]]){const option=document.createElement("option");option.value=value;option.textContent=text;videoFitReference.append(option);}videoFitReferenceLabel.append(videoFitReferenceText,videoFitReference);section.append(videoFitReferenceLabel);
+    const note=document.createElement("p");note.className="game-setup-note";note.textContent="Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, guidance, and video fit changes apply live after calibration (cover fallback before then).";section.append(note);content.prepend(section);
   }
-  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["noseCameraRangeXWorldUnits","noseCameraRangeYWorldUnits","timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLInputElement&&["showGameplayGrid","noseCameraParallaxEnabled","enforceAuthoredDirection"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
+  /** @param {string} field @param {unknown} value */
+  videoFitFieldPatch(field,value){switch(field){case"videoFitScalePercent":return Object.freeze({scalePercent:Number(value)});case"videoFitOffsetXPercent":return Object.freeze({offsetXPercent:Number(value)});case"videoFitOffsetYPercent":return Object.freeze({offsetYPercent:Number(value)});case"videoFitReference":return Object.freeze({reference:String(value)});default:return null;}}
+  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["noseCameraRangeXWorldUnits","noseCameraRangeYWorldUnits","timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent"].includes(field))next={...current,[field]:value};else if(field==="videoFitScalePercent"||field==="videoFitOffsetXPercent"||field==="videoFitOffsetYPercent")next={...current,videoFit:{...current.videoFit,...this.videoFitFieldPatch(field,value)}};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLSelectElement&&field==="videoFitReference")next={...current,videoFit:{...current.videoFit,...this.videoFitFieldPatch("videoFitReference",input.value)}};else if(input instanceof HTMLInputElement&&["showGameplayGrid","noseCameraParallaxEnabled","enforceAuthoredDirection","videoFitEnabled"].includes(field)){if(field==="videoFitEnabled")next={...current,videoFit:{...current.videoFit,enabled:input.checked}};else next={...current,[field]:input.checked};}else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
   renderGameSetupError(field,message){const value=this.shadowRoot?.querySelector(`[data-game-setup-error='${field}']`);if(value instanceof HTMLElement)value.textContent=message;}
-  renderGameSetupControls() { const setup=this.desiredGameSetup;for(const control of this.shadowRoot?.querySelectorAll("[data-game-setup-field]")??[]){if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement))continue;const field=control.dataset.gameSetupField;if(!field)continue;if(control instanceof HTMLSelectElement){control.value=setup.guidanceBandMode;continue;}if(control.type==="number"){if(this.shadowRoot?.activeElement===control&&this.gameSetupDrafts.has(field))continue;if(field==="spawnDistanceOverrideWorldUnits"){control.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);control.disabled=!setup.spawnDistanceOverride.enabled;control.title=control.disabled?"Enable Override spawn distance to edit this value.":"";}else if(field==="directionToleranceDegrees"){control.value=String(setup.directionToleranceDegrees);control.disabled=!setup.enforceAuthoredDirection;}else if(["noseCameraRangeXWorldUnits","noseCameraRangeYWorldUnits","timingWindowMs","colliderRadius","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent"].includes(field))control.value=String(setup[field]);continue;}if(field==="spawnDistanceOverrideEnabled")control.checked=setup.spawnDistanceOverride.enabled;else if(field in setup&&typeof setup[field]==="boolean")control.checked=setup[field];} }
+  renderGameSetupControls() { const setup=this.desiredGameSetup;const videoFit=normalizeVideoFit(setup.videoFit)??defaultVideoFit;for(const control of this.shadowRoot?.querySelectorAll("[data-game-setup-field]")??[]){if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement))continue;const field=control.dataset.gameSetupField;if(!field)continue;if(control instanceof HTMLSelectElement){if(field==="videoFitReference"){control.value=videoFit.reference;continue;}control.value=setup.guidanceBandMode;continue;}if(control.type==="number"){if(this.shadowRoot?.activeElement===control&&this.gameSetupDrafts.has(field))continue;if(field==="spawnDistanceOverrideWorldUnits"){control.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);control.disabled=!setup.spawnDistanceOverride.enabled;control.title=control.disabled?"Enable Override spawn distance to edit this value.":"";}else if(field==="directionToleranceDegrees"){control.value=String(setup.directionToleranceDegrees);control.disabled=!setup.enforceAuthoredDirection;}else if(["noseCameraRangeXWorldUnits","noseCameraRangeYWorldUnits","timingWindowMs","colliderRadius","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent"].includes(field))control.value=String(setup[field]);else if(field==="videoFitScalePercent")control.value=String(videoFit.scalePercent);else if(field==="videoFitOffsetXPercent")control.value=String(videoFit.offsetXPercent);else if(field==="videoFitOffsetYPercent")control.value=String(videoFit.offsetYPercent);continue;}if(field==="spawnDistanceOverrideEnabled")control.checked=setup.spawnDistanceOverride.enabled;else if(field==="videoFitEnabled")control.checked=videoFit.enabled;else if(field in setup&&typeof setup[field]==="boolean")control.checked=setup[field];} }
   drawerElement() { const value = this.shadowRoot?.querySelector("[data-role='drawer']"); return value instanceof HTMLElement ? value : null; }
   menuButtonElement() { const value = this.shadowRoot?.querySelector("[data-role='menu-button']"); return value instanceof HTMLButtonElement ? value : null; }
 

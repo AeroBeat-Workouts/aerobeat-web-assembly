@@ -194,7 +194,12 @@ assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/environmen
 assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/gameplay/")).sort(), expectedGameplayPaths, "npm package gameplay 0.0.11 inventory drifted");
 const forbiddenPackageRoots = [".beads/", ".github/", ".plans/", ".tmp/", "demo/", "dist/", "docs/", "fixtures/", "release/", "test/"];
 assert.equal(packedPaths.some((path) => forbiddenPackageRoots.some((prefix) => path.startsWith(prefix)) || /(?:\.ply$|\.blend$|\.png$|\.ya?ml$)/iu.test(path)), false, "npm package contains forbidden evidence/source/release payload");
-assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.11/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
+// kl80: the branding-derived favicon ships under assets/favicon/ and is emitted
+// to the build root as favicon.ico by the vite buildStart plugin (anchored by
+// scripts/validate-favicon-provenance.js).
+assert.equal(packedPaths.some((path) => path.startsWith("assets/favicon/") && !path.endsWith("favicon.ico")), false, "npm package contains unexpected favicon payload");
+assert.equal(packedPaths.filter((path) => path.startsWith("assets/favicon/")).length, 1, "npm package must contain exactly one favicon asset");
+assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.11/", "assets/favicon/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
 const fingerprintEnvironment = listReleaseFingerprintInputs(root).map((path) => relative(root, path)).filter((path) => path.startsWith("assets/environments/")).sort();
 assert.deepEqual(fingerprintEnvironment, expectedPaths);
 assert.equal(expectedPaths.some((path) => /(?:\.ply$|(?:^|\/)(?:pos|neg)_[xyz]\.png$|\.ya?ml$)/iu.test(path)), false);

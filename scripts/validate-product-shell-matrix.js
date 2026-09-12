@@ -45,7 +45,7 @@ const terminalOracle=process.env.AEROBEAT_TERMINAL_ORACLE==="1";
 const defaultContexts=contexts.filter((context)=>context.width!==1280);
 const selectedContexts=contextFilter?contexts.filter((context)=>`${context.kind}:${context.width}x${context.height}@${context.dpr}`===contextFilter):terminalOracle?contexts.filter((context)=>context.dpr===1):defaultContexts;
 if(selectedContexts.length===0)throw new Error(`Unknown AEROBEAT_SHELL_CONTEXT ${contextFilter}`);
-const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Note scale (%)", "Obstacle scale (%)", "Bomb scale (%)", "Marker scale (%)", "Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, and guidance changes apply live.", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
+const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Note scale (%)", "Obstacle scale (%)", "Bomb scale (%)", "Marker scale (%)", "Fit scale %", "Fit offset X %", "Fit offset Y %", "Video fit", "Fit reference", "Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, guidance, and video fit changes apply live after calibration (cover fallback before then).", "Gameplay", "Flow", "Boxing Lanes", "Boxing Grid", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [],cameraPoseExportHashes=new Set();
 try {
@@ -238,6 +238,101 @@ async function runContext(context) {
   assert((liveScaleProof.gridAfter?1:0)===(liveScaleProof.gridCells>0?1:0),`${label(context)} 4bj9: grid cells must appear/disappear consistently with the live toggle: ${liveScaleProof.gridCells} cells`);
   assert(liveScaleProof.timingBefore===liveScaleProof.timingAfter,`${label(context)} 4bj9 negative control: run-gated collider timing window must NOT change mid-session without a restart: ${liveScaleProof.timingBefore} vs ${liveScaleProof.timingAfter}`);
   await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();module.setGameSetupSnapshot({...original,noteScalePercent:100,obstacleScalePercent:100,bombScalePercent:100,markerScalePercent:100});await element.lifecycleIntentTail;});
+  // he8u: affine video fit — pure-solver math + live application path.
+  // The synthetic camera pose is used ONLY to drive the pure solver (which is
+  // unit-tested against known inputs). The live applyVideoFit path is exercised
+  // through its real recompute triggers; when the live camera cannot see the grid
+  // plane (non-gameplay contexts), it correctly falls back to cover.
+  const videoFitProof = await game.evaluate(async (element) => {
+    const module = await import("/src/video-fit-solver.js");
+    const setupModule = await import("/src/game-setup-coordinator.js");
+    const original = setupModule.getGameSetupSnapshot();
+    const restore = async () => { setupModule.setGameSetupSnapshot(original); await element.lifecycleIntentTail; };
+    const video = element.shadowRoot.querySelector("video[data-role='media']");
+    const containerBefore = element.container;
+    const w = containerBefore.widthCssPx, h = containerBefore.heightCssPx;
+    const MIRROR_MATRIX = "matrix(-1, 0, 0, 1, 0, 0)";
+    const isMirrorOnly = (state) => state.objectFit === "cover" && (state.transform === "" || state.transform === MIRROR_MATRIX);
+    const readVideo = () => ({ objectFit: video.style.objectFit || getComputedStyle(video).objectFit, transform: video.style.transform || getComputedStyle(video).transform });
+
+    // (1) Default off: exactly today's cover + mirror-only behavior.
+    const defaultState = readVideo();
+    if (!isMirrorOnly(defaultState)) throw new Error(`he8u default must be cover + mirror-only: ${JSON.stringify(defaultState)}`);
+
+    // (2) Enable with NO calibration → still the cover fallback (negative control).
+    const toggle = element.shadowRoot.querySelector("input[data-game-setup-field='videoFitEnabled']");
+    toggle.checked = true; toggle.dispatchEvent(new Event("change", { bubbles: true }));
+    await element.lifecycleIntentTail;
+    const preCalibrationState = readVideo();
+    if (!isMirrorOnly(preCalibrationState)) throw new Error(`he8u enabled-without-calibration must keep cover fallback: ${JSON.stringify(preCalibrationState)}`);
+
+    // Synthetic deterministic inputs for the pure solver (not the live camera):
+    // an over-the-shoulder pose that sees the grid plane as a trapezoid, and a
+    // middle-60% envelope in displayed-video CSS pixels.
+    const corners = module.projectGridCornersToScreen(
+      { x: 0, y: 2, z: -4 }, { xPitch: -20, yYaw: 180, zRoll: 0 },
+      { verticalFovDegrees: 48, nearClip: 0.1, farClip: 80 },
+      { widthCssPx: w, heightCssPx: h }, 0);
+    if (!corners) throw new Error("he8u synthetic projection returned null");
+    const xs = corners.map((c) => c.x), ys = corners.map((c) => c.y);
+    const gridBox = { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+    const envelope = { left: 0.2 * w, top: 0.2 * h, right: 0.8 * w, bottom: 0.8 * h };
+
+    // (3) Pure solver: center reference maps the grid bounding-box center onto
+    // the envelope (viewport) center within tolerance.
+    const expectedFit = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "center", scalePercent: 100, offsetXPercent: 0, offsetYPercent: 0 });
+    if (!expectedFit) throw new Error("he8u pure solver returned null for a valid synthetic pair");
+    const gridCenterScreenX = expectedFit.translateX + expectedFit.scaleX * ((gridBox.left + gridBox.right) / 2);
+    const gridCenterScreenY = expectedFit.translateY + expectedFit.scaleY * ((gridBox.top + gridBox.bottom) / 2);
+    if (Math.abs(gridCenterScreenX - w / 2) > 0.5 || Math.abs(gridCenterScreenY - h / 2) > 0.5) throw new Error(`he8u envelope (viewport) center must land on the projected grid center: (${gridCenterScreenX.toFixed(2)},${gridCenterScreenY.toFixed(2)}) vs (${w/2},${h/2})`);
+
+    // (4) Knobs are RELATIVE: scale 110 multiplies the derived scale about the fit center;
+    // offsets translate by percent of the ELEMENT size.
+    const knobbed = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "center", scalePercent: 110, offsetXPercent: 5, offsetYPercent: -4 });
+    if (!knobbed) throw new Error("he8u knob solve returned null");
+    if (Math.abs(knobbed.scaleX - expectedFit.scaleX * 1.1) > 0.001) throw new Error(`he8u Fit scale % 110 must multiply the derived scale: ${knobbed.scaleX} vs ${expectedFit.scaleX*1.1}`);
+    if (Math.abs(knobbed.scaleY - expectedFit.scaleY * 1.1) > 0.001) throw new Error(`he8u Fit scale % 110 must multiply the derived Y scale: ${knobbed.scaleY} vs ${expectedFit.scaleY*1.1}`);
+    if (Math.abs(knobbed.translateX - (expectedFit.translateX + 0.05 * w)) > 0.01) throw new Error(`he8u Fit offset X % 5 must translate by 5% of element width: ${knobbed.translateX} vs ${expectedFit.translateX + 0.05*w}`);
+    if (Math.abs(knobbed.translateY - (expectedFit.translateY - 0.04 * h)) > 0.01) throw new Error(`he8u Fit offset Y % -4 must translate by -4% of element height: ${knobbed.translateY} vs ${expectedFit.translateY - 0.04*h}`);
+
+    // (5) Reference anchoring: Far pins the far edge onto the envelope top; Near
+    // pins the near edge onto the envelope bottom. Center is the least-squares box fit.
+    const far = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "far" });
+    const near = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "near" });
+    if (!far || !near) throw new Error("he8u far/near reference solves returned null");
+    if (Math.abs(far.translateY + far.scaleY * gridBox.top - envelope.top) > 0.01) throw new Error(`he8u Far reference must pin the far edge onto the envelope top: ${far.translateY + far.scaleY*gridBox.top} vs ${envelope.top}`);
+    if (Math.abs(near.translateY + near.scaleY * gridBox.bottom - envelope.bottom) > 0.01) throw new Error(`he8u Near reference must pin the near edge onto the envelope bottom: ${near.translateY + near.scaleY*gridBox.bottom} vs ${envelope.bottom}`);
+
+    // (6) Drawer wiring: the five Video-fit controls exist with exact labels and
+    // the persisted values round-trip through the coordinator.
+    const drawer = {
+      toggle: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitEnabled']")),
+      scale: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitScalePercent']")),
+      offsetX: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitOffsetXPercent']")),
+      offsetY: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitOffsetYPercent']")),
+      ref: Boolean(element.shadowRoot.querySelector("select[data-game-setup-field='videoFitReference']")),
+    };
+    if (!Object.values(drawer).every(Boolean)) throw new Error(`he8u drawer controls missing: ${JSON.stringify(drawer)}`);
+    // Round-trip: set tuned values via the public API and read them back.
+    setupModule.setGameSetupSnapshot({ ...original, videoFit: { enabled: true, scalePercent: 108, offsetXPercent: 3, offsetYPercent: -2, reference: "near" } });
+    await element.lifecycleIntentTail;
+    const roundTrip = setupModule.getGameSetupSnapshot().videoFit;
+    if (roundTrip.enabled !== true || roundTrip.scalePercent !== 108 || roundTrip.offsetXPercent !== 3 || roundTrip.offsetYPercent !== -2 || roundTrip.reference !== "near") throw new Error(`he8u videoFit round-trip failed: ${JSON.stringify(roundTrip)}`);
+
+    // (7) Element box never changes (no black bars: the element stays full-viewport).
+    const rectAfter = video.getBoundingClientRect();
+    if (Math.abs(rectAfter.width - w) > 1 || Math.abs(rectAfter.height - h) > 1) throw new Error(`he8u video element box must remain full-viewport: ${JSON.stringify({ w, h, rectAfter: { width: rectAfter.width, height: rectAfter.height } })}`);
+
+    // (8) Disabling restores EXACTLY the baseline cover + mirror-only behavior.
+    toggle.checked = false; toggle.dispatchEvent(new Event("change", { bubbles: true }));
+    await element.lifecycleIntentTail;
+    const disabledState = readVideo();
+    if (!isMirrorOnly(disabledState)) throw new Error(`he8u disable must restore cover + mirror-only: ${JSON.stringify(disabledState)}`);
+
+    await restore();
+    return { ok: true, gridCenter: [gridCenterScreenX, gridCenterScreenY], viewportCenter: [w / 2, h / 2] };
+  });
+  assert(videoFitProof.ok === true, `${label(context)} he8u: video-fit browser oracle failed: ${JSON.stringify(videoFitProof)}`);
   // er3m: guidance band mode is a live per-frame renderer input — the persisted Game Setup snapshot drives every rendered frame, so switching Off→Song→Target changes the frame and rendered model with no session/generation or transport mutation.
   const liveGuidanceProof = await game.evaluate(async (element) => {
     element.setMenuOpen(false);
