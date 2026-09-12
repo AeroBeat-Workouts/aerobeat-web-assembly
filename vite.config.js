@@ -30,6 +30,13 @@ const sourceFingerprint = computeReleaseFingerprint(new URL(".", import.meta.url
 const buildStamp = `source:${sourceFingerprint}`;
 const cacheBust = `${packageJson.version}-${sourceFingerprint.slice(0, 16)}`;
 
+/** kl80: read + hash-anchor the branding-derived favicon (single source of truth). */
+function readFavicon() {
+  const bytes = readFileSync(new URL("./assets/favicon/favicon.ico", import.meta.url));
+  if (createHash("sha256").update(bytes).digest("hex") !== "5e8ac126cbef7a8a82b00b86c91ea656b61ea34d2afb1bd445c3edfe594ddc65") throw new Error("Favicon bytes drifted from the branding anchor");
+  return bytes;
+}
+
 /**
  * Vite config for the browser assembly app.
  *
@@ -51,6 +58,29 @@ export default {
         if (source.byteLength !== asset.bytes || createHash("sha256").update(source).digest("hex") !== asset.sha256) throw new Error(`Assembly environment asset drifted: ${asset.path}`);
         this.emitFile({ type: "asset", fileName: asset.path, source });
       }
+      // kl80: ship the branding-derived favicon at the build root as `favicon.ico`.
+      // The bytes are anchored by scripts/validate-favicon-provenance.js; a hash
+      // drift here fails the build exactly like every other owned asset.
+      const faviconSource = readFavicon();
+      this.emitFile({ type: "asset", fileName: "favicon.ico", source: faviconSource });
+    },
+    // Serve /favicon.ico during dev (emitFile only runs for builds). The same
+    // pinned-hash guard applies so dev and prod can never diverge.
+    configureServer(server) {
+      server.middlewares.use((request, response, next) => {
+        const url = (request.url ?? "").split("?")[0];
+        if (url !== "/favicon.ico" && url !== `${basePath}favicon.ico`) return next();
+        try {
+          const bytes = readFavicon();
+          response.statusCode = 200;
+          response.setHeader("content-type", "image/x-icon");
+          response.setHeader("cache-control", "no-store");
+          response.end(bytes);
+        } catch {
+          response.statusCode = 500;
+          response.end("favicon unavailable");
+        }
+      });
     }
   }],
   define: {

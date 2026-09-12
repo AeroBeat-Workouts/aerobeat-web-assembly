@@ -2,8 +2,9 @@
 import assert from "node:assert/strict";
 import { AeroGameSetupCoordinator,aeroGameSetupSchema,aeroGameSetupStorageKey,aeroGameSetupVersion,defaultAeroGameSetupSnapshot,legacyAeroGameSetupStorageKey,legacyAeroGameSetupV2StorageKey,normalizeGameSetup } from "../src/game-setup-coordinator.js";
 
-const defaults={schema:aeroGameSetupSchema,version:aeroGameSetupVersion,showGameplayGrid:false,guidanceBandMode:"off",noseCameraParallaxEnabled:false,spawnDistanceOverride:{enabled:false,normalSpawnDistanceWorldUnits:50},noseCameraRangeXWorldUnits:.55,noseCameraRangeYWorldUnits:.35,colliderRadius:.12,enforceAuthoredDirection:false,directionToleranceDegrees:45,timingWindowMs:180,noteScalePercent:100,obstacleScalePercent:100,bombScalePercent:100,markerScalePercent:100};
-assert.deepEqual(defaultAeroGameSetupSnapshot,defaults);assert(Object.isFrozen(defaultAeroGameSetupSnapshot)&&Object.isFrozen(defaultAeroGameSetupSnapshot.spawnDistanceOverride));
+const defaultVideoFit={enabled:false,scalePercent:100,offsetXPercent:0,offsetYPercent:0,reference:"center"};
+const defaults={schema:aeroGameSetupSchema,version:aeroGameSetupVersion,showGameplayGrid:false,guidanceBandMode:"off",noseCameraParallaxEnabled:false,spawnDistanceOverride:{enabled:false,normalSpawnDistanceWorldUnits:50},noseCameraRangeXWorldUnits:.55,noseCameraRangeYWorldUnits:.35,colliderRadius:.12,enforceAuthoredDirection:false,directionToleranceDegrees:45,timingWindowMs:180,noteScalePercent:100,obstacleScalePercent:100,bombScalePercent:100,markerScalePercent:100,videoFit:defaultVideoFit};
+assert.deepEqual(defaultAeroGameSetupSnapshot,defaults);assert(Object.isFrozen(defaultAeroGameSetupSnapshot)&&Object.isFrozen(defaultAeroGameSetupSnapshot.spawnDistanceOverride)&&Object.isFrozen(defaultAeroGameSetupSnapshot.videoFit));
 const valid={...defaults,showGameplayGrid:true,guidanceBandMode:"song_beat_grid",noseCameraParallaxEnabled:true,spawnDistanceOverride:{enabled:true,normalSpawnDistanceWorldUnits:12},noseCameraRangeXWorldUnits:.7,noseCameraRangeYWorldUnits:.4,colliderRadius:.2,enforceAuthoredDirection:true,directionToleranceDegrees:30,timingWindowMs:225,noteScalePercent:150,obstacleScalePercent:90,bombScalePercent:200,markerScalePercent:10};
 assert.deepEqual(normalizeGameSetup(valid),valid);
 for(const invalid of[null,[],{},Object.create(valid),new(class Setup{constructor(){Object.assign(this,valid);}})(),{...valid,version:2},{...valid,extra:true},{...valid,guidanceBandMode:"ribbon"},{...valid,colliderRadius:.51},{...valid,directionToleranceDegrees:91},{...valid,timingWindowMs:49},{...valid,timingWindowMs:301},{...valid,spawnDistanceOverride:{enabled:true,normalSpawnDistanceWorldUnits:2.9}},{...valid,noseCameraRangeXWorldUnits:.91},{...valid,noseCameraRangeYWorldUnits:NaN}])assert.equal(normalizeGameSetup(invalid),null);
@@ -26,6 +27,21 @@ for(const [field,min,max] of [["noteScalePercent",10,200],["obstacleScalePercent
   for(const v of[min-1,max+1,min+.5,null,NaN,"10"]){assert.equal(normalizeGameSetup({...valid,[field]:v}),null,`${field} rejects ${JSON.stringify(v)}${v===undefined?" (absent => legacy 12-key read)":""}`);}
 }
 const scaledStorage=createStorage([[aeroGameSetupStorageKey,JSON.stringify(valid)]]),scaledCoordinator=new AeroGameSetupCoordinator({storageFactory:()=>scaledStorage,eventTarget:null});assert.deepEqual(scaledCoordinator.getSnapshot(),valid,"persisted scales round-trip through storage exactly");assert.deepEqual(scaledStorage.setCalls,[]);scaledCoordinator.destroy();
-console.log("Game Setup exact v3 defaults, bounds, hostile records, atomic v2 migration, and one-time hidden Grid validation passed.");
+// he8u: stored v3 records carry the exact five-key videoFit record; forward-compat
+// (missing videoFit → all-defaults), hostile/out-of-bounds videoFit rejected.
+const legacyV3NoVideoFit={...defaults};delete legacyV3NoVideoFit.videoFit;
+assert.deepEqual(normalizeGameSetup(legacyV3NoVideoFit),defaults,"stored v3 record without videoFit forward-migrates to all-defaults video fit");
+for(const [field,min,max] of [["scalePercent",90,110],["offsetXPercent",-10,10],["offsetYPercent",-10,10]]){
+  assert.deepEqual(normalizeGameSetup({...valid,videoFit:{...defaultVideoFit,[field]:min}}).videoFit,{...defaultVideoFit,[field]:min},`videoFit ${field} inclusive min accepted`);
+  assert.deepEqual(normalizeGameSetup({...valid,videoFit:{...defaultVideoFit,[field]:max}}).videoFit,{...defaultVideoFit,[field]:max},`videoFit ${field} inclusive max accepted`);
+  for(const v of[min-1,max+1,min+.5,null,NaN,String(min)])assert.equal(normalizeGameSetup({...valid,videoFit:{...defaultVideoFit,[field]:v}}),null,`videoFit ${field} rejects ${JSON.stringify(v)}`);
+}
+assert.equal(normalizeGameSetup({...valid,videoFit:{...defaultVideoFit,reference:"side"}}),null,"videoFit unknown reference rejected");
+assert.equal(normalizeGameSetup({...valid,videoFit:{enabled:true,scalePercent:100,offsetXPercent:0,offsetYPercent:0,reference:"center",extra:1}}),null,"videoFit extra key rejected");
+assert.equal(normalizeGameSetup({...valid,videoFit:Object.create(defaultVideoFit)}),null,"videoFit non-prototype record rejected");
+const enabledFit={...valid,videoFit:{enabled:true,scalePercent:110,offsetXPercent:4,offsetYPercent:-3,reference:"far"}};
+assert.deepEqual(normalizeGameSetup(enabledFit).videoFit,{enabled:true,scalePercent:110,offsetXPercent:4,offsetYPercent:-3,reference:"far"},"videoFit tuned values normalize exactly");
+const videoFitStorage=createStorage([[aeroGameSetupStorageKey,JSON.stringify(enabledFit)]]),videoFitCoordinator=new AeroGameSetupCoordinator({storageFactory:()=>videoFitStorage,eventTarget:null});assert.deepEqual(videoFitCoordinator.getSnapshot().videoFit,{enabled:true,scalePercent:110,offsetXPercent:4,offsetYPercent:-3,reference:"far"},"tuned videoFit round-trips through storage");videoFitCoordinator.destroy();
+console.log("Game Setup exact v3 defaults, bounds, hostile records, atomic v2 migration, one-time hidden Grid, and he8u videoFit normalization/migration passed.");
 function createStorage(entries=[]){const values=new Map(entries),setCalls=[];return{values,setCalls,getItem(key){return values.get(key)??null;},setItem(key,value){setCalls.push([key,value]);values.set(key,value);}};}
 function createEventTarget(){const listeners=new Set();return{addEventListener(type,listener){if(type==="storage")listeners.add(listener);},removeEventListener(type,listener){if(type==="storage")listeners.delete(listener);},dispatch(event){for(const listener of [...listeners])listener(event);}};}
