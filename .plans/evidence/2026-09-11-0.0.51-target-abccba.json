@@ -1,0 +1,774 @@
+{
+  "schema": "aerobeat/private_abccba_profile",
+  "version": 1,
+  "sourceFingerprint": "aefdaf44b19af4651f6661eda1b862eaf19cebc32e1b2303859f197f792ea6c3",
+  "sourceInputCount": 216,
+  "windowMs": 4000,
+  "sequence": [
+    "A",
+    "B",
+    "C",
+    "C",
+    "B",
+    "A"
+  ],
+  "benchmark": {
+    "contract": "aerobeat/abccba_historical_default_2500.v1",
+    "eventCount": 6000,
+    "eventIntervalMs": 43,
+    "normalSpawnLeadMs": 2500,
+    "stagedProjection": "createSessionTargetIndex(events)",
+    "legacyProjection": "projectSessionTargets(events, gameplay, timeline, undefined)",
+    "projectedTargetCountBounds": {
+      "min": 59,
+      "max": 64
+    }
+  },
+  "graphicsBackend": {
+    "schema": "aerobeat/webgl_backend",
+    "version": 1,
+    "authority": "target-hardware",
+    "launchMode": "headed-x11",
+    "api": "webgl2",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3080/PCIe/SSE2, OpenGL 4.5.0)",
+    "webglVersion": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "backend": "hardware",
+    "debugIdentity": true
+  },
+  "backendVerification": {
+    "checks": 25,
+    "driftDetected": false
+  },
+  "profileRuns": [
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-A1",
+      "durationMs": 4012.9000000953674,
+      "displayFrameCount": 234,
+      "displayRateFps": 58.063,
+      "displayIntervals": {
+        "count": 233,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 100
+      },
+      "missedVsyncCount": 6,
+      "rendererCpuMs": {
+        "count": 234,
+        "p50": 10.1,
+        "p95": 15.3,
+        "max": 113.4
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "poseAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cv": {
+        "submittedFrameCount": 0,
+        "poseFrameCount": 0,
+        "submissionRateFps": 0
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 1,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 234,
+          "min": 59,
+          "max": 64,
+          "mean": 62.568376
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-B2",
+      "durationMs": 4014.2000000476837,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.539,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 9.5,
+        "p95": 14.3,
+        "max": 16.5
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 13.7,
+        "p95": 25.8,
+        "max": 30.5
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 16.8,
+        "p95": 33.1,
+        "max": 40.5
+      },
+      "poseAgeMs": {
+        "count": 235,
+        "p50": 60.9,
+        "p95": 84.7,
+        "max": 105.7
+      },
+      "cv": {
+        "submittedFrameCount": 59,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.698
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-C3",
+      "durationMs": 4013.2999999523163,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.552,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 10.3,
+        "p95": 16.1,
+        "max": 28.2
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 26.5,
+        "p95": 37.1,
+        "max": 41.1
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 29.5,
+        "p95": 38.6,
+        "max": 44.9
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 69.2,
+        "p95": 104.2,
+        "max": 119.6
+      },
+      "cv": {
+        "submittedFrameCount": 60,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.95
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-C4",
+      "durationMs": 4013.0999999046326,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.555,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 9.5,
+        "p95": 14.1,
+        "max": 19
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 14.1,
+        "p95": 17,
+        "max": 26
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 16.4,
+        "p95": 22.9,
+        "max": 34.3
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 60.6,
+        "p95": 84.2,
+        "max": 101
+      },
+      "cv": {
+        "submittedFrameCount": 60,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.951
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-B5",
+      "durationMs": 4013.4000000953674,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.551,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 9.3,
+        "p95": 14.1,
+        "max": 17.9
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 15.7,
+        "p95": 28.4,
+        "max": 33.3
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 17,
+        "p95": 30.4,
+        "max": 42.7
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 61.3,
+        "p95": 85.5,
+        "max": 109.7
+      },
+      "cv": {
+        "submittedFrameCount": 59,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.701
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.5125
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-A6",
+      "durationMs": 4013.0999999046326,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.555,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 9.4,
+        "p95": 14,
+        "max": 18.9
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "poseAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cv": {
+        "submittedFrameCount": 0,
+        "poseFrameCount": 0,
+        "submissionRateFps": 0
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.520833
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-A1",
+      "durationMs": 4005.2000000476837,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.672,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 2.6,
+        "p95": 7.2,
+        "max": 13.2
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "poseAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cv": {
+        "submittedFrameCount": 0,
+        "poseFrameCount": 0,
+        "submissionRateFps": 0
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-B2",
+      "durationMs": 4006.100000143051,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.659,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 3.1,
+        "p95": 6.2,
+        "max": 12.6
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 21.4,
+        "p95": 27.7,
+        "max": 29.9
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 21.8,
+        "p95": 28.1,
+        "max": 32.9
+      },
+      "poseAgeMs": {
+        "count": 236,
+        "p50": 53,
+        "p95": 83.1,
+        "max": 99.7
+      },
+      "cv": {
+        "submittedFrameCount": 59,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.728
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-C3",
+      "durationMs": 4004.7000000476837,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.68,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 2.9,
+        "p95": 5.9,
+        "max": 10.7
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 18.4,
+        "p95": 29,
+        "max": 29.6
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 19.2,
+        "p95": 29.4,
+        "max": 33.2
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 54.2,
+        "p95": 83.2,
+        "max": 98.8
+      },
+      "cv": {
+        "submittedFrameCount": 60,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.982
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.5125
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-C4",
+      "durationMs": 4004.600000143051,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.681,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 2.9,
+        "p95": 6.3,
+        "max": 9.2
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 20.9,
+        "p95": 28.8,
+        "max": 31.2
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 22.4,
+        "p95": 31.1,
+        "max": 36.6
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 57.3,
+        "p95": 90.9,
+        "max": 105.8
+      },
+      "cv": {
+        "submittedFrameCount": 59,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.733
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-B5",
+      "durationMs": 4005.4000000953674,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.669,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 2.8,
+        "p95": 5.8,
+        "max": 9.5
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 60,
+        "p50": 21.9,
+        "p95": 29.4,
+        "max": 31.9
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 60,
+        "p50": 23.9,
+        "p95": 30.3,
+        "max": 35.7
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 60.5,
+        "p95": 92.2,
+        "max": 102.6
+      },
+      "cv": {
+        "submittedFrameCount": 60,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.98
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-A6",
+      "durationMs": 4005.2000000476837,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.672,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 2.8,
+        "p95": 6,
+        "max": 11.7
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "poseAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cv": {
+        "submittedFrameCount": 0,
+        "poseFrameCount": 0,
+        "submissionRateFps": 0
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    }
+  ],
+  "privacy": {
+    "screenshots": false,
+    "traceSnapshots": false,
+    "rawPoses": false,
+    "pixels": false,
+    "deviceIds": false,
+    "privateGeometry": false
+  },
+  "noise": []
+}
