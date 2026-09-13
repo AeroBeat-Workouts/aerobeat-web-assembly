@@ -76,9 +76,31 @@ OpenVR is a native SDK (C++/Rust bindings) with **no browser API**. The bridge i
 - **#1 mid-song tracking loss → largely solved:** IR depth is lighting-robust, global/active shutter — the RGB failure modes (motion blur, lighting change, occlusion) are far rarer.
 - **#3 perceived delay → solved:** ~30–60 ms end-to-end vs measured 85–105 ms pose age.
 
+### 3.4 Orbbec Persee 2 (Derrick's addition, 2026-09-11) — all-in-one depth camera + onboard computer
+
+[Orbbec Persee 2](https://store.orbbec.com/products/persee-2) (researched 2026-09-11):
+
+- **Form factor:** all-in-one active-stereo-IR depth camera **with an embedded computer** — Amlogic A311D hexa-core (A73×4 + A53×2) + NPU (~5 TOPS), 4 GB RAM, 32 GB eMMC, Orbbec depth ASIC. Runs **Android 9 or Ubuntu 18.04 onboard**; ships with the **Orbbec SDK + Orbbec Pose SDK (skeleton tracking on-device)** — i.e. it can emit pose frames itself, not just depth.
+- **Sensing:** active stereo IR 850 nm, depth accuracy ≤2% @ 2 m, range 0.2–10 m, depth up to 1280×800 @ 30 fps / 640×400 @ 60 fps, FOV H91°×V66°, RGB up to 1280×800@30, built-in IMU, hardware depth-to-color alignment. 180×45×76.5 mm, 352 g, 12 V/2 A.
+- **Connectivity:** **Gigabit Ethernet (RJ45)**, USB-C, HDMI 2.0, Wi-Fi, BT 5.0, 4-mic array — a networked device, not a USB plug-in; a small WebSocket/HTTP helper on (or beside) it streaming pose/depth JSON into `AeroPoseAdapter` is the natural bridge (same pattern as the Kinect/RealSense helpers, with the extra option of running the helper *on* the camera's own OS).
+- **Price (flag):** street found **€689.95 incl. VAT (MyBotshop DE)** / ~$700+ USD — **above** Derrick's sub-$500 figure; verify the US store price at [store.orbbec.com](https://store.orbbec.com/products/persee-2). The wider Orbbec stereo line (Femto / Gemini class) is the cheaper USB-3 "depth camera" path if the onboard-compute box isn't needed.
+- **Why it may be the best Tier-1 ship candidate:** on-device skeleton tracking removes the host-CPU pose-estimation step entirely (no MediaPipe-class inference on the PC/browser); IR active stereo is lighting-robust (attacks the #1 pain); the networked all-in-one box is an **arcade-oriented** deployment (Derrick's own framing, §8) — one box, one cable, no base stations, no headset.
+- **Effort class:** small bridge (WebSocket pose JSON → `AeroPoseAdapter` + the additive 3D contract of §7). Uncertainty to verify in the prototype: on-device Pose SDK joint set vs the 7 anchors AeroBeat needs (nose/shoulders/elbows/wrists), update rate, and pose age over the network path.
+
 ## 4. IMU-only wristbands / other
 - **Why IMU-only lacks absolute position:** double integration accumulates sensor bias/noise quadratically — a 0.01 m/s² bias → **~9 m error after 30 s** ([Queen's University Belfast study](https://pureadmin.qub.ac.uk/ws/portalfiles/portal/538642477/sensors_23_00360.pdf)); usable ~1–2 s before correction; no external room anchor at all. ML dead-reckoning "exhibit noticeable drift after prolonged movement, inherent limitation" ([TechRxiv](https://doi.org/10.36227/techrxiv.175492124.47988269/v1)).
-- **Where IMU-only fits:** direction enforcement only (already implemented as a *semantic* straight-continuity check in `aerobeat-web-input`), or a bridging sensor through brief occlusions. **Recommendation: do not build an IMU-only lane.** No 2026 standalone product escapes the drift problem; self-tracking options are camera-based (VIVE Ultimate ~5 mm) or headset-dependent (Touch Pro).
+- **Where IMU-only fits:** direction enforcement only (already implemented as a *semantic* straight-continuity check in `aerobeat-web-input`), or a bridging sensor through brief occlusions.
+
+### 4.1 SlimeVR full-body IMU trackers (Derrick's addition, 2026-09-11) — the cheap reset-gesture tracker tier
+
+[SlimeVR](https://slimevr.dev/) (researched 2026-09-11):
+
+- **Price:** v1.2 sets — Lower-Body (5 trackers) **$219**, Core (6) **$259**, Enhanced Core (6+2) **$325**, Full-Body (8+2) **$415**; newer **Butterfly** dongle-based trackers from **$279**. Head + both wrists fit in the $259 Core set — squarely in Derrick's sub-$500 band.
+- **Hardware (v1.2):** TDK ICM-45686 IMU + QMC6309 magnetometer with **on-microcontroller sensor fusion**; trackers connect over **local Wi-Fi** (or the driverless Butterfly dongle) to a PC, smartphone, or headset.
+- **Drift:** yaw drift is inherent — typically noticeable after **20–60 minutes** of activity; **enabling the magnetometer (in a good magnetic environment) eliminates it almost entirely**. Derrick's framing: the drift is acceptable **because the reset gesture works like the webcam T-Pose** — "needs a reset gesture (similar to webcams needing to T-Pose between songs)."
+- **Reset gesture:** default = look forward + **double-tap the chest tracker**; configurable (keyboard/controller/other-tracker double-taps). This maps 1:1 onto AeroBeat's existing T-pose re-entry UX, including the inter-song reset.
+- **Software / web path:** the SlimeVR Server is **open-source** (5+ years, 50+ contributors) and outputs to **SteamVR, OSC, VMC, BVH, OpenXR** — so an `AeroPoseAdapter` fed by SlimeVR's OSC/WebSocket stream is a real, established lane (same bridge shape as §1.3, no native build required — the server is the helper).
+- **Positioning:** not a precision tier — it's the **cheapest "trackers on wrists" entry** and validates the reset-gesture interaction Derrick likes; drift + no absolute room anchor means it slots *below* depth cameras and lighthouse in accuracy, and needs a calibration/reset ritual per session (exactly the T-pose pattern). Candidate Tier 1.5 (cheap tracker tier) or a user-chosen alternative to the depth camera.
 
 ## 5. Latency & accuracy comparison table
 
@@ -131,7 +153,17 @@ OpenVR is a native SDK (C++/Rust bindings) with **no browser API**. The bridge i
 
 **The two-product framing, stated plainly:** AeroBeat stays **webcam-only as the drop-in product**. A depth camera (and later, lighthouse) becomes an **optional "precision input" accessory mode** reusing the whole gameplay/scoring/input stack behind the common pose-input interface — the accessory is a *better input to the same game*, not a second game. That is the honest architecture, and exactly what the existing `AeroPoseAdapter` injection point was designed for.
 
-### Source index (primary)
+## 8. Owner additions + positioning (Derrick, 2026-09-11)
+
+Derrick's own research added two candidates and set the product positioning:
+
+- **SlimeVR trackers** (https://slimevr.dev/) — IMU-based, drifts, needs a reset gesture; "similar to webcams needing to T-Pose between songs" ⇒ the drift is a **UX-accepted** tradeoff for a sub-$500 tracker option. → §4.1.
+- **Orbbec cameras**, e.g. the **Orbbec Persee 2** (https://store.orbbec.com/products/persee-2) — depth-camera tracking **with built-in compute**; "Orbbec also has other cameras available as well we could explore, the option I linked to has its own compute." → §3.4.
+- **Lighthouse** remains "a well-worn path"; **RealSense** remains "also an option."
+- **Positioning (verbatim framing):** both sub-$500 solutions are "**fine for an arcade setup but not for a casual player**." The two-product split sharpens: **webcam = drop-in casual core (no purchase, no setup)**; **accessory tiers = recommended arcade deployments** — Orbbec Persee 2 class (onboard-compute depth, strongest ship candidate), RealSense/Kinect v2 (USB depth), SlimeVR (cheap IMU trackers with the familiar reset gesture), and lighthouse (hyper-accuracy) — all feeding the **same** `AeroPoseAdapter` + additive 3D pose contract.
+- **Price flag:** the Persee 2 street price found in research is ~€690/$700 (DE, incl. VAT) — verify the US store price before quoting Derrick's sub-$500 figure as confirmed.
+
+## Source index (primary)
 - Valve Index EOL: [The Verge](https://www.theverge.com/news/817967/valve-index-vr-headset-stopped-manufacturing-frame), [heise](https://www.heise.de/en/news/Valve-confirms-No-new-Half-Life-Alyx-and-end-of-the-Valve-Index-VR-headset-11077163.html)
 - Base stations: [Steam](https://store.steampowered.com/app/1059570/Valve_Index_Base_Station/), [VIVE Store](https://shop-us.vive.com/products/2104005)
 - VIVE Tracker 3.0: [VIVE Store](https://shop-us.vive.com/products/vive-tracker-3-0-full-body-tracking), [Micro Center](https://www.microcenter.com/product/657156/htc-vive-tracker-30)
@@ -143,4 +175,6 @@ OpenVR is a native SDK (C++/Rust bindings) with **no browser API**. The bridge i
 - Kinect v2: [libfreenect2](https://github.com/openkinect/libfreenect2), [#706](https://github.com/OpenKinect/libfreenect2/issues/706), [#721](https://github.com/OpenKinect/libfreenect2/issues/721), [MDPI 2021](https://doi.org/10.3390/app11125756), [PLOS ONE](https://doi.org/10.1371/journal.pone.0166532), [Rodriguez 2015](https://www.ais.uni-bonn.de/~rodriguez/publications/2015_kinect2.pdf), [BigGo](https://biggo.com/s/Kinect%20V2)
 - RealSense: [Reuters](https://www.reuters.com/business/realsense-spins-out-intel-secures-50-million-drive-ai-vision-robotics-2025-07-11/), [TechCrunch](https://techcrunch.com/2025/07/11/realsense-spins-out-of-intel-to-scale-its-stereoscopic-imaging-technology/), [datasheet](https://realsenseai.com/wp-content/uploads/dlm_uploads/2025/08/Intel-RealSense-D400-Series-Datasheet-August-2025.pdf), [latency #1242](https://github.com/IntelRealSense/librealsense/issues/1242)
 - IMU drift: [QUB](https://pureadmin.qub.ac.uk/ws/portalfiles/portal/538642477/sensors_23_00360.pdf), [TechRxiv](https://doi.org/10.36227/techrxiv.175492124.47988269/v1)
+- Orbbec Persee 2: [ORBBEC product page](https://www.orbbec.com/products/camera-computer/persee-2/), [datasheet PDF](https://d1cd332k3pgc17.cloudfront.net/wp-content/uploads/2024/01/ORBBEC_Datasheet_Persee-2.pdf), [store listing](https://store.orbbec.com/products/persee-2), [MyBotshop price](https://www.mybotshop.de/ORBBEC-Persee-2_3)
+- SlimeVR: [slimevr.dev](https://slimevr.dev/), [Crowd Supply — Butterfly trackers](https://www.crowdsupply.com/slimevr/slimevr-butterfly-trackers), [Crowd Supply — Full-Body Tracker](https://www.crowdsupply.com/slimevr/slimevr-full-body-tracker)
 - Webcam baseline (repo): `aerobeat-web-cv/docs/telemetry/browser-pose-runtime-research-2026-08-27.md`

@@ -89,3 +89,13 @@ Three clocks, no interpolation: camera 30 fps (device-default) / CV ≤15 fps / 
 - Vendor: `aerobeat-web-vendor-mediapipe/src/mediapipe-worker.js:20-77,110-147`, `mediapipe-adapter.js:13-22,106-108`, `mediapipe-worker-adapter.js:17,92-94,138`, `docs/decisions/0001-mediapipe-runtime-and-model.md`
 - Cadence bridge: `aerobeat-web-assembly/src/index.js:1109-1149` (60 fps loop, fresh-pose dedup, advanceTime throttle), `src/runtime-cadence.js:39-61`
 - Camera: `aerobeat-web-video/src/source-descriptors.js:94-111` (unconstrained getUserMedia)
+
+## 6. Owner decision (Derrick, 2026-09-11) — scope change to the loss decision
+
+> "We can introduce smoothing, that should help blips in tracking loss. We only really care if the head and wrists lose tracking."
+
+Consequences for the implementation lane (refines rec A; C/D/B stand as written):
+- **Loss decision set narrows to 3 anchors:** nose (head), left wrist, right wrist. The current 7-anchor AND (`body-grid-service.js:323`) is the single most fragile point (§4.1); shoulders and elbows stop triggering tracking-loss. They remain calibration/geometry inputs as today — only the *loss gate* changes.
+- **Temporal smoothing/hysteresis on that 3-anchor decision** (rec A: M-of-N consecutive-samples + longer sustained window, passing sample resets the accumulator) — the explicit mechanism Derrick asked for ("smoothing … should help blips").
+- **Scoring gate:** whether the 7-way AND used for scoring evidence (`mapMeasuredAnchors`, `:419`) also narrows, or only the loss gate, is a coder-lane detail to settle with oracles — the product decision above is about *when tracking is declared lost*, not about per-hit evidence requirements.
+- The T-pose re-entry cost chain (4 s hold + 4 s cooldown + 3 s countdown) and its reduction (rec D) remain as scoped; rec B (partial-landmark auto-recovery without recalibration) remains the follow-on slice with the highest perceived value.

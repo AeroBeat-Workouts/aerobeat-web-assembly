@@ -1,6 +1,6 @@
 # Boxing Collider — Design Document
 
-**Status:** DESIGN / RESEARCH — decision-ready; Derrick answers the open questions, a coder lane implements
+**Status:** DESIGN — **ship shape DECIDED by Derrick (2026-09-11)**: the collider ruleset becomes THE boxing option, visible label **`Boxing`**, the **default**; the two existing boxing options are hidden (see §1/§5). Open questions 1–4 remain for Derrick (he is reading this doc now).
 **Date:** 2026-09-11 (playtest round 6 direction)
 **Owning repo:** `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly`
 **Bead:** `aerobeat-web-assembly-z2tx` (discovered from `aerobeat-web-assembly-k72.17`)
@@ -9,7 +9,13 @@
 
 ## 1. Mode definition
 
-**Boxing Collider** is a third selectable boxing scoring ruleset (recommended identity `boxing_collider_v1`) in which the calibrated wrist markers physically collide with descending beats to Count, exactly like Flow Colliders: beats still spawn on the canonical 4 × 3 grid and travel the canonical track, but their row is mapped into a shoulder-height reach band so every beat lands where a real punch can physically reach — top row ≈ slightly above shoulder, center row ≈ shoulder, bottom row ≈ slightly below shoulder. Scoring is swept 2.5D collider contact (not cell-entry), one Count per punched target, with Flow Colliders' chords, freshness, recovery, and late-window mechanics. Boxing Lanes (`boxing_semantic_track_v1`) and Boxing Grid (`boxing_spatial_grid_v1`) remain alongside; his playtest decides whether Collider replaces them later.
+**Boxing Collider** (ruleset identity `boxing_collider_v1`; visible label **`Boxing`**) is the scoring ruleset in which the calibrated wrist markers physically collide with descending beats to Count, exactly like Flow Colliders: beats still spawn on the canonical 4 × 3 grid and travel the canonical track, but their row is mapped into a shoulder-height reach band so every beat lands where a real punch can physically reach — top row ≈ slightly above shoulder, center row ≈ shoulder, bottom row ≈ slightly below shoulder. Scoring is swept 2.5D collider contact (not cell-entry), one Count per punched target, with Flow Colliders' chords, freshness, recovery, and late-window mechanics.
+
+**Ship shape decision (Derrick, 2026-09-11):** "I probably won't be using the two existing boxing solutions, so lets hide the two current options and make the 'Collider' option the default and call it 'Boxing' (so now Flow and Boxing use a collider design for scoring against webcam markers with a 4x3 grid system for placement of beats)." Consequences:
+- It is **not** a third selectable option — it **is** the boxing option, default for boxing.
+- Boxing Lanes (`boxing_semantic_track_v1`) and Boxing Grid (`boxing_spatial_grid_v1`) are **hidden from the mode selector**.
+- Existing Lanes/Grid packages remain **readable and playable** (a hidden option must not orphan charts Derrick already imported); the selector surfaces the stored variant for existing packages. New boxing imports default to `boxing_collider_v1`.
+- The product framing is now: **Flow and Boxing are the two modes, both collider-scored against webcam markers, both using the 4×3 grid for beat placement.**
 
 Current-state anchors (all file:line verified):
 - Grid geometry: columns x=[-1.5,-0.5,0.5,1.5], rows y=[2,1,0], floor y=-0.72 — `aerobeat-web-renderer/src/gameplay-scene-model.js:31`; cell→world `column=cell%4, row=floor(cell/4)` — `:52-56`.
@@ -99,7 +105,7 @@ Boxing charts have NO bombs (only punch + checkpoint actions, `session-coordinat
 - Optional light HUD presenter mirroring `AeroBoxingTrackHud`/`AeroBoxingSpatialHud` (`aero-product-presenters.js:438-454`).
 
 ## 5. Relationship to existing modes
-Recommendation: ship as a THIRD selectable boxing option (additive, low-risk), not a replacement. Lanes+Grid stay fully functional; the selector (`aero-prototype-selector[scope='gameplay']`; `gameplayModeOptions` at `aero-product-presenters.js:564-568`) gains `Boxing Collider` → `boxing_collider_v1`. The 2-recipe×2-ruleset matrix (`package-content.js:141-142`) becomes 2×3 for new imports. Rationale: "might end up being the final boxing mode IF I playtest it" — must be testable alongside on the same songs; deletion is a later separately-approved slice (Flow Grid deletion precedent `8tz4` shows the cost).
+**DECIDED (Derrick, 2026-09-11):** the collider ruleset takes the `Boxing` label and is the default boxing option; Lanes and Grid are **hidden from the selector** (not deleted — the Flow Grid deletion precedent `8tz4` showed the cost, and legacy packages must stay playable). The mode selector (`aero-prototype-selector[scope='gameplay']`; `gameplayModeOptions` at `aero-product-presenters.js:564-568`) shows exactly **Flow** and **Boxing** for the v1 product surface; the hidden rulesets remain in contracts/persistence for stored-package playback (same mechanics as the hidden Note/Obstacle scale fields in `931s`: UI-hidden, data-intact). New boxing imports: `boxing_collider_v1` is the only newly-created boxing variant (reimport gates for the hidden legacy variants follow the `flow_grid_reimport_required` precedent if/when a package lacks the collider variant).
 
 ## 6. Package / chart / identity impact
 - New ruleset `boxing_collider_v1` into `rulesetIds` (`gameplay-contracts.js:318-322`) + `AeroRulesetId` typedef (`:13`); `gameplayRulesetIds.boxingCollider` (`gameplay-mode-selection.js:6`); `rendererPresentationForVariant` → NEW presentation `boxing_collider` carrying the band parameter (`gameplay-scene-model.js:10,297`).
@@ -122,4 +128,4 @@ No calibration change. The T-pose calibration already captures the shoulder midp
 2. **Direction enforcement on punches** — rec default OFF (overlap-only); a real straight has no clean in-plane direction. Keep the optional toggle for punches, or punches always overlap-only?
 3. **Guards collide or presentational?** — rec presentational v1 (zero new collision code); squat/weave already nose hazards either way.
 4. **Keep or drop the 100ms straight hold?** — rec drop (sweep supersedes).
-5. **Third mode now vs replacement** — rec third selectable option; your playtest decides consolidation. Confirm shipping shape.
+5. **~~Third mode now vs replacement~~ — ANSWERED (2026-09-11):** not a third option — collider becomes the default `Boxing` option; Lanes/Grid hidden (see §1/§5).
