@@ -86,9 +86,29 @@ The scene model is row-neutral, but the top row (Y=2) is the only row whose post
 
 ## 8. Unknowns / what resolves them
 
-1. **Which map + which cells were "bugged"?** If Derrick shares the song/difficulty (and authored beat lines), normalize them and dump each `gameplayGeometry` — resolves (d) directly.
-2. **Was the served 0.0.51 bundle actually built from `fb29fb0`?** The managed 127.0.0.1:5173 serves raw 0.0.51 (untouched by this diagnosis); its bundle bytes were not inspected. A stale/older bundle could show older behavior. Resolve by fingerprinting the served JS against the release proof.
-3. **"Whole grid" = all columns or all rows?** Ambiguous phrasing. Resolve by asking Derrick, or re-shooting with the real chart (not synthetic targets).
+1. **Which map + which cells were "bugged"?** RESOLVED (2026-09-13): Derrick identified **Backstreet Boys - Incomplete, Normal** (BeatSaver map **561f**, version hash `793560ce306bc4769f1433fe2836286bfb80c6aa`, "a full collider that spawns and blocks the complete play area" around ~12 s) and provided a screenshot (see §10).
+2. **Was the served 0.0.51 bundle actually built from `fb29fb0`?** No longer relevant — the real chart reproduces the exact symptom through the canonical converter path.
+3. **"Whole grid" = all columns or all rows?** RESOLVED: **both** — the offending walls are `width=4, height=3` = the complete 4×3 grid (`gridMask` = all 12 cells).
+
+## 10. CONFIRMED root cause — real-chart reproduction (2026-09-13, parent-executed)
+
+**Chart facts (map 561f Normal, legacy `_version: "2.0.0"` JSON):** 237 notes (133 taps + 104 legacy hold-starts, zero hold-ends), 0 bombs, and **11 entries in the separate legacy `_obstacles` array** (legacy obstacles live in `_obstacles`, NOT `_notes` — which is why the first diagnosis's `_notes` type scan found nothing). Of the 11 entries: only **3 are `_type:0` start entries** (beats 15/100/472, single-column, legitimate); the other **8 are `_type:1` END-marker entries, 5 of them with `_width:4`** (full width), including an orphaned end at beat 32 (14.33 s) with near-zero duration. The 2019 mapping tool that authored this chart wrote end markers without matching starts (orphaned terminators).
+
+**Converter reproduction (real `parseBeatMapDifficulty(bytes,"v2")` + `convertDifficulty`, no mocks):** the Flow chart emits 11 obstacle beats, of which **5 are whole-grid walls** (`gameplayGeometry {x:0, y:0, width:4, height:3}`, `gridMask` = all 12 cells) at **14.33 s, 21.04 s, 40.30 s, 48.36 s, 65.37 s** — every one derived from a legacy `_type:1` END entry. The ~12 s sighting is the 14.33 s wall: with the (Derrick-verified) sky prelude it descends from the sky and becomes visible ~2 s before its interval, i.e. ≈12.3 s — exactly "around ~12 seconds", and as a 3.8×3.8 WU slab covering the whole 4×3 grid it matches the screenshot.
+
+**Exact defect chain:**
+1. `normalizeV2Obstacle` (`aerobeat-web-content-authoring/src/beatmap.js:116-131`) treats **every** legacy `_obstacles` entry — including `_type:1` END markers — as an independent obstacle using the entry's `_time` as start and `_duration` as length.
+2. The fixture-defined legacy conversion (`obstacleRecord`, `beatmap.js:184-187`) expands every legacy obstacle to **full height** (`gameplayY=0, gameplayHeight=3`) — correct for the legacy format (legacy obstacles always span both layers).
+3. The chart's `_width:4` passes through as 4 cells → **whole 4×3 grid**.
+4. The renderer renders it faithfully (t7sv's scene-model A/B stands: no renderer defect).
+
+**Why in-game BeatSaber doesn't show this:** legacy obstacle semantics pair START→END per lane/width; the START entry's `_duration` is authoritative and the END entry is a redundant terminator — an orphaned end marker renders nothing. Our parser must match that.
+
+**Fix spec (for the t7sv lane):**
+- In `normalizeV2` (`beatmap.js`), **skip legacy `_obstacles` entries with `_type:1` (END markers)** instead of parsing them as independent obstacles. The start entry's duration remains authoritative; orphaned ends drop (matching in-game behavior). Update/replace the legacy obstacle fixtures that currently pin the type-1→independent-obstacle behavior (the "fixture-defined" conversion comment at `:184` covers the y/height mapping, which is UNCHANGED).
+- **Golden fixture: this exact chart** (map 561f, version hash above; re-fetchable from `https://r2cdn.beatsaver.com/793560ce306bc4769f1433fe2836286bfb80c6aa.zip`). Assert the converted Flow obstacle timeline is exactly the 3 legitimate single-column walls — 6.72–8.51 s (x=3), 44.78–47.46 s (x=0), 211.34–227.01 s (x=3) — all full-height, and that **no width-4 obstacle exists** (the 5 whole-grid walls are gone). Do not commit the 3rd-party chart bytes to the repo; re-fetch by hash.
+- **Secondary audit (same lane, lower priority):** legacy `_width` pass-through — the classic legacy editor wrote `_width:2` (1 cell) / `4` (2 cells); the parser passes the value through as-is (`beatmap.js:129`), so a classic `_width:2` chart would render 2 cells wide where BeatSaber renders 1. Chart 561f uses non-standard 1/4 values and is unaffected, but the lane should audit the fixture set and record an explicit decision (remap classic 2→1 or keep pass-through with a documented rationale).
+- No renderer change, no sky-entry change, no contracts change. The whole-grid *geometry itself* stays legal (a width-4 authoring is expressible); only the orphaned-END misparse is removed.
 
 ## 9. Debugging record
 
