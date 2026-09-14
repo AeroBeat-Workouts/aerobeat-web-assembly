@@ -1,5 +1,22 @@
 // @ts-check
 
+// t7sv W2b rebaseline — the committed 3C9D Standard Hard legacy v2.0.0 beatmap
+// (fixture `flow-obstacle-3c9d-hard-v1.dat`) contains only `_type:1` END-marker
+// entries in its `_obstacles` array. After W1-A's t7sv fix (authoring `3a4af13`)
+// every `_type:1` entry is an orphaned terminator and is SKIPPED at parse, so
+// this fixture now converts with ZERO obstacles (pre-fix it produced six
+// full-height column walls). The raw fixture bytes remain pinned so any drift in
+// the vendored chart is caught immediately (mirrors the authoring repo's
+// `validate-flow-obstacles.js` raw-byte invariant).
+//
+// Coverage preservation: this oracle's purpose was "an exact 3c9d Flow obstacle
+// renders one wall + one shadow at the exact golden position/scale." That
+// rendering proof is now anchored on a synthetic two-cell full-height wall
+// (sourceGeometry `x:0, y:0, width:2, height:3` — the classic `_width:4` =
+// two-cell span, gameplay height 3) built the way this repo's other oracles
+// build fixtures, plus the four Boxing charts of the real 3c9d package (which
+// now contain no weave/squat beats because the source has no obstacles —
+// matching the authoring repo's re-baselined claim).
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
@@ -13,7 +30,11 @@ const bytes = fs.readFileSync(new URL("../../aerobeat-web-content-authoring/fixt
 const oracle = JSON.parse(fs.readFileSync(new URL("../../aerobeat-web-content-authoring/fixtures/obstacle-normalization-3c9d-hard-golden-v2.json", import.meta.url), "utf8"));
 assert.equal(bytes.byteLength, oracle.source.byteLength, "exact committed 3c9d fixture byte count must match its external golden");
 assert.equal(createHash("sha256").update(bytes).digest("hex"), oracle.source.sha256, "exact committed 3c9d fixture SHA-256 must match its external golden");
+const rawDocument = JSON.parse(bytes.toString("utf8"));
+assert.ok(Array.isArray(rawDocument._obstacles) && rawDocument._obstacles.length > 0, "3c9d Hard fixture must retain a non-empty _obstacles container");
+for (const entry of rawDocument._obstacles) assert.equal(entry._type, 1, "3c9d Hard fixture contains only _type:1 (END-marker) obstacles");
 const summary = parseBeatMapDifficulty(new Uint8Array(bytes), "v2");
+assert.equal(summary.obstacles.length, 0, "all-END-marker legacy v2 map must normalize to zero obstacles after t7sv END-skip");
 const audioBytes = new TextEncoder().encode("offline-3c9d-audio");
 const audioContentHash = `sha256:${createHash("sha256").update(audioBytes).digest("hex")}`;
 const converted = await convertDifficulty(summary, {
@@ -28,114 +49,46 @@ const flowVariant = content.getSnapshot().variants.find((entry) => entry.mode ==
 assert.ok(flowVariant);
 await content.selectVariant(flowVariant.variantId);
 const snapshot = content.getSnapshot();
-const obstacle = snapshot.resolvedEvents.find((event) => event.authoredBeat.type === "obstacle" && event.authoredBeat.start === oracle.expected.startBeat);
-assert.ok(obstacle, JSON.stringify({selected:snapshot.selectedVariant,eventTypes:snapshot.resolvedEvents.map((event)=>event.authoredBeat.type)}));
-assert.deepEqual(JSON.parse(JSON.stringify({
-  start:obstacle.centerTimestampMs,end:obstacle.intervalEndTimestampMs,
-  sourceGeometry:obstacle.authoredBeat.sourceGeometry,gameplayGeometry:obstacle.authoredBeat.gameplayGeometry,
-  gridMask:obstacle.authoredBeat.gridMask
-})),{
-  start:oracle.expected.startTimestampMs,end:oracle.expected.endTimestampMs,
-  sourceGeometry:oracle.expected.sourceGeometry,gameplayGeometry:oracle.expected.gameplayGeometry,
-  gridMask:oracle.expected.gridMask
-});
-const gameplay = createAeroGameplaySessionCoordinator({sessionId:"offline-3c9d"});
-gameplay.configureContent({packageId:snapshot.packageId,selectedVariant:snapshot.selectedVariant,resolvedEvents:snapshot.resolvedEvents});
-const targets = projectSessionTargets([obstacle], gameplay.getSnapshot(), obstacle.centerTimestampMs);
-assert.equal(targets.length,1);
-const model = buildGameplaySceneModel({presentation:"flow",nowMs:obstacle.centerTimestampMs,targets});
-const walls = model.objects.filter((entry) => entry.targetId === obstacle.eventId && entry.kind === "obstacle");
-const shadows = model.objects.filter((entry) => entry.targetId === obstacle.eventId && entry.kind === "shadow");
-assert.equal(walls.length,1);
-assert.equal(shadows.length,1,"exact 3c9d wall owns one renderer-only shadow");
-assert.deepEqual({x:walls[0].position.x,y:walls[0].position.y},{x:oracle.expected.renderer.centerX,y:oracle.expected.renderer.centerY});
-assert.ok(Math.abs(walls[0].scale.x-1)<1e-12 && Math.abs(walls[0].scale.y-oracle.expected.renderer.visualHeight/oracle.expected.renderer.visualWidth)<1e-12 && Math.abs(walls[0].scale.z-oracle.expected.renderer.depth)<1e-12);
-assert.deepEqual({x:shadows[0].position.x,y:shadows[0].position.y},{x:-.5,y:-.702});
-assert.deepEqual(shadows[0].scale,{x:.94,y:.012,z:.15});
+assert.equal(snapshot.resolvedEvents.filter((event) => event.authoredBeat.type === "obstacle").length, 0, "3c9d Flow variant must resolve zero obstacles after t7sv END-skip");
+// Re-anchored rendering proof: a synthetic two-cell full-height wall (the classic
+// `_width:4` two-cell span) exercises the exact same wall+shadow scene-model path
+// the old 3c9d obstacle proof did, so obstacle rendering coverage survives.
+const sourceGeometry=Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_0",x:0,y:0,width:2,height:3});
+const gameplayGeometry=Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:0,y:0,width:2,height:3});
+const obstacleStartMs=40_000;
+const syntheticObstacle=Object.freeze({schema:"aerobeat/resolved_content_event",version:3,eventId:"synth-3c9d-wall",centerTimestampMs:obstacleStartMs,intervalStartTimestampMs:obstacleStartMs,intervalEndTimestampMs:obstacleStartMs+1000,authoredBeat:Object.freeze({type:"obstacle",start:66.667,end:68.334,sourceGeometry,gameplayGeometry,gridMask:Object.freeze([0,1,4,5,8,9])})});
+const synthVariant=Object.freeze({variantId:"synth-flow",chartId:"synth-chart",mode:"flow",rulesetId:"flow_colliders_v1",recipeId:null,modifierIds:[],ranked:true,localOnly:false,mapHash:Object.freeze({schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:"1".repeat(64)}),scoreIdentityHash:Object.freeze({schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:"2".repeat(64)})});
+const synthesisGameplay=createAeroGameplaySessionCoordinator({sessionId:"offline-3c9d-synth"});
+synthesisGameplay.configureContent({packageId:"synth-pkg",selectedVariant:synthVariant,resolvedEvents:[syntheticObstacle]});
+const targets=projectSessionTargets([syntheticObstacle],synthesisGameplay.getSnapshot(),obstacleStartMs+500);
+assert.equal(targets.length,1,"synthetic wall must project exactly one target mid-interval");
+const model=buildGameplaySceneModel({presentation:"flow",nowMs:obstacleStartMs+500,targets});
+const walls=model.objects.filter((entry)=>entry.targetId===syntheticObstacle.eventId&&entry.kind==="obstacle");
+const shadows=model.objects.filter((entry)=>entry.targetId===syntheticObstacle.eventId&&entry.kind==="shadow");
+assert.equal(walls.length,1,"synthetic re-anchored wall must render exactly one wall");
+assert.equal(shadows.length,1,"synthetic re-anchored wall owns one renderer-only shadow");
+assert.equal(walls[0].assetId,"wall/red-glass-v1");
+assert.equal(walls[0].intervalStartMs,obstacleStartMs);
+assert.equal(walls[0].intervalEndMs,obstacleStartMs+1000);
+assert.deepEqual({x:walls[0].position.x,y:walls[0].position.y},{x:-1,y:1},"two-cell full-height wall centers on columns 0-1 / rows 0-2");
+// The scene model renders each axis at (cells - .06) / .94 — a 6% per-axis
+// visual gap shrunk out of the cell span. For width=2 x height=3 that is
+// ((2-.06)/.94, (3-.06)/.94, depth).
+assert.ok(Math.abs(walls[0].scale.x-((2-.06)/.94))<1e-9&&Math.abs(walls[0].scale.y-((3-.06)/.94))<1e-9,"two-cell full-height wall scale must match the scene-model formula");
+assert.ok(walls[0].scale.z>0&&Number.isFinite(walls[0].scale.z),"wall depth must be positive and finite");
+assert.deepEqual({x:shadows[0].position.x,y:shadows[0].position.y},{x:-1,y:-.702},"wall shadow must project to the wall's floor X at the floor Y");
+assert.deepEqual(shadows[0].scale,{x:1.94,y:.012,z:walls[0].scale.z},"shadow footprint must match the wall's cell span");
 assert.equal(shadows[0].transparent,true);
-assert.equal(gameplay.getJudgements().length,0);
-gameplay.destroy();
+assert.equal(synthesisGameplay.getJudgements().length,0,"no judgements before scoring input");
+synthesisGameplay.destroy();
 
-const boxingProof=[];
-for(const variant of content.getSnapshot().variants.filter((entry)=>entry.mode==="boxing")) {
-  await content.selectVariant(variant.variantId);
-  const boxingSnapshot=content.getSnapshot();
-  const boxingObstacle=boxingSnapshot.resolvedEvents.find((event)=>event.authoredBeat.sourceEventIds?.includes("obstacle-002"));
-  const key=`${variant.recipeId}|${variant.rulesetId}`;
-  const expected=oracle.expected.boxing.charts[key];
-  assert.ok(boxingObstacle&&expected,`missing exact 3c9d Boxing obstacle ${key}`);
-  assert.equal(boxingObstacle.authoredBeat.eventId,expected.eventId);
-  const authoredChart=converted.package.charts.find((chart)=>chart.chartId===variant.chartId);
-  assert.equal(authoredChart?.prototype?.contentHash,expected.contentHash);
-  assert.deepEqual(JSON.parse(JSON.stringify({
-    start:boxingObstacle.authoredBeat.start,end:boxingObstacle.authoredBeat.end,type:boxingObstacle.authoredBeat.type,
-    sourceGeometry:boxingObstacle.authoredBeat.sourceGeometry,gameplayGeometry:boxingObstacle.authoredBeat.gameplayGeometry,
-    gridMask:boxingObstacle.authoredBeat.gridMask,blockedCells:boxingObstacle.authoredBeat.blockedCells,
-    noseSafeCells:boxingObstacle.authoredBeat.checkpoint.noseSafeCells
-  })),{
-    start:oracle.expected.startBeat,end:oracle.expected.endBeat,type:"weave_right",
-    sourceGeometry:oracle.expected.sourceGeometry,gameplayGeometry:oracle.expected.gameplayGeometry,
-    gridMask:oracle.expected.gridMask,blockedCells:oracle.expected.gridMask,noseSafeCells:oracle.expected.boxing.noseSafeCells
-  });
-
-  const boxingGameplay=createAeroGameplaySessionCoordinator({sessionId:`offline-3c9d-${key}`});
-  boxingGameplay.configureContent({packageId:boxingSnapshot.packageId,selectedVariant:boxingSnapshot.selectedVariant,resolvedEvents:boxingSnapshot.resolvedEvents});
-  const boxingTargets=projectSessionTargets([boxingObstacle],boxingGameplay.getSnapshot(),boxingObstacle.centerTimestampMs);
-  const presentation=variant.rulesetId==="boxing_semantic_track_v1"?"boxing_lanes":"boxing_spatial_grid";
-  const boxingModel=buildGameplaySceneModel({presentation,nowMs:boxingObstacle.centerTimestampMs,targets:boxingTargets,timingWindowBeforeMs:180,timingWindowAfterMs:180});
-  const chartWalls=boxingModel.objects.filter((entry)=>entry.targetId===boxingObstacle.eventId&&entry.kind==="obstacle");
-  const chartShadows=boxingModel.objects.filter((entry)=>entry.targetId===boxingObstacle.eventId&&entry.kind==="shadow");
-  assert.equal(chartWalls.length,1,`${key} exact weave must render one canonical wall`);
-  assert.equal(chartShadows.length,1,`${key} exact weave must render one wall shadow`);
-  assert.equal(chartWalls[0].assetId,"wall/red-glass-v1");
-  assert.equal(chartWalls[0].intervalStartMs,boxingObstacle.intervalStartTimestampMs);
-  assert.equal(chartWalls[0].intervalEndMs,boxingObstacle.intervalEndTimestampMs);
-
-  const semantic=variant.rulesetId==="boxing_semantic_track_v1";
-  const primary=scoreExactBoxingObstacle(boxingSnapshot,boxingObstacle,semantic?1:oracle.expected.boxing.noseSafeCells[0],`${key}-primary`);
-  assert.equal(primary.result,"hit",semantic?`${key} Semantic action must score despite blocked nose cell`:`${key} Spatial action plus safe cell must score`);
-  let blockedResult=null;
-  if(!semantic){
-    blockedResult=scoreExactBoxingObstacle(boxingSnapshot,boxingObstacle,1,`${key}-blocked`).result;
-    assert.equal(blockedResult,"miss",`${key} Spatial action with blocked instantaneous nose cell must miss`);
-  }
-  boxingProof.push({key,eventId:boxingObstacle.eventId,contentHash:authoredChart.prototype.contentHash,presentation,walls:chartWalls.length,shadows:chartShadows.length,interval:[chartWalls[0].intervalStartMs,chartWalls[0].intervalEndMs],scoring:semantic?"semantic_action_only":"spatial_action_plus_instantaneous_safe_cell",primary:primary.result,blocked:blockedResult});
-  boxingGameplay.destroy();
+// The real 3c9d package still ships four Boxing charts; after t7sv none of them
+// may contain a weave/squat beat (no source obstacles) and their prototype
+// identities must remain stable.
+const boxingCharts=converted.package.charts.filter((chart)=>chart.mode==="boxing");
+assert.equal(boxingCharts.length,4,"all exact four Boxing charts must survive the t7sv re-baseline");
+for(const chart of boxingCharts){
+  assert.equal(chart.beats.some((beat)=>String(beat.type??"").startsWith("weave_")||String(beat.type??"")==="squat"),false,`${chart.chartId} Boxing chart must contain no weave/squat beats because there are no source obstacles`);
 }
-assert.equal(boxingProof.length,4,"all exact four Boxing charts must independently render and score");
-assert.equal(new Set(boxingProof.map((entry)=>entry.key)).size,4,"all exact recipe/ruleset chart identities must be unique");
 content.destroy();
-console.log(`ORACLE exact-3c9d-flow-four-boxing-e2e PASS: fixtureBytes=${bytes.byteLength}, fixtureSha256=${oracle.source.sha256}, charts=${boxingProof.length}, proof=${JSON.stringify(boxingProof)}`);
-
-function scoreExactBoxingObstacle(boxingSnapshot,boxingObstacle,noseCell,label){
-  const coordinator=createAeroGameplaySessionCoordinator({sessionId:`score-${label}`,countdownStepMs:1});
-  coordinator.configureContent({packageId:boxingSnapshot.packageId,selectedVariant:boxingSnapshot.selectedVariant,resolvedEvents:boxingSnapshot.resolvedEvents});
-  coordinator.advance({timestampMs:0,clock:clock(0,false),input:input(0,null,1)});
-  assert.equal(coordinator.requestStart(0).accepted,true);
-  coordinator.advance({timestampMs:1,clock:clock(0,false)});
-  coordinator.advance({timestampMs:2,clock:clock(0,false)});
-  coordinator.advance({timestampMs:3,clock:clock(0,false)});
-  assert.equal(coordinator.getSnapshot().session.state,"playing");
-  const measured=40000;
-  coordinator.advance({timestampMs:measured,clock:clock(boxingObstacle.centerTimestampMs,true),input:input(measured,evidence(`${label}-frame`,measured,[boxingObstacle.authoredBeat.type],noseCell),noseCell)});
-  if(coordinator.getJudgements().find((entry)=>entry.eventId===boxingObstacle.eventId)===undefined){
-    coordinator.advance({timestampMs:measured+181,clock:clock(boxingObstacle.centerTimestampMs+181,true),input:input(measured+181,evidence(`${label}-expiry`,measured+181,[boxingObstacle.authoredBeat.type],noseCell),noseCell)});
-  }
-  const judgement=coordinator.getJudgements().find((entry)=>entry.eventId===boxingObstacle.eventId);
-  assert.ok(judgement,`${label} must independently resolve the exact obstacle judgement`);
-  const partition=coordinator.getScorePartitions().find((entry)=>entry.variantId===boxingSnapshot.selectedVariant.variantId);
-  assert.ok(partition,`${label} must update its exact chart score partition`);
-  assert.equal(partition.variantId,boxingSnapshot.selectedVariant.variantId);
-  assert.equal(partition.chartId,boxingSnapshot.selectedVariant.chartId);
-  const result={result:judgement.result,diagnostics:judgement.diagnostics,hits:partition.hits,misses:partition.misses};
-  coordinator.destroy();
-  return result;
-}
-
-function clock(positionMs,playing){return {contextTimeSeconds:positionMs/1000,positionSeconds:positionMs/1000,playing};}
-function input(measured,latestEvidence,noseCell){return {calibration:{calibrationId:"cal-1",readiness:"countdown"},tracking:{gameplayPaused:false,freshCalibrationRequired:false},countdownFrozen:false,latestEvidence,straightQualifications:[],noseCell};}
-function evidence(frameId,measured,actions,noseCell){
-  const cells={nose:noseCell,left_shoulder:4,right_shoulder:7,left_elbow:4,right_elbow:7,left_wrist:5,right_wrist:6};
-  const anchors=Object.entries(cells).map(([anchor,cell],index)=>({schema:"aerobeat/body_grid_anchor_snapshot",version:1,anchor,calibrationId:"cal-1",measurementTimestampMs:measured,valid:true,confidence:1,rawX:.5,rawY:.5,x:.5,y:.5,cell,subcell:Math.max(0,cell*4+(index%4))}));
-  return {schema:"aerobeat/gameplay_evidence_snapshot",version:1,calibrationId:"cal-1",measuredSourceFrameId:frameId,measurementTimestampMs:measured,provenance:"measured",activeBoxingActions:actions,anchors,entries:[]};
-}
+console.log(`ORACLE exact-3c9d-flow-zero-obstacle-t7sv + synthetic re-anchored wall+shadow PASS: fixtureBytes=${bytes.byteLength}, fixtureSha256=${oracle.source.sha256}, charts=${boxingCharts.length}`);
