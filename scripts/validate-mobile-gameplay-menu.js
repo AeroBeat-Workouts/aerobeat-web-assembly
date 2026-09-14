@@ -527,13 +527,20 @@ async function captureOrderedCountdown(page, game) {
     await ensureFrameLoopAlive(page, game);
     await ensureFrameLoopAlive(page, game);
     try{await waitFor(page, async () => await game.evaluate((element, value) => { if (!element.frameTimer) { try { element.startFrameLoop(); } catch (_e) {} } return Number(element.graph.gameplay.getSnapshot().countdown?.value) === value && globalThis.__countdownDwellProof?.records.some((record) => record.value === String(value) && record.minimumDwellProven === true); }, expected), 15000);}catch(error){const diagnostic=await game.evaluate((element)=>({gameplay:element.graph.gameplay.getSnapshot(),input:element.graph.input.getSnapshot(),proof:globalThis.__countdownDwellProof,poseTimestampMs:globalThis.__mobileState.pose?.timestampMs,performanceNowMs:performance.now(),latestPoseTimestampMs:element.latestPoseTimestampMs,lastFreshPoseAtMs:element.lastFreshPoseAtMs}));throw new Error(`Countdown ${expected} timeout: ${JSON.stringify(diagnostic)}`,{cause:error});}
+    // Freeze the frame loop the instant the dwell is proven (before the screenshot
+    // round-trips) so the wall-clock countdown cannot advance to the next digit — or
+    // fade out into "playing" — while the contrast screenshot is captured. Under load
+    // (the full test:browser sweep) the several Playwright round-trips below can exceed
+    // the remaining ~150 ms of the current digit's 1000 ms step, landing the screenshot
+    // on a faded/transitioning cue (low pixelRange). Freezing pins the cue to `expected`.
+    await game.evaluate((element) => { try { element.stopFrameLoop(); } catch (_e) {} });
     await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve())));
     const visual=await visualShellSnapshot(game); if(!firstVisual) firstVisual=visual;
     const style=await game.evaluate((element) => { const cue=element.shadowRoot.querySelector("[data-role='transient-cue']"); const computed=getComputedStyle(cue); return { color:computed.color,textShadow:computed.textShadow,fontSize:computed.fontSize,statusCount:[...element.shadowRoot.querySelectorAll("[role='status']")].filter((item)=>!item.hidden&&item.getClientRects().length>0).length }; });
     const screenshot=await game.locator("[data-role='transient-cue']").screenshot();
     const pixels=await screenshotContrast(page,screenshot);
     values.push(expected); proofs.push({style,pixels});
-    // Restart the loop (it was stopped by the dwell proof) and wait for the digit to change.
+    // Restart the loop (frozen above) and wait for the digit to change.
     await game.evaluate((element) => element.startFrameLoop());
     await waitFor(page, async () => Number(await game.evaluate((element) => element.graph.gameplay.getSnapshot().countdown?.value)) !== expected, 2500);
   }
