@@ -10,17 +10,23 @@ import { createAeroBeatSaverVendorService } from "@aerobeat/web-vendor-beatsaver
 import { createMediaPipeWorkerPoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId } from "@aerobeat/web-vendor-mediapipe";
 import { createBrowserVideoMediaFacade } from "@aerobeat/web-video";
 import { createLockedProductionCvService } from "./production-cv-service.js";
-export { lockedProductionCvProfile } from "./production-cv-profile.js";
+import { lockedProductionCvProfile } from "./production-cv-profile.js";
+export { lockedProductionCvProfile };
 
-/** Exact production adapter factory; exported only for screenshot-free acceptance inspection. */
+/**
+ * Exact production adapter factory; exported only for screenshot-free acceptance
+ * inspection. tm4m: the three threshold values are read straight from the locked
+ * declared production CV profile (detection 0.4 / presence 0.5 / tracking 0.3)
+ * so the wiring can never drift from the declared values.
+ */
 export function createLockedProductionPoseAdapter() {
   return createMediaPipeWorkerPoseAdapter({
     sourceId: mediaPipeLiveSourceId,
     mirrored: true,
     delegate: mediaPipeDelegates.cpuWasm,
-    minPoseDetectionConfidence: 0.5,
-    minPosePresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5
+    minPoseDetectionConfidence: lockedProductionCvProfile.minPoseDetectionConfidence,
+    minPosePresenceConfidence: lockedProductionCvProfile.minPosePresenceConfidence,
+    minTrackingConfidence: lockedProductionCvProfile.minTrackingConfidence
   });
 }
 

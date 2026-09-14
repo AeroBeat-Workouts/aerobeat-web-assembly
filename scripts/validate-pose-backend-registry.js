@@ -30,12 +30,13 @@ assert.equal(defaults.mediaPipeTuningApplicable, true);
 assert.deepEqual(poseBackendOptions.map((option) => option.value), ["mediapipe"]);
 assert.deepEqual(getPoseProviderOptions("mediapipe").map((option) => option.value), ["gpu-webgl", "cpu-wasm"]);
 assert.deepEqual(mediaPipeTuningOptions.map((option) => option.value), ["standard", "responsive"]);
+// tm4m: the standard tuning tracks the production threshold split (detection 0.4 / presence 0.5 / tracking 0.3).
 assert.deepEqual(getMediaPipeTuningDefinition("standard"), {
   id: "standard",
   label: "Standard",
-  minPoseDetectionConfidence: 0.5,
+  minPoseDetectionConfidence: 0.4,
   minPosePresenceConfidence: 0.5,
-  minTrackingConfidence: 0.5
+  minTrackingConfidence: 0.3
 });
 assert.equal(getPoseSourceId("mediapipe"), "aero.mediapipe.live");
 
@@ -47,7 +48,8 @@ for (const provider of ["gpu-webgl", "cpu-wasm"]) {
   assert.equal(composition.sourceId, "aero.mediapipe.live");
   assert.equal(composition.poseAdapter.vendorId, "mediapipe");
   assert.equal(composition.fallbackPoseAdapter.vendorId, "aero-cv-replay");
-  assert.match(composition.poseAdapter.getExecutionTelemetry?.().detail ?? "", /detection 0\.5.*presence 0\.5.*tracking 0\.5/u);
+  // tm4m: standard tuning is the production threshold split.
+  assert.match(composition.poseAdapter.getExecutionTelemetry?.().detail ?? "", /detection 0\.4.*presence 0\.5.*tracking 0\.3/u);
   await composition.poseAdapter.dispose?.();
   await composition.fallbackPoseAdapter.dispose?.();
 }

@@ -9,6 +9,7 @@ import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 import {
   isExpectedReadPixelsWarning,
+  isExpectedPlaycanvasMeshWarning,
   READ_PIXELS_WARNING_BODY,
   READ_PIXELS_WARNING_REPEAT_SUFFIX
 } from "./readpixels-console-policy.js";
@@ -28,8 +29,7 @@ const address = parentServer.address(); if (!address || typeof address === "stri
 const parentUrl = `http://127.0.0.1:${address.port}/`;
 const browser = await chromium.launch(); const noise = [];
 try {
-  const page = await browser.newPage({ viewport: { width: 1100, height: 760 } }); collectNoise(page, noise, childUrl);
-  await page.goto(childUrl, { waitUntil: "networkidle" }); await page.locator("aero-game").waitFor();
+  const page = await browser.newPage({ viewport: { width: 1100, height: 760 } }); collectNoise(page, noise, childUrl);  await page.goto(childUrl, { waitUntil: "networkidle" }); await page.locator("aero-game").waitFor();
   const direct = await page.locator("aero-game").evaluate(async (game) => {
     const bodyStyleBefore=document.body.getAttribute("style")??"",hrefBefore=location.href,historyBefore=history.length;await game.configure({});const snapshot = game.getSnapshot(); const parent = game.parentElement.getBoundingClientRect();
     return { snapshot, bounds: game.getBoundingClientRect().toJSON(), parent: parent.toJSON(), aliasCount: document.querySelectorAll("aerobeat-app").length, bodyUnchanged:bodyStyleBefore===(document.body.getAttribute("style")??""),navigationUnchanged:hrefBefore===location.href&&historyBefore===history.length };
@@ -290,7 +290,7 @@ function mjsCollectorContractFailures(path, source) {
   return requirements.filter(([pattern]) => !pattern.test(source)).map(([, label]) => `${path}: ${label}`);
 }
 
-function collectNoise(page, noise, expectedPageUrl) { page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedPageUrl)) noise.push(`${type}: ${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); }); page.on("pageerror", (error) => noise.push(`pageerror: ${error.message}`)); }
+function collectNoise(page, noise, expectedPageUrl) { page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedPageUrl) && !isExpectedPlaycanvasMeshWarning(type,text)) noise.push(`${type}: ${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); }); page.on("pageerror", (error) => noise.push(`pageerror: ${error.message}`)); }
 function hashBytes(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 function hashJson(value) { return hashBytes(new TextEncoder().encode(JSON.stringify(sort(value)))); }
 function sort(value) { if (Array.isArray(value)) return value.map(sort); if (value && typeof value === "object") { const result = {}; for (const key of Object.keys(value).sort()) result[key] = sort(value[key]); return result; } return value; }

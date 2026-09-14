@@ -46,7 +46,8 @@ import { createAeroDisplayLoop } from "./runtime-cadence.js";
 import { createPrivatePerformanceRecorder } from "./private-performance-recorder.js";
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets } from "./session-render-projection.js";
-import { canonicalWorldUnitsPerMs, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
+import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
+import { projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { projectGridCornersToScreen, solveVideoFit } from "./video-fit-solver.js";
 import { defaultVideoFit, normalizeVideoFit } from "@aerobeat/web-contracts/gameplay-contracts";
 
@@ -967,7 +968,11 @@ export class AeroGame extends HTMLElement {
     const content = this.graph.content.getSnapshot();
     if (content.state !== "ready" || !content.selectedVariant) return;
     const session=this.graph.gameplay.getSnapshot().session,runActive=Boolean(session?.packageId)&&!["idle","stopped","completed"].includes(session?.state),scoring = this.graph.profiles.getActive("between_run_ruleset"),setup=bindDesiredSetup||!runActive||!this.activeSessionSetup?this.desiredGameSetup:this.activeSessionSetup;
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(content.selectedVariant.rulesetId===gameplayRulesetIds.flow?{flowColliderSettings:gameplayFlowColliderSettings(setup)}:{}) };
+    // z2tx: thread the run-gated collider settings — Flow for flow_colliders_v1,
+    // Boxing Collider (reach + guard mode) for boxing_collider_v1. The coordinator
+    // locks them for the complete run; mid-run changes reject via
+    // `boxing_collider_settings_locked` / `flow_collider_settings_locked`.
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(content.selectedVariant.rulesetId===gameplayRulesetIds.flow?{flowColliderSettings:gameplayFlowColliderSettings(setup)}:{}),...(content.selectedVariant.rulesetId===gameplayRulesetIds.boxingCollider?{boxingColliderSettings:gameplayBoxingColliderSettings(setup)}:{}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else { this.activeSessionSetup=setup;this.applyGameSetup(this.graph,setup);this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined); }
   }
@@ -1239,6 +1244,15 @@ export class AeroGame extends HTMLElement {
       else if (this.renderEventIndex.leadLimited) this.setTestPresentationStatus("Lead limited to 10 s for this tempo.");
     }
     const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, timingWindowMs);
+    // p5pr: hit-success aftermath FIFO (assembly-owned) — only resolved HIT
+    // outcomes produce entries; misses/obstacles/bombs never appear.
+    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets);
+    // dntq: bounded hazard-contact events (assembly-owned) — obstacle head-collision
+    // contact outcomes (Flow + Boxing) plus Flow bomb touch; avoided/miss produce nothing.
+    const hazardContacts = projectHazardContactEvents(gameplay, nowMs);
+    // z2tx: rowReach emission only for the boxing_collider presentation; other
+    // presentations omit the field so the renderer defaults to legacy {1,1}.
+    const isBoxingCollider = presentation === "boxing_collider";
     const cameraActive=setup.noseCameraParallaxEnabled&&session.purpose==="play"&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
     const cameraDeflection=sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);this.lastNoseCameraDeflection=cameraDeflection;const normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
     const beatGuidance=setup.guidanceBandMode==="song_beat_grid"?guidanceBeatTimestamps(this.renderEventIndex,nowMs,normalSpawnLeadMs):null;
@@ -1249,6 +1263,12 @@ export class AeroGame extends HTMLElement {
       showGameplayGrid:setup.showGameplayGrid,
       guidanceBandMode:setup.guidanceBandMode,
       ...(beatGuidance===null?{}:{guidanceBeatTimestampsMs:beatGuidance}),
+      // p5pr/dntq: always emit the bounded lists so the renderer validates them
+      // explicitly; an empty array is the idle state.
+      aftermath,
+      hazardContacts,
+      // z2tx: row-reach WU fractions for the boxing_collider presentation only.
+      ...(isBoxingCollider?{rowReach:Object.freeze({topRowReachWU:Number(setup.topRowReachWU),bottomRowReachWU:Number(setup.bottomRowReachWU)})}:{}),
       cameraDeflection,
       countdown: null, overlay: "none", calibrationDim: 0
     };
@@ -2101,7 +2121,11 @@ export class AeroGame extends HTMLElement {
     const content=this.drawerElement()?.querySelector(".drawer-content");if(!(content instanceof HTMLElement))return;const section=document.createElement("section");section.className="drawer-section";section.dataset.section="game-setup";section.tabIndex=-1;const heading=document.createElement("h2");heading.textContent="Game Setup";section.append(heading);
     for(const [field,text] of [["showGameplayGrid","Show 4 × 3 grid"],["noseCameraParallaxEnabled","Nose camera parallax"],["spawnDistanceOverrideEnabled","Override spawn distance"],["enforceAuthoredDirection","Enforce authored direction"],["videoFitEnabled","Video fit"]]){const label=document.createElement("label");label.className="environment-option";const input=document.createElement("input");input.type="checkbox";input.dataset.gameSetupField=field;if(field==="showGameplayGrid")input.dataset.action="show-gameplay-grid";const span=document.createElement("span");span.textContent=text;label.append(input,span);section.append(label);}
     const guidanceLabel=document.createElement("label");guidanceLabel.className="game-setup-select-row";const guidanceText=document.createElement("span");guidanceText.textContent="Guidance bands";const guidance=document.createElement("select");guidance.dataset.gameSetupField="guidanceBandMode";for(const [value,label] of [["off","Off"],["song_beat_grid","Song beat-grid bands"],["target_arrivals","Target-arrival bands"]]){const option=document.createElement("option");option.value=value;option.textContent=label;guidance.append(option);}guidanceLabel.append(guidanceText,guidance);section.append(guidanceLabel);
-    const rows=[["spawnDistanceOverrideWorldUnits","Spawn distance (world units)",...gameSetupBounds.normalSpawnDistanceWorldUnits,.1],["noseCameraRangeXWorldUnits","Camera horizontal range",...gameSetupBounds.noseCameraRangeXWorldUnits,.01],["noseCameraRangeYWorldUnits","Camera vertical range",...gameSetupBounds.noseCameraRangeYWorldUnits,.01],["timingWindowMs","Collider timing window (ms)",...gameSetupBounds.timingWindowMs,1],["colliderRadius","Collider radius",...gameSetupBounds.colliderRadius,.01],["directionToleranceDegrees","Direction tolerance (degrees)",...gameSetupBounds.directionToleranceDegrees,1],["noteScalePercent","Note scale (%)",...gameSetupBounds.noteScalePercent,1],["obstacleScalePercent","Obstacle scale (%)",...gameSetupBounds.obstacleScalePercent,1],["bombScalePercent","Bomb scale (%)",...gameSetupBounds.bombScalePercent,1],["markerScalePercent","Marker scale (%)",...gameSetupBounds.markerScalePercent,1],["videoFitScalePercent","Fit scale %",90,110,1],["videoFitOffsetXPercent","Fit offset X %",-10,10,1],["videoFitOffsetYPercent","Fit offset Y %",-10,10,1]];
+    // 931s: Note and Obstacle scale rows are hidden from the drawer — the current
+    // defaults are fine. Their fields stay in the snapshot at their 100 defaults
+    // (data-intact, UI-hidden, same pattern as the hidden Lanes/Grid rulesets).
+    // Bomb and Marker rows remain visible.
+    const rows=[["spawnDistanceOverrideWorldUnits","Spawn distance (world units)",...gameSetupBounds.normalSpawnDistanceWorldUnits,.1],["noseCameraRangeXWorldUnits","Camera horizontal range",...gameSetupBounds.noseCameraRangeXWorldUnits,.01],["noseCameraRangeYWorldUnits","Camera vertical range",...gameSetupBounds.noseCameraRangeYWorldUnits,.01],["timingWindowMs","Collider timing window (ms)",...gameSetupBounds.timingWindowMs,1],["colliderRadius","Collider radius",...gameSetupBounds.colliderRadius,.01],["directionToleranceDegrees","Direction tolerance (degrees)",...gameSetupBounds.directionToleranceDegrees,1],["bombScalePercent","Bomb scale (%)",...gameSetupBounds.bombScalePercent,1],["markerScalePercent","Marker scale (%)",...gameSetupBounds.markerScalePercent,1],["videoFitScalePercent","Fit scale %",90,110,1],["videoFitOffsetXPercent","Fit offset X %",-10,10,1],["videoFitOffsetYPercent","Fit offset Y %",-10,10,1]];
     for(const [field,text,min,max,step] of rows){const label=document.createElement("label");label.className="game-setup-number-row";const span=document.createElement("span");span.textContent=String(text);const input=document.createElement("input");input.type="number";input.min=String(min);input.max=String(max);input.step=String(step);input.dataset.gameSetupField=String(field);input.setAttribute("aria-describedby",`game-setup-${field}-error`);const error=document.createElement("small");error.id=`game-setup-${field}-error`;error.dataset.gameSetupError=String(field);error.setAttribute("aria-live","polite");label.append(span,input,error);section.append(label);}
     const videoFitReferenceLabel=document.createElement("label");videoFitReferenceLabel.className="game-setup-select-row";const videoFitReferenceText=document.createElement("span");videoFitReferenceText.textContent="Fit reference";const videoFitReference=document.createElement("select");videoFitReference.dataset.gameSetupField="videoFitReference";for(const [value,text] of [["center","Center"],["far","Far"],["near","Near"]]){const option=document.createElement("option");option.value=value;option.textContent=text;videoFitReference.append(option);}videoFitReferenceLabel.append(videoFitReferenceText,videoFitReference);section.append(videoFitReferenceLabel);
     const note=document.createElement("p");note.className="game-setup-note";note.textContent="Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, guidance, and video fit changes apply live after calibration (cover fallback before then).";section.append(note);content.prepend(section);

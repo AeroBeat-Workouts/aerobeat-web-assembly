@@ -16,8 +16,11 @@ export const defaultPoseBackendId = "mediapipe";
 export const defaultPoseProviderId = "gpu-webgl";
 export const defaultMediaPipeTuningId = "standard";
 
+// tm4m: the production threshold split (detection 0.4 / presence 0.5 / tracking 0.3)
+// is now the locked `standard` tuning; `responsive` remains a distinct historical
+// A/B definition for its telemetry-differentiated identity.
 export const mediaPipeTuningOptions = Object.freeze([
-  Object.freeze({ value: "standard", label: "Standard (0.5 / 0.5 / 0.5)" }),
+  Object.freeze({ value: "standard", label: "Standard (0.4 / 0.5 / 0.3)" }),
   Object.freeze({ value: "responsive", label: "Responsive A/B (0.5 / 0.4 / 0.3)" })
 ]);
 
@@ -25,9 +28,9 @@ const mediaPipeTuningDefinitions = Object.freeze({
   standard: Object.freeze({
     id: "standard",
     label: "Standard",
-    minPoseDetectionConfidence: 0.5,
+    minPoseDetectionConfidence: 0.4,
     minPosePresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5
+    minTrackingConfidence: 0.3
   }),
   responsive: Object.freeze({
     id: "responsive",

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { createFlowColliderSettings, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
+import { createBoxingColliderSettings, createFlowColliderSettings, defaultBoxingColliderSettings, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
 import { createGameplayVisualExperimentConfig, rendererVisualScalesIdentity } from "@aerobeat/web-renderer";
 
 /** Derive the four per-class visual scale percentages from a Game Setup v3 snapshot. */
@@ -44,6 +44,17 @@ export function rendererGameplayVisualConfig(setup){return createGameplayVisualE
 
 /** Construct the exact run-locked gameplay authority from persisted scalar setup. @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
 export function gameplayFlowColliderSettings(setup){return createFlowColliderSettings({schema:defaultFlowColliderSettings.schema,version:defaultFlowColliderSettings.version,algorithm:defaultFlowColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs});}
+
+/**
+ * z2tx: construct the exact run-locked Boxing Collider (boxing_collider_v1)
+ * settings record from a Game Setup v3 snapshot — the shared Flow collider
+ * profile plus the row-reach fractions and guard count mode fields. These are
+ * locked for the complete run by the coordinator; mid-run changes are rejected
+ * via `boxing_collider_settings_locked`.
+ *
+ * @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup
+ */
+export function gameplayBoxingColliderSettings(setup){return createBoxingColliderSettings({schema:defaultBoxingColliderSettings.schema,version:defaultBoxingColliderSettings.version,algorithm:defaultBoxingColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs,topRowReachWU:setup.topRowReachWU,bottomRowReachWU:setup.bottomRowReachWU,guardCountMode:setup.guardCountMode});}
 
 /**
  * Consume one measured-only sample without retaining a mirror and expose only normalized deflections.

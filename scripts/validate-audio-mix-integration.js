@@ -5,7 +5,7 @@ import { createServer as createStaticServer } from "node:http";
 import { extname, resolve } from "node:path";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
-import { isExpectedReadPixelsWarning } from "./readpixels-console-policy.js";
+import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
 const vite = await createViteServer({ appType:"spa", configFile:"vite.config.js", logLevel:"error", server:{ host:"127.0.0.1", port:0 } });
 await vite.listen();
@@ -14,7 +14,7 @@ if (!url) throw new Error("Vite URL unavailable");
 const browser = await chromium.launch(); const context = await browser.newContext();
 const pageA = await context.newPage(); const pageB = await context.newPage(); const noise = [];
 for (const page of [pageA, pageB]) {
-  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,url)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
+  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,url) && !isExpectedPlaycanvasMeshWarning(type,text)) noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
   page.on("pageerror", (error) => noise.push(`pageerror:${error.message}`));
 }
 try {
@@ -116,7 +116,7 @@ async function verifyCurrentPopoverMatrix(browser, sourceUrl, noise) {
     for (const [name, mode, width, height, deviceScaleFactor] of contexts) {
       const context = await browser.newContext({ viewport:{ width, height }, deviceScaleFactor });
       const page = await context.newPage();
-      page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,sourceUrl)) noise.push(`${name}:${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
+      page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,sourceUrl) && !isExpectedPlaycanvasMeshWarning(type,text)) noise.push(`${name}:${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
       page.on("pageerror", (error) => noise.push(`${name}:pageerror:${error.message}`));
       try {
         await page.goto(mode === "iframe" ? parentUrl : sourceUrl, { waitUntil:"networkidle" });
@@ -198,7 +198,7 @@ async function verifyTracked0031Defect(browser, noise) {
   if (!address || typeof address === "string") throw new Error("Historical release server unavailable");
   const page = await browser.newPage({ viewport:{ width:390, height:844 }, deviceScaleFactor:3 });
   const expectedRawPageUrl = `http://127.0.0.1:${address.port}/`;
-  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedRawPageUrl)) noise.push(`raw-0.0.31:${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
+  page.on("console", (message) => { const type=message.type(),text=message.text(),location=message.location(); if (["warning", "error"].includes(type) && !isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,expectedRawPageUrl) && !isExpectedPlaycanvasMeshWarning(type,text)) noise.push(`raw-0.0.31:${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`); });
   page.on("pageerror", (error) => noise.push(`raw-0.0.31:pageerror:${error.message}`));
   try {
     await page.goto(expectedRawPageUrl, { waitUntil:"networkidle" });

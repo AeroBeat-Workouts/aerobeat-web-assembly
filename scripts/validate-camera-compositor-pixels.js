@@ -1,6 +1,7 @@
 // @ts-check
 
 import { createServer as createHttpServer } from "node:http";
+import { isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 
@@ -87,7 +88,7 @@ async function validateMovingCameraComposition(context) {
 }
 
 async function validateEnvironmentOwnershipLifecycle(){
-  const page=await browser.newPage({viewport:{width:640,height:480}}),noise=[];page.on("console",(message)=>{if(["warning","error"].includes(message.type()))noise.push(`console:${message.type()}:${message.text()}`)});page.on("pageerror",(error)=>noise.push(`page:${error.message}`));
+  const page=await browser.newPage({viewport:{width:640,height:480}}),noise=[];page.on("console",(message)=>{const type=message.type(),text=message.text();if(["warning","error"].includes(type)&&!isExpectedPlaycanvasMeshWarning(type,text))noise.push(`console:${type}:${text}`)});page.on("pageerror",(error)=>noise.push(`page:${error.message}`));
   try{
     await page.goto(childUrl,{waitUntil:"networkidle"});const game=page.locator("aero-game");await game.waitFor();
     const result=await game.evaluate(async(element)=>{

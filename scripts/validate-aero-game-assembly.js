@@ -25,12 +25,13 @@ assert.doesNotMatch(purposeSelectionSource, /\[.*completed|session\?\.purpose ==
 assert.match(projectionSource, /FLOW_DIRECTIONS = Object\.freeze\(\["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"\]\)/u, "assembly must preserve all Beat Saber Flow directions for the renderer");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
-  providerId: "cpu-wasm", executionLocation:"worker", minPoseDetectionConfidence: 0.5, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+  providerId: "cpu-wasm", executionLocation:"worker", minPoseDetectionConfidence: 0.4, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.3,
   trackingProfile: "fast", performancePresetId: "full", resizePath: "none", gameplaySource: "measured", submissionCadenceTargetFps: 15
 });
+// tm4m: detection lowered to 0.4, tracking to 0.3 (threshold split); presence stays 0.5.
 const productionPoseAdapter=createLockedProductionPoseAdapter();
-assert.deepEqual(productionPoseAdapter.getExecutionStatus(),{mode:"worker",delegate:"cpu-wasm",detail:"MediaPipe Tasks Vision CPU/WASM in dedicated classic worker / thresholds detection 0.5 presence 0.5 tracking 0.5"},"production must construct the inspected CPU-WASM worker adapter, not only describe it in profile metadata");
-assert.deepEqual(productionPoseAdapter.getExecutionTelemetry(),{location:"worker",provider:undefined,detail:"MediaPipe Tasks Vision CPU/WASM in dedicated classic worker / thresholds detection 0.5 presence 0.5 tracking 0.5",fallback:false,loadDurationMs:undefined,estimateDurationMs:undefined,runtimeInferenceDurationMs:undefined,postprocessDurationMs:undefined,workerRoundTripDurationMs:undefined,transferFrameType:undefined});
+assert.deepEqual(productionPoseAdapter.getExecutionStatus(),{mode:"worker",delegate:"cpu-wasm",detail:"MediaPipe Tasks Vision CPU/WASM in dedicated classic worker / thresholds detection 0.4 presence 0.5 tracking 0.3"},"production must construct the inspected CPU-WASM worker adapter, not only describe it in profile metadata");
+assert.deepEqual(productionPoseAdapter.getExecutionTelemetry(),{location:"worker",provider:undefined,detail:"MediaPipe Tasks Vision CPU/WASM in dedicated classic worker / thresholds detection 0.4 presence 0.5 tracking 0.3",fallback:false,loadDurationMs:undefined,estimateDurationMs:undefined,runtimeInferenceDurationMs:undefined,postprocessDurationMs:undefined,workerRoundTripDurationMs:undefined,transferFrameType:undefined});
 await productionPoseAdapter.dispose();
 const exactBridgeBytes = [...Array.from({ length: 7 }, () => "x".repeat(8192)), "x".repeat(8167)];
 assert.equal(new TextEncoder().encode(JSON.stringify(exactBridgeBytes)).byteLength, 64 * 1024); assert.equal(isAeroGameIframeValueWithinLimits(exactBridgeBytes), true);
