@@ -85,9 +85,10 @@ Investigations (read-only subagents) confirmed the two bugs:
 7. **Hide Spawn distance + Override spawn distance** (HIDE).
 8. **Hide Camera horizontal + vertical range** (HIDE).
 9. **Hide Bomb scale + Marker scale** (HIDE).
-10. **Hide Song version selector dropdown** (HIDE) — ⚠️ NOT in the Game Setup drawer; it's in
-    the BeatSaver browser presenter. **QUESTION FOR DERRICK:** which "Song version selector"
-    — the BeatSaver "Version"/"Difficulty" dropdowns, or something else?
+10. **Hide Song version selector** (HIDE) — CONFIRMED: the `versionField` in
+    `compactBeatSaverDetailMarkup` (`aerobeat-web-ui/src/elements/aero-product-presenters.js:902-903`),
+    the "Version" dropdown/box between the Preview and Download buttons. Hide it (keep
+    Preview + Download).
 11. **Hide "Enforce Authored direction"** (HIDE) — now the default (item 1).
 12. **Add version number above Start|Test buttons** (POLISH).
 13. **Fix green background behind Start|Test buttons** (POLISH).
@@ -159,16 +160,20 @@ Investigations (read-only subagents) confirmed the two bugs:
 - W4-E: Serving switch (collect current 5173 job, serve raw 0.0.53) + shadow-aware smoke +
   hand link to Derrick.
 
-## Decisions / questions for Derrick
+## Decisions (Derrick, 2026-09-14) — CONFIRMED
 
-- **Direction tolerance default:** this plan defaults `enforceAuthoredDirection: true`
-  (enforce by default) and hides the toggle. This is a gameplay change (notes can no longer
-  be hit from any direction by default). **Confirm:** enforce by default, or keep overlap-only
-  and just expose the toggle?
-- **Song version selector:** the Game Setup drawer has no song-version dropdown. The
-  BeatSaver browser has "Version" + "Difficulty" dropdowns. **Which one to hide?**
-- **Visible tolerance range + collider radius:** these are debug/visibility options (default
-  off). **Confirm:** default off, and they're for editing playtests (not a shipped feature)?
+- **Direction tolerance:** "yes enforce does work when enabled, you were correct. Let's
+  enable it by default and leave it at 45." → default `enforceAuthoredDirection: true`
+  (enforce by default), keep the tolerance at 45°. Hide the toggle; tolerance field always live.
+  (Gameplay change: notes must be hit in the authored direction within the 45° sector.)
+- **Song version selector:** "It's an input/dropdown/label box between 'Preview' and
+  'Download', title in the box is 'Version', and it lists a version number." → the
+  `versionField` in `compactBeatSaverDetailMarkup` (`aerobeat-web-ui/src/elements/
+  aero-product-presenters.js:902-903`), between the Preview and Download buttons. HIDE it.
+  (Keep the Preview + Download buttons; only the Version dropdown/box is hidden.)
+- **Visible tolerance range + collider radius:** "Default off, debug overlays (Recommended)."
+  → Two new checkboxes in Game Setup, default OFF, render debug overlays (entry cone /
+  collider hit regions) only when toggled on. For editing playtests.
 
 ## Standing constraints
 
