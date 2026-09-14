@@ -118,9 +118,9 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
 | `@aerobeat/web-contracts` | `e1125926be83c56eb710198db3ae7921f4e5e8c0` | `82936126f4c95e2ed5788f2027bbec82985e5db5` |
 | `@aerobeat/web-renderer` | `bffc340a5358fd85d7cbe814b017a350bd892305` | `db21d32fec4254531a2cbe8deccbcd9970ff50a1` |
-| `@aerobeat/web-gameplay` | `6d159f02ada5ca943ffbf083c81d287700b1fc48` | `4b6817fa4b926d00893c008157e3d7089b8c68ce` |
+| `@aerobeat/web-gameplay` | `1523b4af830faf1074fe5f20da3acfc8887ef3e9` | `a1fae3aba1b375de49074f60c9a7affbf731e981` |
 | `@aerobeat/web-input` | `b8a2e9d9c2a0621d61dfb890777714481a1255b7` | `c3a7ee72dcf7ad0672b8f0cb58e1674893ffeafe` |
-| `@aerobeat/web-ui` | `dfa44e7074c737dd2809653575cc6e1751b082f6` | `6ff98c49f882a59e0450827786af6f0de224fd0f` |
+| `@aerobeat/web-ui` | `c319da939dcec05ba5f46067052306485de35268` | `6451fb1b2af4773093ee348470901aee9ccfcedc` |
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Boxing Lanes/Boxing Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 
