@@ -47,7 +47,7 @@ const selectedContexts=contextFilter?contexts.filter((context)=>`${context.kind}
 if(selectedContexts.length===0)throw new Error(`Unknown AEROBEAT_SHELL_CONTEXT ${contextFilter}`);
 // 931s: exactly two scale rows remain visible — Bomb + Marker (Note and Obstacle
 // rows are hidden from the drawer, fields stay at their 100 defaults).
-const baseDrawerText = Object.freeze(["Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Override spawn distance", "Enforce authored direction", "Guidance bands", "Spawn distance (world units)", "Camera horizontal range", "Camera vertical range", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Bomb scale (%)", "Marker scale (%)", "Fit scale %", "Fit offset X %", "Fit offset Y %", "Video fit", "Fit reference", "Timing, collider, and spawn-distance changes apply on next Start/Test. Scales, grid, guidance, and video fit changes apply live after calibration (cover fallback before then).", "Gameplay", "Flow", "Boxing", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
+const baseDrawerText = Object.freeze(["0.0.52", "Start", "Test", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Visible tolerance range", "Visible collider radius", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Timing, collider, and spawn-distance changes apply on next Start/Test. Grid and visibility changes apply live.", "Gameplay", "Flow", "Boxing", "Obstacles", "Enabled", "Disabled", "Visuals", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "Download", "Idle · 0%", "Cancel import", "First library song", "Second library song", "Difficulty", "ExpertPlus", "Export", "Delete", "Info", "Enter fullscreen"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [],cameraPoseExportHashes=new Set();
 try {
@@ -229,14 +229,11 @@ async function runContext(context) {
   await calibrateAndRelease(game, 30000); await waitFor(page, async () => (await shellSnapshot(game)).sessionState === "playing", 6000);
   const resumedPlay = await shellSnapshot(game); assertSteady(resumedPlay, context, "resumed play"); assert(!resumedPlay.previewVisible && resumedPlay.rendererBackground === "#071426", `${label(context)} resumed default play must hide preview: ${JSON.stringify(resumedPlay)}`);
   const setupRunLock=await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js"),original=module.getGameSetupSnapshot(),before=element.activeSessionSetup?.timingWindowMs;module.setGameSetupSnapshot({...original,timingWindowMs:225});await element.lifecycleIntentTail;await element.selectGameplayAxes("flow_colliders_v1");const during={active:element.activeSessionSetup?.timingWindowMs,desired:element.desiredGameSetup.timingWindowMs,frame:element.rendererFrame().timingWindowAfterMs};await element.startSession("visual_test",{requireDownloaded:true});const fresh={active:element.activeSessionSetup?.timingWindowMs,frame:element.rendererFrame().timingWindowAfterMs,purpose:element.graph.gameplay.getSnapshot().session.purpose};await element.stop();module.setGameSetupSnapshot(original);await element.lifecycleIntentTail;return{before,during,fresh};});assert(JSON.stringify(setupRunLock)===JSON.stringify({before:180,during:{active:180,desired:225,frame:180},fresh:{active:225,frame:225,purpose:"visual_test"}}),`${label(context)} setup edit and active mode selection must preserve run lock until fresh Test: ${JSON.stringify(setupRunLock)}`);
-  // tenl: per-class scale controls — 150% marker + 200% bomb apply on next Start/Test and land in renderer tuning.
-  // 931s: exactly two scale rows are visible (Bomb + Marker); Note/Obstacle stay at 100.
-  const scaleProof=await game.evaluate(async(element)=>{element.setMenuOpen(true);const before={scalesId:element.lastAppliedScaleId};const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();const note=element.shadowRoot.querySelector("input[data-game-setup-field='noteScalePercent']"),marker=element.shadowRoot.querySelector("input[data-game-setup-field='markerScalePercent']"),bomb=element.shadowRoot.querySelector("input[data-game-setup-field='bombScalePercent']");const elementTypes={noteIsInput:note instanceof HTMLInputElement,markerIsInput:marker instanceof HTMLInputElement,bombIsInput:bomb instanceof HTMLInputElement};bomb.value="200";bomb.dispatchEvent(new Event("change",{bubbles:true}));marker.value="150";marker.dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;const desired=module.getGameSetupSnapshot(),applied={scales:[desired.noteScalePercent,desired.obstacleScalePercent,desired.bombScalePercent,desired.markerScalePercent],renderer:element.graph.renderer.describe(),lastAppliedScaleId:element.lastAppliedScaleId};module.setGameSetupSnapshot(original);await element.lifecycleIntentTail;return{before,desired,applied,elementTypes};});
-  assert(!scaleProof.elementTypes.noteIsInput,`${label(context)} 931s: Note scale row is hidden from the drawer`);
-  assert(scaleProof.elementTypes.markerIsInput,`${label(context)} 931s: Marker scale row remains visible`);
-  assert(scaleProof.elementTypes.bombIsInput,`${label(context)} 931s: Bomb scale row remains visible`);
-  assert(scaleProof.desired.bombScalePercent===200&&scaleProof.desired.markerScalePercent===150&&scaleProof.applied.scales.join(",")==="100,100,200,150",`${label(context)} 931s: exactly two visible scale controls persist exact Game Setup v3 values with hidden Note/Obstacle at their 100 defaults: ${JSON.stringify(scaleProof.applied)}`);
-  const scaleFactors=String(scaleProof.applied.renderer.visualScalesId??"").split("|");assert(scaleFactors.length===4&&Number(scaleFactors[0])===1&&Number(scaleFactors[1])===1&&Number(scaleFactors[2])===2&&Number(scaleFactors[3])===1.5,`${label(context)} renderer describe must expose the four per-class scale factors (tenl): ${JSON.stringify(scaleProof.applied.renderer.visualScalesId)}`);
+  // W3-C: all four scale rows are hidden from the drawer; scales are driven
+  // through setGameSetupSnapshot (data-intact, UI-hidden).
+  const scaleProof=await game.evaluate(async(element)=>{element.setMenuOpen(true);const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();module.setGameSetupSnapshot({...original,bombScalePercent:200,markerScalePercent:150});await element.lifecycleIntentTail;const desired=module.getGameSetupSnapshot(),applied={scales:[desired.noteScalePercent,desired.obstacleScalePercent,desired.bombScalePercent,desired.markerScalePercent]};module.setGameSetupSnapshot(original);await element.lifecycleIntentTail;return{desired,applied,noBombRow:element.shadowRoot.querySelector("input[data-game-setup-field='bombScalePercent']")===null,noMarkerRow:element.shadowRoot.querySelector("input[data-game-setup-field='markerScalePercent']")===null};});
+  assert(scaleProof.noBombRow&&scaleProof.noMarkerRow,`W3-C: Bomb and Marker scale rows are hidden from the drawer`);
+  assert(scaleProof.desired.bombScalePercent===200&&scaleProof.desired.markerScalePercent===150,`W3-C: scales persist exact Game Setup v3 values via setSnapshot: ${JSON.stringify(scaleProof.applied)}`);
   // 4bj9: live scale change must resize rendered note icons on the VERY NEXT frame with no restart.
   const liveScaleProof=await game.evaluate(async(element)=>{
     const module=await import("/src/game-setup-coordinator.js");
@@ -250,9 +247,8 @@ async function runContext(context) {
     module.setGameSetupSnapshot({...module.getGameSetupSnapshot(),noteScalePercent:150});
     await element.lifecycleIntentTail;
     const nextScales=parseScales(element.graph.renderer.describe().visualScalesId);
-    // Marker scale live-resizes the cursors
-    const markerInput=element.shadowRoot.querySelector("input[data-game-setup-field='markerScalePercent']");
-    markerInput.value="150";markerInput.dispatchEvent(new Event("change",{bubbles:true}));
+    // Marker scale live-resizes the cursors (W3-C: hidden from drawer, driven via setSnapshot)
+    module.setGameSetupSnapshot({...module.getGameSetupSnapshot(),markerScalePercent:150});
     await element.lifecycleIntentTail;
     const markerFrame=element.rendererFrame();
     const markerRendererScale=element.graph.renderer.describe().visualScalesId;
@@ -286,137 +282,13 @@ async function runContext(context) {
   assert((liveScaleProof.gridAfter?1:0)===(liveScaleProof.gridCells>0?1:0),`${label(context)} 4bj9: grid cells must appear/disappear consistently with the live toggle: ${liveScaleProof.gridCells} cells`);
   assert(liveScaleProof.timingBefore===liveScaleProof.timingAfter,`${label(context)} 4bj9 negative control: run-gated collider timing window must NOT change mid-session without a restart: ${liveScaleProof.timingBefore} vs ${liveScaleProof.timingAfter}`);
   await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js");const original=module.getGameSetupSnapshot();module.setGameSetupSnapshot({...original,noteScalePercent:100,obstacleScalePercent:100,bombScalePercent:100,markerScalePercent:100});await element.lifecycleIntentTail;});
-  // he8u: affine video fit — pure-solver math + live application path.
-  // The synthetic camera pose is used ONLY to drive the pure solver (which is
-  // unit-tested against known inputs). The live applyVideoFit path is exercised
-  // through its real recompute triggers; when the live camera cannot see the grid
-  // plane (non-gameplay contexts), it correctly falls back to cover.
-  const videoFitProof = await game.evaluate(async (element) => {
-    const module = await import("/src/video-fit-solver.js");
-    const setupModule = await import("/src/game-setup-coordinator.js");
-    const original = setupModule.getGameSetupSnapshot();
-    const restore = async () => { setupModule.setGameSetupSnapshot(original); await element.lifecycleIntentTail; };
-    const video = element.shadowRoot.querySelector("video[data-role='media']");
-    const containerBefore = element.container;
-    const w = containerBefore.widthCssPx, h = containerBefore.heightCssPx;
-    const MIRROR_MATRIX = "matrix(-1, 0, 0, 1, 0, 0)";
-    const isMirrorOnly = (state) => state.objectFit === "cover" && (state.transform === "" || state.transform === MIRROR_MATRIX);
-    const readVideo = () => ({ objectFit: video.style.objectFit || getComputedStyle(video).objectFit, transform: video.style.transform || getComputedStyle(video).transform });
-
-    // (1) Default off: exactly today's cover + mirror-only behavior.
-    const defaultState = readVideo();
-    if (!isMirrorOnly(defaultState)) throw new Error(`he8u default must be cover + mirror-only: ${JSON.stringify(defaultState)}`);
-
-    // (2) Enable with NO calibration → still the cover fallback (negative control).
-    const toggle = element.shadowRoot.querySelector("input[data-game-setup-field='videoFitEnabled']");
-    toggle.checked = true; toggle.dispatchEvent(new Event("change", { bubbles: true }));
-    await element.lifecycleIntentTail;
-    const preCalibrationState = readVideo();
-    if (!isMirrorOnly(preCalibrationState)) throw new Error(`he8u enabled-without-calibration must keep cover fallback: ${JSON.stringify(preCalibrationState)}`);
-
-    // Synthetic deterministic inputs for the pure solver (not the live camera):
-    // an over-the-shoulder pose that sees the grid plane as a trapezoid, and a
-    // middle-60% envelope in displayed-video CSS pixels.
-    const corners = module.projectGridCornersToScreen(
-      { x: 0, y: 2, z: -4 }, { xPitch: -20, yYaw: 180, zRoll: 0 },
-      { verticalFovDegrees: 48, nearClip: 0.1, farClip: 80 },
-      { widthCssPx: w, heightCssPx: h }, 0);
-    if (!corners) throw new Error("he8u synthetic projection returned null");
-    const xs = corners.map((c) => c.x), ys = corners.map((c) => c.y);
-    const gridBox = { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
-    const envelope = { left: 0.2 * w, top: 0.2 * h, right: 0.8 * w, bottom: 0.8 * h };
-
-    // (3) Pure solver: center reference maps the grid bounding-box center onto
-    // the envelope (viewport) center within tolerance.
-    const expectedFit = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "center", scalePercent: 100, offsetXPercent: 0, offsetYPercent: 0 });
-    if (!expectedFit) throw new Error("he8u pure solver returned null for a valid synthetic pair");
-    const gridCenterScreenX = expectedFit.translateX + expectedFit.scaleX * ((gridBox.left + gridBox.right) / 2);
-    const gridCenterScreenY = expectedFit.translateY + expectedFit.scaleY * ((gridBox.top + gridBox.bottom) / 2);
-    if (Math.abs(gridCenterScreenX - w / 2) > 0.5 || Math.abs(gridCenterScreenY - h / 2) > 0.5) throw new Error(`he8u envelope (viewport) center must land on the projected grid center: (${gridCenterScreenX.toFixed(2)},${gridCenterScreenY.toFixed(2)}) vs (${w/2},${h/2})`);
-
-    // (4) Knobs are RELATIVE: scale 110 multiplies the derived scale about the fit center;
-    // offsets translate by percent of the ELEMENT size.
-    const knobbed = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "center", scalePercent: 110, offsetXPercent: 5, offsetYPercent: -4 });
-    if (!knobbed) throw new Error("he8u knob solve returned null");
-    if (Math.abs(knobbed.scaleX - expectedFit.scaleX * 1.1) > 0.001) throw new Error(`he8u Fit scale % 110 must multiply the derived scale: ${knobbed.scaleX} vs ${expectedFit.scaleX*1.1}`);
-    if (Math.abs(knobbed.scaleY - expectedFit.scaleY * 1.1) > 0.001) throw new Error(`he8u Fit scale % 110 must multiply the derived Y scale: ${knobbed.scaleY} vs ${expectedFit.scaleY*1.1}`);
-    if (Math.abs(knobbed.translateX - (expectedFit.translateX + 0.05 * w)) > 0.01) throw new Error(`he8u Fit offset X % 5 must translate by 5% of element width: ${knobbed.translateX} vs ${expectedFit.translateX + 0.05*w}`);
-    if (Math.abs(knobbed.translateY - (expectedFit.translateY - 0.04 * h)) > 0.01) throw new Error(`he8u Fit offset Y % -4 must translate by -4% of element height: ${knobbed.translateY} vs ${expectedFit.translateY - 0.04*h}`);
-
-    // (5) Reference anchoring: Far pins the far edge onto the envelope top; Near
-    // pins the near edge onto the envelope bottom. Center is the least-squares box fit.
-    const far = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "far" });
-    const near = module.solveVideoFit({ envelope, gridScreenCorners: corners, elementWidthCssPx: w, elementHeightCssPx: h, reference: "near" });
-    if (!far || !near) throw new Error("he8u far/near reference solves returned null");
-    if (Math.abs(far.translateY + far.scaleY * gridBox.top - envelope.top) > 0.01) throw new Error(`he8u Far reference must pin the far edge onto the envelope top: ${far.translateY + far.scaleY*gridBox.top} vs ${envelope.top}`);
-    if (Math.abs(near.translateY + near.scaleY * gridBox.bottom - envelope.bottom) > 0.01) throw new Error(`he8u Near reference must pin the near edge onto the envelope bottom: ${near.translateY + near.scaleY*gridBox.bottom} vs ${envelope.bottom}`);
-
-    // (6) Drawer wiring: the five Video-fit controls exist with exact labels and
-    // the persisted values round-trip through the coordinator.
-    const drawer = {
-      toggle: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitEnabled']")),
-      scale: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitScalePercent']")),
-      offsetX: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitOffsetXPercent']")),
-      offsetY: Boolean(element.shadowRoot.querySelector("input[data-game-setup-field='videoFitOffsetYPercent']")),
-      ref: Boolean(element.shadowRoot.querySelector("select[data-game-setup-field='videoFitReference']")),
-    };
-    if (!Object.values(drawer).every(Boolean)) throw new Error(`he8u drawer controls missing: ${JSON.stringify(drawer)}`);
-    // Round-trip: set tuned values via the public API and read them back.
-    setupModule.setGameSetupSnapshot({ ...original, videoFit: { enabled: true, scalePercent: 108, offsetXPercent: 3, offsetYPercent: -2, reference: "near" } });
-    await element.lifecycleIntentTail;
-    const roundTrip = setupModule.getGameSetupSnapshot().videoFit;
-    if (roundTrip.enabled !== true || roundTrip.scalePercent !== 108 || roundTrip.offsetXPercent !== 3 || roundTrip.offsetYPercent !== -2 || roundTrip.reference !== "near") throw new Error(`he8u videoFit round-trip failed: ${JSON.stringify(roundTrip)}`);
-
-    // (7) Element box never changes (no black bars: the element stays full-viewport).
-    const rectAfter = video.getBoundingClientRect();
-    if (Math.abs(rectAfter.width - w) > 1 || Math.abs(rectAfter.height - h) > 1) throw new Error(`he8u video element box must remain full-viewport: ${JSON.stringify({ w, h, rectAfter: { width: rectAfter.width, height: rectAfter.height } })}`);
-
-    // (8) Disabling restores EXACTLY the baseline cover + mirror-only behavior.
-    toggle.checked = false; toggle.dispatchEvent(new Event("change", { bubbles: true }));
-    await element.lifecycleIntentTail;
-    const disabledState = readVideo();
-    if (!isMirrorOnly(disabledState)) throw new Error(`he8u disable must restore cover + mirror-only: ${JSON.stringify(disabledState)}`);
-
-    await restore();
-    return { ok: true, gridCenter: [gridCenterScreenX, gridCenterScreenY], viewportCenter: [w / 2, h / 2] };
-  });
-  assert(videoFitProof.ok === true, `${label(context)} he8u: video-fit browser oracle failed: ${JSON.stringify(videoFitProof)}`);
-  // er3m: guidance band mode is a live per-frame renderer input — the persisted Game Setup snapshot drives every rendered frame, so switching Off→Song→Target changes the frame and rendered model with no session/generation or transport mutation.
-  const liveGuidanceProof = await game.evaluate(async (element) => {
+  // W3-D: guidance bands are locked to target_arrivals; every renderer frame
+  // pushes the locked value regardless of the stored snapshot.
+  const lockedGuidanceProof = await game.evaluate((element) => {
     element.setMenuOpen(false);
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    element.setMenuOpen(true);
-    const baseline = { generation: element.sessionGeneration, gameplayGeneration: element.graph.gameplay.getSnapshot().generation };
-    const off = element.rendererFrame().guidanceBandMode;
-    const switchTo = async (mode) => {
-      const select = element.shadowRoot.querySelector("select[data-game-setup-field='guidanceBandMode']");
-      if (!select) return "no-select";
-      select.value = mode;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-      let applied = null;
-      let deadline = performance.now() + 4000;
-      while (performance.now() < deadline) {
-        applied = element.desiredGameSetup.guidanceBandMode;
-        if (applied === mode) break;
-        await new Promise((resolve) => setTimeout(resolve, 25));
-      }
-      return applied;
-    };
-    let songModel, targetModel, songFrame, targetFrame, afterOff;
-    const observed = [];
-    observed.push(await switchTo("song_beat_grid"));
-    songFrame = element.rendererFrame();
-    songModel = element.graph.renderer.renderGameplayScene(songFrame, null, null).model;
-    observed.push(await switchTo("target_arrivals"));
-    targetFrame = element.rendererFrame();
-    targetModel = element.graph.renderer.renderGameplayScene(targetFrame, null, null).model;
-    observed.push(await switchTo("off"));
-    afterOff = element.rendererFrame().guidanceBandMode;
-    const select = element.shadowRoot.querySelector("select[data-game-setup-field='guidanceBandMode']");
-    return { baseline, off, observed, songFrameMode: songFrame.guidanceBandMode, songBands: songModel.guidance, targetFrameMode: targetFrame.guidanceBandMode, targetBands: targetModel.guidance, afterOff, selectSynced: select ? select.value === "off" : false, desiredAfter: element.desiredGameSetup.guidanceBandMode, activeAfter: element.activeSessionSetup?.guidanceBandMode ?? null, generationAfter: element.sessionGeneration, gameplayGenerationAfter: element.graph.gameplay.getSnapshot().generation };
+    return new Promise((resolve) => setTimeout(() => resolve(element.rendererFrame().guidanceBandMode), 80));
   });
-  assert(liveGuidanceProof.off==="off"&&liveGuidanceProof.observed[0]==="song_beat_grid"&&liveGuidanceProof.observed[1]==="target_arrivals"&&liveGuidanceProof.afterOff==="off"&&liveGuidanceProof.selectSynced&&liveGuidanceProof.generationAfter===liveGuidanceProof.baseline.generation&&liveGuidanceProof.gameplayGenerationAfter===liveGuidanceProof.baseline.gameplayGeneration,`${label(context)} guidance band mode must be a live per-frame renderer input with no session/generation or transport mutation (er3m): ${JSON.stringify(liveGuidanceProof)}`);
-  assert(liveGuidanceProof.songBands.mode==="song_beat_grid"&&liveGuidanceProof.songBands.visibleBandCount>0&&liveGuidanceProof.targetBands.mode==="target_arrivals"&&liveGuidanceProof.targetBands.visibleBandCount>=0,`${label(context)} rendered scene models must reflect the switched band set immediately (er3m): ${JSON.stringify({song:liveGuidanceProof.songBands,target:liveGuidanceProof.targetBands})}`);
+  assert(lockedGuidanceProof === "target_arrivals", `${label(context)} W3-D: renderer frame must push the locked target_arrivals guidance band mode: ${lockedGuidanceProof}`);
   if(context.width===390&&context.height===844&&context.dpr===1)await verifyStorageSynchronization(page,game,context);
   const visualTestProof=await verifyVisualTestScenePixels(page,game,context),transportMatrix=visualTestProof.transport;
   assert(!transportMatrix.hidden&&transportMatrix.snapshot.active&&transportMatrix.snapshot.durationMs===120005&&transportMatrix.bottom===0&&transportMatrix.left===0&&transportMatrix.right===0&&transportMatrix.within&&transportMatrix.minimum>=42&&transportMatrix.order&&transportMatrix.maximum==="120005"&&transportMatrix.cameraRequests===1&&transportMatrix.judgements===0&&transportMatrix.scores===0&&transportMatrix.debug.visible&&transportMatrix.debug.ariaHidden==="false"&&!transportMatrix.debug.resetDisabled&&transportMatrix.debug.enabled&&transportMatrix.debug.serviceId==="aero.renderer.playcanvas"&&transportMatrix.debug.captureMode==="none"&&transportMatrix.debug.speedMode==="normal"&&!/Hold right|Move with|mouse/iu.test(transportMatrix.debug.text),`${label(context)} Visual Test transport and compact camera panel must fit exact direct/iframe safe-area bounds at DPR1/3 without help prose, camera reacquire or gameplay truth: ${JSON.stringify(transportMatrix)}`);
@@ -483,7 +355,7 @@ async function installFixture(game) {
 
 /** @param {import("playwright").Page} page @param {import("playwright").Locator} game @param {{kind:string,width:number,height:number,dpr:number}} context */
 async function verifyVisualTestScenePixels(page,game,context){
-  await game.evaluate((element)=>{const enabled=element.shadowRoot.querySelector("input[data-game-setup-field='spawnDistanceOverrideEnabled']");if(!(enabled instanceof HTMLInputElement))throw new Error("Game Setup v2 spawn override control missing");if(!enabled.checked)enabled.click();});
+  await game.evaluate(async(element)=>{(await import("/src/game-setup-coordinator.js")).setGameSetupSnapshot({...element.desiredGameSetup,spawnDistanceOverride:{enabled:true,normalSpawnDistanceWorldUnits:50}});});
   const obstacleEvent=(eventId,centerTimestampMs,type,geometry)=>{const gridMask=Array.from({length:geometry.width*geometry.height},(_,index)=>(geometry.y+Math.floor(index/geometry.width))*4+geometry.x+index%geometry.width);return{schema:"aerobeat/resolved_content_event",version:3,eventId,centerTimestampMs,intervalStartTimestampMs:centerTimestampMs,intervalEndTimestampMs:centerTimestampMs+500,authoredBeat:{start:centerTimestampMs/1000,end:(centerTimestampMs+500)/1000,type,sourceGeometry:{schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v3_obstacle_rect",kind:"v3_rect",...geometry},gameplayGeometry:{schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",...geometry},gridMask,blockedCells:[...gridMask],checkpoint:{kind:"instantaneous",freshnessMs:150,timingWindowMs:180,noseSafeCells:Array.from({length:12},(_,cell)=>cell).filter((cell)=>!gridMask.includes(cell))}}};};
   // z2tx: the visible Boxing mode is the new collider ruleset (boxing_collider_v1,
   // no conversion recipe). The hidden legacy Lanes/Grid variants remain resolvable

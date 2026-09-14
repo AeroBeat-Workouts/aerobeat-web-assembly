@@ -190,8 +190,9 @@ export function projectHazardContactEvents(gameplay, nowMs) {
   }
   for (const outcome of hazardOutcomes) {
     if (!isRecord(outcome)) continue;
-    // Flow bomb touch (kind==="bomb", result==="contact").
-    if (outcome.kind !== "bomb" || outcome.result !== "contact") continue;
+    // Flow hazard contact: kind "bomb" (bomb touch) or kind "wall"
+    // (flow_colliders_v1 nose–obstacle wall contact), result==="contact".
+    if ((outcome.kind !== "bomb" && outcome.kind !== "wall") || outcome.result !== "contact") continue;
     const committedTimelinePositionMs = Number(outcome.committedTimelinePositionMs);
     if (!Number.isFinite(committedTimelinePositionMs) || committedTimelinePositionMs < 0) continue;
     const eventId = String(outcome.eventId ?? "");

@@ -148,6 +148,30 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(events[0], { eventId: "bomb-1", atMs: 1500 });
 }
 
+// ---------- 0.0.53 W3-A: Flow wall (nose–obstacle) contact emits ----------
+{
+  // The flow_colliders_v1 gameplay coordinator emits nose–obstacle WALL contact
+  // into hazardOutcomes as kind:"wall" with committedTimelinePositionMs; the
+  // vignette gate must accept it in addition to kind:"bomb".
+  const gameplay = Object.freeze({
+    judgements: [],
+    obstacleOutcomes: [],
+    hazardOutcomes: [
+      Object.freeze({ schema: "aerobeat/flow_hazard_outcome", version: 1, eventId: "wall-1", kind: "wall", result: "contact", committedTimelinePositionMs: 1700, consequenceApplied: true }),
+      // Wall avoid / miss must NOT emit.
+      Object.freeze({ schema: "aerobeat/flow_hazard_outcome", version: 1, eventId: "wall-2", kind: "wall", result: "avoided", committedTimelinePositionMs: 1800, consequenceApplied: false }),
+      // A bomb and a wall in the same window must both emit.
+      Object.freeze({ schema: "aerobeat/flow_hazard_outcome", version: 1, eventId: "bomb-1", kind: "bomb", result: "contact", committedTimelinePositionMs: 1600, consequenceApplied: true })
+    ]
+  });
+  const events = projectHazardContactEvents(gameplay, 2200);
+  assert.equal(events.length, 2, "wall contact emits alongside bomb contact; wall avoid/miss does not");
+  assert.deepEqual(events.map((e) => [e.eventId, e.atMs]).sort(), [["bomb-1", 1600], ["wall-1", 1700]], "wall event is driven by committedTimelinePositionMs");
+  // A wall contact alone (no bombs) triggers the vignette.
+  const wallOnly = Object.freeze({ judgements: [], obstacleOutcomes: [], hazardOutcomes: [Object.freeze({ schema: "aerobeat/flow_hazard_outcome", version: 1, eventId: "wall-only", kind: "wall", result: "contact", committedTimelinePositionMs: 1700, consequenceApplied: true })] });
+  assert.deepEqual(projectHazardContactEvents(wallOnly, 2200), [{ eventId: "wall-only", atMs: 1700 }], "a nose–obstacle wall contact alone produces a hazardContact event");
+}
+
 // ---------- dntq: bounds + aging ----------
 {
   // Retention window is 150 + 600 + 200 = 950 ms past atMs.
