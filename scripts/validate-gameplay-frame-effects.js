@@ -3,6 +3,12 @@
 // deterministic seed + privacy (only spawn WU triple / eventId+atMs cross).
 import assert from "node:assert/strict";
 import { projectAftermathEntries, projectHazardContactEvents, aftermathSeedForTargetId } from "../src/gameplay-frame-effects.js";
+import { createSessionTargetIndex } from "../src/session-render-projection.js";
+
+/** 0.0.55 W2: a Visual-Test gameplay snapshot (the deterministic committed-hit source is the render index, not the projection). */
+const testSnapshot = () => Object.freeze({ judgements: Object.freeze([]), session: Object.freeze({ purpose: "visual_test" }) });
+/** 0.0.55 W2: a Play gameplay snapshot (the real-judgement source). */
+const playSnapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judgements), session: Object.freeze({ purpose: "play" }) });
 
 const flowNote = (id, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "note", centerTimestampMs: center, authoredBeat: { type: "note", hand: "left", placement: 4, direction: "right" } });
 const punch = (id, type, hand, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type, centerTimestampMs: center, authoredBeat: { type, spatialTarget: { targetCell: 4, entryDirection: "up" } }, hand });
@@ -198,59 +204,100 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(manyEvents.map((e) => e.atMs).sort((a, b) => b - a), Array.from({ length: 32 }, (_, i) => 1039 - i), "the 32 newest events are retained");
 }
 
-// ---------- 0.0.54 W2-B: Test-mode synthetic hits produce entries ----------
+// ---------- 0.0.55 W2: Test-mode committed synthetic hits from the render index ----------
 {
-  // Projected targets carry {id, kind, hand, family, beatCenterMs, feedback}.
-  // In Test Mode the synthetic GREAT outcomes are the ONLY hits (no real
-  // judgements exist), so hit targets synthesize entries committing exactly at
-  // beatCenterMs; misses/obstacles/bombs never appear.
-  const targets = [
-    Object.freeze({ id: "t-flow", kind: "flow", hand: "neutral", family: "flow", cell: 4, beatCenterMs: 5000, feedback: Object.freeze({ judgement: "hit" }) }),
-    Object.freeze({ id: "t-punch", kind: "punch", hand: "left", family: "straight_left", beatCenterMs: 5200, feedback: Object.freeze({ judgement: "hit" }) }),
-    Object.freeze({ id: "t-guard", kind: "guard", hand: "both", family: "guard", beatCenterMs: 5400, feedback: Object.freeze({ judgement: "hit" }) }),
-    Object.freeze({ id: "t-miss", kind: "flow", hand: "neutral", family: "flow", cell: 0, beatCenterMs: 5600, feedback: Object.freeze({ judgement: "miss" }) })
-  ];
+  // 0.0.55 W2: in Test the aftermath source is the deterministic render event
+  // index, NOT the ephemeral projection. The index assigns `feedbackIndex`
+  // 0..N-1 in canonical center-timestamp order (Test alternates GREAT/miss
+  // starting with GREAT), so EVEN feedbackIndex = synthetic hit committing
+  // exactly at centerTimestampMs; ODD = miss (never appears). A bomb (non-
+  // renderable feedback type) has feedbackIndex -1 and never appears.
   const events = [
     flowNote("t-flow", 5000),
     punch("t-punch", "straight_left", "left", 5200),
     guard("t-guard", false, 5400),
     flowNote("t-miss", 5600)
   ];
-  const list = projectAftermathEntries(events, snapshot([]), 5500, targets);
-  assert.equal(list.length, 3, "synthetic Test hit targets (no real judgements) produce exactly the three hit entries");
+  const index = createSessionTargetIndex(events, {});
+  const list = projectAftermathEntries(events, testSnapshot(), 5500, null, index);
   const byId = new Map(list.map((e) => [e.targetId, e]));
-  assert.deepEqual([byId.get("t-flow").family, byId.get("t-flow").hand, byId.get("t-flow").mode], ["flow", "neutral", "slice"], "kind flow → flow/neutral/slice");
-  assert.equal(byId.get("t-flow").hitCommitMs, 5000, "synthetic hit commits exactly at beatCenterMs");
-  assert.deepEqual([byId.get("t-punch").family, byId.get("t-punch").hand, byId.get("t-punch").mode], ["punch", "left", "straight"], "kind punch + straight_left → punch/left/straight");
-  assert.equal(byId.get("t-punch").hitCommitMs, 5200, "synthetic punch commits at beatCenterMs");
-  assert.deepEqual([byId.get("t-guard").family, byId.get("t-guard").hand, byId.get("t-guard").mode], ["guard", "both", "bonk"], "kind guard → guard/both/bonk");
-  assert.equal(byId.get("t-guard").hitCommitMs, 5400, "synthetic guard commits at beatCenterMs");
-  assert.equal(byId.get("t-miss"), undefined, "miss targets never appear");
-  // Cross-kind hostile targets (bomb/obstacle kinds, bad judgement) produce nothing.
-  const hostile = [
-    Object.freeze({ id: "t-bomb", kind: "bomb", family: "bomb", beatCenterMs: 6000, feedback: Object.freeze({ judgement: "hit" }) }),
-    Object.freeze({ id: "t-obs", kind: "obstacle", family: "obstacle", beatCenterMs: 6100, feedback: Object.freeze({ judgement: "hit" }) }),
-    Object.freeze({ id: "t-bad", kind: "flow", family: "flow", beatCenterMs: "nope", feedback: Object.freeze({ judgement: "hit" }) })
-  ];
-  assert.deepEqual(projectAftermathEntries([], snapshot([]), 6200, hostile), [], "bomb/obstacle kinds and non-numeric beatCenterMs never appear");
+  assert.equal(list.length, 2, "Test: even-feedbackIndex targets (t-flow@0, t-guard@2) commit; odd (t-punch@1, t-miss@3) never appear");
+  assert.deepEqual([byId.get("t-flow").family, byId.get("t-flow").hand, byId.get("t-flow").mode], ["flow", "neutral", "slice"], "flow note → flow/neutral/slice");
+  assert.equal(byId.get("t-flow").hitCommitMs, 5000, "synthetic hit commits exactly at centerTimestampMs");
+  assert.deepEqual([byId.get("t-guard").family, byId.get("t-guard").hand, byId.get("t-guard").mode], ["guard", "both", "bonk"], "guard → guard/both/bonk");
+  assert.equal(byId.get("t-guard").hitCommitMs, 5400, "synthetic guard commits at centerTimestampMs");
+  assert.equal(byId.has("t-punch"), false, "odd feedbackIndex (punch@1) is a miss — never appears");
+  assert.equal(byId.has("t-miss"), false, "odd feedbackIndex (note@3) is a miss — never appears");
+  // A bomb (non-renderable feedback type, feedbackIndex -1) never appears, and
+  // a single flow note (feedbackIndex 0) is a committed hit.
+  const bombEvents = [flowNote("t-b", 6000), bomb("t-bomb", 6100)];
+  const bombIndex = createSessionTargetIndex(bombEvents, {});
+  // targets=null → spawnForTarget falls back to the lane-anchored grid default.
+  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "neutral", mode: "slice", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "only the even-index flow note commits; the bomb never appears");
 }
 
-// ---------- 0.0.54 W2-B: real Play hits win; the target path does not double ----------
+// ---------- 0.0.55 W2: Play real hits + real-judgement mapping (unchanged path) ----------
 {
+  // (b) Play mode: a real hit judgement produces an aftermath entry; mapping
+  // flows through the event type; a miss judgement produces nothing.
   const events = [flowNote("r1", 7000), flowNote("r2", 7100)];
-  // r1 is a real hit at 7050; r2 is only a synthetic Test hit target.
-  const js = [hitJudgement("r1", 7050)];
-  const targets = [
-    Object.freeze({ id: "r1", kind: "flow", family: "flow", cell: 0, beatCenterMs: 7000, feedback: Object.freeze({ judgement: "hit" }) }),
-    Object.freeze({ id: "r2", kind: "flow", family: "flow", cell: 1, beatCenterMs: 7100, feedback: Object.freeze({ judgement: "hit" }) })
-  ];
-  const list = projectAftermathEntries(events, snapshot(js), 7200, targets);
-  assert.equal(list.length, 2, "one real hit + one synthetic target hit → exactly two entries");
+  const list = projectAftermathEntries(events, playSnapshot([hitJudgement("r1", 7050), missJudgement("r2", 7100)]), 7200, null, null);
+  assert.equal(list.length, 1, "Play: one real hit → one entry; the miss judgement produces nothing");
   const byId = new Map(list.map((e) => [e.targetId, e]));
-  assert.equal(byId.get("r1").hitCommitMs, 7050, "the real hit keeps the judgement's committedTimelinePositionMs (not the target beatCenterMs)");
+  assert.equal(byId.get("r1").hitCommitMs, 7050, "the real hit keeps the judgement's committedTimelinePositionMs");
   assert.equal(byId.get("r1").family, "flow", "the real-judgement path still maps through the event type");
-  assert.equal(byId.get("r2").hitCommitMs, 7100, "the uncovered target synthesizes at its beatCenterMs");
-  assert.equal(list.filter((e) => e.targetId === "r1").length, 1, "the real-judgement candidate wins; the target path never doubles it");
+  assert.equal(byId.get("r2"), undefined, "a Play miss judgement never produces an aftermath entry");
+}
+
+// ---------- 0.0.55 W2: Test committed hit PERSISTS past the 350 ms feedback window ----------
+{
+  // (a) THE KEY REGRESSION: a synthetic Test hit (even feedbackIndex) still
+  // yields an aftermath entry at nowMs = commit + 400, PAST the 350 ms
+  // feedback window where the old ephemeral-`targets` path would have culled
+  // the target and lost the aftermath. Deriving from the render index is a pure
+  // function of (index, nowMs), so it persists across frames.
+  const events = [flowNote("k1", 5000)];
+  const index = createSessionTargetIndex(events, {});
+  const duringWindow = projectAftermathEntries(events, testSnapshot(), 5300, null, index); // commit + 300 (inside 350 ms)
+  const pastWindow = projectAftermathEntries(events, testSnapshot(), 5400, null, index); // commit + 400 (past 350 ms)
+  assert.equal(duringWindow.length, 1, "Test committed hit present at commit + 300");
+  assert.equal(pastWindow.length, 1, "Test committed hit PERSISTS at commit + 400 (past the 350 ms feedback window where the old target path lost it)");
+  assert.equal(pastWindow[0].targetId, "k1", "the persisting entry is the committed hit");
+  assert.equal(pastWindow[0].hitCommitMs, 5000, "the persisting entry commits exactly at centerTimestampMs");
+  // (c) An ODD-feedbackIndex target is a miss and produces NO aftermath entry.
+  // Two notes: the first (feedbackIndex 0) is the hit, the second (feedbackIndex
+  // 1) is the miss. At nowMs 5400 (past the 350 ms window) only the first's
+  // aftermath persists; the odd-indexed miss never appears.
+  const missEvents = [flowNote("k-h", 5000), flowNote("k-m", 5200)];
+  const missIndex = createSessionTargetIndex(missEvents, {});
+  const missList = projectAftermathEntries(missEvents, testSnapshot(), 5400, null, missIndex);
+  assert.equal(missList.length, 1, "only the even-feedbackIndex (hit) note produces an aftermath entry");
+  assert.equal(missList[0].targetId, "k-h", "the even-feedbackIndex note is the committed hit");
+  assert.equal(missList.some((e) => e.targetId === "k-m"), false, "(c) the odd-feedbackIndex (miss) note produces NO aftermath entry");
+}
+
+// ---------- 0.0.55 W2: Test-mode committed hits persist through many frames ----------
+{
+  // 10 notes 500 ms apart (alternating hit/miss in Test). The even-feedbackIndex
+  // ones (c0, c2, c4, c6, c8) are the committed hits. By nowMs 9400 every hit is
+  // >350 ms past commit (every one would be culled from the ephemeral
+  // projection), yet all five persist from the deterministic index; the 7-live
+  // cap does not engage (5 ≤ 7).
+  const N = 10;
+  const events = Array.from({ length: N }, (_, i) => flowNote(`c${i}`, 4000 + i * 500));
+  const index = createSessionTargetIndex(events, {});
+  const atNow9400 = projectAftermathEntries(events, testSnapshot(), 9400, null, index);
+  assert.equal(atNow9400.length, 5, "all five even-feedbackIndex committed hits persist far past the 350 ms window (no ephemeral culling)");
+  assert.deepEqual(atNow9400.map((e) => e.targetId).sort(), ["c0", "c2", "c4", "c6", "c8"].sort(), "every even-feedbackIndex committed hit is retained (odd-indexed misses never appear)");
+  // (d) 8 hits → the 7-live cap evicts the oldest. 16 notes 100 ms apart; the
+  // even-feedbackIndex ones (d0..d14 step 2) are 8 committed hits. At nowMs 13900
+  // the evicted d0 (commit 1300) is far past its fade tail → exactly 7 live.
+  const N8 = 16;
+  const events8 = Array.from({ length: N8 }, (_, i) => flowNote(`d${i}`, 1300 + i * 100));
+  const index8 = createSessionTargetIndex(events8, {});
+  const at8 = projectAftermathEntries(events8, testSnapshot(), 13900, null, index8);
+  assert.equal(at8.length, 7, "8 committed Test hits → the 7-live cap evicts the oldest (past its fade tail)");
+  assert.deepEqual(at8.map((e) => e.targetId).sort(), ["d2", "d4", "d6", "d8", "d10", "d12", "d14"].sort(), "the 7 newest even-feedbackIndex committed hits are the live entries (oldest d0 evicted)");
 }
 
 console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence oracles passed.");

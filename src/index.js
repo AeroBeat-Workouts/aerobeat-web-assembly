@@ -1259,7 +1259,10 @@ export class AeroGame extends HTMLElement {
     const targets = projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, timingWindowMs);
     // p5pr: hit-success aftermath FIFO (assembly-owned) — only resolved HIT
     // outcomes produce entries; misses/obstacles/bombs never appear.
-    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets);
+    // 0.0.55 W2: pass the deterministic render event index so Test-mode committed
+    // hits persist across frames (the ephemeral `targets` cull at the 350 ms
+    // feedback window would otherwise lose them); Play mode ignores it.
+    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex);
     // dntq: bounded hazard-contact events (assembly-owned) — obstacle head-collision
     // contact outcomes (Flow + Boxing) plus Flow bomb touch; avoided/miss produce nothing.
     const hazardContacts = projectHazardContactEvents(gameplay, nowMs);
@@ -2300,7 +2303,10 @@ function transientCue(menuOpen, sessionStartRequested, session, gameplay, input)
  * 0.0.54 W1-B/W2-C: normalize the gameplay session snapshot's hazardContact
  * presentation state. Absent or any invalid field returns null so the frame
  * field is omitted entirely (renderer absent-tolerant defaults); a valid exact
- * record is copied frozen.
+ * record is copied frozen. 0.0.55 W1: the gameplay snapshot emits `null` (not
+ * `undefined`) for absent sinceMs/releasedAtMs, so both `null` and `undefined`
+ * are accepted as "absent" — without this the frame field was always omitted
+ * and the during-collision state-driven vignette never fired.
  *
  * @param {unknown} value
  */
@@ -2309,8 +2315,8 @@ function normalizedHazardContactState(value) {
   const read = (key) => { const descriptor = Object.getOwnPropertyDescriptor(value, key); return descriptor && "value" in descriptor ? descriptor.value : undefined; };
   const active = read("active"); const sinceMs = read("sinceMs"); const releasedAtMs = read("releasedAtMs");
   if (typeof active !== "boolean") return null;
-  if (active && (typeof sinceMs !== "number" || !Number.isFinite(sinceMs) || sinceMs < 0 || typeof releasedAtMs !== "undefined")) return null;
-  if (!active && (typeof sinceMs !== "undefined" || (releasedAtMs !== null && (typeof releasedAtMs !== "number" || !Number.isFinite(releasedAtMs) || releasedAtMs < 0)))) return null;
+  if (active && (typeof sinceMs !== "number" || !Number.isFinite(sinceMs) || sinceMs < 0 || !(releasedAtMs === null || typeof releasedAtMs === "undefined"))) return null;
+  if (!active && (sinceMs !== null && typeof sinceMs !== "undefined" || (releasedAtMs !== null && typeof releasedAtMs !== "undefined" && (typeof releasedAtMs !== "number" || !Number.isFinite(releasedAtMs) || releasedAtMs < 0)))) return null;
   return Object.freeze({ active, sinceMs: active ? sinceMs : null, releasedAtMs: active ? null : releasedAtMs });
 }
 

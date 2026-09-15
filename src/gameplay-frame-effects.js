@@ -23,6 +23,10 @@ const AFTERMATH_EVICTED_FADE_TAIL_MS = 150 + 200;
 const HAZARD_CONTACT_MAX_EVENTS = 32;
 /** dntq: drop an event once ramp + decay + margin have fully elapsed. */
 const HAZARD_CONTACT_RETENTION_MS = 150 + 600 + 200;
+/** 0.0.55 W2: bound the Test-mode committed-hit scan to the most recent N by
+ *  centerTimestampMs. 64 comfortably exceeds the live-7 cap so every currently
+ *  live committed hit is always included (long songs never rescan unboundedly). */
+const TEST_COMMITTED_HIT_SCAN_BOUND = 64;
 
 /**
  * p5pr box-family authored beat types → punch family/hand/mode mapping.
@@ -97,22 +101,29 @@ function gridCellToWorldZ0(cell) {
  * Hit-success outcomes (Flow notes, Boxing straight/hook/uppercut Counts, guard
  * Counts in either guard mode) become one entry each at their committed timeline
  * position; misses, obstacles, and bombs never appear. Two candidate sources
- * feed the same FIFO: real hit judgements (Play) and — 0.0.54 W2-B — projected
- * targets whose synthetic Test feedback reads `judgement === "hit"`, which in
- * Test Mode are the ONLY hits (no real judgements exist). Synthetic entries
- * commit exactly at their `beatCenterMs`; a target already covered by a real
- * hit judgement never double-produces. Live entries are capped at the 7 most
- * recent by `hitCommitMs`; the 8th-newest live commit stamps the oldest live
- * entry with `evictedAtMs`; evicted entries drop out after the fade tail
- * (150 ms + 200 ms margin). The live-7 cap is the ONLY cleanup: settled pieces
- * persist until evicted by the 8th hit (no time-based retention drop).
+ * feed the same FIFO, selected by `gameplay.session.purpose`:
+ *   - `"play"` — real hit judgements from `gameplay.judgements` (persistent,
+ *     cleared only on a full session reset).
+ *   - `"visual_test"` — 0.0.55 W2 — the deterministic committed synthetic
+ *     hits derived from the render event index. In Test Mode a target with an
+ *     even `feedbackIndex` is a hit committing exactly at its
+ *     `centerTimestampMs`; that is a PURE function of (renderEventIndex,
+ *     nowMs) that persists across frames. The old 0.0.54 W2-B path read the
+ *     projected `targets`, which cull a hit at the 350 ms feedback window, so
+ *     the stateless FIFO lost each Test hit 350 ms after commit.
+ * Live entries are capped at the 7 most recent by `hitCommitMs`; the
+ * 8th-newest live commit stamps the oldest live entry with `evictedAtMs`;
+ * evicted entries drop out after the fade tail (150 ms + 200 ms margin). The
+ * live-7 cap is the ONLY cleanup: settled pieces persist until evicted by the
+ * 8th hit (no time-based retention drop).
  *
  * @param {readonly Record<string, unknown>[]} events Resolved content events.
- * @param {Record<string, unknown>} gameplay Snapshot carrying `judgements`.
+ * @param {Record<string, unknown>} gameplay Snapshot carrying `judgements` + `session`.
  * @param {number} nowMs Absolute song time (timeline ms).
  * @param {readonly Record<string, unknown>[]|null} [targets] Current projection.
+ * @param {unknown} [renderEventIndex] The deterministic session target index (0.0.55 W2 Test-mode source).
  */
-export function projectAftermathEntries(events, gameplay, nowMs, targets) {
+export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex) {
   const judgementsValue = recordValue(gameplay, "judgements");
   if (!Array.isArray(judgementsValue)) return [];
   /** @type {{eventId:string}} */
@@ -152,32 +163,48 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets) {
       }
     });
   }
-  // 0.0.54 W2-B: Test-mode synthetic hits. In Test the synthetic GREAT outcomes
-  // are the ONLY hits (no real judgements exist), so projected hit targets not
-  // already covered by a real judgement synthesize one aftermath candidate at
-  // their exact beat center (the synthetic hit commits exactly at center).
-  if (Array.isArray(targets)) {
-    for (const target of targets) {
-      if (!isRecord(target)) continue;
-      const targetId = String(target.id ?? "");
-      if (targetId.length < 1 || targetId.length > 128 || realHitIds.has(targetId)) continue;
-      const feedback = isRecord(target.feedback) ? target.feedback : null;
-      if (feedback === null || feedback.judgement !== "hit") continue;
-      const commitMs = Number(target.beatCenterMs);
-      if (!Number.isFinite(commitMs) || commitMs < 0) continue;
-      const mapping = aftermathMappingForTarget(target);
-      if (!mapping) continue;
-      candidates.push({
-        commitMs,
-        targetId,
-        entry: {
-          family: mapping.family,
-          hand: mapping.hand,
-          mode: mapping.mode,
-          spawn: spawnForTarget(targets, targetId),
-          seed: aftermathSeedForTargetId(targetId)
-        }
-      });
+  // 0.0.55 W2: Test-mode committed synthetic hits — a deterministic,
+  // session-scoped derivation from the render event index (NOT the ephemeral
+  // projection). In Test the synthetic GREAT outcomes are the ONLY hits (no
+  // real judgements exist); a target with an even `feedbackIndex` is a hit
+  // committing exactly at its `centerTimestampMs`. Deriving from the full index
+  // (bounded to the most recent TEST_COMMITTED_HIT_SCAN_BOUND entries) means a
+  // committed hit persists across frames instead of being lost when its target
+  // culls from the 350 ms feedback window. The Play path above is unchanged.
+  if (recordValue(recordValue(gameplay, "session"), "purpose") === "visual_test") {
+    const orderedEntries = isRecord(renderEventIndex) && Array.isArray(renderEventIndex.orderedEntries) ? renderEventIndex.orderedEntries : null;
+    if (orderedEntries !== null) {
+      const committed = orderedEntries.filter((entry) => isRecord(entry) && Number.isInteger(entry.feedbackIndex) && entry.feedbackIndex % 2 === 0)
+        .map((entry) => ({ entry, commitMs: Number(entry.centerTimestampMs) }))
+        .filter((item) => Number.isFinite(item.commitMs) && item.commitMs >= 0 && nowMs >= item.commitMs)
+        .sort((a, b) => b.commitMs - a.commitMs);
+      const scan = committed.length > TEST_COMMITTED_HIT_SCAN_BOUND ? committed.slice(0, TEST_COMMITTED_HIT_SCAN_BOUND) : committed;
+      for (const item of scan) {
+        const { entry, commitMs } = item;
+        // The index entry carries the resolved content event (eventId, type,
+        // authoredBeat) plus the deterministic feedbackIndex/centerTimestampMs.
+        const targetId = String(recordValue(entry, "eventId") ?? recordValue(recordValue(entry, "event"), "eventId") ?? "");
+        if (targetId.length < 1 || targetId.length > 128 || realHitIds.has(targetId)) continue;
+        const event = recordValue(entry, "event");
+        if (!isRecord(event)) continue;
+        // Map through the resolved content event (definitive type + authoredBeat):
+        // note → flow/slice, punch family → punch/mode/hand, guard/crossed_guard
+        // → guard/bonk; anything else (bombs, obstacles) → null so it never
+        // appears. This matches the Play real-judgement mapping exactly.
+        const mapping = aftermathMappingForEvent(event);
+        if (!mapping) continue;
+        candidates.push({
+          commitMs,
+          targetId,
+          entry: {
+            family: mapping.family,
+            hand: mapping.hand,
+            mode: mapping.mode,
+            spawn: spawnForTarget(targets, targetId),
+            seed: aftermathSeedForTargetId(targetId)
+          }
+        });
+      }
     }
   }
   if (candidates.length === 0) return [];
@@ -259,28 +286,6 @@ function aftermathMappingForEvent(event) {
     return { family: "punch", hand: m.hand, mode: m.mode };
   }
   if (GUARD_TYPES.includes(type)) return { family: "guard", hand: "both", mode: "bonk" };
-  return null;
-}
-
-/**
- * 0.0.54 W2-B: map one projected target to its aftermath family/hand/mode for
- * the Test-mode synthetic hit path. kind "flow" → flow/neutral/slice; punch
- * families (straight_left|straight_right|hook_left|hook_right|
- * uppercut_left|uppercut_right) → punch/(mode)/(hand) through PUNCH_FAMILIES;
- * "guard"/"crossed_guard" → guard/both/bonk. `null` for anything else (bombs,
- * obstacles, unknown kinds) so they never appear.
- *
- * @param {Record<string, unknown>} target
- */
-function aftermathMappingForTarget(target) {
-  const kind = typeof target.kind === "string" ? target.kind : "";
-  if (kind === "flow") return { family: "flow", hand: "neutral", mode: "slice" };
-  if (kind === "punch") {
-    const m = PUNCH_FAMILIES[typeof target.family === "string" ? target.family : ""];
-    if (m) return { family: "punch", hand: m.hand, mode: m.mode };
-    return null;
-  }
-  if (kind === "guard" && GUARD_TYPES.includes(String(target.family))) return { family: "guard", hand: "both", mode: "bonk" };
   return null;
 }
 
