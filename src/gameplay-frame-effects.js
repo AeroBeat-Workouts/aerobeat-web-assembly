@@ -96,10 +96,16 @@ function gridCellToWorldZ0(cell) {
  *
  * Hit-success outcomes (Flow notes, Boxing straight/hook/uppercut Counts, guard
  * Counts in either guard mode) become one entry each at their committed timeline
- * position; misses, obstacles, and bombs never appear. Live entries are capped
- * at the 7 most recent by `hitCommitMs`; the 8th-newest live commit stamps the
- * oldest live entry with `evictedAtMs`; evicted entries drop out after the fade
- * tail (150 ms + 200 ms margin).
+ * position; misses, obstacles, and bombs never appear. Two candidate sources
+ * feed the same FIFO: real hit judgements (Play) and — 0.0.54 W2-B — projected
+ * targets whose synthetic Test feedback reads `judgement === "hit"`, which in
+ * Test Mode are the ONLY hits (no real judgements exist). Synthetic entries
+ * commit exactly at their `beatCenterMs`; a target already covered by a real
+ * hit judgement never double-produces. Live entries are capped at the 7 most
+ * recent by `hitCommitMs`; the 8th-newest live commit stamps the oldest live
+ * entry with `evictedAtMs`; evicted entries drop out after the fade tail
+ * (150 ms + 200 ms margin). The live-7 cap is the ONLY cleanup: settled pieces
+ * persist until evicted by the 8th hit (no time-based retention drop).
  *
  * @param {readonly Record<string, unknown>[]} events Resolved content events.
  * @param {Record<string, unknown>} gameplay Snapshot carrying `judgements`.
@@ -118,6 +124,8 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets) {
   const output = [];
   /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number}}[]} */
   const candidates = [];
+  /** 0.0.54 W2-B: real hit judgements win; a target already covered by one produces no synthetic candidate. */
+  const realHitIds = new Set();
   for (const judgement of judgementsValue) {
     if (!isRecord(judgement) || judgement.shadow === true) continue;
     if (judgement.result !== "hit") continue;
@@ -125,12 +133,13 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets) {
     if (eventId.length < 1 || eventId.length > 128) continue;
     const commitMs = Number(judgement.committedTimelinePositionMs);
     if (!Number.isFinite(commitMs) || commitMs < 0) continue;
-    if (nowMs - commitMs > HAZARD_CONTACT_RETENTION_MS) continue;
+    // 0.0.54 W2-B: the live-7 cap is the ONLY aftermath cleanup; settled pieces
+    // persist until evicted by the 8th hit (retention no longer drops old hits).
     const event = eventsById.get(eventId);
     if (!event) continue;
     const mapping = aftermathMappingForEvent(event);
     if (!mapping) continue;
-    const spawn = spawnForTarget(targets, eventId);
+    realHitIds.add(eventId);
     candidates.push({
       commitMs,
       targetId: eventId,
@@ -138,10 +147,38 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets) {
         family: mapping.family,
         hand: mapping.hand,
         mode: mapping.mode,
-        spawn,
+        spawn: spawnForTarget(targets, eventId),
         seed: aftermathSeedForTargetId(eventId)
       }
     });
+  }
+  // 0.0.54 W2-B: Test-mode synthetic hits. In Test the synthetic GREAT outcomes
+  // are the ONLY hits (no real judgements exist), so projected hit targets not
+  // already covered by a real judgement synthesize one aftermath candidate at
+  // their exact beat center (the synthetic hit commits exactly at center).
+  if (Array.isArray(targets)) {
+    for (const target of targets) {
+      if (!isRecord(target)) continue;
+      const targetId = String(target.id ?? "");
+      if (targetId.length < 1 || targetId.length > 128 || realHitIds.has(targetId)) continue;
+      const feedback = isRecord(target.feedback) ? target.feedback : null;
+      if (feedback === null || feedback.judgement !== "hit") continue;
+      const commitMs = Number(target.beatCenterMs);
+      if (!Number.isFinite(commitMs) || commitMs < 0) continue;
+      const mapping = aftermathMappingForTarget(target);
+      if (!mapping) continue;
+      candidates.push({
+        commitMs,
+        targetId,
+        entry: {
+          family: mapping.family,
+          hand: mapping.hand,
+          mode: mapping.mode,
+          spawn: spawnForTarget(targets, targetId),
+          seed: aftermathSeedForTargetId(targetId)
+        }
+      });
+    }
   }
   if (candidates.length === 0) return [];
   // Sort newest-first by (commit, then targetId) for a deterministic cap.
@@ -222,6 +259,28 @@ function aftermathMappingForEvent(event) {
     return { family: "punch", hand: m.hand, mode: m.mode };
   }
   if (GUARD_TYPES.includes(type)) return { family: "guard", hand: "both", mode: "bonk" };
+  return null;
+}
+
+/**
+ * 0.0.54 W2-B: map one projected target to its aftermath family/hand/mode for
+ * the Test-mode synthetic hit path. kind "flow" → flow/neutral/slice; punch
+ * families (straight_left|straight_right|hook_left|hook_right|
+ * uppercut_left|uppercut_right) → punch/(mode)/(hand) through PUNCH_FAMILIES;
+ * "guard"/"crossed_guard" → guard/both/bonk. `null` for anything else (bombs,
+ * obstacles, unknown kinds) so they never appear.
+ *
+ * @param {Record<string, unknown>} target
+ */
+function aftermathMappingForTarget(target) {
+  const kind = typeof target.kind === "string" ? target.kind : "";
+  if (kind === "flow") return { family: "flow", hand: "neutral", mode: "slice" };
+  if (kind === "punch") {
+    const m = PUNCH_FAMILIES[typeof target.family === "string" ? target.family : ""];
+    if (m) return { family: "punch", hand: m.hand, mode: m.mode };
+    return null;
+  }
+  if (kind === "guard" && GUARD_TYPES.includes(String(target.family))) return { family: "guard", hand: "both", mode: "bonk" };
   return null;
 }
 

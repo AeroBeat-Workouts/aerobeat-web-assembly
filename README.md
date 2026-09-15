@@ -113,14 +113,14 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 |---|---|---|
 | `@aerobeat/web-hash` | `be7249b0bdfffcab568b760c1b582bfe2a0c1e92` | `b423c6742c07f56dde196d9f60f2e23c51ad913c` |
 | `@aerobeat/web-vendor-beatsaver` | `5866f8e418e4a0ef11362f9e6c80ebc5a2ad3c3a` | `997e8a476ab9ff04f0197cfa203091c58c865772` |
-| `@aerobeat/web-content-authoring` | `3a4af138660cdf761bb415b0a8922f4a67f1b48d` | `2bf9aafdc696f026f763e011fb3183002be77c60` |
-| `@aerobeat/web-content` | `7012b9f830c25920a316da459f854a16a1a0ff16` | `73d3dfe62b6bcd985be7ef4ef32c2ad859a1abb5` |
+| `@aerobeat/web-content-authoring` | `9dc8349833e858a7cb64f17f7ade05d1be418d67` | `4273824fd3d8feb6012929cdc57ce6c324bf528c` |
+| `@aerobeat/web-content` | `c66a7de1f15215a1adaf0427fecb69c102137239` | `adb721d06696f14ded661edfe02ed4e6b171ab95` |
 | `@aerobeat/web-audio` | `19fd3a91eb67712806a17e4c82e2631d63f72434` | `9bd3418296d8fbdbfe72669958087f50a3302675` |
-| `@aerobeat/web-contracts` | `e1125926be83c56eb710198db3ae7921f4e5e8c0` | `82936126f4c95e2ed5788f2027bbec82985e5db5` |
-| `@aerobeat/web-renderer` | `84c4fd364adec46f6f7b57fa9dbb4a1a8d6f73e2` | `5085ce1887ffe8b02ff2c47573ec89b4a2f33ef8` |
-| `@aerobeat/web-gameplay` | `1523b4af830faf1074fe5f20da3acfc8887ef3e9` | `a1fae3aba1b375de49074f60c9a7affbf731e981` |
+| `@aerobeat/web-contracts` | `57b1196b37e17207f2931ed3a891903ed505797d` | `350424b2cc98172b224adcb8538585df8b3b5c14` |
+| `@aerobeat/web-renderer` | `453d606a2ae75bd9ad387b725514dcd7d03b08ef` | `d8f2dc45eabaf54391f86038a7f2de5510043a76` |
+| `@aerobeat/web-gameplay` | `425358da37ecab2e7b49ec50febfdb715b3b8d17` | `913dc01f864e8506ba9782c075cdaafd30241ef2` |
 | `@aerobeat/web-input` | `b8a2e9d9c2a0621d61dfb890777714481a1255b7` | `c3a7ee72dcf7ad0672b8f0cb58e1674893ffeafe` |
-| `@aerobeat/web-ui` | `c319da939dcec05ba5f46067052306485de35268` | `6451fb1b2af4773093ee348470901aee9ccfcedc` |
+| `@aerobeat/web-ui` | `5eba64b69e8d6240d9ab64a7811766f3cce43792` | `1e672747e3cad17193f96d2a25c20f7499aa816d` |
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Boxing Lanes/Boxing Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 

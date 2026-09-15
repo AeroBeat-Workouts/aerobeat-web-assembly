@@ -74,7 +74,7 @@ try{
       if(embedding!=="direct")assert.notEqual(proof.origins.child,proof.origins.parent,"browser oracle iframe must be genuinely cross-origin");
       assert.equal(proof.fixtureByteLength,89424);
       assert.equal(proof.zeroObstacles,0,"t7sv: 3c9d Flow chart must contain zero obstacles because every source obstacle was an END marker");
-      assert.equal(proof.boxingCount,4,"t7sv: all four Boxing charts must survive the re-baseline");
+      assert.equal(proof.boxingCount,1,"W1-A: a fresh import now authors exactly one boxing (collider) chart — the Lanes/Grid pair is retired");
       assert.equal(proof.boxingWeaveFree,true,"t7sv: no Boxing weave/squat beats may survive the re-baseline");
       assert.equal(proof.snapshotPrivate,true);
       assert.deepEqual(noise,[]);

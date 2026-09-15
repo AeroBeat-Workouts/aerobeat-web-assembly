@@ -82,13 +82,17 @@ assert.equal(shadows[0].transparent,true);
 assert.equal(synthesisGameplay.getJudgements().length,0,"no judgements before scoring input");
 synthesisGameplay.destroy();
 
-// The real 3c9d package still ships four Boxing charts; after t7sv none of them
-// may contain a weave/squat beat (no source obstacles) and their prototype
-// identities must remain stable.
+// 0.0.54 W1-A rebaseline: convertDifficulty now emits EXACTLY ONE boxing chart
+// per difficulty — the sole boxing_collider_v1 variant (no conversion recipe);
+// the four-chart Lanes/Grid matrix is retired for new imports. After t7sv it
+// contains no weave/squat beats (the source has no obstacles).
 const boxingCharts=converted.package.charts.filter((chart)=>chart.mode==="boxing");
-assert.equal(boxingCharts.length,4,"all exact four Boxing charts must survive the t7sv re-baseline");
+assert.equal(boxingCharts.length,1,"new imports carry exactly one Boxing (collider) chart — the Lanes/Grid pair is retired");
+assert.equal(boxingCharts[0].prototype.rulesetId,"boxing_collider_v1","the sole boxing chart binds the collider ruleset");
+assert.equal(Object.hasOwn(boxingCharts[0].prototype,"recipeId"),false,"the collider chart carries no conversion recipe identity");
+assert.equal(converted.package.charts.filter((chart)=>chart.mode==="flow").length,1,"the flow_colliders_v1 chart remains alongside the collider chart");
 for(const chart of boxingCharts){
   assert.equal(chart.beats.some((beat)=>String(beat.type??"").startsWith("weave_")||String(beat.type??"")==="squat"),false,`${chart.chartId} Boxing chart must contain no weave/squat beats because there are no source obstacles`);
 }
 content.destroy();
-console.log(`ORACLE exact-3c9d-flow-zero-obstacle-t7sv + synthetic re-anchored wall+shadow PASS: fixtureBytes=${bytes.byteLength}, fixtureSha256=${oracle.source.sha256}, charts=${boxingCharts.length}`);
+console.log(`ORACLE exact-3c9d-flow-zero-obstacle-t7sv + synthetic re-anchored wall+shadow PASS: fixtureBytes=${bytes.byteLength}, fixtureSha256=${oracle.source.sha256}, boxingCharts=${boxingCharts.length}`);
