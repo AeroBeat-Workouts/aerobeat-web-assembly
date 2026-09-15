@@ -125,11 +125,14 @@ Every item was traced to a concrete root cause in source:
    targets in addition to real Play judgements; live-7 cap is the ONLY cleanup (persist until
    evicted; evicted fade 150 ms); Play-path 3-part evidence recorded.
 7. **Boxing selectable (BUG)** → converter emits `boxing_collider_v1` for NEW imports (single
-   collider variant, no recipe — per design doc); content-runtime SYNTHESIZES the collider variant
-   from the stored legacy boxing chart for EXISTING packages (deterministic: same beats, relabeled
-   rulesetId, recipeId null, fresh variantId/contentHash/score identity — no re-import needed).
-   Boxing selection resolves for every package; legacy Lanes/Grid remain readable for stored
-   variants; new partition local-only/unranked (design doc line 117).
+   collider variant, no recipe — per design doc line 110/114: the ONLY newly-created boxing
+   variant; new imports stop emitting the Lanes/Grid pair, legacy stored packages keep their
+   stored variants readable). EXISTING packages (no collider variant): bounded **"reimport
+   required" gate** — the design-doc `flow_grid_reimport_required` precedent; the assembly maps
+   "Boxing selected + package lacks collider variant" to a new `boxing_collider_reimport_required`
+   reimport message (info box, clear stale selection — same pattern as
+   `FLOW_REIMPORT_MESSAGES`/`flowReimportReason`, index.js:67-69,2338) instead of the generic
+   "Selected gameplay variant is unavailable" throw. New partition local-only/unranked.
 8. **Wasm console noise (POLISH)** → bounded console filter in the vendor-mediapipe wrapper
    (drops the known MediaPipe internal signatures; everything else untouched) + pass
    `IMAGE_DIMENSIONS` to the MoveNet landmarker options so the NORM_RECT warning is fixed at source.
@@ -157,26 +160,42 @@ Every item was traced to a concrete root cause in source:
   rejected) + `npm test` green.
 
 ### Wave 1 — parallel, disjoint repos
-- **W1-A — Boxing collider variant (`aerobeat-web-content-authoring` + `aerobeat-web-content`):**
+- **W1-A — Boxing collider variant + reimport gate (`aerobeat-web-content-authoring`,
+  `aerobeat-web-content`, gate surface in `aerobeat-web-assembly` W2):**
   converter emits `boxing_collider_v1` (single variant, recipeId null, beats = the boxing
   conversion with `spatialTarget` — same beat set the Lanes/Grid conversions carry) for NEW
-  imports; content-runtime synthesizes the collider variant view from the stored legacy boxing
-  chart for EXISTING packages (deterministic variantId/contentHash; score identity fresh,
-  local-only, unranked; `exactGameplayVariant` resolution now succeeds for both cases). Oracles:
-  new-import variant list contains exactly one collider variant; existing-package selection
-  resolves to it with byte-stable hashes; legacy stored variants still play.
+  imports and STOPS emitting the Lanes/Grid pair for new imports (design doc line 110: the only
+  newly-created boxing variant). Existing packages keep their stored Lanes/Grid variants readable;
+  when Boxing is selected on a package lacking a collider variant the assembly surfaces a bounded
+  `boxing_collider_reimport_required` reimport gate (info box + clear stale selection — the
+  `FLOW_REIMPORT_MESSAGES`/`flowReimportReason` precedent, index.js:67-69,2338) instead of the
+  generic throw. Oracles: new-import variant list contains exactly one boxing variant
+  (`boxing_collider_v1`, recipeId null) and no Lanes/Grid; a legacy (pre-collider) package's
+  stored Lanes/Grid variants still play; selecting Boxing on a legacy package raises the
+  reimport gate, not a generic error; fresh score partition local-only/unranked.
 - **W1-B — Hazard contact state (`aerobeat-web-gameplay`):** bounded `hazardContact` snapshot
-  field (active + sinceMs) from the existing `occupiedObstacleIds`/contact-interval tracking
-  (flow_colliders_v1; presentation-only, no new public coordinates); coordinator unit oracles
-  (enter/exit transitions, episode first-contact ms, multi-obstacle, pause/reset clear).
+  field `{active:boolean, sinceMs:number|null, releasedAtMs:number|null}` from the existing
+  `occupiedObstacleIds`/contact-interval tracking (flow_colliders_v1; presentation-only, no new
+  public coordinates). `sinceMs` = first contact of the current episode while active;
+  `releasedAtMs` = timeline ms of the most recent exit (so the renderer can compute a
+  STATELESS decay: the release-moment pulse phase is a pure function of (sinceMs, releasedAtMs,
+  params)); cleared on pause/reset/seek. Cover the boxing squat/weave nose-tracking path too if
+  it shares the same occupied-id tracking (verify in code; otherwise flow-only + note).
+  Coordinator unit oracles: enter/exit transitions, sinceMs = first contact, multi-obstacle,
+  pause/reset clear, releasedAtMs monotone across episodes.
 - **W1-C — Renderer (`aerobeat-web-renderer`):**
   (1) `colliderOverlayObjects` anchors at the target's current `(x,y,z)` (+ small camera-side
   offset; depth-test off, existing overlay layer + high render order) for square, cone, and
   target-point cube;
   (2) `updateSceneObjects` skips `hazard_glow` (no red cube);
-  (3) state-driven pulsing vignette: `frame.hazardContactActive` → ramp/pulse/decay intensity
-  (pure function of `sinceMs` + nowMs + tuning; MAX-blend with `hazardContacts` bomb flashes);
-  tuning-block constants for the five parameters (absent→defaults, backward compatible).
+  (3) state-driven pulsing vignette: `frame.hazardContactActive {active,sinceMs,releasedAtMs}` →
+  intensity as a PURE function of (nowMs, sinceMs, releasedAtMs, params): active →
+  `I0 · rampIn(min(elapsed/rampMs,1)) · (1 − depth·(1+sin(2π·Hz·(elapsed−rampMs)))/2)` (pulse
+  phase only after the ramp); recently released → `I0 · rampIn·pulse(at releasedAtMs) ·
+  max(0,1−(now−releasedAtMs)/decayMs)` (the release-moment pulse phase is recomputable from
+  sinceMs+releasedAtMs — no retained state); MAX-blend with the `hazardContacts` bomb-flash
+  envelope on the existing quad; tuning-block constants for the five parameters (frame-absent →
+  defaults, backward compatible).
   Oracles: overlay tracks the beat across sampled z (pixel + unit), red-cube-absent oracle
   (scene center baseline while vignette active), pulse bounds/decay/idle oracles.
 - **W1-D — Wasm console suppression (`aerobeat-web-vendor-mediapipe`):** bounded console filter
@@ -217,17 +236,20 @@ Every item was traced to a concrete root cause in source:
 - W3-E: serving switch (collect current 5173 job, serve raw 0.0.54) + shadow-aware smoke +
   hand link to Derrick.
 
-## Decisions (need Derrick confirmation, 2026-09-15)
+## Decisions (Derrick, 2026-09-15 — CONFIRMED)
 
-1. **Boxing on existing packages:** synthesize the collider variant from the stored chart at
-   selection time (no re-import). Alternative: force re-import (design-doc "reimport gate"
-   precedent). Recommendation: **synthesize** — immediate playability, deterministic, no user
-   friction. (If the stored chart bytes prove insufficient during W1-A, fall back to the
-   reimport gate for the affected packages and record it.)
-2. **Vignette pulse defaults:** intensity 0.6, pulse 2 Hz, depth 0.35, ramp 150 ms, decay 400 ms
-   — EXPOSED live in Game Setup for his tuning (lock-in + hide in a later release, 931s pattern).
-3. **Aftermath in Test Mode:** synthetic GREAT outcomes produce the same slice/punch aftermath
-   (design already said "aftermath shows in Test and Play").
+1. **Boxing on existing packages: REIMPORT GATE.** New imports emit the `boxing_collider_v1`
+   variant (the only newly-created boxing variant; Lanes/Grid pair stops for new imports).
+   Existing packages that lack a collider variant surface a bounded
+   `boxing_collider_reimport_required` gate when Boxing is selected (info box + clear stale
+   selection, the `flowReimportReason` precedent) — the user reimports to get the collider
+   variant. No chart synthesis. (Derrick's choice over the synthesis recommendation.)
+2. **Vignette: AS SPECCED.** Pulse while inside; five variables EXPOSED live in Game Setup
+   (defaults: intensity 0.6, pulse 2 Hz, pulse depth 0.35, ramp 150 ms, decay 400 ms); lock-in +
+   hide in a later release (931s pattern).
+3. **Aftermath in Test Mode: YES, full aftermath.** Synthetic GREAT outcomes produce the same
+   slice/punch aftermath as real Play hits (design already said "aftermath shows in Test and
+   Play").
 
 ## Standing constraints
 
