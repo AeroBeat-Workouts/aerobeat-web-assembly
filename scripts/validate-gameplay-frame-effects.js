@@ -45,7 +45,13 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const freshFlow = projectAftermathEntries([flowNote("nf", 3000)], snapshot([hitJudgement("nf", 3000)]), 3200, [nfTarget]);
   assert.equal(freshFlow.length, 1);
   // Cell 4 = column 0 (x −1.5), row 1 (y 1) of the canonical top-left 4×3 grid.
-  assert.deepEqual(freshFlow[0], { targetId: "nf", hitCommitMs: 3000, family: "flow", hand: "neutral", mode: "slice", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("nf") }, "Flow note maps to flow/slice with cell-derived spawn");
+  // 0.0.56 W2: the flow note is directional (direction "right") → shape "arrow".
+  assert.deepEqual(freshFlow[0], { targetId: "nf", hitCommitMs: 3000, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("nf") }, "Flow note maps to flow/slice with cell-derived spawn + arrow shape");
+  // A directionless flow note (no authoredBeat.direction) → shape "orb".
+  const orbFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "no", type: "note", centerTimestampMs: 3100, authoredBeat: { type: "note", hand: "left", placement: 4 } });
+  const freshOrb = projectAftermathEntries([orbFlow], snapshot([hitJudgement("no", 3100)]), 3300, [nfTarget]);
+  assert.equal(freshOrb.length, 1);
+  assert.equal(freshOrb[0].shape, "orb", "a directionless flow note maps to shape orb");
   // Bombs and obstacles never appear.
   assert.equal(byId.has("b1"), false, "bombs never produce aftermath entries");
   assert.equal(byId.has("o1"), false, "obstacles never produce aftermath entries");
@@ -122,7 +128,10 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const list = projectAftermathEntries(events, snapshot(js), 1100);
   assert.equal(list.length, 1);
   const keys = Reflect.ownKeys(list[0]).filter((k) => typeof k === "string");
-  assert.deepEqual([...keys].sort(), ["family", "hand", "hitCommitMs", "mode", "seed", "spawn", "targetId"].sort(), "entry exposes only the renderer-contract fields");
+  // 0.0.56 W2: the entry now carries the note's actual glyph `shape` (arrow/orb)
+  // so the renderer can render the cut-in-half corpse of the real asset.
+  assert.deepEqual([...keys].sort(), ["family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"].sort(), "entry exposes only the renderer-contract fields");
+  assert.equal(list[0].shape, "arrow", "a directional flow note exposes shape arrow");
   const spawnKeys = Reflect.ownKeys(list[0].spawn).filter((k) => typeof k === "string");
   assert.deepEqual([...spawnKeys].sort(), ["x", "y", "z"].sort(), "spawn exposes only the WU triple");
 }
@@ -255,7 +264,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const bombEvents = [flowNote("t-b", 6000), bomb("t-bomb", 6100)];
   const bombIndex = createSessionTargetIndex(bombEvents, {});
   // targets=null → spawnForTarget falls back to the lane-anchored grid default.
-  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "neutral", mode: "slice", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "only the even-index flow note commits; the bomb never appears");
+  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "only the even-index flow note commits; the bomb never appears");
 }
 
 // ---------- 0.0.55 W2: Play real hits + real-judgement mapping (unchanged path) ----------

@@ -131,9 +131,9 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
   for (const event of events) {
     if (isRecord(event)) eventsById.set(String(event.eventId ?? ""), event);
   }
-  /** @type {{targetId:string,hitCommitMs:number,family:"flow"|"punch"|"guard",hand:"left"|"right"|"both"|"neutral",mode:"straight"|"hook"|"uppercut"|"slice"|"bonk",spawn:{x:number,y:number,z:number},seed:number,evictedAtMs?:number}[]} */
+  /** @type {{targetId:string,hitCommitMs:number,family:"flow"|"punch"|"guard",hand:"left"|"right"|"both"|"neutral",mode:"straight"|"hook"|"uppercut"|"slice"|"bonk",spawn:{x:number,y:number,z:number},seed:number,shape?:"arrow"|"orb",evictedAtMs?:number}[]} */
   const output = [];
-  /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number}}[]} */
+  /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number,shape?:string}}[]} */
   const candidates = [];
   /** 0.0.54 W2-B: real hit judgements win; a target already covered by one produces no synthetic candidate. */
   const realHitIds = new Set();
@@ -159,7 +159,8 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         hand: mapping.hand,
         mode: mapping.mode,
         spawn: spawnForTarget(targets, eventId),
-        seed: aftermathSeedForTargetId(eventId)
+        seed: aftermathSeedForTargetId(eventId),
+        ...(mapping.shape ? { shape: mapping.shape } : {})
       }
     });
   }
@@ -201,7 +202,8 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
             hand: mapping.hand,
             mode: mapping.mode,
             spawn: spawnForTarget(targets, targetId),
-            seed: aftermathSeedForTargetId(targetId)
+            seed: aftermathSeedForTargetId(targetId),
+            ...(mapping.shape ? { shape: mapping.shape } : {})
           }
         });
       }
@@ -224,6 +226,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
       mode: item.entry.mode,
       spawn: Object.freeze(item.entry.spawn),
       seed: item.entry.seed,
+      ...(item.entry.shape ? { shape: item.entry.shape } : {}),
       ...(evictedCommitMs !== null && item.commitMs === evictedCommitMs ? { evictedAtMs: item.commitMs } : {})
     });
     output.push(entry);
@@ -272,9 +275,43 @@ export function projectHazardContactEvents(gameplay, nowMs) {
 }
 
 /**
- * Map one resolved content event to its aftermath family/hand/mode. Returns
- * `null` for events that do not produce an aftermath entry (non-note non-punch
- * non-guard types, omitted arc/burst, obstacles, bombs).
+ * 0.0.56 W2: the hit note's ACTUAL glyph shape for the aftermath "hit corpse"
+ * (`"arrow"` for a directional note, `"orb"` for a directionless / any note).
+ * Mirrors the renderer's `assetForTarget` note-shape rule (direction → arrow,
+ * otherwise orb) so the corpse is a cut-in-half of the note's real asset, not a
+ * generic circle (B3) and so a straight punch from an orb "any" note keeps the
+ * orb shape (B9).
+ *
+ * @param {Record<string, unknown>} event
+ * @param {string} type
+ * @returns {"arrow"|"orb"}
+ */
+function noteShapeForEvent(event, type) {
+  const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
+  if (type === "note") {
+    // Flow: `authoredBeat.direction` is the authored direction (integer index
+    // 0–7 in real resolved content, or the string name in legacy/synthetic
+    // fixtures). A directional note renders as an arrow, a directionless one
+    // (absent direction) as an orb. Mirrors the projection's `flowDirection`.
+    const direction = beat.direction;
+    const isDirectional = Number.isInteger(direction) || (typeof direction === "string" && direction.length > 0);
+    return isDirectional ? "arrow" : "orb";
+  }
+  if (PUNCH_FAMILIES[type]) {
+    // Boxing punch: `authoredBeat.spatialTarget.entryDirection` is the
+    // direction the punch came from; present (a string direction) → arrow,
+    // absent (orb "any" note reused as a straight punch) → orb.
+    const spatial = isRecord(beat.spatialTarget) ? beat.spatialTarget : null;
+    const direction = spatial ? spatial.entryDirection : null;
+    return typeof direction === "string" && direction.length > 0 ? "arrow" : "orb";
+  }
+  return "orb";
+}
+
+/**
+ * Map one resolved content event to its aftermath family/hand/mode/shape.
+ * Returns `null` for events that do not produce an aftermath entry (non-note
+ * non-punch non-guard types, omitted arc/burst, obstacles, bombs).
  *
  * @param {Record<string, unknown>} event
  */
@@ -284,12 +321,12 @@ function aftermathMappingForEvent(event) {
   // Synthetic events in unit tests DO carry a top-level `type`. Prefer the
   // top-level field when present, otherwise fall back to authoredBeat.type.
   const type = (typeof event.type === "string" ? event.type : null) ?? (typeof event.authoredBeat?.type === "string" ? event.authoredBeat.type : null);
-  if (type === "note") return { family: "flow", hand: "neutral", mode: "slice" };
+  if (type === "note") return { family: "flow", hand: "neutral", mode: "slice", shape: noteShapeForEvent(event, "note") };
   if (PUNCH_FAMILIES[type]) {
     const m = PUNCH_FAMILIES[type];
-    return { family: "punch", hand: m.hand, mode: m.mode };
+    return { family: "punch", hand: m.hand, mode: m.mode, shape: noteShapeForEvent(event, type) };
   }
-  if (GUARD_TYPES.includes(type)) return { family: "guard", hand: "both", mode: "bonk" };
+  if (GUARD_TYPES.includes(type)) return { family: "guard", hand: "both", mode: "bonk", shape: null };
   return null;
 }
 
