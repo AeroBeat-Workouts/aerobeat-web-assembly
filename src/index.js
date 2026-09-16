@@ -135,6 +135,7 @@ export class AeroGame extends HTMLElement {
     this.librarySelectionTail = Promise.resolve(null);
     this.desiredLibrarySelection = null;
     this.lastBoxingRecipeId = firstUseBoxingRecipeId;
+    this.lastGameplayRulesetId = gameplayRulesetIds.flow;
     this.leaseParticipant = null;
     this.unregisterLease = null;
     this.fullscreenPending = false;
@@ -671,7 +672,7 @@ export class AeroGame extends HTMLElement {
         }
         throw new Error("Selected gameplay variant is unavailable");
       }
-      if (boxingGameplayRulesetIds.includes(rulesetId)) this.lastBoxingRecipeId = recipeId;
+      if (boxingGameplayRulesetIds.includes(rulesetId)) { this.lastBoxingRecipeId = recipeId; this.lastGameplayRulesetId = rulesetId; }
       return this.performSelectVariant(target.variantId, Object.freeze([]), owner);
     });
   }
@@ -985,7 +986,24 @@ export class AeroGame extends HTMLElement {
     // Boxing Collider (reach + guard mode) for boxing_collider_v1. The coordinator
     // locks them for the complete run; mid-run changes reject via
     // `boxing_collider_settings_locked` / `flow_collider_settings_locked`.
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(content.selectedVariant.rulesetId===gameplayRulesetIds.flow?{flowColliderSettings:gameplayFlowColliderSettings(setup)}:{}),...(content.selectedVariant.rulesetId===gameplayRulesetIds.boxingCollider?{boxingColliderSettings:gameplayBoxingColliderSettings(setup)}:{}) };
+    // z2tx run-gate (B7): those lock rejections are internal invariants (the
+    // settings are not user-exposed in the menu). On a fresh configure while a
+    // previous session left a different active ruleset behind, skip the
+    // collider-settings keys entirely: `configureContent` then keeps the
+    // previous locked truth (replacing it would require the rejected path) and
+    // the requestStart that follows every new Test/Play clears the run. A
+    // futureOnly swap keeps the active ruleset's own settings, which are the
+    // exact values the run was configured with.
+    const configuredSession = this.graph.gameplay.getSnapshot().session;
+    const activeRuleset = configuredSession?.rulesetId;
+    // A fresh configure while the previous session is still in a terminal state
+    // (stopped/completed) must NOT carry the previous run's locked settings —
+    // `configureContent` rejects foreign-ruleset settings with the internal
+    // `*_settings_locked` error. The previous run's truth belongs to that
+    // finished session; a new Test/Play starts from the desired setup anyway.
+    const stalePreviousRuleset = !futureOnly && typeof activeRuleset === "string" && ["stopped", "completed"].includes(configuredSession?.state) && activeRuleset !== content.selectedVariant.rulesetId;
+    const skipForeignSettings = !futureOnly && activeRuleset !== undefined && activeRuleset !== "" && activeRuleset !== content.selectedVariant.rulesetId && !stalePreviousRuleset;
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else { this.activeSessionSetup=setup;this.applyGameSetup(this.graph,setup);this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined); }
   }
@@ -1758,10 +1776,16 @@ export class AeroGame extends HTMLElement {
     const ownsSelection = () => this.isLifecycleIntentOwner(owner) && selectionGeneration === this.librarySelectionGeneration;
     if (!ownsSelection()) return null;
     const before = graph.content.getSnapshot(),retainEquivalent=allowSamePackageRetention===true&&before.packageId===target.packageId;
-    const retainedRulesetId = retainEquivalent&&rulesetIds.includes(before.selectedVariant?.rulesetId) ? before.selectedVariant.rulesetId : gameplayRulesetIds.flow;
+    // 0.0.56 W4 (B6): the active Flow/Boxing mode is product state, not package
+    // state — swapping songs must preserve it instead of falling back to Flow.
+    const retainedRulesetId = retainEquivalent&&rulesetIds.includes(before.selectedVariant?.rulesetId) ? before.selectedVariant.rulesetId : boxingGameplayRulesetIds.includes(this.lastGameplayRulesetId) ? this.lastGameplayRulesetId : gameplayRulesetIds.flow;
     const retainedRecipeId = retainEquivalent&&conversionRecipeIds.includes(before.selectedVariant?.recipeId) ? before.selectedVariant.recipeId : this.lastBoxingRecipeId;
     if (retainEquivalent&&conversionRecipeIds.includes(retainedRecipeId)) this.lastBoxingRecipeId = retainedRecipeId;
     const modifierIds = retainEquivalent?stringList(before.selectedVariant?.modifierIds ?? [], 16):[];
+    // 0.0.56 W4 (B6): if the retained mode cannot be re-resolved on the new
+    // package (e.g. an import predating boxing_collider_v1 authoring), surface
+    // the bounded reimport reason instead of silently resetting to Flow.
+    this.pendingRetainedModeFallback = boxingGameplayRulesetIds.includes(retainedRulesetId) ? Object.freeze({ rulesetId: retainedRulesetId, recipeId: retainedRecipeId, owner }) : null;
     let loaded;
     try { loaded = await graph.authoring.loadPackage({ key: target.packageKey, packageId: target.packageId }); }
     catch (error) {
@@ -1785,6 +1809,16 @@ export class AeroGame extends HTMLElement {
     const selected = equivalent ?? fallback;
     if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.performSelectVariant(selected.variantId, modifierIds, owner);
     if (!ownsSelection()) return null;
+    if (this.pendingRetainedModeFallback) {
+      const pending = this.pendingRetainedModeFallback; this.pendingRetainedModeFallback = null;
+      const targetVariant = exactGameplayVariant(content.variants, pending.rulesetId, pending.recipeId);
+      if (!targetVariant?.variantId) {
+        const reason = Object.freeze({ code: "boxing_collider_reimport_required", message: BOXING_REIMPORT_MESSAGES.boxing_collider_reimport_required });
+        this.lastError = reason;
+        if (this.lifecycle === "connected") this.emitGameEvent("error", reason);
+        this.renderPresenters();
+      }
+    }
     if (flowReimportReason(this.lastError)) { this.lastError = null; this.renderPresenters(); }
     return Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
   }
@@ -2202,8 +2236,13 @@ export class AeroGame extends HTMLElement {
   }
 
   handleError(error) {
-    this.lastError = Object.freeze({ code: errorCode(error, "assembly_error"), message: errorMessage(error) });
-    if (this.lifecycle === "connected") this.emitGameEvent("error", this.lastError);
+    const frozen = Object.freeze({ code: errorCode(error, "assembly_error"), message: errorMessage(error) });
+    // 0.0.56 W4 (B7): the run-locked collider settings are internal invariants
+    // (reach/guard are not user-exposed in the menu), so the lock rejection is a
+    // no-op for the user — it must never reach lastError/info-action/error events.
+    if (frozen.code === "boxing_collider_settings_locked") return;
+    this.lastError = frozen;
+    if (this.lifecycle === "connected") this.emitGameEvent("error", frozen);
     this.renderPresenters();
   }
 

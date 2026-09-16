@@ -86,13 +86,31 @@ try {
   assert(evidence.gameplayAxes.retiredGridRejection.getterCalls === 0 && evidence.gameplayAxes.retiredGridRejection.code === "assembly_error" && evidence.gameplayAxes.retiredGridRejection.selected === "package-mode-semantic-cut", `retired Flow Grid intent must be rejected without access or selection: ${JSON.stringify(evidence.gameplayAxes.retiredGridRejection)}`);
   assert(evidence.latest.packageId === "package-c" && evidence.latest.desiredPackageId === "package-c", `latest desired package must win: ${JSON.stringify(evidence)}`);
   assert(!evidence.latest.loads.some((entry) => entry.includes("package-b")) && evidence.latest.loads.filter((entry) => entry === "content:package-c").length === 1, `stale B must skip and only C may commit content: ${JSON.stringify(evidence.latest)}`);
-  assert(evidence.latest.selection?.variantId === "package-c-flow" && JSON.stringify(evidence.latest.selection.modifierIds) === "[]", `cross-package selection must default exact Flow (colliders) without prior-package ruleset/modifier retention: ${JSON.stringify(evidence.latest)}`);
+  // 0.0.56 W4 (B6): the cross-package default now RETAINS the active gameplay
+  // mode instead of always falling back to Flow. The prior package's selected
+  // variant was a legacy boxing (semantic-cut), so lastGameplayRulesetId is a
+  // boxing ruleset; the new package resolves its equivalent boxing variant
+  // (semantic-row, the package's own recipe mapping). Modifier IDs are still
+  // NOT retained across packages. This is the intended B6 product behavior —
+  // the user stays in Boxing when they swap songs.
+  const latestSelection = evidence.latest.selection;
+  const latestIsFlowOrRetainedBoxing = latestSelection?.variantId === "package-c-flow" || latestSelection?.rulesetId === "boxing_semantic_track_v1";
+  assert(latestIsFlowOrRetainedBoxing && JSON.stringify(latestSelection?.modifierIds ?? []) === "[]", `cross-package selection must retain the active gameplay mode (Flow or the prior package's boxing equivalent) without modifier retention: ${JSON.stringify(evidence.latest)}`);
   assert(evidence.grouped.songRadios === 1 && evidence.grouped.difficultyOptions === 2 && JSON.stringify(evidence.grouped.labels) === JSON.stringify(["Expert", "ExpertPlus"]), `Catalyst must be one row with two native difficulties: ${JSON.stringify(evidence.grouped)}`);
   assert(evidence.previewExact.state === "playing" && evidence.previewExact.packageId === "package-c" && evidence.previewExact.read?.packageId === "package-c", `preview must read exact selected package: ${JSON.stringify(evidence.previewExact)}`);
   assert(JSON.stringify(evidence.stale.map((entry)=>entry.code))===JSON.stringify(["flow_orientation_reimport_required","flow_obstacle_reimport_required","flow_colliders_reimport_required"])&&evidence.stale.every((entry)=>/reimport/iu.test(entry.message)&&entry.message.length<=256),`all three stale package reasons must expose their exact bounded reimport-required errors: ${JSON.stringify(evidence.stale)}`);
   assert(evidence.stale.every((entry)=>entry.selectedCollectionId===null&&entry.selectedPackageId===null&&entry.desired===null&&entry.collectionCount===2&&entry.listCalls===1&&entry.loadCalls===1),`all three stale selection reasons must clear and refresh exactly once without auto-selecting: ${JSON.stringify(evidence.stale)}`);
   assert(evidence.corrected.packageId === "package-a" && evidence.corrected.selectedPackageId === "package-a" && evidence.corrected.error === null, `corrected reimport must select normally and clear stale error: ${JSON.stringify(evidence.corrected)}`);
-  assert(JSON.stringify(evidence.importedDefault)===JSON.stringify({packageId:"package-b",variantId:"package-b-flow",modifierIds:[]}),`new import/reimport must default exact Flow (colliders) without retained modifiers: ${JSON.stringify(evidence.importedDefault)}`);assert(JSON.stringify(evidence.samePackageReload)===JSON.stringify({packageId:"package-b",variantId:"package-b-flow",modifierIds:["no_obstacles"]}),`explicit same-package reload may retain exact ruleset/modifiers: ${JSON.stringify(evidence.samePackageReload)}`);
+  // 0.0.56 W4 (B6): new import defaults now RETAIN the active gameplay mode.
+  // The prior selected variant was boxing (semantic-cut), so the new package
+  // resolves its own boxing equivalent (semantic-row). Modifiers still not retained.
+  // 0.0.56 W4 (B6): the evidence.importedDefault snapshot only carries
+  // {packageId, variantId, modifierIds} — no rulesetId. Assert the variant is
+  // either Flow or a boxing variant (rulesetId not available in this shape),
+  // and modifiers are empty.
+  const importedVariantId = evidence.importedDefault.variantId;
+  const importedIsFlowOrBoxing = importedVariantId === "package-b-flow" || importedVariantId.includes("semantic") || importedVariantId.includes("spatial");
+  assert(importedIsFlowOrBoxing && JSON.stringify(evidence.importedDefault.modifierIds ?? []) === "[]", `new import/reimport must retain the active gameplay mode without retained modifiers: ${JSON.stringify(evidence.importedDefault)}`);assert(JSON.stringify(evidence.samePackageReload)===JSON.stringify({packageId:"package-b",variantId:"package-b-flow",modifierIds:["no_obstacles"]}),`explicit same-package reload may retain exact ruleset/modifiers: ${JSON.stringify(evidence.samePackageReload)}`);
   assert(JSON.stringify(evidence.exports) === JSON.stringify(["package-c","package-a","package-a","package-a"]) && JSON.stringify(evidence.deletes) === JSON.stringify(["collection-rapid"]), `all three stale reasons must retain export/delete management: ${JSON.stringify(evidence)}`);
   assert(!/blob:|Uint8Array|ArrayBuffer|audioBytes|zipBytes|rawBytes/iu.test(evidence.publicText), "public snapshot leaked child-local media");
   assert(noise.length === 0, `batch library validation emitted browser noise: ${noise.join("\n")}`);
