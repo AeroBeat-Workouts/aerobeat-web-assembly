@@ -204,6 +204,28 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(manyEvents.map((e) => e.atMs).sort((a, b) => b - a), Array.from({ length: 32 }, (_, i) => 1039 - i), "the 32 newest events are retained");
 }
 
+// ---------- 0.0.55 W2 follow-up: real resolved events carry NO top-level `type` ----------
+{
+  // Real resolved content events (content-runtime timelineFor()) have schema,
+  // version, eventId, variantId, chartId, centerTimestampMs, authoredBeat — but NO
+  // top-level `type`. The mapping must fall back to `authoredBeat.type`. The
+  // synthetic fixtures above carry BOTH (top-level `type` present), which masks
+  // this; these fixtures mirror the real shape exactly.
+  const realFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr1", variantId: "v1", chartId: "c1", centerTimestampMs: 4000, authoredBeat: { type: "note", hand: "left", placement: 4, direction: "right" } });
+  const realPunch = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr2", variantId: "v1", chartId: "c1", centerTimestampMs: 4200, authoredBeat: { type: "straight_right", spatialTarget: { targetCell: 4, entryDirection: "up" } } });
+  const realGuard = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr3", variantId: "v1", chartId: "c1", centerTimestampMs: 4400, authoredBeat: { type: "crossed_guard", guardTarget: { leftCell: 1, rightCell: 2, crossed: true } } });
+  const realBomb = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr4", variantId: "v1", chartId: "c1", centerTimestampMs: 4600, authoredBeat: { type: "bomb", placement: 5 } });
+  const events = [realFlow, realPunch, realGuard, realBomb];
+  const js = [hitJudgement("rr1", 4000), hitJudgement("rr2", 4200), hitJudgement("rr3", 4400)];
+  const list = projectAftermathEntries(events, snapshot(js), 4500);
+  assert.equal(list.length, 3, "real-shaped events (no top-level type): each real HIT maps via authoredBeat.type");
+  const byId = new Map(list.map((e) => [e.targetId, e]));
+  assert.deepEqual([byId.get("rr1").family, byId.get("rr1").hand, byId.get("rr1").mode], ["flow", "neutral", "slice"], "real flow note → flow/neutral/slice via authoredBeat.type");
+  assert.deepEqual([byId.get("rr2").family, byId.get("rr2").hand, byId.get("rr2").mode], ["punch", "right", "straight"], "real punch → punch/right/straight via authoredBeat.type");
+  assert.deepEqual([byId.get("rr3").family, byId.get("rr3").hand, byId.get("rr3").mode], ["guard", "both", "bonk"], "real crossed_guard → guard/both/bonk via authoredBeat.type");
+  assert.equal(byId.has("rr4"), false, "real bomb still produces no aftermath entry via authoredBeat.type");
+}
+
 // ---------- 0.0.55 W2: Test-mode committed synthetic hits from the render index ----------
 {
   // 0.0.55 W2: in Test the aftermath source is the deterministic render event

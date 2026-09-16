@@ -279,7 +279,11 @@ export function projectHazardContactEvents(gameplay, nowMs) {
  * @param {Record<string, unknown>} event
  */
 function aftermathMappingForEvent(event) {
-  const type = typeof event.type === "string" ? event.type : null;
+  // 0.0.55 W2 follow-up: real resolved content events (content-runtime
+  // timelineFor()) carry NO top-level `type` — only `authoredBeat.type`.
+  // Synthetic events in unit tests DO carry a top-level `type`. Prefer the
+  // top-level field when present, otherwise fall back to authoredBeat.type.
+  const type = (typeof event.type === "string" ? event.type : null) ?? (typeof event.authoredBeat?.type === "string" ? event.authoredBeat.type : null);
   if (type === "note") return { family: "flow", hand: "neutral", mode: "slice" };
   if (PUNCH_FAMILIES[type]) {
     const m = PUNCH_FAMILIES[type];

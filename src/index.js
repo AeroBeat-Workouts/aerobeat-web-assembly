@@ -1272,6 +1272,14 @@ export class AeroGame extends HTMLElement {
     // defaults apply; the five tuning parameters always ride live per-frame from
     // the (locked) run setup.
     const hazardContactActive = normalizedHazardContactState(gameplay.hazardContact);
+    // 0.0.55 W1 follow-up: the W1 null-tolerance fix made the normalizer return
+    // non-null for the fully-idle shape {active:false, sinceMs:null, releasedAtMs:null},
+    // which the renderer's isValidHazardContactActive validator rejects (it requires
+    // releasedAtMs to be non-null for an inactive state), so every frame — including
+    // idle ones — threw "Frame hazard contact active state is invalid". Only emit the
+    // field when there is meaningful collision state: active, or recently released
+    // (releasedAtMs is a number). Omit the field entirely when fully idle.
+    const hazardContactEmit = hazardContactActive !== null && !(hazardContactActive.active === false && hazardContactActive.sinceMs === null && hazardContactActive.releasedAtMs === null);
     const hazardVignetteParams = Object.freeze({ intensity: Number(setup.hazardVignetteIntensity), pulseHz: Number(setup.hazardVignettePulseHz), pulseDepth: Number(setup.hazardVignettePulseDepth), rampMs: Number(setup.hazardVignetteRampMs), decayMs: Number(setup.hazardVignetteDecayMs) });
     // z2tx: rowReach emission only for the boxing_collider presentation; other
     // presentations omit the field so the renderer defaults to legacy {1,1}.
@@ -1292,7 +1300,7 @@ export class AeroGame extends HTMLElement {
       // explicitly; an empty array is the idle state.
       aftermath,
       hazardContacts,
-      ...(hazardContactActive === null ? {} : { hazardContactActive }),
+      ...(hazardContactEmit ? { hazardContactActive } : {}),
       hazardVignetteParams,
       // W3-D: 0.0.53 debug visibility toggles + collider tuning inputs; the
       // renderer consumes these optional fields for the debug overlays.
