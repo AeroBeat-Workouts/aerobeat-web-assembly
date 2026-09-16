@@ -130,7 +130,21 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const keys = Reflect.ownKeys(list[0]).filter((k) => typeof k === "string");
   // 0.0.56 W2: the entry now carries the note's actual glyph `shape` (arrow/orb)
   // so the renderer can render the cut-in-half corpse of the real asset.
-  assert.deepEqual([...keys].sort(), ["family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"].sort(), "entry exposes only the renderer-contract fields");
+  // 0.0.58 B11b: + optional `appearanceColor` (the note's real fill) when the
+  // event carries a validated private appearance; absent otherwise.
+  const expectedPrivacyKeys = list[0].appearanceColor === undefined
+    ? ["family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"]
+    : ["appearanceColor", "family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"];
+  assert.deepEqual([...keys].sort(), expectedPrivacyKeys.sort(), "entry exposes only the renderer-contract fields");
+  // A validated note appearance crosses as the canonical uppercase fill token only.
+  const appearanceFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "ap", type: "note", centerTimestampMs: 9000, appearanceColor: "#FF8000", authoredBeat: { type: "note", hand: "left", placement: 6, direction: "left" } });
+  const appearanceList = projectAftermathEntries([appearanceFlow], snapshot([hitJudgement("ap", 9000)]), 9100);
+  assert.equal(appearanceList.length, 1);
+  assert.equal(appearanceList[0].appearanceColor, "#FF8000", "validated note appearance crosses as the real fill token");
+  const badAppearanceFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "ab", type: "note", centerTimestampMs: 9200, appearanceColor: "#ff8000", authoredBeat: { type: "note", hand: "left", placement: 6, direction: "left" } });
+  const badAppearanceList = projectAftermathEntries([badAppearanceFlow], snapshot([hitJudgement("ab", 9200)]), 9300);
+  assert.equal(badAppearanceList.length, 1);
+  assert.equal(badAppearanceList[0].appearanceColor, undefined, "a non-canonical appearance is never forwarded to the renderer");
   assert.equal(list[0].shape, "arrow", "a directional flow note exposes shape arrow");
   const spawnKeys = Reflect.ownKeys(list[0].spawn).filter((k) => typeof k === "string");
   assert.deepEqual([...spawnKeys].sort(), ["x", "y", "z"].sort(), "spawn exposes only the WU triple");
@@ -263,8 +277,15 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   // a single flow note (feedbackIndex 0) is a committed hit.
   const bombEvents = [flowNote("t-b", 6000), bomb("t-bomb", 6100)];
   const bombIndex = createSessionTargetIndex(bombEvents, {});
-  // targets=null → spawnForTarget falls back to the lane-anchored grid default.
-  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "only the even-index flow note commits; the bomb never appears");
+  // 0.0.58 B11a: the flow note's authored placement (cell 4 → column 0, row 1)
+  // drives the spawn even with targets=null — the cull-resistant authored source
+  // wins over the old lane-anchored center fallback.
+  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "only the even-index flow note commits; the bomb never appears");
+  // Cell-less authored beat (no placement, no spatialTarget.targetCell) → the
+  // lane-anchored center-row fallback remains the last-resort spawn.
+  const celllessNote = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "t-nc", type: "note", centerTimestampMs: 6500, authoredBeat: { type: "note", hand: "left", direction: "up" } });
+  const celllessIndex = createSessionTargetIndex([celllessNote], {});
+  assert.deepEqual(projectAftermathEntries([celllessNote], testSnapshot(), 6700, null, celllessIndex), [{ targetId: "t-nc", hitCommitMs: 6500, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-nc") }], "a cell-less authored beat falls back to the lane-anchored center-row spawn");
 }
 
 // ---------- 0.0.55 W2: Play real hits + real-judgement mapping (unchanged path) ----------
@@ -331,4 +352,39 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(at8.map((e) => e.targetId).sort(), ["d2", "d4", "d6", "d8", "d10", "d12", "d14"].sort(), "the 7 newest even-feedbackIndex committed hits are the live entries (oldest d0 evicted)");
 }
 
-console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence oracles passed.");
+// ---------- 0.0.58 B11a: the aftermath spawn is STABLE across the whole fall ----------
+{
+  // The 0.0.57 bug: spawnForTarget re-derived the spawn from the ephemeral
+  // projection every frame; once the committed target cullled from the 350 ms
+  // feedback window, the spawn degraded to {x:0,y:1,z:0} (track center) and
+  // the halves teleported to the middle of the track mid-fall. The spawn must
+  // now be a pure function of the cull-resistant authored beat: identical
+  // before AND after the target leaves the projection, and a stale center-cell
+  // target for the same id must not corrupt it.
+  const note = flowNote("b11", 5000); // placement 4 → column 0, row 1 → {x:-1.5,y:1,z:0}
+  const index = createSessionTargetIndex([note], {});
+  const staleCenterTarget = Object.freeze({ id: "b11", kind: "flow", hand: "left", family: "flow", cell: 5, cells: [], lane: null, beatCenterMs: 5000 });
+  const duringWindow = projectAftermathEntries([note], testSnapshot(), 5100, [staleCenterTarget], index);
+  const pastWindow = projectAftermathEntries([note], testSnapshot(), 5400, null, index);
+  const midFall = projectAftermathEntries([note], testSnapshot(), 5900, null, index);
+  assert.equal(duringWindow.length, 1, "Test committed hit present inside the feedback window");
+  assert.equal(pastWindow.length, 1, "Test committed hit persists past the feedback window");
+  assert.equal(midFall.length, 1, "Test committed hit still present mid-fall");
+  for (const list of [duringWindow, pastWindow, midFall]) {
+    assert.deepEqual(list[0].spawn, { x: -1.5, y: 1, z: 0 }, "spawn holds the note's authored column through the whole fall (no center degradation)");
+  }
+  assert.deepEqual(duringWindow[0].spawn, pastWindow[0].spawn, "spawn is identical before/after the 350 ms cull boundary");
+  assert.deepEqual(duringWindow[0].spawn, midFall[0].spawn, "spawn is identical into the mid-fall frames");
+  // Play path: same stability through a real hit judgement.
+  const playDuring = projectAftermathEntries([note], playSnapshot([hitJudgement("b11", 5050)]), 5150, [staleCenterTarget], null);
+  const playPast = projectAftermathEntries([note], playSnapshot([hitJudgement("b11", 5050)]), 5450, null, null);
+  assert.deepEqual(playDuring[0].spawn, { x: -1.5, y: 1, z: 0 }, "Play real hit: spawn derived from the authored beat (targets ignored)");
+  assert.deepEqual(playDuring[0].spawn, playPast[0].spawn, "Play real hit: spawn stable across the cull boundary");
+  // Guard (cell-less) keeps the lane-anchored center-row fallback on both paths.
+  const guardEvents = [guard("b11g", false, 7000)];
+  const guardIndex = createSessionTargetIndex(guardEvents, {});
+  const guardList = projectAftermathEntries(guardEvents, testSnapshot(), 7400, null, guardIndex);
+  assert.deepEqual(guardList[0].spawn, { x: 0, y: 1, z: 0 }, "guard (cell-less) falls back to the lane-anchored center-row spawn");
+}
+
+console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence + 0.0.58 B11a stable-spawn oracles passed.");

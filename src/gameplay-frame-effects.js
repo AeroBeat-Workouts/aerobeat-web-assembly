@@ -61,28 +61,34 @@ export function aftermathSeedForTargetId(targetId) {
 }
 
 /**
- * Resolve the aftermath spawn position (world WU triple) for one target id at
- * the commit frame. Uses the projection's current world positions when available;
- * otherwise falls back to the cell-derived grid position (canonical 4×3 top-left
- * columns [-1.5,-0.5,0.5,1.5], rows top→bottom [2,1,0] in world Y).
+ * 0.0.58 B11a: resolve the aftermath spawn position (world WU triple) from a
+ * CULL-RESISTANT source — the resolved content event's authored beat, NOT the
+ * ephemeral projection `targets`. The old implementation re-derived the spawn
+ * from `targets` every frame; when a committed target cullled out of the 350 ms
+ * feedback window the lookup missed and the spawn degraded to the track center
+ * `{x:0,y:1,z:0}`, teleporting the falling halves to the middle of the track
+ * mid-fall. The authored cell is session-stable, so the spawn now holds the
+ * note's column position for the entire fall+settle:
+ *   - Flow note: `authoredBeat.placement` (canonical 0–11 grid cell).
+ *   - Boxing punch: `authoredBeat.spatialTarget.targetCell` when present
+ *     (real resolved punches carry it; synthetic fixtures may not).
+ *   - Guard / no derivable cell: the lane-anchored center row default
+ *     `{x:0,y:1,z:0}` — the last-resort fallback.
  *
- * @param {readonly Record<string, unknown>[]|null} targets Current projection (may carry committed positions).
- * @param {Record<string, unknown>|null} target The resolved target record.
+ * @param {Record<string, unknown>} event Resolved content event (carries authoredBeat).
  */
-function spawnForTarget(targets, eventId) {
-  if (targets && Array.isArray(targets)) {
-    const target = targets.find((t) => isRecord(t) && t.id === eventId);
-    if (target) {
-      // Prefer the target's first projected position cell if it exposes one.
-      const cells = Array.isArray(target.cells) ? target.cells : [];
-      const cell = Number.isInteger(target.cell) ? Number(target.cell) : cells[0];
-      if (Number.isInteger(cell) && cell >= 0 && cell < 12) {
-        return gridCellToWorldZ0(cell);
-      }
-      // Lane-anchored boxing punch/guard fallback: center row Y 1.
-      return { x: 0, y: 1, z: 0 };
-    }
+function spawnForEvent(event) {
+  const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
+  const placement = beat.placement;
+  if (Number.isInteger(placement) && placement >= 0 && placement < 12) {
+    return gridCellToWorldZ0(placement);
   }
+  const spatialTarget = isRecord(beat.spatialTarget) ? beat.spatialTarget : {};
+  const targetCell = spatialTarget.targetCell;
+  if (Number.isInteger(targetCell) && targetCell >= 0 && targetCell < 12) {
+    return gridCellToWorldZ0(targetCell);
+  }
+  // Lane-anchored guard / cell-less fallback: center row Y 1, track center X.
   return { x: 0, y: 1, z: 0 };
 }
 
@@ -120,7 +126,11 @@ function gridCellToWorldZ0(cell) {
  * @param {readonly Record<string, unknown>[]} events Resolved content events.
  * @param {Record<string, unknown>} gameplay Snapshot carrying `judgements` + `session`.
  * @param {number} nowMs Absolute song time (timeline ms).
- * @param {readonly Record<string, unknown>[]|null} [targets] Current projection.
+ * @param {readonly Record<string, unknown>[]|null} [targets] Current projection. 0.0.58 B11a:
+ * accepted for signature compatibility only — the aftermath spawn is derived from the
+ * resolved content events' authored beats (cull-resistant), never from this ephemeral
+ * projection, so a committed target culling from the 350 ms feedback window can no
+ * longer degrade the spawn to the track center mid-fall.
  * @param {unknown} [renderEventIndex] The deterministic session target index (0.0.55 W2 Test-mode source).
  */
 export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex) {
@@ -131,9 +141,9 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
   for (const event of events) {
     if (isRecord(event)) eventsById.set(String(event.eventId ?? ""), event);
   }
-  /** @type {{targetId:string,hitCommitMs:number,family:"flow"|"punch"|"guard",hand:"left"|"right"|"both"|"neutral",mode:"straight"|"hook"|"uppercut"|"slice"|"bonk",spawn:{x:number,y:number,z:number},seed:number,shape?:"arrow"|"orb",evictedAtMs?:number}[]} */
+  /** @type {{targetId:string,hitCommitMs:number,family:"flow"|"punch"|"guard",hand:"left"|"right"|"both"|"neutral",mode:"straight"|"hook"|"uppercut"|"slice"|"bonk",spawn:{x:number,y:number,z:number},seed:number,shape?:"arrow"|"orb",appearanceColor?:string,evictedAtMs?:number}[]} */
   const output = [];
-  /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number,shape?:string}}[]} */
+  /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number,shape?:string,appearanceColor?:string}}[]} */
   const candidates = [];
   /** 0.0.54 W2-B: real hit judgements win; a target already covered by one produces no synthetic candidate. */
   const realHitIds = new Set();
@@ -158,9 +168,10 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         family: mapping.family,
         hand: mapping.hand,
         mode: mapping.mode,
-        spawn: spawnForTarget(targets, eventId),
+        spawn: spawnForEvent(event),
         seed: aftermathSeedForTargetId(eventId),
-        ...(mapping.shape ? { shape: mapping.shape } : {})
+        ...(mapping.shape ? { shape: mapping.shape } : {}),
+        ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {})
       }
     });
   }
@@ -201,9 +212,10 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
             family: mapping.family,
             hand: mapping.hand,
             mode: mapping.mode,
-            spawn: spawnForTarget(targets, targetId),
+            spawn: spawnForEvent(event),
             seed: aftermathSeedForTargetId(targetId),
-            ...(mapping.shape ? { shape: mapping.shape } : {})
+            ...(mapping.shape ? { shape: mapping.shape } : {}),
+            ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {})
           }
         });
       }
@@ -227,6 +239,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
       spawn: Object.freeze(item.entry.spawn),
       seed: item.entry.seed,
       ...(item.entry.shape ? { shape: item.entry.shape } : {}),
+      ...(item.entry.appearanceColor ? { appearanceColor: item.entry.appearanceColor } : {}),
       ...(evictedCommitMs !== null && item.commitMs === evictedCommitMs ? { evictedAtMs: item.commitMs } : {})
     });
     output.push(entry);
@@ -284,7 +297,7 @@ export function projectHazardContactEvents(gameplay, nowMs) {
  *
  * @param {Record<string, unknown>} event
  * @param {string} type
- * @returns {"arrow"|"orb"}
+ * @returns {"arrow"|"orb"|string}
  */
 function noteShapeForEvent(event, type) {
   const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
@@ -309,6 +322,20 @@ function noteShapeForEvent(event, type) {
 }
 
 /**
+ * 0.0.58 B11b: the event's validated private note appearance — the note's REAL fill
+ * color (canonical uppercase `#RRGGBB`) — so the renderer can desaturate the hit
+ * corpse's ACTUAL glyph instead of flattening it to one gray value. `null` when the
+ * event carries no validated appearance (the renderer falls back to a neutral fill).
+ *
+ * @param {Record<string, unknown>} event
+ * @returns {string|null}
+ */
+function eventNoteAppearance(event) {
+  const value = event.appearanceColor;
+  return typeof value === "string" && /^#[0-9A-F]{6}$/u.test(value) ? value : null;
+}
+
+/**
  * Map one resolved content event to its aftermath family/hand/mode/shape.
  * Returns `null` for events that do not produce an aftermath entry (non-note
  * non-punch non-guard types, omitted arc/burst, obstacles, bombs).
@@ -321,13 +348,19 @@ function aftermathMappingForEvent(event) {
   // Synthetic events in unit tests DO carry a top-level `type`. Prefer the
   // top-level field when present, otherwise fall back to authoredBeat.type.
   const type = (typeof event.type === "string" ? event.type : null) ?? (typeof event.authoredBeat?.type === "string" ? event.authoredBeat.type : null);
-  if (type === "note") return { family: "flow", hand: "neutral", mode: "slice", shape: noteShapeForEvent(event, "note") };
-  if (PUNCH_FAMILIES[type]) {
-    const m = PUNCH_FAMILIES[type];
-    return { family: "punch", hand: m.hand, mode: m.mode, shape: noteShapeForEvent(event, type) };
-  }
-  if (GUARD_TYPES.includes(type)) return { family: "guard", hand: "both", mode: "bonk", shape: null };
-  return null;
+  const mapping = type === "note"
+    ? { family: "flow", hand: "neutral", mode: "slice", shape: noteShapeForEvent(event, "note") }
+    : PUNCH_FAMILIES[type]
+      ? { family: "punch", hand: PUNCH_FAMILIES[type].hand, mode: PUNCH_FAMILIES[type].mode, shape: noteShapeForEvent(event, type) }
+      : GUARD_TYPES.includes(type)
+        ? { family: "guard", hand: "both", mode: "bonk", shape: null }
+        : null;
+  if (!mapping) return null;
+  // 0.0.58 B11b: carry the note's real fill so the renderer desaturates the
+  // ACTUAL glyph (white outline kept light, fill grayed) instead of flattening
+  // the corpse to a single uniform gray value.
+  const appearance = eventNoteAppearance(event);
+  return appearance === null ? mapping : { ...mapping, appearanceColor: appearance };
 }
 
 /** @param {unknown} value */
