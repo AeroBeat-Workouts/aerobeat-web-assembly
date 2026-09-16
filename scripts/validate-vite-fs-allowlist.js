@@ -62,7 +62,16 @@ try {
     assert.equal(response.status, 403, `${label} must be forbidden by Vite fs.strict: ${file}`);
   }
 } finally {
+  // Hold a ref'd timer so the event loop stays alive while the async
+  // httpServer.close() settles. With only the Vite http server as a live handle,
+  // the listening socket can be removed before the close callback fires, so the
+  // loop otherwise drains and the process exits with an "unsettled top-level
+  // await" (a latent race — server.close() settles in <10 ms once the loop is
+  // held). This makes the shutdown deterministic regardless of incidental
+  // keep-alive handles.
+  const closeKeepAlive = setTimeout(() => {}, 1000);
   await server.close();
+  clearTimeout(closeKeepAlive);
 }
 
 console.log(`Vite strict filesystem allowlist validation passed (${viteAllowedFileSystemRoots.length} exact package roots).`);
