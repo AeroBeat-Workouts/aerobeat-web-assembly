@@ -77,7 +77,11 @@ try {
         const evidence = (id, m, sx, sy) => ({ schema: "aerobeat/gameplay_evidence_snapshot", version: 1, calibrationId: "cal-1", measuredSourceFrameId: id, measurementTimestampMs: m, provenance: "measured", activeBoxingActions: [], anchors: [anchor("nose", m, sx, sy), anchor("left_shoulder", m, 0, 0), anchor("right_shoulder", m, 3, 0), anchor("left_elbow", m, 0, 0), anchor("right_elbow", m, 3, 0), anchor("left_wrist", m, 1, 1), anchor("right_wrist", m, 3, 1)], entries: [] });
         const inputSnap = (m, latest) => ({ sourceIdentity: "camera-a", calibration: { calibrationId: "cal-1", readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: latest, straightQualifications: [] });
         const clockSnap = (ms, playing) => ({ contextTimeSeconds: ms / 1000, positionSeconds: ms / 1000, playing });
-        const coordinator = createAeroGameplaySessionCoordinator({ sessionId: "b12-pixel-browser" });
+        // countdownStepMs: 1 (same as the gameplay unit test) so the session
+        // reaches "playing" and evaluateBoxingObstacles() runs — without it the
+        // session is still in countdown when the collision is driven, so no
+        // obstacle outcome is ever committed.
+        const coordinator = createAeroGameplaySessionCoordinator({ sessionId: "b12-pixel-browser", countdownStepMs: 1 });
         coordinator.configureContent({ packageId: "b12-pkg", selectedVariant: variant, resolvedEvents: [weaveEvent, keeperPunch], profileIdentity: { schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: "profile", profileVersion: "1", contentHash: HASH, class: "between_run_ruleset", regenerationRequired: false } });
         coordinator.advance({ timestampMs: 0, clock: clockSnap(0, false), input: inputSnap(0, null) });
         coordinator.requestStart(0);
@@ -86,6 +90,8 @@ try {
         coordinator.advance({ timestampMs: 3, clock: clockSnap(0, false) });
         // Nose outside → inside (segment entry) → exit → past-end (finalize).
         const send = (songMs, sx, sy, id) => coordinator.advance({ timestampMs: songMs, clock: clockSnap(songMs, true), input: inputSnap(songMs, evidence(id, songMs, sx, sy)) });
+        const preState = coordinator.getSnapshot().session.state;
+        if (preState !== "playing") throw new Error(`session must be "playing" before driving the collision, got "${preState}" (countdownStepMs: 1 required)`);
         send(950, 1, 2, "f0");
         send(1100, 0, 1.5, "f1");
         const midSnapshot = coordinator.getSnapshot();
