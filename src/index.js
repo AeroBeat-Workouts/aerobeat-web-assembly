@@ -1271,7 +1271,27 @@ export class AeroGame extends HTMLElement {
     // invalid state omits the field entirely so the renderer's absent-tolerant
     // defaults apply; the five tuning parameters always ride live per-frame from
     // the (locked) run setup.
-    const hazardContactActive = normalizedHazardContactState(gameplay.hazardContact);
+    let hazardContactActive = normalizedHazardContactState(gameplay.hazardContact);
+    // 0.0.56 W5 (B8): the boxing_collider_v1 ruleset never populates
+    // `gameplay.hazardContact` (that field is set only by `evaluateFlowObstacles`,
+    // which runs for the legacy boxing rulesets but not for boxing_collider_v1).
+    // Boxing collider nose–obstacle collisions are instead recorded as
+    // `obstacleOutcomes` with `rulesetId: "boxing_collider_v1"` +
+    // `result: "contact"`, which `projectHazardContactEvents` already emits into
+    // the `hazardContacts` list. When no Flow-derived hazardContact state is
+    // active and the latest retained hazard-contact event is a boxing_collider_v1
+    // obstacle contact, derive the active state from that event so the
+    // state-driven vignette fires exactly like it does for Flow.
+    if (hazardContactActive === null || hazardContactActive.active === false) {
+      // hazardContacts is sorted newest-first, so index 0 is the most recent.
+      const latestContact = hazardContacts.length > 0 ? hazardContacts[0] : null;
+      if (latestContact !== null) {
+        const latestOutcome = (Array.isArray(gameplay.obstacleOutcomes) ? gameplay.obstacleOutcomes : []).find((o) => o && typeof o === "object" && o.eventId === latestContact.eventId);
+        if (latestOutcome !== null && typeof latestOutcome === "object" && latestOutcome.rulesetId === gameplayRulesetIds.boxingCollider) {
+          hazardContactActive = Object.freeze({ active: true, sinceMs: latestContact.atMs, releasedAtMs: null });
+        }
+      }
+    }
     // 0.0.55 W1 follow-up: the W1 null-tolerance fix made the normalizer return
     // non-null for the fully-idle shape {active:false, sinceMs:null, releasedAtMs:null},
     // which the renderer's isValidHazardContactActive validator rejects (it requires
