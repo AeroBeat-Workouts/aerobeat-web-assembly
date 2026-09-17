@@ -208,17 +208,29 @@ try {
       assert.ok(Math.abs(proof.proj.spawnX.x - proof.proj.centerX.x) > 40, `the note column (x=${SPAWN.x}) must project clearly away from the track center: spawnScreen=${proof.proj.spawnX.x.toFixed(1)}, centerScreen=${proof.proj.centerX.x.toFixed(1)}`);
       const drift = proof.frames.map((f) => ({ offsetMs: f.offsetMs, count: f.count, dxToColumn: Math.abs(f.meanX - proof.proj.spawnX.x), dxToCenter: Math.abs(f.meanX - proof.proj.centerX.x) }));
       for (const row of drift) {
-        assert.ok(row.count > 400, `${embedding} t+${row.offsetMs} ms: corpse must render visibly: ${row.count}px`);
-        assert.ok(row.dxToColumn < row.dxToCenter, `${embedding} t+${row.offsetMs} ms: centroid must sit NEAR the note column, not the track center (col=${row.dxToColumn.toFixed(1)}px vs center=${row.dxToCenter.toFixed(1)}px)`);
+        // 0.0.59 B14: the corpse falls off-screen and fades — at t+900 ms it may
+        // already be gone (the old floor-settle kept it visible indefinitely).
+        // Skip the "visible" assertion once faded; still check the column when present.
+        const expectedVisible = row.offsetMs <= 500;
+        if (expectedVisible) {
+          assert.ok(row.count > 400, `${embedding} t+${row.offsetMs} ms: corpse must render visibly: ${row.count}px`);
+          assert.ok(row.dxToColumn < row.dxToCenter, `${embedding} t+${row.offsetMs} ms: centroid must sit NEAR the note column, not the track center (col=${row.dxToColumn.toFixed(1)}px vs center=${row.dxToCenter.toFixed(1)}px)`);
+        } else if (row.count > 0) {
+          assert.ok(row.dxToColumn < row.dxToCenter, `${embedding} t+${row.offsetMs} ms: fading centroid still near the note column (col=${row.dxToColumn.toFixed(1)}px vs center=${row.dxToCenter.toFixed(1)}px)`);
+        }
       }
       // The centroid must stay within a generous band of the projected column
       // (the halves separate ±~0.08 WU + tumble, but the mean stays at the column).
-      for (const row of proof.frames) {
+      // 0.0.59 B14: skip frames where the corpse has fallen off-screen and faded.
+      for (const row of proof.frames.filter((f) => f.count > 0)) {
         assert.ok(Math.abs(row.meanX - proof.proj.spawnX.x) < 120, `${embedding} t+${row.offsetMs} ms: centroid x=${row.meanX.toFixed(1)} must stay near the projected column x=${proof.proj.spawnX.x.toFixed(1)}`);
       }
       // The centroid must NOT be near the track center at the far-fall sample.
-      const farFall = proof.frames[proof.frames.length - 1];
-      assert.ok(Math.abs(farFall.meanX - proof.proj.centerX.x) > 80, `${embedding} far-fall centroid x=${farFall.meanX.toFixed(1)} must NOT be at the track center x=${proof.proj.centerX.x.toFixed(1)} (B11a teleport)`);
+      // 0.0.59 B14: use the last VISIBLE frame (the corpse may have faded by the last offset).
+      const farFall = [...proof.frames].reverse().find((f) => f.count > 0);
+      if (farFall) {
+        assert.ok(Math.abs(farFall.meanX - proof.proj.centerX.x) > 80, `${embedding} far-fall centroid x=${farFall.meanX.toFixed(1)} must NOT be at the track center x=${proof.proj.centerX.x.toFixed(1)} (B11a teleport)`);
+      }
       // ---- B11b: desaturated, not a flat uniform gray; outline stays light ----
       // PlayCanvas StandardMaterial with useLighting=false renders ≈ diffusedColor
       // (the facade sets emissive = diffuse*0.32), so the GLB mat/white outline
