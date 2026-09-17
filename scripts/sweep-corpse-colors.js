@@ -60,17 +60,36 @@ const git = (args) => {
   return r.stdout ?? "";
 };
 
-// Capture the candidate fix (the renderer's LAST commit, which must touch the W1 files) as a
-// patch so "before" = HEAD minus the fix. The worktree must be CLEAN at start (the Vite
-// provenance gate rejects dirty dependency worktrees).
-const fixPatch = git(["diff", "HEAD~1..HEAD", "--", ...FIX_FILES]);
-if (!fixPatch.trim()) throw new Error("renderer HEAD~1..HEAD does not touch the W1 fix files — commit the candidate fix first (worktree clean)");
-writeFileSync(FIX_PATCH, fixPatch);
-console.log(`[sweep] candidate fix captured (${fixPatch.length} bytes) → ${FIX_PATCH}`);
+// BEFORE state source:
+//  - AEROBEAT_SWEEP_BEFORE_PIN=<rendererCommit>  → "before" checks out that commit
+//    (the true pre-fix state, e.g. a517aa2 = 0.92 desat / no substitution). Preferred
+//    once more than one iteration commit exists.
+//  - (default) → "before" = HEAD minus the renderer's LAST commit (patch revert).
+const BEFORE_PIN = process.env.AEROBEAT_SWEEP_BEFORE_PIN ?? "";
+const HEAD_NOW = git(["rev-parse", "HEAD"]).trim();
+const BRANCH_NOW = git(["rev-parse", "--abbrev-ref", "HEAD"]).trim();
+
+let fixPatch = "";
+if (!BEFORE_PIN) {
+  fixPatch = git(["diff", "HEAD~1..HEAD", "--", ...FIX_FILES]);
+  if (!fixPatch.trim()) throw new Error("renderer HEAD~1..HEAD does not touch the W1 fix files — commit the candidate fix first (worktree clean), or set AEROBEAT_SWEEP_BEFORE_PIN");
+  writeFileSync(FIX_PATCH, fixPatch);
+  console.log(`[sweep] candidate fix captured (${fixPatch.length} bytes) → ${FIX_PATCH} (before = HEAD minus last commit)`);
+} else {
+  console.log(`[sweep] before pinned to renderer commit ${BEFORE_PIN} (after = HEAD ${HEAD_NOW.slice(0, 8)})`);
+}
 
 let fixedState = "after"; // current working tree state
-const revertToBefore = () => { git(["apply", "-R", FIX_PATCH]); fixedState = "before"; };
-const restoreAfter = () => { git(["apply", FIX_PATCH]); fixedState = "after"; };
+const revertToBefore = () => {
+  if (BEFORE_PIN) git(["checkout", "-q", BEFORE_PIN]);
+  else git(["apply", "-R", FIX_PATCH]);
+  fixedState = "before";
+};
+const restoreAfter = () => {
+  if (BEFORE_PIN) git(["checkout", "-q", BRANCH_NOW]);
+  else git(["apply", FIX_PATCH]);
+  fixedState = "after";
+};
 
 const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null } });
 await vite.listen();
@@ -134,14 +153,30 @@ try {
             if (luma > fMaxLuma) fMaxLuma = luma;
             fSat += (Math.max(r, g, b) - Math.min(r, g, b));
           }
-          frame(); // restore baseline frame between cases
           if (count < 200 || maxX < 0) throw new Error(`corpse not visibly rendered for ${row.label}/${kind} (${count}px)`);
-          // crop the glyph bounding box (padded) as a PNG data URL.
+          // Crop the glyph bounding box (padded) BEFORE re-rendering the baseline —
+          // the canvas must still hold the case frame. (The 0.0.60 first-run bug:
+          // the crop read the canvas after frame() had restored the baseline, so
+          // every crop showed the scene without the corpse while the stats —
+          // computed from the captured pixels — were correct.)
           const pad = 6;
           const sx = Math.max(0, minX - pad), sy = Math.max(0, minY - pad);
           const sw = Math.min(canvas.width - sx, maxX - minX + pad * 2), sh = Math.min(canvas.height - sy, maxY - minY + pad * 2);
           const crop = new OffscreenCanvas(sw, sh);
           crop.getContext("2d").drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+          // Sanity guard (the crop must actually contain the glyph): the crop's
+          // pixels must differ from the baseline region in a substantial fraction
+          // of the box — a crop of baseline-only scene would fail this.
+          const cropPixels = crop.getContext("2d", { willReadFrequently: true }).getImageData(0, 0, sw, sh).data;
+          let cropDiff = 0;
+          for (let yy = 0; yy < sh; yy += 1) {
+            for (let xx = 0; xx < sw; xx += 1) {
+              const ci = (yy * sw + xx) * 4;
+              const bi = ((sy + yy) * canvas.width + (sx + xx)) * 4;
+              if (Math.abs(cropPixels[ci] - baseline[bi]) + Math.abs(cropPixels[ci + 1] - baseline[bi + 1]) + Math.abs(cropPixels[ci + 2] - baseline[bi + 2]) > 30) cropDiff += 1;
+            }
+          }
+          if (cropDiff < 0.3 * sw * sh) throw new Error(`crop sanity failed for ${row.label}/${kind}: only ${cropDiff}/${sw * sh} box pixels differ from baseline — crop does not contain the corpse`);
           const blob = await crop.convertToBlob({ type: "image/png" });
           const cropDataUrl = await new Promise((res, rej) => {
             const fr = new FileReader();
@@ -149,6 +184,7 @@ try {
             fr.onerror = () => rej(fr.error);
             fr.readAsDataURL(blob);
           });
+          frame(); // restore baseline frame between cases (AFTER the crop)
           out.push({
             label: row.label, token: row.token, kind,
             box: { x: sx, y: sy, w: sw, h: sh },
