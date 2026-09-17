@@ -124,18 +124,24 @@ try {
         return ctx.getImageData(0, 0, sample.width, sample.height).data;
       };
       const deltaRGB = (a, b, i) => Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
-      const makeEntry = (targetId, family, mode, appearanceColor) => Object.freeze({
+      const makeEntry = (targetId, family, mode, shape, appearanceColor) => Object.freeze({
         targetId, hitCommitMs: commitMs, family, hand: "left", mode,
-        spawn: { x: 0, y: 1, z: 0 }, seed: 1234, shape: "orb",
+        spawn: { x: 0, y: 1, z: 0 }, seed: 1234, shape,
         ...(appearanceColor ? { appearanceColor } : {})
       });
       const frame = () => renderer.renderGameplayFrame({ presentation: "flow", nowMs: commitMs + sampleOffsetMs, targets: [], timingWindowBeforeMs: 180, timingWindowAfterMs: 180, aftermath: [] });
       const baseline = (() => { frame(); return readPixels(); })();
       const nowMs = commitMs + sampleOffsetMs;
       const out = [];
+      const KINDS = [
+        { kind: "flow-arrow", family: "flow", shape: "arrow" },
+        { kind: "flow-orb", family: "flow", shape: "orb" },
+        { kind: "punch-orb", family: "punch", shape: "orb" }
+      ];
       for (const row of sweep) {
-        for (const kind of ["flow", "punch"]) {
-          const entry = makeEntry(`sweep-${row.label}-${kind}`, kind, kind === "flow" ? "slice" : "straight", row.token);
+        for (const spec of KINDS) {
+          const kind = spec.kind;
+          const entry = makeEntry(`sweep-${row.label}-${kind}`, spec.family, spec.family === "flow" ? "slice" : "straight", spec.shape, row.token);
           renderer.renderGameplayFrame({ presentation: "flow", nowMs, targets: [], timingWindowBeforeMs: 180, timingWindowAfterMs: 180, aftermath: [entry] });
           const pixels = readPixels();
           // diff-pixel bounding box (the whole glyph) + fill-band stats (the colored interior).
@@ -220,8 +226,9 @@ try {
     const stat = f ? `rgb(${f.r.toFixed(0)},${f.g.toFixed(0)},${f.b.toFixed(0)})<br>b-r ${f.bMinusR.toFixed(0)} · sat ${f.meanSat.toFixed(0)}` : "—";
     return `<td><div class="lab">${label} · ${phase} · ${kind}</div><div class="img">${url ? `<img src="${url}">` : "<b>missing</b>"}</div><div class="stat">${stat}</div></td>`;
   };
-  const rows = SWEEP.map((row) => `<tr>${cell("before", row.label, "flow")}${cell("before", row.label, "punch")}${cell("after", row.label, "flow")}${cell("after", row.label, "punch")}</tr>`).join("");
-  await sheet.setContent(`<!doctype html><style>body{background:#0b0f16;margin:0;padding:16px;font:12px/1.4 ui-monospace,monospace;color:#cfd8e3}h1{font-size:14px;margin:0 0 10px}table{border-collapse:collapse}td{vertical-align:top;padding:8px;background:#111722;border:1px solid #223} .lab{color:#8fa3bd;font-size:11px;margin-bottom:4px}.img img{display:block;background:#071426;border:1px solid #345;max-width:180px}.stat{margin-top:4px;color:#9fd6a5;font-size:11px}th{color:#8fa3bd;font-size:11px;text-align:left;padding:4px 8px}</style><h1>0.0.60 W1 (F1) corpse color sweep — note palette → rendered corpse fill (real pixels, commit+40ms). Columns: BEFORE (0.92 desat, no substitution) × flow/punch, AFTER (candidate constants) × flow/punch.</h1><table><tr><th></th><th>before · flow</th><th>before · punch</th><th>after · flow</th><th>after · punch</th></tr>${rows}</table>`);
+  const KINDS_NODE = ["flow-arrow", "flow-orb", "punch-orb"];
+  const rows = SWEEP.map((row) => `<tr>${KINDS_NODE.map((k) => cell("before", row.label, k)).join("")}${KINDS_NODE.map((k) => cell("after", row.label, k)).join("")}</tr>`).join("");
+  await sheet.setContent(`<!doctype html><style>body{background:#0b0f16;margin:0;padding:16px;font:12px/1.4 ui-monospace,monospace;color:#cfd8e3}h1{font-size:14px;margin:0 0 10px}table{border-collapse:collapse}td{vertical-align:top;padding:8px;background:#111722;border:1px solid #223} .lab{color:#8fa3bd;font-size:11px;margin-bottom:4px}.img img{display:block;background:#071426;border:1px solid #345;max-width:150px}.stat{margin-top:4px;color:#9fd6a5;font-size:11px}th{color:#8fa3bd;font-size:11px;text-align:left;padding:4px 8px}</style><h1>0.0.60 W1 (F1) corpse color sweep — note palette → rendered corpse (real pixels, commit+40ms). Columns: BEFORE (a517aa2: 0.92 desat, no substitution) then AFTER (candidate constants), each × flow-arrow / flow-orb / punch-orb.</h1><table><tr><th></th>${KINDS_NODE.map((k) => `<th>before · ${k}</th>`).join("")}${KINDS_NODE.map((k) => `<th>after · ${k}</th>`).join("")}</tr>${rows}</table>`);
   await sheet.waitForTimeout(250);
   const pngPath = join(EVIDENCE_DIR, `${STAMP}-corpse-sweep-combined.png`);
   const jsonPath = join(EVIDENCE_DIR, `${STAMP}-corpse-sweep-combined.json`);
