@@ -14,6 +14,10 @@
 //   HAZARD_GLOW_DECAY_MS = 600.
 
 import { canonicalWorldUnitsPerMs } from "./gameplay-visual-runtime.js";
+// 0.0.59 B15: the shared row-reach mapping — the SAME contract function the
+// renderer uses for boxing_collider presentation rows (presentationRowY →
+// boxingColliderRowY) and the gameplay judge plane (boxingColliderTargetCenter).
+import { boxingColliderRowY } from "@aerobeat/web-contracts/gameplay-contracts";
 
 /** p5pr: live aftermath entries retained per frame (the 7-beat FIFO cap). */
 const AFTERMATH_LIVE_CAP = 7;
@@ -75,9 +79,33 @@ export function aftermathSeedForTargetId(targetId) {
  *   - Guard / no derivable cell: the lane-anchored center row default
  *     `{x:0,y:1,z:0}` — the last-resort fallback.
  *
+ * 0.0.59 B15: a boxing punch spawns at the NOTE'S ACTUAL RENDERED POSITION,
+ * not a re-derived flow-grid cell that can drift from where the live note sits.
+ * The playtest jump had two components, both reproduced by the real-pixel
+ * oracle (`validate-0.0.59-boxing-spawn-pixels.js`, note vs. corpse screen
+ * centroids per frame):
+ *   - X: the live note (and the gameplay judge plane via
+ *     `targetCenterForPlacement`) render at world x = `placement % 4` ∈
+ *     [0,1,2,3], while the old spawn used the FLOW grid columnX (−0.5 for the
+ *     straight-left cell 4) — a ~48 px single-frame horizontal jump on the
+ *     default camera. The spawn now uses the shared `targetCenterForPlacement`
+ *     X directly (the same value the renderer derives for the punch icon), so
+ *     X is identical by construction.
+ *   - Y: the live note renders at the reach-row Y (`boxingColliderRowY(row)` —
+ *     1 + topRowReachWU for row 0, 1 for row 1, 1 − bottomRowReachWU for row
+ *     2 under the Game Setup reach fractions), while the old spawn used the
+ *     legacy full-grid `rowY` (2/1/0) — up to a ~25 px vertical jump for the
+ *     top/bottom rows. The spawn now resolves the SAME shared contract
+ *     function the renderer's presentation uses, with the run's configured
+ *     reach fractions (session-stable, defaults 0.25/0.25 when unset) —
+ *     matching Y exactly at any reach setting.
+ * Flow notes still use `gridCellToWorldZ0` (their presentation maps through
+ * `columnX`/`rowY` without reach adjustment), so only the boxing path moved.
+ *
  * @param {Record<string, unknown>} event Resolved content event (carries authoredBeat).
+ * @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [reach] Run-configured row-reach fractions (Game Setup v3); absent values take the 0.25 defaults.
  */
-function spawnForEvent(event) {
+function spawnForEvent(event, reach) {
   const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
   const placement = beat.placement;
   if (Number.isInteger(placement) && placement >= 0 && placement < 12) {
@@ -86,7 +114,7 @@ function spawnForEvent(event) {
   const spatialTarget = isRecord(beat.spatialTarget) ? beat.spatialTarget : {};
   const targetCell = spatialTarget.targetCell;
   if (Number.isInteger(targetCell) && targetCell >= 0 && targetCell < 12) {
-    return gridCellToWorldZ0(targetCell);
+    return punchCellToRenderedPositionZ0(targetCell, reach);
   }
   // Lane-anchored guard / cell-less fallback: center row Y 1, track center X.
   return { x: 0, y: 1, z: 0 };
@@ -99,6 +127,42 @@ function gridCellToWorldZ0(cell) {
   const xs = [-1.5, -0.5, 0.5, 1.5];
   const ys = [2, 1, 0];
   return { x: xs[column], y: ys[row], z: 0 };
+}
+
+/**
+ * 0.0.59 B15: the rendered Z=0 world position of one boxing punch target cell —
+ * the EXACT anchor the renderer places the live punch icon at commit (the
+ * boxing_collider path: `targetCenterForPlacement` X — i.e. `placement % 4` in
+ * the renderer's world frame — plus the reach-row Y via the shared
+ * `boxingColliderRowY` contract). Deriving from the authored target cell alone
+ * (plus the session-stable reach settings) keeps the spawn cull-resistant
+ * while guaranteeing it equals the note's rendered position: the knock/launch
+ * then plays from the note, with no single-frame jump.
+ *
+ * @param {number} cell Canonical 4×3 target cell (0–11).
+ * @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [reach] Run-configured row-reach fractions; absent/out-of-range values take the Game Setup 0.25 defaults.
+ */
+function punchCellToRenderedPositionZ0(cell, reach) {
+  const row = /** @type {0|1|2} */(Math.floor(cell / 4));
+  const normalized = normalizeSpawnRowReach(reach);
+  // Same X as the shared judge-plane truth: placement % 4 (the renderer's
+  // `targetCenterForPlacement`; inlined here so this module stays free of a
+  // web-gameplay import — the value is an identity mapping over the cell).
+  const x = cell % 4;
+  // Reach-row Y from the SHARED contract (renderer presentationRowY + judge
+  // plane both call this exact function): 1 + top, 1, 1 − bottom.
+  const y = boxingColliderRowY(row, normalized).worldY;
+  return { x, y, z: 0 };
+}
+
+const SPAWN_ROW_REACH_DEFAULT = 0.25;
+/** Coerce optional run reach fractions into the plain shape `boxingColliderRowY` requires (out-of-range values fall back to the 0.25 Game Setup defaults). @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [reach] */
+function normalizeSpawnRowReach(reach) {
+  const value = (key) => {
+    const candidate = reach === null || typeof reach !== "object" ? undefined : /** @type {unknown} */(reach[key]);
+    return typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 0 && candidate <= 1 ? candidate : SPAWN_ROW_REACH_DEFAULT;
+  };
+  return { topRowReachWU: value("topRowReachWU"), bottomRowReachWU: value("bottomRowReachWU") };
 }
 
 /**
@@ -132,8 +196,9 @@ function gridCellToWorldZ0(cell) {
  * projection, so a committed target culling from the 350 ms feedback window can no
  * longer degrade the spawn to the track center mid-fall.
  * @param {unknown} [renderEventIndex] The deterministic session target index (0.0.55 W2 Test-mode source).
+ * @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [rowReach] 0.0.59 B15: the run-configured row-reach fractions (Game Setup v3, emitted by the frame for the boxing_collider presentation) so the punch spawn Y matches the note's reach-row Y at ANY reach setting; absent values take the 0.25 defaults.
  */
-export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex) {
+export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null) {
   const judgementsValue = recordValue(gameplay, "judgements");
   if (!Array.isArray(judgementsValue)) return [];
   /** @type {{eventId:string}} */
@@ -168,7 +233,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         family: mapping.family,
         hand: mapping.hand,
         mode: mapping.mode,
-        spawn: spawnForEvent(event),
+        spawn: spawnForEvent(event, rowReach),
         seed: aftermathSeedForTargetId(eventId),
         ...(mapping.shape ? { shape: mapping.shape } : {}),
         ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {})
@@ -212,7 +277,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
             family: mapping.family,
             hand: mapping.hand,
             mode: mapping.mode,
-            spawn: spawnForEvent(event),
+            spawn: spawnForEvent(event, rowReach),
             seed: aftermathSeedForTargetId(targetId),
             ...(mapping.shape ? { shape: mapping.shape } : {}),
             ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {})

@@ -387,4 +387,57 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(guardList[0].spawn, { x: 0, y: 1, z: 0 }, "guard (cell-less) falls back to the lane-anchored center-row spawn");
 }
 
-console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence + 0.0.58 B11a stable-spawn oracles passed.");
+// ---------- 0.0.59 B15: boxing punch spawns at the NOTE'S RENDERED position ----------
+{
+  // The 0.0.58 playtest jump: the old spawn re-derived `gridCellToWorldZ0`
+  // (flow-grid columnX + legacy full-grid rowY), so a straight_left on cell 4
+  // spawned at (-0.5, 1) while the live note rendered at (placement%4,
+  // reach-row Y) = (0, 1) — and cell 0 (top row) at (-0.5, 2) vs (0, 1.25).
+  // The spawn must now equal the renderer's exact hit-plane anchor:
+  //   X = placement % 4  (the shared targetCenterForPlacement truth the
+  //       renderer uses for the punch icon + the gameplay judge plane)
+  //   Y = boxingColliderRowY(row, reach).worldY  (the same shared contract
+  //       the renderer's presentationRowY + judge plane call).
+  const reachDefault = Object.freeze({ topRowReachWU: 0.25, bottomRowReachWU: 0.25 });
+  const punchAt = (id, type, targetCell) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type, centerTimestampMs: 8000, authoredBeat: { type, spatialTarget: { targetCell, entryDirection: "up" } } });
+  const js = (ids) => ids.map((id) => hitJudgement(id, 8000));
+  // Center row (cell 4): (0, 1) at any reach; top row (cell 0): (0, 1+reach);
+  // bottom row (cell 8): (0, 1-reach); right hand (cell 6): (2, 1).
+  const events = [punchAt("sl-c", "straight_left", 4), punchAt("sl-t", "straight_left", 0), punchAt("sl-b", "straight_left", 8), punchAt("sr-m", "straight_right", 6)];
+  const list = projectAftermathEntries([...events], playSnapshot(js(["sl-c", "sl-t", "sl-b", "sr-m"])), 8200, null, null, reachDefault);
+  const byId = new Map(list.map((e) => [e.targetId, e]));
+  assert.equal(list.length, 4, "all four punches produce entries (Play real-hit path)");
+  assert.deepEqual(byId.get("sl-c").spawn, { x: 0, y: 1, z: 0 }, "center-row straight_left (cell 4) spawns at the note's rendered position (x = placement%4, reach-row y = 1)");
+  assert.deepEqual(byId.get("sl-t").spawn, { x: 0, y: 1.25, z: 0 }, "top-row straight_left (cell 0) spawns at the REACH-ROW y (1 + topRowReachWU), not the legacy full-grid row y (2)");
+  assert.deepEqual(byId.get("sl-b").spawn, { x: 0, y: 0.75, z: 0 }, "bottom-row straight_left (cell 8) spawns at the REACH-ROW y (1 − bottomRowReachWU), not the legacy full-grid row y (0)");
+  assert.deepEqual(byId.get("sr-m").spawn, { x: 2, y: 1, z: 0 }, "straight_right (cell 6) spawns at x = placement%4 = 2 (not the flow-grid column 0.5)");
+  // Non-default reach flows through: the spawn follows the configured rows.
+  const wideReach = Object.freeze({ topRowReachWU: 1, bottomRowReachWU: 0.5 });
+  const wide = new Map(projectAftermathEntries([...events], playSnapshot(js(["sl-c", "sl-t", "sl-b", "sr-m"])), 8200, null, null, wideReach).map((e) => [e.targetId, e]));
+  assert.deepEqual(wide.get("sl-t").spawn, { x: 0, y: 2, z: 0 }, "top row follows topRowReachWU = 1 (y 2 — equals the legacy full-grid mapping exactly)");
+  assert.deepEqual(wide.get("sl-b").spawn, { x: 0, y: 0.5, z: 0 }, "bottom row follows bottomRowReachWU = 0.5 (y 0.5)");
+  // Absent reach takes the 0.25 Game Setup defaults (backward compatible).
+  const defaulted = new Map(projectAftermathEntries([punchAt("sl-d", "straight_left", 0)], playSnapshot([hitJudgement("sl-d", 8000)]), 8200, null, null).map((e) => [e.targetId, e]));
+  assert.deepEqual(defaulted.get("sl-d").spawn, { x: 0, y: 1.25, z: 0 }, "absent rowReach takes the 0.25 defaults (top row y 1.25)");
+  // Test-mode path: the synthetic committed hit gets the SAME rendered-position spawn.
+  // (The Test GREAT/miss alternation is by center-timestamp order, so the
+   // LATER beat carries the even feedbackIndex and is the synthetic HIT.)
+  const testPunches = [punchAt("t-miss", "straight_left", 0), punchAt("t-hit", "straight_left", 4)];
+  // The index must be built over the SAME array instance passed to the
+  // projection (validSessionTargetIndex checks candidate.events === events).
+  const testIndex = createSessionTargetIndex(testPunches, {});
+  const testList = projectAftermathEntries(testPunches, testSnapshot(), 8200, null, testIndex, reachDefault);
+  const testById = new Map(testList.map((e) => [e.targetId, e]));
+  assert.equal(testList.length, 1, "Test mode: even-feedbackIndex punch commits; odd is a miss");
+  assert.deepEqual(testById.get("t-hit").spawn, { x: 0, y: 1, z: 0 }, "Test-mode punch spawn also matches the note rendered position");
+  assert.equal(testById.has("t-miss"), false, "the odd-feedbackIndex (miss) punch never appears");
+  // Flow notes are UNCHANGED: placement still maps through the legacy grid.
+  const flowSpawn = projectAftermathEntries([flowNote("f15", 9000)], playSnapshot([hitJudgement("f15", 9000)]), 9200, null, null, reachDefault);
+  assert.deepEqual(flowSpawn[0].spawn, { x: -1.5, y: 1, z: 0 }, "flow notes keep the legacy grid-cell spawn (reach never applied)");
+  // Cull-resistant: identical before AND after the target leaves the projection.
+  const stableA = projectAftermathEntries([punchAt("st1", "straight_left", 0)], playSnapshot([hitJudgement("st1", 8000)]), 8100, [{ id: "st1", kind: "punch", hand: "left", family: "straight", cell: 5, cells: [], lane: "left", beatCenterMs: 8000 }], null, reachDefault);
+  const stableB = projectAftermathEntries([punchAt("st1", "straight_left", 0)], playSnapshot([hitJudgement("st1", 8000)]), 8600, null, null, reachDefault);
+  assert.deepEqual(stableA[0].spawn, stableB[0].spawn, "punch spawn holds the authored cell's rendered position through the cull boundary (no mid-fall teleport)");
+}
+
+console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence + 0.0.58 B11a stable-spawn + 0.0.59 B15 punch-rendered-position oracles passed.");

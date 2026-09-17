@@ -1280,7 +1280,14 @@ export class AeroGame extends HTMLElement {
     // 0.0.55 W2: pass the deterministic render event index so Test-mode committed
     // hits persist across frames (the ephemeral `targets` cull at the 350 ms
     // feedback window would otherwise lose them); Play mode ignores it.
-    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex);
+    // 0.0.59 B15: pass the run's configured row-reach fractions so the punch
+    // aftermath spawn resolves its Y through the SAME shared contract the
+    // renderer uses for the note (boxingColliderRowY) — the corpse then spawns
+    // at the note's rendered position at any reach setting, not a re-derived
+    // legacy grid row. Absent for non-boxing_collider presentations (the
+    // defaults apply; flow notes ignore reach entirely).
+    const isBoxingColliderForAftermath = presentation === "boxing_collider";
+    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex, isBoxingColliderForAftermath ? Object.freeze({ topRowReachWU: Number(setup.topRowReachWU), bottomRowReachWU: Number(setup.bottomRowReachWU) }) : null);
     // dntq: bounded hazard-contact events (assembly-owned) — obstacle head-collision
     // contact outcomes (Flow + Boxing) plus Flow bomb touch; avoided/miss produce nothing.
     const hazardContacts = projectHazardContactEvents(gameplay, nowMs);
