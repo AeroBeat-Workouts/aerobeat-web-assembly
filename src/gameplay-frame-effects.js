@@ -18,6 +18,11 @@ import { canonicalWorldUnitsPerMs } from "./gameplay-visual-runtime.js";
 // renderer uses for boxing_collider presentation rows (presentationRowY →
 // boxingColliderRowY) and the gameplay judge plane (boxingColliderTargetCenter).
 import { boxingColliderRowY } from "@aerobeat/web-contracts/gameplay-contracts";
+// 0.0.60 F2: the renderer's 4×3 presentation grid — the SAME constant the renderer
+// uses for the live note icon (worldPositionForCell → columnX). The corpse must
+// spawn at the NOTE'S rendered position, which is the presentation grid, NOT the
+// judge-plane column convention (placement % 4).
+import { gameplayWorldGrid } from "@aerobeat/web-renderer";
 
 /** p5pr: live aftermath entries retained per frame (the 7-beat FIFO cap). */
 const AFTERMATH_LIVE_CAP = 7;
@@ -130,14 +135,23 @@ function gridCellToWorldZ0(cell) {
 }
 
 /**
- * 0.0.59 B15: the rendered Z=0 world position of one boxing punch target cell —
- * the EXACT anchor the renderer places the live punch icon at commit (the
- * boxing_collider path: `targetCenterForPlacement` X — i.e. `placement % 4` in
- * the renderer's world frame — plus the reach-row Y via the shared
- * `boxingColliderRowY` contract). Deriving from the authored target cell alone
- * (plus the session-stable reach settings) keeps the spawn cull-resistant
- * while guaranteeing it equals the note's rendered position: the knock/launch
- * then plays from the note, with no single-frame jump.
+ * 0.0.59 B15 / 0.0.60 F2: the rendered Z=0 world position of one boxing punch
+ * target cell — the EXACT anchor the renderer places the live punch icon at
+ * commit. The boxing_collider presentation renders the icon at
+ * `worldPositionForCell` (X = `gameplayWorldGrid.columnX[cell % 4]` ∈
+ * {−1.5, −0.5, 0.5, 1.5}) plus the reach-row Y via the shared
+ * `boxingColliderRowY` contract, with z pinned to 0 at hit
+ * (`iconRenderPosition`). Deriving from the authored target cell alone (plus
+ * the session-stable reach settings) keeps the spawn cull-resistant while
+ * guaranteeing it equals the note's rendered position: the knock/launch then
+ * plays from the note, with no single-frame jump.
+ *
+ * 0.0.60 F2 correction: B15 used `cell % 4` for X on the false premise that
+ * the renderer places the icon at the JUDGE-plane X (`targetCenterForPlacement`
+ * = `placement % 4` ∈ 0..3, the athlete-grid/wrist space). The renderer never
+ * renders there — the icon is at `columnX` (judge X − 1.5), so the B15 corpse
+ * spawned a constant +1.5 WU right of the note on every cell (the 0.0.59
+ * playtest symptom). X now uses the renderer's own grid constant.
  *
  * @param {number} cell Canonical 4×3 target cell (0–11).
  * @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [reach] Run-configured row-reach fractions; absent/out-of-range values take the Game Setup 0.25 defaults.
@@ -145,10 +159,11 @@ function gridCellToWorldZ0(cell) {
 function punchCellToRenderedPositionZ0(cell, reach) {
   const row = /** @type {0|1|2} */(Math.floor(cell / 4));
   const normalized = normalizeSpawnRowReach(reach);
-  // Same X as the shared judge-plane truth: placement % 4 (the renderer's
-  // `targetCenterForPlacement`; inlined here so this module stays free of a
-  // web-gameplay import — the value is an identity mapping over the cell).
-  const x = cell % 4;
+  // X from the RENDERER's presentation grid (the icon's real rendered X). The
+  // judge-plane X (placement % 4) is a different coordinate system
+  // (wrist/athlete-grid space, = presentation X + 1.5) and must NOT be used
+  // for the visual spawn.
+  const x = gameplayWorldGrid.columnX[cell % 4];
   // Reach-row Y from the SHARED contract (renderer presentationRowY + judge
   // plane both call this exact function): 1 + top, 1, 1 − bottom.
   const y = boxingColliderRowY(row, normalized).worldY;
