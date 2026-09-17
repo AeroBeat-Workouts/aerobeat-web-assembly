@@ -142,6 +142,13 @@ try {
           const sw = Math.min(canvas.width - sx, maxX - minX + pad * 2), sh = Math.min(canvas.height - sy, maxY - minY + pad * 2);
           const crop = new OffscreenCanvas(sw, sh);
           crop.getContext("2d").drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+          const blob = await crop.convertToBlob({ type: "image/png" });
+          const cropDataUrl = await new Promise((res, rej) => {
+            const fr = new FileReader();
+            fr.onloadend = () => res(fr.result);
+            fr.onerror = () => rej(fr.error);
+            fr.readAsDataURL(blob);
+          });
           out.push({
             label: row.label, token: row.token, kind,
             box: { x: sx, y: sy, w: sw, h: sh },
@@ -151,7 +158,7 @@ try {
               bMinusR: (fB - fR) / fCount, gMinusB: (fG - fB) / fCount,
               maxLuma: fMaxLuma, meanSat: fSat / fCount, count: fCount
             } : null,
-            crop: crop.toDataURL("image/png")
+            crop: cropDataUrl
           });
         }
       }
