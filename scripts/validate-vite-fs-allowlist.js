@@ -23,6 +23,11 @@ for (const [index, root] of viteAllowedFileSystemRoots.entries()) {
 const server = await createServer({
   configFile: fileURLToPath(new URL("../vite.config.js", import.meta.url)),
   logLevel: "silent",
+  // No file watcher: this oracle only needs to serve + probe the fs.allow
+  // boundary. A watcher makes server.close() hang (it waits on the chokidar
+  // handles), so the process exits with an "unsettled top-level await" at
+  // close. The other Vite oracles all pass watch:null for the same reason.
+  watch: null,
   server: { host: "127.0.0.1", port: 0, strictPort: true }
 });
 try {
@@ -69,8 +74,13 @@ try {
   // await" (a latent race — server.close() settles in <10 ms once the loop is
   // held). This makes the shutdown deterministic regardless of incidental
   // keep-alive handles.
-  const closeKeepAlive = setTimeout(() => {}, 1000);
-  await server.close();
+  // Node's global fetch (undici) leaves keep-alive sockets open on the Vite
+  // http server, so a plain server.close() blocks waiting for them to time out
+  // (the event loop drains first -> "unsettled top-level await"). Force-close
+  // the sockets first, then hold the loop alive a beat while close settles.
+  try { server.httpServer?.closeAllConnections?.(); } catch { /* best-effort */ }
+  const closeKeepAlive = setTimeout(() => {}, 2500);
+  await Promise.race([server.close(), new Promise((r) => setTimeout(r, 4000))]);
   clearTimeout(closeKeepAlive);
 }
 
