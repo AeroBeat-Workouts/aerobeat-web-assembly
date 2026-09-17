@@ -46,7 +46,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.equal(freshFlow.length, 1);
   // Cell 4 = column 0 (x −1.5), row 1 (y 1) of the canonical top-left 4×3 grid.
   // 0.0.56 W2: the flow note is directional (direction "right") → shape "arrow".
-  assert.deepEqual(freshFlow[0], { targetId: "nf", hitCommitMs: 3000, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("nf") }, "Flow note maps to flow/slice with cell-derived spawn + arrow shape");
+  assert.deepEqual(freshFlow[0], { targetId: "nf", hitCommitMs: 3000, family: "flow", hand: "left", mode: "slice", shape: "arrow", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("nf") }, "0.0.59 B13: Flow note maps to flow/slice with hand from authoredBeat.hand (left), cell-derived spawn + arrow shape");
   // A directionless flow note (no authoredBeat.direction) → shape "orb".
   const orbFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "no", type: "note", centerTimestampMs: 3100, authoredBeat: { type: "note", hand: "left", placement: 4 } });
   const freshOrb = projectAftermathEntries([orbFlow], snapshot([hitJudgement("no", 3100)]), 3300, [nfTarget]);
@@ -243,7 +243,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const list = projectAftermathEntries(events, snapshot(js), 4500);
   assert.equal(list.length, 3, "real-shaped events (no top-level type): each real HIT maps via authoredBeat.type");
   const byId = new Map(list.map((e) => [e.targetId, e]));
-  assert.deepEqual([byId.get("rr1").family, byId.get("rr1").hand, byId.get("rr1").mode], ["flow", "neutral", "slice"], "real flow note → flow/neutral/slice via authoredBeat.type");
+  assert.deepEqual([byId.get("rr1").family, byId.get("rr1").hand, byId.get("rr1").mode], ["flow", "left", "slice"], "0.0.59 B13: real flow note → flow/left/slice (hand from authoredBeat.hand) via authoredBeat.type");
   assert.deepEqual([byId.get("rr2").family, byId.get("rr2").hand, byId.get("rr2").mode], ["punch", "right", "straight"], "real punch → punch/right/straight via authoredBeat.type");
   assert.deepEqual([byId.get("rr3").family, byId.get("rr3").hand, byId.get("rr3").mode], ["guard", "both", "bonk"], "real crossed_guard → guard/both/bonk via authoredBeat.type");
   assert.equal(byId.has("rr4"), false, "real bomb still produces no aftermath entry via authoredBeat.type");
@@ -267,7 +267,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const list = projectAftermathEntries(events, testSnapshot(), 5500, null, index);
   const byId = new Map(list.map((e) => [e.targetId, e]));
   assert.equal(list.length, 2, "Test: even-feedbackIndex targets (t-flow@0, t-guard@2) commit; odd (t-punch@1, t-miss@3) never appear");
-  assert.deepEqual([byId.get("t-flow").family, byId.get("t-flow").hand, byId.get("t-flow").mode], ["flow", "neutral", "slice"], "flow note → flow/neutral/slice");
+  assert.deepEqual([byId.get("t-flow").family, byId.get("t-flow").hand, byId.get("t-flow").mode], ["flow", "left", "slice"], "0.0.59 B13: Test-mode flow note → flow/left/slice (hand from authoredBeat.hand, not neutral)");
   assert.equal(byId.get("t-flow").hitCommitMs, 5000, "synthetic hit commits exactly at centerTimestampMs");
   assert.deepEqual([byId.get("t-guard").family, byId.get("t-guard").hand, byId.get("t-guard").mode], ["guard", "both", "bonk"], "guard → guard/both/bonk");
   assert.equal(byId.get("t-guard").hitCommitMs, 5400, "synthetic guard commits at centerTimestampMs");
@@ -280,12 +280,12 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   // 0.0.58 B11a: the flow note's authored placement (cell 4 → column 0, row 1)
   // drives the spawn even with targets=null — the cull-resistant authored source
   // wins over the old lane-anchored center fallback.
-  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "only the even-index flow note commits; the bomb never appears");
+  assert.deepEqual(projectAftermathEntries(bombEvents, testSnapshot(), 6200, null, bombIndex), [{ targetId: "t-b", hitCommitMs: 6000, family: "flow", hand: "left", mode: "slice", shape: "arrow", spawn: { x: -1.5, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-b") }], "0.0.59 B13: only the even-index flow note commits (hand now from authoredBeat.hand); the bomb never appears");
   // Cell-less authored beat (no placement, no spatialTarget.targetCell) → the
   // lane-anchored center-row fallback remains the last-resort spawn.
   const celllessNote = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "t-nc", type: "note", centerTimestampMs: 6500, authoredBeat: { type: "note", hand: "left", direction: "up" } });
   const celllessIndex = createSessionTargetIndex([celllessNote], {});
-  assert.deepEqual(projectAftermathEntries([celllessNote], testSnapshot(), 6700, null, celllessIndex), [{ targetId: "t-nc", hitCommitMs: 6500, family: "flow", hand: "neutral", mode: "slice", shape: "arrow", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-nc") }], "a cell-less authored beat falls back to the lane-anchored center-row spawn");
+  assert.deepEqual(projectAftermathEntries([celllessNote], testSnapshot(), 6700, null, celllessIndex), [{ targetId: "t-nc", hitCommitMs: 6500, family: "flow", hand: "left", mode: "slice", shape: "arrow", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-nc") }], "0.0.59 B13: a cell-less authored beat falls back to the lane-anchored center-row spawn, hand from authoredBeat.hand");
 }
 
 // ---------- 0.0.55 W2: Play real hits + real-judgement mapping (unchanged path) ----------

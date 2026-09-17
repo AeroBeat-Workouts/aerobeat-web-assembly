@@ -413,8 +413,16 @@ function aftermathMappingForEvent(event) {
   // Synthetic events in unit tests DO carry a top-level `type`. Prefer the
   // top-level field when present, otherwise fall back to authoredBeat.type.
   const type = (typeof event.type === "string" ? event.type : null) ?? (typeof event.authoredBeat?.type === "string" ? event.authoredBeat.type : null);
+  // 0.0.59 B13: flow corpses read flat gray because the entry `hand` was hard-coded
+  // "neutral", so the renderer's corpse-color fallback resolved to the near-white
+  // receptorColor. The corpse color must come from the NOTE'S HAND via the same song
+  // palette system boxing uses. A real authored flow note always carries
+  // `authoredBeat.hand` ∈ {"left","right"} (enforced at package validation), so read
+  // it directly; fall back to "left" only for synthetic/legacy fixtures missing it.
+  const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
+  const flowHand = beat.hand === "right" ? "right" : "left";
   const mapping = type === "note"
-    ? { family: "flow", hand: "neutral", mode: "slice", shape: noteShapeForEvent(event, "note") }
+    ? { family: "flow", hand: flowHand, mode: "slice", shape: noteShapeForEvent(event, "note") }
     : PUNCH_FAMILIES[type]
       ? { family: "punch", hand: PUNCH_FAMILIES[type].hand, mode: PUNCH_FAMILIES[type].mode, shape: noteShapeForEvent(event, type) }
       : GUARD_TYPES.includes(type)
