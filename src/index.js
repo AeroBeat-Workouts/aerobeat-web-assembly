@@ -1303,9 +1303,18 @@ export class AeroGame extends HTMLElement {
     // `processObstacleBoundaries` sets/releases `hazardContactSinceMs` for both
     // rulesets (and the boxing mirror in `finalizeObstacles` releases it at
     // interval end), so the snapshot already carries the real episode
-    // boundaries: `{active, sinceMs, releasedAtMs: null}` while the nose is
-    // inside, `{active:false, sinceMs:null, releasedAtMs:<exit tick>}` after
-    // exit. The original W5 override existed because boxing collisions were
+    // boundaries: `{active:true, sinceMs:<entry>, releasedAtMs:null}` while the
+    // nose is inside, and after exit `{active:false, sinceMs:<entry RETAINED>,
+    // releasedAtMs:<exit tick>}`. 0.0.61 L-B3 (3gb2): the entry sinceMs is
+    // retained on release because the renderer's contract
+    // (aerobeat-web-renderer `gameplay-scene-model.js`,
+    // `isValidHazardContactActive`) requires it — "sinceMs stays present so the
+    // release-moment pulse phase remains recomputable statelessly from
+    // (sinceMs, releasedAtMs, params)"; a null sinceMs zeroes the released-phase
+    // intensity (`hazardWallContactReleasedIntensity`) and snap-offs the
+    // vignette at exit. Fully idle (never touched / after pause-destroy-reset)
+    // is `{active:false, sinceMs:null, releasedAtMs:null}`. The original W5
+    // override existed because boxing collisions were
     // first assumed to be reachable only through `obstacleOutcomes`
     // (`projectHazardContactEvents`); it derived `{active:true, releasedAtMs:
     // null}` from the newest retained contact event, holding the vignette
@@ -2398,6 +2407,19 @@ function transientCue(menuOpen, sessionStartRequested, session, gameplay, input)
  * are accepted as "absent" — without this the frame field was always omitted
  * and the during-collision state-driven vignette never fired.
  *
+ * 0.0.61 L-B3 (3gb2): the released state RETAINS the episode's entry sinceMs.
+ * The renderer's contract is authoritative (aerobeat-web-renderer
+ * `gameplay-scene-model.js`, `isValidHazardContactActive`): "Released:
+ * releasedAtMs required (most recent exit); sinceMs stays present so the
+ * release-moment pulse phase remains recomputable statelessly from
+ * (sinceMs, releasedAtMs, params)". One shape end-to-end:
+ *   during episode: {active:true,  sinceMs:<entry>,        releasedAtMs:null}
+ *   after release:  {active:false, sinceMs:<entry RETAINED>, releasedAtMs:<exit tick>}
+ *   fully idle:     {active:false, sinceMs:null,           releasedAtMs:null}
+ * An inactive state carrying a finite sinceMs ≥ 0 together with a finite
+ * releasedAtMs ≥ 0 (releasedAtMs ≥ sinceMs) is therefore admitted and passed
+ * through frozen; sinceMs without a releasedAtMs is not a valid released state.
+ *
  * @param {unknown} value
  */
 function normalizedHazardContactState(value) {
@@ -2405,9 +2427,15 @@ function normalizedHazardContactState(value) {
   const read = (key) => { const descriptor = Object.getOwnPropertyDescriptor(value, key); return descriptor && "value" in descriptor ? descriptor.value : undefined; };
   const active = read("active"); const sinceMs = read("sinceMs"); const releasedAtMs = read("releasedAtMs");
   if (typeof active !== "boolean") return null;
-  if (active && (typeof sinceMs !== "number" || !Number.isFinite(sinceMs) || sinceMs < 0 || !(releasedAtMs === null || typeof releasedAtMs === "undefined"))) return null;
-  if (!active && (sinceMs !== null && typeof sinceMs !== "undefined" || (releasedAtMs !== null && typeof releasedAtMs !== "undefined" && (typeof releasedAtMs !== "number" || !Number.isFinite(releasedAtMs) || releasedAtMs < 0)))) return null;
-  return Object.freeze({ active, sinceMs: active ? sinceMs : null, releasedAtMs: active ? null : releasedAtMs });
+  const absent = (v) => v === null || v === undefined;
+  const nonNegativeFiniteMs = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+  if (active && !(nonNegativeFiniteMs(sinceMs) && absent(releasedAtMs))) return null;
+  if (!active && !(absent(sinceMs) || nonNegativeFiniteMs(sinceMs))) return null;
+  if (!active && !(absent(releasedAtMs) || nonNegativeFiniteMs(releasedAtMs))) return null;
+  // Released without a release instant, or release before entry: not a valid episode state.
+  if (!active && nonNegativeFiniteMs(sinceMs) && absent(releasedAtMs)) return null;
+  if (!active && nonNegativeFiniteMs(sinceMs) && nonNegativeFiniteMs(releasedAtMs) && releasedAtMs < sinceMs) return null;
+  return Object.freeze({ active, sinceMs: nonNegativeFiniteMs(sinceMs) ? sinceMs : null, releasedAtMs: nonNegativeFiniteMs(releasedAtMs) ? releasedAtMs : null });
 }
 
 function actionableRuntimeMessage(error, limitations) {
