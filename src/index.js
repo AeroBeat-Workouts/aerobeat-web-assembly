@@ -48,7 +48,7 @@ import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service
 import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets } from "./session-render-projection.js";
 import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
 import { projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
-import { gameplayCursorRecords } from "./gameplay-cursor-records.js";
+import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
@@ -1366,8 +1366,23 @@ export class AeroGame extends HTMLElement {
     // 4bj9: push live visual scales into the renderer each frame so a scale change takes effect on the very next rendered frame without a restart.
     const liveScalesId=rendererVisualScalesId(this.desiredGameSetup);
     if(liveScalesId!==this.lastAppliedScaleId&&typeof graph.renderer.setVisualScales==="function"){graph.renderer.setVisualScales(rendererVisualScales(this.desiredGameSetup));this.lastAppliedScaleId=liveScalesId;}
-    const cursors = gameplayCursorRecords(this.menuOpen, graph.gameplay.getSnapshot().session, graph.input.getSnapshot());
-    return graph.renderer.renderGameplayFrameWithCursors(this.rendererFrame(), cursors, { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 });
+    // 0.0.61 L-F4 (chgy/hk5q/vths): equipment (Flow saber beam / Boxing glove)
+    // REPLACES the legacy wrist + nose markers as the visible + detection
+    // surface (GATE 1). Build equipment records from the active session's
+    // mode, and HIDE the legacy markers by passing an EMPTY cursor array —
+    // per the shared `equipmentMarkerVisibility` contract every legacy marker
+    // (nose + both wrists) is hidden in both modes, and obstacle nose detection
+    // is gameplay-side and untouched. The equipment `direction` is re-derived
+    // from the coordinator's own pre-push wrist-history, so the visible beam is
+    // the hit volume (see gameplay-equipment-records.js JSDoc).
+    const snapshot = graph.gameplay.getSnapshot();
+    const session = snapshot.session;
+    const input = graph.input.getSnapshot();
+    const rulesetId = session?.rulesetId;
+    const equipmentMode = (typeof rulesetId === "string" && flowGameplayRulesetIds.includes(rulesetId)) ? "flow" : (typeof rulesetId === "string" && boxingGameplayRulesetIds.includes(rulesetId)) ? "boxing" : null;
+    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null);
+    const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
+    return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(this.rendererFrame(), Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
   }
 
   /** @param {ReturnType<typeof createAeroGameServiceGraph>} [graph] */
