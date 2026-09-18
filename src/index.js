@@ -1298,26 +1298,26 @@ export class AeroGame extends HTMLElement {
     // defaults apply; the five tuning parameters always ride live per-frame from
     // the (locked) run setup.
     let hazardContactActive = normalizedHazardContactState(gameplay.hazardContact);
-    // 0.0.56 W5 (B8): the boxing_collider_v1 ruleset never populates
-    // `gameplay.hazardContact` (that field is set only by `evaluateFlowObstacles`,
-    // which runs for the legacy boxing rulesets but not for boxing_collider_v1).
-    // Boxing collider nose–obstacle collisions are instead recorded as
-    // `obstacleOutcomes` with `rulesetId: "boxing_collider_v1"` +
-    // `result: "contact"`, which `projectHazardContactEvents` already emits into
-    // the `hazardContacts` list. When no Flow-derived hazardContact state is
-    // active and the latest retained hazard-contact event is a boxing_collider_v1
-    // obstacle contact, derive the active state from that event so the
-    // state-driven vignette fires exactly like it does for Flow.
-    if (hazardContactActive === null || hazardContactActive.active === false) {
-      // hazardContacts is sorted newest-first, so index 0 is the most recent.
-      const latestContact = hazardContacts.length > 0 ? hazardContacts[0] : null;
-      if (latestContact !== null) {
-        const latestOutcome = (Array.isArray(gameplay.obstacleOutcomes) ? gameplay.obstacleOutcomes : []).find((o) => o && typeof o === "object" && o.eventId === latestContact.eventId);
-        if (latestOutcome !== null && typeof latestOutcome === "object" && latestOutcome.rulesetId === gameplayRulesetIds.boxingCollider) {
-          hazardContactActive = Object.freeze({ active: true, sinceMs: latestContact.atMs, releasedAtMs: null });
-        }
-      }
-    }
+    // 0.0.56 W5 (B8), 0.0.61 L-B (3gb2) correction: `gameplay.hazardContact` is
+    // populated for BOTH flow_colliders_v1 and boxing_collider_v1 —
+    // `processObstacleBoundaries` sets/releases `hazardContactSinceMs` for both
+    // rulesets (and the boxing mirror in `finalizeObstacles` releases it at
+    // interval end), so the snapshot already carries the real episode
+    // boundaries: `{active, sinceMs, releasedAtMs: null}` while the nose is
+    // inside, `{active:false, sinceMs:null, releasedAtMs:<exit tick>}` after
+    // exit. The original W5 override existed because boxing collisions were
+    // first assumed to be reachable only through `obstacleOutcomes`
+    // (`projectHazardContactEvents`); it derived `{active:true, releasedAtMs:
+    // null}` from the newest retained contact event, holding the vignette
+    // ACTIVE up to ~950 ms after the athlete had already exited (until the
+    // 950 ms retention expired) — the post-exit re-fire misfire. That derived
+    // shape is therefore no longer necessary: it would only ever fire when the
+    // snapshot says there was no contact (sinceMs/releasedAtMs both null), so
+    // it would just re-assert active with no release boundary. The legitimate
+    // purpose is fully preserved by the snapshot path: while genuinely in
+    // contact the vignette is on, and after exit the renderer's released-phase
+    // decay (400 ms) carries it to 0 — no re-derived active state outlives the
+    // release.
     // 0.0.55 W1 follow-up: the W1 null-tolerance fix made the normalizer return
     // non-null for the fully-idle shape {active:false, sinceMs:null, releasedAtMs:null},
     // which the renderer's isValidHazardContactActive validator rejects (it requires
