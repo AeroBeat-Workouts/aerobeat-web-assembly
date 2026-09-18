@@ -13,6 +13,12 @@
 //         `result:"contact"`, derived through the existing assembly W5 path
 //         (`projectHazardContactEvents` → `hazardContactActive`) with NO new
 //         assembly wiring.
+//   (B12-POS) 0.0.61 L-F8 (2dh7/htc8): the DRAWN weave wall sits at the
+//         presentation X of its AUTHORED grid column (gameplay x:0 →
+//         presentation columnX[0] = -1.5) — the same space as the punch icons
+//         and the collision, NOT the weave-direction lane (+0.9). Proven via
+//         lastModel + camera.worldToScreen with a 1px bound, so wall position
+//         is gated permanently alongside contact/vignette.
 //
 // Approach: drive a real boxing session headlessly via the public input path
 // (calibration-ready pose frames with a measured nose anchor sweeping into an
@@ -163,12 +169,44 @@ try {
         for (let i = 0; i < pixels.length; i += 4) {
           if (Math.abs(pixels[i] - baseline[i]) + Math.abs(pixels[i + 1] - baseline[i + 1]) + Math.abs(pixels[i + 2] - baseline[i + 2]) > 24) differing += 1;
         }
+        // ---- L-F8 (2dh7/htc8): weave wall SCREEN-POSITION gate (permanent) ----
+        // The B12 weave_right blocks authored grid column 0 (gameplay x:0, cells
+        // [0,4,8]). Its drawn DROWN WALL must sit at the PRESENTATION X of that
+        // AUTHORED column — columnX[0] = -1.5, the same 4-column presentation
+        // space as the punch icons and the collision — NOT at the weave-direction
+        // lane (lane "right" → +0.9), which is the pre-L-F8 bug. Proven via
+        // lastModel + camera.worldToScreen with a 1px bound, so the drawn wall
+        // stays gated to its collision lane permanently.
+        const proj = await import("/src/session-render-projection.js");
+        const wallNowMs = 1150; // mid-interval → wall centered at z = 0 (hit plane)
+        // The session scorer consumes the flat weaveEvent above; the render
+        // projection classifies on the nested authoredBeat, so hand it the same
+        // geometry in the nested shape (L-C2 oracle convention).
+        const wallRenderEvent = { ...weaveEvent, authoredBeat: { type: "weave_right", start: 0, end: 8, sourceGeometry: weaveEvent.sourceGeometry, gameplayGeometry: weaveEvent.gameplayGeometry, gridMask: [...gridMask], blockedCells: [...gridMask], checkpoint: weaveEvent.checkpoint } };
+        const wallEvents = [wallRenderEvent, keeperPunch];
+        const wallIndex = proj.createSessionTargetIndex(wallEvents, {});
+        const wallTargets = proj.projectSessionTargets(wallEvents, midSnapshot, wallNowMs, wallIndex);
+        const wallTarget = wallTargets.find((t) => t.id === "wall");
+        if (!wallTarget || wallTarget.kind !== "obstacle" || wallTarget.family !== "weave") throw new Error(`B12 wall must project as a kind:"obstacle" family:"weave" target at ${wallNowMs}, got ${JSON.stringify(wallTarget ?? null)}`);
+        renderer.renderGameplayFrame({ presentation: "boxing_collider", nowMs: wallNowMs, targets: wallTargets, timingWindowBeforeMs: 180, timingWindowAfterMs: 180 });
+        const wallObjects = renderer.lastModel.objects.filter((o) => o.targetId === "wall" && o.kind === "obstacle");
+        if (wallObjects.length !== 1) throw new Error(`B12 weave must render exactly one wall, got ${wallObjects.length}`);
+        const wallObj = wallObjects[0];
+        const AUTHORED_COLUMN_X = -1.5; // gameplay x:0 → presentation columnX[0] = -1.5
+        if (Math.abs(wallObj.position.x - AUTHORED_COLUMN_X) > 1e-9) throw new Error(`B12 weave wall must sit at the AUTHORED column presentation X (${AUTHORED_COLUMN_X}), not the weave-direction lane; got x=${wallObj.position.x}`);
+        const projectX = (x) => renderer.cameraEntity.camera.worldToScreen({ x, y: wallObj.position.y, z: wallObj.position.z }).x;
+        const wallScreenX = projectX(wallObj.position.x);
+        const authoredScreenX = projectX(AUTHORED_COLUMN_X);
+        const oldLaneScreenX = projectX(0.9); // pre-L-F8 weave-direction lane (lane "right")
+        if (Math.abs(wallScreenX - authoredScreenX) > 1) throw new Error(`B12 weave wall screen X ${wallScreenX.toFixed(1)} must match authored-column projection ${authoredScreenX.toFixed(1)} within 1px`);
+        if (Math.abs(wallScreenX - oldLaneScreenX) < 20) throw new Error(`B12 weave wall must NOT render at the weave-direction lane (screen Δ=${(wallScreenX - oldLaneScreenX).toFixed(1)}px < 20px)`);
         return {
           contactActive: { active: contactActive.active, sinceMs: contactActive.sinceMs },
           outcome: { eventId: contactOutcome.eventId, rulesetId: contactOutcome.rulesetId, result: contactOutcome.result, firstContact: contactOutcome.firstContactTimelinePositionMs, consequenceApplied: contactOutcome.consequenceApplied },
           hazardContactActive,
           redEdgeBase, redEdgeColl, totalEdgeBase, totalEdgeColl, differing,
-          canvasSize: { width: w, height: h }
+          canvasSize: { width: w, height: h },
+          wall: { modelX: +wallObj.position.x.toFixed(4), screenX: +wallScreenX.toFixed(1), authoredScreenX: +authoredScreenX.toFixed(1), oldLaneScreenX: +oldLaneScreenX.toFixed(1) }
         };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
@@ -186,7 +224,7 @@ try {
       assert.ok(proof.differing > 500, `${embedding}: the collision frame must differ from the baseline in substantial pixels (diff=${proof.differing})`);
       assert.ok(proof.redEdgeColl > proof.redEdgeBase, `${embedding}: red-tinted edge pixels must INCREASE with the collision (base=${proof.redEdgeBase}, coll=${proof.redEdgeColl})`);
       assert.ok(proof.redEdgeColl > proof.totalEdgeBase * 0.01, `${embedding}: the red edge band must cover a meaningful fraction of the edge (coll=${proof.redEdgeColl}/${proof.totalEdgeBase})`);
-      matrix.push({ embedding, redEdgeBase: proof.redEdgeBase, redEdgeColl: proof.redEdgeColl, differing: proof.differing, sinceMs: proof.contactActive.sinceMs, canvas: proof.canvasSize });
+      matrix.push({ embedding, redEdgeBase: proof.redEdgeBase, redEdgeColl: proof.redEdgeColl, differing: proof.differing, sinceMs: proof.contactActive.sinceMs, wallScreenX: proof.wall.screenX, canvas: proof.canvasSize });
     } finally {
       await context.close();
     }
@@ -194,7 +232,8 @@ try {
   assert.equal(matrix.length, 2);
   const [direct, iframe] = matrix;
   assert.ok(Math.abs(direct.redEdgeColl - iframe.redEdgeColl) <= Math.max(20, direct.redEdgeColl * 0.15), "direct/iframe red-edge pixel counts must agree within tolerance");
-  console.log(`ORACLE 0.0.58-boxing-vignette-pixels PASS: embeddings=2, evidence=${JSON.stringify(matrix.map((m) => ({ embedding: m.embedding, redEdge: [m.redEdgeBase, m.redEdgeColl], differing: m.differing, sinceMs: m.sinceMs })))}`);
+  assert.ok(Math.abs(direct.wallScreenX - iframe.wallScreenX) <= 2, "direct/iframe weave wall screen X must agree within tolerance");
+  console.log(`ORACLE 0.0.58-boxing-vignette-pixels PASS: embeddings=2, evidence=${JSON.stringify(matrix.map((m) => ({ embedding: m.embedding, redEdge: [m.redEdgeBase, m.redEdgeColl], differing: m.differing, sinceMs: m.sinceMs, wallScreenX: m.wallScreenX })))}`);
 } finally {
   await browser.close();
   await vite.close();
