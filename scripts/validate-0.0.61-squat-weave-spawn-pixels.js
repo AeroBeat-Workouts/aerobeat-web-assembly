@@ -16,9 +16,14 @@
 //   (b) WEAVE_LEFT GEOMETRY: a single-lane-column full-height weave_left
 //       (gameplay {x:3,y:0,w:1,h:3}, gridMask [3,7,11], the mirror of the
 //       weave_right coverage in validate-0.0.58-boxing-vignette-pixels.js at
-//       the OPPOSITE lane) renders exactly ONE full-height wall in the
-//       renderer's lane for weave_left (x = −0.9, lane "left"), full lane
-//       height, with the other lane empty.
+//       the OPPOSITE lane) renders exactly ONE full-height wall at the
+//       PRESENTATION X of its AUTHORED grid column (column 3 → columnX[3] =
+//       +1.5 — the same space as the punch icons and the collision), spanning
+//       exactly the authored column (scale.x 1.0), full lane height, with NO
+//       wall at the weave-direction lane positions (x = ±0.9).
+//       0.0.61 L-F8 (aerobeat-web-renderer 931c749) fixed the former
+//       weave-direction-lane placement (weave_left → lane "left" x = −0.9),
+//       which drew the wall on the SAFE side of its blocked column.
 //   (c) SQUAT CONTACT: the measured nose driven through the squat's blocked
 //       cells (top row, sy 1.5..2.5) inside the interval produces a REAL
 //       obstacle outcome {result:"contact"} (firstContact + duration from
@@ -49,12 +54,12 @@
 // nose (1.0, 1.0) on continuous 40 ms samples from 11920 to 12480 — full
 // [12000, 12400] coverage with zero blocked-cell intersection.
 //
-// EMBEDDING CAUTION (see report): the renderer draws a weave wall in the
-// lane named by the WEAVE DIRECTION (weave_left → lane "left", x = −0.9),
-// while its blocked cells (grid column 3) live in the right half of the
-// judge grid — the drawn wall sits on the safe side. This oracle asserts
-// the ACTUAL rendered positions (ground truth) and the real collision
-// outcome; the lane mismatch is flagged in the lane report, not fixed here.
+// L-F8 NOTE (0.0.61): the former mismatch — weave wall drawn in the lane
+// named by the weave DIRECTION (weave_left → lane "left", x = −0.9) while its
+// blocked cells (grid column 3) sit in the right half of the judge grid — was
+// FIXED in aerobeat-web-renderer 931c749: the wall now renders at the
+// presentation X of its authored grid column (+1.5 for column 3), matching the
+// collision lane. This oracle asserts the corrected position.
 //
 // PRODUCTION DEFECT FLAGGED (not fixed here, per lane scope):
 // (1) evaluateBoxingObstacles (aerobeat-web-gameplay session-coordinator.js)
@@ -65,11 +70,11 @@
 //     obstacles (the Flow mirror finalizes after sample processing). This
 //     oracle asserts the physically meaningful properties (zero contact,
 //     flat vignette) and reports the observed result string.
-// (2) Weave wall lane mirroring: the renderer draws the weave_left wall in
-//     lane "left" (x=-0.9) while its blocked cells (grid column 3, sx 2.5..3.5)
-//     sit on the right half of the grid — the wall is drawn in the SAFE lane
-//     relative to the collision geometry. Oracle asserts the ACTUAL rendered
-//     position.
+// (2) Weave wall lane mirroring — FIXED in 0.0.61 L-F8 (aerobeat-web-renderer
+//     931c749): the weave_left wall now renders at the presentation X of its
+//     authored grid column (column 3 → +1.5, i.e. inside the blocked cells'
+//     own lane, sx 2.5..3.5) instead of the weave-direction lane "left"
+//     (x=-0.9). Oracle asserts the corrected position.
 //
 // Embedding: direct + genuine_cross_origin_iframe (the playtest surface).
 import assert from "node:assert/strict";
@@ -119,6 +124,12 @@ try {
         const LANE_RIGHT_X = 0.9;
         const LANE_Y = 1.0;
         const WALL_SCALE_X = 1.7 / 0.94; // BOXING_LANE_WIDTH / GAMEPLAY_CELL_SIZE
+        // 0.0.61 L-F8: a weave wall renders at the PRESENTATION X of its
+        // authored grid column (columnX: col 3 → +1.5) and spans exactly that
+        // column — the flow-wall inset formula at authored width 1:
+        // (1 − 0.06×1) / 0.94 = 1.0.
+        const WEAVE_COL_X = 1.5;
+        const WEAVE_SCALE_X = 1.0;
         const WALL_SCALE_Y = 2.94 / 0.94; // BOXING_LANE_HEIGHT / GAMEPLAY_CELL_SIZE (full lane height)
         const WALL_DEPTH_Z = 2.4; // 400 ms interval × 0.006 WU/ms at mid-interval
         const CORE_BOX_X_PX = 70;
@@ -258,14 +269,14 @@ try {
           if (Math.abs(dX) > CENTROID_TOLERANCE_PX || Math.abs(dY) > CENTROID_TOLERANCE_PX) throw new Error(`wall bbox center must sit at the projected lane position (${an.x.toFixed(1)}, ${an.y.toFixed(1)}) within ${CENTROID_TOLERANCE_PX} px, got offset (${dX.toFixed(1)}, ${dY.toFixed(1)})`);
           return { count: core.length, dX: +dX.toFixed(1), dY: +dY.toFixed(1) };
         };
-        const checkWalls = (eventId, expectCount, expectX) => {
+        const checkWalls = (eventId, expectCount, expectX, expectScaleX = WALL_SCALE_X) => {
           const walls = renderer.lastModel.objects.filter((o) => o.targetId === eventId && o.kind === "obstacle");
           if (walls.length !== expectCount) throw new Error(`${eventId}: expected ${expectCount} lane wall(s), got ${walls.length}: ${JSON.stringify(walls.map((o) => ({ id: o.id, x: o.position.x })))}`);
           for (const w of walls) {
             if (expectX !== null && Math.abs(w.position.x - expectX) > 1e-6) throw new Error(`${eventId}: wall must sit at x = ${expectX}, got ${w.position.x}`);
             if (Math.abs(w.position.y - LANE_Y) > 1e-6) throw new Error(`${eventId}: wall must sit at y = ${LANE_Y}, got ${w.position.y}`);
             if (Math.abs(w.position.z - 0) > 0.01) throw new Error(`${eventId}: mid-interval wall z must be 0 (interval straddles the hit plane), got ${w.position.z}`);
-            if (Math.abs(w.scale.x - WALL_SCALE_X) > 0.01 || Math.abs(w.scale.y - WALL_SCALE_Y) > 0.01 || Math.abs(w.scale.z - WALL_DEPTH_Z) > 0.01) throw new Error(`${eventId}: wall must span the FULL lane (scale ${WALL_SCALE_X.toFixed(3)} × ${WALL_SCALE_Y.toFixed(3)} × depth ${WALL_DEPTH_Z}), got (${w.scale.x}, ${w.scale.y}, ${w.scale.z})`);
+            if (Math.abs(w.scale.x - expectScaleX) > 0.01 || Math.abs(w.scale.y - WALL_SCALE_Y) > 0.01 || Math.abs(w.scale.z - WALL_DEPTH_Z) > 0.01) throw new Error(`${eventId}: wall scale.x must be ${expectScaleX.toFixed(3)} (× ${WALL_SCALE_Y.toFixed(3)} × depth ${WALL_DEPTH_Z}), got (${w.scale.x}, ${w.scale.y}, ${w.scale.z})`);
           }
           return walls;
         };
@@ -367,18 +378,22 @@ try {
         const synthPx = guard("weave synth");
         const redSynth = redEdge(synthPx);
         if (redSynth - redNatural < MIN_VIGNETTE_DELTA) throw new Error(`synthetic contact on the weave frame must prove the detector fires (≥ ${MIN_VIGNETTE_DELTA} red edge pixels), got ${redSynth} − ${redNatural} = ${redSynth - redNatural}`);
-        // (b) Geometry: ONE full-height wall in the renderer's weave_left
-        // lane (x = −0.9), the OTHER lane empty.
-        const weaveWalls = checkWalls(WEAVE.eventId, 1, LANE_LEFT_X);
-        const otherLaneWall = renderer.lastModel.objects.filter((o) => o.targetId === WEAVE.eventId && o.kind === "obstacle" && Math.abs(o.position.x - LANE_RIGHT_X) < 1e-6);
-        if (otherLaneWall.length !== 0) throw new Error(`weave_left must leave the other lane (x = ${LANE_RIGHT_X}) empty, got ${otherLaneWall.length} wall(s) there`);
+        // (b) Geometry: ONE full-height wall at the PRESENTATION X of the
+        // AUTHORED column (column 3 → +1.5, L-F8), spanning exactly that
+        // column (scale.x 1.0); NO wall at the weave-direction lane
+        // positions (x = ±0.9).
+        const weaveWalls = checkWalls(WEAVE.eventId, 1, WEAVE_COL_X, WEAVE_SCALE_X);
+        const lanePositionWall = renderer.lastModel.objects.filter((o) => o.targetId === WEAVE.eventId && o.kind === "obstacle" && (Math.abs(o.position.x - LANE_LEFT_X) < 1e-6 || Math.abs(o.position.x - LANE_RIGHT_X) < 1e-6));
+        if (lanePositionWall.length !== 0) throw new Error(`weave_left must NOT sit at a weave-direction lane position (x = ±${LANE_RIGHT_X}); got ${lanePositionWall.length} wall(s) there`);
         renderer.renderGameplayFrame(frameB(nowB, targetsB.filter((t) => t.id !== WEAVE.eventId), []));
         const emptyBPx = guard("weave empty");
         const weaveDiff = diffPixels(naturalPx, emptyBPx);
-        const weaveCore = wallCore(weaveDiff, project(LANE_LEFT_X, LANE_Y, 0));
-        // Report the collision-lane projection (ground truth for the lane
-        // mismatch finding — NOT asserted as the drawn position).
+        const weaveCore = wallCore(weaveDiff, project(WEAVE_COL_X, LANE_Y, 0));
+        // The blocked cells' center (column 3, sx 2.5..3.5) — L-F8: the drawn
+        // wall now sits exactly here; the wall's screen X must match the
+        // blocked-column projection (worldToScreen ground truth, 1px bound).
         const blockCenterScreen = project(1.5, 1.0, 0);
+        if (Math.abs(project(weaveWalls[0].position.x, LANE_Y, 0).x - blockCenterScreen.x) > 1) throw new Error(`drawn weave wall screen X must match the blocked-column projection within 1px (wall=${project(weaveWalls[0].position.x, LANE_Y, 0).x.toFixed(1)}, block=${blockCenterScreen.x.toFixed(1)})`);
         return {
           squat: {
             result: outcomeA.result, firstContact: firstContactA, duration: Number(outcomeA.contactDurationMs),
