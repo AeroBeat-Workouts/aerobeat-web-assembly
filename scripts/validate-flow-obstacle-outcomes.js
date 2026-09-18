@@ -38,14 +38,15 @@ const SOURCE_GEOMETRY=Object.freeze({schema:"aerobeat/obstacle_source_geometry",
   gameplay.advance(frame(7660,1180,noseEvidence("next-before",7660,.125)));
   gameplay.advance(frame(7730,1250,noseEvidence("next-inside",7730,.375)));
   gameplay.advance(frame(7800,1320,noseEvidence("next-after",7800,.125)));
-  // Runtime observation under flow_colliders_v1: pause() clears continuous collision
-  // history but leaves the in-flight obstacle in obstacleStates, so after resume the
-  // preserved pre-swap wall re-closes "unevaluated_tracking" once per no-evidence
-  // advance (three here) and again on the first measured advance. Only the
-  // consequence-bearing record is unique, so assert the contact outcome exactly and
-  // bound the re-closed noise to the wall itself with no consequence applied.
+  // Pre-0.0.61 runtime observation (documented at the time): pause() cleared
+  // continuous collision history but left the in-flight obstacle in obstacleStates,
+  // so after resume the preserved pre-swap wall re-closed "unevaluated_tracking"
+  // once per no-evidence advance (three here) — a re-finalization LEAK the test
+  // used to "bound as noise". 0.0.61 L-E-fix (kpxg, gameplay a8579af): walls
+  // finalize EXACTLY ONCE (finalizedObstacleIds) — the duplicate no-consequence
+  // re-close records are gone; only the consequence-bearing contact record exists.
   assert.deepEqual(gameplay.getHazardOutcomes().map((entry)=>[entry.eventId,entry.kind,entry.result,entry.consequenceApplied]).filter((entry)=>entry[3]===true),[["old-wall","wall","contact"],["next-wall","wall","contact"]].map((entry)=>[entry[0],entry[1],entry[2],true]));
-  assert.deepEqual(gameplay.getHazardOutcomes().filter((entry)=>entry.consequenceApplied===false).map((entry)=>[entry.eventId,entry.kind,entry.result]),[["old-wall","wall","unevaluated_tracking"],["old-wall","wall","unevaluated_tracking"],["old-wall","wall","unevaluated_tracking"]]);
+  assert.deepEqual(gameplay.getHazardOutcomes().filter((entry)=>entry.consequenceApplied===false).map((entry)=>[entry.eventId,entry.kind,entry.result]),[],"kpxg fix: no duplicate unevaluated_tracking re-closes after pause/resume — each wall finalizes exactly once");
   assert.equal(gameplay.getObstacleOutcomes().length,0,"flow_colliders_v1 must not emit legacy aerobeat/obstacle_outcome records");
   assert.deepEqual(gameplay.getScorePartitions().map((entry)=>[entry.variantId,entry.profileVersion,entry.obstacleContacts,entry.hits,entry.misses,entry.score]).sort(),[["flow-next","2",1,0,0,0],["flow-old","1",1,0,0,0]].sort());
   assert.equal(gameplay.getHazardOutcomes().some((entry)=>entry.eventId==="discarded-future"),false,"paused swap must replace non-active future wall truth");
