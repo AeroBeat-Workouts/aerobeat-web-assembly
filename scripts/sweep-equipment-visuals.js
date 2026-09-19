@@ -60,7 +60,12 @@ import { createServer as createViteServer } from "vite";
 
 const SCRIPTS_DIR = dirname(new URL(import.meta.url).pathname);
 const ASSEMBLY_DIR = join(SCRIPTS_DIR, "..");
-const EVIDENCE_DIR = join(ASSEMBLY_DIR, ".plans", "evidence", "2026-09-19-0.0.61-equipment-baseline");
+// 0.0.62 L-C (r2lb): the evidence directory is CLI-overridable via
+// AEROBEAT_SWEEP_DIR so the same harness can target different evidence dirs
+// (baseline vs. saber-v1 vs. future iterations). Default = the 0.0.61 baseline
+// dir (byte-identical behavior to the pre-change harness).
+const DEFAULT_EVIDENCE_DIR = join(ASSEMBLY_DIR, ".plans", "evidence", "2026-09-19-0.0.61-equipment-baseline");
+const EVIDENCE_DIR = process.env.AEROBEAT_SWEEP_DIR ?? DEFAULT_EVIDENCE_DIR;
 const STAMP = process.env.AEROBEAT_SWEEP_STAMP ?? "2026-09-19";
 
 // Viewport: matches the production 844×390 (Derrick's test surface).
@@ -498,6 +503,44 @@ try {
   numbers.cases.camera = strip(results.camera);
   numbers.environments.aero = { ...results.environment.aero, crop: undefined };
   numbers.environments.camera = { ...results.environment.camera, crop: undefined };
+  // 0.0.62 L-C (r2lb): dimmed-vs-undimmed pixel delta for saber cases.
+  // For each (env, wrist, direction, color, both-hands) combo, measure the
+  // mean-luma difference between the dimmed and undimmed saber crops.
+  // A non-zero delta proves the saber visibly dims (the 0.0.61 baseline
+  // had byte-identical dimmed/undimmed pixels — the additive-glow defect).
+  const dimDelta = { aero: [], camera: [] };
+  for (const env of ["aero", "camera"]) {
+    const cases = results[env].filter((r) => r.caseKind === "saber");
+    // Group by (pos, dir, colors, dim) from the input record to pair dim/undim.
+    const groups = new Map();
+    for (const r of cases) {
+      const inp = r.input ?? {};
+      const key = `${inp.pos}|${inp.dir}|${inp.colors}`;
+      if (!groups.has(key)) groups.set(key, { dimmed: null, undimmed: null, key });
+      if (inp.dim === "dimmed") groups.get(key).dimmed = r;
+      else groups.get(key).undimmed = r;
+    }
+    for (const { key, dimmed, undimmed } of groups.values()) {
+      if (!dimmed || !undimmed) continue;
+      // meanLuma is derived from meanRGB (luma = 0.2126r + 0.7152g + 0.0722b).
+      const luma = (rgb) => rgb ? (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) : 0;
+      const dimmedLuma = luma(dimmed.meanRGB);
+      const undimmedLuma = luma(undimmed.meanRGB);
+      const meanLumaDelta = dimmedLuma - undimmedLuma;
+      const diffPxDelta = (dimmed.diffPx ?? 0) - (undimmed.diffPx ?? 0);
+      const maxLumaDelta = (dimmed.maxLuma ?? 0) - (undimmed.maxLuma ?? 0);
+      dimDelta[env].push({ key, meanLumaDelta: +meanLumaDelta.toFixed(2), diffPxDelta, maxLumaDelta: +maxLumaDelta.toFixed(2), dimmedDiffPx: dimmed.diffPx ?? 0, undimmedDiffPx: undimmed.diffPx ?? 0 });
+    }
+  }
+  numbers.dimmedVsUndimmed = dimDelta;
+  const allDelta = [...dimDelta.aero, ...dimDelta.camera];
+  const meanLumaDeltas = allDelta.map((d) => d.meanLumaDelta).filter((v) => v !== 0);
+  if (meanLumaDeltas.length > 0) {
+    const avg = meanLumaDeltas.reduce((a, b) => a + b, 0) / meanLumaDeltas.length;
+    console.log(`[sweep] dimmed-vs-undimmed saber delta: ${meanLumaDeltas.length} paired cases, avg meanLumaDelta=${avg.toFixed(2)} (0.0.61 baseline was 0.00 — byte-identical)`);
+  } else {
+    console.log("[sweep] WARNING: no dimmed-vs-undimmed saber delta measured (no paired cases)");
+  }
   writeFileSync(jsonPath, JSON.stringify(numbers, null, 2));
   console.log(`[sweep] measured table → ${jsonPath}`);
   console.log(`[sweep] cases: aero=${results.aero.length} camera=${results.camera.length} (saber ${results.aero.filter((r) => r.caseKind === "saber").length}, glove ${results.aero.filter((r) => r.caseKind === "glove").length}, both-hands ${results.aero.filter((r) => r.caseKind === "both-hands").length} per env)`);

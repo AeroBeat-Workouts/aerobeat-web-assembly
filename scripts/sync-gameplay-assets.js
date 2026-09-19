@@ -11,10 +11,10 @@ import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "25829902e92364d4fd124ed30f1d8a222720b39d";
-const rendererTree = "5c0174fd41c0adf4b5fcc3fc74d8296ae06e8b12";
+const rendererCommit = "c772f04cbde3de6dd781e80b9b6fee096481b633";
+const rendererTree = "9a89c5c956cbf4303bb6e42c173ad8f80121c976";
 const release = "0.0.11";
-const releaseTree = "af911e693622e5f21aa1f2c6f3321fb6541ed312";
+const releaseTree = "4f16d58c353b6a1fe9781d2ba2c959c258b6c66d";
 const inventoryHash = "e65571211e7a5a44224c378dbb654afd56263dc37f427a9b3f0af6453a6f1d23";
 const proofHash = "0c194b1a8f290cfe387ee34154199cc0758ace8baf9b60fa4a3beb5bdddf4227";
 const arguments_ = process.argv.slice(2);
@@ -55,9 +55,16 @@ assert.equal(proof.release, release, "renderer gameplay proof release drifted");
 assert.equal(proof.inventory_sha256, inventoryHash, "renderer gameplay proof inventory binding drifted");
 const markerEntry = inventory.payload.find((entry) => entry.path === "athlete-marker/sphere-v1.glb");
 assert.equal(markerEntry?.sha256, "f376934f218a25c11f2f31928c67684611aaf9c73aa1724548682ae280b5cbcc", "tint-dominant marker identity drifted");
-const expectedFiles = [...inventory.payload.map((entry) => entry.path), "inventory.v1.json", "proof.v1.json"].sort();
-assert.equal(expectedFiles.length, 17, "renderer gameplay exact file count drifted");
-assert.equal(new Set(expectedFiles).size, 17, "renderer gameplay inventory contains duplicates");
+// 0.0.62 L-C (r2lb): the flow-saber GLB is a renderer-authored asset (built
+// by scripts/blender/build-flow-saber-v1.py in the renderer repo), NOT part of
+// the asset-source inventory. It ships under assets/gameplay/0.0.11/flow-saber/
+// and is included in the assembly payload but NOT in the inventory payload.
+const FLOW_SABER_RELATIVE = "flow-saber/flow-saber-v1.glb";
+const FLOW_SABER_SHA256 = "a9a2faee28bc4ff370ad9613d408295d10ebc2a34131c5909ddf136bd221e851";
+const FLOW_SABER_BYTES = 6996;
+const expectedFiles = [...inventory.payload.map((entry) => entry.path), FLOW_SABER_RELATIVE, "inventory.v1.json", "proof.v1.json"].sort();
+assert.equal(expectedFiles.length, 18, "renderer gameplay exact file count drifted");
+assert.equal(new Set(expectedFiles).size, 18, "renderer gameplay inventory contains duplicates");
 verifyTree(sourceRoot, "renderer source");
 
 if (mode === "sync") {
@@ -90,6 +97,10 @@ function verifyTree(directory, label) {
     assert.equal(bytes.byteLength, entry.bytes, `${label} bytes drifted: ${entry.path}`);
     assert.equal(hash(bytes), entry.sha256, `${label} hash drifted: ${entry.path}`);
   }
+  // 0.0.62 L-C (r2lb): verify the renderer-authored flow-saber GLB.
+  const saberBytes = readFileSync(resolve(directory, FLOW_SABER_RELATIVE));
+  assert.equal(saberBytes.byteLength, FLOW_SABER_BYTES, `${label} flow-saber bytes drifted`);
+  assert.equal(hash(saberBytes), FLOW_SABER_SHA256, `${label} flow-saber hash drifted`);
   assert.equal(hash(readFileSync(resolve(directory, "inventory.v1.json"))), inventoryHash, `${label} inventory bytes drifted`);
   assert.equal(hash(readFileSync(resolve(directory, "proof.v1.json"))), proofHash, `${label} proof bytes drifted`);
 }

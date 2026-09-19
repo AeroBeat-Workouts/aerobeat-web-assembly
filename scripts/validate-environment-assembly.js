@@ -30,6 +30,7 @@ const expectedGameplayPaths = [
   "assets/gameplay/0.0.11/athlete-marker/sphere-v1.glb",
   "assets/gameplay/0.0.11/bomb/urchin-v1.glb",
   "assets/gameplay/0.0.11/directional-arrow/rounded-outline-v1.glb",
+  "assets/gameplay/0.0.11/flow-saber/flow-saber-v1.glb",
   "assets/gameplay/0.0.11/guard/outlined-shield-v1.glb",
   "assets/gameplay/0.0.11/inventory.v1.json",
   "assets/gameplay/0.0.11/manifests/any-note/outlined-circle-v1.v1.json",
@@ -46,11 +47,11 @@ const expectedGameplayPaths = [
 ];
 const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
 const rendererRoot = resolve(root, "../aerobeat-web-renderer");
-const rendererCommit = "25829902e92364d4fd124ed30f1d8a222720b39d";
+const rendererCommit = "c772f04cbde3de6dd781e80b9b6fee096481b633";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
-assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "5c0174fd41c0adf4b5fcc3fc74d8296ae06e8b12", "linked renderer tree drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "9a89c5c956cbf4303bb6e42c173ad8f80121c976", "linked renderer tree drifted");
 validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");
-assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.11"]), "af911e693622e5f21aa1f2c6f3321fb6541ed312", "linked gameplay raw tree drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.11"]), "4f16d58c353b6a1fe9781d2ba2c959c258b6c66d", "linked gameplay raw tree drifted");
 assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.11"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
 for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly gameplay runtime member drifted: ${path}`);
 const rendererGameplaySource = readFileSync(resolve(rendererRoot, "src/gameplay-assets.js"), "utf8");
