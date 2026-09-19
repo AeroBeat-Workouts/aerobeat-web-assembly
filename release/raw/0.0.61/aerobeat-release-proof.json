@@ -1,0 +1,118 @@
+{
+  "artifactKind": "raw-unminified-browser-proof",
+  "packageName": "@aerobeat/web-assembly",
+  "proofVersion": "0.0.61",
+  "sourceFingerprint": "c4e332d875147e3de0876a4bd8c9ebb58c9593654264f838d765e97be8d4ab74",
+  "dependencyProvenance": [
+    {
+      "name": "@aerobeat/web-hash",
+      "commit": "be7249b0bdfffcab568b760c1b582bfe2a0c1e92",
+      "tree": "b423c6742c07f56dde196d9f60f2e23c51ad913c"
+    },
+    {
+      "name": "@aerobeat/web-vendor-beatsaver",
+      "commit": "5866f8e418e4a0ef11362f9e6c80ebc5a2ad3c3a",
+      "tree": "997e8a476ab9ff04f0197cfa203091c58c865772"
+    },
+    {
+      "name": "@aerobeat/web-content-authoring",
+      "commit": "9e9f85eb469d73a919aba10b8dabe4418a385e10",
+      "tree": "2649d6f6b3f2b4bf004b8a92e75e7c143d79b31c"
+    },
+    {
+      "name": "@aerobeat/web-content",
+      "commit": "c66a7de1f15215a1adaf0427fecb69c102137239",
+      "tree": "adb721d06696f14ded661edfe02ed4e6b171ab95"
+    },
+    {
+      "name": "@aerobeat/web-audio",
+      "commit": "19fd3a91eb67712806a17e4c82e2631d63f72434",
+      "tree": "9bd3418296d8fbdbfe72669958087f50a3302675"
+    },
+    {
+      "name": "@aerobeat/web-contracts",
+      "commit": "d8639a636e6e71ef06be607360401028b340c0ce",
+      "tree": "8d38f1c61f5d0991e7eeb2bdd8fea1e49b898ace"
+    },
+    {
+      "name": "@aerobeat/web-renderer",
+      "commit": "931c749bf843977cc208e284b3bbd9a0da6d9346",
+      "tree": "96a1b7351992c9c5058fc4dc8099634a83fe2ceb"
+    },
+    {
+      "name": "@aerobeat/web-gameplay",
+      "commit": "a2e3f9ab0c07ed45a608747df6dfa4bf46512455",
+      "tree": "44f32d8833189164263a855b2173e0127479d14b"
+    },
+    {
+      "name": "@aerobeat/web-input",
+      "commit": "fd00f14bdbe8d5f51cbd444c12e761f53fe9faf2",
+      "tree": "e8c10c520853f76597fb7edfc6c931670b393897"
+    },
+    {
+      "name": "@aerobeat/web-ui",
+      "commit": "5eba64b69e8d6240d9ab64a7811766f3cce43792",
+      "tree": "1e672747e3cad17193f96d2a25c20f7499aa816d"
+    }
+  ],
+  "minified": false,
+  "basePath": "/",
+  "productionPoseConfiguration": {
+    "backend": "mediapipe",
+    "provider": "cpu-wasm",
+    "executionLocation": "worker",
+    "transferFrameType": "VideoFrame",
+    "model": "pose-landmarker-lite",
+    "modelVariant": "float16/1",
+    "tasksVisionVersion": "1.0.1",
+    "tuning": "standard",
+    "thresholds": [
+      0.5,
+      0.5,
+      0.5
+    ],
+    "tracking": "fast",
+    "performancePreset": "full",
+    "gameplaySource": "measured",
+    "submissionCadenceTargetFps": 15
+  },
+  "concretePoseVendors": [
+    "@aerobeat/web-vendor-mediapipe"
+  ],
+  "poseBackends": [
+    "mediapipe"
+  ],
+  "runtimeJavaScriptAssets": [
+    "assets/conversion-worker-CfAamPCF.js",
+    "assets/index.js",
+    "assets/mediapipe-worker.js"
+  ],
+  "runtimeWasmAssets": [],
+  "hashBundleEvidence": {
+    "scripts": 3,
+    "sourceMaps": 2,
+    "sharedSourceCount": 2,
+    "sharedAttributions": [
+      "assets/conversion-worker-CfAamPCF.js",
+      "assets/index.js"
+    ]
+  },
+  "totalArtifactBytesBeforeManifest": 29305626,
+  "forbiddenRuntimeAssetPatternsChecked": [
+    "movenet",
+    "onnx",
+    "ort-wasm",
+    "pose-detection",
+    "tensorflow"
+  ],
+  "forbiddenRuntimeMarkersChecked": [
+    "tensorflow",
+    "onnx",
+    "movenet",
+    "predictive",
+    "predictedpose",
+    "responsive a/b",
+    "direct-256",
+    "experimental-worker-videoframe"
+  ]
+}
