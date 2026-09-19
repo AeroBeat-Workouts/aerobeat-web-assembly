@@ -188,13 +188,13 @@ try {
         const missCorpseObjs = renderer.lastModel.objects.filter((o) => String(o.id).startsWith("p-miss:aftermath"));
         if (missCorpseObjs.length > 0) throw new Error(`p-miss: found ${missCorpseObjs.length} aftermath scene objects on a MISS`);
         // (c-ii) GRAY turn: the isolated miss icon is low-saturation (not the
-        // hand's saturated blue/green). MISS_COLOR = #7c828c.
+        // hand's saturated blue/green). MISS_COLOR = #2a3038.
         const missDiff = diffPixels(missWithPx, missBasePx);
         if (missDiff.length < 50) throw new Error(`p-miss: miss icon not rendered (only ${missDiff.length} diff px)`);
         let msat = 0, mlum = 0; for (const q of missDiff) { msat += Math.max(q.r, q.g, q.b) - Math.min(q.r, q.g, q.b); mlum += 0.2126 * q.r + 0.7152 * q.g + 0.0722 * q.b; }
         const missMeanSat = msat / missDiff.length, missMeanLuma = mlum / missDiff.length;
         if (missMeanSat >= 45) throw new Error(`p-miss: miss icon must be the desaturated MISS gray (mean channel-spread ${missMeanSat.toFixed(1)} ≥ 45 reads as a colored note, not a gray turn)`);
-        if (missMeanLuma < 60 || missMeanLuma > 200) throw new Error(`p-miss: miss icon luma ${missMeanLuma.toFixed(1)} not mid (expected ~MISS gray #7c828c)`);
+        if (missMeanLuma < 30 || missMeanLuma > 130) throw new Error(`p-miss: miss icon luma ${missMeanLuma.toFixed(1)} not in dark-miss range (expected ~#2a3038 with white outline, luma 30-130)`);
         // (d) NOSE MARKER ABSENT + equipment visible (production frame).
         const cursorOptions = { grid: { x: 0, y: 0, width: 1, height: 1 }, minConfidence: 0.5, sizeCssPx: 32 };
         const equipment = Object.freeze([{ role: "left_wrist", x: (1 + 0.5) / 4, y: (2.5 - 0.5) / 3, mode: "boxing" }, { role: "right_wrist", x: (2.5 + 0.5) / 4, y: (2.5 - 0.5) / 3, mode: "boxing" }]);
