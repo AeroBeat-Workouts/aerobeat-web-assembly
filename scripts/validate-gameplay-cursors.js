@@ -77,7 +77,11 @@ async function runContext(context) {
     return {dark,light,stale,menu,calibrating,countdown,frozen,lowConfidence,boxing,boxingLight,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels|equipmentRecords|gameplayEquipment|private_performance|mediaPipeRuntime|poseAge|cameraFormat/u.test(snapshotText),devicePixelRatio};
   },athleteLeftWrist);
   const label=`${context.kind}:${context.width}x${context.height}@${context.dpr}`;
-  const flowNames=(frame,hand)=>[`equipment-${hand}`,`equipment-${hand}-core`];
+  // 0.0.62 L-C (r2lb r1a): the flow saber is now a single GLB entity
+  // (flow-saber/flow-saber-v1) with two material slots (core + shell)
+  // inside the same entity. The old primitive saber had a separate core
+  // entity (`equipment-{hand}-core`).
+  const flowNames=(frame,hand)=>[`equipment-${hand}`];
   const gloveNames=(frame,hand)=>[`equipment-${hand}`,`equipment-${hand}-accent`];
   const hasEnabled=(frame,names)=>names.every((name)=>frame.scene.equipment.some((entry)=>entry.name===name&&entry.enabled===true));
   const anyEnabledEquipment=(frame)=>frame.scene.equipment.some((entry)=>entry.enabled===true);
