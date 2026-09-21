@@ -1,0 +1,6839 @@
+{
+  "stamp": "2026-09-19",
+  "note": "0.0.62 xshm equipment visual sweep — 0.0.61 BASELINE of the CURRENT saber+glove look. Per case: diff-bbox screen px, aspect, centroid, mean/edge RGB (baseline-subtracted diff pixels), maxLuma, meanSat, world AABB (camera.worldToScreen of corners). Both environment modes. No equipment 'fixes' — this is a truth capture.",
+  "viewport": {
+    "w": 844,
+    "h": 390
+  },
+  "environments": {
+    "aero": {
+      "meanLuma": 141.2,
+      "stdLuma": 67.2,
+      "mode": "aero"
+    },
+    "camera": {
+      "meanLuma": 21.6,
+      "stdLuma": 56.4,
+      "mode": "camera"
+    }
+  },
+  "cases": {
+    "aero": [
+      {
+        "label": "saber_center_plus-x_theme-defaults_undimmed",
+        "box": {
+          "x": 408,
+          "y": 159,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 640,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 440,
+          "y": 195
+        },
+        "meanRGB": {
+          "r": 176.1,
+          "g": 244.8,
+          "b": 248
+        },
+        "edge": {
+          "r": 161.5,
+          "g": 226.8,
+          "b": 238.5,
+          "count": 153
+        },
+        "maxLuma": 255,
+        "meanSat": 71.9,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-x_theme-defaults_dimmed",
+        "box": {
+          "x": 408,
+          "y": 159,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 632,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 440,
+          "y": 195
+        },
+        "meanRGB": {
+          "r": 148.4,
+          "g": 245.9,
+          "b": 250.5
+        },
+        "edge": {
+          "r": 145,
+          "g": 230,
+          "b": 242.1,
+          "count": 151
+        },
+        "maxLuma": 251,
+        "meanSat": 102.1,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-x_song-palette_undimmed",
+        "box": {
+          "x": 408,
+          "y": 158,
+          "w": 64,
+          "h": 73
+        },
+        "diffPx": 643,
+        "screenWidthPx": 53,
+        "screenHeightPx": 62,
+        "aspect": 0.8548387096774194,
+        "centroid": {
+          "x": 440,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 237.6,
+          "g": 244.7,
+          "b": 247.8
+        },
+        "edge": {
+          "r": 197.3,
+          "g": 226.3,
+          "b": 238,
+          "count": 153
+        },
+        "maxLuma": 255,
+        "meanSat": 10.4,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-x_song-palette_dimmed",
+        "box": {
+          "x": 408,
+          "y": 158,
+          "w": 64,
+          "h": 73
+        },
+        "diffPx": 643,
+        "screenWidthPx": 53,
+        "screenHeightPx": 62,
+        "aspect": 0.8548387096774194,
+        "centroid": {
+          "x": 440,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 233.2,
+          "g": 243.8,
+          "b": 244
+        },
+        "edge": {
+          "r": 196.4,
+          "g": 228.4,
+          "b": 238.5,
+          "count": 153
+        },
+        "maxLuma": 255,
+        "meanSat": 14.9,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_theme-defaults_undimmed",
+        "box": {
+          "x": 381,
+          "y": 139,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 628,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 417,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 209.8,
+          "g": 247.4,
+          "b": 249.9
+        },
+        "edge": {
+          "r": 196.3,
+          "g": 237.9,
+          "b": 246.9,
+          "count": 151
+        },
+        "maxLuma": 249.7,
+        "meanSat": 40.1,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_theme-defaults_dimmed",
+        "box": {
+          "x": 381,
+          "y": 139,
+          "w": 71,
+          "h": 64
+        },
+        "diffPx": 619,
+        "screenWidthPx": 60,
+        "screenHeightPx": 53,
+        "aspect": 1.1320754716981132,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 182,
+          "g": 249.8,
+          "b": 252.5
+        },
+        "edge": {
+          "r": 177.9,
+          "g": 242.3,
+          "b": 250.7,
+          "count": 149
+        },
+        "maxLuma": 242.9,
+        "meanSat": 70.5,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_song-palette_undimmed",
+        "box": {
+          "x": 380,
+          "y": 139,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 647,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 241.1,
+          "g": 246.8,
+          "b": 249.9
+        },
+        "edge": {
+          "r": 211.5,
+          "g": 234.6,
+          "b": 246.4,
+          "count": 152
+        },
+        "maxLuma": 255,
+        "meanSat": 8.9,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_song-palette_dimmed",
+        "box": {
+          "x": 380,
+          "y": 139,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 647,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 243.5,
+          "g": 248.7,
+          "b": 250.9
+        },
+        "edge": {
+          "r": 214.5,
+          "g": 238.2,
+          "b": 249.4,
+          "count": 152
+        },
+        "maxLuma": 255,
+        "meanSat": 9.2,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_theme-defaults_undimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 487,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 229.2,
+          "g": 246.5,
+          "b": 248.6
+        },
+        "edge": {
+          "r": 216.3,
+          "g": 238.9,
+          "b": 245.4,
+          "count": 120
+        },
+        "maxLuma": 255,
+        "meanSat": 19.4,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_theme-defaults_dimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 440,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 204.3,
+          "g": 249.6,
+          "b": 251.6
+        },
+        "edge": {
+          "r": 207,
+          "g": 246.3,
+          "b": 250.2,
+          "count": 119
+        },
+        "maxLuma": 255,
+        "meanSat": 47.3,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_song-palette_undimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 487,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 242.3,
+          "g": 246.4,
+          "b": 248.4
+        },
+        "edge": {
+          "r": 223.2,
+          "g": 238.8,
+          "b": 245,
+          "count": 120
+        },
+        "maxLuma": 255,
+        "meanSat": 6.3,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_song-palette_dimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 487,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 245.5,
+          "g": 249,
+          "b": 249.8
+        },
+        "edge": {
+          "r": 227,
+          "g": 243.3,
+          "b": 248.8,
+          "count": 120
+        },
+        "maxLuma": 255,
+        "meanSat": 6.7,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_theme-defaults_undimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 136.7,
+          "g": 243.4,
+          "b": 246.6
+        },
+        "edge": {
+          "r": 115.9,
+          "g": 220.4,
+          "b": 232.4,
+          "count": 154
+        },
+        "maxLuma": 245,
+        "meanSat": 109.9,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_theme-defaults_dimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 109.5,
+          "g": 245.6,
+          "b": 249.1
+        },
+        "edge": {
+          "r": 99.9,
+          "g": 224,
+          "b": 236.1,
+          "count": 154
+        },
+        "maxLuma": 238.2,
+        "meanSat": 139.6,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_song-palette_undimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 234.9,
+          "g": 243.4,
+          "b": 246.5
+        },
+        "edge": {
+          "r": 185.6,
+          "g": 220.4,
+          "b": 232,
+          "count": 154
+        },
+        "maxLuma": 255,
+        "meanSat": 11.7,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_song-palette_dimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 230.5,
+          "g": 243.6,
+          "b": 240.9
+        },
+        "edge": {
+          "r": 182,
+          "g": 222.8,
+          "b": 230.9,
+          "count": 154
+        },
+        "maxLuma": 255,
+        "meanSat": 18.7,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_theme-defaults_undimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 811,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 117.8,
+          "g": 231.8,
+          "b": 242.7
+        },
+        "edge": {
+          "r": 100,
+          "g": 207.2,
+          "b": 234.7,
+          "count": 193
+        },
+        "maxLuma": 236.3,
+        "meanSat": 124.9,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_theme-defaults_dimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 793,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 93.5,
+          "g": 234.5,
+          "b": 245.5
+        },
+        "edge": {
+          "r": 85.5,
+          "g": 208.9,
+          "b": 236.4,
+          "count": 195
+        },
+        "maxLuma": 229.5,
+        "meanSat": 152,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_song-palette_undimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 824,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 227.5,
+          "g": 228,
+          "b": 225.5
+        },
+        "edge": {
+          "r": 176.8,
+          "g": 204.8,
+          "b": 217.2,
+          "count": 191
+        },
+        "maxLuma": 255,
+        "meanSat": 28.2,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_song-palette_dimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 821,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 216.4,
+          "g": 228.9,
+          "b": 231.6
+        },
+        "edge": {
+          "r": 165.7,
+          "g": 205.1,
+          "b": 223.8,
+          "count": 192
+        },
+        "maxLuma": 255,
+        "meanSat": 29,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_theme-defaults_undimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 858,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 82.2,
+          "g": 231.9,
+          "b": 242.6
+        },
+        "edge": {
+          "r": 69.3,
+          "g": 202.8,
+          "b": 231.5,
+          "count": 195
+        },
+        "maxLuma": 222,
+        "meanSat": 160.4,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_theme-defaults_dimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 78
+        },
+        "diffPx": 840,
+        "screenWidthPx": 61,
+        "screenHeightPx": 67,
+        "aspect": 0.9104477611940298,
+        "centroid": {
+          "x": 272,
+          "y": 69
+        },
+        "meanRGB": {
+          "r": 56.9,
+          "g": 225.8,
+          "b": 245.3
+        },
+        "edge": {
+          "r": 54,
+          "g": 198.2,
+          "b": 233,
+          "count": 197
+        },
+        "maxLuma": 214.5,
+        "meanSat": 188.4,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_song-palette_undimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 871,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 227.5,
+          "g": 228.4,
+          "b": 226.3
+        },
+        "edge": {
+          "r": 170.8,
+          "g": 200.4,
+          "b": 214.2,
+          "count": 193
+        },
+        "maxLuma": 255,
+        "meanSat": 27.4,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_song-palette_dimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 868,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 185.5,
+          "g": 209.9,
+          "b": 222.3
+        },
+        "edge": {
+          "r": 139.6,
+          "g": 188.7,
+          "b": 215,
+          "count": 194
+        },
+        "maxLuma": 234.5,
+        "meanSat": 48.7,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_theme-defaults_undimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 889,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 94.3,
+          "g": 232.7,
+          "b": 243.2
+        },
+        "edge": {
+          "r": 73,
+          "g": 191.1,
+          "b": 227.3,
+          "count": 160
+        },
+        "maxLuma": 225.2,
+        "meanSat": 148.9,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_theme-defaults_dimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 84
+        },
+        "diffPx": 876,
+        "screenWidthPx": 59,
+        "screenHeightPx": 73,
+        "aspect": 0.8082191780821918,
+        "centroid": {
+          "x": 299,
+          "y": 66
+        },
+        "meanRGB": {
+          "r": 69.1,
+          "g": 234,
+          "b": 245.7
+        },
+        "edge": {
+          "r": 62.1,
+          "g": 191.7,
+          "b": 229.3,
+          "count": 161
+        },
+        "maxLuma": 218.4,
+        "meanSat": 176.6,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_song-palette_undimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 902,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 227.8,
+          "g": 229.3,
+          "b": 227.5
+        },
+        "edge": {
+          "r": 148.9,
+          "g": 188,
+          "b": 206,
+          "count": 158
+        },
+        "maxLuma": 255,
+        "meanSat": 27.1,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_song-palette_dimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 899,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 197.7,
+          "g": 220.3,
+          "b": 229.3
+        },
+        "edge": {
+          "r": 129.8,
+          "g": 184.9,
+          "b": 212.3,
+          "count": 158
+        },
+        "maxLuma": 245.2,
+        "meanSat": 44.7,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_theme-defaults_undimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 784,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 164.7,
+          "g": 232,
+          "b": 243.1
+        },
+        "edge": {
+          "r": 138.9,
+          "g": 211.3,
+          "b": 238.1,
+          "count": 193
+        },
+        "maxLuma": 253.7,
+        "meanSat": 78.5,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_theme-defaults_dimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 738,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 143,
+          "g": 235.7,
+          "b": 245.9
+        },
+        "edge": {
+          "r": 128.9,
+          "g": 218.5,
+          "b": 241,
+          "count": 193
+        },
+        "maxLuma": 246.9,
+        "meanSat": 103,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_song-palette_undimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 812,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 227.4,
+          "g": 228,
+          "b": 225.8
+        },
+        "edge": {
+          "r": 178.2,
+          "g": 206.3,
+          "b": 220.2,
+          "count": 191
+        },
+        "maxLuma": 255,
+        "meanSat": 28.9,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_song-palette_dimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 809,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 220.9,
+          "g": 230.8,
+          "b": 234.8
+        },
+        "edge": {
+          "r": 170.6,
+          "g": 207.6,
+          "b": 227.8,
+          "count": 192
+        },
+        "maxLuma": 255,
+        "meanSat": 19.7,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_theme-defaults_undimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 909,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 100,
+          "g": 226.3,
+          "b": 225.5
+        },
+        "edge": {
+          "r": 81.7,
+          "g": 174.4,
+          "b": 147.7,
+          "count": 190
+        },
+        "maxLuma": 246.3,
+        "meanSat": 132.2,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_theme-defaults_dimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 904,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 75.6,
+          "g": 176.1,
+          "b": 174.7
+        },
+        "edge": {
+          "r": 68.4,
+          "g": 143.8,
+          "b": 116.6,
+          "count": 189
+        },
+        "maxLuma": 236.3,
+        "meanSat": 114.4,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_song-palette_undimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 909,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 227.2,
+          "g": 220.5,
+          "b": 86.1
+        },
+        "edge": {
+          "r": 162.6,
+          "g": 170.2,
+          "b": 62.8,
+          "count": 190
+        },
+        "maxLuma": 245.6,
+        "meanSat": 146.8,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_song-palette_dimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 898,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 196.9,
+          "g": 162.6,
+          "b": 50
+        },
+        "edge": {
+          "r": 143.1,
+          "g": 135.6,
+          "b": 42.3,
+          "count": 189
+        },
+        "maxLuma": 241.2,
+        "meanSat": 149.3,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_theme-defaults_undimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 810,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 138.8,
+          "g": 224.7,
+          "b": 223.9
+        },
+        "edge": {
+          "r": 118.9,
+          "g": 182,
+          "b": 155.6,
+          "count": 189
+        },
+        "maxLuma": 252,
+        "meanSat": 92.6,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_theme-defaults_dimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 805,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 116.2,
+          "g": 204.8,
+          "b": 213.6
+        },
+        "edge": {
+          "r": 109.1,
+          "g": 176.2,
+          "b": 147.8,
+          "count": 188
+        },
+        "maxLuma": 245.2,
+        "meanSat": 107.6,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_song-palette_undimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 810,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 224.2,
+          "g": 220.2,
+          "b": 147.2
+        },
+        "edge": {
+          "r": 163.5,
+          "g": 179.3,
+          "b": 113.3,
+          "count": 189
+        },
+        "maxLuma": 252.3,
+        "meanSat": 85.4,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_song-palette_dimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 799,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 208.3,
+          "g": 198.7,
+          "b": 113.9
+        },
+        "edge": {
+          "r": 157.9,
+          "g": 172.2,
+          "b": 97.7,
+          "count": 188
+        },
+        "maxLuma": 249.2,
+        "meanSat": 100.5,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_theme-defaults_undimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 883,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 116.5,
+          "g": 228.5,
+          "b": 228.9
+        },
+        "edge": {
+          "r": 93.9,
+          "g": 173.2,
+          "b": 148,
+          "count": 155
+        },
+        "maxLuma": 242.2,
+        "meanSat": 117.7,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_theme-defaults_dimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 878,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 91.9,
+          "g": 196.3,
+          "b": 198.1
+        },
+        "edge": {
+          "r": 82.7,
+          "g": 155.7,
+          "b": 128.3,
+          "count": 154
+        },
+        "maxLuma": 232.7,
+        "meanSat": 119.3,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_song-palette_undimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 883,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 229.7,
+          "g": 224.6,
+          "b": 109
+        },
+        "edge": {
+          "r": 160.6,
+          "g": 169.3,
+          "b": 79.8,
+          "count": 155
+        },
+        "maxLuma": 248.9,
+        "meanSat": 126.2,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_song-palette_dimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 873,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 212,
+          "g": 182.8,
+          "b": 72.9
+        },
+        "edge": {
+          "r": 148.5,
+          "g": 148,
+          "b": 61.4,
+          "count": 154
+        },
+        "maxLuma": 241.3,
+        "meanSat": 141.6,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_theme-defaults_undimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 867,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 145.1,
+          "g": 232.3,
+          "b": 235.3
+        },
+        "edge": {
+          "r": 125.3,
+          "g": 208.2,
+          "b": 199,
+          "count": 190
+        },
+        "maxLuma": 245,
+        "meanSat": 92.9,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_theme-defaults_dimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 862,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 120.5,
+          "g": 230.8,
+          "b": 228.9
+        },
+        "edge": {
+          "r": 110.2,
+          "g": 205.9,
+          "b": 191.7,
+          "count": 189
+        },
+        "maxLuma": 238.2,
+        "meanSat": 112.8,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_song-palette_undimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 868,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 230.7,
+          "g": 229.6,
+          "b": 217.3
+        },
+        "edge": {
+          "r": 184.7,
+          "g": 205.2,
+          "b": 181.2,
+          "count": 191
+        },
+        "maxLuma": 255,
+        "meanSat": 25.7,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_song-palette_dimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 857,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 225.5,
+          "g": 228.4,
+          "b": 187.8
+        },
+        "edge": {
+          "r": 179.9,
+          "g": 203.3,
+          "b": 162.2,
+          "count": 190
+        },
+        "maxLuma": 255,
+        "meanSat": 47.1,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_center_theme-defaults_undimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 56
+        },
+        "diffPx": 1844,
+        "screenWidthPx": 54,
+        "screenHeightPx": 45,
+        "aspect": 1.2,
+        "centroid": {
+          "x": 418.5,
+          "y": 194
+        },
+        "meanRGB": {
+          "r": 37.5,
+          "g": 136.4,
+          "b": 246.8
+        },
+        "edge": {
+          "r": 85.6,
+          "g": 170.1,
+          "b": 252.1,
+          "count": 137
+        },
+        "maxLuma": 222.6,
+        "meanSat": 209.3,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_center_theme-defaults_dimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 56
+        },
+        "diffPx": 1832,
+        "screenWidthPx": 54,
+        "screenHeightPx": 45,
+        "aspect": 1.2,
+        "centroid": {
+          "x": 418.5,
+          "y": 194
+        },
+        "meanRGB": {
+          "r": 89.8,
+          "g": 169.5,
+          "b": 248.3
+        },
+        "edge": {
+          "r": 119.3,
+          "g": 191.5,
+          "b": 251.1,
+          "count": 138
+        },
+        "maxLuma": 240.6,
+        "meanSat": 158.5,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_center_song-palette_undimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 57
+        },
+        "diffPx": 1847,
+        "screenWidthPx": 54,
+        "screenHeightPx": 46,
+        "aspect": 1.173913043478261,
+        "centroid": {
+          "x": 418.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 224.5,
+          "g": 114.6,
+          "b": 51.6
+        },
+        "edge": {
+          "r": 209.7,
+          "g": 156.4,
+          "b": 122.9,
+          "count": 137
+        },
+        "maxLuma": 225.9,
+        "meanSat": 173.6,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_center_song-palette_dimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 57
+        },
+        "diffPx": 1847,
+        "screenWidthPx": 54,
+        "screenHeightPx": 46,
+        "aspect": 1.173913043478261,
+        "centroid": {
+          "x": 418.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 213.7,
+          "g": 155.1,
+          "b": 118.9
+        },
+        "edge": {
+          "r": 195.3,
+          "g": 187,
+          "b": 177,
+          "count": 137
+        },
+        "maxLuma": 242.2,
+        "meanSat": 97,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_theme-defaults_undimmed",
+        "box": {
+          "x": 239,
+          "y": 56,
+          "w": 65,
+          "h": 57
+        },
+        "diffPx": 1900,
+        "screenWidthPx": 54,
+        "screenHeightPx": 46,
+        "aspect": 1.173913043478261,
+        "centroid": {
+          "x": 271.5,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 34.2,
+          "g": 134.6,
+          "b": 246.9
+        },
+        "edge": {
+          "r": 40.5,
+          "g": 142.4,
+          "b": 244.9,
+          "count": 140
+        },
+        "maxLuma": 144.2,
+        "meanSat": 212.6,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_theme-defaults_dimmed",
+        "box": {
+          "x": 239,
+          "y": 57,
+          "w": 65,
+          "h": 56
+        },
+        "diffPx": 1840,
+        "screenWidthPx": 54,
+        "screenHeightPx": 45,
+        "aspect": 1.2,
+        "centroid": {
+          "x": 271.5,
+          "y": 85
+        },
+        "meanRGB": {
+          "r": 43.8,
+          "g": 144.2,
+          "b": 238.1
+        },
+        "edge": {
+          "r": 47.1,
+          "g": 148.5,
+          "b": 237.4,
+          "count": 145
+        },
+        "maxLuma": 152.1,
+        "meanSat": 194.3,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_song-palette_undimmed",
+        "box": {
+          "x": 238,
+          "y": 56,
+          "w": 66,
+          "h": 57
+        },
+        "diffPx": 1935,
+        "screenWidthPx": 55,
+        "screenHeightPx": 46,
+        "aspect": 1.1956521739130435,
+        "centroid": {
+          "x": 271,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 221.7,
+          "g": 113.1,
+          "b": 51
+        },
+        "edge": {
+          "r": 163.9,
+          "g": 133.5,
+          "b": 115.2,
+          "count": 141
+        },
+        "maxLuma": 155.6,
+        "meanSat": 173.4,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_song-palette_dimmed",
+        "box": {
+          "x": 238,
+          "y": 56,
+          "w": 66,
+          "h": 57
+        },
+        "diffPx": 1935,
+        "screenWidthPx": 55,
+        "screenHeightPx": 46,
+        "aspect": 1.1956521739130435,
+        "centroid": {
+          "x": 271,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 169.2,
+          "g": 129.8,
+          "b": 106.5
+        },
+        "edge": {
+          "r": 121.9,
+          "g": 145.9,
+          "b": 158.3,
+          "count": 141
+        },
+        "maxLuma": 158.9,
+        "meanSat": 71.1,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_theme-defaults_undimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 68,
+          "h": 57
+        },
+        "diffPx": 1964,
+        "screenWidthPx": 57,
+        "screenHeightPx": 46,
+        "aspect": 1.2391304347826086,
+        "centroid": {
+          "x": 565,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 35.1,
+          "g": 134.4,
+          "b": 242.6
+        },
+        "edge": {
+          "r": 52.1,
+          "g": 134.7,
+          "b": 178.4,
+          "count": 142
+        },
+        "maxLuma": 169.3,
+        "meanSat": 207.8,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_theme-defaults_dimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 68,
+          "h": 57
+        },
+        "diffPx": 1948,
+        "screenWidthPx": 57,
+        "screenHeightPx": 46,
+        "aspect": 1.2391304347826086,
+        "centroid": {
+          "x": 565,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 47.1,
+          "g": 131,
+          "b": 186.3
+        },
+        "edge": {
+          "r": 60.7,
+          "g": 131.9,
+          "b": 140.8,
+          "count": 142
+        },
+        "maxLuma": 164.8,
+        "meanSat": 140.4,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_song-palette_undimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 68,
+          "h": 57
+        },
+        "diffPx": 1964,
+        "screenWidthPx": 57,
+        "screenHeightPx": 46,
+        "aspect": 1.2391304347826086,
+        "centroid": {
+          "x": 565,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 222.3,
+          "g": 112.5,
+          "b": 47.1
+        },
+        "edge": {
+          "r": 164.8,
+          "g": 121.6,
+          "b": 60.8,
+          "count": 142
+        },
+        "maxLuma": 171.9,
+        "meanSat": 175.8,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_song-palette_dimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 67,
+          "h": 57
+        },
+        "diffPx": 1949,
+        "screenWidthPx": 56,
+        "screenHeightPx": 46,
+        "aspect": 1.2173913043478262,
+        "centroid": {
+          "x": 564.5,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 174.3,
+          "g": 116.3,
+          "b": 54.1
+        },
+        "edge": {
+          "r": 135.7,
+          "g": 125.2,
+          "b": 68.9,
+          "count": 142
+        },
+        "maxLuma": 176.4,
+        "meanSat": 122,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_theme-defaults_undimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 92
+        },
+        "diffPx": 1118,
+        "screenWidthPx": 130,
+        "screenHeightPx": 81,
+        "aspect": 1.6049382716049383,
+        "centroid": {
+          "x": 430.5,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 218.1,
+          "g": 242.3,
+          "b": 245.3
+        },
+        "edge": {
+          "r": 198.4,
+          "g": 233.2,
+          "b": 242.4,
+          "count": 310
+        },
+        "maxLuma": 255,
+        "meanSat": 28.5,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_theme-defaults_dimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 92
+        },
+        "diffPx": 1090,
+        "screenWidthPx": 130,
+        "screenHeightPx": 81,
+        "aspect": 1.6049382716049383,
+        "centroid": {
+          "x": 430.5,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 189.3,
+          "g": 245.5,
+          "b": 248.4
+        },
+        "edge": {
+          "r": 181,
+          "g": 237.1,
+          "b": 245.7,
+          "count": 307
+        },
+        "maxLuma": 255,
+        "meanSat": 60.3,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_song-palette_undimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 92
+        },
+        "diffPx": 1129,
+        "screenWidthPx": 130,
+        "screenHeightPx": 81,
+        "aspect": 1.6049382716049383,
+        "centroid": {
+          "x": 430.5,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 229.5,
+          "g": 241.5,
+          "b": 243.6
+        },
+        "edge": {
+          "r": 206.1,
+          "g": 231.9,
+          "b": 239.8,
+          "count": 312
+        },
+        "maxLuma": 255,
+        "meanSat": 19.6,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_song-palette_dimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 140,
+          "h": 92
+        },
+        "diffPx": 1109,
+        "screenWidthPx": 129,
+        "screenHeightPx": 81,
+        "aspect": 1.5925925925925926,
+        "centroid": {
+          "x": 430,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 211.1,
+          "g": 244.4,
+          "b": 246.7
+        },
+        "edge": {
+          "r": 194.2,
+          "g": 234.7,
+          "b": 243.7,
+          "count": 310
+        },
+        "maxLuma": 255,
+        "meanSat": 39.4,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_theme-defaults_undimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3691,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 45.4,
+          "g": 160.2,
+          "b": 177.4
+        },
+        "edge": {
+          "r": 87.8,
+          "g": 184,
+          "b": 204.2,
+          "count": 274
+        },
+        "maxLuma": 221.2,
+        "meanSat": 169.9,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_theme-defaults_dimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 56
+        },
+        "diffPx": 3659,
+        "screenWidthPx": 148,
+        "screenHeightPx": 45,
+        "aspect": 3.2888888888888888,
+        "centroid": {
+          "x": 416.5,
+          "y": 194
+        },
+        "meanRGB": {
+          "r": 81.5,
+          "g": 178.5,
+          "b": 199
+        },
+        "edge": {
+          "r": 112.1,
+          "g": 195.8,
+          "b": 216.2,
+          "count": 274
+        },
+        "maxLuma": 239.4,
+        "meanSat": 137.7,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_song-palette_undimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3670,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 134.7,
+          "g": 159.3,
+          "b": 127
+        },
+        "edge": {
+          "r": 140.7,
+          "g": 184.6,
+          "b": 172.5,
+          "count": 274
+        },
+        "maxLuma": 223.8,
+        "meanSat": 167.3,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_song-palette_dimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3616,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 142.3,
+          "g": 177.8,
+          "b": 165
+        },
+        "edge": {
+          "r": 130,
+          "g": 195.8,
+          "b": 201.5,
+          "count": 314
+        },
+        "maxLuma": 240.1,
+        "meanSat": 117.9,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_theme-defaults_undimmed",
+        "box": {
+          "x": 360,
+          "y": 159,
+          "w": 136,
+          "h": 72
+        },
+        "diffPx": 2308,
+        "screenWidthPx": 125,
+        "screenHeightPx": 61,
+        "aspect": 2.0491803278688523,
+        "centroid": {
+          "x": 428,
+          "y": 195
+        },
+        "meanRGB": {
+          "r": 80.4,
+          "g": 194.5,
+          "b": 135.2
+        },
+        "edge": {
+          "r": 134.9,
+          "g": 212.2,
+          "b": 202.7,
+          "count": 288
+        },
+        "maxLuma": 255,
+        "meanSat": 115.5,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_theme-defaults_dimmed",
+        "box": {
+          "x": 360,
+          "y": 159,
+          "w": 136,
+          "h": 72
+        },
+        "diffPx": 2265,
+        "screenWidthPx": 125,
+        "screenHeightPx": 61,
+        "aspect": 2.0491803278688523,
+        "centroid": {
+          "x": 428,
+          "y": 195
+        },
+        "meanRGB": {
+          "r": 95.8,
+          "g": 201,
+          "b": 169.9
+        },
+        "edge": {
+          "r": 134.5,
+          "g": 216.2,
+          "b": 215.8,
+          "count": 285
+        },
+        "maxLuma": 255,
+        "meanSat": 106.7,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_song-palette_undimmed",
+        "box": {
+          "x": 360,
+          "y": 159,
+          "w": 136,
+          "h": 72
+        },
+        "diffPx": 2302,
+        "screenWidthPx": 125,
+        "screenHeightPx": 61,
+        "aspect": 2.0491803278688523,
+        "centroid": {
+          "x": 428,
+          "y": 195
+        },
+        "meanRGB": {
+          "r": 82.4,
+          "g": 210.8,
+          "b": 210
+        },
+        "edge": {
+          "r": 141.1,
+          "g": 217.7,
+          "b": 225,
+          "count": 290
+        },
+        "maxLuma": 255,
+        "meanSat": 131.8,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_song-palette_dimmed",
+        "box": {
+          "x": 360,
+          "y": 159,
+          "w": 136,
+          "h": 72
+        },
+        "diffPx": 2247,
+        "screenWidthPx": 125,
+        "screenHeightPx": 61,
+        "aspect": 2.0491803278688523,
+        "centroid": {
+          "x": 428,
+          "y": 195
+        },
+        "meanRGB": {
+          "r": 106.3,
+          "g": 212.5,
+          "b": 220.5
+        },
+        "edge": {
+          "r": 135.2,
+          "g": 213.6,
+          "b": 227.5,
+          "count": 330
+        },
+        "maxLuma": 255,
+        "meanSat": 116.1,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      }
+    ],
+    "camera": [
+      {
+        "label": "saber_center_plus-x_theme-defaults_undimmed",
+        "box": {
+          "x": 408,
+          "y": 158,
+          "w": 64,
+          "h": 73
+        },
+        "diffPx": 648,
+        "screenWidthPx": 53,
+        "screenHeightPx": 62,
+        "aspect": 0.8548387096774194,
+        "centroid": {
+          "x": 440,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 59.8,
+          "g": 222,
+          "b": 248.8
+        },
+        "edge": {
+          "r": 62.1,
+          "g": 214.6,
+          "b": 241.4,
+          "count": 153
+        },
+        "maxLuma": 193.8,
+        "meanSat": 188.9,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-x_theme-defaults_dimmed",
+        "box": {
+          "x": 408,
+          "y": 158,
+          "w": 64,
+          "h": 73
+        },
+        "diffPx": 648,
+        "screenWidthPx": 53,
+        "screenHeightPx": 62,
+        "aspect": 0.8548387096774194,
+        "centroid": {
+          "x": 440,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 29,
+          "g": 103.2,
+          "b": 182.4
+        },
+        "edge": {
+          "r": 33.6,
+          "g": 103.6,
+          "b": 178.2,
+          "count": 153
+        },
+        "maxLuma": 139.9,
+        "meanSat": 153.5,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-x_song-palette_undimmed",
+        "box": {
+          "x": 408,
+          "y": 158,
+          "w": 64,
+          "h": 73
+        },
+        "diffPx": 648,
+        "screenWidthPx": 53,
+        "screenHeightPx": 62,
+        "aspect": 0.8548387096774194,
+        "centroid": {
+          "x": 440,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 247.5,
+          "g": 186,
+          "b": 78.2
+        },
+        "edge": {
+          "r": 238.7,
+          "g": 181.2,
+          "b": 80.7,
+          "count": 153
+        },
+        "maxLuma": 196.3,
+        "meanSat": 171.7,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-x_song-palette_dimmed",
+        "box": {
+          "x": 408,
+          "y": 158,
+          "w": 64,
+          "h": 73
+        },
+        "diffPx": 648,
+        "screenWidthPx": 53,
+        "screenHeightPx": 62,
+        "aspect": 0.8548387096774194,
+        "centroid": {
+          "x": 440,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 173.9,
+          "g": 87.6,
+          "b": 37.7
+        },
+        "edge": {
+          "r": 168.6,
+          "g": 88.9,
+          "b": 43.4,
+          "count": 153
+        },
+        "maxLuma": 144.9,
+        "meanSat": 137,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 489.4,
+          "minY": 146.9,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_theme-defaults_undimmed",
+        "box": {
+          "x": 380,
+          "y": 139,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 648,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 59.8,
+          "g": 222.1,
+          "b": 248.8
+        },
+        "edge": {
+          "r": 62.1,
+          "g": 214.8,
+          "b": 241.4,
+          "count": 153
+        },
+        "maxLuma": 193.8,
+        "meanSat": 188.9,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_theme-defaults_dimmed",
+        "box": {
+          "x": 380,
+          "y": 139,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 648,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 28.9,
+          "g": 103.2,
+          "b": 182.5
+        },
+        "edge": {
+          "r": 33.3,
+          "g": 103.6,
+          "b": 178.5,
+          "count": 153
+        },
+        "maxLuma": 139.9,
+        "meanSat": 153.6,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_song-palette_undimmed",
+        "box": {
+          "x": 380,
+          "y": 139,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 648,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 247.5,
+          "g": 186,
+          "b": 78.2
+        },
+        "edge": {
+          "r": 238.7,
+          "g": 181.1,
+          "b": 80.7,
+          "count": 153
+        },
+        "maxLuma": 196.3,
+        "meanSat": 171.7,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_plus-y_song-palette_dimmed",
+        "box": {
+          "x": 380,
+          "y": 139,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 648,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 171
+        },
+        "meanRGB": {
+          "r": 173.9,
+          "g": 87.6,
+          "b": 37.6
+        },
+        "edge": {
+          "r": 168.8,
+          "g": 89,
+          "b": 43,
+          "count": 153
+        },
+        "maxLuma": 144.9,
+        "meanSat": 137.1,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_theme-defaults_undimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 590,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 60,
+          "g": 221.5,
+          "b": 248.2
+        },
+        "edge": {
+          "r": 63.3,
+          "g": 210.2,
+          "b": 236.6,
+          "count": 113
+        },
+        "maxLuma": 193.8,
+        "meanSat": 188.2,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_theme-defaults_dimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 590,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 29.2,
+          "g": 103.3,
+          "b": 182.3
+        },
+        "edge": {
+          "r": 35.8,
+          "g": 103.9,
+          "b": 176.5,
+          "count": 113
+        },
+        "maxLuma": 139.9,
+        "meanSat": 153.2,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_song-palette_undimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 590,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 246.8,
+          "g": 185.6,
+          "b": 78.4
+        },
+        "edge": {
+          "r": 233,
+          "g": 178,
+          "b": 82.4,
+          "count": 113
+        },
+        "maxLuma": 196.3,
+        "meanSat": 171,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_45deg_song-palette_dimmed",
+        "box": {
+          "x": 408,
+          "y": 133,
+          "w": 70,
+          "h": 70
+        },
+        "diffPx": 590,
+        "screenWidthPx": 59,
+        "screenHeightPx": 59,
+        "aspect": 1,
+        "centroid": {
+          "x": 443,
+          "y": 168
+        },
+        "meanRGB": {
+          "r": 173.7,
+          "g": 87.7,
+          "b": 38
+        },
+        "edge": {
+          "r": 166.3,
+          "g": 89.7,
+          "b": 46.2,
+          "count": 113
+        },
+        "maxLuma": 144.9,
+        "meanSat": 136.7,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 468.2,
+          "minY": 95.8,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_theme-defaults_undimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 101.5,
+          "g": 244.5,
+          "b": 248.6
+        },
+        "edge": {
+          "r": 97.8,
+          "g": 225.2,
+          "b": 240.6,
+          "count": 154
+        },
+        "maxLuma": 231,
+        "meanSat": 147,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_theme-defaults_dimmed",
+        "error": "equipment not visibly rendered (37px)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_song-palette_undimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 238,
+          "g": 244.5,
+          "b": 206.3
+        },
+        "edge": {
+          "r": 198.7,
+          "g": 225.1,
+          "b": 208.9,
+          "count": 154
+        },
+        "maxLuma": 255,
+        "meanSat": 45.8,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_center_stationary-fallback_song-palette_dimmed",
+        "box": {
+          "x": 380,
+          "y": 186,
+          "w": 73,
+          "h": 64
+        },
+        "diffPx": 649,
+        "screenWidthPx": 62,
+        "screenHeightPx": 53,
+        "aspect": 1.169811320754717,
+        "centroid": {
+          "x": 416.5,
+          "y": 218
+        },
+        "meanRGB": {
+          "r": 209.1,
+          "g": 184.6,
+          "b": 169
+        },
+        "edge": {
+          "r": 177.4,
+          "g": 180.8,
+          "b": 181.7,
+          "count": 154
+        },
+        "maxLuma": 255,
+        "meanSat": 50.3,
+        "worldAABB": {
+          "minX": 417.2,
+          "maxX": 417.2,
+          "minY": 146.9,
+          "maxY": 219.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_theme-defaults_undimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 824,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 60.2,
+          "g": 213.3,
+          "b": 243.6
+        },
+        "edge": {
+          "r": 60.8,
+          "g": 206.7,
+          "b": 239.6,
+          "count": 191
+        },
+        "maxLuma": 193.8,
+        "meanSat": 183.3,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_theme-defaults_dimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 824,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 34.2,
+          "g": 112.5,
+          "b": 187.4
+        },
+        "edge": {
+          "r": 38.8,
+          "g": 117.8,
+          "b": 188.7,
+          "count": 191
+        },
+        "maxLuma": 167.7,
+        "meanSat": 153.2,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_song-palette_undimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 824,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 241.3,
+          "g": 179.3,
+          "b": 78.6
+        },
+        "edge": {
+          "r": 236.5,
+          "g": 174.7,
+          "b": 79.3,
+          "count": 191
+        },
+        "maxLuma": 196.3,
+        "meanSat": 167.1,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-x_song-palette_dimmed",
+        "box": {
+          "x": 264,
+          "y": 50,
+          "w": 64,
+          "h": 72
+        },
+        "diffPx": 824,
+        "screenWidthPx": 53,
+        "screenHeightPx": 61,
+        "aspect": 0.8688524590163934,
+        "centroid": {
+          "x": 296,
+          "y": 86
+        },
+        "meanRGB": {
+          "r": 178.9,
+          "g": 96,
+          "b": 44.2
+        },
+        "edge": {
+          "r": 180,
+          "g": 101.1,
+          "b": 49.7,
+          "count": 191
+        },
+        "maxLuma": 172.4,
+        "meanSat": 137.9,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 345,
+          "minY": 38.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_theme-defaults_undimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 871,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 60.1,
+          "g": 214.1,
+          "b": 244.2
+        },
+        "edge": {
+          "r": 60.9,
+          "g": 207.1,
+          "b": 239.8,
+          "count": 193
+        },
+        "maxLuma": 193.8,
+        "meanSat": 184.1,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_theme-defaults_dimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 871,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 33.7,
+          "g": 111.9,
+          "b": 187.2
+        },
+        "edge": {
+          "r": 38.5,
+          "g": 117.7,
+          "b": 188.8,
+          "count": 193
+        },
+        "maxLuma": 167.7,
+        "meanSat": 153.5,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_song-palette_undimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 871,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 242.1,
+          "g": 179.9,
+          "b": 78.5
+        },
+        "edge": {
+          "r": 236.7,
+          "g": 174.9,
+          "b": 79.3,
+          "count": 193
+        },
+        "maxLuma": 196.3,
+        "meanSat": 167.7,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_plus-y_song-palette_dimmed",
+        "box": {
+          "x": 236,
+          "y": 30,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 871,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 272,
+          "y": 69.5
+        },
+        "meanRGB": {
+          "r": 178.8,
+          "g": 95.4,
+          "b": 43.7
+        },
+        "edge": {
+          "r": 180.1,
+          "g": 101,
+          "b": 49.4,
+          "count": 193
+        },
+        "maxLuma": 172.4,
+        "meanSat": 138.2,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": -33.6,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_theme-defaults_undimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 902,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 60.1,
+          "g": 214.6,
+          "b": 244.6
+        },
+        "edge": {
+          "r": 61.5,
+          "g": 202.5,
+          "b": 236.4,
+          "count": 158
+        },
+        "maxLuma": 193.8,
+        "meanSat": 184.5,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_theme-defaults_dimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 902,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 33.4,
+          "g": 111.6,
+          "b": 187.1
+        },
+        "edge": {
+          "r": 41.1,
+          "g": 121.2,
+          "b": 189.8,
+          "count": 158
+        },
+        "maxLuma": 167.7,
+        "meanSat": 153.7,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_song-palette_undimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 902,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 242.5,
+          "g": 180.2,
+          "b": 78.4
+        },
+        "edge": {
+          "r": 232.7,
+          "g": 171.4,
+          "b": 80,
+          "count": 158
+        },
+        "maxLuma": 196.3,
+        "meanSat": 168.1,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_45deg_song-palette_dimmed",
+        "box": {
+          "x": 264,
+          "y": 24,
+          "w": 70,
+          "h": 85
+        },
+        "diffPx": 902,
+        "screenWidthPx": 59,
+        "screenHeightPx": 74,
+        "aspect": 0.7972972972972973,
+        "centroid": {
+          "x": 299,
+          "y": 66.5
+        },
+        "meanRGB": {
+          "r": 178.7,
+          "g": 95.1,
+          "b": 43.3
+        },
+        "edge": {
+          "r": 180.9,
+          "g": 104.3,
+          "b": 52.6,
+          "count": 158
+        },
+        "maxLuma": 172.4,
+        "meanSat": 138.4,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 323.8,
+          "minY": -12.5,
+          "maxY": 38.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_theme-defaults_undimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 812,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 60.3,
+          "g": 213.1,
+          "b": 243.4
+        },
+        "edge": {
+          "r": 61.2,
+          "g": 206.8,
+          "b": 239.6,
+          "count": 191
+        },
+        "maxLuma": 193.8,
+        "meanSat": 183.1,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_theme-defaults_dimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 812,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 34.3,
+          "g": 112.7,
+          "b": 187.4
+        },
+        "edge": {
+          "r": 38.7,
+          "g": 118.2,
+          "b": 188.8,
+          "count": 191
+        },
+        "maxLuma": 167.7,
+        "meanSat": 153.1,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_song-palette_undimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 812,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 241.1,
+          "g": 179.2,
+          "b": 78.7
+        },
+        "edge": {
+          "r": 236.5,
+          "g": 174.7,
+          "b": 79.3,
+          "count": 191
+        },
+        "maxLuma": 196.3,
+        "meanSat": 166.9,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_left-up_stationary-fallback_song-palette_dimmed",
+        "box": {
+          "x": 236,
+          "y": 78,
+          "w": 72,
+          "h": 64
+        },
+        "diffPx": 812,
+        "screenWidthPx": 61,
+        "screenHeightPx": 53,
+        "aspect": 1.150943396226415,
+        "centroid": {
+          "x": 272,
+          "y": 110
+        },
+        "meanRGB": {
+          "r": 178.9,
+          "g": 96.1,
+          "b": 44.3
+        },
+        "edge": {
+          "r": 180,
+          "g": 101.4,
+          "b": 49.6,
+          "count": 191
+        },
+        "maxLuma": 172.4,
+        "meanSat": 137.9,
+        "worldAABB": {
+          "minX": 272.8,
+          "maxX": 272.8,
+          "minY": 38.6,
+          "maxY": 110.8
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_theme-defaults_undimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 909,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 60.1,
+          "g": 214.9,
+          "b": 244.8
+        },
+        "edge": {
+          "r": 61,
+          "g": 207.2,
+          "b": 239.7,
+          "count": 190
+        },
+        "maxLuma": 193.8,
+        "meanSat": 184.7,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_theme-defaults_dimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 909,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 33.3,
+          "g": 111.2,
+          "b": 186.9
+        },
+        "edge": {
+          "r": 38.5,
+          "g": 117.3,
+          "b": 188.2,
+          "count": 190
+        },
+        "maxLuma": 167.7,
+        "meanSat": 153.5,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_song-palette_undimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 909,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 242.7,
+          "g": 180.5,
+          "b": 78.4
+        },
+        "edge": {
+          "r": 236.7,
+          "g": 175,
+          "b": 79.4,
+          "count": 190
+        },
+        "maxLuma": 196.3,
+        "meanSat": 168.2,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-x_song-palette_dimmed",
+        "box": {
+          "x": 534,
+          "y": 267,
+          "w": 84,
+          "h": 72
+        },
+        "diffPx": 909,
+        "screenWidthPx": 73,
+        "screenHeightPx": 61,
+        "aspect": 1.1967213114754098,
+        "centroid": {
+          "x": 576,
+          "y": 303
+        },
+        "meanRGB": {
+          "r": 178.4,
+          "g": 94.8,
+          "b": 43.1
+        },
+        "edge": {
+          "r": 179.4,
+          "g": 100.6,
+          "b": 49.3,
+          "count": 190
+        },
+        "maxLuma": 172.4,
+        "meanSat": 138.1,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 633.8,
+          "minY": 255.2,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-x",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_theme-defaults_undimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 810,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 60.4,
+          "g": 213.3,
+          "b": 243.5
+        },
+        "edge": {
+          "r": 61.4,
+          "g": 207,
+          "b": 239.7,
+          "count": 189
+        },
+        "maxLuma": 193.8,
+        "meanSat": 183.1,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_theme-defaults_dimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 810,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 34.3,
+          "g": 112.5,
+          "b": 187.2
+        },
+        "edge": {
+          "r": 38.8,
+          "g": 117.8,
+          "b": 188.2,
+          "count": 189
+        },
+        "maxLuma": 167.7,
+        "meanSat": 152.9,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_song-palette_undimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 810,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 241.2,
+          "g": 179.4,
+          "b": 78.7
+        },
+        "edge": {
+          "r": 236.6,
+          "g": 175.2,
+          "b": 79.4,
+          "count": 189
+        },
+        "maxLuma": 196.3,
+        "meanSat": 166.9,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_plus-y_song-palette_dimmed",
+        "box": {
+          "x": 525,
+          "y": 247,
+          "w": 72,
+          "h": 65
+        },
+        "diffPx": 810,
+        "screenWidthPx": 61,
+        "screenHeightPx": 54,
+        "aspect": 1.1296296296296295,
+        "centroid": {
+          "x": 561,
+          "y": 279.5
+        },
+        "meanRGB": {
+          "r": 178.7,
+          "g": 96,
+          "b": 44.3
+        },
+        "edge": {
+          "r": 179.4,
+          "g": 101.1,
+          "b": 49.7,
+          "count": 189
+        },
+        "maxLuma": 172.4,
+        "meanSat": 137.6,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 183,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "plus-y",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_theme-defaults_undimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 883,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 60.1,
+          "g": 214.5,
+          "b": 244.4
+        },
+        "edge": {
+          "r": 61.7,
+          "g": 202.6,
+          "b": 236.3,
+          "count": 155
+        },
+        "maxLuma": 193.8,
+        "meanSat": 184.3,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_theme-defaults_dimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 883,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 33.5,
+          "g": 111.5,
+          "b": 187
+        },
+        "edge": {
+          "r": 41.2,
+          "g": 120.7,
+          "b": 189.3,
+          "count": 155
+        },
+        "maxLuma": 167.7,
+        "meanSat": 153.4,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_song-palette_undimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 883,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 242.4,
+          "g": 180.2,
+          "b": 78.4
+        },
+        "edge": {
+          "r": 232.5,
+          "g": 171.7,
+          "b": 80.2,
+          "count": 155
+        },
+        "maxLuma": 196.3,
+        "meanSat": 167.9,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_45deg_song-palette_dimmed",
+        "box": {
+          "x": 534,
+          "y": 241,
+          "w": 89,
+          "h": 71
+        },
+        "diffPx": 883,
+        "screenWidthPx": 78,
+        "screenHeightPx": 60,
+        "aspect": 1.3,
+        "centroid": {
+          "x": 578.5,
+          "y": 276.5
+        },
+        "meanRGB": {
+          "r": 178.5,
+          "g": 95,
+          "b": 43.4
+        },
+        "edge": {
+          "r": 180.3,
+          "g": 103.9,
+          "b": 52.7,
+          "count": 155
+        },
+        "maxLuma": 172.4,
+        "meanSat": 138,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 612.6,
+          "minY": 204.1,
+          "maxY": 255.2
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "45deg",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_theme-defaults_undimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 868,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 138.4,
+          "g": 234.8,
+          "b": 242.3
+        },
+        "edge": {
+          "r": 122.7,
+          "g": 219.3,
+          "b": 231,
+          "count": 191
+        },
+        "maxLuma": 242,
+        "meanSat": 104.4,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_theme-defaults_dimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 802,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 115.9,
+          "g": 234.3,
+          "b": 243.1
+        },
+        "edge": {
+          "r": 109,
+          "g": 220.3,
+          "b": 233.2,
+          "count": 185
+        },
+        "maxLuma": 235.2,
+        "meanSat": 127.6,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_song-palette_undimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 868,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 235.6,
+          "g": 231.6,
+          "b": 220.2
+        },
+        "edge": {
+          "r": 207.2,
+          "g": 214.1,
+          "b": 196.9,
+          "count": 191
+        },
+        "maxLuma": 255,
+        "meanSat": 28.6,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "saber_right-low_stationary-fallback_song-palette_dimmed",
+        "box": {
+          "x": 525,
+          "y": 280,
+          "w": 72,
+          "h": 79
+        },
+        "diffPx": 868,
+        "screenWidthPx": 61,
+        "screenHeightPx": 68,
+        "aspect": 0.8970588235294118,
+        "centroid": {
+          "x": 561,
+          "y": 319.5
+        },
+        "meanRGB": {
+          "r": 231,
+          "g": 227.9,
+          "b": 187.8
+        },
+        "edge": {
+          "r": 203.2,
+          "g": 210.4,
+          "b": 176.1,
+          "count": 191
+        },
+        "maxLuma": 255,
+        "meanSat": 57.2,
+        "worldAABB": {
+          "minX": 561.6,
+          "maxX": 561.6,
+          "minY": 255.2,
+          "maxY": 327.4
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "saber",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "dir": "stationary-fallback",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_center_theme-defaults_undimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 57
+        },
+        "diffPx": 1847,
+        "screenWidthPx": 54,
+        "screenHeightPx": 46,
+        "aspect": 1.173913043478261,
+        "centroid": {
+          "x": 418.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 34,
+          "g": 134.3,
+          "b": 246.8
+        },
+        "edge": {
+          "r": 38.8,
+          "g": 141.1,
+          "b": 252.7,
+          "count": 137
+        },
+        "maxLuma": 154.7,
+        "meanSat": 212.8,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_center_theme-defaults_dimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 56
+        },
+        "diffPx": 1839,
+        "screenWidthPx": 54,
+        "screenHeightPx": 45,
+        "aspect": 1.2,
+        "centroid": {
+          "x": 418.5,
+          "y": 194
+        },
+        "meanRGB": {
+          "r": 35.9,
+          "g": 136.3,
+          "b": 246.3
+        },
+        "edge": {
+          "r": 40.9,
+          "g": 143.7,
+          "b": 252.6,
+          "count": 137
+        },
+        "maxLuma": 159.2,
+        "meanSat": 210.5,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_center_song-palette_undimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 57
+        },
+        "diffPx": 1847,
+        "screenWidthPx": 54,
+        "screenHeightPx": 46,
+        "aspect": 1.173913043478261,
+        "centroid": {
+          "x": 418.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 225.3,
+          "g": 111.9,
+          "b": 47
+        },
+        "edge": {
+          "r": 221,
+          "g": 120,
+          "b": 62.1,
+          "count": 137
+        },
+        "maxLuma": 159.1,
+        "meanSat": 178.6,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_center_song-palette_dimmed",
+        "box": {
+          "x": 386,
+          "y": 166,
+          "w": 65,
+          "h": 57
+        },
+        "diffPx": 1847,
+        "screenWidthPx": 54,
+        "screenHeightPx": 46,
+        "aspect": 1.173913043478261,
+        "centroid": {
+          "x": 418.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 218.5,
+          "g": 114.9,
+          "b": 55.2
+        },
+        "edge": {
+          "r": 211.6,
+          "g": 125.1,
+          "b": 74.5,
+          "count": 137
+        },
+        "maxLuma": 166.1,
+        "meanSat": 164.2,
+        "worldAABB": {
+          "minX": 384,
+          "maxX": 450.2,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "center",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_theme-defaults_undimmed",
+        "box": {
+          "x": 238,
+          "y": 56,
+          "w": 66,
+          "h": 57
+        },
+        "diffPx": 1935,
+        "screenWidthPx": 55,
+        "screenHeightPx": 46,
+        "aspect": 1.1956521739130435,
+        "centroid": {
+          "x": 271,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 33.8,
+          "g": 134.2,
+          "b": 247.4
+        },
+        "edge": {
+          "r": 35.2,
+          "g": 136.7,
+          "b": 251.9,
+          "count": 141
+        },
+        "maxLuma": 125.5,
+        "meanSat": 213.6,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_theme-defaults_dimmed",
+        "box": {
+          "x": 238,
+          "y": 56,
+          "w": 66,
+          "h": 57
+        },
+        "diffPx": 1935,
+        "screenWidthPx": 55,
+        "screenHeightPx": 46,
+        "aspect": 1.1956521739130435,
+        "centroid": {
+          "x": 271,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 33.5,
+          "g": 133.9,
+          "b": 246.5
+        },
+        "edge": {
+          "r": 35.3,
+          "g": 137.7,
+          "b": 251.8,
+          "count": 141
+        },
+        "maxLuma": 128.5,
+        "meanSat": 212.9,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_song-palette_undimmed",
+        "box": {
+          "x": 238,
+          "y": 56,
+          "w": 66,
+          "h": 57
+        },
+        "diffPx": 1935,
+        "screenWidthPx": 55,
+        "screenHeightPx": 46,
+        "aspect": 1.1956521739130435,
+        "centroid": {
+          "x": 271,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 226.6,
+          "g": 111.7,
+          "b": 46
+        },
+        "edge": {
+          "r": 230.6,
+          "g": 114.1,
+          "b": 47.4,
+          "count": 141
+        },
+        "maxLuma": 136.4,
+        "meanSat": 180.5,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_left-up_song-palette_dimmed",
+        "box": {
+          "x": 238,
+          "y": 56,
+          "w": 66,
+          "h": 57
+        },
+        "diffPx": 1935,
+        "screenWidthPx": 55,
+        "screenHeightPx": 46,
+        "aspect": 1.1956521739130435,
+        "centroid": {
+          "x": 271,
+          "y": 84.5
+        },
+        "meanRGB": {
+          "r": 225.5,
+          "g": 111,
+          "b": 45.4
+        },
+        "edge": {
+          "r": 230.5,
+          "g": 113.9,
+          "b": 47.7,
+          "count": 141
+        },
+        "maxLuma": 138.1,
+        "meanSat": 180.2,
+        "worldAABB": {
+          "minX": 238,
+          "maxX": 304.2,
+          "minY": 9.6,
+          "maxY": 64.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "left-up",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_theme-defaults_undimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 68,
+          "h": 57
+        },
+        "diffPx": 1964,
+        "screenWidthPx": 57,
+        "screenHeightPx": 46,
+        "aspect": 1.2391304347826086,
+        "centroid": {
+          "x": 565,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 34.4,
+          "g": 135.1,
+          "b": 247.8
+        },
+        "edge": {
+          "r": 41.4,
+          "g": 145.5,
+          "b": 250.7,
+          "count": 142
+        },
+        "maxLuma": 179.1,
+        "meanSat": 213.5,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_theme-defaults_dimmed",
+        "box": {
+          "x": 532,
+          "y": 276,
+          "w": 67,
+          "h": 57
+        },
+        "diffPx": 1947,
+        "screenWidthPx": 56,
+        "screenHeightPx": 46,
+        "aspect": 1.2173913043478262,
+        "centroid": {
+          "x": 565.5,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 37.7,
+          "g": 138.9,
+          "b": 247
+        },
+        "edge": {
+          "r": 43.4,
+          "g": 147.9,
+          "b": 250.3,
+          "count": 142
+        },
+        "maxLuma": 164.9,
+        "meanSat": 209.3,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_song-palette_undimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 68,
+          "h": 57
+        },
+        "diffPx": 1964,
+        "screenWidthPx": 57,
+        "screenHeightPx": 46,
+        "aspect": 1.2391304347826086,
+        "centroid": {
+          "x": 565,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 225.7,
+          "g": 112.8,
+          "b": 47.9
+        },
+        "edge": {
+          "r": 212.6,
+          "g": 125.6,
+          "b": 72,
+          "count": 142
+        },
+        "maxLuma": 182,
+        "meanSat": 178.6,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "glove_right-low_song-palette_dimmed",
+        "box": {
+          "x": 531,
+          "y": 276,
+          "w": 68,
+          "h": 57
+        },
+        "diffPx": 1964,
+        "screenWidthPx": 57,
+        "screenHeightPx": 46,
+        "aspect": 1.2391304347826086,
+        "centroid": {
+          "x": 565,
+          "y": 304.5
+        },
+        "meanRGB": {
+          "r": 214.3,
+          "g": 118.6,
+          "b": 62.2
+        },
+        "edge": {
+          "r": 199.9,
+          "g": 132.8,
+          "b": 87.5,
+          "count": 142
+        },
+        "maxLuma": 186.9,
+        "meanSat": 154.4,
+        "worldAABB": {
+          "minX": 530,
+          "maxX": 596.2,
+          "minY": 228.6,
+          "maxY": 283.1
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "glove",
+        "input": {
+          "role": "left_wrist",
+          "pos": "right-low",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_theme-defaults_undimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 92
+        },
+        "diffPx": 1340,
+        "screenWidthPx": 130,
+        "screenHeightPx": 81,
+        "aspect": 1.6049382716049383,
+        "centroid": {
+          "x": 430.5,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 80.7,
+          "g": 235.9,
+          "b": 208.1
+        },
+        "edge": {
+          "r": 79.9,
+          "g": 226.9,
+          "b": 204.2,
+          "count": 324
+        },
+        "maxLuma": 229.1,
+        "meanSat": 166.5,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_theme-defaults_dimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 89
+        },
+        "diffPx": 1157,
+        "screenWidthPx": 130,
+        "screenHeightPx": 78,
+        "aspect": 1.6666666666666667,
+        "centroid": {
+          "x": 430.5,
+          "y": 183.5
+        },
+        "meanRGB": {
+          "r": 39.9,
+          "g": 130.1,
+          "b": 127.3
+        },
+        "edge": {
+          "r": 46.2,
+          "g": 138.2,
+          "b": 137.4,
+          "count": 301
+        },
+        "maxLuma": 220.8,
+        "meanSat": 122.1,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_song-palette_undimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 92
+        },
+        "diffPx": 1341,
+        "screenWidthPx": 130,
+        "screenHeightPx": 81,
+        "aspect": 1.6049382716049383,
+        "centroid": {
+          "x": 430.5,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 157.5,
+          "g": 223.8,
+          "b": 183.3
+        },
+        "edge": {
+          "r": 146.2,
+          "g": 215.6,
+          "b": 182.8,
+          "count": 325
+        },
+        "maxLuma": 255,
+        "meanSat": 152.2,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-sabers_song-palette_dimmed",
+        "box": {
+          "x": 360,
+          "y": 139,
+          "w": 141,
+          "h": 92
+        },
+        "diffPx": 1341,
+        "screenWidthPx": 130,
+        "screenHeightPx": 81,
+        "aspect": 1.6049382716049383,
+        "centroid": {
+          "x": 430.5,
+          "y": 185
+        },
+        "meanRGB": {
+          "r": 111.4,
+          "g": 139.6,
+          "b": 117.9
+        },
+        "edge": {
+          "r": 105.3,
+          "g": 141.5,
+          "b": 125,
+          "count": 325
+        },
+        "maxLuma": 245.4,
+        "meanSat": 116.1,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 465.3,
+          "minY": 74.7,
+          "maxY": 146.9
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "flow",
+          "label": "both-sabers",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_theme-defaults_undimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3691,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 42.1,
+          "g": 158.6,
+          "b": 175.5
+        },
+        "edge": {
+          "r": 43.5,
+          "g": 162.3,
+          "b": 179.8,
+          "count": 274
+        },
+        "maxLuma": 155.5,
+        "meanSat": 173,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_theme-defaults_dimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3691,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 42.1,
+          "g": 158.3,
+          "b": 175.1
+        },
+        "edge": {
+          "r": 44.3,
+          "g": 163.2,
+          "b": 180.2,
+          "count": 274
+        },
+        "maxLuma": 157.9,
+        "meanSat": 172.4,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_song-palette_undimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3691,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 133.9,
+          "g": 157.9,
+          "b": 124.1
+        },
+        "edge": {
+          "r": 137.4,
+          "g": 161.6,
+          "b": 127.3,
+          "count": 274
+        },
+        "maxLuma": 175.9,
+        "meanSat": 171.4,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_both-gloves_song-palette_dimmed",
+        "box": {
+          "x": 337,
+          "y": 166,
+          "w": 159,
+          "h": 57
+        },
+        "diffPx": 3691,
+        "screenWidthPx": 148,
+        "screenHeightPx": 46,
+        "aspect": 3.217391304347826,
+        "centroid": {
+          "x": 416.5,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 133.4,
+          "g": 157.3,
+          "b": 123.5
+        },
+        "edge": {
+          "r": 137.2,
+          "g": 161.6,
+          "b": 127.8,
+          "count": 274
+        },
+        "maxLuma": 176.1,
+        "meanSat": 171.1,
+        "worldAABB": {
+          "minX": 335.4,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "boxing",
+          "right": "boxing",
+          "label": "both-gloves",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_theme-defaults_undimmed",
+        "box": {
+          "x": 360,
+          "y": 158,
+          "w": 136,
+          "h": 73
+        },
+        "diffPx": 2524,
+        "screenWidthPx": 125,
+        "screenHeightPx": 62,
+        "aspect": 2.0161290322580645,
+        "centroid": {
+          "x": 428,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 56.6,
+          "g": 194.5,
+          "b": 142.5
+        },
+        "edge": {
+          "r": 62.8,
+          "g": 201.2,
+          "b": 180.6,
+          "count": 301
+        },
+        "maxLuma": 229.1,
+        "meanSat": 143.7,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "theme-defaults",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_theme-defaults_dimmed",
+        "box": {
+          "x": 360,
+          "y": 158,
+          "w": 136,
+          "h": 70
+        },
+        "diffPx": 2341,
+        "screenWidthPx": 125,
+        "screenHeightPx": 59,
+        "aspect": 2.1186440677966103,
+        "centroid": {
+          "x": 428,
+          "y": 193
+        },
+        "meanRGB": {
+          "r": 47.4,
+          "g": 168.1,
+          "b": 121.6
+        },
+        "edge": {
+          "r": 49.1,
+          "g": 159.4,
+          "b": 152.2,
+          "count": 278
+        },
+        "maxLuma": 220.8,
+        "meanSat": 136.4,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "theme-defaults",
+          "dim": "dimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_song-palette_undimmed",
+        "box": {
+          "x": 360,
+          "y": 158,
+          "w": 136,
+          "h": 73
+        },
+        "diffPx": 2525,
+        "screenWidthPx": 125,
+        "screenHeightPx": 62,
+        "aspect": 2.0161290322580645,
+        "centroid": {
+          "x": 428,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 94.9,
+          "g": 203.5,
+          "b": 180.3
+        },
+        "edge": {
+          "r": 138.1,
+          "g": 198.8,
+          "b": 162,
+          "count": 302
+        },
+        "maxLuma": 255,
+        "meanSat": 154,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "song-palette",
+          "dim": "undimmed"
+        }
+      },
+      {
+        "label": "bothhands_saber+glove_song-palette_dimmed",
+        "box": {
+          "x": 360,
+          "y": 158,
+          "w": 136,
+          "h": 73
+        },
+        "diffPx": 2525,
+        "screenWidthPx": 125,
+        "screenHeightPx": 62,
+        "aspect": 2.0161290322580645,
+        "centroid": {
+          "x": 428,
+          "y": 194.5
+        },
+        "meanRGB": {
+          "r": 80.1,
+          "g": 181.7,
+          "b": 170.2
+        },
+        "edge": {
+          "r": 112.3,
+          "g": 163.2,
+          "b": 146.8,
+          "count": 302
+        },
+        "maxLuma": 245.4,
+        "meanSat": 148.2,
+        "worldAABB": {
+          "minX": 369.1,
+          "maxX": 498.9,
+          "minY": 119.1,
+          "maxY": 173.6
+        },
+        "worldAABBSource": "camera.worldToScreen(corners)",
+        "caseKind": "both-hands",
+        "input": {
+          "left": "flow",
+          "right": "boxing",
+          "label": "saber+glove",
+          "colors": "song-palette",
+          "dim": "dimmed"
+        }
+      }
+    ]
+  },
+  "dimmedVsUndimmed": {
+    "aero": [
+      {
+        "key": "center|plus-x|theme-defaults",
+        "meanLumaDelta": -4.92,
+        "diffPxDelta": -8,
+        "maxLumaDelta": -4,
+        "dimmedDiffPx": 632,
+        "undimmedDiffPx": 640
+      },
+      {
+        "key": "center|plus-x|song-palette",
+        "meanLumaDelta": -1.85,
+        "diffPxDelta": 0,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 643,
+        "undimmedDiffPx": 643
+      },
+      {
+        "key": "center|plus-y|theme-defaults",
+        "meanLumaDelta": -4.01,
+        "diffPxDelta": -9,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 619,
+        "undimmedDiffPx": 628
+      },
+      {
+        "key": "center|plus-y|song-palette",
+        "meanLumaDelta": 1.94,
+        "diffPxDelta": 0,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 647,
+        "undimmedDiffPx": 647
+      },
+      {
+        "key": "center|45deg|theme-defaults",
+        "meanLumaDelta": -2.86,
+        "diffPxDelta": -47,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 440,
+        "undimmedDiffPx": 487
+      },
+      {
+        "key": "center|45deg|song-palette",
+        "meanLumaDelta": 2.64,
+        "diffPxDelta": 0,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 487,
+        "undimmedDiffPx": 487
+      },
+      {
+        "key": "center|stationary-fallback|theme-defaults",
+        "meanLumaDelta": -4.03,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 649,
+        "undimmedDiffPx": 649
+      },
+      {
+        "key": "center|stationary-fallback|song-palette",
+        "meanLumaDelta": -1.2,
+        "diffPxDelta": 0,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 649,
+        "undimmedDiffPx": 649
+      },
+      {
+        "key": "left-up|plus-x|theme-defaults",
+        "meanLumaDelta": -3.03,
+        "diffPxDelta": -18,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 793,
+        "undimmedDiffPx": 811
+      },
+      {
+        "key": "left-up|plus-x|song-palette",
+        "meanLumaDelta": -1.28,
+        "diffPxDelta": -3,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 821,
+        "undimmedDiffPx": 824
+      },
+      {
+        "key": "left-up|plus-y|theme-defaults",
+        "meanLumaDelta": -9.55,
+        "diffPxDelta": -18,
+        "maxLumaDelta": -7.5,
+        "dimmedDiffPx": 840,
+        "undimmedDiffPx": 858
+      },
+      {
+        "key": "left-up|plus-y|song-palette",
+        "meanLumaDelta": -22.45,
+        "diffPxDelta": -3,
+        "maxLumaDelta": -20.5,
+        "dimmedDiffPx": 868,
+        "undimmedDiffPx": 871
+      },
+      {
+        "key": "left-up|45deg|theme-defaults",
+        "meanLumaDelta": -4.25,
+        "diffPxDelta": -13,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 876,
+        "undimmedDiffPx": 889
+      },
+      {
+        "key": "left-up|45deg|song-palette",
+        "meanLumaDelta": -12.71,
+        "diffPxDelta": -3,
+        "maxLumaDelta": -9.8,
+        "dimmedDiffPx": 899,
+        "undimmedDiffPx": 902
+      },
+      {
+        "key": "left-up|stationary-fallback|theme-defaults",
+        "meanLumaDelta": -1.77,
+        "diffPxDelta": -46,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 738,
+        "undimmedDiffPx": 784
+      },
+      {
+        "key": "left-up|stationary-fallback|song-palette",
+        "meanLumaDelta": 1.27,
+        "diffPxDelta": -3,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 809,
+        "undimmedDiffPx": 812
+      },
+      {
+        "key": "right-low|plus-x|theme-defaults",
+        "meanLumaDelta": -44.76,
+        "diffPxDelta": -5,
+        "maxLumaDelta": -10,
+        "dimmedDiffPx": 904,
+        "undimmedDiffPx": 909
+      },
+      {
+        "key": "right-low|plus-x|song-palette",
+        "meanLumaDelta": -50.46,
+        "diffPxDelta": -11,
+        "maxLumaDelta": -4.4,
+        "dimmedDiffPx": 898,
+        "undimmedDiffPx": 909
+      },
+      {
+        "key": "right-low|plus-y|theme-defaults",
+        "meanLumaDelta": -19.78,
+        "diffPxDelta": -5,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 805,
+        "undimmedDiffPx": 810
+      },
+      {
+        "key": "right-low|plus-y|song-palette",
+        "meanLumaDelta": -21.16,
+        "diffPxDelta": -11,
+        "maxLumaDelta": -3.1,
+        "dimmedDiffPx": 799,
+        "undimmedDiffPx": 810
+      },
+      {
+        "key": "right-low|45deg|theme-defaults",
+        "meanLumaDelta": -30.48,
+        "diffPxDelta": -5,
+        "maxLumaDelta": -9.5,
+        "dimmedDiffPx": 878,
+        "undimmedDiffPx": 883
+      },
+      {
+        "key": "right-low|45deg|song-palette",
+        "meanLumaDelta": -36.26,
+        "diffPxDelta": -10,
+        "maxLumaDelta": -7.6,
+        "dimmedDiffPx": 873,
+        "undimmedDiffPx": 883
+      },
+      {
+        "key": "right-low|stationary-fallback|theme-defaults",
+        "meanLumaDelta": -6.76,
+        "diffPxDelta": -5,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 862,
+        "undimmedDiffPx": 867
+      },
+      {
+        "key": "right-low|stationary-fallback|song-palette",
+        "meanLumaDelta": -4.09,
+        "diffPxDelta": -11,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 857,
+        "undimmedDiffPx": 868
+      }
+    ],
+    "camera": [
+      {
+        "key": "center|plus-x|theme-defaults",
+        "meanLumaDelta": -96.31,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -53.9,
+        "dimmedDiffPx": 648,
+        "undimmedDiffPx": 648
+      },
+      {
+        "key": "center|plus-x|song-palette",
+        "meanLumaDelta": -88.95,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -51.4,
+        "dimmedDiffPx": 648,
+        "undimmedDiffPx": 648
+      },
+      {
+        "key": "center|plus-y|theme-defaults",
+        "meanLumaDelta": -96.39,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -53.9,
+        "dimmedDiffPx": 648,
+        "undimmedDiffPx": 648
+      },
+      {
+        "key": "center|plus-y|song-palette",
+        "meanLumaDelta": -88.95,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -51.4,
+        "dimmedDiffPx": 648,
+        "undimmedDiffPx": 648
+      },
+      {
+        "key": "center|45deg|theme-defaults",
+        "meanLumaDelta": -95.84,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -53.9,
+        "dimmedDiffPx": 590,
+        "undimmedDiffPx": 590
+      },
+      {
+        "key": "center|45deg|song-palette",
+        "meanLumaDelta": -88.48,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -51.4,
+        "dimmedDiffPx": 590,
+        "undimmedDiffPx": 590
+      },
+      {
+        "key": "center|stationary-fallback|theme-defaults",
+        "meanLumaDelta": -214.39,
+        "diffPxDelta": -649,
+        "maxLumaDelta": -231,
+        "dimmedDiffPx": 0,
+        "undimmedDiffPx": 649
+      },
+      {
+        "key": "center|stationary-fallback|song-palette",
+        "meanLumaDelta": -51.68,
+        "diffPxDelta": 0,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 649,
+        "undimmedDiffPx": 649
+      },
+      {
+        "key": "left-up|plus-x|theme-defaults",
+        "meanLumaDelta": -81.68,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 824,
+        "undimmedDiffPx": 824
+      },
+      {
+        "key": "left-up|plus-x|song-palette",
+        "meanLumaDelta": -75.33,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 824,
+        "undimmedDiffPx": 824
+      },
+      {
+        "key": "left-up|plus-y|theme-defaults",
+        "meanLumaDelta": -82.82,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 871,
+        "undimmedDiffPx": 871
+      },
+      {
+        "key": "left-up|plus-y|song-palette",
+        "meanLumaDelta": -76.4,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 871,
+        "undimmedDiffPx": 871
+      },
+      {
+        "key": "left-up|45deg|theme-defaults",
+        "meanLumaDelta": -83.49,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 902,
+        "undimmedDiffPx": 902
+      },
+      {
+        "key": "left-up|45deg|song-palette",
+        "meanLumaDelta": -76.96,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 902,
+        "undimmedDiffPx": 902
+      },
+      {
+        "key": "left-up|stationary-fallback|theme-defaults",
+        "meanLumaDelta": -81.38,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 812,
+        "undimmedDiffPx": 812
+      },
+      {
+        "key": "left-up|stationary-fallback|song-palette",
+        "meanLumaDelta": -75.14,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 812,
+        "undimmedDiffPx": 812
+      },
+      {
+        "key": "right-low|plus-x|theme-defaults",
+        "meanLumaDelta": -84.04,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 909,
+        "undimmedDiffPx": 909
+      },
+      {
+        "key": "right-low|plus-x|song-palette",
+        "meanLumaDelta": -77.51,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 909,
+        "undimmedDiffPx": 909
+      },
+      {
+        "key": "right-low|plus-y|theme-defaults",
+        "meanLumaDelta": -81.71,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 810,
+        "undimmedDiffPx": 810
+      },
+      {
+        "key": "right-low|plus-y|song-palette",
+        "meanLumaDelta": -75.42,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 810,
+        "undimmedDiffPx": 810
+      },
+      {
+        "key": "right-low|45deg|theme-defaults",
+        "meanLumaDelta": -83.47,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -26.1,
+        "dimmedDiffPx": 883,
+        "undimmedDiffPx": 883
+      },
+      {
+        "key": "right-low|45deg|song-palette",
+        "meanLumaDelta": -77.05,
+        "diffPxDelta": 0,
+        "maxLumaDelta": -23.9,
+        "dimmedDiffPx": 883,
+        "undimmedDiffPx": 883
+      },
+      {
+        "key": "right-low|stationary-fallback|theme-defaults",
+        "meanLumaDelta": -5.08,
+        "diffPxDelta": -66,
+        "maxLumaDelta": -6.8,
+        "dimmedDiffPx": 802,
+        "undimmedDiffPx": 868
+      },
+      {
+        "key": "right-low|stationary-fallback|song-palette",
+        "meanLumaDelta": -5.96,
+        "diffPxDelta": 0,
+        "maxLumaDelta": 0,
+        "dimmedDiffPx": 868,
+        "undimmedDiffPx": 868
+      }
+    ]
+  }
+}

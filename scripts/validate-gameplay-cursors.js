@@ -82,7 +82,7 @@ async function runContext(context) {
   // inside the same entity. The old primitive saber had a separate core
   // entity (`equipment-{hand}-core`).
   const flowNames=(frame,hand)=>[`equipment-${hand}`];
-  const gloveNames=(frame,hand)=>[`equipment-${hand}`,`equipment-${hand}-accent`];
+  const gloveNames=(frame,hand)=>[`equipment-${hand}`];
   const hasEnabled=(frame,names)=>names.every((name)=>frame.scene.equipment.some((entry)=>entry.name===name&&entry.enabled===true));
   const anyEnabledEquipment=(frame)=>frame.scene.equipment.some((entry)=>entry.enabled===true);
   const noMarkersEnabled=(frame)=>!frame.scene.markers.some((entry)=>entry.enabled===true);
@@ -121,7 +121,7 @@ async function runContext(context) {
   assert(result.lowConfidence.call.equipment.length===1&&result.lowConfidence.call.equipment.every((record)=>record.role==="right_wrist")&&!result.lowConfidence.scene.equipment.some((entry)=>entry.name==="equipment-left_wrist"&&entry.enabled)&&result.lowConfidence.call.result.equipmentCount===1&&result.lowConfidence.changedPixels>0,`${label} low-confidence wrist must be omitted from equipment records and scene: ${JSON.stringify(result.lowConfidence)}`);
   // Boxing variant: gloves (opaque body + accent), no direction key.
   assert(result.boxing.call.equipment.length===2&&JSON.stringify(result.boxing.call.equipment.map((record)=>record.role))===JSON.stringify(["left_wrist","right_wrist"])&&result.boxing.call.equipment.every((record)=>JSON.stringify(Object.keys(record).sort())===JSON.stringify(["mode","role","x","y"])&&record.mode==="boxing"),`${label} boxing playing must stage both hands as gloves without a direction: ${JSON.stringify(result.boxing.call.equipment)}`);
-  assert(result.boxing.call.result.equipmentCount===2&&hasEnabled(result.boxing,gloveNames(result.boxing,"left_wrist"))&&hasEnabled(result.boxing,gloveNames(result.boxing,"right_wrist")),`${label} both boxing hands must have enabled glove + accent entities: ${JSON.stringify(result.boxing.scene)}`);
+  assert(result.boxing.call.result.equipmentCount===2&&hasEnabled(result.boxing,gloveNames(result.boxing,"left_wrist"))&&hasEnabled(result.boxing,gloveNames(result.boxing,"right_wrist")),`${label} both boxing hands must have enabled glove GLB entities: ${JSON.stringify(result.boxing.scene)}`);
   assert(result.boxing.changedPixels>0,`${label} boxing gloves on dark Aero must alter displayed canvas pixels: ${JSON.stringify({changedPixels:result.boxing.changedPixels})}`);
   assert(result.boxingLight.changedPixels>0,`${label} opaque boxing gloves must stay pixel-visible over bright Camera: ${JSON.stringify({changedPixels:result.boxingLight.changedPixels})}`);
   assert(!result.snapshotHasCursorPayload,`${label} equipment drawing must add no public cursor/equipment/media payload`);

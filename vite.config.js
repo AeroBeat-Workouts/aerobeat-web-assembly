@@ -20,12 +20,12 @@ export const viteAllowedFileSystemRoots = Object.freeze([assemblyRoot, ...Object
   })]);
 const rendererGameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.11/", import.meta.url);
 const rendererGameplayInventoryBytes = readFileSync(new URL("inventory.v1.json", rendererGameplayRoot));
-if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "04084ea5119c4c30011840318ada3f483db3843c60806499d8f25f0e48ffa583") throw new Error("Linked renderer gameplay inventory hash drifted");
+if (createHash("sha256").update(rendererGameplayInventoryBytes).digest("hex") !== "b043fe4f039f34527aae229224e0fb1f4069848b67ea5a89a51d732f063cac29") throw new Error("Linked renderer gameplay inventory hash drifted");
 const rendererGameplayProofBytes = readFileSync(new URL("proof.v1.json", rendererGameplayRoot));
-if (createHash("sha256").update(rendererGameplayProofBytes).digest("hex") !== "378e566dd7bf5ed261db0276485032f6448f4ae4268d461ca516c2419095e3c6") throw new Error("Linked renderer gameplay proof hash drifted");
+if (createHash("sha256").update(rendererGameplayProofBytes).digest("hex") !== "a3c9ffbd4d07fa2d8b0810d8b22210145c35a479d87399c5ac87060f7b7614d3") throw new Error("Linked renderer gameplay proof hash drifted");
 const rendererGameplayInventory = JSON.parse(rendererGameplayInventoryBytes.toString("utf8"));
 const rendererGameplayGlbs = rendererGameplayInventory.payload.filter((entry) => entry.path.endsWith(".glb"));
-if (rendererGameplayGlbs.length !== 8) throw new Error("Linked renderer gameplay GLB inventory drifted");
+if (rendererGameplayGlbs.length !== 9) throw new Error("Linked renderer gameplay GLB inventory drifted");
 const sourceFingerprint = computeReleaseFingerprint(new URL(".", import.meta.url).pathname);
 const buildStamp = `source:${sourceFingerprint}`;
 const cacheBust = `${packageJson.version}-${sourceFingerprint.slice(0, 16)}`;

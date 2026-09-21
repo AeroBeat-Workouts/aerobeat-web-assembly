@@ -11,12 +11,12 @@ import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "8a3fc41e50a22ffed22e0e0b2cc34d97e65fbcc2";
-const rendererTree = "8d5b60503ab5793072398939a2c71f866f732f74";
+const rendererCommit = "7a11ddb2fccd696e90e2ffb21abc57cc514ba807";
+const rendererTree = "6e64ff359a42d6d64c5f0271681cf6b8f5f0dbf2";
 const release = "0.0.11";
-const releaseTree = "305fe8e670c42afad0804bc2e55bdc27ae7364f3";
-const inventoryHash = "04084ea5119c4c30011840318ada3f483db3843c60806499d8f25f0e48ffa583";
-const proofHash = "378e566dd7bf5ed261db0276485032f6448f4ae4268d461ca516c2419095e3c6";
+const releaseTree = "06fb120939b17326c558b8a698025d6ab8bd093d";
+const inventoryHash = "b043fe4f039f34527aae229224e0fb1f4069848b67ea5a89a51d732f063cac29";
+const proofHash = "a3c9ffbd4d07fa2d8b0810d8b22210145c35a479d87399c5ac87060f7b7614d3";
 const arguments_ = process.argv.slice(2);
 const sourceIndex = arguments_.indexOf("--source");
 const source = resolve(sourceIndex >= 0 ? arguments_[sourceIndex + 1] ?? "" : canonicalRenderer);
@@ -48,18 +48,18 @@ assert.equal(hash(inventoryBytes), inventoryHash, "renderer gameplay inventory h
 assert.equal(hash(proofBytes), proofHash, "renderer gameplay proof hash drifted");
 const inventory = JSON.parse(inventoryBytes.toString("utf8"));
 const proof = JSON.parse(proofBytes.toString("utf8"));
-assert.equal(inventory.expected_asset_count, 8, "renderer gameplay asset count drifted");
+assert.equal(inventory.expected_asset_count, 9, "renderer gameplay asset count drifted");
 assert.equal(inventory.immutable, true, "renderer gameplay immutable claim drifted");
-assert.equal(inventory.payload.length, 16, "renderer gameplay payload inventory drifted");
+assert.equal(inventory.payload.length, 17, "renderer gameplay payload inventory drifted");
 assert.equal(proof.release, release, "renderer gameplay proof release drifted");
 assert.equal(proof.inventory_sha256, inventoryHash, "renderer gameplay proof inventory binding drifted");
 const markerEntry = inventory.payload.find((entry) => entry.path === "athlete-marker/sphere-v1.glb");
 assert.equal(markerEntry?.sha256, "f376934f218a25c11f2f31928c67684611aaf9c73aa1724548682ae280b5cbcc", "tint-dominant marker identity drifted");
-// 0.0.62 L-C (r2lb r1a): the flow-saber GLB is now in the inventory payload
-// (8 GLBs + 7 manifests + 1 set = 16 entries). The assembly payload matches.
+// 0.0.62 L-D (5y0q): the boxing-glove GLB joins the payload
+// (9 GLBs + 7 manifests + 1 set = 17 entries). The assembly payload matches.
 const expectedFiles = [...inventory.payload.map((entry) => entry.path), "inventory.v1.json", "proof.v1.json"].sort();
-assert.equal(expectedFiles.length, 18, "renderer gameplay exact file count drifted");
-assert.equal(new Set(expectedFiles).size, 18, "renderer gameplay inventory contains duplicates");
+assert.equal(expectedFiles.length, 19, "renderer gameplay exact file count drifted");
+assert.equal(new Set(expectedFiles).size, 19, "renderer gameplay inventory contains duplicates");
 verifyTree(sourceRoot, "renderer source");
 
 if (mode === "sync") {

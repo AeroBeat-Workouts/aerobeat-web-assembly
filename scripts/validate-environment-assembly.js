@@ -29,6 +29,7 @@ const expectedGameplayPaths = [
   "assets/gameplay/0.0.11/any-note/outlined-circle-v1.glb",
   "assets/gameplay/0.0.11/athlete-marker/sphere-v1.glb",
   "assets/gameplay/0.0.11/bomb/urchin-v1.glb",
+  "assets/gameplay/0.0.11/boxing-glove/boxing-glove-v1.glb",
   "assets/gameplay/0.0.11/directional-arrow/rounded-outline-v1.glb",
   "assets/gameplay/0.0.11/flow-saber/flow-saber-v1.glb",
   "assets/gameplay/0.0.11/guard/outlined-shield-v1.glb",
@@ -47,11 +48,11 @@ const expectedGameplayPaths = [
 ];
 const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
 const rendererRoot = resolve(root, "../aerobeat-web-renderer");
-const rendererCommit = "8a3fc41e50a22ffed22e0e0b2cc34d97e65fbcc2";
+const rendererCommit = "7a11ddb2fccd696e90e2ffb21abc57cc514ba807";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
-assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "8d5b60503ab5793072398939a2c71f866f732f74", "linked renderer tree drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), "6e64ff359a42d6d64c5f0271681cf6b8f5f0dbf2", "linked renderer tree drifted");
 validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");
-assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.11"]), "305fe8e670c42afad0804bc2e55bdc27ae7364f3", "linked gameplay raw tree drifted");
+assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.11"]), "06fb120939b17326c558b8a698025d6ab8bd093d", "linked gameplay raw tree drifted");
 assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.11"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
 for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly gameplay runtime member drifted: ${path}`);
 const rendererGameplaySource = readFileSync(resolve(rendererRoot, "src/gameplay-assets.js"), "utf8");
@@ -61,8 +62,8 @@ assert.match(rendererGameplaySource, /gameplayAssetSourceTree="d027617131fe2e291
 assert.match(rendererGameplaySource, /gameplayAssetAuditCommit="a157d930a07e971ae905a51fdf613b6e7af9e7d2"/u);
 assert.match(rendererGameplaySource, /gameplayAssetAuditTree="d027617131fe2e291e451c5414169c52a6a5b867"/u);
 assert.match(rendererGameplaySource, /gameplayAssetRawTree="af911e693622e5f21aa1f2c6f3321fb6541ed312"/u);
-assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="04084ea5119c4c30011840318ada3f483db3843c60806499d8f25f0e48ffa583"/u);
-assert.match(rendererGameplaySource, /gameplayAssetProofSha256="378e566dd7bf5ed261db0276485032f6448f4ae4268d461ca516c2419095e3c6"/u);
+assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="b043fe4f039f34527aae229224e0fb1f4069848b67ea5a89a51d732f063cac29"/u);
+assert.match(rendererGameplaySource, /gameplayAssetProofSha256="a3c9ffbd4d07fa2d8b0810d8b22210145c35a479d87399c5ac87060f7b7614d3"/u);
 const setManifest = JSON.parse(readFileSync("assets/gameplay/0.0.11/sets/default-v1.json", "utf8"));
 assert.deepEqual(setManifest.roles, {"any-note":"outlined-circle-v1","athlete-marker":"sphere-v1",bomb:"urchin-v1","directional-arrow":"rounded-outline-v1",guard:"outlined-shield-v1",track:"blue-glass-v1",wall:"red-glass-v1"});
 const wallManifest = JSON.parse(readFileSync("assets/gameplay/0.0.11/manifests/wall/red-glass-v1.v1.json", "utf8"));
