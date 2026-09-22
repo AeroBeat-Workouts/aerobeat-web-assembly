@@ -62,33 +62,16 @@ try {
   const game = page.locator("aero-game");
   await game.waitFor();
 
-  // ---------- (a) idle: panel hidden + disabled; accessor + snapshot clean ----------
-  const idleEvidence = await game.evaluate((element, defaultsJson) => {
-    const root = element.shadowRoot;
-    const panel = root.querySelector("aside[data-role='debug-camera-controls']");
-    const section = root.querySelector(".equipment-authoring");
-    const textarea = root.querySelector("[data-equipment-config-field='yaml']");
-    const buttons = [...root.querySelectorAll("button[data-equipment-config-action]")].map((b) => ({ action: b.dataset.action, disabled: b.disabled }));
-    const snapshotJson = JSON.stringify(element.getSnapshot());
-    return {
-      panelHidden: panel instanceof HTMLElement && panel.hidden === true,
-      panelAriaHidden: panel?.getAttribute("aria-hidden") === "true",
-      sectionLabel: section?.querySelector("legend")?.textContent ?? null,
-      textareaValue: textarea instanceof HTMLTextAreaElement ? textarea.value : null,
-      buttons,
-      snapshotLeak: /equipmentConfig|equipment_config|rotationZDeg|upcomingBeatWindowMs/u.test(snapshotJson),
-      describeEqualsDefaults: JSON.stringify(element.describeEquipmentConfig()) === defaultsJson,
-    };
-  }, expectedDefaultsJson);
-  assert.equal(idleEvidence.panelHidden, true, "authoring panel must be hidden outside Visual Test");
-  assert.equal(idleEvidence.panelAriaHidden, true, "panel must be aria-hidden outside Visual Test");
-  assert.equal(idleEvidence.sectionLabel, "Equipment config", "section legend correct even while hidden");
-  assert.equal(idleEvidence.textareaValue, "", "textarea empty until first enabled render");
-  assert.deepEqual(idleEvidence.buttons.map((b) => b.action), ["equipment-config-apply", "equipment-config-reset", "equipment-config-export"]);
-  assert.deepEqual(idleEvidence.buttons.map((b) => b.disabled), [true, true, true], "buttons disabled while gated off");
-  assert.equal(idleEvidence.snapshotLeak, false, "public snapshot must not leak equipment config truth");
-  assert.equal(idleEvidence.describeEqualsDefaults, true, "describeEquipmentConfig must equal frozen build defaults at idle");
-  console.log("PASS: (a) idle — panel hidden/disabled, accessor === defaults, snapshot clean");
+  // ---------- (a) idle: complete grouped controls, no YAML editor/Apply ----------
+  const expectedPaths = [
+    "flow.perHand.left.scale","flow.perHand.left.rotationZDeg","flow.perHand.right.scale","flow.perHand.right.rotationZDeg",
+    "flow.saber.zones.edgeTop.rotationDeg","flow.saber.zones.edgeBottom.rotationDeg","flow.saber.zones.edgeLeft.rotationDeg","flow.saber.zones.edgeRight.rotationDeg","flow.saber.zones.center.rotationDeg","flow.saber.ease.type","flow.saber.ease.durationMs","flow.saber.blendRadius",
+    "boxing.perHand.left.scale","boxing.perHand.left.rotationZDeg","boxing.perHand.right.scale","boxing.perHand.right.rotationZDeg",
+    "boxing.glove.states.straight.rotationZDeg","boxing.glove.states.uppercut.rotationZDeg","boxing.glove.states.hookL.rotationZDeg","boxing.glove.states.hookR.rotationZDeg","boxing.glove.states.guard.rotationZDeg","boxing.glove.ease.type","boxing.glove.ease.durationMs","boxing.glove.upcomingBeatWindowMs"
+  ];
+  const idleEvidence = await game.evaluate((element) => { const root=element.shadowRoot; return {textarea:root.querySelectorAll(".equipment-authoring textarea").length,apply:root.querySelectorAll("[data-action='equipment-config-apply']").length,paths:[...root.querySelectorAll("[data-equipment-config-field]")].map((control)=>control.dataset.equipmentConfigField),groups:[...root.querySelectorAll(".equipment-control-group>legend")].map((legend)=>legend.textContent),toggle:root.querySelector("[data-equipment-preview-toggle='true']")?.checked,disabled:[...root.querySelectorAll("[data-equipment-config-field],[data-equipment-preview-toggle],button[data-equipment-config-action]")].every((control)=>control.disabled),snapshotLeak:/equipmentConfig|equipment_config|rotationZDeg|testEquipmentVisible/u.test(JSON.stringify(element.getSnapshot()))}; });
+  assert.equal(idleEvidence.textarea,0,"raw YAML textarea removed"); assert.equal(idleEvidence.apply,0,"Apply path removed"); assert.deepEqual(idleEvidence.paths,expectedPaths,"complete ordered grouped field inventory"); assert.deepEqual(idleEvidence.groups,["Flow · hand transforms","Flow · saber zones","Boxing · hand transforms","Boxing · glove states"]); assert.equal(idleEvidence.toggle,false); assert.equal(idleEvidence.disabled,true); assert.equal(idleEvidence.snapshotLeak,false);
+  console.log("PASS: grouped idle inventory, no YAML editor/Apply, privacy clean");
 
   // ---------- (b) boot a REAL Flow visual_test session ----------
   await game.evaluate((element) => {
@@ -97,13 +80,16 @@ try {
     element.serviceGraphFactory = (options) => {
       const original = originalFactory(options);
       const hash = "a".repeat(64);
-      const variant = { variantId: "c5-panel-flow", chartId: "c5-panel-flow-chart", mode: "flow", rulesetId: "flow_colliders_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: "c5-panel-flow" } };
-      const readyContent = () => ({ state: "ready", packageId: "c5-panel", selectedVariant: variant, variants: [variant], resolvedEvents: [], song: { name: "c5-panel", durationSec: 60 }, background: null, lineage: null });
+      const base = { recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash } };
+      const flow = { ...base, variantId: "c5-panel-flow", chartId: "c5-panel-flow-chart", mode: "flow", rulesetId: "flow_colliders_v1", provenance: { baseVariantId: "c5-panel-flow" } };
+      const boxing = { ...base, variantId: "c5-panel-boxing", chartId: "c5-panel-boxing-chart", mode: "boxing", rulesetId: "boxing_collider_v1", provenance: { baseVariantId: "c5-panel-boxing" } };
+      const variants = [flow, boxing];
+      const readyContent = (selectedVariant = flow) => ({ state: "ready", packageId: "c5-panel", selectedVariant, variants, resolvedEvents: [], song: { name: "c5-panel", durationSec: 60 }, background: null, lineage: null });
       const state = globalThis.__c5State = { contentSnapshot: readyContent(), listeners: new Set() };
       const content = {
         getSnapshot: () => state.contentSnapshot,
         loadPersistenceHandle: async () => { state.contentSnapshot = readyContent(); },
-        selectVariant: async () => {},
+        selectVariant: async (variantId) => { const selected = variants.find((candidate) => candidate.variantId === variantId); if (!selected) throw new Error("unknown variant"); state.contentSnapshot = readyContent(selected); for (const listener of state.listeners) listener(state.contentSnapshot); },
         swapFutureVariant: async () => {},
         subscribe(listener) { state.listeners.add(listener); listener(state.contentSnapshot); return () => state.listeners.delete(listener); },
         setPlaybackState(playback) { state.contentSnapshot = { ...state.contentSnapshot, playback: structuredClone(playback) }; },
@@ -160,143 +146,42 @@ try {
   // Inject the compare baseline inside the page for later evaluate calls.
   await page.evaluate((value) => { globalThis.__expectedDefaultsJson = value; }, expectedDefaultsJson);
 
-  // ---------- (c) panel visible + enabled; textarea preloaded byte-exact ----------
-  const testEvidence = await game.evaluate((element, defaultsJson) => {
-    const root = element.shadowRoot;
-    const panel = root.querySelector("aside[data-role='debug-camera-controls']");
-    const section = root.querySelector(".equipment-authoring");
-    const textarea = root.querySelector("[data-equipment-config-field='yaml']");
-    const applyButton = root.querySelector("button[data-action='equipment-config-apply']");
-    const resetButton = root.querySelector("button[data-action='equipment-config-reset']");
-    const exportButton = root.querySelector("button[data-action='equipment-config-export']");
-    const status = root.querySelector("[data-role='equipment-config-status']");
-    return {
-      panelVisible: panel instanceof HTMLElement && panel.hidden === false,
-      panelAriaHidden: panel?.getAttribute("aria-hidden") === "false",
-      sectionLabel: section?.querySelector("legend")?.textContent,
-      textareaValue: textarea instanceof HTMLTextAreaElement ? textarea.value : null,
-      applyEnabled: applyButton instanceof HTMLButtonElement && applyButton.disabled === false,
-      resetEnabled: resetButton instanceof HTMLButtonElement && resetButton.disabled === false,
-      exportEnabled: exportButton instanceof HTMLButtonElement && exportButton.disabled === false,
-      statusRole: status?.getAttribute("role"),
-      statusLive: status?.getAttribute("aria-live"),
-      describeEqualsDefaults: JSON.stringify(element.describeEquipmentConfig()) === defaultsJson,
-    };
-  }, expectedDefaultsJson);
-  assert.equal(testEvidence.panelVisible, true, "authoring panel VISIBLE during visual_test");
-  assert.equal(testEvidence.panelAriaHidden, true, "panel aria-hidden=false during visual_test");
-  assert.equal(testEvidence.sectionLabel, "Equipment config");
-  assert.equal(testEvidence.applyEnabled, true, "Apply button enabled in visual_test");
-  assert.equal(testEvidence.resetEnabled, true, "Reset button enabled in visual_test");
-  assert.equal(testEvidence.exportEnabled, true, "Export button enabled in visual_test");
-  assert.equal(testEvidence.statusRole, "status");
-  assert.equal(testEvidence.statusLive, "polite");
-  assert.equal(testEvidence.describeEqualsDefaults, true, "live config still equals defaults before any edit");
-  assert.equal(testEvidence.textareaValue, expectedDefaultsYaml, "textarea preloaded with serialized defaults BYTE-FOR-BYTE");
-  console.log("PASS: (c) visual_test — panel visible/enabled, textarea === serialized defaults");
-
-  // ---------- (d) LIVE validation on input ----------
-  const invalidText = `${expectedDefaultsYaml}bogus: 1\n`;
-  await game.locator("[data-equipment-config-field='yaml']").fill(invalidText);
-  const liveInvalidBaseline = await game.evaluate((element) => ({
-    statusValue: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
-    describeUnchanged: JSON.stringify(element.describeEquipmentConfig()) === globalThis.__expectedDefaultsJson,
-  }));
-  assert.match(liveInvalidBaseline.statusValue, /unknown top-level key "bogus"/u, "invalid input surfaces the error message");
-  assert.equal(liveInvalidBaseline.describeUnchanged, true, "live validation does NOT mutate the live config");
-  const validEdited = expectedDefaultsYaml.replace("scale: 1", "scale: 2").replace("rotationZDeg: 0", "rotationZDeg: 17");
-  await game.locator("[data-equipment-config-field='yaml']").fill(validEdited);
-  const liveValid = await game.evaluate((element) => ({
-    statusValue: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
-    describeUnchanged: JSON.stringify(element.describeEquipmentConfig()) === globalThis.__expectedDefaultsJson,
-  }));
-  assert.match(liveValid.statusValue, /Valid/u, "valid input shows the valid indicator");
-  assert.equal(liveValid.describeUnchanged, true, "draft validation alone does not commit");
-  console.log("PASS: (d) live validation — error without applying; valid indicator shown");
-
-  // ---------- (e) APPLY semantics ----------
-  await game.locator("[data-equipment-config-field='yaml']").fill(invalidText);
-  const beforeInvalidApply = await game.evaluate((element) => JSON.stringify(element.describeEquipmentConfig()));
-  await game.locator("button[data-action='equipment-config-apply']").click();
-  const afterInvalidApply = await game.evaluate((element) => ({
-    describe: JSON.stringify(element.describeEquipmentConfig()),
-    status: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
-  }));
-  assert.equal(afterInvalidApply.describe, beforeInvalidApply, "invalid APPLY leaves the live config unchanged");
-  assert.match(afterInvalidApply.status, /unknown top-level key/u, "invalid APPLY keeps the error on screen");
-
-  await game.locator("[data-equipment-config-field='yaml']").fill(validEdited);
-  const applied = await game.evaluate(() => document.querySelector("aero-game").applyEquipmentConfig());
-  assert.equal(applied, true, "valid APPLY returns true");
-  const afterValidApply = await game.evaluate((element) => {
-    const renderer = element.graph.renderer;
-    const input = element.graph.input;
-    const originalRender = renderer.renderGameplayFrameWithCursorsAndEquipment.bind(renderer);
-    const originalInputSnapshot = input.getSnapshot.bind(input);
-    let captured = null;
-    renderer.renderGameplayFrameWithCursorsAndEquipment = (...args) => {
-      captured = structuredClone(args[3]);
-      return originalRender(...args);
-    };
-    input.getSnapshot = () => ({
-      tracking: { gameplayPaused:false, freshCalibrationRequired:false, allRequiredAnchorsVisible:true, anchorsFrozen:false, degradedAnchors:[] },
-      countdownFrozen:false,
-      retainedGeometryDimmed:false,
-      anchors:[
-        { anchor:"left_wrist", valid:true, x:.2, y:.6, confidence:.99 },
-        { anchor:"right_wrist", valid:true, x:.8, y:.6, confidence:.99 },
-      ],
-    });
-    try { element.renderGameplay(); } finally {
-      renderer.renderGameplayFrameWithCursorsAndEquipment = originalRender;
-      input.getSnapshot = originalInputSnapshot;
-    }
-    return {
-      scale: element.describeEquipmentConfig().flow.perHand.left.scale,
-      rotationZDeg: element.describeEquipmentConfig().flow.perHand.left.rotationZDeg,
-      nextLeftRecord: captured?.find((record) => record.role === "left_wrist") ?? null,
-      status: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
-    };
+  // ---------- live Test preview, transforms, uppercut, geometry, reset/export ----------
+  const result = await game.evaluate((element) => {
+    const root=element.shadowRoot, renderer=element.graph.renderer, original=renderer.renderGameplayFrameWithCursorsAndEquipment.bind(renderer), calls=[];
+    renderer.renderGameplayFrameWithCursorsAndEquipment=(...args)=>{calls.push(structuredClone(args[3]));return original(...args);};
+    try { element.renderGameplay(); } finally { renderer.renderGameplayFrameWithCursorsAndEquipment=original; }
+    const defaultOff=calls.at(-1);
+    return {defaultOff,enabled:[...root.querySelectorAll("[data-equipment-config-field],[data-equipment-preview-toggle],button[data-equipment-config-action]")].every((control)=>!control.disabled)};
   });
-  assert.equal(afterValidApply.scale, 2, "VALID APPLY committed the edited scale");
-  assert.equal(afterValidApply.rotationZDeg, 17, "VALID APPLY committed the edited base rotation");
-  assert.equal(afterValidApply.nextLeftRecord?.scale, 2, "VALID APPLY reaches the next rendered left equipment scale");
-  assert.equal(afterValidApply.nextLeftRecord?.rotationZDeg, 17, "VALID APPLY reaches the next rendered left equipment base rotation");
-  assert.match(afterValidApply.status, /applied/iu, "success status projected after apply");
-  console.log("PASS: (e) APPLY — invalid refused (state untouched); valid commits observably");
+  assert.deepEqual(result.defaultOff,[],"Test preview defaults off with zero records"); assert.equal(result.enabled,true,"controls enabled in active Test");
 
-  // ---------- (f) EXPORT via Playwright download event ----------
-  const downloadPromise = page.waitForEvent("download", { timeout: 10_000 });
-  await game.locator("button[data-action='equipment-config-export']").click();
-  const download = await downloadPromise;
-  assert.equal(download.suggestedFilename(), "aerobeat-equipment-config.yaml", "download named aerobeat-equipment-config.yaml");
-  const savedPath = await download.path();
-  assert.ok(savedPath, "download materialized on disk");
-  const downloadedBytes = await readFile(savedPath, "utf8");
-  assert.equal(downloadedBytes, validEdited, "downloaded bytes equal the exported textarea contents");
-  configModule.parseEquipmentConfigYaml(downloadedBytes); // downloadable YAML re-parses cleanly
-  await game.locator("[data-equipment-config-field='yaml']").fill(invalidText);
-  let secondDownloadFired = false;
-  page.once("download", () => { secondDownloadFired = true; });
-  await game.locator("button[data-action='equipment-config-export']").click();
-  await page.waitForTimeout(250);
-  assert.equal(secondDownloadFired, false, "invalid content must NOT trigger a second download");
-  console.log("PASS: (f) EXPORT — Playwright download fired, filename + bytes correct, invalid refuses");
+  await game.locator("[data-equipment-preview-toggle='true']").check();
+  const toggledOn=await game.evaluate((element)=>{element.renderGameplay(); return {visible:element.testEquipmentVisible,snapshot:JSON.stringify(element.getSnapshot()),input:structuredClone(element.graph.input.getSnapshot())};});
+  const onRecords=await game.evaluate((element)=>{let captured=null;const renderer=element.graph.renderer,original=renderer.renderGameplayFrameWithCursorsAndEquipment;renderer.renderGameplayFrameWithCursorsAndEquipment=(...args)=>{captured=structuredClone(args[3]);return original.apply(renderer,args);};try{element.renderGameplay();}finally{renderer.renderGameplayFrameWithCursorsAndEquipment=original;}return captured;});
+  assert.equal(toggledOn.visible,true); assert.equal(onRecords.length,2,"toggle-on emits exactly two deterministic preview records"); assert.deepEqual(onRecords.map(({role,x,y})=>({role,x,y})),[{role:"left_wrist",x:.3,y:.62},{role:"right_wrist",x:.7,y:.62}]); assert.equal(/equipmentConfig|equipment_config|rotationZDeg|testEquipmentVisible/u.test(toggledOn.snapshot),false,"preview/config remain private"); assert.equal(toggledOn.input.anchors.length,0,"preview never mutates input service");
 
-  // ---------- (g) RESET restores baked defaults ----------
-  await game.locator("[data-equipment-config-field='yaml']").fill(validEdited);
-  await game.evaluate(() => document.querySelector("aero-game").applyEquipmentConfig());
+  await game.evaluate((element)=>{element.stopFrameLoop();const renderer=element.graph.renderer;globalThis.__equipmentLiveOriginal=renderer.renderGameplayFrameWithCursorsAndEquipment;globalThis.__equipmentLiveCaptured=null;renderer.renderGameplayFrameWithCursorsAndEquipment=(...args)=>{globalThis.__equipmentLiveCaptured=structuredClone(args[3]);return globalThis.__equipmentLiveOriginal.apply(renderer,args);};});
+  const scale=game.locator("[data-equipment-config-field='flow.perHand.left.scale']"); await scale.fill("2");
+  const live=await game.evaluate((element)=>{const renderer=element.graph.renderer,captured=globalThis.__equipmentLiveCaptured;renderer.renderGameplayFrameWithCursorsAndEquipment=globalThis.__equipmentLiveOriginal;delete globalThis.__equipmentLiveOriginal;delete globalThis.__equipmentLiveCaptured;return{frameTimer:element.frameTimer,config:element.describeEquipmentConfig().flow.perHand.left.scale,left:captured?.find((record)=>record.role==="left_wrist")??null,status:element.equipmentConfigStatus};});
+  assert.equal(live.frameTimer,0,"normal display loop remains stopped"); assert.equal(live.config,2); assert.equal(live.left.scale,2,"accepted field edit explicitly renders the next transform with loop stopped"); assert.match(live.status,/updated/iu);
+
+  await game.locator("[data-equipment-preview-toggle='true']").uncheck();
+  const offRecords=await game.evaluate((element)=>{let captured=null;const renderer=element.graph.renderer,original=renderer.renderGameplayFrameWithCursorsAndEquipment;renderer.renderGameplayFrameWithCursorsAndEquipment=(...args)=>{captured=structuredClone(args[3]);return original.apply(renderer,args);};try{element.renderGameplay();}finally{renderer.renderGameplayFrameWithCursorsAndEquipment=original;}return captured;});
+  assert.deepEqual(offRecords,[],"toggle-off returns to zero equipment");
+
+  const uppercut=await game.evaluate(async(element)=>{await element.graph.content.selectVariant("c5-panel-boxing");element.configureGameplayFromContent(false,"visual_test",true);element.activeSessionAction="test";element.sessionStartRequested=true;element.menuOpen=false;element.testEquipmentVisible=true;const now=element.graph.gameplay.getSnapshot().session.timelinePositionMs;let rotations=null,error=null;try{rotations=element.computeBoxingStateRotations(element.graph,Object.freeze({nowMs:now,targets:Object.freeze([{id:"uppercut",kind:"punch",hand:"left",family:"uppercut",beatCenterMs:now+100}])}));element.renderGameplay();}catch(value){error=value instanceof Error?value.message:String(value);}return{error,rotations,lastError:element.lastError};});
+  assert.equal(uppercut.error,null,"uppercut frame must not throw"); assert.equal(uppercut.lastError,null,"uppercut must not reach Info error"); assert(Number.isFinite(uppercut.rotations.left)&&Number.isFinite(uppercut.rotations.right));
+
+  const geometry=await game.evaluate((element)=>{const root=element.shadowRoot,panel=root.querySelector("[data-role='debug-camera-controls']"),host=element.getBoundingClientRect(),rect=panel.getBoundingClientRect(),actions=[...root.querySelectorAll(".equipment-actions button")];return{panel:{left:rect.left,right:rect.right,width:rect.width,hostRight:host.right,scrollWidth:panel.scrollWidth,clientWidth:panel.clientWidth},actions:actions.map((button)=>({text:button.textContent.trim(),scrollWidth:button.scrollWidth,clientWidth:button.clientWidth,whiteSpace:getComputedStyle(button).whiteSpace}))};});
+  assert(geometry.panel.width>220&&geometry.panel.left>=0&&geometry.panel.right<=geometry.panel.hostRight&&geometry.panel.scrollWidth<=geometry.panel.clientWidth,`responsive panel geometry ${JSON.stringify(geometry)}`); assert(geometry.actions.every((button)=>button.scrollWidth<=button.clientWidth&&button.whiteSpace==="nowrap"),`action overflow ${JSON.stringify(geometry.actions)}`);
+
   await game.locator("button[data-action='equipment-config-reset']").click();
-  const afterReset = await game.evaluate((element) => ({
-    describeEqualsDefaults: JSON.stringify(element.describeEquipmentConfig()) === globalThis.__expectedDefaultsJson,
-    textareaValue: element.shadowRoot.querySelector("[data-equipment-config-field='yaml']").value,
-  }));
-  assert.equal(afterReset.describeEqualsDefaults, true, "RESET restored the baked defaults into the live state");
-  assert.equal(afterReset.textareaValue, expectedDefaultsYaml, "RESET refreshed the textarea to serialized defaults");
-  console.log("PASS: (g) RESET — baked defaults restored to state and textarea");
+  const reset=await game.evaluate((element)=>JSON.stringify(element.describeEquipmentConfig())); assert.equal(reset,expectedDefaultsJson,"Reset restores build defaults");
+  const downloadPromise=page.waitForEvent("download"); await game.locator("button[data-action='equipment-config-export']").click(); const download=await downloadPromise; assert.equal(download.suggestedFilename(),"aerobeat-equipment-config.yaml"); const saved=await download.path(); assert.ok(saved); const bytes=await readFile(saved,"utf8"); assert.equal(bytes,expectedDefaultsYaml,"trusted Export serializes live config deterministically"); configModule.parseEquipmentConfigYaml(bytes);
 
-  // No stray console noise across the whole run.
-  assert.deepEqual(noise, [], `unexpected console/page noise: ${JSON.stringify(noise)}`);
+  assert.deepEqual(noise,[],`unexpected console/page noise: ${JSON.stringify(noise)}`);
+  console.log("PASS: preview toggle/live edit/uppercut/geometry/reset/export/privacy");
 
   clearTimeout(hardTimeout);
   console.log("Equipment config panel browser oracle PASS.");
