@@ -35,9 +35,12 @@ export const SABER_ZONE_KEYS = Object.freeze(["edgeTop", "edgeBottom", "edgeLeft
 /**
  * Glove beat-state keys (I-7, child C3 consumes these).
  *
- * @type {ReadonlyArray<"straight" | "upercut" | "hookL" | "hookR" | "guard">}
+ * Derived from the canonical validated-default shape so selector/config closure
+ * cannot drift behind a separately maintained state-key list.
+ *
+ * @type {ReadonlyArray<"straight" | "uppercut" | "hookL" | "hookR" | "guard">}
  */
-export const GLOVE_STATE_KEYS = Object.freeze(["straight", "upercut", "hookL", "hookR", "guard"]);
+export const GLOVE_STATE_KEYS = Object.freeze(/** @type {Array<"straight" | "uppercut" | "hookL" | "hookR" | "guard">} */ (Object.keys(equipmentConfigDefaults.boxing.glove.states)));
 
 /**
  * Per-hand keys shared by both modes.

@@ -102,14 +102,14 @@ export const GLOVE_HOOK_DOMINANCE_RATIO = 1.2;
  * state, with the hook side following the hand of the beat:
  *   - guard        → "guard"
  *   - straight     → "straight"
- *   - uppercut     → "upercut"
+ *   - uppercut     → "uppercut"
  *   - hook         → "hookL" (left hand) / "hookR" (right hand)
  *
  * FALLBACK — `upcomingAction === null`: the recent real `motionVector` picks
  * the state with a simple, deterministic, threshold-based rule (documented in
  * the JSDoc of `gloveStateFromMotion` below):
  *   - dead zone / null        → "guard" (low motion, hand near guard)
- *   - dominant upward         → "upercut"
+ *   - dominant upward         → "uppercut"
  *   - dominant horizontal     → "hookL" (left) / "hookR" (right)
  *   - dominant straight-ish   → "straight"
  *
@@ -118,7 +118,7 @@ export const GLOVE_HOOK_DOMINANCE_RATIO = 1.2;
  *   (unit-ish velocity) for the hand, or null when no usable motion window.
  * @param {GloveUpcomingAction | null} upcomingAction - The next boxing note for
  *   THIS hand within the upcoming window, or null when none is in the window.
- * @returns {"straight" | "upercut" | "hookL" | "hookR" | "guard"} - The state key.
+ * @returns {"straight" | "uppercut" | "hookL" | "hookR" | "guard"} - The state key.
  */
 export function selectGloveState(hand, motionVector, upcomingAction) {
   if (hand !== "left" && hand !== "right") throw new TypeError("Glove hand must be 'left' or 'right'");
@@ -126,7 +126,7 @@ export function selectGloveState(hand, motionVector, upcomingAction) {
     const family = String(upcomingAction.family);
     if (family === "guard") return "guard";
     if (family === "straight") return "straight";
-    if (family === "uppercut") return "upercut";
+    if (family === "uppercut") return "uppercut";
     if (family === "hook") return hand === "left" ? "hookL" : "hookR";
     // Unknown family: degrade to the motion fallback (deterministic + safe).
   }
@@ -134,11 +134,46 @@ export function selectGloveState(hand, motionVector, upcomingAction) {
 }
 
 /**
+ * Select the earliest projected Boxing action for each hand from the exact
+ * target array carried by the frame that will be rendered. Punches apply to
+ * their authored hand; guards apply to their authored hand or both hands.
+ * Only targets inside the inclusive `[nowMs, nowMs + windowMs]` interval are
+ * eligible. Input order is irrelevant except for equal-time ties, which retain
+ * the first projected target as before.
+ *
+ * @param {ReadonlyArray<unknown>} targets - Projected targets from one renderer frame.
+ * @param {number} nowMs - That frame's content-timeline position.
+ * @param {number} windowMs - Configured upcoming-beat window.
+ * @returns {{left: GloveUpcomingAction | null, right: GloveUpcomingAction | null}}
+ */
+export function boxingUpcomingActions(targets, nowMs, windowMs) {
+  const out = { left: null, right: null };
+  for (const target of Array.isArray(targets) ? targets : []) {
+    const kind = String(target?.kind);
+    const family = String(target?.family);
+    const hand = String(target?.hand);
+    const centerMs = Number(target?.beatCenterMs);
+    if (!Number.isFinite(centerMs)) continue;
+    if (centerMs < nowMs || centerMs > nowMs + windowMs) continue;
+    let appliesTo = null;
+    if (kind === "punch" && ["straight", "hook", "uppercut"].includes(family) && ["left", "right"].includes(hand)) appliesTo = [hand];
+    else if (kind === "guard" && (hand === "both" || hand === "left" || hand === "right")) appliesTo = hand === "both" ? ["left", "right"] : [hand];
+    else continue;
+    for (const selectedHand of appliesTo) {
+      if (out[selectedHand] === null || centerMs < out[selectedHand].beatCenterMs) {
+        out[selectedHand] = Object.freeze({ kind, hand, family, beatCenterMs: centerMs });
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Motion-fallback state selection — the single deterministic rule, documented:
  *
  *   1. No vector, or |v| < `GLOVE_MOTION_DEAD_ZONE` (low motion) → "guard".
  *   2. Upward-dominant: `v.y > GLOVE_AXIS_DOMINANCE` AND
- *      `v.y >= GLOVE_HOOK_DOMINANCE_RATIO * |v.x|`  → "upercut".
+ *      `v.y >= GLOVE_HOOK_DOMINANCE_RATIO * |v.x|`  → "uppercut".
  *   3. Horizontal-dominant: `|v.x| > GLOVE_AXIS_DOMINANCE` AND
  *      `|v.x| >= GLOVE_HOOK_DOMINANCE_RATIO * |v.y|`
  *      → "hookL" (left hand) / "hookR" (right hand).
@@ -151,7 +186,7 @@ export function selectGloveState(hand, motionVector, upcomingAction) {
  *
  * @param {"left" | "right"} hand - The hand.
  * @param {GloveMotionVector | null} motionVector - Normalized motion vector.
- * @returns {"straight" | "upercut" | "hookL" | "hookR" | "guard"} - The state key.
+ * @returns {"straight" | "uppercut" | "hookL" | "hookR" | "guard"} - The state key.
  */
 function gloveStateFromMotion(hand, motionVector) {
   if (motionVector === null) return "guard";
@@ -161,7 +196,7 @@ function gloveStateFromMotion(hand, motionVector) {
   if (mag < GLOVE_MOTION_DEAD_ZONE) return "guard"; // (1) dead zone / low motion
   const ax = Math.abs(vx), ay = Math.abs(vy);
   // (2) upward-dominant → uppercut
-  if (vy > GLOVE_AXIS_DOMINANCE && ay >= GLOVE_HOOK_DOMINANCE_RATIO * ax) return "upercut";
+  if (vy > GLOVE_AXIS_DOMINANCE && ay >= GLOVE_HOOK_DOMINANCE_RATIO * ax) return "uppercut";
   // (3) horizontal-dominant → hook (side by hand)
   if (ax > GLOVE_AXIS_DOMINANCE && ax >= GLOVE_HOOK_DOMINANCE_RATIO * ay) return hand === "left" ? "hookL" : "hookR";
   // (4) otherwise → straight (fast / straight-ish / diagonal)

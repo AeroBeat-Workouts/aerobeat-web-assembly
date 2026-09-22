@@ -14,7 +14,7 @@
 //   perHand.{left,right} = { scale, rotationZDeg }   — base per-hand transform
 //   flow.saber    = { zones.{edgeTop,edgeBottom,edgeLeft,edgeRight,center}.{rotationDeg},
 //                     ease.{type,durationMs}, blendRadius }
-//   boxing.glove  = { states.{straight,upercut,hookL,hookR,guard}.{rotationZDeg},
+//   boxing.glove  = { states.{straight,uppercut,hookL,hookR,guard}.{rotationZDeg},
 //                     ease.{type,durationMs}, upcomingBeatWindowMs }
 // `center.rotationDeg === null` means NEUTRAL: the saber keeps its
 // motion-derived direction instead of snapping to a zone angle.

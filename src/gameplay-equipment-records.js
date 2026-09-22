@@ -43,7 +43,7 @@ import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
  * 0.0.63 C2 base transform rides EVERY equipment record so Test mode can show
  * the equipped models scaled/rotated; cursor records carry no transform.
  * 0.0.63 C3 (2m10): for boxing, `rotationZDeg` = base + the eased per-hand
- * STATE rotation passed in `boxingStateRotations` (straight/upercut/hook/
+ * STATE rotation passed in `boxingStateRotations` (straight/uppercut/hook/
  * guard beat state, see `./glove-rotation-states.js`); absent or null → base
  * only (state rotation 0).
  * 0.0.63 C4 (6ax2): for flow, `direction` is the per-hand EASED ZONE

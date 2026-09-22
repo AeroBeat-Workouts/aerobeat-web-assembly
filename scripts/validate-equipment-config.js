@@ -134,7 +134,7 @@ boxing:
       last = idx;
     }
     assert.deepEqual(SABER_ZONE_KEYS, ["edgeTop", "edgeBottom", "edgeLeft", "edgeRight", "center"], "saber zone key order");
-    assert.deepEqual(GLOVE_STATE_KEYS, ["straight", "upercut", "hookL", "hookR", "guard"], "glove state key order");
+    assert.deepEqual(GLOVE_STATE_KEYS, Object.keys(validateEquipmentConfig(equipmentConfigDefaults).boxing.glove.states), "glove state keys derive from validated config order");
     assert.deepEqual(PER_HAND_KEYS, ["left", "right"], "per-hand key order");
     assert.deepEqual([...EQUIPMENT_EASE_TYPES], ["linear", "easeIn", "easeOut", "easeInOut"], "ease type list");
   }

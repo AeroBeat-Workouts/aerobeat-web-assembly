@@ -49,7 +49,7 @@ import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets
 import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
 import { isRecord, projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
-import { createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
+import { boxingUpcomingActions, createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
 import { createSaberDirectionTracker, SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
 import { parseEquipmentConfigYaml, serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
@@ -1433,16 +1433,17 @@ export class AeroGame extends HTMLElement {
    * session/mode.
    *
    * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
+   * @param {{nowMs:number,targets:ReadonlyArray<unknown>}} frame - The exact frame that will be rendered.
    * @returns {{left: number, right: number}} Per-hand EASED state rotations (deg).
    */
-  computeBoxingStateRotations(graph) {
+  computeBoxingStateRotations(graph, frame) {
     if (this.gloveRotationSessionGeneration !== this.sessionGeneration) {
       this.gloveRotationTracker.reset();
       this.gloveRotationSessionGeneration = this.sessionGeneration;
     }
-    const nowMs = Number(graph.gameplay.getSnapshot().session?.timelinePositionMs ?? 0);
+    const nowMs = Number(frame.nowMs);
     const config = this.equipmentConfig.boxing.glove;
-    const upcoming = this.boxingUpcomingActions(graph, nowMs, config.upcomingBeatWindowMs);
+    const upcoming = boxingUpcomingActions(frame.targets, nowMs, config.upcomingBeatWindowMs);
     const history = graph.gameplay.getSnapshot().saberWristHistory ?? null;
     const result = { left: 0, right: 0 };
     for (const hand of ["left", "right"]) {
@@ -1512,44 +1513,6 @@ export class AeroGame extends HTMLElement {
     return result;
   }
 
-  /**
-   * 0.0.63 C3 (2m10): the next boxing target for each hand within the
-   * upcoming window. Uses the frame's projected `targets` (the same records the
-   * renderer shows) filtered to the hands the athlete must perform: a
-   * `kind:"punch"` target is assigned to its own hand, and a `kind:"guard"`
-   * (hand "both") is assigned to BOTH hands. Only the EARLIEST qualifying
-   * target within `[nowMs, nowMs + windowMs]` per hand is returned, so the
-   * selection is deterministic (first-in-window wins).
-   *
-   * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
-   * @param {number} nowMs - Current content-timeline position.
-   * @param {number} windowMs - The configured upcoming-beat window (ms).
-   * @returns {{left: {kind:"punch"|"guard",hand:"left"|"right"|"both",family:"straight"|"hook"|"uppercut"|"guard",beatCenterMs:number} | null, right: {kind:"punch"|"guard",hand:"left"|"right"|"both",family:"straight"|"hook"|"uppercut"|"guard",beatCenterMs:number} | null}}
-   */
-  boxingUpcomingActions(graph, nowMs, windowMs) {
-    const frame = this.rendererFrame();
-    const targets = Array.isArray(frame?.targets) ? frame.targets : [];
-    const out = { left: null, right: null };
-    for (const target of targets) {
-      const kind = String(target?.kind);
-      const family = String(target?.family);
-      const hand = String(target?.hand);
-      const centerMs = Number(target?.beatCenterMs);
-      if (!Number.isFinite(centerMs)) continue;
-      if (centerMs < nowMs || centerMs > nowMs + windowMs) continue;
-      let appliesTo = null;
-      if (kind === "punch" && ["straight", "hook", "uppercut"].includes(family) && ["left", "right"].includes(hand)) appliesTo = [hand];
-      else if (kind === "guard" && (hand === "both" || hand === "left" || hand === "right")) appliesTo = hand === "both" ? ["left", "right"] : [hand];
-      else continue;
-      for (const h of appliesTo) {
-        if (out[h] === null || centerMs < out[h].beatCenterMs) {
-          out[h] = Object.freeze({ kind, hand, family, beatCenterMs: centerMs });
-        }
-      }
-    }
-    return out;
-  }
-
   renderGameplay(graph = this.graph) {
     if (!graph) return null;
     // 4bj9: push live visual scales into the renderer each frame so a scale change takes effect on the very next rendered frame without a restart.
@@ -1567,13 +1530,17 @@ export class AeroGame extends HTMLElement {
     const snapshot = graph.gameplay.getSnapshot();
     const session = snapshot.session;
     const input = graph.input.getSnapshot();
+    const frame = this.rendererFrame();
     const rulesetId = session?.rulesetId;
     const equipmentMode = (typeof rulesetId === "string" && flowGameplayRulesetIds.includes(rulesetId)) ? "flow" : (typeof rulesetId === "string" && boxingGameplayRulesetIds.includes(rulesetId)) ? "boxing" : null;
-    const boxingStateRotations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph) : null;
+    // Boxing state selection consumes this exact frame's nowMs/targets. Do not
+    // project a second frame: accumulated chart history makes that duplicate
+    // projection increasingly expensive, and selection/render must share truth.
+    const boxingStateRotations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph, frame) : null;
     const flowZoneDirections = equipmentMode === "flow" ? this.computeFlowZoneDirections(graph) : null;
     const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations, flowZoneDirections, this.equipmentConfig);
     const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
-    return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(this.rendererFrame(), Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
+    return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(frame, Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
   }
 
   /** @param {ReturnType<typeof createAeroGameServiceGraph>} [graph] */
