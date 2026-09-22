@@ -1,7 +1,7 @@
 {
   "schema": "aerobeat/private_abccba_profile",
   "version": 1,
-  "sourceFingerprint": "ca0d2b923713e5ab880a7d81d8cd6015acd525e1c205d50aba0b92d9550bbe65",
+  "sourceFingerprint": "c202131f5ec894545ab1ed1261c8496c57c147bb74f5c7b05e3ba478e3331171",
   "sourceInputCount": 231,
   "windowMs": 4000,
   "sequence": [
@@ -45,21 +45,21 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-A1",
-      "durationMs": 4014.7999997138977,
+      "durationMs": 4013.9000000953674,
       "displayFrameCount": 234,
-      "displayRateFps": 58.035,
+      "displayRateFps": 58.048,
       "displayIntervals": {
         "count": 233,
         "p50": 16.7,
-        "p95": 16.8,
+        "p95": 16.7,
         "max": 116.6
       },
       "missedVsyncCount": 6,
       "rendererCpuMs": {
         "count": 234,
-        "p50": 10.4,
-        "p95": 15.5,
-        "max": 119.1
+        "p50": 9.7,
+        "p95": 14.9,
+        "max": 122.7
       },
       "mediaPipeRuntimeMs": {
         "count": 0,
@@ -97,7 +97,7 @@
           "count": 234,
           "min": 59,
           "max": 64,
-          "mean": 62.57265
+          "mean": 62.576923
         }
       }
     },
@@ -105,9 +105,9 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-B2",
-      "durationMs": 4014,
+      "durationMs": 4014.9000000953674,
       "displayFrameCount": 240,
-      "displayRateFps": 59.542,
+      "displayRateFps": 59.528,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -117,32 +117,32 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 9.4,
-        "p95": 15,
-        "max": 17.4
+        "p50": 11.3,
+        "p95": 18.6,
+        "max": 23.2
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 20.1,
-        "p95": 27,
-        "max": 42.3
+        "p50": 19.2,
+        "p95": 31.9,
+        "max": 34.2
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 21,
-        "p95": 38.8,
-        "max": 55.1
+        "p50": 21.2,
+        "p95": 36.7,
+        "max": 39.5
       },
       "poseAgeMs": {
-        "count": 236,
-        "p50": 61.6,
-        "p95": 99.7,
-        "max": 117.4
+        "count": 235,
+        "p50": 63.2,
+        "p95": 103.6,
+        "max": 129.1
       },
       "cv": {
         "submittedFrameCount": 59,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.699
+        "submissionRateFps": 14.695
       },
       "camera": {
         "width": 640,
@@ -165,44 +165,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-C3",
-      "durationMs": 4013.2000002861023,
-      "displayFrameCount": 240,
-      "displayRateFps": 59.553,
+      "durationMs": 4014.800000190735,
+      "displayFrameCount": 239,
+      "displayRateFps": 59.281,
       "displayIntervals": {
-        "count": 239,
+        "count": 238,
         "p50": 16.7,
         "p95": 16.7,
-        "max": 16.8
+        "max": 33.3
       },
-      "missedVsyncCount": 0,
+      "missedVsyncCount": 1,
       "rendererCpuMs": {
-        "count": 240,
-        "p50": 9.5,
-        "p95": 15.2,
-        "max": 17.9
+        "count": 239,
+        "p50": 11,
+        "p95": 19.2,
+        "max": 27
       },
       "mediaPipeRuntimeMs": {
-        "count": 61,
-        "p50": 20.5,
-        "p95": 26.4,
-        "max": 33.8
+        "count": 60,
+        "p50": 26.6,
+        "p95": 41.4,
+        "max": 42.7
       },
       "mediaPipeEndToEndMs": {
-        "count": 61,
-        "p50": 22,
-        "p95": 35.5,
-        "max": 37.6
+        "count": 60,
+        "p50": 32.7,
+        "p95": 51.8,
+        "max": 54.5
       },
       "poseAgeMs": {
-        "count": 240,
-        "p50": 62.5,
-        "p95": 97.9,
-        "max": 113.9
+        "count": 239,
+        "p50": 72.8,
+        "p95": 114.1,
+        "max": 137.6
       },
       "cv": {
-        "submittedFrameCount": 60,
-        "poseFrameCount": 60,
-        "submissionRateFps": 14.951
+        "submittedFrameCount": 59,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.696
       },
       "camera": {
         "width": 640,
@@ -214,10 +214,10 @@
         "contract": "aerobeat/abccba_historical_default_2500.v1",
         "eventCount": 6000,
         "projectedTargetCount": {
-          "count": 240,
+          "count": 239,
           "min": 59,
           "max": 64,
-          "mean": 62.516667
+          "mean": 62.514644
         }
       }
     },
@@ -225,9 +225,189 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-C4",
-      "durationMs": 4012.800000190735,
+      "durationMs": 4016.300000190735,
+      "displayFrameCount": 239,
+      "displayRateFps": 59.259,
+      "displayIntervals": {
+        "count": 238,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 33.4
+      },
+      "missedVsyncCount": 1,
+      "rendererCpuMs": {
+        "count": 239,
+        "p50": 11.5,
+        "p95": 19.9,
+        "max": 29.7
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 59,
+        "p50": 34.3,
+        "p95": 44.3,
+        "max": 44.7
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 59,
+        "p50": 37,
+        "p95": 48.6,
+        "max": 54.3
+      },
+      "poseAgeMs": {
+        "count": 239,
+        "p50": 80.4,
+        "p95": 114.6,
+        "max": 144.7
+      },
+      "cv": {
+        "submittedFrameCount": 59,
+        "poseFrameCount": 58,
+        "submissionRateFps": 14.69
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 239,
+          "min": 59,
+          "max": 64,
+          "mean": 62.518828
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-B5",
+      "durationMs": 4014.7000002861023,
       "displayFrameCount": 240,
-      "displayRateFps": 59.559,
+      "displayRateFps": 59.531,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 10.2,
+        "p95": 16.5,
+        "max": 25.2
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 61,
+        "p50": 20.4,
+        "p95": 27.7,
+        "max": 32.9
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 61,
+        "p50": 21.5,
+        "p95": 44,
+        "max": 44.4
+      },
+      "poseAgeMs": {
+        "count": 240,
+        "p50": 62,
+        "p95": 99.8,
+        "max": 129.6
+      },
+      "cv": {
+        "submittedFrameCount": 59,
+        "poseFrameCount": 60,
+        "submissionRateFps": 14.696
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.520833
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "legacy-A6",
+      "durationMs": 4013.9000000953674,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.543,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.8,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 9.9,
+        "p95": 15.1,
+        "max": 25.1
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "poseAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cv": {
+        "submittedFrameCount": 0,
+        "poseFrameCount": 0,
+        "submissionRateFps": 0
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.520833
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-A1",
+      "durationMs": 4012.7000002861023,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.561,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -237,129 +417,9 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 9.4,
-        "p95": 15.2,
-        "max": 20.8
-      },
-      "mediaPipeRuntimeMs": {
-        "count": 60,
-        "p50": 18.3,
-        "p95": 25.8,
-        "max": 31
-      },
-      "mediaPipeEndToEndMs": {
-        "count": 60,
-        "p50": 19.7,
-        "p95": 35.1,
-        "max": 37.9
-      },
-      "poseAgeMs": {
-        "count": 240,
-        "p50": 61.4,
-        "p95": 98.2,
-        "max": 125
-      },
-      "cv": {
-        "submittedFrameCount": 59,
-        "poseFrameCount": 59,
-        "submissionRateFps": 14.703
-      },
-      "camera": {
-        "width": 640,
-        "height": 480,
-        "frameRate": 30
-      },
-      "longTaskCount": 0,
-      "workload": {
-        "contract": "aerobeat/abccba_historical_default_2500.v1",
-        "eventCount": 6000,
-        "projectedTargetCount": {
-          "count": 240,
-          "min": 59,
-          "max": 64,
-          "mean": 62.520833
-        }
-      }
-    },
-    {
-      "schema": "aerobeat/private_performance_window",
-      "version": 1,
-      "label": "legacy-B5",
-      "durationMs": 4013.300000190735,
-      "displayFrameCount": 240,
-      "displayRateFps": 59.552,
-      "displayIntervals": {
-        "count": 239,
-        "p50": 16.7,
-        "p95": 16.8,
-        "max": 16.8
-      },
-      "missedVsyncCount": 0,
-      "rendererCpuMs": {
-        "count": 240,
-        "p50": 9.1,
-        "p95": 15,
-        "max": 17
-      },
-      "mediaPipeRuntimeMs": {
-        "count": 61,
-        "p50": 21.1,
-        "p95": 37.4,
-        "max": 40.9
-      },
-      "mediaPipeEndToEndMs": {
-        "count": 61,
-        "p50": 23.3,
-        "p95": 39.3,
-        "max": 54.7
-      },
-      "poseAgeMs": {
-        "count": 240,
-        "p50": 64.3,
-        "p95": 100.1,
-        "max": 115.9
-      },
-      "cv": {
-        "submittedFrameCount": 60,
-        "poseFrameCount": 60,
-        "submissionRateFps": 14.95
-      },
-      "camera": {
-        "width": 640,
-        "height": 480,
-        "frameRate": 30
-      },
-      "longTaskCount": 0,
-      "workload": {
-        "contract": "aerobeat/abccba_historical_default_2500.v1",
-        "eventCount": 6000,
-        "projectedTargetCount": {
-          "count": 240,
-          "min": 59,
-          "max": 64,
-          "mean": 62.516667
-        }
-      }
-    },
-    {
-      "schema": "aerobeat/private_performance_window",
-      "version": 1,
-      "label": "legacy-A6",
-      "durationMs": 4013,
-      "displayFrameCount": 240,
-      "displayRateFps": 59.556,
-      "displayIntervals": {
-        "count": 239,
-        "p50": 16.7,
-        "p95": 16.8,
-        "max": 16.8
-      },
-      "missedVsyncCount": 0,
-      "rendererCpuMs": {
-        "count": 240,
-        "p50": 9.3,
-        "p95": 15.2,
-        "max": 18.3
+        "p50": 3.3,
+        "p95": 9.7,
+        "max": 14.4
       },
       "mediaPipeRuntimeMs": {
         "count": 0,
@@ -398,66 +458,6 @@
           "min": 59,
           "max": 64,
           "mean": 62.516667
-        }
-      }
-    },
-    {
-      "schema": "aerobeat/private_performance_window",
-      "version": 1,
-      "label": "staged-A1",
-      "durationMs": 4005.5,
-      "displayFrameCount": 240,
-      "displayRateFps": 59.668,
-      "displayIntervals": {
-        "count": 239,
-        "p50": 16.7,
-        "p95": 16.8,
-        "max": 16.8
-      },
-      "missedVsyncCount": 0,
-      "rendererCpuMs": {
-        "count": 240,
-        "p50": 2.5,
-        "p95": 7.6,
-        "max": 12.4
-      },
-      "mediaPipeRuntimeMs": {
-        "count": 0,
-        "p50": null,
-        "p95": null,
-        "max": null
-      },
-      "mediaPipeEndToEndMs": {
-        "count": 0,
-        "p50": null,
-        "p95": null,
-        "max": null
-      },
-      "poseAgeMs": {
-        "count": 0,
-        "p50": null,
-        "p95": null,
-        "max": null
-      },
-      "cv": {
-        "submittedFrameCount": 0,
-        "poseFrameCount": 0,
-        "submissionRateFps": 0
-      },
-      "camera": {
-        "width": 640,
-        "height": 480,
-        "frameRate": 30
-      },
-      "longTaskCount": 0,
-      "workload": {
-        "contract": "aerobeat/abccba_historical_default_2500.v1",
-        "eventCount": 6000,
-        "projectedTargetCount": {
-          "count": 240,
-          "min": 59,
-          "max": 64,
-          "mean": 62.520833
         }
       }
     },
@@ -465,39 +465,39 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-B2",
-      "durationMs": 4005.7999997138977,
+      "durationMs": 4005.7000002861023,
       "displayFrameCount": 240,
-      "displayRateFps": 59.663,
+      "displayRateFps": 59.665,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.8,
+        "p95": 16.7,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.6,
-        "p95": 6,
-        "max": 11.6
+        "p50": 3.7,
+        "p95": 8.5,
+        "max": 13.9
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 22.8,
-        "p95": 28,
-        "max": 31.1
+        "p50": 30.6,
+        "p95": 45.5,
+        "max": 51
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 24.1,
-        "p95": 28.7,
-        "max": 33.4
+        "p50": 32.7,
+        "p95": 46.9,
+        "max": 51.2
       },
       "poseAgeMs": {
         "count": 236,
-        "p50": 59.4,
-        "p95": 92.7,
-        "max": 103.9
+        "p50": 66.2,
+        "p95": 103,
+        "max": 115.9
       },
       "cv": {
         "submittedFrameCount": 59,
@@ -525,9 +525,9 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-C3",
-      "durationMs": 4005.5,
+      "durationMs": 4006.4000000953674,
       "displayFrameCount": 240,
-      "displayRateFps": 59.668,
+      "displayRateFps": 59.655,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -537,32 +537,32 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.6,
-        "p95": 6.9,
+        "p50": 3.7,
+        "p95": 8.2,
         "max": 13.1
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 23.5,
-        "p95": 30.7,
-        "max": 33.1
+        "p50": 36.4,
+        "p95": 45.4,
+        "max": 48.8
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 25.6,
-        "p95": 33.5,
-        "max": 37.5
+        "p50": 38,
+        "p95": 49,
+        "max": 51.7
       },
       "poseAgeMs": {
         "count": 240,
-        "p50": 62.4,
-        "p95": 96.9,
-        "max": 104.3
+        "p50": 75.6,
+        "p95": 109.7,
+        "max": 122.4
       },
       "cv": {
         "submittedFrameCount": 59,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.73
+        "submissionRateFps": 14.726
       },
       "camera": {
         "width": 640,
@@ -577,7 +577,7 @@
           "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.516667
+          "mean": 62.5125
         }
       }
     },
@@ -585,44 +585,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-C4",
-      "durationMs": 4005.300000190735,
+      "durationMs": 4006.4000000953674,
       "displayFrameCount": 240,
-      "displayRateFps": 59.671,
+      "displayRateFps": 59.655,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.8,
+        "p95": 16.7,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.5,
-        "p95": 5.8,
-        "max": 11.5
+        "p50": 2.9,
+        "p95": 6.7,
+        "max": 12.7
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 25.3,
-        "p95": 28.6,
-        "max": 29.2
+        "p50": 24.4,
+        "p95": 31.9,
+        "max": 45.9
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 26.5,
-        "p95": 30.3,
-        "max": 33.5
+        "p50": 25.2,
+        "p95": 37.8,
+        "max": 46
       },
       "poseAgeMs": {
         "count": 240,
         "p50": 60.1,
-        "p95": 91.4,
-        "max": 100.4
+        "p95": 97.3,
+        "max": 106.2
       },
       "cv": {
         "submittedFrameCount": 59,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.73
+        "submissionRateFps": 14.726
       },
       "camera": {
         "width": 640,
@@ -645,44 +645,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-B5",
-      "durationMs": 4006,
+      "durationMs": 4005.5,
       "displayFrameCount": 240,
-      "displayRateFps": 59.661,
+      "displayRateFps": 59.668,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.8,
+        "p95": 16.7,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.6,
-        "p95": 6.1,
-        "max": 10
+        "p50": 2.7,
+        "p95": 7.6,
+        "max": 13.6
       },
       "mediaPipeRuntimeMs": {
-        "count": 60,
-        "p50": 25,
-        "p95": 28.1,
-        "max": 35.2
+        "count": 61,
+        "p50": 20.6,
+        "p95": 27.9,
+        "max": 33.1
       },
       "mediaPipeEndToEndMs": {
-        "count": 60,
-        "p50": 25.7,
-        "p95": 31.1,
-        "max": 35.4
+        "count": 61,
+        "p50": 21.8,
+        "p95": 30.7,
+        "max": 35.7
       },
       "poseAgeMs": {
         "count": 240,
-        "p50": 62.4,
-        "p95": 94.5,
-        "max": 100.8
+        "p50": 57,
+        "p95": 87.6,
+        "max": 102.9
       },
       "cv": {
-        "submittedFrameCount": 60,
-        "poseFrameCount": 59,
-        "submissionRateFps": 14.978
+        "submittedFrameCount": 59,
+        "poseFrameCount": 60,
+        "submissionRateFps": 14.73
       },
       "camera": {
         "width": 640,
@@ -697,7 +697,7 @@
           "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.516667
+          "mean": 62.520833
         }
       }
     },
@@ -705,9 +705,9 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-A6",
-      "durationMs": 4009.5,
+      "durationMs": 4005.800000190735,
       "displayFrameCount": 240,
-      "displayRateFps": 59.608,
+      "displayRateFps": 59.663,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -717,9 +717,9 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.5,
-        "p95": 5.8,
-        "max": 12.3
+        "p50": 2.6,
+        "p95": 7,
+        "max": 12.8
       },
       "mediaPipeRuntimeMs": {
         "count": 0,
