@@ -49,10 +49,11 @@ So a wrist moving one body-width per 180 ms ≈ `4 × 0.75 / 0.18 ≈ 16.7 WU/s`
 - Normal committed punch: ~8–16 WU/s
 - Fast / snap hook or uppercut: ~16–32 WU/s
 
-**The 1.5 WU/s → WU/s mapping is a calibration constant** (`cellsPerWU ≈ 0.75`
-in the shared contract), **not** a gameplay number — the thresholds in §2 are
-what gets tuned on the playtest. This keeps the signal honest (real body speed)
-while letting the buckets be adjusted without touching input code.
+**The cells → WU mapping is a calibration constant** (`≈ 0.75 WU per grid cell`,
+derived from the canonical 4×3 presentation grid spanning 3.0 WU over 4
+columns), **not** a gameplay number — the thresholds in §2 are what gets tuned
+on the playtest. This keeps the signal honest (real body speed) while letting
+the buckets be adjusted without touching input code.
 
 > Test-mode caveat: `visual_test` has no real wrist history, so it cannot produce
 > a real velocity. Test mode drives the variations by an explicit per-hit bucket
