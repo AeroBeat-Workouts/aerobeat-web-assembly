@@ -281,7 +281,7 @@ try {
   // the initial calibration hold and transition readiness from "calibration_required"
   // to "countdown" early. Push an additional 800ms of fresh T-pose samples so the
   // input service settles into its post-recovery state before we assert on the cue.
-  for (let offset = 2250; offset <= 3050; offset += 250) await pushPose(game, 6000 + offset, true);
+  for (let offset = 2250; offset <= 5050; offset += 250) await pushPose(game, 6000 + offset, true);
   let holdingVisual = await visualShellSnapshot(game);
   if (["3","2","1"].includes(holdingVisual.cueText) || holdingVisual.sessionState === "countdown") {
     // Already in countdown: advance pose stream so releaseHold lands within the

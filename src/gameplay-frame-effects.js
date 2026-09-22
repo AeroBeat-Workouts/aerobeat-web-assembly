@@ -648,7 +648,9 @@ function aftermathMappingForEvent(event) {
   return appearance === null ? mapping : { ...mapping, appearanceColor: appearance };
 }
 
+// Exported because src/index.js (rendererFrame, D5 aftermath-slice wiring) calls
+// it directly — importing keeps the definition in one place (D2 fix).
 /** @param {unknown} value */
-function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
+export function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 /** @param {unknown} value @param {string} key */
 function recordValue(value, key) { return isRecord(value) ? value[key] : undefined; }
