@@ -1,0 +1,497 @@
+{
+  "noise": [
+    {
+      "impl": "raw",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    }
+  ],
+  "runs": [
+    {
+      "impl": "raw",
+      "label": "A1",
+      "frames": 360,
+      "passes": 2,
+      "projectionCalls": 720,
+      "projectionPerDisplay": 2,
+      "display": {
+        "p50": 16.69999999999891,
+        "p95": 16.700000000000728,
+        "max": 16.80000000000109,
+        "over33": 0
+      },
+      "rendererCpu": {
+        "p50": 3,
+        "p95": 4.599999904632568,
+        "max": 5.700000286102295,
+        "mean": 3.1511111166742114
+      },
+      "longTasks": {
+        "count": 0,
+        "max": 0,
+        "total": 0
+      },
+      "heap": {
+        "start": 65437132,
+        "end": 72587584,
+        "delta": 7150452
+      },
+      "targetHash": "4b2be64f2b1fbc09744e853a92b5bfddc4e8cbc0b91571e54b3a7a33ad2ee668",
+      "targetCount": 9,
+      "scoreHash": "1e1b80cbf03ee7e5daf4b2653167498cb07d8c178804efd268340e64acb4068c",
+      "scene": {
+        "sourceMode": "ready",
+        "assetRelease": "0.0.11",
+        "assetGeneration": 2,
+        "assetInstanceCounts": {
+          "directional-arrow/rounded-outline-v1": 8,
+          "guard/outlined-shield-v1": 4,
+          "track/blue-glass-v1": 3
+        },
+        "fallbackInstanceCount": 0,
+        "guidance": {
+          "mode": "target_arrivals",
+          "visibleBandCount": 13,
+          "culledBandCount": 0
+        },
+        "guardPairs": [
+          {
+            "instanceCount": 1,
+            "assetId": "directional-arrow/rounded-outline-v1",
+            "sameSourceAsset": false,
+            "sameMaterial": false,
+            "sameScale": false,
+            "sameOrientation": false,
+            "sameY": false,
+            "sameZ": false,
+            "xOnlyPlacementDifference": false
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          }
+        ],
+        "removals": [],
+        "feedback": [],
+        "renderOrder": [
+          -1.2125,
+          10,
+          15,
+          19,
+          20,
+          35
+        ]
+      },
+      "cdpHeap": {
+        "before": {
+          "usedSize": 35930676,
+          "totalSize": 37142528,
+          "embedderHeapUsedSize": 1852784,
+          "backingStorageSize": 29493684
+        },
+        "after": {
+          "usedSize": 36361644,
+          "totalSize": 37666816,
+          "embedderHeapUsedSize": 1835656,
+          "backingStorageSize": 29493684
+        },
+        "deltaAfterGc": 430968
+      }
+    },
+    {
+      "impl": "current",
+      "label": "B1",
+      "frames": 360,
+      "passes": 1,
+      "projectionCalls": 360,
+      "projectionPerDisplay": 1,
+      "display": {
+        "p50": 16.69999999999891,
+        "p95": 16.700000000000728,
+        "max": 16.80000000000109,
+        "over33": 0
+      },
+      "rendererCpu": {
+        "p50": 2.200000286102295,
+        "p95": 3.5999999046325684,
+        "max": 4.699999809265137,
+        "mean": 2.3772222280502318
+      },
+      "longTasks": {
+        "count": 0,
+        "max": 0,
+        "total": 0
+      },
+      "heap": {
+        "start": 65593648,
+        "end": 71083372,
+        "delta": 5489724
+      },
+      "targetHash": "4b2be64f2b1fbc09744e853a92b5bfddc4e8cbc0b91571e54b3a7a33ad2ee668",
+      "targetCount": 9,
+      "scoreHash": "1e1b80cbf03ee7e5daf4b2653167498cb07d8c178804efd268340e64acb4068c",
+      "scene": {
+        "sourceMode": "ready",
+        "assetRelease": "0.0.11",
+        "assetGeneration": 2,
+        "assetInstanceCounts": {
+          "directional-arrow/rounded-outline-v1": 8,
+          "guard/outlined-shield-v1": 4,
+          "track/blue-glass-v1": 3
+        },
+        "fallbackInstanceCount": 0,
+        "guidance": {
+          "mode": "target_arrivals",
+          "visibleBandCount": 13,
+          "culledBandCount": 0
+        },
+        "guardPairs": [
+          {
+            "instanceCount": 1,
+            "assetId": "directional-arrow/rounded-outline-v1",
+            "sameSourceAsset": false,
+            "sameMaterial": false,
+            "sameScale": false,
+            "sameOrientation": false,
+            "sameY": false,
+            "sameZ": false,
+            "xOnlyPlacementDifference": false
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          }
+        ],
+        "removals": [],
+        "feedback": [],
+        "renderOrder": [
+          -1.2125,
+          10,
+          15,
+          19,
+          20,
+          35
+        ]
+      },
+      "cdpHeap": {
+        "before": {
+          "usedSize": 36094584,
+          "totalSize": 37134336,
+          "embedderHeapUsedSize": 1853072,
+          "backingStorageSize": 29486292
+        },
+        "after": {
+          "usedSize": 36573404,
+          "totalSize": 37920768,
+          "embedderHeapUsedSize": 1835944,
+          "backingStorageSize": 29486292
+        },
+        "deltaAfterGc": 478820
+      }
+    },
+    {
+      "impl": "current",
+      "label": "B2",
+      "frames": 360,
+      "passes": 1,
+      "projectionCalls": 360,
+      "projectionPerDisplay": 1,
+      "display": {
+        "p50": 16.69999999999891,
+        "p95": 16.799999999999272,
+        "max": 16.80000000000291,
+        "over33": 0
+      },
+      "rendererCpu": {
+        "p50": 2.299999713897705,
+        "p95": 3.6000003814697266,
+        "max": 6.5,
+        "mean": 2.4883333418104385
+      },
+      "longTasks": {
+        "count": 0,
+        "max": 0,
+        "total": 0
+      },
+      "heap": {
+        "start": 66071188,
+        "end": 78128696,
+        "delta": 12057508
+      },
+      "targetHash": "4b2be64f2b1fbc09744e853a92b5bfddc4e8cbc0b91571e54b3a7a33ad2ee668",
+      "targetCount": 9,
+      "scoreHash": "1e1b80cbf03ee7e5daf4b2653167498cb07d8c178804efd268340e64acb4068c",
+      "scene": {
+        "sourceMode": "ready",
+        "assetRelease": "0.0.11",
+        "assetGeneration": 2,
+        "assetInstanceCounts": {
+          "directional-arrow/rounded-outline-v1": 8,
+          "guard/outlined-shield-v1": 4,
+          "track/blue-glass-v1": 3
+        },
+        "fallbackInstanceCount": 0,
+        "guidance": {
+          "mode": "target_arrivals",
+          "visibleBandCount": 13,
+          "culledBandCount": 0
+        },
+        "guardPairs": [
+          {
+            "instanceCount": 1,
+            "assetId": "directional-arrow/rounded-outline-v1",
+            "sameSourceAsset": false,
+            "sameMaterial": false,
+            "sameScale": false,
+            "sameOrientation": false,
+            "sameY": false,
+            "sameZ": false,
+            "xOnlyPlacementDifference": false
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          }
+        ],
+        "removals": [],
+        "feedback": [],
+        "renderOrder": [
+          -1.2125,
+          10,
+          15,
+          19,
+          20,
+          35
+        ]
+      },
+      "cdpHeap": {
+        "before": {
+          "usedSize": 36573404,
+          "totalSize": 37658624,
+          "embedderHeapUsedSize": 1835944,
+          "backingStorageSize": 29486292
+        },
+        "after": {
+          "usedSize": 36650072,
+          "totalSize": 38182912,
+          "embedderHeapUsedSize": 1835944,
+          "backingStorageSize": 29486292
+        },
+        "deltaAfterGc": 76668
+      }
+    },
+    {
+      "impl": "raw",
+      "label": "A2",
+      "frames": 360,
+      "passes": 2,
+      "projectionCalls": 720,
+      "projectionPerDisplay": 2,
+      "display": {
+        "p50": 16.700000000000728,
+        "p95": 16.700000000000728,
+        "max": 16.80000000000291,
+        "over33": 0
+      },
+      "rendererCpu": {
+        "p50": 3,
+        "p95": 4.800000190734863,
+        "max": 5.5,
+        "mean": 3.2786111222373115
+      },
+      "longTasks": {
+        "count": 0,
+        "max": 0,
+        "total": 0
+      },
+      "heap": {
+        "start": 65866820,
+        "end": 81290852,
+        "delta": 15424032
+      },
+      "targetHash": "4b2be64f2b1fbc09744e853a92b5bfddc4e8cbc0b91571e54b3a7a33ad2ee668",
+      "targetCount": 9,
+      "scoreHash": "1e1b80cbf03ee7e5daf4b2653167498cb07d8c178804efd268340e64acb4068c",
+      "scene": {
+        "sourceMode": "ready",
+        "assetRelease": "0.0.11",
+        "assetGeneration": 2,
+        "assetInstanceCounts": {
+          "directional-arrow/rounded-outline-v1": 8,
+          "guard/outlined-shield-v1": 4,
+          "track/blue-glass-v1": 3
+        },
+        "fallbackInstanceCount": 0,
+        "guidance": {
+          "mode": "target_arrivals",
+          "visibleBandCount": 13,
+          "culledBandCount": 0
+        },
+        "guardPairs": [
+          {
+            "instanceCount": 1,
+            "assetId": "directional-arrow/rounded-outline-v1",
+            "sameSourceAsset": false,
+            "sameMaterial": false,
+            "sameScale": false,
+            "sameOrientation": false,
+            "sameY": false,
+            "sameZ": false,
+            "xOnlyPlacementDifference": false
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          },
+          {
+            "instanceCount": 2,
+            "assetId": "guard/outlined-shield-v1",
+            "sameSourceAsset": true,
+            "sameMaterial": true,
+            "sameScale": true,
+            "sameOrientation": true,
+            "sameY": true,
+            "sameZ": true,
+            "xOnlyPlacementDifference": true
+          }
+        ],
+        "removals": [],
+        "feedback": [],
+        "renderOrder": [
+          -1.2125,
+          10,
+          15,
+          19,
+          20,
+          35
+        ]
+      },
+      "cdpHeap": {
+        "before": {
+          "usedSize": 36361644,
+          "totalSize": 37142528,
+          "embedderHeapUsedSize": 1835656,
+          "backingStorageSize": 29493684
+        },
+        "after": {
+          "usedSize": 36642468,
+          "totalSize": 37666816,
+          "embedderHeapUsedSize": 1835656,
+          "backingStorageSize": 29493684
+        },
+        "deltaAfterGc": 280824
+      }
+    }
+  ],
+  "rawReady": {
+    "impl": "raw",
+    "assetState": "ready",
+    "eventCount": 3110,
+    "judgementCount": 2800
+  },
+  "rawGraphics": {
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3080/PCIe/SSE2, OpenGL 4.5.0)",
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+  },
+  "rawFunctional": {
+    "impl": "raw",
+    "calls": 60,
+    "projections": 60,
+    "projectionsPerCall": 1,
+    "errorCount": 60,
+    "errorMessages": [
+      "Cannot read properties of undefined (reading 'rotationZDeg')"
+    ],
+    "targetCount": 9,
+    "targetHash": "4b2be64f2b1fbc09744e853a92b5bfddc4e8cbc0b91571e54b3a7a33ad2ee668",
+    "scoreHash": "1e1b80cbf03ee7e5daf4b2653167498cb07d8c178804efd268340e64acb4068c",
+    "rendererState": "running",
+    "equipment": null
+  },
+  "currentReady": {
+    "impl": "current",
+    "assetState": "ready",
+    "eventCount": 3110,
+    "judgementCount": 2800
+  },
+  "currentGraphics": {
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 3080/PCIe/SSE2, OpenGL 4.5.0)",
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)"
+  },
+  "currentFunctional": {
+    "impl": "current",
+    "calls": 60,
+    "projections": 60,
+    "projectionsPerCall": 1,
+    "errorCount": 0,
+    "errorMessages": [],
+    "targetCount": 9,
+    "targetHash": "4b2be64f2b1fbc09744e853a92b5bfddc4e8cbc0b91571e54b3a7a33ad2ee668",
+    "scoreHash": "1e1b80cbf03ee7e5daf4b2653167498cb07d8c178804efd268340e64acb4068c",
+    "rendererState": "running",
+    "equipment": null
+  }
+}
