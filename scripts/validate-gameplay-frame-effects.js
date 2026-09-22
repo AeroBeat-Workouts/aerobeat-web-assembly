@@ -2,7 +2,7 @@
 // 0.0.52 W2 unit oracles: p5pr aftermath FIFO + dntq hazard-contact events +
 // deterministic seed + privacy (only spawn WU triple / eventId+atMs cross).
 import assert from "node:assert/strict";
-import { projectAftermathEntries, projectHazardContactEvents, aftermathSeedForTargetId } from "../src/gameplay-frame-effects.js";
+import { projectAftermathEntries, projectHazardContactEvents, aftermathSeedForTargetId, computeSliceT } from "../src/gameplay-frame-effects.js";
 import { createSessionTargetIndex } from "../src/session-render-projection.js";
 
 /** 0.0.55 W2: a Visual-Test gameplay snapshot (the deterministic committed-hit source is the render index, not the projection). */
@@ -16,7 +16,7 @@ const guard = (id, crossed, center) => Object.freeze({ schema: "aerobeat/resolve
 const bomb = (id, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "bomb", centerTimestampMs: center, authoredBeat: { type: "bomb", placement: 5 } });
 const obstacleFlow = (id, start, end) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "obstacle", centerTimestampMs: start, intervalStartTimestampMs: start, intervalEndTimestampMs: end, authoredBeat: { type: "obstacle" } });
 
-const hitJudgement = (eventId, commitMs, shadow = false) => Object.freeze({ schema: "aerobeat/gameplay_judgement", version: 2, sessionPurpose: "play", eventId, rulesetId: "flow_colliders_v1", recipeId: null, result: "hit", beatCenterTimestampMs: commitMs, committedTimelinePositionMs: commitMs, evidenceTimestampMs: null, timingOffsetMs: 0, diagnostics: [], shadow });
+const hitJudgement = (eventId, commitMs, shadow = false, evidenceTimestampMs = null) => Object.freeze({ schema: "aerobeat/gameplay_judgement", version: 2, sessionPurpose: "play", eventId, rulesetId: "flow_colliders_v1", recipeId: null, result: "hit", beatCenterTimestampMs: commitMs, committedTimelinePositionMs: commitMs, evidenceTimestampMs, timingOffsetMs: evidenceTimestampMs === null ? 0 : Number(evidenceTimestampMs) - Number(commitMs), diagnostics: [], shadow });
 const missJudgement = (eventId, commitMs) => Object.freeze({ ...hitJudgement(eventId, commitMs), result: "miss" });
 const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judgements), obstacleOutcomes: [], hazardOutcomes: [] });
 
@@ -132,10 +132,15 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   // so the renderer can render the cut-in-half corpse of the real asset.
   // 0.0.58 B11b: + optional `appearanceColor` (the note's real fill) when the
   // event carries a validated private appearance; absent otherwise.
-  const expectedPrivacyKeys = list[0].appearanceColor === undefined
-    ? ["family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"]
-    : ["appearanceColor", "family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"];
-  assert.deepEqual([...keys].sort(), expectedPrivacyKeys.sort(), "entry exposes only the renderer-contract fields");
+  // 0.0.63 D5: when no wrist history is supplied (absent), sliceT is omitted
+  // and the privacy contract lists exactly the legacy keys + optional
+  // appearanceColor. When a wrist history IS supplied, flow-note entries with
+  // mode "slice" may additionally carry `sliceT`.
+  const expectedPrivacyKeysBase = ["family", "hand", "hitCommitMs", "mode", "seed", "shape", "spawn", "targetId"];
+  const expectedPrivacyKeys = [...expectedPrivacyKeysBase];
+  if (list[0].appearanceColor !== undefined) expectedPrivacyKeys.push("appearanceColor");
+  if (typeof list[0].sliceT === "number") expectedPrivacyKeys.push("sliceT");
+  assert.deepEqual([...keys].sort(), expectedPrivacyKeys.sort(), "entry exposes only the renderer-contract fields (+ optional sliceT for flow/slice with wrist history)");
   // A validated note appearance crosses as the canonical uppercase fill token only.
   const appearanceFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "ap", type: "note", centerTimestampMs: 9000, appearanceColor: "#FF8000", authoredBeat: { type: "note", hand: "left", placement: 6, direction: "left" } });
   const appearanceList = projectAftermathEntries([appearanceFlow], snapshot([hitJudgement("ap", 9000)]), 9100);
@@ -439,4 +444,120 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(stableA[0].spawn, stableB[0].spawn, "punch spawn holds the authored cell's rendered position through the cull boundary (no mid-fall teleport)");
 }
 
-console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence + 0.0.58 B11a stable-spawn + 0.0.59 B15 punch-rendered-position oracles passed.");
+// ---------- 0.0.63 D5: sliceT — blade cut position + wider separation ----------
+{
+  // The shared wrist-history shape is { t, x, y } in judge space (up-positive).
+  // A note at placement 4 (col 0, row 1 → cell center (0, 1)) with a LEFT hand.
+  const note = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "d5n", type: "note", centerTimestampMs: 10_000, authoredBeat: { type: "note", hand: "left", placement: 4, direction: "up" } });
+  // Build a left-wrist history where the LAST entry is exactly at the evidence
+  // timestamp and sits 0.5 WU BELOW the cell center, on the arrow's long axis
+  // (the arrow points up; the blade sweeps UP through the cell from that
+  // position). The wrist is INSIDE the lower portion of the cell — a realistic
+  // mid-swing sample that produces an unclamped sliceT.
+  const wristBelowCell = { x: 0, y: 0.5 }; // 0.5 WU below the cell center (tail edge)
+  const evidenceMs = 9_980; // inside ±180 ms of the 10_000 center
+  const history = Object.freeze({
+    left_wrist: Object.freeze([
+      Object.freeze({ t: evidenceMs - 40, x: wristBelowCell.x, y: wristBelowCell.y - 0.02 }),
+      Object.freeze({ t: evidenceMs, x: wristBelowCell.x, y: wristBelowCell.y })
+    ]),
+    right_wrist: Object.freeze([])
+  });
+  // Directional "up" note: refAxis = (0, +1) (arrow's tail→head axis).
+  // The blade segment runs from the wrist (p0) to wrist + length·dir (p1):
+  //   p0 = (0, 0.5)  →  relative-to-center projection on +Y = −0.5
+  //   p1 = (0, 1.25) →  +0.25
+  // bladeProjCenter = (−0.5 + 0.25)/2 = −0.125
+  // Cell corner projections on +Y = {−0.5, +0.5} → axisMin=−0.5, axisSpan=1.0
+  // rawT = (−0.125 − (−0.5)) / 1.0 = 0.375  → inside [0.15, 0.85], no clamp.
+  const tMidBlade = computeSliceT(note, "left", evidenceMs, history);
+  assert.ok(tMidBlade !== null, "computeSliceT returns a number when the wrist sample is usable");
+  assert.ok(Math.abs(tMidBlade - 0.375) < 1e-6, `sliceT ≈ 0.375 for a wrist at the tail edge sweeping upward (got ${tMidBlade})`);
+  assert.ok(tMidBlade >= 0.15 && tMidBlade <= 0.85, "sliceT always lands inside the clamped range");
+  // Absent / empty wrist history → null (renderer midpoint fallback).
+  assert.equal(computeSliceT(note, "left", evidenceMs, null), null, "absent wrist history → null (omitted from the entry)");
+  assert.equal(computeSliceT(note, "left", evidenceMs, Object.freeze({ left_wrist: Object.freeze([]), right_wrist: Object.freeze([]) })), null, "empty wrist history → null");
+  // No matching wrist within the freshness window → null.
+  const staleHistory = Object.freeze({
+    left_wrist: Object.freeze([Object.freeze({ t: 1_000, x: 0, y: 1 })]),
+    right_wrist: Object.freeze([])
+  });
+  assert.equal(computeSliceT(note, "left", evidenceMs, staleHistory), null, "stale wrist (older than freshness) → null");
+  // Non-note event → null (only flow/slice entries use sliceT).
+  const punchEvent = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "d5p", type: "straight_left", centerTimestampMs: 10_000, authoredBeat: { type: "straight_left", spatialTarget: { targetCell: 4, entryDirection: "up" } } });
+  assert.equal(computeSliceT(punchEvent, "left", evidenceMs, history), null, "non-note events never carry sliceT");
+  // Directionless orb note (no authoredBeat.direction): uses the blade's own
+  // direction as the reference axis (the orb is isotropic, any consistent
+  // axis works). An upward-sweeping blade whose origin sits 0.5 WU below the
+  // cell center crosses near the tail — same math as the arrow case but with
+  // refAxis = blade direction instead of the authored direction.
+  const orbNote = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "d5o", type: "note", centerTimestampMs: 10_000, authoredBeat: { type: "note", hand: "left", placement: 4 } });
+  const wristBelowOrb = { x: 0, y: 0.5 };
+  const orbHistory = Object.freeze({
+    left_wrist: Object.freeze([Object.freeze({ t: evidenceMs, x: wristBelowOrb.x, y: wristBelowOrb.y })]),
+    right_wrist: Object.freeze([])
+  });
+  const tOrb = computeSliceT(orbNote, "left", evidenceMs, orbHistory);
+  assert.ok(tOrb !== null, "orb note with usable wrist → sliceT computed via the blade-axis convention");
+  assert.ok(Math.abs(tOrb - 0.375) < 1e-6, `orb sliceT ≈ 0.375 for the same wrist position (got ${tOrb})`);
+  // A wrist positioned AT the cell center sweeps through the middle of the
+  // glyph — the unclamped value is 0.875, which clamps to 0.85 (near-head cut).
+  const wristAtCellCenter = { x: 0, y: 1 };
+  const centerHistory = Object.freeze({
+    left_wrist: Object.freeze([Object.freeze({ t: evidenceMs, x: wristAtCellCenter.x, y: wristAtCellCenter.y })]),
+    right_wrist: Object.freeze([])
+  });
+  const tCenter = computeSliceT(note, "left", evidenceMs, centerHistory);
+  assert.equal(tCenter, 0.85, "a wrist at the cell center produces a near-head cut that clamps to SLICE_T_MAX (0.85)");
+  // Near-tail / near-tip cuts get CLAMPED so both halves keep a sane size.
+  const tipWrist = { x: 0, y: 2.5 }; // 1.5 WU above the cell → way past the head
+  const tipHistory = Object.freeze({
+    left_wrist: Object.freeze([Object.freeze({ t: evidenceMs, x: tipWrist.x, y: tipWrist.y })]),
+    right_wrist: Object.freeze([])
+  });
+  const tTip = computeSliceT(note, "left", evidenceMs, tipHistory);
+  assert.equal(tTip, 0.85, "a blade crossing way past the tip clamps to SLICE_T_MAX (0.85)");
+  const tailWrist = { x: 0, y: -1.5 }; // far below the tail
+  const tailHistory = Object.freeze({
+    left_wrist: Object.freeze([Object.freeze({ t: evidenceMs, x: tailWrist.x, y: tailWrist.y })]),
+    right_wrist: Object.freeze([])
+  });
+  const tTail = computeSliceT(note, "left", evidenceMs, tailHistory);
+  assert.equal(tTail, 0.15, "a blade crossing way past the tail clamps to SLICE_T_MIN (0.15)");
+}
+
+// ---------- 0.0.63 D5: projectAftermathEntries emits sliceT when wired ----------
+{
+  // Play path: a real hit judgement WITH a usable wrist history yields sliceT.
+  const note = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "d5play", type: "note", centerTimestampMs: 12_000, authoredBeat: { type: "note", hand: "right", placement: 6, direction: "right" } });
+  const evidenceMs = 11_990;
+  // Right-hand history — the blade sweeps RIGHT through a "right" arrow.
+  // Cell center for placement 6 = (2, 1). Place the wrist 0.4 to the LEFT of
+  // the cell center so the blade (0.75 long, right-pointing) crosses the cell
+  // roughly at its middle-right.
+  const history = Object.freeze({
+    left_wrist: Object.freeze([]),
+    right_wrist: Object.freeze([Object.freeze({ t: evidenceMs, x: 1.6, y: 1 })])
+  });
+  const snapshot = Object.freeze({ judgements: Object.freeze([hitJudgement("d5play", 12_000, false, evidenceMs)]), session: Object.freeze({ purpose: "play" }) });
+  const list = projectAftermathEntries([note], snapshot, 12_200, [], null, null, history);
+  assert.equal(list.length, 1, "one real hit → one entry");
+  assert.ok(typeof list[0].sliceT === "number", "flow/slice entry carries sliceT when the wrist history is wired");
+  assert.ok(list[0].sliceT >= 0.15 && list[0].sliceT <= 0.85, "projected sliceT in clamped range");
+  // Same call WITHOUT the wrist history → sliceT omitted (backward compat).
+  const legacyList = projectAftermathEntries([note], snapshot, 12_200, [], null, null, null);
+  assert.equal(legacyList.length, 1, "legacy call still produces one entry");
+  assert.equal(typeof legacyList[0].sliceT, "undefined", "absent wrist history → sliceT omitted (midpoint renderer fallback)");
+  // The key set must NOT leak extra fields beyond the renderer contract.
+  const keys = [...Reflect.ownKeys(list[0]).filter((k) => typeof k === "string")].sort();
+  assert.deepEqual(keys, ["family", "hand", "hitCommitMs", "mode", "seed", "shape", "sliceT", "spawn", "targetId"].sort(), "entry keys are the renderer-contract fields (+ sliceT for flow/slice)");
+  // A non-slice family (guard/bonk) NEVER carries sliceT even if a wrist
+  // history is supplied.
+  const guard = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "d5g", type: "guard", centerTimestampMs: 13_000, authoredBeat: { type: "guard", guardTarget: { leftCell: 1, rightCell: 2 } } });
+  const gSnap = Object.freeze({ judgements: Object.freeze([hitJudgement("d5g", 13_000, false, 12_990)]), session: Object.freeze({ purpose: "play" }) });
+  const gList = projectAftermathEntries([guard], gSnap, 13_200, [], null, null, history);
+  assert.equal(gList.length, 1, "guard hit → one bonk entry");
+  assert.equal(typeof gList[0].sliceT, "undefined", "non-slice families never carry sliceT");
+}
+
+console.log("p5pr aftermath FIFO + dntq hazard-contact + deterministic-seed + privacy + 0.0.54 W2-B Test-mode/persistence + 0.0.58 B11a stable-spawn + 0.0.59 B15 punch-rendered-position + 0.0.63 D5 sliceT/wider-separation oracles passed.");

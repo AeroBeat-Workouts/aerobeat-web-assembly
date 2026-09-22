@@ -18,6 +18,17 @@ import { canonicalWorldUnitsPerMs } from "./gameplay-visual-runtime.js";
 // renderer uses for boxing_collider presentation rows (presentationRowY →
 // boxingColliderRowY) and the gameplay judge plane (boxingColliderTargetCenter).
 import { boxingColliderRowY } from "@aerobeat/web-contracts/gameplay-contracts";
+// 0.0.63 D5: the saber geometry constants — the SAME `saberGeometry` (length +
+// radius) the gameplay capsule detector and the renderer's visible beam are
+// built from (`@aerobeat/web-contracts/equipment-contracts`). sliceT re-derives
+// the blade crossing with these exact values so visual == hit == cut-position.
+import { saberGeometry } from "@aerobeat/web-contracts/equipment-contracts";
+// 0.0.63 D5: the shared PRE-push wrist-history direction oracle AND the sample
+// freshness bound — both come from `@aerobeat/web-gameplay`'s flow-collider
+// collision module, the EXACT source the session coordinator uses to orient the
+// saber capsule and to validate a measured wrist sample. Importing them here
+// keeps sliceT aligned with the live hit volume (visual == hit == cut-position).
+import { saberDirectionFromWristHistory, maximumColliderSampleFreshnessMs } from "@aerobeat/web-gameplay";
 // 0.0.60 F2: the renderer's 4×3 presentation grid — the SAME constant the renderer
 // uses for the live note icon (worldPositionForCell → columnX). The corpse must
 // spawn at the NOTE'S rendered position, which is the presentation grid, NOT the
@@ -26,6 +37,36 @@ import { gameplayWorldGrid } from "@aerobeat/web-renderer";
 
 /** p5pr: live aftermath entries retained per frame (the 7-beat FIFO cap). */
 const AFTERMATH_LIVE_CAP = 7;
+/**
+ * 0.0.63 D5: sliceT clamping bounds — keep BOTH halves a sane size by never
+ * letting the cut land inside the outer 15% of the glyph's long axis
+ * (0 = tail, 1 = tip/head). A blade crossing measured outside this range is
+ * clamped so a near-tip / near-tail cut still leaves two recognizable halves.
+ */
+const SLICE_T_MIN = 0.15;
+const SLICE_T_MAX = 0.85;
+/**
+ * 0.0.63 D5: judge-space cell → authored-direction unit vector (in-plane,
+ * up-positive). Mirrors the renderer's `directionUnitVector` AND the
+ * gameplay-side `DIRECTIONS` map (`flow-collider-collision.js`) exactly so the
+ * arrow's long axis aligns with the direction the note was hit in. Integer
+ * directions use the canonical Beat Saber flow enum
+ * [`up`,`down`,`left`,`right`,`up-left`,`up-right`,`down-left`,`down-right`]
+ * (the SAME ordering `session-coordinator.flowDirectionName` resolves against);
+ * string directions are looked up by name.
+ */
+const FLOW_DIRECTION_VECTORS = Object.freeze({
+  up: Object.freeze([0, 1]),
+  down: Object.freeze([0, -1]),
+  left: Object.freeze([-1, 0]),
+  right: Object.freeze([1, 0]),
+  "up-left": Object.freeze([-Math.SQRT1_2, Math.SQRT1_2]),
+  "up-right": Object.freeze([Math.SQRT1_2, Math.SQRT1_2]),
+  "down-left": Object.freeze([-Math.SQRT1_2, -Math.SQRT1_2]),
+  "down-right": Object.freeze([Math.SQRT1_2, -Math.SQRT1_2])
+});
+/** 0.0.63 D5: the integer enum order (Beat Saber flow convention) for integer directions. */
+const FLOW_DIRECTION_ENUM = Object.freeze(["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"]);
 /** p5pr: an evicted entry drops out once the fade tail plus margin fully elapsed. */
 const AFTERMATH_EVICTED_FADE_TAIL_MS = 150 + 200;
 /** dntq: hazard-contact event cap (renderer AFTERMATH_MAX_HAZARD_EVENTS). */
@@ -212,8 +253,9 @@ function normalizeSpawnRowReach(reach) {
  * longer degrade the spawn to the track center mid-fall.
  * @param {unknown} [renderEventIndex] The deterministic session target index (0.0.55 W2 Test-mode source).
  * @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [rowReach] 0.0.59 B15: the run-configured row-reach fractions (Game Setup v3, emitted by the frame for the boxing_collider presentation) so the punch spawn Y matches the note's reach-row Y at ANY reach setting; absent values take the 0.25 defaults.
+ * @param {Readonly<{ left_wrist?: ReadonlyArray<Readonly<{t:number,x:number,y:number}>> | null, right_wrist?: ReadonlyArray<Readonly<{t:number,x:number,y:number}>> | null }> | null} [saberWristHistory] 0.0.63 D5: the session-snapshot PRE-push per-wrist history (the SAME frozen arrays the coordinator's saber orients from — chgy). Used to compute `sliceT` at cut time for each flow-note hit. Absent → every entry omits sliceT (renderer midpoint fallback, backward compatible).
  */
-export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null) {
+export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null, saberWristHistory = null) {
   const judgementsValue = recordValue(gameplay, "judgements");
   if (!Array.isArray(judgementsValue)) return [];
   /** @type {{eventId:string}} */
@@ -221,9 +263,9 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
   for (const event of events) {
     if (isRecord(event)) eventsById.set(String(event.eventId ?? ""), event);
   }
-  /** @type {{targetId:string,hitCommitMs:number,family:"flow"|"punch"|"guard",hand:"left"|"right"|"both"|"neutral",mode:"straight"|"hook"|"uppercut"|"slice"|"bonk",spawn:{x:number,y:number,z:number},seed:number,shape?:"arrow"|"orb",appearanceColor?:string,evictedAtMs?:number}[]} */
+  /** @type {{targetId:string,hitCommitMs:number,family:"flow"|"punch"|"guard",hand:"left"|"right"|"both"|"neutral",mode:"straight"|"hook"|"uppercut"|"slice"|"bonk",spawn:{x:number,y:number,z:number},seed:number,shape?:"arrow"|"orb",appearanceColor?:string,sliceT?:number,evictedAtMs?:number}[]} */
   const output = [];
-  /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number,shape?:string,appearanceColor?:string}}[]} */
+  /** @type {{commitMs:number,targetId:string,entry:{family:string,hand:string,mode:string,spawn:{x:number,y:number,z:number},seed:number,shape?:string,appearanceColor?:string,sliceT?:number}}[]} */
   const candidates = [];
   /** 0.0.54 W2-B: real hit judgements win; a target already covered by one produces no synthetic candidate. */
   const realHitIds = new Set();
@@ -241,6 +283,12 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
     const mapping = aftermathMappingForEvent(event);
     if (!mapping) continue;
     realHitIds.add(eventId);
+    // 0.0.63 D5: compute sliceT for flow notes (mode "slice") using the PRE-push
+    // wrist history at the evidence timestamp. Non-flow families omit it (the
+    // renderer only honors it on mode "slice" entries).
+    const sliceT = mapping.family === "flow" && mapping.mode === "slice"
+      ? computeSliceT(event, mapping.hand, Number(judgement.evidenceTimestampMs ?? judgement.committedTimelinePositionMs), saberWristHistory)
+      : null;
     candidates.push({
       commitMs,
       targetId: eventId,
@@ -251,7 +299,8 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         spawn: spawnForEvent(event, rowReach),
         seed: aftermathSeedForTargetId(eventId),
         ...(mapping.shape ? { shape: mapping.shape } : {}),
-        ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {})
+        ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {}),
+        ...(sliceT !== null ? { sliceT } : {})
       }
     });
   }
@@ -285,6 +334,12 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         // appears. This matches the Play real-judgement mapping exactly.
         const mapping = aftermathMappingForEvent(event);
         if (!mapping) continue;
+        // 0.0.63 D5: Test-mode synthetic hits have NO measured wrist sample
+        // (no judgement carries evidenceTimestampMs). Fall back to `null` so
+        // the renderer uses the midpoint — identical to pre-D5 behavior.
+        // When a future test harness DOES feed the wrist history + an
+        // evidence timestamp on the index entry, we can lift this restriction.
+        const sliceT = null;
         candidates.push({
           commitMs,
           targetId,
@@ -295,7 +350,8 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
             spawn: spawnForEvent(event, rowReach),
             seed: aftermathSeedForTargetId(targetId),
             ...(mapping.shape ? { shape: mapping.shape } : {}),
-            ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {})
+            ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {}),
+            ...(sliceT !== null ? { sliceT } : {})
           }
         });
       }
@@ -320,11 +376,152 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
       seed: item.entry.seed,
       ...(item.entry.shape ? { shape: item.entry.shape } : {}),
       ...(item.entry.appearanceColor ? { appearanceColor: item.entry.appearanceColor } : {}),
+      ...(typeof item.entry.sliceT === "number" ? { sliceT: item.entry.sliceT } : {}),
       ...(evictedCommitMs !== null && item.commitMs === evictedCommitMs ? { evictedAtMs: item.commitMs } : {})
     });
     output.push(entry);
   }
   return output;
+}
+
+/**
+ * 0.0.63 D5 — compute the slice `sliceT` (0..1 fraction along the glyph's
+ * long axis where the saber blade actually crossed at cut time). This is what
+ * makes the aftermath "hit corpse" split at the BLADE'S ACTUAL CUT POSITION
+ * instead of always the midpoint (Derrick: "when a beat is cut, it doesn't
+ * necessarily happen from the spot the sword cut").
+ *
+ * ## Derivation
+ * For a directional flow note (`shape === "arrow"`):
+ *   1. The judge-space cell center = `(placement % 4, 2 - floor(placement/4))`
+ *      — the SAME `targetCenterForPlacement` the gameplay capsule detector uses.
+ *   2. The arrow's local long axis in world/JUDGE space = the authored direction
+ *      unit vector (mirrors `directionUnitVector`).
+ *   3. The blade line at cut = `{ wristSample → wristSample + saberGeometry.length
+ *      · saberDirection }` (the EXACT capsule centerline `saberCapsuleContactsFlowTarget`
+ *      tests; `saberGeometry` from the shared equipment contract).
+ *   4. Project the blade segment onto the arrow axis:
+ *        `t_axis = ((p1 − cellCenter)·axis − (p0 − cellCenter)·axis) / length`,
+ *      then map that to [0, 1] over the CELL WIDTH projected onto the axis and
+ *      clamp to `[SLICE_T_MIN, SLICE_T_MAX]`.
+ *   For a directionless note (`shape === "orb"`):
+ *   5. There is no authored long axis, so take the blade's own direction as the
+ *      reference axis (the orb is isotropic, so any consistent axis gives a
+ *      meaningful crossing point).
+ *
+ * ## Where the blade position comes from (documented approximation)
+ * The hit judgement record carries `evidenceTimestampMs` (the measurement
+ * timestamp of the wrist frame that fired the capsule test, when available) but
+ * NOT the raw `{x, y}` of that sample. The session snapshot DOES expose
+ * `saberWristHistory` (chgy): the PRE-push per-wrist frozen arrays the
+ * coordinator's OWN saber orients from, each entry being `{ t, x, y }` in judge
+ * space. We pick the history entry whose `t` is closest to `evidenceTimestampMs`
+ * AND within `maximumColliderSampleFreshnessMs` (150 ms, imported from
+ * `@aerobeat/web-gameplay`). In steady state (one measurement per tick) this is
+ * the very sample that committed the hit; when multiple frames fall in the
+ * window we take the nearest one. This is a DOCUMENTED APPROXIMATION because:
+ *   - if the judgement has no `evidenceTimestampMs` (legacy fixture / shadow
+ *     path), we fall back to `committedTimelinePositionMs`;
+ *   - if the relevant wrist's history is absent, empty, or has no entry within
+ *     the freshness window for that timestamp, we return `null` and the caller
+ *     OMITS `sliceT` from the entry — the renderer then uses its midpoint
+ *     fallback, identical to pre-D5 behavior. No silent degradation: the
+ *     "blade cut position" is either the actual last-measured wrist, or absent.
+ * The blade DIRECTION is re-derived with the SAME pure oracle
+ * (`saberDirectionFromWristHistory`, imported from `@aerobeat/web-gameplay`) on
+ * the coordinator's OWN pre-push history, so the crossing computation aligns
+ * with the live hit volume (visual == hit == cut-position, the chgy invariant).
+ *
+ * @param {{authoredBeat?: Record<string, unknown>, type?: string}} event Resolved content event.
+ * @param {"left"|"right"} hand The hand that committed the hit.
+ * @param {unknown} evidenceTimestampMs The judgement's evidence measurement timestamp (ms).
+ * @param {Readonly<{ left_wrist?: ReadonlyArray<Readonly<{t:number,x:number,y:number}>> | null, right_wrist?: ReadonlyArray<Readonly<{t:number,x:number,y:number}>> | null }> | null} [saberWristHistory] Session-snapshot PRE-push per-wrist history.
+ * @returns {number|null} The clamped sliceT, or null when no usable wrist sample exists (caller omits the field → renderer midpoint fallback).
+ */
+export function computeSliceT(event, hand, evidenceTimestampMs, saberWristHistory = null) {
+  // Resolve the event's shape the same way the mapping does.
+  const type = typeof event.type === "string" ? event.type : (typeof event.authoredBeat?.type === "string" ? event.authoredBeat.type : null);
+  if (type !== "note") return null; // Only Flow notes use mode "slice".
+  const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
+  const placement = beat.placement;
+  if (!Number.isInteger(placement) || placement < 0 || placement >= 12) return null;
+  // Judge-space cell center (same as targetCenterForPlacement).
+  const col = placement % 4;
+  const row = Math.floor(placement / 4);
+  const cellCenterX = col;
+  const cellCenterY = 2 - row;
+  // Choose the reference axis. Directional note → the arrow's TAIL→HEAD axis,
+  // which is ALIGNED with the authored direction unit vector: for a flow "up"
+  // arrow the glyph's head points +Y (same as the direction), and the athlete
+  // swings UP through it. So a wrist positioned BELOW the cell (smaller Y)
+  // means the blade crossed near the tail (small sliceT), and a wrist AT/ABOVE
+  // center means it crossed mid-to-head (larger sliceT). The arrow's long-axis
+  // fraction runs from tail (t=0) to head (t=1) along +direction. Otherwise →
+  // the blade's own direction (for orbs, isotropic).
+  const dirName = directionNameFromAuthored(beat.direction);
+  let refAxis = null;
+  if (dirName !== null) {
+    const vec = FLOW_DIRECTION_VECTORS[dirName];
+    refAxis = { x: vec[0], y: vec[1] };
+  }
+  // Grab the wrist sample for this hand, preferring the last entry whose `t` is
+  // closest to (and ≤) evidenceTimestampMs.
+  const wristRole = hand === "right" ? "right_wrist" : "left_wrist";
+  const history = saberWristHistory && Array.isArray(saberWristHistory[wristRole]) ? saberWristHistory[wristRole] : [];
+  /** @type {{x:number,y:number}|null} */ let wristSample = null;
+  let bestDelta = Infinity;
+  for (const s of history) {
+    if (!isRecord(s)) continue;
+    if (typeof s.x !== "number" || !Number.isFinite(s.x) || typeof s.y !== "number" || !Number.isFinite(s.y) || typeof s.t !== "number" || !Number.isFinite(s.t)) continue;
+    const delta = Number(evidenceTimestampMs) - s.t;
+    if (delta < 0 || delta > maximumColliderSampleFreshnessMs) continue; // stale or future
+    if (Math.abs(delta) < Math.abs(bestDelta)) { bestDelta = delta; wristSample = { x: s.x, y: s.y }; }
+  }
+  if (wristSample === null) return null; // No usable wrist → omit (renderer midpoint fallback).
+  // Blade direction: re-derive via the SAME pure oracle the visible beam uses,
+  // on the coordinator's OWN pre-push history (the visual==hit invariant). The
+  // oracle returns the grid-up fallback when the history is degenerate, so no
+  // extra guard is needed here.
+  const saberDir = saberDirectionFromWristHistory(history, Number(evidenceTimestampMs));
+  // Reference axis: for an orb, use the blade's own direction.
+  if (refAxis === null) refAxis = { x: saberDir.x, y: saberDir.y };
+  // Build the blade segment endpoints (in judge space, Z=0).
+  const p0 = { x: wristSample.x, y: wristSample.y };
+  const p1 = { x: wristSample.x + saberGeometry.length * saberDir.x, y: wristSample.y + saberGeometry.length * saberDir.y };
+  // Project both endpoints onto the reference axis relative to the cell center.
+  const projP0 = (p0.x - cellCenterX) * refAxis.x + (p0.y - cellCenterY) * refAxis.y;
+  const projP1 = (p1.x - cellCenterX) * refAxis.x + (p1.y - cellCenterY) * refAxis.y;
+  // Project the cell's FOUR CORNERS onto the reference axis (relative to the
+  // cell center, so the center itself maps to 0). For an "up" arrow over a 1×1
+  // cell this gives −0.5 (tail edge) and +0.5 (head edge), axisSpan = 1.0.
+  // Using the actual corner extent is robust to diagonal directions where the
+  // cell projects onto a shorter axis-aligned span (e.g., a 45° axis over a
+  // square cell has span √2/2 ≈ 0.707 instead of 1).
+  const cornerProjections = [];
+  for (const [dx, dy] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) {
+    cornerProjections.push(dx * refAxis.x + dy * refAxis.y);
+  }
+  const axisMin = Math.min(...cornerProjections);
+  const axisMax = Math.max(...cornerProjections);
+  const axisSpan = axisMax - axisMin;
+  if (axisSpan < 1e-9) return 0.5; // Degenerate axis (shouldn't happen with unit vectors).
+  // Average the two endpoint projections to get the blade-line's central crossing.
+  const bladeProjCenter = (projP0 + projP1) / 2;
+  // Fraction along the axis where the blade crosses.
+  const rawT = (bladeProjCenter - axisMin) / axisSpan;
+  const clamped = Math.min(SLICE_T_MAX, Math.max(SLICE_T_MIN, rawT));
+  return Number(clamped.toFixed(4));
+}
+
+/** 0.0.63 D5: resolve an authored direction (integer enum index OR string name) to its canonical name. Returns null when absent/unrecognized. */
+function directionNameFromAuthored(direction) {
+  if (typeof direction === "string") {
+    return FLOW_DIRECTION_VECTORS[direction] ? direction : null;
+  }
+  if (Number.isInteger(direction) && direction >= 0 && direction < FLOW_DIRECTION_ENUM.length) {
+    return FLOW_DIRECTION_ENUM[direction];
+  }
+  return null;
 }
 
 /** dntq: derive the bounded hazard-contact event list for one frame. */

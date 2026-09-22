@@ -1288,7 +1288,14 @@ export class AeroGame extends HTMLElement {
     // legacy grid row. Absent for non-boxing_collider presentations (the
     // defaults apply; flow notes ignore reach entirely).
     const isBoxingColliderForAftermath = presentation === "boxing_collider";
-    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex, isBoxingColliderForAftermath ? Object.freeze({ topRowReachWU: Number(setup.topRowReachWU), bottomRowReachWU: Number(setup.bottomRowReachWU) }) : null);
+    // 0.0.63 D5: pass the session's PRE-push saber wrist history so each Flow
+    // note hit gets a `sliceT` at the blade's actual cut position (the SAME
+    // frozen arrays the coordinator orients the visible beam from — chgy).
+    // Absent for non-flow rulesets / sessions without a snapshot field; the
+    // projection tolerates it and every entry omits sliceT (renderer midpoint
+    // fallback, identical to pre-D5 behavior).
+    const aftermathSaberWristHistory = isRecord(gameplay) && isRecord(gameplay.saberWristHistory) ? gameplay.saberWristHistory : null;
+    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex, isBoxingColliderForAftermath ? Object.freeze({ topRowReachWU: Number(setup.topRowReachWU), bottomRowReachWU: Number(setup.bottomRowReachWU) }) : null, aftermathSaberWristHistory);
     // dntq: bounded hazard-contact events (assembly-owned) — obstacle head-collision
     // contact outcomes (Flow + Boxing) plus Flow bomb touch; avoided/miss produce nothing.
     const hazardContacts = projectHazardContactEvents(gameplay, nowMs);
