@@ -276,36 +276,54 @@ try {
 
   const calibratingVisual = await visualShellSnapshot(game);
   assert(calibratingVisual.menu && !calibratingVisual.drawer && calibratingVisual.cue && ["T-pose", "Hold T-pose"].includes(calibratingVisual.cueText) && calibratingVisual.hudPresenters === 0 && calibratingVisual.visibleOverlayCount === 2 && calibratingVisual.previewVisible && calibratingVisual.previewOpacity === "1" && calibratingVisual.rendererBackground === "#00000000" && calibratingVisual.videoPlayCalls >= 1, `calibration may expose only menu plus one minimal T-pose cue: ${JSON.stringify(calibratingVisual)}`);
-  for (let offset = 0; offset <= 2000; offset += 250) await pushPose(game, 6000 + offset, true);
-  // tm4m W1-B1: a partial auto-recovery window (recoveryHoldMs = 300ms) can fire during
-  // the initial calibration hold and transition readiness from "calibration_required"
-  // to "countdown" early. Push an additional 800ms of fresh T-pose samples so the
-  // input service settles into its post-recovery state before we assert on the cue.
-  for (let offset = 2250; offset <= 5050; offset += 250) await pushPose(game, 6000 + offset, true);
+  // Schedule aligned to holdDurationMs=2000 / cooldownDurationMs=2000 per contracts fde6130.
+  // Critical mechanics:
+  //   • holdStartedAt is set by the first T-pose frame consumed after the session enters
+  //     "calibrating" (the T+1000 push on line 271). The 2000ms hold commits 2000ms of
+  //     measured time later, minting a calibrationId and entering an auto-cooldown
+  //     ("Release" cue). Measured time ≈ wall time here (rAF advanceTime ticks bridge any
+  //     gaps <750ms), so the commit lands ~2000ms after the hold starts.
+  //   • Pushing MORE T-pose after the commit starts a SECOND (recalibration) hold —
+  //     updateCalibration re-enters the holding path once holdStartedAt resets to null.
+  //     That second hold keeps readiness at "calibration_required", so the coordinator's
+  //     countdown auto-start (runDisplayFrame → requestStart on safety.ready) never fires.
+  //     We must therefore STOP T-pose before the commit and switch to standing frames.
+  //   • The standing frame observed inside the cooldown window marks the release; readiness
+  //     stays "countdown" and the countdown auto-starts on the next display frame.
+  //
+  // Pose-clock timeline (offsets relative to the pose clock that pushPose drives from
+  // performance.now()):
+  //   T+6250→T+6500: short 2-frame T-pose burst refreshing the measured clock while the
+  //                  hold is still in flight (~75ms of real time).
+  //   Step-1 snapshot: lands during the HOLD → cue "Hold T-pose". On a slow round-trip it
+  //                  can catch the first cooldown tick ("Release") or an early countdown
+  //                  digit; the assertion accepts all three so the proof holds either way.
+  //   Standing T+7750→T+10500: observed as the release inside the 2000ms cooldown window;
+  //                  continuous frames keep the measured clock advancing so the
+  //                  auto-started countdown walks 3-2-1 for captureOrderedCountdown and
+  //                  steady play resumes into the tracking-loss section below.
+  for (let offset = 250; offset <= 500; offset += 250) await pushPose(game, 6000 + offset, true);
   let holdingVisual = await visualShellSnapshot(game);
-  if (["3","2","1"].includes(holdingVisual.cueText) || holdingVisual.sessionState === "countdown") {
-    // Already in countdown: advance pose stream so releaseHold lands within the
-    // window the oracle expects. A digit cue is valid — it just means the
-    // tm4m W1-B1 recovery gate (2000ms hold + 300ms partial recovery) fired
-    // earlier than the old 4s-hold timeline.
-    for (let offset = 3300; offset <= 4000; offset += 250) await pushPose(game, 6000 + offset, true);
-  }
-  const holdingCueOk = holdingVisual.cueText === "Hold T-pose" || ["3","2","1"].includes(holdingVisual.cueText);
+  const holdingCueOk = holdingVisual.cueText === "Hold T-pose" || holdingVisual.cueText === "Release" || ["3","2","1"].includes(holdingVisual.cueText);
   // During countdown the preview is hidden (aero background) — only the calibrating
-  // state shows the camera preview. Accept both states per the tm4m early-countdown
-  // transition.
+  // state shows the camera preview. Accept both states.
   const holdingPreviewOk = holdingVisual.sessionState === "calibrating" ? (holdingVisual.previewVisible && holdingVisual.rendererBackground === "#00000000") : (!holdingVisual.previewVisible && holdingVisual.rendererBackground === "#071426");
-  assert(holdingVisual.cue && holdingCueOk && holdingVisual.visibleOverlayCount === 2 && holdingPreviewOk, `T-pose hold must remain one minimal cue (accepting either the T-pose label or a countdown digit after the tm4m recovery gate fires): ${JSON.stringify(holdingVisual)}`);
-  await beginCountdownDwellProof(game);for (let offset = 2250; offset <= 4000; offset += 250) await pushPose(game, 6000 + offset, true);
-  // tm4m W1-B1 product-sanity proof: the countdown must run 3-2-1 to play with a
+  assert(holdingVisual.cue && holdingCueOk && holdingVisual.visibleOverlayCount === 2 && holdingPreviewOk, `T-pose hold must remain one minimal cue (accepting the T-pose label, the Release cue during cooldown, or a countdown digit after the 2000ms hold commits): ${JSON.stringify(holdingVisual)}`);
+  await beginCountdownDwellProof(game);
+  // Product-sanity proof: the countdown must run 3-2-1 to play with a
   // continuously-streaming pose source. The frame loop (driven by rAF) calls
   // graph.gameplay.advance() every display frame, which progresses the coordinator.
   // The dwell proof's stopFrameLoop() would kill that — captureOrderedCountdown
-  // restarts it between digits via ensureFrameLoopAlive. We keep pushing standing
-  // poses below so the input service's measured clock advances like a real webcam.
+  // restarts it between digits via ensureFrameLoopAlive. The standing frames below
+  // observe the release inside the cooldown window and keep the input service's
+  // measured clock advancing like a real webcam, so the countdown advances its digits.
   const initialCountdownPromise = captureOrderedCountdown(page, game);
-  await releaseHold(game, 10250);
-  for(let offset=0;offset<=2500;offset+=250)await pushPose(game,10500+offset,false);
+  await releaseHold(game, 7500);
+  // Standing frames observe the release inside the cooldown window and keep the measured
+  // clock advancing through the auto-started countdown into steady play. They end at
+  // T+10500 (matching the original standing window start), after which the tracking-loss
+  // section below drives its own pose sequence.
+  for(let offset=0;offset<=2750;offset+=250)await pushPose(game,7750+offset,false);
   const initialCountdown = await initialCountdownPromise;
   assert(JSON.stringify(initialCountdown.values) === JSON.stringify(orderedCountdownValues(initialCountdown.values)) && initialCountdown.dwells.every((value) => value >= 800) && initialCountdown.minimumDwellProofs.every(Boolean) && initialCountdown.proofs.every((proof) => proof.pixels.pixelRange >= 120 && proof.pixels.contrast >= 4.5 && proof.style.textShadow !== "none" && proof.style.statusCount === 1), `initial countdown must paint one ordered AA-contrast full-dwell cue (prefix-tolerant after tm4m early countdown): ${JSON.stringify(initialCountdown)}`);
   const countdownVisual = initialCountdown.firstVisual;
