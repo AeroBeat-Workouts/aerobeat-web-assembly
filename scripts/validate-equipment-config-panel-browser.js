@@ -1,30 +1,25 @@
 // @ts-check
-// 0.0.63 C5 (bead 376l, final piece of L-C): browser oracle for the Test-mode
-// equipment config panel. Plan: .plans/2026-09-21-0.0.63-playtest-feedback-
-// 0.0.62-retest-successor.md (L-C design, D2).
+// 0.0.64 P1: real-browser oracle for grouped live equipment authoring and
+// private Test preview. Plan: .plans/2026-09-22-0.0.64-playtest-feedback-
+// 0.0.63-regression-successor.md.
 //
-// The panel is part of the assembly shell `aero-game` — it rides in the same
-// Visual Test authoring surface as the environment + test-presentation
-// controls and MUST NOT be usable outside a visual_test session with the menu
-// closed. This oracle drives a real app boot in headless Chromium (audio-only
-// by design — no camera):
+// The panel rides in the assembly shell's private Visual Test authoring
+// surface and remains unusable outside an enabled visual_test session. This
+// oracle boots the real app graph in headless Chromium (audio-only; no camera)
+// and proves:
 //
-//   (a) idle (non-test) state — panel present in markup but hidden/disabled;
-//       describeEquipmentConfig() === the baked defaults; getSnapshot() omits
-//       any equipment-config truth;
-//   (b) a REAL Flow visual_test session booted through the public start path
-//       (the service-graph factory override mirrors validate-mobile-gameplay-
-//       menu.js); once the menu closes, the authoring surface becomes enabled;
-//   (c) panel visible/enabled + textarea preloaded with the canonical
-//       serialized defaults (byte-for-byte);
-//   (d) LIVE validation on input — invalid text surfaces the error without
-//       mutating describeEquipmentConfig(); valid text shows the indicator;
-//   (e) APPLY commits only when valid — an invalid edit leaves the live
-//       config unchanged, a valid edit changes it observably;
-//   (f) EXPORT triggers a Playwright download event named
-//       aerobeat-equipment-config.yaml whose bytes re-parse as YAML; invalid
-//       content refuses to export;
-//   (g) RESET restores the baked defaults into state + textarea.
+//   (a) all 24 validated equipment leaves have grouped native controls, with
+//       no editable YAML textarea or staged Apply action;
+//   (b) the preview toggle defaults off, then emits exactly two deterministic
+//       renderer-only wrist records without mutating input or public state;
+//   (c) scale and Flow zone-orientation edits validate and affect the next
+//       explicit rendered frame even while the normal display loop is stopped;
+//   (d) toggle-off returns to zero equipment and an upcoming uppercut completes
+//       without an Info/rotationZDeg error;
+//   (e) the widened rail and compact actions have no horizontal/text overflow
+//       at 390×844; the full direct/iframe matrix lives in the shell oracle;
+//   (f) Reset restores baked defaults, while trusted Export downloads the
+//       deterministic live YAML artifact for baking.
 
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
