@@ -1,13 +1,15 @@
 // @ts-check
 
-// 0.0.62 r2 + r2b — FLOW SABER LOOK pixel oracle (assert-after, deterministic,
-// no env overrides, no files written). Locks the SIGNED-OFF saber look: the r2
-// saber model rendered with the r2b glow gain of 1.0, measured at the production
-// 844×390 viewport.
+// 0.0.62 r2 + r2b + 0.0.63 D6 — FLOW SABER LOOK pixel oracle (assert-after,
+// deterministic, no env overrides, no files written). Locks the SIGNED-OFF
+// saber look: the r2 saber model rendered with the r2b glow gain of 1.0 and
+// the 0.0.63 D6 glow start of 0.18 (blade base, hilt excluded — the r2b glow
+// started at 0.15 inside the hilt and painted a bright band that visually
+// severed hilt from blade), measured at the production 844×390 viewport.
 //
 // The signed-off reference is the measured sweep at
-// .plans/evidence/2026-09-21-0.0.62-saber-r2b/2026-09-21-equipment-sweep.json
-// (renderer e28ac25, glow gain 1.0). This oracle replays the EXACT equipment
+// .plans/evidence/2026-09-21-0.0.63-saber-d6/2026-09-21-equipment-sweep.json
+// (renderer 6daa9a0, glow gain 1.0, glow start 0.18). This oracle replays the EXACT equipment
 // records of that sweep's center, theme-defaults saber cases — a single wrist
 // record at the center position, mode "flow", direction +x / +y / 45deg,
 // undimmed + dimmed, through BOTH environment modes (AERO photosphere +
@@ -33,7 +35,7 @@
 //     channel within the measured delta (≤ 30, measured ~4), red channel
 //     clearly higher (≥ 25, measured ~45).
 //   - Dim lock (CAMERA, undimmed vs dimmed edge, plus-x): the edge green
-//     channel drops ≥ 40 (measured 239.7 → 164.1) — the dim must be real,
+//     channel drops ≥ 40 (measured 238.9 → 164.5) — the dim must be real,
 //     not a no-op.
 //   - Console noise: zero unexpected (house policy imports).
 //
@@ -47,34 +49,34 @@ import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
-// ── anchors measured from the r2b sweep (renderer e28ac25, gain 1.0) ──
+// ── anchors measured from the 0.0.63 D6 sweep (renderer 6daa9a0, gain 1.0, glow start 0.18) ──
 // NOTE: the sweep's screenWidthPx/screenHeightPx ARE the Δ≥24 diff-bbox extents
 // (the model's worldAABB is reported separately in the sweep JSON). Because the
-// r2b glow is additive it fades below the Δ≥24 diff threshold BEFORE the model
-// edge (e.g. camera plus-x: model span 72.2px wide but the diff box is only 53),
+// glow is additive it fades below the Δ≥24 diff threshold BEFORE the model
+// edge (e.g. camera plus-x: the diff box is only 55px wide at gain 1.0),
 // so the signed-off glow signature is locked on the measured diff box, diffPx,
-// and edge brightness — all measured at gain 1.0 below.
+// and edge brightness — all measured at gain 1.0 / glow start 0.18 below.
 // Diff-bbox footprint per (env, direction) [w, h].
 const MEASURED_BOX = Object.freeze({
-  aero: { "plus-x": [53, 62], "plus-y": [62, 53], "45deg": [59, 59] },
-  camera: { "plus-x": [53, 62], "plus-y": [62, 53], "45deg": [59, 59] },
+  aero: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] },
+  camera: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] },
 });
 // Measured diffPx per (env, dir, dimmed).
 const MEASURED_DIFFPX = Object.freeze({
-  aero: { "plus-x": [643, 636], "plus-y": [647, 628], "45deg": [487, 480] },
-  camera: { "plus-x": [648, 648], "plus-y": [648, 648], "45deg": [590, 590] },
+  aero: { "plus-x": [607, 569], "plus-y": [606, 600], "45deg": [468, 461] },
+  camera: { "plus-x": [625, 625], "plus-y": [611, 611], "45deg": [564, 564] },
 });
 // Measured edge RGB per (env, dir, dimmed). [r, g, b]
 const MEASURED_EDGE = Object.freeze({
   aero: {
-    "plus-x": [[177.9, 226.4, 238.4], [156.0, 230.6, 242.2]],
-    "plus-y": [[209.7, 234.7, 246.7], [189.1, 241.6, 250.7]],
-    "45deg": [[222.7, 238.9, 245.4], [214.5, 243.9, 250.1]],
+    "plus-x": [[177.2, 231.1, 242.5], [161.2, 242.3, 247.7]],
+    "plus-y": [[217.3, 237.9, 246.6], [188.1, 242.7, 250.6]],
+    "45deg": [[221.1, 238.0, 244.8], [212.8, 243.2, 249.9]],
   },
   camera: {
-    "plus-x": [[95.9, 239.7, 241.4], [49.0, 164.1, 242.7]],
-    "plus-y": [[95.9, 239.7, 241.4], [49.0, 164.0, 242.7]],
-    "45deg": [[95.9, 234.2, 236.6], [50.7, 161.9, 238.3]],
+    "plus-x": [[95.9, 238.9, 240.8], [49.2, 164.5, 242.1]],
+    "plus-y": [[95.9, 239.1, 241.0], [49.1, 163.8, 242.3]],
+    "45deg": [[95.9, 233.5, 236.0], [51.0, 161.6, 237.7]],
   },
 });
 
@@ -146,11 +148,11 @@ try {
           { label: "plus-y", x: 0, y: 1 },
           { label: "45deg", x: Math.SQRT1_2, y: Math.SQRT1_2 },
         ];
-        const MBOX = { aero: { "plus-x": [53, 62], "plus-y": [62, 53], "45deg": [59, 59] }, camera: { "plus-x": [53, 62], "plus-y": [62, 53], "45deg": [59, 59] } };
-        const MDIFF = { aero: { "plus-x": [643, 636], "plus-y": [647, 628], "45deg": [487, 480] }, camera: { "plus-x": [648, 648], "plus-y": [648, 648], "45deg": [590, 590] } };
+        const MBOX = { aero: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] }, camera: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] } };
+        const MDIFF = { aero: { "plus-x": [607, 569], "plus-y": [606, 600], "45deg": [468, 461] }, camera: { "plus-x": [625, 625], "plus-y": [611, 611], "45deg": [564, 564] } };
         const MEDGE = {
-          aero: { "plus-x": [[177.9, 226.4, 238.4], [156.0, 230.6, 242.2]], "plus-y": [[209.7, 234.7, 246.7], [189.1, 241.6, 250.7]], "45deg": [[222.7, 238.9, 245.4], [214.5, 243.9, 250.1]] },
-          camera: { "plus-x": [[95.9, 239.7, 241.4], [49.0, 164.1, 242.7]], "plus-y": [[95.9, 239.7, 241.4], [49.0, 164.0, 242.7]], "45deg": [[95.9, 234.2, 236.6], [50.7, 161.9, 238.3]] },
+          aero: { "plus-x": [[177.2, 231.1, 242.5], [161.2, 242.3, 247.7]], "plus-y": [[217.3, 237.9, 246.6], [188.1, 242.7, 250.6]], "45deg": [[221.1, 238.0, 244.8], [212.8, 243.2, 249.9]] },
+          camera: { "plus-x": [[95.9, 238.9, 240.8], [49.2, 164.5, 242.1]], "plus-y": [[95.9, 239.1, 241.0], [49.1, 163.8, 242.3]], "45deg": [[95.9, 233.5, 236.0], [51.0, 161.6, 237.7]] },
         };
         const BOX_TOL_PX = 4, DIFFPX_TOL_FRAC = 0.15, EDGE_TOL_PER_CHANNEL = 16, DIM_LOCK_GREEN_DROP = 40, MIN_DIFF_PX = 50;
         const DIFF_T = 24;
