@@ -133,11 +133,28 @@ const find = (records, role) => records.find((r) => r.role === role);
   console.log("PASS: visual_test purpose EMITS equipment (no longer suppressed) with base transform");
 }
 
-// --- Test 5: state not countdown/playing → [].
+// --- Test 5: paused_manual is admitted for visual_test only, without weakening
+// any existing menu/tracking/calibration/countdown/anchor gate.
 {
-  const input = inputSnapshot({ tracking: { anchorsFrozen: true, degradedAnchors: ["right_wrist"] } });
-  assert.equal(gameplayEquipmentRecords(false, session("paused_tracking"), input, "flow", flowHistory).length, 0, "non-countdown/playing state must suppress equipment");
-  console.log("PASS: non-countdown/playing state suppresses equipment");
+  const healthy = inputSnapshot();
+  assert.equal(gameplayEquipmentRecords(false, session("paused_manual", "visual_test"), healthy, "flow", flowHistory).length, 2, "paused Visual Test must retain both equipment records");
+  assert.equal(gameplayEquipmentRecords(false, session("paused_manual", "play"), healthy, "flow", flowHistory).length, 0, "paused Play must remain suppressed");
+  assert.equal(gameplayEquipmentRecords(false, session("paused_manual", "other"), healthy, "flow", flowHistory).length, 0, "paused non-Test purposes must remain suppressed");
+  assert.equal(gameplayEquipmentRecords(false, { state: "paused_manual", timestampMs: 1000 }, healthy, "flow", flowHistory).length, 0, "paused state without the exact visual_test purpose must fail closed");
+  assert.equal(gameplayEquipmentRecords(false, session("paused_tracking", "visual_test"), healthy, "flow", flowHistory).length, 0, "other paused Visual Test states must remain suppressed");
+  assert.equal(gameplayEquipmentRecords(true, session("paused_manual", "visual_test"), healthy, "flow", flowHistory).length, 0, "menu-open paused Visual Test must remain suppressed");
+  const suppressedInputs = [
+    [inputSnapshot({ tracking: { gameplayPaused: true } }), "gameplayPaused"],
+    [inputSnapshot({ tracking: { freshCalibrationRequired: true } }), "freshCalibrationRequired"],
+    [inputSnapshot({ countdownFrozen: true }), "countdownFrozen"],
+    [inputSnapshot({ tracking: { allRequiredAnchorsVisible: false } }), "missing required anchors"],
+    [inputSnapshot({ retainedGeometryDimmed: true }), "retained dimmed geometry"],
+    [inputSnapshot({ anchorsList: [{ anchor: "left_wrist", valid: false, x: 0.2, y: 0.6, confidence: 0.9 }] }), "invalid anchors"],
+  ];
+  for (const [input, label] of suppressedInputs) {
+    assert.equal(gameplayEquipmentRecords(false, session("paused_manual", "visual_test"), input, "flow", flowHistory).length, 0, `paused Visual Test must preserve ${label} suppression`);
+  }
+  console.log("PASS: paused_manual admits exact visual_test only and preserves every existing suppression gate");
 }
 
 // --- Test 6: gameplayPaused → [].

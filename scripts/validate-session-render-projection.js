@@ -41,6 +41,20 @@ const unsortedEvents=Object.freeze([events[1],events[0]]),unsortedIndex=createSe
 const syntheticSecond=projectSessionTargets(events,testTruth,2181,straightIndex); assert.equal(syntheticSecond.length,1); assert.equal(syntheticSecond[0].id,"flow-2"); assert.equal(syntheticSecond[0].judgement,"miss"); assert.equal(syntheticSecond[0].missCommitMs,2181);assert.equal(syntheticSecond[0].feedbackProgress,undefined);
 assert.equal(JSON.stringify(testTruth),truthBefore,"synthetic projection must not mutate gameplay judgement or score truth");
 assert.equal(projectSessionTargets(events,testTruth,2530,straightIndex)[0].missCommitMs,2181); assert.equal(projectSessionTargets(events,testTruth,2531,straightIndex).length,0);
+// 0.0.66: the final default-true flag gates only renderer-local Visual Test
+// outcomes. Disabled targets remain pending through their late window, then cull;
+// explicit true is byte-identical to the default and real Play truth ignores it.
+assert.equal(JSON.stringify(projectSessionTargets(events,testTruth,1100,straightIndex)),JSON.stringify(projectSessionTargets(events,testTruth,1100,straightIndex,180,true)),"explicit true preserves the default Visual Test projection exactly");
+const disabledSyntheticFirst=projectSessionTargets(events,testTruth,1100,straightIndex,180,false);
+assert.deepEqual(disabledSyntheticFirst.map(({id,judgement})=>({id,judgement})),[{id:"flow-1",judgement:"pending"},{id:"flow-2",judgement:"pending"}],"disabled synthetic feedback leaves eligible Visual Test targets pending");
+assert.equal(projectSessionTargets(events,testTruth,1180,straightIndex,180,false).find((entry)=>entry.id==="flow-1")?.judgement,"pending","disabled hit candidate remains pending through the exact late boundary");
+assert.equal(projectSessionTargets(events,testTruth,1181,straightIndex,180,false).some((entry)=>entry.id==="flow-1"),false,"disabled hit candidate culls immediately after the late boundary without feedback");
+assert.equal(projectSessionTargets(events,testTruth,2180,straightIndex,180,false).find((entry)=>entry.id==="flow-2")?.judgement,"pending","disabled miss candidate also remains pending through the exact late boundary");
+assert.equal(projectSessionTargets(events,testTruth,2181,straightIndex,180,false).some((entry)=>entry.id==="flow-2"),false,"disabled miss candidate culls rather than becoming a synthetic miss");
+assert.equal(JSON.stringify(projectSessionTargets(events,playHit,1100,straightIndex)),JSON.stringify(projectSessionTargets(events,playHit,1100,straightIndex,180,false)),"false cannot suppress or alter a real Play hit judgement");
+assert.equal(JSON.stringify(projectSessionTargets(events,playMiss,1200,straightIndex)),JSON.stringify(projectSessionTargets(events,playMiss,1200,straightIndex,180,false)),"false cannot suppress or alter a real Play miss judgement");
+const hostileTestTruth=Object.freeze({...testTruth,judgements:Object.freeze([hit])});
+assert.equal(projectSessionTargets(events,hostileTestTruth,1100,straightIndex,180,false)[0]?.judgement,"pending","disabled Visual Test ignores adversarial judgement data exactly as the existing unranked path does");
 
 const sourceGeometry=Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_1",x:1,y:2,width:1,height:3});
 const gameplayGeometry=Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:1,y:0,width:1,height:3});

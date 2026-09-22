@@ -254,8 +254,11 @@ function normalizeSpawnRowReach(reach) {
  * @param {unknown} [renderEventIndex] The deterministic session target index (0.0.55 W2 Test-mode source).
  * @param {Readonly<{topRowReachWU?:unknown,bottomRowReachWU?:unknown}>|null} [rowReach] 0.0.59 B15: the run-configured row-reach fractions (Game Setup v3, emitted by the frame for the boxing_collider presentation) so the punch spawn Y matches the note's reach-row Y at ANY reach setting; absent values take the 0.25 defaults.
  * @param {Readonly<{ left_wrist?: ReadonlyArray<Readonly<{t:number,x:number,y:number}>> | null, right_wrist?: ReadonlyArray<Readonly<{t:number,x:number,y:number}>> | null }> | null} [saberWristHistory] 0.0.63 D5: the session-snapshot PRE-push per-wrist history (the SAME frozen arrays the coordinator's saber orients from — chgy). Used to compute `sliceT` at cut time for each flow-note hit. Absent → every entry omits sliceT (renderer midpoint fallback, backward compatible).
+ * @param {boolean} [visualTestSyntheticFeedbackEnabled] Enables only the
+ * renderer-local Visual Test even-feedbackIndex synthetic aftermath branch;
+ * defaults true. Real Play hit aftermath is independent of this option.
  */
-export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null, saberWristHistory = null) {
+export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null, saberWristHistory = null, visualTestSyntheticFeedbackEnabled = true) {
   const judgementsValue = recordValue(gameplay, "judgements");
   if (!Array.isArray(judgementsValue)) return [];
   /** @type {{eventId:string}} */
@@ -312,7 +315,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
   // (bounded to the most recent TEST_COMMITTED_HIT_SCAN_BOUND entries) means a
   // committed hit persists across frames instead of being lost when its target
   // culls from the 350 ms feedback window. The Play path above is unchanged.
-  if (recordValue(recordValue(gameplay, "session"), "purpose") === "visual_test") {
+  if (visualTestSyntheticFeedbackEnabled && recordValue(recordValue(gameplay, "session"), "purpose") === "visual_test") {
     const orderedEntries = isRecord(renderEventIndex) && Array.isArray(renderEventIndex.orderedEntries) ? renderEventIndex.orderedEntries : null;
     if (orderedEntries !== null) {
       const committed = orderedEntries.filter((entry) => isRecord(entry) && Number.isInteger(entry.feedbackIndex) && entry.feedbackIndex % 2 === 0)

@@ -76,8 +76,11 @@ export function guidanceBeatTimestamps(index,nowMs,leadMs){if(!validSessionTarge
  * @param {number} nowMs
  * @param {ReturnType<typeof createSessionTargetIndex>} [index]
  * @param {number} [timingWindowAfterMs]
+ * @param {boolean} [visualTestSyntheticFeedbackEnabled] Enables renderer-local
+ * Visual Test hit/miss outcomes; defaults true. Real Play judgements are
+ * independent of this option.
  */
-export function projectSessionTargets(events, gameplay, nowMs, index, timingWindowAfterMs = 180) {
+export function projectSessionTargets(events, gameplay, nowMs, index, timingWindowAfterMs = 180, visualTestSyntheticFeedbackEnabled = true) {
   if(!Number.isFinite(timingWindowAfterMs)||timingWindowAfterMs<0||timingWindowAfterMs>flowColliderSettingsBounds.timingWindowMs.maximum)throw new TypeError("Authoritative late timing window is invalid");
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
@@ -115,11 +118,12 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const eventId = String(recordValue(event, "eventId") ?? "");
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
       const real = visualTest ? null : realJudgements.get(eventId) ?? null;
-      const syntheticCommitMs = visualTest ? centerMs + (feedbackIndex % 2 === 0 ? 0 : timingWindowAfterMs + 1) : null;
+      const syntheticFeedback = visualTest && visualTestSyntheticFeedbackEnabled;
+      const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : timingWindowAfterMs + 1) : null;
       const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
       const realResult = real?.result;
       const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
-      const result = realCommitted ? realResult : visualTest && commitMs !== null && nowMs >= commitMs ? feedbackIndex % 2 === 0 ? "hit" : "miss" : null;
+      const result = realCommitted ? realResult : syntheticFeedback && commitMs !== null && nowMs >= commitMs ? feedbackIndex % 2 === 0 ? "hit" : "miss" : null;
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs < Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;

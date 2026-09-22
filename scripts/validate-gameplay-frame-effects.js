@@ -291,6 +291,16 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const celllessNote = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "t-nc", type: "note", centerTimestampMs: 6500, authoredBeat: { type: "note", hand: "left", direction: "up" } });
   const celllessIndex = createSessionTargetIndex([celllessNote], {});
   assert.deepEqual(projectAftermathEntries([celllessNote], testSnapshot(), 6700, null, celllessIndex), [{ targetId: "t-nc", hitCommitMs: 6500, family: "flow", hand: "left", mode: "slice", shape: "arrow", spawn: { x: 0, y: 1, z: 0 }, seed: aftermathSeedForTargetId("t-nc") }], "0.0.59 B13: a cell-less authored beat falls back to the lane-anchored center-row spawn, hand from authoredBeat.hand");
+
+  // 0.0.66: the final default-true flag gates only this independent synthetic
+  // branch. Defaults remain exact; false removes all even-index Test debris.
+  assert.deepEqual(projectAftermathEntries(events, testSnapshot(), 5500, null, index, null, null, true), list, "explicit true preserves default Visual Test aftermath exactly");
+  assert.deepEqual(projectAftermathEntries(events, testSnapshot(), 5500, null, index, null, null, false), [], "false disables even-feedbackIndex Visual Test aftermath");
+  const playWithFlag = playSnapshot([hitJudgement("t-flow", 5000)]);
+  assert.deepEqual(projectAftermathEntries(events, playWithFlag, 5500, null, index, null, null, false), projectAftermathEntries(events, playWithFlag, 5500, null, index), "false cannot suppress or alter real Play aftermath");
+  const adversarialVisualTestRealHit = Object.freeze({ judgements: Object.freeze([hitJudgement("t-punch", 5200)]), session: Object.freeze({ purpose: "visual_test" }) });
+  const adversarial = projectAftermathEntries(events, adversarialVisualTestRealHit, 5500, null, index, null, null, false);
+  assert.deepEqual(adversarial.map((entry) => entry.targetId), ["t-punch"], "false gates only the synthetic branch rather than blanket-clearing independently supplied real-hit candidates");
 }
 
 // ---------- 0.0.55 W2: Play real hits + real-judgement mapping (unchanged path) ----------

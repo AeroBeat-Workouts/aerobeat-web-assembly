@@ -16,10 +16,12 @@ import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
  * tracks the same tracking-freeze / suppression truth:
  *
  *   - suppressed (→ `[]`) when: the menu is open, the session state is not
- *     `countdown`/`playing`, `tracking.gameplayPaused`,
- *     `tracking.freshCalibrationRequired`, or `input.countdownFrozen`.
- *     0.0.63 C2: the `visual_test` purpose no longer suppresses equipment —
- *     Test mode shows live markers + equipped models (I-4);
+ *     `countdown`/`playing` (or `paused_manual` for `visual_test` only),
+ *     `tracking.gameplayPaused`, `tracking.freshCalibrationRequired`, or
+ *     `input.countdownFrozen`. 0.0.63 C2: the `visual_test` purpose no longer
+ *     suppresses equipment — Test mode shows live markers + equipped models
+ *     (I-4). 0.0.66 admits paused authoring without admitting paused Play or
+ *     weakening any tracking, calibration, countdown, or anchor gate;
  *   - the per-anchor gate (`valid === true`, finite `x`/`y`,
  *     `confidence >= 0.5`) applies per wrist role;
  *   - a mid-run tracking freeze (`tracking.anchorsFrozen === true`) bypasses
@@ -81,7 +83,9 @@ import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
  */
 export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateRotations = null, flowZoneDirections = null, equipmentConfig = equipmentConfigDefaults) {
   if (mode !== "flow" && mode !== "boxing") return Object.freeze([]);
-  if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
+  const state = String(session?.state ?? "");
+  const pausedVisualTest = state === "paused_manual" && session?.purpose === "visual_test";
+  if (menuOpen || (!pausedVisualTest && state !== "countdown" && state !== "playing")) return Object.freeze([]);
   // 0.0.63 C2: resolve the active mode's validated config once; per-hand base
   // transform comes from config[mode].perHand.<left|right>.
   const perHand = validateEquipmentConfig(equipmentConfig)[mode].perHand;
