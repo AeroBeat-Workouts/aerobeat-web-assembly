@@ -935,12 +935,11 @@ export class AeroGame extends HTMLElement {
   }
 
   /**
-   * Read-only accessor for the LIVE equipment config (0.0.63 C5, bead 376l):
-   * the frozen validated object currently driving the per-hand transforms /
-   * glove rotation states / saber zone map. Test oracles compare its
-   * serialized YAML to prove APPLY committed (or did not commit) an edit;
-   * the public `getSnapshot()` deliberately omits it (same UI-privacy rule as
-   * the environment/test-presentation configs).
+   * Read-only accessor for the live equipment config: the frozen validated
+   * object currently driving per-hand transforms, glove rotation states, and
+   * the saber zone map. Test oracles compare it before/after direct grouped
+   * control edits and deterministic export; public `getSnapshot()` deliberately
+   * omits it under the environment/test-presentation UI-privacy rule.
    *
    * @returns {Readonly<Record<PropertyKey, unknown>>} Frozen live equipment config.
    */
