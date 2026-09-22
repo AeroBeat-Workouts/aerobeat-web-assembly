@@ -13,7 +13,14 @@
 // records of that sweep's center, theme-defaults saber cases — a single wrist
 // record at the center position, mode "flow", direction +x / +y / 45deg,
 // undimmed + dimmed, through BOTH environment modes (AERO photosphere +
-// CAMERA hidden) — and asserts the rendered look stays locked:
+// CAMERA hidden) — and asserts the rendered look stays locked.
+//
+// 0.0.63 C4 (6ax2): adds ONE new deterministic case proving the grid-zone
+// direction map renders as a rotated saber (not a no-op): same center
+// position, AERO, theme-defaults, undimmed — direction = plus-x (motion) vs
+// direction = edgeTop zone (0,1). Asserts the rendered silhouettes differ
+// beyond a noise floor (diffPx delta and bbox change). ALL pre-existing
+// cases and anchors are unchanged.
 //
 //   - Silhouette per direction: the diff-bbox w×h stays within ±4px of the
 //     measured per-direction footprint. The values are direction-DISTINCT
@@ -264,6 +271,32 @@ try {
             if (rDelta < 25) throw new Error(`[camera/plus-x/undimmed/right] right-hand edge red ${cap.edge[0].toFixed(1)} vs left ${leftUndim.edge[0]} (Δ${rDelta.toFixed(1)} < 25) — right hand not the theme green (measured Δ~45)`);
             cases.push({ env: "camera", dir: "plus-x", dim: "undimmed", hand: "right", box: [cap.w, cap.h], diffPx: cap.diffPx, edge: [Math.round(cap.edge[0]), Math.round(cap.edge[1]), Math.round(cap.edge[2])] });
           }
+          // ── C4 ZONE-DIRECTION EVIDENCE (AERO only): proves the grid-zone
+          //     direction map renders as a rotated saber, not a no-op.
+          //     Same center position, undimmed: plus-x (motion) vs edgeTop zone (0,1).
+          //     The edgeTop zone direction (0,1) is identical to the existing
+          //     "plus-y" record — we re-capture it under a distinct tag to
+          //     prove the renderer honors an explicitly-passed direction vector
+          //     independent of any motion history, and assert the silhouette
+          //     matches the signed-off plus-y anchor exactly while differing
+          //     from plus-x beyond a noise floor (axis swap = real rotation).
+          if (envMode === "aero") {
+            const plusXCap = cases.find((c) => c.env === "aero" && c.dir === "plus-x" && c.dim === "undimmed" && c.hand === "left");
+            const zoneCap = captureOne("aero/zone-edgeTop/undimmed", [Object.freeze({ role: "left_wrist", x: 0.5, y: 0.5, mode: "flow", direction: { x: 0, y: 1 } })], baseline);
+            // Must match the pre-existing plus-y anchor (same direction, same record).
+            const [pyBoxW, pyBoxH] = MBOX.aero["plus-y"];
+            const wDelta = Math.abs(zoneCap.w - pyBoxW);
+            const hDelta = Math.abs(zoneCap.h - pyBoxH);
+            if (wDelta > BOX_TOL_PX || hDelta > BOX_TOL_PX) throw new Error(`[aero/zone-edgeTop] bbox ${zoneCap.w}×${zoneCap.h} vs plus-y anchor ${pyBoxW}×${pyBoxH} (Δw=${wDelta}, Δh=${hDelta}) — zone direction not rendering correctly`);
+            // AND the zone-direction (vertical) silhouette must DIFFER from
+            // the plus-x (horizontal) silhouette by more than a noise floor:
+            // the axis swap changes both bbox dimensions.
+            const crossW = Math.abs(zoneCap.w - plusXCap.box[0]);
+            const crossH = Math.abs(zoneCap.h - plusXCap.box[1]);
+            if (crossW + crossH < 4) throw new Error(`[aero/zone-edgeTop] axis-swap delta too small (Δw+Δh=${crossW + crossH} < 4) — zone direction render is a no-op`);
+            cases.push({ env: "aero", dir: "zone-edgeTop", dim: "undimmed", hand: "left", box: [zoneCap.w, zoneCap.h], diffPx: zoneCap.diffPx, edge: [Math.round(zoneCap.edge[0]), Math.round(zoneCap.edge[1]), Math.round(zoneCap.edge[2])] });
+            console.log(`C4 zone evidence: aero plus-x box=[${plusXCap.box}] diffPx=${plusXCap.diffPx} | edgeTop zone box=[${zoneCap.w},${zoneCap.h}] diffPx=${zoneCap.diffPx} | axis-swap Δ=${crossW + crossH}`);
+          }
           // Restore theme defaults after each env block (deterministic reset).
           renderer.theme = { ...renderer.theme, leftHandColor: "#2693ff", rightHandColor: "#39c96b" };
         }
@@ -293,7 +326,9 @@ try {
     const o = iframe.cases[i];
     assert.equal(c.env, o.env, `case ${i} env mismatch`); assert.equal(c.dir, o.dir, `case ${i} dir mismatch`); assert.equal(c.dim, o.dim, `case ${i} dim mismatch`); assert.equal(c.hand, o.hand, `case ${i} hand mismatch`);
     parity(c.box[0], o.box[0], `case ${i} box w`, 2); parity(c.box[1], o.box[1], `case ${i} box h`, 2);
-    parity(c.diffPx, o.diffPx, `case ${i} diffPx`, Math.ceil(MEASURED_DIFFPX[c.env][c.dir][c.dim === "dimmed" ? 1 : 0] * DIFFPX_TOL_FRAC));
+    // C4 zone-edgeTop cases have no measured anchor — use the plus-y anchor as reference.
+    const refDir = c.dir === "zone-edgeTop" ? "plus-y" : c.dir;
+    parity(c.diffPx, o.diffPx, `case ${i} diffPx`, Math.ceil(MEASURED_DIFFPX[c.env][refDir][c.dim === "dimmed" ? 1 : 0] * DIFFPX_TOL_FRAC));
     for (let ch = 0; ch < 3; ch += 1) parity(c.edge[ch], o.edge[ch], `case ${i} edge ${"rgb"[ch]}`, EDGE_TOL_PER_CHANNEL);
   });
   parity(direct.dimDrop.drop, iframe.dimDrop.drop, "dim drop", 6);

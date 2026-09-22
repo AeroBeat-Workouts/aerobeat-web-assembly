@@ -3,6 +3,7 @@
 import { saberDirectionFromWristHistory } from "@aerobeat/web-gameplay";
 import { validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
+import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
 
 /**
  * 0.0.61 L-F4 (chgy/hk5q/vths): build gameplay equipment records from the live
@@ -44,6 +45,11 @@ import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
  * STATE rotation passed in `boxingStateRotations` (straight/upercut/hook/
  * guard beat state, see `./glove-rotation-states.js`); absent or null → base
  * only (state rotation 0).
+ * 0.0.63 C4 (6ax2): for flow, `direction` is the per-hand EASED ZONE
+ * direction passed in `flowZoneDirections` (grid-zone map blended + eased by
+ * `./saber-zone-direction.js`, with the motion-derived direction as the
+ * neutral/fallback vector); absent or null → the existing motion-only
+ * re-derivation below (ALL existing callers/oracles keep passing unchanged).
  *
  * VISUAL == HIT invariant (the F2-class "what you see is what hits" rule):
  * for `mode === "flow"`, `direction` is a JUDGE-space unit vector re-derived
@@ -65,9 +71,13 @@ import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
  * @param {"flow" | "boxing"} mode
  * @param {Readonly<{ left_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null, right_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null }> | null} [saberWristHistory]
  * @param {Readonly<{left: number, right: number}> | null} [boxingStateRotations]
+ * @param {Readonly<{
+ *   left: Readonly<{x: number, y: number, position?: Readonly<{x: number, y: number}>}>,
+ *   right: Readonly<{x: number, y: number, position?: Readonly<{x: number, y: number}>}>
+ * } | null} [flowZoneDirections]
  * @returns {ReadonlyArray<Readonly<{ role: "left_wrist" | "right_wrist", x: number, y: number, mode: "flow" | "boxing", scale: number, rotationZDeg: number, dimmed?: boolean, direction?: Readonly<{x: number, y: number}> }>>}
  */
-export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateRotations = null) {
+export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateRotations = null, flowZoneDirections = null) {
   if (mode !== "flow" && mode !== "boxing") return Object.freeze([]);
   if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
   // 0.0.63 C2: resolve the active mode's validated config once; per-hand base
@@ -104,12 +114,19 @@ export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWr
     const record = { role, x: anchor.x, y: anchor.y, mode, scale: base.scale, rotationZDeg: base.rotationZDeg + state };
     if (anchorsFrozen) record.dimmed = degraded.has(role);
     if (mode === "flow") {
-      // The coordinator's OWN pre-push wrist-history for this wrist (the exact
-      // arrays the saber capsule was oriented from). A missing/empty history
-      // degrades to the shared fallback direction, the same degenerate-safe
-      // result the hit capsule uses.
-      const history = (saberWristHistory !== null && typeof saberWristHistory === "object" && Array.isArray(saberWristHistory[role])) ? saberWristHistory[role] : Object.freeze([]);
-      record.direction = saberDirectionFromWristHistory(history, nowMs);
+      if (flowZoneDirections !== null) {
+        // 0.0.63 C4 (6ax2): the caller computed the eased grid-zone direction
+        // for this hand (with the motion-derived direction folded in as the
+        // neutral-center vector) — use it, no re-derivation.
+        record.direction = Object.freeze({ x: Number(flowZoneDirections[handKey(role)].x), y: Number(flowZoneDirections[handKey(role)].y) });
+      } else {
+        // The coordinator's OWN pre-push wrist-history for this wrist (the exact
+        // arrays the saber capsule was oriented from). A missing/empty history
+        // degrades to the shared fallback direction, the same degenerate-safe
+        // result the hit capsule uses.
+        const history = (saberWristHistory !== null && typeof saberWristHistory === "object" && Array.isArray(saberWristHistory[role])) ? saberWristHistory[role] : Object.freeze([]);
+        record.direction = saberDirectionFromWristHistory(history, nowMs);
+      }
     }
     return [Object.freeze(record)];
   }));

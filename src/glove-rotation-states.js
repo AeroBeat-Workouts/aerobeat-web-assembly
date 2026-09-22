@@ -1,4 +1,7 @@
 // @ts-check
+import { easeValue } from "./easing.js";
+// Re-export for backwards compatibility (C3 oracle imports easeValue from here).
+export { easeValue };
 // AeroBeat 0.0.63, bead 2m10 (child C3 of bead 376l; plan
 // 2026-09-21-0.0.63-playtest-feedback-0.0.62-retest-successor.md, L-C design,
 // D3 confirmed): BOXING GLOVE ROTATION STATES. The per-hand state selection
@@ -27,8 +30,10 @@
 //   4. TRANSITION: the current rotation eases toward the target state angle
 //      over ease.durationMs with the configured ease.type. All four standard
 //      curves are implemented (linear, easeIn t^2, easeOut 1-(1-t)^2,
-//      easeInOut 3t^2-2t^3). State persists across frames and resets when the
-//      session generation or mode changes.
+//      easeInOut 3t^2-2t^3). The curves live in the SHARED `./easing.js`
+//      module (0.0.63 C4 extracted easeValue there); this module re-exports it
+//      so the C3 oracle's import keeps working. State persists across frames
+//      and resets when the session generation or mode changes.
 //   5. Final record value = per-hand BASE rotation (C2) + eased state rotation.
 
 /**
@@ -203,30 +208,9 @@ export function gloveMotionVector(history, nowMs, windowMs = GLOVE_MOTION_WINDOW
   return Object.freeze({ x: dx / mag, y: dy / mag });
 }
 
-/**
- * Ease a normalized progress value `t` (clamped to 0..1) with the configured
- * ease `type`. All four standard curves:
- *   - "linear":    t
- *   - "easeIn":    t²
- *   - "easeOut":   1 − (1−t)²
- *   - "easeInOut": 3t² − 2t³  (smoothstep; t=0 → 0, t=0.5 → 0.5, t=1 → 1)
- *
- * @param {number} t - Normalized progress (any real; clamped to 0..1).
- * @param {"linear" | "easeIn" | "easeOut" | "easeInOut"} type - The ease type.
- * @returns {number} - Eased progress in 0..1.
- * @throws {TypeError} When `t` is not finite or `type` is not an allowed ease type.
- */
-export function easeValue(t, type) {
-  if (!Number.isFinite(t)) throw new TypeError("easeValue: t must be a finite number");
-  const c = Math.max(0, Math.min(1, t));
-  switch (type) {
-    case "linear": return c;
-    case "easeIn": return c * c;
-    case "easeOut": return 1 - (1 - c) * (1 - c);
-    case "easeInOut": return c * c * (3 - 2 * c);
-    default: throw new TypeError(`easeValue: unknown ease type "${type}"`);
-  }
-}
+// NOTE (0.0.63 C4): `easeValue` moved to the shared `./easing.js` module and
+// is re-exported above, so `import { easeValue } from "./glove-rotation-states.js"`
+// keeps working unchanged.
 
 /**
  * Per-hand glove rotation state tracker — a small stateful helper that eases

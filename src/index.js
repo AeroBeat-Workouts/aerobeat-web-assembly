@@ -12,7 +12,7 @@ import {
   prototypeJudgementDefaults,
   rulesetIds
 } from "@aerobeat/web-contracts";
-import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
+import { canonicalPrototypeProfileJson, saberDirectionFromWristHistory } from "@aerobeat/web-gameplay";
 import { createTestPresentationConfig, defaultTestPresentationConfig, maximumTestPresentationConfigBytes, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
@@ -50,6 +50,7 @@ import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowC
 import { projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
 import { createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
+import { createSaberDirectionTracker, SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
 import { validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 
@@ -161,6 +162,11 @@ export class AeroGame extends HTMLElement {
     // session/mode change.
     this.gloveRotationTracker = createGloveRotationTracker();
     this.gloveRotationSessionGeneration = -1;
+    // 0.0.63 C4 (6ax2): per-hand flow saber zone-direction tracker. Reset
+    // whenever the session generation advances so an eased direction never
+    // bleeds across a session/mode change.
+    this.saberDirectionTracker = createSaberDirectionTracker();
+    this.saberDirectionSessionGeneration = -1;
     this.sessionActionGeneration = 0;
     this.sessionActionIntentOrdinal = 0;
     this.visualTestTransportArmedOrdinal = -1;
@@ -1423,6 +1429,63 @@ export class AeroGame extends HTMLElement {
   }
 
   /**
+   * 0.0.63 C4 (6ax2): per-hand FLOW saber zone-direction for this frame.
+   *
+   * The grid-zone map REPLACES the motion-derived direction as the saber's
+   * in-plane orientation source. The motion-derived direction
+   * (`saberDirectionFromWristHistory` on the coordinator's own pre-push
+   * wrist-history — the SAME call the equipment-record builder uses as its
+   * fallback) is the motion fallback: it feeds the neutral center zone
+   * (`center.rotationDeg === null`) and the degenerate-cancel guard. Each
+   * hand's target is `zoneDirection(anchor.x, anchor.y, fallback, config
+   * .flow.saber.zones, config.flow.saber.blendRadius)` evaluated at the hand's
+   * CURRENT input anchor (body-grid; the zone field is symmetric under the
+   * y-flip between body-grid y-down and judge-space y-up), then eased per hand
+   * by the shared direction tracker over `config.flow.saber.ease`. State
+   * persists across frames and resets on a session-generation change (same
+   * reset pattern as the C3 glove tracker) so a stale eased direction never
+   * bleeds into a new session/mode. A missing/invalid anchor yields the
+   * motion fallback for that hand.
+   *
+   * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
+   * @returns {{left: {x: number, y: number, position: {x: number, y: number}}, right: {x: number, y: number, position: {x: number, y: number}}}}
+   *   Per-hand EASED zone direction plus the raw (clamped) grid position.
+   */
+  computeFlowZoneDirections(graph) {
+    if (this.saberDirectionSessionGeneration !== this.sessionGeneration) {
+      this.saberDirectionTracker.reset();
+      this.saberDirectionSessionGeneration = this.sessionGeneration;
+    }
+    const snapshot = graph.gameplay.getSnapshot();
+    const nowMs = Number(snapshot.session?.timelinePositionMs ?? 0);
+    const config = validateEquipmentConfig(equipmentConfigDefaults).flow.saber;
+    const history = snapshot.saberWristHistory ?? null;
+    const anchors = Array.isArray(snapshot?.anchors) ? snapshot.anchors : [];
+    /** @type {{left: {x: number, y: number, position: {x: number, y: number}}, right: {x: number, y: number, position: {x: number, y: number}}}} */
+    const result = { left: null, right: null };
+    for (const hand of ["left", "right"]) {
+      const role = `${hand}_wrist`;
+      const fallback = saberDirectionFromWristHistory(history ? history[role] : null, nowMs);
+      let position = null;
+      for (const anchor of anchors) {
+        if (anchor && anchor.anchor === role && anchor.valid === true && Number.isFinite(anchor.x) && Number.isFinite(anchor.y)) {
+          position = { x: anchor.x, y: anchor.y };
+          break;
+        }
+      }
+      if (position === null) {
+        // No usable anchor for this hand: zone field undefined → motion fallback.
+        result[hand] = Object.freeze({ x: fallback.x, y: fallback.y, position: SABER_ZONE_ANCHORS.center });
+        continue;
+      }
+      const target = zoneDirection(position.x, position.y, fallback, config.zones, config.blendRadius);
+      const eased = this.saberDirectionTracker.tick(hand, target, nowMs, config.ease.type, config.ease.durationMs);
+      result[hand] = Object.freeze({ x: eased.x, y: eased.y, position: Object.freeze({ x: position.x, y: position.y }) });
+    }
+    return result;
+  }
+
+  /**
    * 0.0.63 C3 (2m10): the next boxing target for each hand within the
    * upcoming window. Uses the frame's projected `targets` (the same records the
    * renderer shows) filtered to the hands the athlete must perform: a
@@ -1480,7 +1543,8 @@ export class AeroGame extends HTMLElement {
     const rulesetId = session?.rulesetId;
     const equipmentMode = (typeof rulesetId === "string" && flowGameplayRulesetIds.includes(rulesetId)) ? "flow" : (typeof rulesetId === "string" && boxingGameplayRulesetIds.includes(rulesetId)) ? "boxing" : null;
     const boxingStateRotations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph) : null;
-    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations);
+    const flowZoneDirections = equipmentMode === "flow" ? this.computeFlowZoneDirections(graph) : null;
+    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations, flowZoneDirections);
     const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
     return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(this.rendererFrame(), Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
   }
