@@ -80,14 +80,19 @@ const session = (state = "playing", purpose = "play") => ({ state, purpose });
   console.log("PASS: menuOpen suppresses cursors");
 }
 
-// --- Test 4: purpose visual_test → []
+// --- Test 4: purpose visual_test → EMISSION (0.0.63 C2: Test mode shows live markers).
+// The freeze is active + a degraded anchor, so this exercises the same emit path
+// as a playing session: all anchors emitted, per-anchor dimming intact.
 {
   const input = inputSnapshot({
     retainedGeometryDimmed: true,
     tracking: { anchorsFrozen: true, degradedAnchors: ["nose"], allRequiredAnchorsVisible: false },
   });
-  assert.equal(gameplayCursorRecords(false, session("playing", "visual_test"), input).length, 0, "visual_test must suppress cursors");
-  console.log("PASS: visual_test purpose suppresses cursors");
+  const records = gameplayCursorRecords(false, session("playing", "visual_test"), input);
+  assert.equal(records.length, 3, "visual_test must NOT suppress cursors (0.0.63 C2)");
+  assert.equal(records.find((r) => r.role === "nose").dimmed, true, "nose degraded under visual_test must be dimmed");
+  assert.equal(records.find((r) => r.role === "left_wrist").dimmed, false, "non-degraded left must not be dimmed");
+  console.log("PASS: visual_test purpose EMITS cursors (no longer suppressed)");
 }
 
 // --- Test 5: state not countdown/playing → []

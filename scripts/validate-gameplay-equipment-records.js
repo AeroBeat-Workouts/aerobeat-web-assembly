@@ -82,7 +82,12 @@ const find = (records, role) => records.find((r) => r.role === role);
   assert.equal(left.mode, "flow"); assert.equal(right.mode, "flow");
   assert.deepEqual(left.direction, { x: 1, y: 0 }, "moving left wrist → +x beam");
   assert.deepEqual(right.direction, { x: 0, y: 1 }, "stationary right wrist → fallback up");
-  console.log("PASS: freeze active — frozen wrists emitted, per-anchor dimmed, flow direction re-derived");
+  // 0.0.63 C2: every equipment record carries the per-hand base transform (defaults 1 / 0).
+  for (const r of records) {
+    assert.equal(r.scale, 1, `${r.role} scale default must be 1`);
+    assert.equal(r.rotationZDeg, 0, `${r.role} rotationZDeg default must be 0`);
+  }
+  console.log("PASS: freeze active — frozen wrists emitted, per-anchor dimmed, flow direction re-derived, base transform present");
 }
 
 // --- Test 2: Freeze cleared → no dimmed key; flow direction still present.
@@ -107,11 +112,24 @@ const find = (records, role) => records.find((r) => r.role === role);
   console.log("PASS: menuOpen suppresses equipment");
 }
 
-// --- Test 4: purpose visual_test → [].
+// --- Test 4: purpose visual_test → EMISSION (0.0.63 C2: Test mode shows equipped models).
+// Both wrists emitted (nose excluded); right dimmed under freeze; every record carries
+// the per-hand base transform (defaults scale 1 / rotationZDeg 0) plus flow direction.
 {
   const input = inputSnapshot({ retainedGeometryDimmed: true, tracking: { anchorsFrozen: true, degradedAnchors: ["right_wrist"], allRequiredAnchorsVisible: false } });
-  assert.equal(gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "flow", flowHistory).length, 0, "visual_test must suppress equipment");
-  console.log("PASS: visual_test purpose suppresses equipment");
+  const records = gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "flow", flowHistory);
+  assert.equal(records.length, 2, "visual_test must NOT suppress equipment (0.0.63 C2)");
+  const left = find(records, "left_wrist"); const right = find(records, "right_wrist");
+  assert.ok(left && right, "both wrist roles present under visual_test");
+  assert.equal(right.dimmed, true, "degraded right must be dimmed");
+  for (const r of records) {
+    assert.equal(typeof r.scale, "number", `record ${r.role} must carry numeric scale`);
+    assert.equal(r.scale, 1, `default build config: ${r.role} scale must be 1`);
+    assert.equal(typeof r.rotationZDeg, "number", `record ${r.role} must carry numeric rotationZDeg`);
+    assert.equal(r.rotationZDeg, 0, `default build config: ${r.role} rotationZDeg must be 0`);
+  }
+  assert.deepEqual(left.direction, { x: 1, y: 0 }, "moving left wrist → +x beam even in Test");
+  console.log("PASS: visual_test purpose EMITS equipment (no longer suppressed) with base transform");
 }
 
 // --- Test 5: state not countdown/playing → [].
@@ -185,10 +203,13 @@ const find = (records, role) => records.find((r) => r.role === role);
   for (const r of records) {
     assert.equal(r.mode, "boxing");
     assert.ok(!("direction" in r), `boxing record for ${r.role} must NOT carry direction`);
+    // 0.0.63 C2: base transform present on boxing records too (defaults 1 / 0).
+    assert.equal(r.scale, 1, `boxing ${r.role} scale default must be 1`);
+    assert.equal(r.rotationZDeg, 0, `boxing ${r.role} rotationZDeg default must be 0`);
   }
   assert.equal(find(records, "left_wrist")?.dimmed, true, "left degraded → dimmed");
   assert.equal(find(records, "right_wrist")?.dimmed, false, "right not degraded → not dimmed");
-  console.log("PASS: boxing mode — direction absent, dimmed per degraded anchor");
+  console.log("PASS: boxing mode — direction absent, dimmed per degraded anchor, base transform present");
 }
 
 // --- Test 13: Flow with NO wrist-history (null) → direction still present (fallback {0,1}).

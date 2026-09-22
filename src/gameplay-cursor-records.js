@@ -13,8 +13,9 @@
  * restore full brightness when they return. The freeze bypasses the
  * retained-geometry and all-anchors-visible suppressions that would otherwise
  * hide the markers during tracking loss; every other suppression (menu open,
- * visual test, non-countdown/playing state, gameplay pause, fresh calibration
- * required, countdown frozen) still applies.
+ * non-countdown/playing state, gameplay pause, fresh calibration required,
+ * countdown frozen) still applies. 0.0.63 C2: the `visual_test` purpose no
+ * longer suppresses cursors — Test mode shows live markers (I-4).
  *
  * @param {boolean} menuOpen
  * @param {unknown} session
@@ -22,7 +23,7 @@
  * @returns {ReadonlyArray<Readonly<{ role: string, x: number, y: number, confidence: number, dimmed?: boolean }>>}
  */
 export function gameplayCursorRecords(menuOpen, session, input) {
-  if (menuOpen || session?.purpose === "visual_test" || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
+  if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
   const tracking = input?.tracking;
   if (!tracking || tracking.gameplayPaused === true || tracking.freshCalibrationRequired === true || input?.countdownFrozen === true) return Object.freeze([]);
   const anchorsFrozen = tracking.anchorsFrozen === true;
