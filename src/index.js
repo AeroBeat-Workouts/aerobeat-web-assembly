@@ -1208,7 +1208,16 @@ export class AeroGame extends HTMLElement {
         }
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
-      } catch { /* unconfigured session */ }
+      } catch (error) {
+        // NARROW catch: guards ONLY the idle window before `configureContent` —
+        // advance()/requestStart() throw a "gameplay_not_configured"-class error
+        // there and every display frame in that window would otherwise surface.
+        // Any OTHER error here is a production defect (e.g. an input snapshot
+        // contract rejection freezing the coordinator clock); it must route
+        // through the app's diagnostics path, never be swallowed.
+        const sessionState = graph.gameplay.getSnapshot().session.state;
+        if (sessionState === "idle" && !visualTest) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); } else this.handleError(error);
+      }
       this.observeEnvironmentLoad(graph); this.syncCameraPresentation(); const rendererStartedAtMs=performance.now(); this.renderGameplay(graph); const rendererCpuMs=performance.now()-rendererStartedAtMs; this.privatePerformance.record({ timestampMs:frameNow, rendererCpuMs, poseTimestampMs:graph.cv.getStatus().running&&this.latestPoseTimestampMs>=0?this.latestPoseTimestampMs:null, cv:graph.cv.getPerformanceSample?.(), camera:cameraPerformanceFormat(graph,this.videoElement()) }); this.syncDebugCameraControlState(); this.renderVisualTestTransport();
       if (graph.gameplay.getSnapshot().session.state === "completed") void this.reconcileTerminalServices(graph);
       this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = frameNow;
