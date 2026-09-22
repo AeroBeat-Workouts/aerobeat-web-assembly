@@ -1,0 +1,129 @@
+{
+  "schema": "aerobeat.photosphere-derivative/v1",
+  "id": "alpine-river-valley-photosphere",
+  "source": {
+    "path": ".testbed/assets/splats/alpine-river-valley/alpine-river-valley.compressed.ply",
+    "sha256": "eae63f0baf671e085d2d4b374d4b43cacbb02979c293e1ed194f9fb5813449d5",
+    "bytes": 55619664,
+    "pointCount": 2200000,
+    "aabb": {
+      "position": [
+        -197.794,
+        -124.8272,
+        -175.563
+      ],
+      "size": [
+        384.5889,
+        143.3599,
+        329.5208
+      ]
+    }
+  },
+  "capture": {
+    "tool": ".testbed/tools/photosphere/capture_cubemap.gd",
+    "scene": ".testbed/tools/photosphere/capture_cubemap.tscn",
+    "viewpoint": [
+      0,
+      0,
+      4
+    ],
+    "centerForward": [
+      0,
+      0,
+      -1
+    ],
+    "worldUp": [
+      0,
+      1,
+      0
+    ],
+    "faceSize": 1920,
+    "faceOrder": [
+      "pos_x",
+      "neg_x",
+      "pos_y",
+      "neg_y",
+      "pos_z",
+      "neg_z"
+    ],
+    "loadCount": 1,
+    "requiredExecution": "visible Vulkan Forward+",
+    "versions": {
+      "godot": "4.6.2-stable (official)",
+      "gdgsUpstream": "2.2.0",
+      "aerobeatVendorGdgsCommit": "f5d5e1b6d580ba1342022d1ceac8ac982f9597fb",
+      "gpu": "NVIDIA GeForce RTX 3080",
+      "gpuDriver": "580.173.02",
+      "vulkanReportedByGodot": "1.4.312",
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "displayServer": "X11"
+    }
+  },
+  "stitch": {
+    "tool": ".testbed/tools/photosphere/cube_to_equirect.py",
+    "mapping": "longitude wraps horizontally; -Z center, +Y/-Y poles",
+    "sampling": "bilinear RGB, half-texel pixel centers, face-edge clamp",
+    "versions": {
+      "python": "3.14.2",
+      "pillow": "12.1.0",
+      "numpy": "2.4.2"
+    }
+  },
+  "output": {
+    "path": ".testbed/assets/images/alpine-river-valley-photosphere/alpine-river-valley-photosphere.jpg",
+    "dimensions": [
+      4096,
+      2048
+    ],
+    "mode": "RGB",
+    "encoding": "JPEG",
+    "colorSpace": "sRGB",
+    "jpeg": {
+      "quality": 92,
+      "subsampling": 0,
+      "optimize": false,
+      "progressive": false
+    },
+    "sha256": "7a529a6e0c1bee343633273d672a22f346f8ffc7406bf6a40812ae5435f3260b",
+    "bytes": 2664010
+  },
+  "config": {
+    "path": ".testbed/assets/images/alpine-river-valley-photosphere/alpine-river-valley-photosphere.config.json",
+    "schema": "aerobeat/environment_asset_config",
+    "version": 1,
+    "sha256": "69a62f73bc1193b0e9414c2698a269e24ed06c309616dc345a3f5cf80966f977",
+    "bytes": 336,
+    "parityIntent": "One-to-one future photosphere/splat transform parity; no runtime splat integration in this package."
+  },
+  "rights": {
+    "authority": "Derrick Barra direct project instruction on 2026-09-03",
+    "statement": "The listed splats were generated and then purchased by AeroBeat and may be used commercially without attribution.",
+    "attributionRequired": false,
+    "scopeLimit": "Applies only to the listed purchased splats and their photosphere derivatives; it does not apply to the rejected third-party alien-moon GLB and does not assert public sublicensing rights."
+  },
+  "continuity": {
+    "metrics": {
+      "seamMeanRgbDelta": 3.4431966145833335,
+      "seamP95RgbDelta": 14.0,
+      "poleTopChannelSpread": 0.015623092534937653,
+      "poleBottomChannelSpread": 10.313850208136236
+    },
+    "thresholds": {
+      "seamMeanRgbDelta": 5,
+      "seamP95RgbDelta": 16,
+      "poleTopChannelSpread": 16,
+      "poleBottomChannelSpread": 16
+    }
+  },
+  "conversionAssessment": {
+    "classification": "strong-comparison",
+    "note": "Complete alpine meadow, river, mountain, and sky coverage; detailed grass at the nadir produces the measured bottom-row variation."
+  },
+  "review": {
+    "folder": ".plans/review/2026-09-03-owned-photosphere-catalog/alpine-river-valley",
+    "report": "stitch-report.json",
+    "fullResolutionFacesRetained": false
+  },
+  "reproducibilityLimit": "Offline stitching is deterministic only for fixed face bytes and pinned versions. Full-resolution GPU faces are omitted; a fresh GDGS/GPU capture may differ due to device rendering, splat sorting, and driver behavior."
+}
