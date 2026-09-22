@@ -204,7 +204,7 @@ try {
   }));
   assert.match(liveInvalidBaseline.statusValue, /unknown top-level key "bogus"/u, "invalid input surfaces the error message");
   assert.equal(liveInvalidBaseline.describeUnchanged, true, "live validation does NOT mutate the live config");
-  const validEdited = expectedDefaultsYaml.replace("scale: 1", "scale: 2");
+  const validEdited = expectedDefaultsYaml.replace("scale: 1", "scale: 2").replace("rotationZDeg: 0", "rotationZDeg: 17");
   await game.locator("[data-equipment-config-field='yaml']").fill(validEdited);
   const liveValid = await game.evaluate((element) => ({
     statusValue: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
@@ -228,11 +228,40 @@ try {
   await game.locator("[data-equipment-config-field='yaml']").fill(validEdited);
   const applied = await game.evaluate(() => document.querySelector("aero-game").applyEquipmentConfig());
   assert.equal(applied, true, "valid APPLY returns true");
-  const afterValidApply = await game.evaluate((element) => ({
-    scale: element.describeEquipmentConfig().flow.perHand.left.scale,
-    status: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
-  }));
-  assert.equal(afterValidApply.scale, 2, "VALID APPLY committed the edited leaf");
+  const afterValidApply = await game.evaluate((element) => {
+    const renderer = element.graph.renderer;
+    const input = element.graph.input;
+    const originalRender = renderer.renderGameplayFrameWithCursorsAndEquipment.bind(renderer);
+    const originalInputSnapshot = input.getSnapshot.bind(input);
+    let captured = null;
+    renderer.renderGameplayFrameWithCursorsAndEquipment = (...args) => {
+      captured = structuredClone(args[3]);
+      return originalRender(...args);
+    };
+    input.getSnapshot = () => ({
+      tracking: { gameplayPaused:false, freshCalibrationRequired:false, allRequiredAnchorsVisible:true, anchorsFrozen:false, degradedAnchors:[] },
+      countdownFrozen:false,
+      retainedGeometryDimmed:false,
+      anchors:[
+        { anchor:"left_wrist", valid:true, x:.2, y:.6, confidence:.99 },
+        { anchor:"right_wrist", valid:true, x:.8, y:.6, confidence:.99 },
+      ],
+    });
+    try { element.renderGameplay(); } finally {
+      renderer.renderGameplayFrameWithCursorsAndEquipment = originalRender;
+      input.getSnapshot = originalInputSnapshot;
+    }
+    return {
+      scale: element.describeEquipmentConfig().flow.perHand.left.scale,
+      rotationZDeg: element.describeEquipmentConfig().flow.perHand.left.rotationZDeg,
+      nextLeftRecord: captured?.find((record) => record.role === "left_wrist") ?? null,
+      status: element.shadowRoot.querySelector("[data-role='equipment-config-status']").value,
+    };
+  });
+  assert.equal(afterValidApply.scale, 2, "VALID APPLY committed the edited scale");
+  assert.equal(afterValidApply.rotationZDeg, 17, "VALID APPLY committed the edited base rotation");
+  assert.equal(afterValidApply.nextLeftRecord?.scale, 2, "VALID APPLY reaches the next rendered left equipment scale");
+  assert.equal(afterValidApply.nextLeftRecord?.rotationZDeg, 17, "VALID APPLY reaches the next rendered left equipment base rotation");
   assert.match(afterValidApply.status, /applied/iu, "success status projected after apply");
   console.log("PASS: (e) APPLY — invalid refused (state untouched); valid commits observably");
 

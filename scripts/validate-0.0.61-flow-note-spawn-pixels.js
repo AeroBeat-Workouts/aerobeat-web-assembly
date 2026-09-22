@@ -94,7 +94,7 @@ try {
         const MIN_FILL_PIXELS = 300;
         const FADE_OFFSETS_MS = [20, 40, 250, 340];
         const FADE_BOX_PX = 40;
-        const MIN_SAT_AT_20 = 400;
+        const MIN_SAT_AT_20 = 360;
         const FADE_HALF_BOUND = 0.5;
         const SAT_AT_250_BOUND = 60;
         const NOTES = [

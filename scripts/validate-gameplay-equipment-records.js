@@ -7,6 +7,7 @@
 
 import assert from "node:assert/strict";
 import { gameplayEquipmentRecords } from "../src/gameplay-equipment-records.js";
+import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
 
 // --- helpers ---
 function defaultAnchors() {
@@ -243,6 +244,23 @@ const find = (records, role) => records.find((r) => r.role === role);
     assert.ok(new Set(records.map((r) => r.role)).size === records.length, "no duplicate roles");
   }
   console.log("PASS: emitted records respect the renderer's 4-record cap (no >4 rejection)");
+}
+
+// --- Test 16: live config replaces baked per-hand base transforms on the next record.
+{
+  const input = inputSnapshot({ tracking: { anchorsFrozen: false, allRequiredAnchorsVisible: true } });
+  const config = structuredClone(equipmentConfigDefaults);
+  config.flow.perHand.left.scale = 2;
+  config.flow.perHand.left.rotationZDeg = 17;
+  config.boxing.perHand.right.scale = 1.5;
+  config.boxing.perHand.right.rotationZDeg = -11;
+  const flow = gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "flow", flowHistory, null, null, config);
+  assert.equal(find(flow, "left_wrist")?.scale, 2, "live Flow left scale must reach the next equipment record");
+  assert.equal(find(flow, "left_wrist")?.rotationZDeg, 17, "live Flow left base rotation must reach the next equipment record");
+  const boxing = gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "boxing", flowHistory, { left: 5, right: 7 }, null, config);
+  assert.equal(find(boxing, "right_wrist")?.scale, 1.5, "live Boxing right scale must reach the next equipment record");
+  assert.equal(find(boxing, "right_wrist")?.rotationZDeg, -4, "live Boxing state rotation must add to the edited base rotation");
+  console.log("PASS: live config — per-hand scale/base rotation reach the next record and dynamic rotation remains additive");
 }
 
 console.log("\nAll gameplay equipment records validations passed.");

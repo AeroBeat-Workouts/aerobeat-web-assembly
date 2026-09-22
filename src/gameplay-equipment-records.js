@@ -33,8 +33,9 @@ import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
  *
  *   `{ role, x, y, mode, scale, rotationZDeg, dimmed?, direction? }`
  *
- * where `x`/`y` are the normalized body-grid anchor positions (0..1) the
- * renderer stages on, `mode` is the active equipment mode
+ * where `x`/`y` are finite body-grid anchor positions (they may exceed 0..1
+ * while a confident wrist is outside the calibrated grid; the renderer bounds
+ * presentation and gameplay rejects off-grid scoring), `mode` is the active equipment mode
  * (`"flow"` | `"boxing"`), passed by the caller from the active session's
  * ruleset, and `scale` / `rotationZDeg` are the per-hand BASE transform for
  * the active mode resolved from the validated equipment config
@@ -75,14 +76,15 @@ import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
  *   left: Readonly<{x: number, y: number, position?: Readonly<{x: number, y: number}>}>,
  *   right: Readonly<{x: number, y: number, position?: Readonly<{x: number, y: number}>}>
  * } | null} [flowZoneDirections]
+ * @param {unknown} [equipmentConfig]
  * @returns {ReadonlyArray<Readonly<{ role: "left_wrist" | "right_wrist", x: number, y: number, mode: "flow" | "boxing", scale: number, rotationZDeg: number, dimmed?: boolean, direction?: Readonly<{x: number, y: number}> }>>}
  */
-export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateRotations = null, flowZoneDirections = null) {
+export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateRotations = null, flowZoneDirections = null, equipmentConfig = equipmentConfigDefaults) {
   if (mode !== "flow" && mode !== "boxing") return Object.freeze([]);
   if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
   // 0.0.63 C2: resolve the active mode's validated config once; per-hand base
   // transform comes from config[mode].perHand.<left|right>.
-  const perHand = validateEquipmentConfig(equipmentConfigDefaults)[mode].perHand;
+  const perHand = validateEquipmentConfig(equipmentConfig)[mode].perHand;
   const handKey = (role) => (role === "left_wrist" ? "left" : "right");
   // 0.0.63 C3 (2m10): optional per-hand STATE rotations (boxing glove beat
   // states). When present and the record's hand has a finite value, the record's

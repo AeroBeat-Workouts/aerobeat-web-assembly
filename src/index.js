@@ -1571,7 +1571,7 @@ export class AeroGame extends HTMLElement {
     const equipmentMode = (typeof rulesetId === "string" && flowGameplayRulesetIds.includes(rulesetId)) ? "flow" : (typeof rulesetId === "string" && boxingGameplayRulesetIds.includes(rulesetId)) ? "boxing" : null;
     const boxingStateRotations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph) : null;
     const flowZoneDirections = equipmentMode === "flow" ? this.computeFlowZoneDirections(graph) : null;
-    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations, flowZoneDirections);
+    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations, flowZoneDirections, this.equipmentConfig);
     const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
     return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(this.rendererFrame(), Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
   }
