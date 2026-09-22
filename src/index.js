@@ -90,8 +90,8 @@ const TEST_EQUIPMENT_INPUT = Object.freeze({
   countdownFrozen:false,
   retainedGeometryDimmed:false,
   anchors:Object.freeze([
-    Object.freeze({ anchor:"left_wrist", valid:true, x:0.3, y:0.62, confidence:1 }),
-    Object.freeze({ anchor:"right_wrist", valid:true, x:0.7, y:0.62, confidence:1 })
+    Object.freeze({ anchor:"left_wrist", valid:true, x:0, y:0.5, confidence:1 }),
+    Object.freeze({ anchor:"right_wrist", valid:true, x:1, y:0.5, confidence:1 })
   ])
 });
 const EQUIPMENT_EASE_OPTIONS = Object.freeze(["linear", "easeIn", "easeOut", "easeInOut"]);
@@ -1529,10 +1529,11 @@ export class AeroGame extends HTMLElement {
    * motion fallback for that hand.
    *
    * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
+   * @param {Readonly<{anchors?:ReadonlyArray<unknown>}> | null} [inputOverride] Private Test preview evidence; production continues to use gameplay anchors.
    * @returns {{left: {x: number, y: number, position: {x: number, y: number}}, right: {x: number, y: number, position: {x: number, y: number}}}}
    *   Per-hand EASED zone direction plus the raw (clamped) grid position.
    */
-  computeFlowZoneDirections(graph) {
+  computeFlowZoneDirections(graph, inputOverride = null) {
     if (this.saberDirectionSessionGeneration !== this.sessionGeneration) {
       this.saberDirectionTracker.reset();
       this.saberDirectionSessionGeneration = this.sessionGeneration;
@@ -1541,7 +1542,7 @@ export class AeroGame extends HTMLElement {
     const nowMs = Number(snapshot.session?.timelinePositionMs ?? 0);
     const config = this.equipmentConfig.flow.saber;
     const history = snapshot.saberWristHistory ?? null;
-    const anchors = Array.isArray(snapshot?.anchors) ? snapshot.anchors : [];
+    const anchors = Array.isArray(inputOverride?.anchors) ? inputOverride.anchors : (Array.isArray(snapshot?.anchors) ? snapshot.anchors : []);
     /** @type {{left: {x: number, y: number, position: {x: number, y: number}}, right: {x: number, y: number, position: {x: number, y: number}}}} */
     const result = { left: null, right: null };
     for (const hand of ["left", "right"]) {
@@ -1587,12 +1588,12 @@ export class AeroGame extends HTMLElement {
     const rulesetId = session?.rulesetId;
     const equipmentMode = (typeof rulesetId === "string" && flowGameplayRulesetIds.includes(rulesetId)) ? "flow" : (typeof rulesetId === "string" && boxingGameplayRulesetIds.includes(rulesetId)) ? "boxing" : null;
     const visualTest = session?.purpose === "visual_test";
+    const equipmentInput = visualTest ? TEST_EQUIPMENT_INPUT : input;
     // Boxing state selection consumes this exact frame's nowMs/targets. Do not
     // project a second frame: accumulated chart history makes that duplicate
     // projection increasingly expensive, and selection/render must share truth.
     const boxingStateRotations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph, frame) : null;
-    const flowZoneDirections = equipmentMode === "flow" ? this.computeFlowZoneDirections(graph) : null;
-    const equipmentInput = visualTest ? TEST_EQUIPMENT_INPUT : input;
+    const flowZoneDirections = equipmentMode === "flow" ? this.computeFlowZoneDirections(graph, visualTest ? equipmentInput : null) : null;
     const equipment = equipmentMode === null || (visualTest && !this.testEquipmentVisible) ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, equipmentInput, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations, flowZoneDirections, this.equipmentConfig);
     const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
     return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(frame, Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
@@ -2566,6 +2567,7 @@ export class AeroGame extends HTMLElement {
         else value = control.valueAsNumber;
       } else return false;
       this.equipmentConfig = equipmentConfigCandidate(this.equipmentConfig, path, value);
+      this.gloveRotationTracker.reset(); this.saberDirectionTracker.reset();
       this.equipmentConfigStatus = "Equipment config updated.";
       this.renderEquipmentConfigControls();
       this.renderGameplay();
