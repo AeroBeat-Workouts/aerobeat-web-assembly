@@ -6,6 +6,8 @@ import { build } from "vite";
 import { computeReleaseFingerprint, readReleaseDependencyProvenance } from "./release-fingerprint.js";
 import { claimAppendOnlyReleaseTarget } from "./release-target-policy.js";
 import { validateProductionHashBundle } from "./production-hash-bundle-policy.js";
+import { lockedProductionCvProfile } from "../src/production-cv-profile.js";
+import { mapProductionPoseConfiguration } from "../src/production-pose-proof.js";
 
 const packageJson = JSON.parse(readFileSync(resolve("package.json"), "utf8"));
 const proofVersion = packageJson.version;
@@ -78,21 +80,7 @@ writeFileSync(
       dependencyProvenance: readReleaseDependencyProvenance(),
       minified: false,
       basePath,
-      productionPoseConfiguration: {
-        backend: "mediapipe",
-        provider: "cpu-wasm",
-        executionLocation: "worker",
-        transferFrameType: "VideoFrame",
-        model: "pose-landmarker-lite",
-        modelVariant: "float16/1",
-        tasksVisionVersion: "1.0.1",
-        tuning: "standard",
-        thresholds: [0.5, 0.5, 0.5],
-        tracking: "fast",
-        performancePreset: "full",
-        gameplaySource: "measured",
-        submissionCadenceTargetFps: 15
-      },
+      productionPoseConfiguration: mapProductionPoseConfiguration(lockedProductionCvProfile),
       concretePoseVendors: ["@aerobeat/web-vendor-mediapipe"],
       poseBackends: ["mediapipe"],
       runtimeJavaScriptAssets,
