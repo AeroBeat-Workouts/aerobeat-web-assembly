@@ -1,7 +1,7 @@
 {
   "schema": "aerobeat/private_abccba_profile",
   "version": 1,
-  "sourceFingerprint": "c202131f5ec894545ab1ed1261c8496c57c147bb74f5c7b05e3ba478e3331171",
+  "sourceFingerprint": "19f95a8928df9cb6fde9d7e1df65c34443be44f69a63065e2988bd721a455683",
   "sourceInputCount": 231,
   "windowMs": 4000,
   "sequence": [
@@ -45,9 +45,9 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-A1",
-      "durationMs": 4013.9000000953674,
+      "durationMs": 4016.699999809265,
       "displayFrameCount": 234,
-      "displayRateFps": 58.048,
+      "displayRateFps": 58.008,
       "displayIntervals": {
         "count": 233,
         "p50": 16.7,
@@ -57,9 +57,9 @@
       "missedVsyncCount": 6,
       "rendererCpuMs": {
         "count": 234,
-        "p50": 9.7,
-        "p95": 14.9,
-        "max": 122.7
+        "p50": 9.9,
+        "p95": 16,
+        "max": 124.3
       },
       "mediaPipeRuntimeMs": {
         "count": 0,
@@ -97,7 +97,7 @@
           "count": 234,
           "min": 59,
           "max": 64,
-          "mean": 62.576923
+          "mean": 62.57265
         }
       }
     },
@@ -105,44 +105,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-B2",
-      "durationMs": 4014.9000000953674,
+      "durationMs": 4014.2000002861023,
       "displayFrameCount": 240,
-      "displayRateFps": 59.528,
+      "displayRateFps": 59.539,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.7,
+        "p95": 16.8,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 11.3,
-        "p95": 18.6,
-        "max": 23.2
+        "p50": 9.8,
+        "p95": 16.4,
+        "max": 20.7
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 19.2,
-        "p95": 31.9,
-        "max": 34.2
+        "p50": 18.1,
+        "p95": 24.6,
+        "max": 28.5
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 21.2,
-        "p95": 36.7,
-        "max": 39.5
+        "p50": 20.8,
+        "p95": 33.2,
+        "max": 38.6
       },
       "poseAgeMs": {
         "count": 235,
-        "p50": 63.2,
-        "p95": 103.6,
-        "max": 129.1
+        "p50": 63,
+        "p95": 98.5,
+        "max": 124
       },
       "cv": {
         "submittedFrameCount": 59,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.695
+        "submissionRateFps": 14.698
       },
       "camera": {
         "width": 640,
@@ -165,44 +165,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-C3",
-      "durationMs": 4014.800000190735,
-      "displayFrameCount": 239,
-      "displayRateFps": 59.281,
+      "durationMs": 4014,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.542,
       "displayIntervals": {
-        "count": 238,
+        "count": 239,
         "p50": 16.7,
         "p95": 16.7,
-        "max": 33.3
+        "max": 16.8
       },
-      "missedVsyncCount": 1,
+      "missedVsyncCount": 0,
       "rendererCpuMs": {
-        "count": 239,
-        "p50": 11,
-        "p95": 19.2,
-        "max": 27
+        "count": 240,
+        "p50": 10,
+        "p95": 15.2,
+        "max": 20.8
       },
       "mediaPipeRuntimeMs": {
-        "count": 60,
-        "p50": 26.6,
-        "p95": 41.4,
-        "max": 42.7
+        "count": 61,
+        "p50": 16.4,
+        "p95": 18.9,
+        "max": 23.2
       },
       "mediaPipeEndToEndMs": {
-        "count": 60,
-        "p50": 32.7,
-        "p95": 51.8,
-        "max": 54.5
+        "count": 61,
+        "p50": 18.1,
+        "p95": 30.1,
+        "max": 34.8
       },
       "poseAgeMs": {
-        "count": 239,
-        "p50": 72.8,
-        "p95": 114.1,
-        "max": 137.6
+        "count": 240,
+        "p50": 60.9,
+        "p95": 87.7,
+        "max": 109.8
       },
       "cv": {
         "submittedFrameCount": 59,
-        "poseFrameCount": 59,
-        "submissionRateFps": 14.696
+        "poseFrameCount": 60,
+        "submissionRateFps": 14.699
       },
       "camera": {
         "width": 640,
@@ -214,10 +214,10 @@
         "contract": "aerobeat/abccba_historical_default_2500.v1",
         "eventCount": 6000,
         "projectedTargetCount": {
-          "count": 239,
+          "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.514644
+          "mean": 62.516667
         }
       }
     },
@@ -225,44 +225,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-C4",
-      "durationMs": 4016.300000190735,
-      "displayFrameCount": 239,
-      "displayRateFps": 59.259,
+      "durationMs": 4014.300000190735,
+      "displayFrameCount": 238,
+      "displayRateFps": 59.039,
       "displayIntervals": {
-        "count": 238,
+        "count": 237,
         "p50": 16.7,
         "p95": 16.7,
-        "max": 33.4
+        "max": 33.3
       },
-      "missedVsyncCount": 1,
+      "missedVsyncCount": 2,
       "rendererCpuMs": {
-        "count": 239,
-        "p50": 11.5,
-        "p95": 19.9,
-        "max": 29.7
+        "count": 238,
+        "p50": 10.5,
+        "p95": 16.5,
+        "max": 30.5
       },
       "mediaPipeRuntimeMs": {
-        "count": 59,
-        "p50": 34.3,
-        "p95": 44.3,
-        "max": 44.7
+        "count": 60,
+        "p50": 28.2,
+        "p95": 32.4,
+        "max": 43.8
       },
       "mediaPipeEndToEndMs": {
-        "count": 59,
-        "p50": 37,
-        "p95": 48.6,
-        "max": 54.3
+        "count": 60,
+        "p50": 32.8,
+        "p95": 40,
+        "max": 53.6
       },
       "poseAgeMs": {
-        "count": 239,
-        "p50": 80.4,
-        "p95": 114.6,
-        "max": 144.7
+        "count": 238,
+        "p50": 76.7,
+        "p95": 105.1,
+        "max": 136.8
       },
       "cv": {
-        "submittedFrameCount": 59,
-        "poseFrameCount": 58,
-        "submissionRateFps": 14.69
+        "submittedFrameCount": 60,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.947
       },
       "camera": {
         "width": 640,
@@ -274,10 +274,10 @@
         "contract": "aerobeat/abccba_historical_default_2500.v1",
         "eventCount": 6000,
         "projectedTargetCount": {
-          "count": 239,
+          "count": 238,
           "min": 59,
           "max": 64,
-          "mean": 62.518828
+          "mean": 62.512605
         }
       }
     },
@@ -285,44 +285,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-B5",
-      "durationMs": 4014.7000002861023,
+      "durationMs": 4013.1000003814697,
       "displayFrameCount": 240,
-      "displayRateFps": 59.531,
+      "displayRateFps": 59.555,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.8,
+        "p95": 16.7,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 10.2,
-        "p95": 16.5,
-        "max": 25.2
+        "p50": 9.7,
+        "p95": 14.8,
+        "max": 23.1
       },
       "mediaPipeRuntimeMs": {
         "count": 61,
-        "p50": 20.4,
-        "p95": 27.7,
-        "max": 32.9
+        "p50": 12.7,
+        "p95": 15,
+        "max": 22.4
       },
       "mediaPipeEndToEndMs": {
         "count": 61,
-        "p50": 21.5,
-        "p95": 44,
-        "max": 44.4
+        "p50": 16.1,
+        "p95": 22.5,
+        "max": 26.9
       },
       "poseAgeMs": {
         "count": 240,
-        "p50": 62,
-        "p95": 99.8,
-        "max": 129.6
+        "p50": 59.4,
+        "p95": 84.1,
+        "max": 109.1
       },
       "cv": {
-        "submittedFrameCount": 59,
+        "submittedFrameCount": 60,
         "poseFrameCount": 60,
-        "submissionRateFps": 14.696
+        "submissionRateFps": 14.951
       },
       "camera": {
         "width": 640,
@@ -337,7 +337,7 @@
           "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.520833
+          "mean": 62.516667
         }
       }
     },
@@ -345,9 +345,69 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "legacy-A6",
-      "durationMs": 4013.9000000953674,
+      "durationMs": 4013.800000190735,
       "displayFrameCount": 240,
-      "displayRateFps": 59.543,
+      "displayRateFps": 59.545,
+      "displayIntervals": {
+        "count": 239,
+        "p50": 16.7,
+        "p95": 16.7,
+        "max": 16.8
+      },
+      "missedVsyncCount": 0,
+      "rendererCpuMs": {
+        "count": 240,
+        "p50": 9.9,
+        "p95": 15.2,
+        "max": 27.3
+      },
+      "mediaPipeRuntimeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "mediaPipeEndToEndMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "poseAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "cv": {
+        "submittedFrameCount": 0,
+        "poseFrameCount": 0,
+        "submissionRateFps": 0
+      },
+      "camera": {
+        "width": 640,
+        "height": 480,
+        "frameRate": 30
+      },
+      "longTaskCount": 0,
+      "workload": {
+        "contract": "aerobeat/abccba_historical_default_2500.v1",
+        "eventCount": 6000,
+        "projectedTargetCount": {
+          "count": 240,
+          "min": 59,
+          "max": 64,
+          "mean": 62.516667
+        }
+      }
+    },
+    {
+      "schema": "aerobeat/private_performance_window",
+      "version": 1,
+      "label": "staged-A1",
+      "durationMs": 4005.6000003814697,
+      "displayFrameCount": 240,
+      "displayRateFps": 59.666,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -357,9 +417,9 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 9.9,
-        "p95": 15.1,
-        "max": 25.1
+        "p50": 2.9,
+        "p95": 8,
+        "max": 14
       },
       "mediaPipeRuntimeMs": {
         "count": 0,
@@ -404,70 +464,10 @@
     {
       "schema": "aerobeat/private_performance_window",
       "version": 1,
-      "label": "staged-A1",
-      "durationMs": 4012.7000002861023,
-      "displayFrameCount": 240,
-      "displayRateFps": 59.561,
-      "displayIntervals": {
-        "count": 239,
-        "p50": 16.7,
-        "p95": 16.7,
-        "max": 16.8
-      },
-      "missedVsyncCount": 0,
-      "rendererCpuMs": {
-        "count": 240,
-        "p50": 3.3,
-        "p95": 9.7,
-        "max": 14.4
-      },
-      "mediaPipeRuntimeMs": {
-        "count": 0,
-        "p50": null,
-        "p95": null,
-        "max": null
-      },
-      "mediaPipeEndToEndMs": {
-        "count": 0,
-        "p50": null,
-        "p95": null,
-        "max": null
-      },
-      "poseAgeMs": {
-        "count": 0,
-        "p50": null,
-        "p95": null,
-        "max": null
-      },
-      "cv": {
-        "submittedFrameCount": 0,
-        "poseFrameCount": 0,
-        "submissionRateFps": 0
-      },
-      "camera": {
-        "width": 640,
-        "height": 480,
-        "frameRate": 30
-      },
-      "longTaskCount": 0,
-      "workload": {
-        "contract": "aerobeat/abccba_historical_default_2500.v1",
-        "eventCount": 6000,
-        "projectedTargetCount": {
-          "count": 240,
-          "min": 59,
-          "max": 64,
-          "mean": 62.516667
-        }
-      }
-    },
-    {
-      "schema": "aerobeat/private_performance_window",
-      "version": 1,
       "label": "staged-B2",
-      "durationMs": 4005.7000002861023,
+      "durationMs": 4005.5,
       "displayFrameCount": 240,
-      "displayRateFps": 59.665,
+      "displayRateFps": 59.668,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -477,32 +477,32 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 3.7,
-        "p95": 8.5,
-        "max": 13.9
+        "p50": 2.8,
+        "p95": 6.6,
+        "max": 13
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 30.6,
-        "p95": 45.5,
-        "max": 51
+        "p50": 28.8,
+        "p95": 37.4,
+        "max": 45.8
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 32.7,
-        "p95": 46.9,
-        "max": 51.2
+        "p50": 29.1,
+        "p95": 37.6,
+        "max": 47.3
       },
       "poseAgeMs": {
         "count": 236,
-        "p50": 66.2,
-        "p95": 103,
-        "max": 115.9
+        "p50": 63.1,
+        "p95": 95.6,
+        "max": 114.2
       },
       "cv": {
         "submittedFrameCount": 59,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.729
+        "submissionRateFps": 14.73
       },
       "camera": {
         "width": 640,
@@ -517,7 +517,7 @@
           "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.516667
+          "mean": 62.520833
         }
       }
     },
@@ -525,44 +525,44 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-C3",
-      "durationMs": 4006.4000000953674,
+      "durationMs": 4005.0999999046326,
       "displayFrameCount": 240,
-      "displayRateFps": 59.655,
+      "displayRateFps": 59.674,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.7,
+        "p95": 16.8,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 3.7,
-        "p95": 8.2,
-        "max": 13.1
+        "p50": 2.8,
+        "p95": 6.5,
+        "max": 12.7
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 36.4,
-        "p95": 45.4,
-        "max": 48.8
+        "p50": 28.9,
+        "p95": 38.2,
+        "max": 43.3
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 38,
-        "p95": 49,
-        "max": 51.7
+        "p50": 29.1,
+        "p95": 38.8,
+        "max": 43.4
       },
       "poseAgeMs": {
         "count": 240,
-        "p50": 75.6,
-        "p95": 109.7,
-        "max": 122.4
+        "p50": 66.6,
+        "p95": 99.4,
+        "max": 103.8
       },
       "cv": {
-        "submittedFrameCount": 59,
+        "submittedFrameCount": 60,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.726
+        "submissionRateFps": 14.981
       },
       "camera": {
         "width": 640,
@@ -585,9 +585,9 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-C4",
-      "durationMs": 4006.4000000953674,
+      "durationMs": 4005.9000000953674,
       "displayFrameCount": 240,
-      "displayRateFps": 59.655,
+      "displayRateFps": 59.662,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
@@ -597,32 +597,32 @@
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.9,
-        "p95": 6.7,
-        "max": 12.7
+        "p50": 3.1,
+        "p95": 8,
+        "max": 14.1
       },
       "mediaPipeRuntimeMs": {
         "count": 60,
-        "p50": 24.4,
-        "p95": 31.9,
-        "max": 45.9
+        "p50": 32.6,
+        "p95": 39.5,
+        "max": 54.1
       },
       "mediaPipeEndToEndMs": {
         "count": 60,
-        "p50": 25.2,
-        "p95": 37.8,
-        "max": 46
+        "p50": 32.9,
+        "p95": 39.6,
+        "max": 54.3
       },
       "poseAgeMs": {
         "count": 240,
-        "p50": 60.1,
-        "p95": 97.3,
-        "max": 106.2
+        "p50": 70.3,
+        "p95": 100.3,
+        "max": 113.5
       },
       "cv": {
         "submittedFrameCount": 59,
         "poseFrameCount": 59,
-        "submissionRateFps": 14.726
+        "submissionRateFps": 14.728
       },
       "camera": {
         "width": 640,
@@ -651,38 +651,38 @@
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.7,
+        "p95": 16.8,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.7,
-        "p95": 7.6,
-        "max": 13.6
+        "p50": 2.8,
+        "p95": 6.2,
+        "max": 9.2
       },
       "mediaPipeRuntimeMs": {
-        "count": 61,
-        "p50": 20.6,
-        "p95": 27.9,
-        "max": 33.1
+        "count": 60,
+        "p50": 33.6,
+        "p95": 41.6,
+        "max": 43.3
       },
       "mediaPipeEndToEndMs": {
-        "count": 61,
-        "p50": 21.8,
-        "p95": 30.7,
-        "max": 35.7
+        "count": 60,
+        "p50": 33.8,
+        "p95": 41.8,
+        "max": 43.5
       },
       "poseAgeMs": {
         "count": 240,
-        "p50": 57,
-        "p95": 87.6,
-        "max": 102.9
+        "p50": 69.2,
+        "p95": 97.6,
+        "max": 103.3
       },
       "cv": {
-        "submittedFrameCount": 59,
-        "poseFrameCount": 60,
-        "submissionRateFps": 14.73
+        "submittedFrameCount": 60,
+        "poseFrameCount": 59,
+        "submissionRateFps": 14.979
       },
       "camera": {
         "width": 640,
@@ -697,7 +697,7 @@
           "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.520833
+          "mean": 62.516667
         }
       }
     },
@@ -705,21 +705,21 @@
       "schema": "aerobeat/private_performance_window",
       "version": 1,
       "label": "staged-A6",
-      "durationMs": 4005.800000190735,
+      "durationMs": 4006,
       "displayFrameCount": 240,
-      "displayRateFps": 59.663,
+      "displayRateFps": 59.661,
       "displayIntervals": {
         "count": 239,
         "p50": 16.7,
-        "p95": 16.7,
+        "p95": 16.8,
         "max": 16.8
       },
       "missedVsyncCount": 0,
       "rendererCpuMs": {
         "count": 240,
-        "p50": 2.6,
-        "p95": 7,
-        "max": 12.8
+        "p50": 2.9,
+        "p95": 6.6,
+        "max": 13.1
       },
       "mediaPipeRuntimeMs": {
         "count": 0,
@@ -757,7 +757,7 @@
           "count": 240,
           "min": 59,
           "max": 64,
-          "mean": 62.516667
+          "mean": 62.5125
         }
       }
     }
