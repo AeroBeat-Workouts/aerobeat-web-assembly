@@ -49,6 +49,9 @@ import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets
 import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
 import { projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
+import { createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
+import { validateEquipmentConfig } from "./equipment-config.js";
+import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
@@ -153,6 +156,11 @@ export class AeroGame extends HTMLElement {
     this.menuStarting = false;
     this.sessionStartRequested = false;
     this.sessionGeneration = 0;
+    // 0.0.63 C3 (2m10): per-hand glove-rotation tracker. Reset whenever the
+    // session generation advances so an eased rotation never bleeds across a
+    // session/mode change.
+    this.gloveRotationTracker = createGloveRotationTracker();
+    this.gloveRotationSessionGeneration = -1;
     this.sessionActionGeneration = 0;
     this.sessionActionIntentOrdinal = 0;
     this.visualTestTransportArmedOrdinal = -1;
@@ -1377,6 +1385,81 @@ export class AeroGame extends HTMLElement {
     };
   }
 
+  /**
+   * 0.0.63 C3 (2m10): per-hand BOXING glove state-rotation for this frame.
+   *
+   * For each hand, the TARGET state is picked by `selectGloveState`: the
+   * PRIMARY selector is the next boxing note for THAT hand within
+   * `config.upcomingBeatWindowMs` ahead on the content timeline (the same
+   * projected `targets` the frame already carries); with no upcoming beat, the
+   * hand's recent real motion (from the exposed `saberWristHistory` window) is
+   * the fallback. The target state's configured angle is then eased per hand by
+   * the shared tracker over `config.ease` (durationMs + type). State persists
+   * across frames and resets on a session-generation change (see the reset
+   * call inside this method) so a stale eased angle never bleeds into a new
+   * session/mode.
+   *
+   * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
+   * @returns {{left: number, right: number}} Per-hand EASED state rotations (deg).
+   */
+  computeBoxingStateRotations(graph) {
+    if (this.gloveRotationSessionGeneration !== this.sessionGeneration) {
+      this.gloveRotationTracker.reset();
+      this.gloveRotationSessionGeneration = this.sessionGeneration;
+    }
+    const nowMs = Number(graph.gameplay.getSnapshot().session?.timelinePositionMs ?? 0);
+    const config = validateEquipmentConfig(equipmentConfigDefaults).boxing.glove;
+    const upcoming = this.boxingUpcomingActions(graph, nowMs, config.upcomingBeatWindowMs);
+    const history = graph.gameplay.getSnapshot().saberWristHistory ?? null;
+    const result = { left: 0, right: 0 };
+    for (const hand of ["left", "right"]) {
+      const role = `${hand}_wrist`;
+      const motion = gloveMotionVector(history ? history[role] : null, nowMs);
+      const state = selectGloveState(hand, motion, upcoming[hand] ?? null);
+      const targetDeg = config.states[state].rotationZDeg;
+      result[hand] = this.gloveRotationTracker.tick(hand, targetDeg, nowMs, config.ease.type, config.ease.durationMs);
+    }
+    return result;
+  }
+
+  /**
+   * 0.0.63 C3 (2m10): the next boxing target for each hand within the
+   * upcoming window. Uses the frame's projected `targets` (the same records the
+   * renderer shows) filtered to the hands the athlete must perform: a
+   * `kind:"punch"` target is assigned to its own hand, and a `kind:"guard"`
+   * (hand "both") is assigned to BOTH hands. Only the EARLIEST qualifying
+   * target within `[nowMs, nowMs + windowMs]` per hand is returned, so the
+   * selection is deterministic (first-in-window wins).
+   *
+   * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
+   * @param {number} nowMs - Current content-timeline position.
+   * @param {number} windowMs - The configured upcoming-beat window (ms).
+   * @returns {{left: {kind:"punch"|"guard",hand:"left"|"right"|"both",family:"straight"|"hook"|"uppercut"|"guard",beatCenterMs:number} | null, right: {kind:"punch"|"guard",hand:"left"|"right"|"both",family:"straight"|"hook"|"uppercut"|"guard",beatCenterMs:number} | null}}
+   */
+  boxingUpcomingActions(graph, nowMs, windowMs) {
+    const frame = this.rendererFrame();
+    const targets = Array.isArray(frame?.targets) ? frame.targets : [];
+    const out = { left: null, right: null };
+    for (const target of targets) {
+      const kind = String(target?.kind);
+      const family = String(target?.family);
+      const hand = String(target?.hand);
+      const centerMs = Number(target?.beatCenterMs);
+      if (!Number.isFinite(centerMs)) continue;
+      if (centerMs < nowMs || centerMs > nowMs + windowMs) continue;
+      let appliesTo = null;
+      if (kind === "punch" && ["straight", "hook", "uppercut"].includes(family) && ["left", "right"].includes(hand)) appliesTo = [hand];
+      else if (kind === "guard" && (hand === "both" || hand === "left" || hand === "right")) appliesTo = hand === "both" ? ["left", "right"] : [hand];
+      else continue;
+      for (const h of appliesTo) {
+        if (out[h] === null || centerMs < out[h].beatCenterMs) {
+          out[h] = Object.freeze({ kind, hand, family, beatCenterMs: centerMs });
+        }
+      }
+    }
+    return out;
+  }
+
   renderGameplay(graph = this.graph) {
     if (!graph) return null;
     // 4bj9: push live visual scales into the renderer each frame so a scale change takes effect on the very next rendered frame without a restart.
@@ -1396,7 +1479,8 @@ export class AeroGame extends HTMLElement {
     const input = graph.input.getSnapshot();
     const rulesetId = session?.rulesetId;
     const equipmentMode = (typeof rulesetId === "string" && flowGameplayRulesetIds.includes(rulesetId)) ? "flow" : (typeof rulesetId === "string" && boxingGameplayRulesetIds.includes(rulesetId)) ? "boxing" : null;
-    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null);
+    const boxingStateRotations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph) : null;
+    const equipment = equipmentMode === null ? Object.freeze([]) : gameplayEquipmentRecords(this.menuOpen, session, input, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateRotations);
     const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
     return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(this.rendererFrame(), Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
   }

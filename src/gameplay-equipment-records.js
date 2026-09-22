@@ -40,6 +40,10 @@ import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
  * (`config[mode].perHand[role]`, left_wrist→left / right_wrist→right). The
  * 0.0.63 C2 base transform rides EVERY equipment record so Test mode can show
  * the equipped models scaled/rotated; cursor records carry no transform.
+ * 0.0.63 C3 (2m10): for boxing, `rotationZDeg` = base + the eased per-hand
+ * STATE rotation passed in `boxingStateRotations` (straight/upercut/hook/
+ * guard beat state, see `./glove-rotation-states.js`); absent or null → base
+ * only (state rotation 0).
  *
  * VISUAL == HIT invariant (the F2-class "what you see is what hits" rule):
  * for `mode === "flow"`, `direction` is a JUDGE-space unit vector re-derived
@@ -60,15 +64,28 @@ import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
  * @param {unknown} input
  * @param {"flow" | "boxing"} mode
  * @param {Readonly<{ left_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null, right_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null }> | null} [saberWristHistory]
+ * @param {Readonly<{left: number, right: number}> | null} [boxingStateRotations]
  * @returns {ReadonlyArray<Readonly<{ role: "left_wrist" | "right_wrist", x: number, y: number, mode: "flow" | "boxing", scale: number, rotationZDeg: number, dimmed?: boolean, direction?: Readonly<{x: number, y: number}> }>>}
  */
-export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null) {
+export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateRotations = null) {
   if (mode !== "flow" && mode !== "boxing") return Object.freeze([]);
   if (menuOpen || !["countdown", "playing"].includes(String(session?.state ?? ""))) return Object.freeze([]);
   // 0.0.63 C2: resolve the active mode's validated config once; per-hand base
   // transform comes from config[mode].perHand.<left|right>.
   const perHand = validateEquipmentConfig(equipmentConfigDefaults)[mode].perHand;
   const handKey = (role) => (role === "left_wrist" ? "left" : "right");
+  // 0.0.63 C3 (2m10): optional per-hand STATE rotations (boxing glove beat
+  // states). When present and the record's hand has a finite value, the record's
+  // rotationZDeg = C2 BASE rotation + eased STATE rotation (signed-off C3 sum).
+  // Absent/null or non-finite → base rotation only (state rotation 0), so all
+  // existing callers/oracles keep working unchanged.
+  const stateRotations =
+    boxingStateRotations !== null && typeof boxingStateRotations === "object" ? boxingStateRotations : null;
+  const stateRotationFor = (hand) => {
+    if (stateRotations === null) return 0;
+    const value = Number(stateRotations[hand]);
+    return Number.isFinite(value) ? value : 0;
+  };
   const tracking = input?.tracking;
   if (!tracking || tracking.gameplayPaused === true || tracking.freshCalibrationRequired === true || input?.countdownFrozen === true) return Object.freeze([]);
   const anchorsFrozen = tracking.anchorsFrozen === true;
@@ -82,7 +99,9 @@ export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWr
   return Object.freeze(["left_wrist", "right_wrist"].flatMap((role) => {
     const anchor = byRole.get(role);
     if (anchor?.valid !== true || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || !Number.isFinite(anchor.confidence) || anchor.confidence < 0.5) return [];
-    const record = { role, x: anchor.x, y: anchor.y, mode, scale: perHand[handKey(role)].scale, rotationZDeg: perHand[handKey(role)].rotationZDeg };
+    const base = perHand[handKey(role)];
+    const state = mode === "boxing" ? stateRotationFor(handKey(role)) : 0;
+    const record = { role, x: anchor.x, y: anchor.y, mode, scale: base.scale, rotationZDeg: base.rotationZDeg + state };
     if (anchorsFrozen) record.dimmed = degraded.has(role);
     if (mode === "flow") {
       // The coordinator's OWN pre-push wrist-history for this wrist (the exact

@@ -309,6 +309,7 @@ try {
         };
 
         const cases = [];
+        let rotLock = null;
         for (const envMode of ["aero", "camera"]) {
           // Stage the environment via the REAL environment-owner path.
           if (envMode === "aero") {
@@ -339,6 +340,58 @@ try {
               if (cap.lumaSpread < SHADING_MIN_SPREAD) throw new Error(`[${envMode}/${pal.label}/${dim}] luma spread ${cap.lumaSpread.toFixed(1)} < ${SHADING_MIN_SPREAD} — the glove reads flat, the baked vertex AO is gone`);
               cases.push({ env: envMode, palette: pal.label, dim, hand: "left", box: [cap.w, cap.h], diffPx: cap.diffPx, mean: [Math.round(cap.mean[0]), Math.round(cap.mean[1]), Math.round(cap.mean[2])], edge: [Math.round(cap.edge[0]), Math.round(cap.edge[1]), Math.round(cap.edge[2])], lumaSpread: +cap.lumaSpread.toFixed(1) });
             }
+          }
+          // ── 0.0.63 C3 (2m10): rotationZDeg pixel check (AERO, center, theme-defaults) ──
+          // Stage the SAME left glove at the SAME position with a non-zero
+          // in-plane Z rotation (the signed-off guard angle, -70 deg) against
+          // the baseline (rotation 0). The rendered silhouette must change
+          // VISIBLY: diff-bbox dimensions move by ≥ 2px total AND the rotated
+          // diff mask overlaps the unrotated mask by ≤ 80% (a 70° in-plane
+          // rotation of the 54×46px glove clearly re-shapes it). This is the
+          // pixel proof that the renderer's rotationZDeg path reaches the glove
+          // model; and confirms rotation 0 keeps the signed-off locked look
+          // (rotZero bbox must match the pinned AERO anchors).
+          if (envMode === "aero") {
+            setHandColors(THEME_DEFAULTS);
+            const rotZero = captureOne("c3-rot-0deg", [Object.freeze({ role: "left_wrist", x: 0.5, y: 0.5, mode: "boxing", rotationZDeg: 0 })], baseline);
+            const rotGuard = captureOne("c3-rot-minus70deg", [Object.freeze({ role: "left_wrist", x: 0.5, y: 0.5, mode: "boxing", rotationZDeg: -70 })], baseline);
+            // captureOne already returned w/h correctly (see `box` field); reuse them.
+            const rotW0 = rotZero.w, rotH0 = rotZero.h;
+            const rotW1 = rotGuard.w, rotH1 = rotGuard.h;
+            if (Math.abs(rotW0 - MBOX.aero["theme-defaults"].undimmed[0]) > BOX_TOL_PX || Math.abs(rotH0 - MBOX.aero["theme-defaults"].undimmed[1]) > BOX_TOL_PX) {
+              throw new Error(`[c3-rot] 0deg glove box ${rotW0}x${rotH0} drifted from signed-off look ${MBOX.aero["theme-defaults"].undimmed} (default rotation must stay 0)`);
+            }
+            const rotDimDelta = Math.abs(rotW1 - rotW0) + Math.abs(rotH1 - rotH0);
+            if (rotDimDelta < 2) throw new Error(`[c3-rot] rotation bbox unchanged: 0deg=[${rotW0}x${rotH0}] vs -70deg=[${rotW1}x${rotH1}] (delta ${rotDimDelta} < 2) — rotationZDeg is not reaching the glove model`);
+            if (rotGuard.diffPx < MIN_DIFF_PX) throw new Error(`[c3-rot] rotated glove not visibly rendered (${rotGuard.diffPx}px)`);
+            const renderMask = (rotationZDeg) => {
+              renderer.renderGameplayFrameWithCursorsAndEquipment(frame(), [], cursorOptions, [Object.freeze({ role: "left_wrist", x: 0.5, y: 0.5, mode: "boxing", rotationZDeg: rotationZDeg })], eqGrid);
+              const px = readPixels();
+              const mask = new Uint8Array(canvas.width * canvas.height);
+              const w = canvas.width;
+              for (let y = 0; y < canvas.height; y += 1) for (let x = 0; x < w; x += 1) {
+                const i = (y * w + x) * 4;
+                const d = Math.abs(px[i] - baseline[i]) + Math.abs(px[i + 1] - baseline[i + 1]) + Math.abs(px[i + 2] - baseline[i + 2]);
+                mask[y * w + x] = d > DIFF_T ? 1 : 0;
+              }
+              return mask;
+            };
+            const m0 = renderMask(0);
+            const m1 = renderMask(-70);
+            renderer.renderGameplayFrameWithCursorsAndEquipment(frame(), [], cursorOptions, [], eqGrid); // restore baseline
+            let n1 = 0, both = 0;
+            for (let i = 0; i < m0.length; i += 1) { n1 += m1[i]; both += m0[i] && m1[i]; }
+            const overlapFrac = both / n1;
+            // The glove is a rounded, near-radially-symmetric fist; rotating
+            // it -70° about its own center re-shapes the silhouette but the
+            // body still mostly covers itself. A 90% overlap threshold catches
+            // a real "rotationZDeg did nothing" regression (100% identical
+            // mask) while leaving room for legitimate re-shaping of a round
+            // object. Bbox movement + this overlap together prove the rotation
+            // reaches the model AND visibly changes the rendered silhouette.
+            if (overlapFrac > 0.90) throw new Error(`[c3-rot] rotated (-70deg) diff mask overlaps the unrotated mask by ${(overlapFrac * 100).toFixed(1)}% (> 90%) — rotationZDeg did not visibly change the silhouette`);
+            console.log(`[c3-rot] 0deg box=${rotW0}x${rotH0} diffPx=${rotZero.diffPx} | -70deg box=${rotW1}x${rotH1} diffPx=${rotGuard.diffPx} | overlap=${(overlapFrac * 100).toFixed(1)}% of rotated mask`);
+            rotLock = { zeroBox: [rotW0, rotH0], zeroDiffPx: rotZero.diffPx, rot70Box: [rotW1, rotH1], rot70DiffPx: rotGuard.diffPx, overlapFrac: +overlapFrac.toFixed(3) };
           }
           // Right-hand per-hand discrimination lock (CAMERA only): stage a
           // right_wrist glove at the SAME center position (theme-defaults,
@@ -405,7 +458,8 @@ try {
         const diffShift = Math.abs(dimd.diffPx - und.diffPx) / und.diffPx;
         if (diffShift > DIM_DIFFPX_TOL_FRAC) throw new Error(`dim lock: aero theme-defaults diffPx shift ${Math.round(diffShift * 100)}% (${und.diffPx} → ${dimd.diffPx}) > ${Math.round(DIM_DIFFPX_TOL_FRAC * 100)}% — the dim moved the silhouette (it should only darken)`);
         const dimLock = { undimmedMean: [und.mean[0], und.mean[1], und.mean[2]], dimmedMean: [dimd.mean[0], dimd.mean[1], dimd.mean[2]], greenRise: +gRise.toFixed(1), diffPx: [und.diffPx, dimd.diffPx] };
-        return { cases, dimLock };
+        if (rotLock === null) throw new Error("rotationZDeg pixel check was not captured during the aero env block");
+        return { cases, dimLock, rotLock };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
       assert.deepEqual(noise, []);
@@ -431,7 +485,17 @@ try {
     if (c.handGapX != null) { parity(c.handGapX, o.handGapX, `case ${i} hand gap`, 4); parity(c.unionW, o.unionW, `case ${i} union w`, 4); }
   });
   parity(direct.dimLock.greenRise, iframe.dimLock.greenRise, "dim green rise", 8);
-  const summary = matrix.map((m) => ({ embedding: m.embedding, cases: m.cases, dimLock: m.dimLock }));
+  // Cross-embedding parity for the rotationZDeg pixel check (0.0.63 C3): the
+  // 0deg box must stay locked, the -70deg box must shift visibly in BOTH
+  // embeddings, and the overlap fraction must agree within 15pp.
+  assert.ok(direct.rotLock && iframe.rotLock, "rotLock must be present in both embeddings");
+  parity(direct.rotLock.zeroBox[0], iframe.rotLock.zeroBox[0], "rot 0deg box w", 2);
+  parity(direct.rotLock.zeroBox[1], iframe.rotLock.zeroBox[1], "rot 0deg box h", 2);
+  parity(direct.rotLock.zeroDiffPx, iframe.rotLock.zeroDiffPx, "rot 0deg diffPx", Math.ceil(MEASURED_DIFFPX.aero["theme-defaults"][0] * DIFFPX_TOL_FRAC));
+  parity(direct.rotLock.rot70Box[0], iframe.rotLock.rot70Box[0], "rot -70deg box w", 4);
+  parity(direct.rotLock.rot70Box[1], iframe.rotLock.rot70Box[1], "rot -70deg box h", 4);
+  assert.ok(Math.abs(direct.rotLock.overlapFrac - iframe.rotLock.overlapFrac) <= 0.15, `rot overlap must agree across embeddings (${direct.rotLock.overlapFrac} vs ${iframe.rotLock.overlapFrac})`);
+  const summary = matrix.map((m) => ({ embedding: m.embedding, cases: m.cases, dimLock: m.dimLock, rotLock: m.rotLock }));
   console.log(`ORACLE 0.0.62-glove-look-pixels PASS: embeddings=2, evidence=${JSON.stringify(summary)}`);
 } finally {
   await browser.close();
