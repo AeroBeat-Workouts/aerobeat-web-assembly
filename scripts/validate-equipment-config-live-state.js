@@ -76,7 +76,8 @@ assert(source.includes("this.testAutomaticFeedbackEnabled = true") && source.inc
 assert(source.includes("projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, timingWindowMs, this.testAutomaticFeedbackEnabled)"), "one private feedback flag must gate target projection");
 assert(source.includes("aftermathSaberWristHistory, this.testAutomaticFeedbackEnabled)"), "the same private feedback flag must gate aftermath projection");
 assert(source.includes("this.canvasElement().addEventListener(\"pointermove\", this.boundTestEquipmentPointerMove)"), "direct canvas pointermove ownership required");
-assert(source.includes("event.pointerType !== \"mouse\"") && source.includes("normalizedTestEquipmentPointer(event.clientX, event.clientY, this.canvasElement().getBoundingClientRect())"), "mouse CSS-box normalization required");
+assert(source.includes("event.pointerType !== \"mouse\"") && source.includes("this.graph?.renderer.projectDebugEquipmentAnchor(event.clientX, event.clientY)") && source.includes("point === null || !Object.isFrozen(point)"), "pointer handling must use the renderer camera projection seam and latch only a frozen non-null result");
+assert.equal(source.includes("normalizedTestEquipmentPointer"), false, "obsolete whole-canvas normalization path must be removed");
 const pointerBody = source.slice(source.indexOf("\n  handleTestEquipmentPointerMove("), source.indexOf("\n  setTestEquipmentVisible(", source.indexOf("\n  handleTestEquipmentPointerMove(")));
 assert.equal(pointerBody.includes("pointerleave"), false, "pointer movement handler must not clear latched position on leave");
 assert(source.includes("setDebugCameraAuthoringInputEnabled(hand === \"off\")"), "hand selection must own renderer camera input gate");

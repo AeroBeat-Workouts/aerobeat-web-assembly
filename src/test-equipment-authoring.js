@@ -19,22 +19,6 @@ export const testEquipmentMouseHands = Object.freeze(["off", "left", "right"]);
 function clampUnit(value) { return Math.min(1, Math.max(0, value)); }
 
 /**
- * Normalize one client-space point against the canvas CSS box. Backing-store
- * pixels and DPR are deliberately irrelevant to the body-grid input contract.
- *
- * @param {unknown} clientX
- * @param {unknown} clientY
- * @param {unknown} bounds
- * @returns {Readonly<{x:number,y:number}> | null}
- */
-export function normalizedTestEquipmentPointer(clientX, clientY, bounds) {
-  if (typeof clientX !== "number" || !Number.isFinite(clientX) || typeof clientY !== "number" || !Number.isFinite(clientY) || !bounds || typeof bounds !== "object") return null;
-  const left = Number(bounds.left), top = Number(bounds.top), width = Number(bounds.width), height = Number(bounds.height);
-  if (![left, top, width, height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
-  return Object.freeze({ x: clampUnit((clientX - left) / width), y: clampUnit((clientY - top) / height) });
-}
-
-/**
  * Build renderer-only deterministic Test wrist evidence. Only the selected
  * wrist may use the latest finite pointer point; the other stays anchored.
  *

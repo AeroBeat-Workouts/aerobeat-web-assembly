@@ -53,7 +53,7 @@ import { boxingUpcomingActions, createGloveRotationTracker, gloveMotionVector, s
 import { createSaberDirectionTracker, SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
 import { serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
-import { normalizedTestEquipmentPointer, testEquipmentInput, testEquipmentMouseHands } from "./test-equipment-authoring.js";
+import { testEquipmentInput, testEquipmentMouseHands } from "./test-equipment-authoring.js";
 
 export { createAeroGameIframeBridge } from "./iframe-bridge.js";
 export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
@@ -2596,8 +2596,8 @@ export class AeroGame extends HTMLElement {
   handleTestEquipmentPointerMove(event) {
     if (!(event instanceof PointerEvent) || event.pointerType !== "mouse" || event.currentTarget !== this.canvasElement()) return false;
     if (!this.testEquipmentVisible || this.testEquipmentMouseHand === "off" || !this.testEquipmentAuthoringSnapshot().enabled) return false;
-    const point = normalizedTestEquipmentPointer(event.clientX, event.clientY, this.canvasElement().getBoundingClientRect());
-    if (point === null) return false;
+    const point = this.graph?.renderer.projectDebugEquipmentAnchor(event.clientX, event.clientY) ?? null;
+    if (point === null || !Object.isFrozen(point)) return false;
     this.testEquipmentPointerPosition = point;
     this.renderGameplay();
     return true;
