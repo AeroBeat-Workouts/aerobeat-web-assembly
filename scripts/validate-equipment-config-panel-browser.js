@@ -1,25 +1,28 @@
 // @ts-check
-// 0.0.64 P1: real-browser oracle for grouped live equipment authoring and
-// private Test preview. Plan: .plans/2026-09-22-0.0.64-playtest-feedback-
-// 0.0.63-regression-successor.md.
+// 0.0.67: real-browser oracle for grouped live equipment authoring, canonical
+// resolved poses, and production Visual Test collision/scoring. Plan:
+// .plans/2026-09-23-0.0.67-test-collision-and-equipment-orientation.md.
 //
 // The panel rides in the assembly shell's private Visual Test authoring
 // surface and remains unusable outside an enabled visual_test session. This
 // oracle boots the real app graph in headless Chromium (audio-only; no camera)
 // and proves:
 //
-//   (a) all 24 validated equipment leaves have grouped native controls, with
-//       no editable YAML textarea or staged Apply action;
-//   (b) the preview toggle defaults off, then emits exactly two deterministic
-//       renderer-only wrist records without mutating input or public state;
-//   (c) scale and Flow zone-orientation edits validate and affect the next
-//       explicit rendered frame even while the normal display loop is stopped;
-//   (d) toggle-off returns to zero equipment and an upcoming uppercut completes
-//       without an Info/rotationZDeg error;
-//   (e) the widened rail and compact actions have no horizontal/text overflow
+//   (a) every validated v2 equipment leaf has grouped native controls, with no
+//       editable YAML textarea or staged Apply action;
+//   (b) preview defaults off; enabled preview sends the same frozen resolved
+//       poses to gameplay and renderer without leaking private authoring state;
+//   (c) automatic feedback on remains synthetic-only, while feedback off plus
+//       mouse-hand control produces real Flow/Boxing hit, miss, score, combo,
+//       and aftermath truth through production collision logic;
+//   (d) scale and independent XYZ edits validate, rerender atomically, refresh
+//       config identity, and safely restart Test scoring continuity;
+//   (e) pause, seek, hand, pointer, config, and lifecycle discontinuities reset
+//       histories without teleport hits or double outcomes;
+//   (f) the widened rail and compact actions have no horizontal/text overflow
 //       at 390×844; the full direct/iframe matrix lives in the shell oracle;
-//   (f) Reset restores baked defaults, while trusted Export downloads the
-//       deterministic live YAML artifact for baking.
+//   (g) Reset restores baked defaults, while trusted Export downloads the
+//       deterministic live v2 YAML artifact for baking.
 
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
