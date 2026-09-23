@@ -87,26 +87,26 @@ const DEBUG_CAMERA_SPEED_MODES = Object.freeze(["normal", "boost"]);
 const DEBUG_CAMERA_CAPTURE_MODES = Object.freeze(["none", "pointer", "fallback", "touch"]);
 const MAXIMUM_CAMERA_POSE_FILE_BYTES = 16 * 1024;
 const EQUIPMENT_EASE_OPTIONS = Object.freeze(["linear", "easeIn", "easeOut", "easeInOut"]);
+const xyzControls = (prefix, label) => ["x", "y", "z"].map((axis) => Object.freeze({ path:`${prefix}.${axis}`, label:`${label} ${axis.toUpperCase()} (deg)` }));
 const EQUIPMENT_CONTROL_GROUPS = Object.freeze([
   Object.freeze({ label:"Flow · hand transforms", controls:Object.freeze([
-    Object.freeze({path:"flow.perHand.left.scale",label:"Left scale"}), Object.freeze({path:"flow.perHand.left.rotationZDeg",label:"Left rotation Z (deg)"}),
-    Object.freeze({path:"flow.perHand.right.scale",label:"Right scale"}), Object.freeze({path:"flow.perHand.right.rotationZDeg",label:"Right rotation Z (deg)"})
+    Object.freeze({path:"flow.perHand.left.scale",label:"Left scale"}), ...xyzControls("flow.perHand.left.rotationEulerDeg", "Left rotation"),
+    Object.freeze({path:"flow.perHand.right.scale",label:"Right scale"}), ...xyzControls("flow.perHand.right.rotationEulerDeg", "Right rotation")
   ])}),
   Object.freeze({ label:"Flow · saber zones", controls:Object.freeze([
-    Object.freeze({path:"flow.saber.zones.edgeTop.rotationDeg",label:"Top rotation (deg)"}), Object.freeze({path:"flow.saber.zones.edgeBottom.rotationDeg",label:"Bottom rotation (deg)"}),
-    Object.freeze({path:"flow.saber.zones.edgeLeft.rotationDeg",label:"Left rotation (deg)"}), Object.freeze({path:"flow.saber.zones.edgeRight.rotationDeg",label:"Right rotation (deg)"}),
-    Object.freeze({path:"flow.saber.zones.center.rotationDeg",label:"Center rotation (deg)",nullable:true}), Object.freeze({path:"flow.saber.ease.type",label:"Easing",kind:"select"}),
-    Object.freeze({path:"flow.saber.ease.durationMs",label:"Ease duration (ms)"}), Object.freeze({path:"flow.saber.blendRadius",label:"Blend radius"})
+    ...["edgeTop", "edgeBottom", "edgeLeft", "edgeRight", "center"].flatMap((zone) => [
+      Object.freeze({path:`flow.saber.zones.${zone}.headingDeg`,label:`${zone} heading (deg)`,...(zone === "center" ? {nullable:true} : {})}),
+      ...xyzControls(`flow.saber.zones.${zone}.localRotationEulerDeg`, `${zone} local rotation`)
+    ]),
+    Object.freeze({path:"flow.saber.ease.type",label:"Easing",kind:"select"}), Object.freeze({path:"flow.saber.ease.durationMs",label:"Ease duration (ms)"}), Object.freeze({path:"flow.saber.blendRadius",label:"Blend radius"})
   ])}),
   Object.freeze({ label:"Boxing · hand transforms", controls:Object.freeze([
-    Object.freeze({path:"boxing.perHand.left.scale",label:"Left scale"}), Object.freeze({path:"boxing.perHand.left.rotationZDeg",label:"Left rotation Z (deg)"}),
-    Object.freeze({path:"boxing.perHand.right.scale",label:"Right scale"}), Object.freeze({path:"boxing.perHand.right.rotationZDeg",label:"Right rotation Z (deg)"})
+    Object.freeze({path:"boxing.perHand.left.scale",label:"Left scale"}), ...xyzControls("boxing.perHand.left.rotationEulerDeg", "Left rotation"),
+    Object.freeze({path:"boxing.perHand.right.scale",label:"Right scale"}), ...xyzControls("boxing.perHand.right.rotationEulerDeg", "Right rotation")
   ])}),
   Object.freeze({ label:"Boxing · glove states", controls:Object.freeze([
-    Object.freeze({path:"boxing.glove.states.straight.rotationZDeg",label:"Straight rotation (deg)"}), Object.freeze({path:"boxing.glove.states.uppercut.rotationZDeg",label:"Uppercut rotation (deg)"}),
-    Object.freeze({path:"boxing.glove.states.hookL.rotationZDeg",label:"Left hook rotation (deg)"}), Object.freeze({path:"boxing.glove.states.hookR.rotationZDeg",label:"Right hook rotation (deg)"}),
-    Object.freeze({path:"boxing.glove.states.guard.rotationZDeg",label:"Guard rotation (deg)"}), Object.freeze({path:"boxing.glove.ease.type",label:"Easing",kind:"select"}),
-    Object.freeze({path:"boxing.glove.ease.durationMs",label:"Ease duration (ms)"}), Object.freeze({path:"boxing.glove.upcomingBeatWindowMs",label:"Upcoming window (ms)"})
+    ...["straight", "uppercut", "hookL", "hookR", "guard"].flatMap((state) => xyzControls(`boxing.glove.states.${state}.rotationEulerDeg`, `${state} rotation`)),
+    Object.freeze({path:"boxing.glove.ease.type",label:"Easing",kind:"select"}), Object.freeze({path:"boxing.glove.ease.durationMs",label:"Ease duration (ms)"}), Object.freeze({path:"boxing.glove.upcomingBeatWindowMs",label:"Upcoming window (ms)"})
   ])})
 ]);
 const EQUIPMENT_CONTROL_PATHS = new Set(EQUIPMENT_CONTROL_GROUPS.flatMap((group) => group.controls.map((control) => control.path)));
@@ -639,6 +639,7 @@ export class AeroGame extends HTMLElement {
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
       this.synchronizePausedClock(graph);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
+      this.gloveRotationTracker.reset(); this.saberDirectionTracker.reset();
       this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport();
     }
   }
@@ -1487,24 +1488,26 @@ export class AeroGame extends HTMLElement {
    *
    * @param {ReturnType<typeof createAeroGameServiceGraph>} graph
    * @param {{nowMs:number,targets:ReadonlyArray<unknown>}} frame - The exact frame that will be rendered.
-   * @returns {{left: number, right: number}} Per-hand EASED state rotations (deg).
+   * @returns {{left: Readonly<{x:number,y:number,z:number}>, right: Readonly<{x:number,y:number,z:number}>}} Per-hand eased state Euler rotations.
    */
   computeBoxingStateRotations(graph, frame) {
     if (this.gloveRotationSessionGeneration !== this.sessionGeneration) {
       this.gloveRotationTracker.reset();
       this.gloveRotationSessionGeneration = this.sessionGeneration;
     }
-    const nowMs = Number(frame.nowMs);
+    const contentNowMs = Number(frame.nowMs);
     const config = this.equipmentConfig.boxing.glove;
-    const upcoming = boxingUpcomingActions(frame.targets, nowMs, config.upcomingBeatWindowMs);
-    const history = graph.gameplay.getSnapshot().saberWristHistory ?? null;
-    const result = { left: 0, right: 0 };
+    const upcoming = boxingUpcomingActions(frame.targets, contentNowMs, config.upcomingBeatWindowMs);
+    const gameplaySnapshot = graph.gameplay.getSnapshot();
+    const trackerNowMs = Number(gameplaySnapshot.session?.timestampMs ?? 0);
+    const history = gameplaySnapshot.saberWristHistory ?? null;
+    const result = { left: null, right: null };
     for (const hand of ["left", "right"]) {
       const role = `${hand}_wrist`;
-      const motion = gloveMotionVector(history ? history[role] : null, nowMs);
+      const motion = gloveMotionVector(history ? history[role] : null, trackerNowMs);
       const state = selectGloveState(hand, motion, upcoming[hand] ?? null);
-      const targetDeg = config.states[state].rotationZDeg;
-      result[hand] = this.gloveRotationTracker.tick(hand, targetDeg, nowMs, config.ease.type, config.ease.durationMs);
+      const targetEulerDeg = config.states[state].rotationEulerDeg;
+      result[hand] = this.gloveRotationTracker.tick(hand, targetEulerDeg, trackerNowMs, config.ease.type, config.ease.durationMs);
     }
     return result;
   }
@@ -1539,7 +1542,7 @@ export class AeroGame extends HTMLElement {
       this.saberDirectionSessionGeneration = this.sessionGeneration;
     }
     const snapshot = graph.gameplay.getSnapshot();
-    const nowMs = Number(snapshot.session?.timelinePositionMs ?? 0);
+    const nowMs = Number(snapshot.session?.timestampMs ?? 0);
     const config = this.equipmentConfig.flow.saber;
     const history = snapshot.saberWristHistory ?? null;
     const anchors = Array.isArray(inputOverride?.anchors) ? inputOverride.anchors : (Array.isArray(snapshot?.anchors) ? snapshot.anchors : []);
@@ -1560,7 +1563,9 @@ export class AeroGame extends HTMLElement {
         result[hand] = Object.freeze({ x: fallback.x, y: fallback.y, position: SABER_ZONE_ANCHORS.center });
         continue;
       }
-      const target = zoneDirection(position.x, position.y, fallback, config.zones, config.blendRadius);
+      // Input/body-grid Y grows downward; the authored Flow zone field and
+      // judge-space direction use Y-up.
+      const target = zoneDirection(position.x, 1 - position.y, fallback, config.zones, config.blendRadius);
       const eased = this.saberDirectionTracker.tick(hand, target, nowMs, config.ease.type, config.ease.durationMs);
       result[hand] = Object.freeze({ x: eased.x, y: eased.y, position: Object.freeze({ x: position.x, y: position.y }) });
     }
@@ -2619,7 +2624,7 @@ export class AeroGame extends HTMLElement {
       let value;
       if (control instanceof HTMLSelectElement) value = control.value;
       else if (control instanceof HTMLInputElement && control.type === "number") {
-        if (control.value === "" && path === "flow.saber.zones.center.rotationDeg") value = null;
+        if (control.value === "" && path === "flow.saber.zones.center.headingDeg") value = null;
         else if (!control.validity.valid || !Number.isFinite(control.valueAsNumber)) throw new Error("Enter a finite number.");
         else value = control.valueAsNumber;
       } else return false;

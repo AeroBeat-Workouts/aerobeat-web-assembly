@@ -1,316 +1,180 @@
 // @ts-check
-// AeroBeat 0.0.63, child C1 of bead 376l (plan
-// 2026-09-21-0.0.63-playtest-feedback-0.0.62-retest-successor.md, L-C design).
-//
-// Test-mode equipment CONFIG foundation (D2 confirmed): a single per-mode
-// config — per-hand base transform (scale / rotationZDeg), glove beat-state
-// angles + ease + upcoming-beat window (boxing), saber zone angles + ease +
-// distance blend radius (flow) — shared by the assembly (runtime defaults +
-// Test-mode export) and the bake script (finalized YAML → build defaults).
-//
-// YAML is parsed/serialized with the strict minimal subset in
-// `./equipment-config-yaml.js` (no yaml dependency is declared in this repo).
-// Validation is fail-closed: unknown keys, wrong types, bad ease types, and
-// non-finite numbers all THROW with a clear message; missing keys are filled
-// from `equipmentConfigDefaults`.
+// Strict canonical equipment configuration v2 plus a boundary-only migration
+// for wholly legacy, unversioned Z-only YAML documents.
 
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 import { parseYamlSubset, serializeYamlSubset } from "./equipment-config-yaml.js";
 
-/**
- * Allowed easing types for glove/saber angle transitions (D3/D4 addenda).
- *
- * @type {ReadonlyArray<"linear" | "easeIn" | "easeOut" | "easeInOut">}
- */
+export const EQUIPMENT_CONFIG_SCHEMA = "aerobeat/equipment_config";
+export const EQUIPMENT_CONFIG_VERSION = 2;
 export const EQUIPMENT_EASE_TYPES = Object.freeze(["linear", "easeIn", "easeOut", "easeInOut"]);
-
-/**
- * Saber grid zone keys (I-8, child C4 consumes these). `center` is the
- * neutral zone: `rotationDeg: null` keeps the motion-derived direction.
- *
- * @type {ReadonlyArray<"edgeTop" | "edgeBottom" | "edgeLeft" | "edgeRight" | "center">}
- */
 export const SABER_ZONE_KEYS = Object.freeze(["edgeTop", "edgeBottom", "edgeLeft", "edgeRight", "center"]);
-
-/**
- * Glove beat-state keys (I-7, child C3 consumes these).
- *
- * Derived from the canonical validated-default shape so selector/config closure
- * cannot drift behind a separately maintained state-key list.
- *
- * @type {ReadonlyArray<"straight" | "uppercut" | "hookL" | "hookR" | "guard">}
- */
-export const GLOVE_STATE_KEYS = Object.freeze(/** @type {Array<"straight" | "uppercut" | "hookL" | "hookR" | "guard">} */ (Object.keys(equipmentConfigDefaults.boxing.glove.states)));
-
-/**
- * Per-hand keys shared by both modes.
- *
- * @type {ReadonlyArray<"left" | "right">>}
- */
+export const GLOVE_STATE_KEYS = Object.freeze(Object.keys(equipmentConfigDefaults.boxing.glove.states));
 export const PER_HAND_KEYS = Object.freeze(["left", "right"]);
-
-/**
- * Canonical top-level mode keys, in serialization order.
- *
- * @type {ReadonlyArray<"flow" | "boxing">}
- */
 export const EQUIPMENT_MODE_KEYS = Object.freeze(["flow", "boxing"]);
+export const EQUIPMENT_SCALE_MIN = 0.1;
+export const EQUIPMENT_SCALE_MAX = 4;
+
+const LEGACY_KEYS = new Set(["rotationZDeg", "rotationDeg"]);
+const V2_ROTATION_KEYS = new Set(["rotationEulerDeg", "headingDeg", "localRotationEulerDeg"]);
+
+function record(value, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`equipment config: ${path} must be an object`);
+  return /** @type {Record<string, unknown>} */ (value);
+}
+
+function exactKeys(value, expected, path) {
+  const keys = Object.keys(value);
+  for (const key of keys) if (!expected.includes(key)) throw new Error(`equipment config: unknown key "${key}" under ${path} (allowed: ${expected.join(", ")})`);
+  for (const key of expected) if (!Object.hasOwn(value, key)) throw new Error(`equipment config: missing required key "${key}" under ${path}`);
+}
+
+function finite(value, path) {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`equipment config: ${path} must be a finite number`);
+  return value;
+}
+
+/** Canonicalize finite degrees to [-180, 180), including 180 -> -180. */
+export function canonicalEquipmentAngleDeg(value, path = "angle") {
+  const n = finite(value, path);
+  const canonical = ((n + 180) % 360 + 360) % 360 - 180;
+  return Object.is(canonical, -0) ? 0 : canonical;
+}
+
+function euler(value, path) {
+  const source = record(value, path);
+  exactKeys(source, ["x", "y", "z"], path);
+  return Object.freeze({
+    x: canonicalEquipmentAngleDeg(source.x, `${path}.x`),
+    y: canonicalEquipmentAngleDeg(source.y, `${path}.y`),
+    z: canonicalEquipmentAngleDeg(source.z, `${path}.z`)
+  });
+}
+
+function scale(value, path) {
+  const n = finite(value, path);
+  if (n < EQUIPMENT_SCALE_MIN || n > EQUIPMENT_SCALE_MAX) throw new Error(`equipment config: ${path} must be in [${EQUIPMENT_SCALE_MIN}, ${EQUIPMENT_SCALE_MAX}]`);
+  return n;
+}
+
+function ease(value, path) {
+  const source = record(value, path);
+  exactKeys(source, ["type", "durationMs"], path);
+  if (typeof source.type !== "string" || !EQUIPMENT_EASE_TYPES.some((type) => type === source.type)) throw new Error(`equipment config: ${path}.type must be one of ${EQUIPMENT_EASE_TYPES.join(" | ")}`);
+  return Object.freeze({ type: source.type, durationMs: finite(source.durationMs, `${path}.durationMs`) });
+}
 
 /**
- * Validate `value` against the equipment-config schema and return a deep
- * frozen, defaults-merged copy. Missing keys are filled from
- * `equipmentConfigDefaults`; present keys are checked for exact type and
- * (for enums) allowed values. Unknown keys at ANY level throw, as do wrong
- * types, non-finite numbers, and ease types outside `EQUIPMENT_EASE_TYPES`.
- *
- * @param {unknown} value - Candidate config (plain object tree; typically the
- *   result of `parseEquipmentConfigYaml`'s YAML step or a partial object).
- * @returns {Readonly<{
- *   flow: Readonly<{
- *     perHand: Readonly<{ left: Readonly<{ scale: number, rotationZDeg: number }>, right: Readonly<{ scale: number, rotationZDeg: number }> }>,
- *     saber: Readonly<{
- *       zones: Readonly<{
- *         edgeTop: Readonly<{ rotationDeg: number }>,
- *         edgeBottom: Readonly<{ rotationDeg: number }>,
- *         edgeLeft: Readonly<{ rotationDeg: number }>,
- *         edgeRight: Readonly<{ rotationDeg: number }>,
- *         center: Readonly<{ rotationDeg: number | null }>
- *       }>,
- *       ease: Readonly<{ type: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number }>,
- *       blendRadius: number
- *     }>
- *   }>,
- *   boxing: Readonly<{
- *     perHand: Readonly<{ left: Readonly<{ scale: number, rotationZDeg: number }>, right: Readonly<{ scale: number, rotationZDeg: number }> }>,
- *     glove: Readonly<{
- *       states: Readonly<{
- *         straight: Readonly<{ rotationZDeg: number }>,
- *         uppercut: Readonly<{ rotationZDeg: number }>,
- *         hookL: Readonly<{ rotationZDeg: number }>,
- *         hookR: Readonly<{ rotationZDeg: number }>,
- *         guard: Readonly<{ rotationZDeg: number }>
- *       }>,
- *       ease: Readonly<{ type: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number }>,
- *       upcomingBeatWindowMs: number
- *     }>
- *   }
- * }>} - Frozen validated config, complete (no missing keys).
- * @throws {Error} When any key is unknown or any present value has a wrong
- *   type, is non-finite, or (for ease.type) is not an allowed ease type.
+ * Validate and canonicalize one complete v2 runtime record. Missing fields,
+ * legacy scalar aliases, wrong schema/version, and unknown keys reject.
  */
 export function validateEquipmentConfig(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("equipment config must be an object (top-level map)");
-  }
-  const defaults = equipmentConfigDefaults;
-  const record = /** @type {{ [key: string]: unknown }} */ (value);
-  const allowedTop = ["flow", "boxing"];
-  for (const key of Object.keys(record)) {
-    if (!allowedTop.includes(key)) throw new Error(`equipment config: unknown top-level key "${key}" (allowed: ${allowedTop.join(", ")})`);
-  }
+  const root = record(value, "(root)");
+  exactKeys(root, ["schema", "version", "flow", "boxing"], "(root)");
+  if (root.schema !== EQUIPMENT_CONFIG_SCHEMA) throw new Error(`equipment config: schema must be ${EQUIPMENT_CONFIG_SCHEMA}`);
+  if (root.version !== EQUIPMENT_CONFIG_VERSION) throw new Error(`equipment config: version must be ${EQUIPMENT_CONFIG_VERSION}`);
 
-  /**
-   * Deep-merge `source` (partial) over `target` (defaults) and type-check
-   * every leaf against `checkLeaf`; unknown keys at any nested level throw.
-   *
-   * @param {{ [key: string]: unknown }} target - Defaults subtree (canonical shape).
-   * @param {{ [key: string]: unknown } | undefined} source - User subtree (may be absent).
-   * @param {(leafValue: unknown, path: string, kind: string) => void} checkLeaf - Leaf type checker.
-   * @returns {{ [key: string]: unknown }} - Merged plain (unfrozen) subtree.
-   */
-  function mergeChecked(target, source, path, checkLeaf) {
+  const parsePerHand = (value, path) => {
+    const hands = record(value, path); exactKeys(hands, PER_HAND_KEYS, path);
     const out = {};
-    for (const key of Object.keys(target)) {
-      const childDefaults = /** @type {unknown} */ (target[key]);
-      const childPath = `${path}.${key}`;
-      const present = source !== undefined && typeof source === "object" && key in source;
-      const childSource = present ? /** @type {unknown} */ (source[key]) : undefined;
-      if (childDefaults !== null && typeof childDefaults === "object" && !Array.isArray(childDefaults)) {
-        if (childSource !== undefined && (childSource === null || typeof childSource !== "object" || Array.isArray(childSource))) {
-          throw new Error(`equipment config: ${childPath} must be an object`);
-        }
-        out[key] = mergeChecked(/** @type {{ [key: string]: unknown }} */ (childDefaults), childSource, childPath, checkLeaf);
-      } else {
-        if (childSource === undefined) {
-          out[key] = childDefaults;
-        } else {
-          checkLeaf(childSource, childPath);
-          out[key] = childSource;
-        }
-      }
+    for (const hand of PER_HAND_KEYS) {
+      const handValue = record(hands[hand], `${path}.${hand}`);
+      exactKeys(handValue, ["scale", "rotationEulerDeg"], `${path}.${hand}`);
+      out[hand] = Object.freeze({ scale: scale(handValue.scale, `${path}.${hand}.scale`), rotationEulerDeg: euler(handValue.rotationEulerDeg, `${path}.${hand}.rotationEulerDeg`) });
     }
-    if (source !== undefined && typeof source === "object" && !Array.isArray(source)) {
-      for (const key of Object.keys(source)) {
-        if (!(key in target)) throw new Error(`equipment config: unknown key "${key}" under ${path} (allowed: ${Object.keys(target).join(", ")})`);
-      }
-    }
-    return out;
+    return Object.freeze(out);
+  };
+
+  const flow = record(root.flow, "(root).flow"); exactKeys(flow, ["perHand", "saber"], "(root).flow");
+  const saber = record(flow.saber, "(root).flow.saber"); exactKeys(saber, ["zones", "ease", "blendRadius"], "(root).flow.saber");
+  const zones = record(saber.zones, "(root).flow.saber.zones"); exactKeys(zones, SABER_ZONE_KEYS, "(root).flow.saber.zones");
+  const zoneOut = {};
+  for (const key of SABER_ZONE_KEYS) {
+    const zone = record(zones[key], `(root).flow.saber.zones.${key}`);
+    exactKeys(zone, ["headingDeg", "localRotationEulerDeg"], `(root).flow.saber.zones.${key}`);
+    if (zone.headingDeg === null && key !== "center") throw new Error(`equipment config: ${key}.headingDeg must be a finite number`);
+    zoneOut[key] = Object.freeze({
+      headingDeg: zone.headingDeg === null ? null : canonicalEquipmentAngleDeg(zone.headingDeg, `(root).flow.saber.zones.${key}.headingDeg`),
+      localRotationEulerDeg: euler(zone.localRotationEulerDeg, `(root).flow.saber.zones.${key}.localRotationEulerDeg`)
+    });
   }
 
-  /**
-   * Type-check a finite number leaf.
-   *
-   * @param {unknown} leafValue - Candidate leaf value.
-   * @param {string} path - Dotted key path for error messages.
-   */
-  function checkFiniteNumber(leafValue, path) {
-    if (typeof leafValue !== "number" || !Number.isFinite(leafValue)) {
-      throw new Error(`equipment config: ${path} must be a finite number (got ${describe(leafValue)})`);
-    }
+  const boxing = record(root.boxing, "(root).boxing"); exactKeys(boxing, ["perHand", "glove"], "(root).boxing");
+  const glove = record(boxing.glove, "(root).boxing.glove"); exactKeys(glove, ["states", "ease", "upcomingBeatWindowMs"], "(root).boxing.glove");
+  const states = record(glove.states, "(root).boxing.glove.states"); exactKeys(states, GLOVE_STATE_KEYS, "(root).boxing.glove.states");
+  const stateOut = {};
+  for (const key of GLOVE_STATE_KEYS) {
+    const state = record(states[key], `(root).boxing.glove.states.${key}`);
+    exactKeys(state, ["rotationEulerDeg"], `(root).boxing.glove.states.${key}`);
+    stateOut[key] = Object.freeze({ rotationEulerDeg: euler(state.rotationEulerDeg, `(root).boxing.glove.states.${key}.rotationEulerDeg`) });
   }
 
-  /**
-   * Type-check a rotation angle leaf that MAY be null (the saber `center`
-   * zone: null = neutral, keep motion-derived direction).
-   *
-   * @param {unknown} leafValue - Candidate leaf value.
-   * @param {string} path - Dotted key path for error messages.
-   */
-  function checkAngleOrNeutral(leafValue, path) {
-    if (leafValue === null) return;
-    checkFiniteNumber(leafValue, path);
-  }
-
-  /**
-   * Type-check an ease block leaf (`type` or `durationMs`).
-   *
-   * @param {unknown} leafValue - Candidate leaf value.
-   * @param {string} path - Dotted key path for error messages.
-   */
-  function checkEaseLeaf(leafValue, path) {
-    if (path.endsWith(".type")) {
-      if (typeof leafValue !== "string" || !EQUIPMENT_EASE_TYPES.includes(/** @type {"linear" | "easeIn" | "easeOut" | "easeInOut"} */ (leafValue))) {
-        throw new Error(`equipment config: ${path} must be one of ${EQUIPMENT_EASE_TYPES.join(" | ")} (got ${describe(leafValue)})`);
-      }
-    } else {
-      checkFiniteNumber(leafValue, path);
-    }
-  }
-
-  /**
-   * Render a short human description of an invalid leaf for error messages.
-   *
-   * @param {unknown} leafValue - The offending value.
-   * @returns {string} - Type/value summary.
-   */
-  function describe(leafValue) {
-    if (leafValue === null) return "null";
-    return `${typeof leafValue} ${JSON.stringify(leafValue)}`;
-  }
-
-  const merged = mergeChecked(defaults, record, "(root)", (leafValue, path) => {
-    if (path.includes(".ease.")) checkEaseLeaf(leafValue, path);
-    else if (path.endsWith(".rotationDeg") && /saber\.zones/u.test(path)) checkAngleOrNeutral(leafValue, path);
-    else checkFiniteNumber(leafValue, path);
+  return Object.freeze({
+    schema: EQUIPMENT_CONFIG_SCHEMA,
+    version: EQUIPMENT_CONFIG_VERSION,
+    flow: Object.freeze({
+      perHand: parsePerHand(flow.perHand, "(root).flow.perHand"),
+      saber: Object.freeze({ zones: Object.freeze(zoneOut), ease: ease(saber.ease, "(root).flow.saber.ease"), blendRadius: finite(saber.blendRadius, "(root).flow.saber.blendRadius") })
+    }),
+    boxing: Object.freeze({
+      perHand: parsePerHand(boxing.perHand, "(root).boxing.perHand"),
+      glove: Object.freeze({ states: Object.freeze(stateOut), ease: ease(glove.ease, "(root).boxing.glove.ease"), upcomingBeatWindowMs: finite(glove.upcomingBeatWindowMs, "(root).boxing.glove.upcomingBeatWindowMs") })
+    })
   });
-  return freezeDeep(merged);
 }
 
-/**
- * Parse YAML text into a validated, defaults-merged, frozen equipment config.
- * The YAML must be in the strict supported subset (nested maps + scalars only;
- * see `equipment-config-yaml.js`); unparseable input or schema violations
- * throw with a clear message.
- *
- * @param {string} text - Full YAML document text (export format from Test mode).
- * @returns {Readonly<{
- *   flow: Readonly<{
- *     perHand: Readonly<{ left: Readonly<{ scale: number, rotationZDeg: number }>, right: Readonly<{ scale: number, rotationZDeg: number }> }>,
- *     saber: Readonly<{
- *       zones: Readonly<{
- *         edgeTop: Readonly<{ rotationDeg: number }>,
- *         edgeBottom: Readonly<{ rotationDeg: number }>,
- *         edgeLeft: Readonly<{ rotationDeg: number }>,
- *         edgeRight: Readonly<{ rotationDeg: number }>,
- *         center: Readonly<{ rotationDeg: number | null }>
- *       }>,
- *       ease: Readonly<{ type: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number }>,
- *       blendRadius: number
- *     }>
- *   }>,
- *   boxing: Readonly<{
- *     perHand: Readonly<{ left: Readonly<{ scale: number, rotationZDeg: number }>, right: Readonly<{ scale: number, rotationZDeg: number }> }>,
- *     glove: Readonly<{
- *       states: Readonly<{
- *         straight: Readonly<{ rotationZDeg: number }>,
- *         uppercut: Readonly<{ rotationZDeg: number }>,
- *         hookL: Readonly<{ rotationZDeg: number }>,
- *         hookR: Readonly<{ rotationZDeg: number }>,
- *         guard: Readonly<{ rotationZDeg: number }>
- *       }>,
- *       ease: Readonly<{ type: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number }>,
- *       upcomingBeatWindowMs: number
- *     }>
- *   }
- * }>} - Frozen validated config (identical in shape to `validateEquipmentConfig`'s return).
- * @throws {Error} On unparseable YAML, unknown keys, wrong types, or bad ease types.
- */
+function walkKeys(value, visit) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return;
+  for (const [key, child] of Object.entries(value)) { visit(key); walkKeys(child, visit); }
+}
+
+function hasAnyKey(value, keys) {
+  let found = false;
+  walkKeys(value, (key) => { if (keys.has(key)) found = true; });
+  return found;
+}
+
+function cloneDefaults() { return structuredClone(equipmentConfigDefaults); }
+
+function overlayLegacy(target, source, path = "(root)") {
+  const src = record(source, path);
+  const allowed = path === "(root)" ? ["flow", "boxing"]
+    : path.endsWith(".flow") ? ["perHand", "saber"]
+    : path.endsWith(".boxing") ? ["perHand", "glove"]
+    : path.endsWith(".perHand") ? PER_HAND_KEYS
+    : /\.perHand\.(left|right)$/u.test(path) ? ["scale", "rotationZDeg"]
+    : path.endsWith(".saber") ? ["zones", "ease", "blendRadius"]
+    : path.endsWith(".zones") ? SABER_ZONE_KEYS
+    : /\.zones\.[^.]+$/u.test(path) ? ["rotationDeg"]
+    : path.endsWith(".glove") ? ["states", "ease", "upcomingBeatWindowMs"]
+    : path.endsWith(".states") ? GLOVE_STATE_KEYS
+    : /\.states\.[^.]+$/u.test(path) ? ["rotationZDeg"]
+    : path.endsWith(".ease") ? ["type", "durationMs"] : [];
+  for (const key of Object.keys(src)) if (!allowed.includes(key)) throw new Error(`equipment config: unknown key "${key}" under ${path} (allowed: ${allowed.join(", ")})`);
+  for (const [key, child] of Object.entries(src)) {
+    const childPath = `${path}.${key}`;
+    if (child !== null && typeof child === "object" && !Array.isArray(child)) { overlayLegacy(target[key], child, childPath); continue; }
+    if (key === "rotationZDeg") target.rotationEulerDeg = { x: 0, y: 0, z: child };
+    else if (key === "rotationDeg") target.headingDeg = child;
+    else target[key] = child;
+  }
+}
+
+/** Parse canonical v2 YAML or migrate one wholly legacy unversioned document. */
 export function parseEquipmentConfigYaml(text) {
-  return validateEquipmentConfig(parseYamlSubset(text));
+  const parsed = parseYamlSubset(text);
+  const root = record(parsed, "(root)");
+  const legacy = hasAnyKey(root, LEGACY_KEYS);
+  const v2Rotations = hasAnyKey(root, V2_ROTATION_KEYS);
+  const versioned = Object.hasOwn(root, "schema") || Object.hasOwn(root, "version");
+  if (legacy && (v2Rotations || versioned)) throw new Error("equipment config: mixed legacy/v2 document is not allowed");
+  if (versioned || v2Rotations) return validateEquipmentConfig(root);
+  const migrated = cloneDefaults();
+  overlayLegacy(migrated, root);
+  return validateEquipmentConfig(migrated);
 }
 
-/**
- * Serialize a (validated or plain) equipment config to canonical YAML text
- * with stable schema key order. The input is re-validated first so the
- * output always reflects a complete, type-correct config — passing a partial
- * object serializes its defaults-merged form.
- *
- * @param {unknown} config - Config object (plain or frozen; re-validated internally).
- * @returns {string} - Canonical YAML text (stable key order, trailing newline).
- * @throws {Error} When `config` fails schema validation.
- */
+/** Serialize one complete canonical v2 record in deterministic schema order. */
 export function serializeEquipmentConfigYaml(config) {
-  const validated = validateEquipmentConfig(config);
-  return serializeYamlSubsetInSchemaOrder(validated);
-}
-
-/**
- * Serialize a validated config in the canonical schema key order (mode
- * order `flow, boxing`, then per-hand `left, right`, then each block's
- * schema order). The defaults object is already in this order, so walking
- * the defaults skeleton and copying values from `validated` yields a
- * deterministic document.
- *
- * @param {{ [key: string]: unknown }} validated - Frozen validated config.
- * @returns {string} - Canonical YAML text.
- */
-function serializeYamlSubsetInSchemaOrder(validated) {
-  /**
-   * Copy a subtree following `defaultsShape` key order.
-   *
-   * @param {{ [key: string]: unknown }} defaultsShape - Defaults subtree (canonical order).
-   * @param {{ [key: string]: unknown }} source - Validated subtree.
-   * @returns {{ [key: string]: unknown }} - Insertion-ordered plain subtree.
-   */
-  function reorder(defaultsShape, source) {
-    const out = {};
-    for (const key of Object.keys(defaultsShape)) {
-      const childDefaults = /** @type {unknown} */ (defaultsShape[key]);
-      const childSource = /** @type {unknown} */ (source[key]);
-      if (childDefaults !== null && typeof childDefaults === "object" && !Array.isArray(childDefaults)) {
-        out[key] = reorder(/** @type {{ [key: string]: unknown }} */ (childDefaults), /** @type {{ [key: string]: unknown }} */ (childSource));
-      } else {
-        out[key] = childSource;
-      }
-    }
-    return out;
-  }
-
-  return serializeYamlSubset(reorder(equipmentConfigDefaults, /** @type {{ [key: string]: unknown }} */ (validated)));
-}
-
-/**
- * Deep-freeze a plain object tree.
- *
- * @param {{ [key: string]: unknown }} value - Plain (unfrozen) object tree.
- * @returns {Readonly<{ [key: string]: unknown }>} - Deep-frozen copy (same object identity at the root).
- */
-function freezeDeep(value) {
-  for (const key of Object.keys(value)) {
-    const child = /** @type {unknown} */ (value[key]);
-    if (child !== null && typeof child === "object" && !Array.isArray(child)) {
-      freezeDeep(/** @type {{ [key: string]: unknown }} */ (child));
-    }
-  }
-  return Object.freeze(value);
+  return serializeYamlSubset(validateEquipmentConfig(config));
 }

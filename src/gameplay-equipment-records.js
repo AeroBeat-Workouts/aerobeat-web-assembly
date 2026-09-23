@@ -73,7 +73,7 @@ import { SABER_ZONE_ANCHORS, zoneDirection } from "./saber-zone-direction.js";
  * @param {unknown} input
  * @param {"flow" | "boxing"} mode
  * @param {Readonly<{ left_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null, right_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null }> | null} [saberWristHistory]
- * @param {Readonly<{left: number, right: number}> | null} [boxingStateRotations]
+ * @param {Readonly<{left: Readonly<{x:number,y:number,z:number}>, right: Readonly<{x:number,y:number,z:number}>}> | null} [boxingStateRotations]
  * @param {Readonly<{
  *   left: Readonly<{x: number, y: number, position?: Readonly<{x: number, y: number}>}>,
  *   right: Readonly<{x: number, y: number, position?: Readonly<{x: number, y: number}>}>
@@ -99,7 +99,7 @@ export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWr
     boxingStateRotations !== null && typeof boxingStateRotations === "object" ? boxingStateRotations : null;
   const stateRotationFor = (hand) => {
     if (stateRotations === null) return 0;
-    const value = Number(stateRotations[hand]);
+    const value = Number(stateRotations[hand]?.z);
     return Number.isFinite(value) ? value : 0;
   };
   const tracking = input?.tracking;
@@ -117,7 +117,10 @@ export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWr
     if (anchor?.valid !== true || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || !Number.isFinite(anchor.confidence) || anchor.confidence < 0.5) return [];
     const base = perHand[handKey(role)];
     const state = mode === "boxing" ? stateRotationFor(handKey(role)) : 0;
-    const record = { role, x: anchor.x, y: anchor.y, mode, scale: base.scale, rotationZDeg: base.rotationZDeg + state };
+    // Renderer record v2 integration is a companion lane. Until that seam lands,
+    // project only canonical Z into the existing renderer record without keeping
+    // a scalar alias in config/runtime authoring state.
+    const record = { role, x: anchor.x, y: anchor.y, mode, scale: base.scale, rotationZDeg: base.rotationEulerDeg.z + state };
     if (anchorsFrozen) record.dimmed = degraded.has(role);
     if (mode === "flow") {
       if (flowZoneDirections !== null) {

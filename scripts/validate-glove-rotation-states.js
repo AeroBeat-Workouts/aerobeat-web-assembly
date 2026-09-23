@@ -36,7 +36,7 @@ import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
   ];
   for (const state of selections) {
     assert.equal(Object.hasOwn(states, state), true, `selector result ${state} must index validated config`);
-    assert.equal(Number.isFinite(states[state].rotationZDeg), true, `selector result ${state} must index a finite rotation`);
+    assert.deepEqual(Object.keys(states[state].rotationEulerDeg), ["x", "y", "z"], `selector result ${state} must index canonical XYZ rotation`);
   }
   assert.deepEqual([...new Set(selections)], Object.keys(states), "representative selector branches close over every validated state key");
   assert.deepEqual(GLOVE_STATE_KEYS, Object.keys(states), "exported state keys derive from validated config order");
@@ -131,7 +131,8 @@ import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
   const boxingRotationBody = assemblySource.match(/\n  computeBoxingStateRotations\(graph, frame\) \{(?<body>[\s\S]*?)\n  \}\n\n  \/\*\*/u)?.groups?.body ?? "";
   assert.notEqual(boxingRotationBody, "", "computeBoxingStateRotations source body must be found");
   assert.doesNotMatch(boxingRotationBody, /rendererFrame\(/u, "Boxing state selection must not project another renderer frame");
-  assert.match(boxingRotationBody, /boxingUpcomingActions\(frame\.targets, nowMs,/u, "Boxing target selection uses the same frame targets and nowMs");
+  assert.match(boxingRotationBody, /boxingUpcomingActions\(frame\.targets, contentNowMs,/u, "Boxing target selection uses the frame's content timeline");
+  assert.match(boxingRotationBody, /gloveMotionVector\(history \? history\[role\] : null, trackerNowMs\)/u, "motion history uses the gameplay timestamp domain");
   console.log("PASS: Boxing reuses one renderer frame without changing target-selection semantics");
 }
 
@@ -169,63 +170,37 @@ import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
   console.log("PASS: easing curves (endpoints, midpoints, monotonicity, clamping, errors)");
 }
 
-// ── Tracker: per-hand eased rotation ───────────────────────────────────────
+// ── Tracker: fixed-endpoint XYZ quaternion easing ──────────────────────────
 {
-  const t = createGloveRotationTracker();
-  // 1) Persists across ticks (easeOut over 100 ms toward -70).
-  let v = t.tick("left", -70, 0, "easeOut", 100);
-  assert.ok(Math.abs(v) < 1e-9, "fresh hand starts at 0");
-  v = t.tick("left", -70, 50, "easeOut", 100);
-  assert.ok(v > -70 && v < 0, "mid-ease value strictly between start and target");
-  const half = v;
-  v = t.tick("left", -70, 100, "easeOut", 100);
-  assert.equal(v, -70, "reaches target at t=duration");
-  v = t.tick("left", -70, 500, "easeOut", 100);
-  assert.equal(v, -70, "stays at target after completion (persisted state)");
-  // 2) Per-hand independence: right hand untouched by left's ticks.
-  assert.equal(t.tick("right", 0, 500, "easeOut", 100), 0, "right hand independent of left hand");
-  t.tick("left", 60, 600, "easeOut", 100); // left retargets
-  const r = t.tick("right", 60, 600, "easeOut", 100);
-  assert.ok(r === 0, "right hand still at its own target while left moves");
-  // 3) Retargets mid-ease: start fresh from the CURRENT eased value.
-  const t2 = createGloveRotationTracker();
-  t2.tick("left", -70, 0, "linear", 100);
-  const mid = t2.tick("left", -70, 50, "linear", 100); // -35
-  assert.ok(Math.abs(mid - -35) < 1e-9, `linear midpoint is -35 (got ${mid})`);
-  const retarget = t2.tick("left", -10, 50, "linear", 100); // retarget from -35 to -10 at t=50
-  assert.equal(retarget, -35, "retarget mid-ease starts from the current eased value (no snap)");
-  assert.ok(Math.abs(t2.tick("left", -10, 150, "linear", 100) - -10) < 1e-9, "retargeted ease completes at the new target");
-  // 4) Zero/negative duration snaps.
-  const t3 = createGloveRotationTracker();
-  assert.equal(t3.tick("right", -60, 0, "easeIn", 0), -60, "durationMs=0 snaps to target");
-  // 5) reset() clears every hand.
-  const t4 = createGloveRotationTracker();
-  t4.tick("left", -70, 0, "easeOut", 100);
-  t4.tick("right", 60, 0, "easeOut", 100);
-  t4.reset();
-  assert.equal(t4.tick("left", 0, 50, "easeOut", 100), 0, "left reset to 0 after reset()");
-  assert.equal(t4.tick("right", 0, 50, "easeOut", 100), 0, "right reset to 0 after reset()");
-  // 6) Bad input rejected.
-  assert.throws(() => t4.tick("nose", 0, 0, "linear", 100), TypeError, "unknown hand rejected");
-  console.log("PASS: tracker (persistence, mid-ease retarget, per-hand independence, snap, reset, errors)");
-}
+  const target = Object.freeze({ x:30, y:-20, z:170 });
+  const dense = createGloveRotationTracker();
+  dense.tick("left", target, 0, "linear", 100);
+  for (let now = 10; now < 100; now += 10) dense.tick("left", target, now, "linear", 100);
+  const denseEnd = dense.tick("left", target, 100, "linear", 100);
+  const sparse = createGloveRotationTracker();
+  sparse.tick("left", target, 0, "linear", 100);
+  const sparseEnd = sparse.tick("left", target, 100, "linear", 100);
+  assert.deepEqual(denseEnd, sparseEnd, "dense and sparse cadences resolve identically");
+  for (const axis of ["x", "y", "z"]) assert.ok(Math.abs(denseEnd[axis] - target[axis]) < 1e-9, `${axis} reaches target`);
 
-// ── End-to-end: selection → angle → eased record value ─────────────────────
-{
-  // Replicates the C3 pipeline: upcoming hook (right hand) → hookR (-60 deg),
-  // eased easeOut over 100 ms; record rotation = base (0) + eased state.
-  const angle = { straight: 0, uppercut: -35, hookL: 60, hookR: -60, guard: -70 };
-  const state = selectGloveState("right", { x: -0.9, y: 0.1 }, { kind: "punch", hand: "right", family: "hook", beatCenterMs: 120 });
-  assert.equal(state, "hookR");
-  const tracker = createGloveRotationTracker();
-  const v0 = tracker.tick("right", angle[state], 0, "easeOut", 100);
-  assert.equal(v0, 0, "first tick at t=0 starts at base 0 deg");
-  // easeOut, t=(50-0)/100=0.5 → eased 0.75 of the way from 0 to -60 → -45 deg.
-  const deg = tracker.tick("right", angle[state], 50, "easeOut", 100);
-  assert.ok(Math.abs(deg - -45) < 1e-9, `eased hookR at t=0.5 is -45 deg (got ${deg})`);
-  const done = tracker.tick("right", angle[state], 100, "easeOut", 100);
-  assert.ok(Math.abs(done - -60) < 1e-9, "reaches the hookR target -60 deg at t=1.0");
-  console.log("PASS: end-to-end selection → eased per-hand rotation");
+  const shortest = createGloveRotationTracker();
+  shortest.tick("left", { x:0, y:0, z:170 }, 0, "linear", 0);
+  shortest.tick("left", { x:0, y:0, z:-170 }, 10, "linear", 100);
+  const halfway = shortest.tick("left", { x:0, y:0, z:-170 }, 60, "linear", 100);
+  assert.ok(Math.abs(Math.abs(halfway.z) - 180) < 1e-9, `+170→-170 follows 20° shortest path (got ${halfway.z})`);
+
+  const retarget = createGloveRotationTracker();
+  retarget.tick("left", { x:0, y:0, z:90 }, 0, "linear", 100);
+  const before = retarget.tick("left", { x:0, y:0, z:90 }, 50, "linear", 100);
+  const atRetarget = retarget.tick("left", { x:45, y:20, z:-90 }, 50, "linear", 100);
+  assert.deepEqual(atRetarget, before, "retarget captures the evaluated pose without snapping");
+  const done = retarget.tick("left", { x:45, y:20, z:-90 }, 150, "linear", 100);
+  assert.ok(Math.abs(done.x - 45) < 1e-9 && Math.abs(done.y - 20) < 1e-9 && Math.abs(done.z + 90) < 1e-9);
+
+  retarget.reset();
+  assert.deepEqual(retarget.tick("left", { x:0, y:0, z:0 }, 200, "linear", 100), { x:0, y:0, z:0 });
+  assert.throws(() => retarget.tick("nose", target, 0, "linear", 100), TypeError);
+  console.log("PASS: fixed-endpoint XYZ quaternion tracker is shortest-path, cadence-independent, retargetable, and resettable");
 }
 
 console.log("\nAll glove rotation state validations passed.");

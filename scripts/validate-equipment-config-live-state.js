@@ -14,19 +14,11 @@ import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = readFileSync(resolve(root, "src/index.js"), "utf8");
 
-const expectedPaths = Object.freeze([
-  "flow.perHand.left.scale", "flow.perHand.left.rotationZDeg",
-  "flow.perHand.right.scale", "flow.perHand.right.rotationZDeg",
-  "flow.saber.zones.edgeTop.rotationDeg", "flow.saber.zones.edgeBottom.rotationDeg",
-  "flow.saber.zones.edgeLeft.rotationDeg", "flow.saber.zones.edgeRight.rotationDeg",
-  "flow.saber.zones.center.rotationDeg", "flow.saber.ease.type",
-  "flow.saber.ease.durationMs", "flow.saber.blendRadius",
-  "boxing.perHand.left.scale", "boxing.perHand.left.rotationZDeg",
-  "boxing.perHand.right.scale", "boxing.perHand.right.rotationZDeg",
-  "boxing.glove.states.straight.rotationZDeg", "boxing.glove.states.uppercut.rotationZDeg",
-  "boxing.glove.states.hookL.rotationZDeg", "boxing.glove.states.hookR.rotationZDeg",
-  "boxing.glove.states.guard.rotationZDeg", "boxing.glove.ease.type",
-  "boxing.glove.ease.durationMs", "boxing.glove.upcomingBeatWindowMs"
+const expectedStaticPaths = Object.freeze([
+  "flow.perHand.left.scale", "flow.perHand.right.scale", "flow.saber.ease.type",
+  "flow.saber.ease.durationMs", "flow.saber.blendRadius", "boxing.perHand.left.scale",
+  "boxing.perHand.right.scale", "boxing.glove.ease.type", "boxing.glove.ease.durationMs",
+  "boxing.glove.upcomingBeatWindowMs"
 ]);
 
 // Raw-YAML editing and its staged Apply path must be removed, not hidden.
@@ -35,11 +27,15 @@ for (const legacy of ["setEquipmentConfigYaml(", "validateEquipmentConfigDraft("
 }
 assert.equal(/<textarea\b[^>]*data-equipment-config-field/iu.test(source), false, "equipment authoring must not contain a textarea");
 
-// The grouped native controls must cover every validated leaf exactly once.
-for (const path of expectedPaths) {
-  assert.equal(source.split(`path:"${path}"`).length - 1, 1, `exactly one grouped control descriptor required for ${path}`);
-}
-assert.equal((source.match(/path:"(?:flow|boxing)\./gu) ?? []).length, expectedPaths.length, "no missing or surplus equipment control descriptors");
+// The grouped native controls generate independent XYZ controls for every base,
+// Flow zone-local, and Boxing state rotation, alongside each zone heading.
+for (const path of expectedStaticPaths) assert.equal(source.split(`path:"${path}"`).length - 1, 1, `one static control descriptor required for ${path}`);
+for (const token of [
+  'xyzControls("flow.perHand.left.rotationEulerDeg"', 'xyzControls("flow.perHand.right.rotationEulerDeg"',
+  'path:`flow.saber.zones.${zone}.headingDeg`', 'xyzControls(`flow.saber.zones.${zone}.localRotationEulerDeg`',
+  'xyzControls("boxing.perHand.left.rotationEulerDeg"', 'xyzControls("boxing.perHand.right.rotationEulerDeg"',
+  'xyzControls(`boxing.glove.states.${state}.rotationEulerDeg`'
+]) assert(source.includes(token), `missing generated XYZ/heading controls: ${token}`);
 for (const group of ["Flow · hand transforms", "Flow · saber zones", "Boxing · hand transforms", "Boxing · glove states"]) assert(source.includes(`label:"${group}"`), `missing group ${group}`);
 
 // Accepted control edits validate atomically, reset easing trackers so the

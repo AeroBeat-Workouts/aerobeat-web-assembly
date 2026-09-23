@@ -11,7 +11,7 @@
 //
 // SIGNED-OFF SEMANTICS (do not deviate):
 //   - Grid zones = the 4 edges + center.
-//   - Center zone = NEUTRAL: `center.rotationDeg === null` keeps the
+//   - Center zone = NEUTRAL: `center.headingDeg === null` keeps the
 //     motion-derived direction (the `fallbackDir` passed in).
 //   - Angle convention: in-plane degrees, 90 = blade up, 270 = down,
 //     180 = left, 0 = right.
@@ -30,11 +30,12 @@
 //                      (w = 1 at its anchor, w = 0 at blendRadius, C¹-smooth)
 //   Center weight:     w_c = 1 − clamp(Σ_k w_k, 0, 1)   (so Σ all w = 1)
 //   Result vector:     v = Σ_k w_k·û(angle_k) + w_c·û(angle_c-or-fallback)
-//                      (center rotationDeg null → û(fallbackDir))
+//                      (center headingDeg null → û(fallbackDir))
 //   Output:            normalize(v); if |v| < 1e-6 → fallbackDir (degenerate
 //                      cancel, e.g. fully opposite zone weights).
 
 import { easeValue } from "./easing.js";
+import { quaternionFromEulerDeg, slerpQuaternionShortest } from "./equipment-quaternion.js";
 
 /**
  * A unit direction vector in judge space (+x right, +y up).
@@ -45,7 +46,7 @@ import { easeValue } from "./easing.js";
  */
 
 /**
- * Flow saber zone key. `center` is the neutral zone (rotationDeg may be null).
+ * Flow saber zone key. `center` is the neutral zone (headingDeg may be null).
  *
  * @typedef {"edgeTop" | "edgeBottom" | "edgeLeft" | "edgeRight" | "center"} SaberZoneKey
  */
@@ -151,7 +152,7 @@ function safeUnitVector(v) {
  *     to 1 and the field is a convex combination (hence continuous; the only
  *     non-smooth point, where several weights meet, lands on the center
  *     anchor).
- *   - `zones.<key>.rotationDeg` null (the center default) → the center vector
+ *   - `zones.<key>.headingDeg` null (the center default) → the center vector
  *     IS the motion-derived `fallbackDir` (NEUTRAL: keep motion direction).
  *   - Degenerate cancel (|result| < 1e-6) → `fallbackDir`.
  *
@@ -163,15 +164,15 @@ function safeUnitVector(v) {
  * @param {number} y - Normalized grid y (0..1 before clamping; +y = up).
  * @param {Readonly<{x: number, y: number}>} fallbackDir - Motion-derived direction used for the neutral center zone and the degenerate-cancel fallback.
  * @param {Readonly<{
- *   edgeTop: Readonly<{rotationDeg: number}>,
- *   edgeBottom: Readonly<{rotationDeg: number}>,
- *   edgeLeft: Readonly<{rotationDeg: number}>,
- *   edgeRight: Readonly<{rotationDeg: number}>,
- *   center: Readonly<{rotationDeg: number | null}>
+ *   edgeTop: Readonly<{headingDeg: number}>,
+ *   edgeBottom: Readonly<{headingDeg: number}>,
+ *   edgeLeft: Readonly<{headingDeg: number}>,
+ *   edgeRight: Readonly<{headingDeg: number}>,
+ *   center: Readonly<{headingDeg: number | null}>
  * }>} zones - Per-zone configured in-plane angles (from `flow.saber.zones`).
  * @param {number} blendRadius - Distance-blend radius in grid units (from `flow.saber.blendRadius`).
  * @returns {Readonly<{x: number, y: number}>} - Unit direction vector (or `fallbackDir` normalized for the neutral/degenerate cases).
- * @throws {TypeError} On non-finite x/y/blendRadius or a non-finite edge rotationDeg.
+ * @throws {TypeError} On non-finite x/y/blendRadius or a non-finite edge headingDeg.
  */
 export function zoneDirection(x, y, fallbackDir, zones, blendRadius) {
   if (typeof x !== "number" || typeof y !== "number" || !Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError("zoneDirection: x/y must be finite numbers");
@@ -183,15 +184,15 @@ export function zoneDirection(x, y, fallbackDir, zones, blendRadius) {
   /** @type {{x: number, y: number}} */
   let vx = 0, vy = 0;
   for (const key of EDGE_KEYS) {
-    const rotationDeg = Number(zones[key].rotationDeg);
-    if (!Number.isFinite(rotationDeg)) throw new TypeError(`zoneDirection: ${key}.rotationDeg must be a finite number`);
+    const headingDeg = Number(zones[key].headingDeg);
+    if (!Number.isFinite(headingDeg)) throw new TypeError(`zoneDirection: ${key}.headingDeg must be a finite number`);
     if (w[key] <= 0) continue;
-    const u = zoneAngleToVector(rotationDeg);
+    const u = zoneAngleToVector(headingDeg);
     vx += w[key] * u.x;
     vy += w[key] * u.y;
   }
 
-  const centerRotationDeg = zones.center.rotationDeg;
+  const centerRotationDeg = zones.center.headingDeg;
   const centerVec = centerRotationDeg === null ? fallback : zoneAngleToVector(centerRotationDeg);
   vx += w.center * centerVec.x;
   vy += w.center * centerVec.y;
@@ -202,94 +203,37 @@ export function zoneDirection(x, y, fallbackDir, zones, blendRadius) {
 }
 
 /**
- * Per-hand flow saber direction tracker — the C4 stateful vector easing,
- * mirroring the C3 glove-rotation tracker structure (per-hand entries,
- * mid-ease retarget from the current value, snap on durationMs <= 0,
- * `reset()` on session generation change).
- *
- * Easing model (documented choice): the CURRENT eased direction vector is
- * SLEPt toward the target via SHORTEST-ARC ANGLE INTERPOLATION. Each tick:
- *   1. If the target (or ease config) changed, retarget: start a fresh ease
- *      FROM THE CURRENT EASED VECTOR at `nowMs` (no snap).
- *   2. Normalize the stored current vector (it may be a mid-retarget blend
- *      and is therefore not exactly unit).
- *   3. Δ = shortest signed angle from current to target (−180..180).
- *   4. eased = current rotated by Δ · easeValue(clamped progress, ease).
- *   5. If progress >= 1, snap exactly onto the target.
- *
- * Shortest-arc rotation is mathematically equivalent to slerp on the 2-D
- * unit circle and — unlike naive component lerp + normalize — stays stable
- * when the vectors are near-parallel (no cancellation in the denominator; a
- * 179 deg turn never takes the 181 deg long way) and never produces a
- * zero-length intermediate. First tick for a hand starts at the target
- * (the field is the authoritative source; there is no prior frame to ease
- * from), matching the C3 tracker's fresh-hand behavior.
- *
- * @returns {{
- *   tick: (hand: "left" | "right", target: Readonly<{x: number, y: number}>, nowMs: number, ease: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number) => Readonly<{x: number, y: number}>,
- *   reset: () => void
- * }}
+ * Per-hand fixed-endpoint shortest-path quaternion slerp for Flow headings.
+ * Retargeting evaluates the old transition at that exact timestamp and captures
+ * a new immutable start, so frame cadence cannot compound interpolation.
  */
 export function createSaberDirectionTracker() {
-  /** @type {Map<"left" | "right", {x: number, y: number, targetX: number, targetY: number, startMs: number, ease: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number}>} */
+  /** @type {Map<"left" | "right", {start:Readonly<{x:number,y:number,z:number,w:number}>,target:Readonly<{x:number,y:number,z:number,w:number}>,targetX:number,targetY:number,startMs:number,ease:"linear"|"easeIn"|"easeOut"|"easeInOut",durationMs:number}>} */
   const hands = new Map();
+  const evaluate = (entry, nowMs) => {
+    const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
+    return slerpQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
+  };
+  const vector = (quaternion) => Object.freeze({ x: 1 - 2 * quaternion.z * quaternion.z, y: 2 * quaternion.w * quaternion.z });
   return Object.freeze({
-    /**
-     * Ease one hand's direction toward `target` and return the current
-     * eased unit vector. A changed target/ease/duration starts a fresh ease
-     * from the current eased vector at `nowMs`; durationMs <= 0 snaps.
-     *
-     * @param {"left" | "right"} hand - The hand.
-     * @param {Readonly<{x: number, y: number}>} target - The zone-field direction target for this frame.
-     * @param {number} nowMs - The current session timeline position (ms).
-     * @param {"linear" | "easeIn" | "easeOut" | "easeInOut"} ease - The configured ease type.
-     * @param {number} durationMs - The configured ease duration (ms; <= 0 snaps).
-     * @returns {Readonly<{x: number, y: number}>} - The hand's current eased unit direction.
-     */
     tick(hand, target, nowMs, ease, durationMs) {
       if (hand !== "left" && hand !== "right") throw new TypeError("Saber direction tracker: hand must be 'left' or 'right'");
-      const tx = Number(target?.x), ty = Number(target?.y);
-      if (!Number.isFinite(tx) || !Number.isFinite(ty)) throw new TypeError("Saber direction tracker: target must be a finite {x,y} vector");
+      const tx = Number(target?.x), ty = Number(target?.y), magnitude = Math.hypot(tx, ty);
+      if (!Number.isFinite(tx) || !Number.isFinite(ty) || magnitude < Number.EPSILON) throw new TypeError("Saber direction tracker: target must be a finite non-zero {x,y} vector");
       if (!Number.isFinite(nowMs) || !Number.isFinite(durationMs)) throw new TypeError("Saber direction tracker: nowMs/durationMs must be finite");
+      const targetX = tx / magnitude, targetY = ty / magnitude;
+      const targetQuaternion = quaternionFromEulerDeg({ x: 0, y: 0, z: Math.atan2(targetY, targetX) * 180 / Math.PI });
       let entry = hands.get(hand);
       if (entry === undefined) {
-        // First tick: the zone field is the authoritative source, so start
-        // directly AT the target (mirrors the C3 fresh-hand convention).
-        entry = { x: tx, y: ty, targetX: tx, targetY: ty, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
+        entry = { start: targetQuaternion, target: targetQuaternion, targetX, targetY, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
         hands.set(hand, entry);
-        return Object.freeze({ x: tx, y: ty });
-      }
-      const tMag = Math.hypot(tx, ty);
-      if (tMag < Number.EPSILON) throw new TypeError("Saber direction tracker: target must be non-zero");
-      const ntx = tx / tMag, nty = ty / tMag;
-      if (ntx !== entry.targetX || nty !== entry.targetY || ease !== entry.ease || durationMs !== entry.durationMs) {
-        // Retarget (or config change): fresh ease from the CURRENT eased
-        // vector at the current time (no snap) — C3 semantics.
-        entry = { x: entry.x, y: entry.y, targetX: ntx, targetY: nty, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
+      } else if (targetX !== entry.targetX || targetY !== entry.targetY || ease !== entry.ease || Math.max(0, durationMs) !== entry.durationMs) {
+        const current = evaluate(entry, nowMs);
+        entry = { start: current, target: targetQuaternion, targetX, targetY, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
         hands.set(hand, entry);
       }
-      const cm = Math.hypot(entry.x, entry.y);
-      if (cm < Number.EPSILON) {
-        // Defensive: current vanished (should be unreachable) → start from target.
-        entry.x = entry.targetX; entry.y = entry.targetY;
-      } else {
-        const cx = entry.x / cm, cy = entry.y / cm;
-        const theta = Math.atan2(cy, cx);
-        const phi = Math.atan2(entry.targetY, entry.targetX);
-        // Shortest signed arc from current to target: wrap into (−180, 180].
-        let delta = phi - theta;
-        while (delta > Math.PI) delta -= 2 * Math.PI;
-        while (delta <= -Math.PI) delta += 2 * Math.PI;
-        const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
-        const eased = delta * easeValue(t, entry.ease);
-        const angle = theta + eased;
-        entry.x = Math.cos(angle);
-        entry.y = Math.sin(angle);
-        if (t >= 1) { entry.x = entry.targetX; entry.y = entry.targetY; }
-      }
-      return Object.freeze({ x: entry.x, y: entry.y });
+      return vector(evaluate(entry, nowMs));
     },
-    /** Clear every hand's state (call on session generation change). */
     reset() { hands.clear(); },
   });
 }

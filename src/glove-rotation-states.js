@@ -1,5 +1,6 @@
 // @ts-check
 import { easeValue } from "./easing.js";
+import { IDENTITY_QUATERNION, quaternionFromEulerDeg, quaternionToEulerDeg, slerpQuaternionShortest } from "./equipment-quaternion.js";
 // Re-export for backwards compatibility (C3 oracle imports easeValue from here).
 export { easeValue };
 // AeroBeat 0.0.63, bead 2m10 (child C3 of bead 376l; plan
@@ -248,56 +249,36 @@ export function gloveMotionVector(history, nowMs, windowMs = GLOVE_MOTION_WINDOW
 // keeps working unchanged.
 
 /**
- * Per-hand glove rotation state tracker — a small stateful helper that eases
- * the current rotation toward the target state angle over `durationMs` with the
- * configured `ease.type`. Per-hand internal state: the current eased value, the
- * active target, and the start time of the current transition. Retargeting
- * mid-ease starts a NEW ease from the CURRENT eased value to the new target
- * (no snap). State persists across `tick` calls. `reset()` clears every hand
- * (call it on session generation/mode change so a stale eased rotation never
- * bleeds into a new session).
- *
- * @returns {{
- *   tick: (hand: "left" | "right", targetDeg: number, nowMs: number, ease: "linear" | "easeIn" | "easeOut" | "easeInOut", durationMs: number) => number,
- *   reset: () => void
- * }}
+ * Per-hand fixed-endpoint quaternion transition tracker. Each retarget first
+ * evaluates the old transition at the retarget instant, then captures that pose
+ * as the immutable start of a shortest-path slerp to the new Euler target.
+ * Dense and sparse ticks therefore resolve identically for the same timestamps.
  */
 export function createGloveRotationTracker() {
-  /** @type {Map<"left" | "right", {current: number, target: number, startMs: number, ease: "linear"|"easeIn"|"easeOut"|"easeInOut", durationMs: number}>} */
+  /** @type {Map<"left" | "right", {start: Readonly<{x:number,y:number,z:number,w:number}>, target: Readonly<{x:number,y:number,z:number,w:number}>, targetKey:string, startMs:number, ease:"linear"|"easeIn"|"easeOut"|"easeInOut", durationMs:number}>} */
   const hands = new Map();
+  const evaluate = (entry, nowMs) => {
+    const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
+    return slerpQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
+  };
   return Object.freeze({
-    /**
-     * Advance one hand toward its target angle and return the current eased
-     * rotation. A changed target (or a first tick for the hand) starts a fresh
-     * ease from the current eased value at `nowMs`.
-     *
-     * @param {"left" | "right"} hand - The hand.
-     * @param {number} targetDeg - The target state rotation angle (degrees).
-     * @param {number} nowMs - The current session timeline position (ms).
-     * @param {"linear" | "easeIn" | "easeOut" | "easeInOut"} ease - The configured ease type.
-     * @param {number} durationMs - The configured ease duration (ms; <= 0 snaps).
-     * @returns {number} - The hand's current eased rotation (degrees).
-     */
-    tick(hand, targetDeg, nowMs, ease, durationMs) {
+    /** @returns {Readonly<{x:number,y:number,z:number}>} */
+    tick(hand, targetEulerDeg, nowMs, ease, durationMs) {
       if (hand !== "left" && hand !== "right") throw new TypeError("Glove hand must be 'left' or 'right'");
-      if (!Number.isFinite(targetDeg) || !Number.isFinite(nowMs) || !Number.isFinite(durationMs)) throw new TypeError("Glove rotation tracker: targetDeg/nowMs/durationMs must be finite");
+      if (!Number.isFinite(nowMs) || !Number.isFinite(durationMs)) throw new TypeError("Glove rotation tracker: nowMs/durationMs must be finite");
+      const target = quaternionFromEulerDeg(targetEulerDeg);
+      const targetKey = `${target.x},${target.y},${target.z},${target.w}`;
       let entry = hands.get(hand);
       if (entry === undefined) {
-        entry = { current: 0, target: targetDeg, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
+        entry = { start: IDENTITY_QUATERNION, target, targetKey, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
+        hands.set(hand, entry);
+      } else if (targetKey !== entry.targetKey || ease !== entry.ease || Math.max(0, durationMs) !== entry.durationMs) {
+        const current = evaluate(entry, nowMs);
+        entry = { start: current, target, targetKey, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
         hands.set(hand, entry);
       }
-      if (targetDeg !== entry.target || ease !== entry.ease || durationMs !== entry.durationMs) {
-        // Retarget (or config change): start a fresh ease from the current
-        // eased value to the new target at the current time (no snap).
-        entry = { current: entry.current, target: targetDeg, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
-        hands.set(hand, entry);
-      }
-      const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
-      entry.current = entry.current === entry.target ? entry.target : entry.current + (entry.target - entry.current) * easeValue(t, entry.ease);
-      if (t >= 1) entry.current = entry.target;
-      return entry.current;
+      return quaternionToEulerDeg(evaluate(entry, nowMs));
     },
-    /** Clear every hand's state (session generation/mode change). */
     reset() { hands.clear(); },
   });
 }

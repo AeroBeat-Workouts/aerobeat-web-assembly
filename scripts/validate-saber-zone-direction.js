@@ -10,6 +10,7 @@
 // 2026-09-21-0.0.63-playtest-feedback-0.0.62-retest-successor.md (L-C, D4).
 
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   SABER_ZONE_ANCHORS,
   _zoneWeights,
@@ -78,7 +79,7 @@ const FB2 = Object.freeze({ x: 0.6, y: 0.8 }); // 53.130102 deg
 // (b) Center position returns EXACTLY the fallback direction (neutral).
 // ════════════════════════════════════════════════════════════════════════════
 {
-  assert.equal(ZONES.center.rotationDeg, null, "default center zone must be NEUTRAL (null)");
+  assert.equal(ZONES.center.headingDeg, null, "default center zone must be NEUTRAL (null)");
   assert.deepEqual(zoneDirection(0.5, 0.5, FB, ZONES, R), FB, "center + plus-x fallback → EXACTLY +x");
   // With a non-axis motion direction the neutral center must return that
   // direction EXACTLY (bit-identical), not merely "close to it".
@@ -218,11 +219,11 @@ const FB2 = Object.freeze({ x: 0.6, y: 0.8 }); // 53.130102 deg
 // ════════════════════════════════════════════════════════════════════════════
 {
   const z5 = Object.freeze({
-    edgeTop: Object.freeze({ rotationDeg: 90 }),
-    edgeBottom: Object.freeze({ rotationDeg: 270 }),
-    edgeLeft: Object.freeze({ rotationDeg: 180 }),
-    edgeRight: Object.freeze({ rotationDeg: 0 }),
-    center: Object.freeze({ rotationDeg: 45 })
+    edgeTop: Object.freeze({ headingDeg: 90 }),
+    edgeBottom: Object.freeze({ headingDeg: 270 }),
+    edgeLeft: Object.freeze({ headingDeg: 180 }),
+    edgeRight: Object.freeze({ headingDeg: 0 }),
+    center: Object.freeze({ headingDeg: 45 })
   });
   // At the center anchor every edge weight is 0 → pure center angle, and it
   // must be the center angle, NOT the fallback (45 ≠ 0).
@@ -382,12 +383,24 @@ const FB2 = Object.freeze({ x: 0.6, y: 0.8 }); // 53.130102 deg
   vecClose(t6.tick("left", { x: 1, y: 0 }, 10, "linear", 100), 1, 0, 1e-9, "left hand re-initialized after reset");
   vecClose(t6.tick("right", { x: -1, y: 0 }, 10, "linear", 100), -1, 0, 1e-9, "right hand re-initialized after reset");
 
-  // g8: bad inputs rejected.
+  // g8: dense and sparse cadences evaluate the same fixed endpoints.
+  const dense = createSaberDirectionTracker();
+  dense.tick("left", { x:0, y:1 }, 0, "linear", 100);
+  dense.tick("left", { x:-1, y:0 }, 10, "linear", 100);
+  for (let now = 20; now < 110; now += 10) dense.tick("left", { x:-1, y:0 }, now, "linear", 100);
+  const denseEnd = dense.tick("left", { x:-1, y:0 }, 110, "linear", 100);
+  const sparse = createSaberDirectionTracker();
+  sparse.tick("left", { x:0, y:1 }, 0, "linear", 100);
+  sparse.tick("left", { x:-1, y:0 }, 10, "linear", 100);
+  const sparseEnd = sparse.tick("left", { x:-1, y:0 }, 110, "linear", 100);
+  vecClose(denseEnd, sparseEnd.x, sparseEnd.y, 1e-12, "dense/sparse cadence parity");
+
+  // g9: bad inputs rejected.
   const t7 = createSaberDirectionTracker();
   assert.throws(() => t7.tick("nose", { x: 1, y: 0 }, 0, "linear", 100), TypeError, "unknown hand rejected");
   assert.throws(() => t7.tick("left", { x: NaN, y: 0 }, 0, "linear", 100), TypeError, "non-finite target rejected");
 
-  console.log("PASS: (g) shared easing curves + tracker (persistence, retarget, shortest arc, near-parallel, snap, reset, errors)");
+  console.log("PASS: (g) shared easing curves + fixed-endpoint tracker (cadence parity, retarget, shortest arc, snap, reset, errors)");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -436,6 +449,15 @@ const FB2 = Object.freeze({ x: 0.6, y: 0.8 }); // 53.130102 deg
   const rec2 = gameplayEquipmentRecords(false, session, input, "boxing", history, null, zoneDirs);
   for (const r of rec2) assert.ok(!("direction" in r), "boxing record must not carry direction");
   console.log("PASS: (g) gameplayEquipmentRecords — flowZoneDirections absent → motion-only; present → zone directions used; boxing unaffected");
+}
+
+{
+  const assembly = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
+  const body = assembly.match(/\n  computeFlowZoneDirections\(graph, inputOverride = null\) \{(?<body>[\s\S]*?)\n  \}\n\n  renderGameplay/u)?.groups?.body ?? "";
+  assert.match(body, /snapshot\.session\?\.timestampMs/u, "Flow history and tracker use gameplay timestamp domain");
+  assert.match(body, /zoneDirection\(position\.x, 1 - position\.y,/u, "body-grid y-down is converted to authored/judge y-up");
+  assert.doesNotMatch(body, /timelinePositionMs/u, "Flow tracker must not compare wall-clock history samples with content time");
+  console.log("PASS: assembly Flow ownership corrects Y axis and timestamp domain");
 }
 
 console.log("\nAll saber zone direction validations passed.");

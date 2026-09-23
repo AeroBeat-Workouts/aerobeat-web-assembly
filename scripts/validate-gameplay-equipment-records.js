@@ -85,7 +85,7 @@ const find = (records, role) => records.find((r) => r.role === role);
   assert.deepEqual(right.direction, { x: 0, y: 1 }, "stationary right wrist → fallback up");
   // 0.0.63 C2: every equipment record carries the per-hand base transform (defaults 1 / 0).
   for (const r of records) {
-    assert.equal(r.scale, 1, `${r.role} scale default must be 1`);
+    assert.equal(r.scale, 2, `${r.role} Flow scale default must be 2`);
     assert.equal(r.rotationZDeg, 0, `${r.role} rotationZDeg default must be 0`);
   }
   console.log("PASS: freeze active — frozen wrists emitted, per-anchor dimmed, flow direction re-derived, base transform present");
@@ -125,7 +125,7 @@ const find = (records, role) => records.find((r) => r.role === role);
   assert.equal(right.dimmed, true, "degraded right must be dimmed");
   for (const r of records) {
     assert.equal(typeof r.scale, "number", `record ${r.role} must carry numeric scale`);
-    assert.equal(r.scale, 1, `default build config: ${r.role} scale must be 1`);
+    assert.equal(r.scale, 2, `default build config: ${r.role} Flow scale must be 2`);
     assert.equal(typeof r.rotationZDeg, "number", `record ${r.role} must carry numeric rotationZDeg`);
     assert.equal(r.rotationZDeg, 0, `default build config: ${r.role} rotationZDeg must be 0`);
   }
@@ -222,7 +222,7 @@ const find = (records, role) => records.find((r) => r.role === role);
     assert.equal(r.mode, "boxing");
     assert.ok(!("direction" in r), `boxing record for ${r.role} must NOT carry direction`);
     // 0.0.63 C2: base transform present on boxing records too (defaults 1 / 0).
-    assert.equal(r.scale, 1, `boxing ${r.role} scale default must be 1`);
+    assert.equal(r.scale, 0.75, `boxing ${r.role} scale default must be 0.75`);
     assert.equal(r.rotationZDeg, 0, `boxing ${r.role} rotationZDeg default must be 0`);
   }
   assert.equal(find(records, "left_wrist")?.dimmed, true, "left degraded → dimmed");
@@ -267,14 +267,14 @@ const find = (records, role) => records.find((r) => r.role === role);
 {
   const input = inputSnapshot({ tracking: { anchorsFrozen: false, allRequiredAnchorsVisible: true } });
   const config = structuredClone(equipmentConfigDefaults);
-  config.flow.perHand.left.scale = 2;
-  config.flow.perHand.left.rotationZDeg = 17;
+  config.flow.perHand.left.scale = 3;
+  config.flow.perHand.left.rotationEulerDeg = { x: 9, y: -12, z: 17 };
   config.boxing.perHand.right.scale = 1.5;
-  config.boxing.perHand.right.rotationZDeg = -11;
+  config.boxing.perHand.right.rotationEulerDeg = { x: -4, y: 8, z: -11 };
   const flow = gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "flow", flowHistory, null, null, config);
-  assert.equal(find(flow, "left_wrist")?.scale, 2, "live Flow left scale must reach the next equipment record");
+  assert.equal(find(flow, "left_wrist")?.scale, 3, "live Flow left scale must reach the next equipment record");
   assert.equal(find(flow, "left_wrist")?.rotationZDeg, 17, "live Flow left base rotation must reach the next equipment record");
-  const boxing = gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "boxing", flowHistory, { left: 5, right: 7 }, null, config);
+  const boxing = gameplayEquipmentRecords(false, session("playing", "visual_test"), input, "boxing", flowHistory, { left: {x:0,y:0,z:5}, right: {x:0,y:0,z:7} }, null, config);
   assert.equal(find(boxing, "right_wrist")?.scale, 1.5, "live Boxing right scale must reach the next equipment record");
   assert.equal(find(boxing, "right_wrist")?.rotationZDeg, -4, "live Boxing state rotation must add to the edited base rotation");
   console.log("PASS: live config — per-hand scale/base rotation reach the next record and dynamic rotation remains additive");
