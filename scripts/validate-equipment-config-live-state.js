@@ -70,10 +70,24 @@ assert(controlsBody.includes("[data-equipment-preview-toggle='true']"), "control
 assert(controlsBody.includes("control.disabled = !enabled"), "controls must remain Test-authoring gated");
 
 // Preview evidence is renderer-only and the public shell must not publish it.
-assert(source.includes("const TEST_EQUIPMENT_INPUT = Object.freeze("), "private deterministic Test preview evidence required");
+assert(source.includes("testEquipmentInput(this.testEquipmentMouseHand, this.testEquipmentPointerPosition)"), "private per-frame deterministic Test preview evidence required");
 assert(source.includes("visualTest && !this.testEquipmentVisible"), "Test preview must default/gate off");
-assert(source.includes("const equipmentInput = visualTest ? TEST_EQUIPMENT_INPUT : input"), "synthetic evidence may feed only equipment projection in Test");
-assert.equal(source.includes("testEquipmentVisible:"), false, "preview visibility must not enter public records");
+assert(source.includes("this.testAutomaticFeedbackEnabled = true") && source.includes("this.testEquipmentMouseHand = \"off\"") && source.includes("this.testEquipmentPointerPosition = null"), "private authoring defaults must be explicit");
+assert(source.includes("projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, timingWindowMs, this.testAutomaticFeedbackEnabled)"), "one private feedback flag must gate target projection");
+assert(source.includes("aftermathSaberWristHistory, this.testAutomaticFeedbackEnabled)"), "the same private feedback flag must gate aftermath projection");
+assert(source.includes("this.canvasElement().addEventListener(\"pointermove\", this.boundTestEquipmentPointerMove)"), "direct canvas pointermove ownership required");
+assert(source.includes("event.pointerType !== \"mouse\"") && source.includes("normalizedTestEquipmentPointer(event.clientX, event.clientY, this.canvasElement().getBoundingClientRect())"), "mouse CSS-box normalization required");
+const pointerBody = source.slice(source.indexOf("\n  handleTestEquipmentPointerMove("), source.indexOf("\n  setTestEquipmentVisible(", source.indexOf("\n  handleTestEquipmentPointerMove(")));
+assert.equal(pointerBody.includes("pointerleave"), false, "pointer movement handler must not clear latched position on leave");
+assert(source.includes("setDebugCameraAuthoringInputEnabled(hand === \"off\")"), "hand selection must own renderer camera input gate");
+assert(source.includes("const cameraControlEnabled = snapshot.enabled && this.testEquipmentMouseHand === \"off\""), "camera-specific controls must disable while a hand is selected");
+const resetAuthoringStart = source.indexOf("\n  resetTestEquipmentAuthoringState(");
+const resetAuthoringEnd = source.indexOf("\n  setTestAutomaticFeedbackEnabled(", resetAuthoringStart);
+const resetAuthoringBody = source.slice(resetAuthoringStart, resetAuthoringEnd);
+assert(resetAuthoringBody.includes("this.testAutomaticFeedbackEnabled = true") && resetAuthoringBody.includes("this.testEquipmentMouseHand = \"off\"") && resetAuthoringBody.includes("this.testEquipmentPointerPosition = null") && resetAuthoringBody.includes("setDebugCameraAuthoringInputEnabled(true)"), "one reset helper must restore every private default and camera ownership");
+assert(source.includes("if (action === \"test\") { this.testEquipmentVisible = false; this.resetTestEquipmentAuthoringState({ render:false }); }") && source.includes("if (document.hidden) { this.resetTestEquipmentAuthoringState({ render:false });") && (source.match(/this\.resetTestEquipmentAuthoringState\(\{ render:false \}\);/gu) ?? []).length >= 5, "fresh Test, hidden, terminal, stop/reset, and teardown boundaries must reset private authoring state");
+for (const token of ["Automatic GREAT/MISS feedback", "Mouse-controlled hand", "data-equipment-mouse-hand=\"off\"", "data-equipment-mouse-hand=\"left\"", "data-equipment-mouse-hand=\"right\""]) assert(source.includes(token), `missing accessible private authoring control: ${token}`);
+for (const key of ["testEquipmentVisible:", "testAutomaticFeedbackEnabled:", "testEquipmentMouseHand:", "testEquipmentPointerPosition:"]) assert.equal(source.includes(key), false, `${key} must not enter public records`);
 
 // Deterministic YAML is still an export/bake artifact and round-trips exactly.
 const defaults = validateEquipmentConfig(equipmentConfigDefaults);
