@@ -49,6 +49,7 @@ async function runContext(context) {
   if (context.kind === "direct") { await page.goto(childUrl, { waitUntil:"networkidle" }); game = page.locator("aero-game"); }
   else { await page.goto(`${parentUrl}?width=${context.width}&height=${context.height}`, { waitUntil:"networkidle" }); game = page.frameLocator("#game").locator("aero-game"); }
   await game.waitFor();
+  await game.evaluate((element)=>element.ensureEquipmentConfigIdentity());
   const athleteLeftWrist = cameraPreviewToAthlete({ x: 0.1, y: 0.47 });
   const result = await game.evaluate((element, athleteLeftWrist) => {
     const originalGraph = element.graph; const renderer = originalGraph.renderer; const originalFrame = renderer.renderGameplayFrame.bind(renderer);
@@ -77,12 +78,9 @@ async function runContext(context) {
     return {dark,light,stale,menu,calibrating,countdown,frozen,lowConfidence,boxing,boxingLight,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels|equipmentRecords|gameplayEquipment|private_performance|mediaPipeRuntime|poseAge|cameraFormat/u.test(snapshotText),devicePixelRatio};
   },athleteLeftWrist);
   const label=`${context.kind}:${context.width}x${context.height}@${context.dpr}`;
-  // 0.0.62 L-C (r2lb r1a): the flow saber is now a single GLB entity
-  // (flow-saber/flow-saber-v1) with two material slots (core + shell)
-  // inside the same entity. The old primitive saber had a separate core
-  // entity (`equipment-{hand}-core`).
-  const flowNames=(frame,hand)=>[`equipment-${hand}`];
-  const gloveNames=(frame,hand)=>[`equipment-${hand}`];
+  // Canonical pose roots own each model and presentation-only child geometry.
+  const flowNames=(_frame,hand)=>[`equipment-${hand}-pose-root`,`equipment-${hand}-model`,`equipment-${hand}-glow`];
+  const gloveNames=(_frame,hand)=>[`equipment-${hand}-pose-root`,`equipment-${hand}-model`];
   const hasEnabled=(frame,names)=>names.every((name)=>frame.scene.equipment.some((entry)=>entry.name===name&&entry.enabled===true));
   const anyEnabledEquipment=(frame)=>frame.scene.equipment.some((entry)=>entry.enabled===true);
   const noMarkersEnabled=(frame)=>!frame.scene.markers.some((entry)=>entry.enabled===true);
@@ -98,11 +96,12 @@ async function runContext(context) {
   }
   // Flow, playing, full confidence: both hands staged as saber beams.
   assert(result.dark.call.equipment.length===2&&JSON.stringify(result.dark.call.equipment.map((record)=>record.role))===JSON.stringify(["left_wrist","right_wrist"]),`${label} flow playing must stage both hands: ${JSON.stringify(result.dark.call.equipment)}`);
-  assert(result.dark.call.equipment.every((record)=>JSON.stringify(Object.keys(record).sort().filter((key) => !["scale", "rotationZDeg", "dimmed"].includes(key)))===JSON.stringify(["direction", "mode", "role", "x", "y"])&&record.mode==="flow"&&Number.isFinite(record.direction.x)&&Number.isFinite(record.direction.y)),`${label} flow records must be exact bounded records with a finite direction: ${JSON.stringify(result.dark.call.equipment)}`);
-  assert(result.dark.call.equipment.find((record)=>record.role==="left_wrist").x===athleteLeftWrist.x&&result.dark.call.equipment.find((record)=>record.role==="left_wrist").y===athleteLeftWrist.y&&result.dark.call.equipment.find((record)=>record.role==="right_wrist").x===.53&&result.dark.call.equipment.find((record)=>record.role==="right_wrist").y===.71,`${label} equipment records must carry the input wrist coordinates: ${JSON.stringify(result.dark.call.equipment)}`);
+  assert(result.dark.call.equipment.every((record)=>JSON.stringify(Object.keys(record))===JSON.stringify(["role","mode","anchor","scale","orientation","geometryIdentity","configIdentity"])&&record.mode==="flow"&&[record.anchor.x,record.anchor.y,record.anchor.z,record.orientation.x,record.orientation.y,record.orientation.z,record.orientation.w].every(Number.isFinite)),`${label} flow records must be exact canonical resolved poses: ${JSON.stringify(result.dark.call.equipment)}`);
+  const leftPose=result.dark.call.equipment.find((record)=>record.role==="left_wrist"),rightPose=result.dark.call.equipment.find((record)=>record.role==="right_wrist");
+  assert(leftPose.anchor.x===athleteLeftWrist.x*4-.5&&leftPose.anchor.y===2.5-athleteLeftWrist.y*3&&rightPose.anchor.x===.53*4-.5&&rightPose.anchor.y===2.5-.71*3,`${label} equipment poses must carry exact judge-space wrist anchors: ${JSON.stringify(result.dark.call.equipment)}`);
   assert(result.dark.call.result.equipmentCount===2&&result.dark.call.result.cursorCount===0,`${label} renderer must stage both flow equipment records and zero legacy cursors: ${JSON.stringify(result.dark.call.result)}`);
   assert(hasEnabled(result.dark,flowNames(result.dark,"left_wrist"))&&hasEnabled(result.dark,flowNames(result.dark,"right_wrist")),`${label} both flow hands must have enabled equipment + core entities: ${JSON.stringify(result.dark.scene)}`);
-  const darkLeft=result.dark.scene.equipment.find((entry)=>entry.name==="equipment-left_wrist"); assert(darkLeft&&darkLeft.x>0,`${label} camera x=.1 projected athlete x=.9 must remain athlete-right without a second mirror: ${JSON.stringify(darkLeft)}`);
+  const darkLeft=result.dark.scene.equipment.find((entry)=>entry.name==="equipment-left_wrist-pose-root"); assert(darkLeft&&darkLeft.x>0,`${label} camera x=.1 projected athlete x=.9 must remain athlete-right without a second mirror: ${JSON.stringify(darkLeft)}`);
   assert(result.dark.changedPixels>0,`${label} flow saber on dark Aero must alter displayed canvas pixels: ${JSON.stringify({changedPixels:result.dark.changedPixels})}`);
   // Flow on bright Camera: additive glow may not add pixels over #f5f5f5, so prove
   // staging (records + entities), and prove the coordinate seam is environment-stable.
@@ -114,13 +113,12 @@ async function runContext(context) {
   }
   // Countdown retains current calibrated equipment.
   assert(result.countdown.call.equipment.length===2&&result.countdown.call.result.equipmentCount===2&&result.countdown.changedPixels>0,`${label} countdown must retain current calibrated equipment: ${JSON.stringify(result.countdown.call.equipment)} changed=${result.countdown.changedPixels}`);
-  // Mid-run freeze: degraded hand is retained but dimmed; the other hand is not.
-  const frozenLeft=result.frozen.call.equipment.find((record)=>record.role==="left_wrist"),frozenRight=result.frozen.call.equipment.find((record)=>record.role==="right_wrist");
-  assert(result.frozen.call.equipment.length===2&&frozenLeft?.dimmed===true&&frozenRight?.dimmed===false&&hasEnabled(result.frozen,flowNames(result.frozen,"left_wrist"))&&hasEnabled(result.frozen,flowNames(result.frozen,"right_wrist"))&&result.frozen.changedPixels>0,`${label} frozen/degraded left hand must stay retained with dimmed=true while the right hand stays dimmed=false: ${JSON.stringify(result.frozen.call.equipment)} changed=${result.frozen.changedPixels}`);
+  // Mid-run freeze retains both exact hit-bearing poses; dimming is not a pose field.
+  assert(result.frozen.call.equipment.length===2&&result.frozen.call.equipment.every((record)=>!("dimmed" in record))&&hasEnabled(result.frozen,flowNames(result.frozen,"left_wrist"))&&hasEnabled(result.frozen,flowNames(result.frozen,"right_wrist"))&&result.frozen.changedPixels>0,`${label} frozen wrists must retain canonical poses without presentation aliases: ${JSON.stringify(result.frozen.call.equipment)} changed=${result.frozen.changedPixels}`);
   // Low-confidence hand is omitted from records and scene.
-  assert(result.lowConfidence.call.equipment.length===1&&result.lowConfidence.call.equipment.every((record)=>record.role==="right_wrist")&&!result.lowConfidence.scene.equipment.some((entry)=>entry.name==="equipment-left_wrist"&&entry.enabled)&&result.lowConfidence.call.result.equipmentCount===1&&result.lowConfidence.changedPixels>0,`${label} low-confidence wrist must be omitted from equipment records and scene: ${JSON.stringify(result.lowConfidence)}`);
+  assert(result.lowConfidence.call.equipment.length===1&&result.lowConfidence.call.equipment.every((record)=>record.role==="right_wrist")&&!result.lowConfidence.scene.equipment.some((entry)=>entry.name==="equipment-left_wrist-pose-root"&&entry.enabled)&&result.lowConfidence.call.result.equipmentCount===1&&result.lowConfidence.changedPixels>0,`${label} low-confidence wrist must be omitted from equipment records and scene: ${JSON.stringify(result.lowConfidence)}`);
   // Boxing variant: gloves (opaque body + accent), no direction key.
-  assert(result.boxing.call.equipment.length===2&&JSON.stringify(result.boxing.call.equipment.map((record)=>record.role))===JSON.stringify(["left_wrist","right_wrist"])&&result.boxing.call.equipment.every((record)=>JSON.stringify(Object.keys(record).sort().filter((key) => !["scale", "rotationZDeg", "dimmed"].includes(key)))===JSON.stringify(["mode", "role", "x", "y"])&&record.mode==="boxing"),`${label} boxing playing must stage both hands as gloves without a direction: ${JSON.stringify(result.boxing.call.equipment)}`);
+  assert(result.boxing.call.equipment.length===2&&JSON.stringify(result.boxing.call.equipment.map((record)=>record.role))===JSON.stringify(["left_wrist","right_wrist"])&&result.boxing.call.equipment.every((record)=>JSON.stringify(Object.keys(record))===JSON.stringify(["role","mode","anchor","scale","orientation","geometryIdentity","configIdentity"])&&record.mode==="boxing"),`${label} boxing playing must stage both hands as gloves without a direction: ${JSON.stringify(result.boxing.call.equipment)}`);
   assert(result.boxing.call.result.equipmentCount===2&&hasEnabled(result.boxing,gloveNames(result.boxing,"left_wrist"))&&hasEnabled(result.boxing,gloveNames(result.boxing,"right_wrist")),`${label} both boxing hands must have enabled glove GLB entities: ${JSON.stringify(result.boxing.scene)}`);
   assert(result.boxing.changedPixels>0,`${label} boxing gloves on dark Aero must alter displayed canvas pixels: ${JSON.stringify({changedPixels:result.boxing.changedPixels})}`);
   assert(result.boxingLight.changedPixels>0,`${label} opaque boxing gloves must stay pixel-visible over bright Camera: ${JSON.stringify({changedPixels:result.boxingLight.changedPixels})}`);

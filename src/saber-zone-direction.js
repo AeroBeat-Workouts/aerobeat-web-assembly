@@ -35,7 +35,7 @@
 //                      cancel, e.g. fully opposite zone weights).
 
 import { easeValue } from "./easing.js";
-import { quaternionFromEulerDeg, slerpQuaternionShortest } from "./equipment-quaternion.js";
+import { equipmentEulerDegreesToQuaternion, slerpEquipmentQuaternionShortest } from "@aerobeat/web-contracts";
 
 /**
  * A unit direction vector in judge space (+x right, +y up).
@@ -212,7 +212,7 @@ export function createSaberDirectionTracker() {
   const hands = new Map();
   const evaluate = (entry, nowMs) => {
     const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
-    return slerpQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
+    return slerpEquipmentQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
   };
   const vector = (quaternion) => Object.freeze({ x: 1 - 2 * quaternion.z * quaternion.z, y: 2 * quaternion.w * quaternion.z });
   return Object.freeze({
@@ -222,7 +222,7 @@ export function createSaberDirectionTracker() {
       if (!Number.isFinite(tx) || !Number.isFinite(ty) || magnitude < Number.EPSILON) throw new TypeError("Saber direction tracker: target must be a finite non-zero {x,y} vector");
       if (!Number.isFinite(nowMs) || !Number.isFinite(durationMs)) throw new TypeError("Saber direction tracker: nowMs/durationMs must be finite");
       const targetX = tx / magnitude, targetY = ty / magnitude;
-      const targetQuaternion = quaternionFromEulerDeg({ x: 0, y: 0, z: Math.atan2(targetY, targetX) * 180 / Math.PI });
+      const targetQuaternion = equipmentEulerDegreesToQuaternion({ x: 0, y: 0, z: Math.atan2(targetY, targetX) * 180 / Math.PI });
       let entry = hands.get(hand);
       if (entry === undefined) {
         entry = { start: targetQuaternion, target: targetQuaternion, targetX, targetY, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };

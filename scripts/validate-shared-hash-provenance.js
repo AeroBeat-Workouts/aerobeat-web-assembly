@@ -2,7 +2,7 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { relative, resolve } from "node:path";
 import { computeReleaseFingerprint, listReleaseFingerprintInputs, parseReleaseDependencyStatus, readReleaseDependencyProvenance, releaseDependencyPins, validateReleaseDependencyStatus } from "./release-fingerprint.js";
@@ -102,6 +102,7 @@ for (const pin of releaseDependencyPins) {
   assert.ok(sourceRoot);
 }
 for (const path of git(root, "ls-files", "src").split("\n").filter(Boolean)) {
+  if (!existsSync(resolve(root, path))) continue;
   const source = readFileSync(resolve(root, path), "utf8");
   assert.doesNotMatch(source, /(?:crypto\s*\??\.\s*subtle|subtle\s*\.\s*digest)/u, `assembly production ${path} owns a direct SubtleCrypto digest`);
 }

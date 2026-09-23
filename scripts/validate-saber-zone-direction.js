@@ -430,32 +430,20 @@ const FB2 = Object.freeze({ x: 0.6, y: 0.8 }); // 53.130102 deg
     right_wrist: [{ t: 940, x: 0, y: 0 }, { t: 980, x: 0, y: 0 }],
   };
   const find = (records, role) => records.find((r) => r.role === role);
-
-  // Absent param → motion-only (the pre-C4 behavior, unchanged).
-  const rec0 = gameplayEquipmentRecords(false, session, input, "flow", history);
-  assert.deepEqual(find(rec0, "left_wrist").direction, { x: 1, y: 0 }, "absent param: motion-only left");
-  assert.deepEqual(find(rec0, "right_wrist").direction, { x: 0, y: 1 }, "absent param: motion-only right (fallback)");
-
-  // Present param → builder uses the passed per-hand zone directions even
-  // though the history implies a different (motion) direction.
-  const zoneDirs = {
-    left: { x: 0, y: 1, position: { x: 0.5, y: 1.0 } },   // edgeTop target
-    right: { x: -1, y: 0, position: { x: 0.0, y: 0.5 } }, // edgeLeft target
-  };
-  const rec1 = gameplayEquipmentRecords(false, session, input, "flow", history, null, zoneDirs);
-  assert.deepEqual(find(rec1, "left_wrist").direction, { x: 0, y: 1 }, "present param: left uses the zone direction (+y), NOT the motion (+x)");
-  assert.deepEqual(find(rec1, "right_wrist").direction, { x: -1, y: 0 }, "present param: right uses the zone direction (-x)");
-  // Boxing records never carry a direction, with or without the param.
-  const rec2 = gameplayEquipmentRecords(false, session, input, "boxing", history, null, zoneDirs);
-  for (const r of rec2) assert.ok(!("direction" in r), "boxing record must not carry direction");
-  console.log("PASS: (g) gameplayEquipmentRecords — flowZoneDirections absent → motion-only; present → zone directions used; boxing unaffected");
+  const identity={schema:"aerobeat/equipment_config_identity",version:1,algorithm:"sha256",value:"a".repeat(64)};
+  const rec0 = gameplayEquipmentRecords(false, session, input, "flow", history, null, null, undefined, identity);
+  const zoneDirs = { left:{x:0,y:1,localRotationEulerDeg:{x:0,y:0,z:0}}, right:{x:-1,y:0,localRotationEulerDeg:{x:0,y:0,z:0}} };
+  const rec1 = gameplayEquipmentRecords(false, session, input, "flow", history, null, zoneDirs, undefined, identity);
+  assert.notDeepEqual(find(rec0,"left_wrist").orientation,find(rec1,"left_wrist").orientation,"zone heading replaces motion heading in the canonical pose");
+  assert.equal(rec1.every((pose)=>!("direction" in pose)&&!("rotationZDeg" in pose)),true,"resolved poses remove renderer aliases");
+  console.log("PASS: (g) gameplayEquipmentRecords resolves zone/motion headings into canonical alias-free poses");
 }
 
 {
   const assembly = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
   const body = assembly.match(/\n  computeFlowZoneDirections\(graph, inputOverride = null\) \{(?<body>[\s\S]*?)\n  \}\n\n  renderGameplay/u)?.groups?.body ?? "";
   assert.match(body, /snapshot\.session\?\.timestampMs/u, "Flow history and tracker use gameplay timestamp domain");
-  assert.match(body, /zoneDirection\(position\.x, 1 - position\.y,/u, "body-grid y-down is converted to authored/judge y-up");
+  assert.match(body, /judgePosition = \{ x: position\.x, y: 1 - position\.y \}/u, "body-grid y-down is converted to authored/judge y-up");
   assert.doesNotMatch(body, /timelinePositionMs/u, "Flow tracker must not compare wall-clock history samples with content time");
   console.log("PASS: assembly Flow ownership corrects Y axis and timestamp domain");
 }

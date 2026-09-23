@@ -102,6 +102,7 @@ try {
         const evidence = (id, m, lw, rw) => ({ schema: "aerobeat/gameplay_evidence_snapshot", version: 1, calibrationId: "cal-1", measuredSourceFrameId: id, measurementTimestampMs: m, provenance: "measured", activeBoxingActions: [], anchors: [anchor("nose", m, 2, 1.5), anchor("left_shoulder", m, 0, 0), anchor("right_shoulder", m, 3, 0), anchor("left_elbow", m, 0, 0), anchor("right_elbow", m, 3, 0), anchor("left_wrist", m, lw.x, lw.y), anchor("right_wrist", m, rw.x, rw.y)], entries: [] });
         const inputSnap = (m, latest) => ({ sourceIdentity: "camera-a", calibration: { calibrationId: "cal-1", readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: latest, straightQualifications: [] });
         const clockSnap = (ms, playing) => ({ contextTimeSeconds: ms / 1000, positionSeconds: ms / 1000, durationSeconds: undefined, progress: undefined, playing });
+        const { standaloneTestEquipmentPoses } = await import("/src/test-equipment-authoring.js"); await game.ensureEquipmentConfigIdentity();
         const coordinator = createAeroGameplaySessionCoordinator({ sessionId: "lcb2-glove-browser", countdownStepMs: 1 });
         coordinator.configureContent({
           packageId: "lcb2-glove-pkg", selectedVariant: variant, resolvedEvents: events,
@@ -115,7 +116,7 @@ try {
           if (coordinator.getSnapshot().session.state === "playing") break;
         }
         if (coordinator.getSnapshot().session.state !== "playing") throw new Error("session not playing after countdown");
-        const step = (songMs, lw, rw, id) => coordinator.advance({ timestampMs: songMs, clock: clockSnap(songMs, true), input: inputSnap(songMs, evidence(id, songMs, lw, rw)) });
+        const step = (songMs,lw,rw,id) => { const input=inputSnap(songMs,evidence(id,songMs,lw,rw)); return coordinator.advance({timestampMs:songMs,clock:clockSnap(songMs,true),input,equipmentPoses:standaloneTestEquipmentPoses("boxing",input,game.equipmentConfigIdentity)}); };
         // ── drives ──
         const IDLE = { x: 3, y: 1 }; // clearly outside cell 4 (judge (0,1)) and cell 6
         const drive = (center, side, wx, wy, tag) => { for (const d of [-200, -150, -100, -50, 0, 50, 100, 200]) { const lw = side === "left" ? { x: wx, y: wy } : IDLE; const rw = side === "right" ? { x: wx, y: wy } : IDLE; step(center + d, lw, rw, `${tag}${d}`); } };
@@ -197,7 +198,8 @@ try {
         if (missMeanLuma < 30 || missMeanLuma > 130) throw new Error(`p-miss: miss icon luma ${missMeanLuma.toFixed(1)} not in dark-miss range (expected ~#2a3038 with white outline, luma 30-130)`);
         // (d) NOSE MARKER ABSENT + equipment visible (production frame).
         const cursorOptions = { grid: { x: 0, y: 0, width: 1, height: 1 }, minConfidence: 0.5, sizeCssPx: 32 };
-        const equipment = Object.freeze([{ role: "left_wrist", x: (1 + 0.5) / 4, y: (2.5 - 0.5) / 3, mode: "boxing" }, { role: "right_wrist", x: (2.5 + 0.5) / 4, y: (2.5 - 0.5) / 3, mode: "boxing" }]);
+        const equipmentInput=inputSnap(12000,evidence("eq-render",12000,{x:1,y:.5},{x:2.5,y:.5}));
+        const equipment=standaloneTestEquipmentPoses("boxing",equipmentInput,game.equipmentConfigIdentity);
         const eqFrame = frameAt(12000);
         const noseWorld = { x: -2 + ((2 + 0.5) / 4) * 4, y: 2.5 - ((2.5 - 1.5) / 3) * 3, z: 0.45 }; // = (0.5, 1.5, 0.45)
         const noseScreen = project(noseWorld.x, noseWorld.y, noseWorld.z);

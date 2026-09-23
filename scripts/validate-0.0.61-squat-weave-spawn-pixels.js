@@ -171,6 +171,7 @@ try {
         const evidence = (id, m, nose) => ({ schema: "aerobeat/gameplay_evidence_snapshot", version: 1, calibrationId: "cal-1", measuredSourceFrameId: id, measurementTimestampMs: m, provenance: "measured", activeBoxingActions: [], anchors: [anchor("nose", m, nose.x, nose.y), anchor("left_shoulder", m, 0, 0), anchor("right_shoulder", m, 3, 0), anchor("left_elbow", m, 0, 0), anchor("right_elbow", m, 3, 0), anchor("left_wrist", m, 0.5, 0.5), anchor("right_wrist", m, 2.5, 0.5)], entries: [] });
         const inputSnap = (m, latest) => ({ sourceIdentity: "camera-a", calibration: { calibrationId: "cal-1", readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: latest, straightQualifications: [] });
         const clockSnap = (ms, playing) => ({ contextTimeSeconds: ms / 1000, positionSeconds: ms / 1000, durationSeconds: undefined, progress: undefined, playing });
+        const { standaloneTestEquipmentPoses } = await import("/src/test-equipment-authoring.js"); await game.ensureEquipmentConfigIdentity();
         const makeSession = (sessionId, config) => {
           const variantId = `lcb2-${config.type}`;
           const variant = { variantId, chartId: `chart-${variantId}`, mode: "boxing", rulesetId: "boxing_collider_v1", recipeId: null, modifierIds: [], ranked: false, localOnly: true, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: HASH }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: HASH }, provenance: { kind: "imported" } };
@@ -208,7 +209,7 @@ try {
             if (coordinator.getSnapshot().session.state === "playing") break;
           }
           if (coordinator.getSnapshot().session.state !== "playing") throw new Error(`${sessionId}: session not playing after countdown`);
-          const step = (songMs, nose, id) => coordinator.advance({ timestampMs: songMs, clock: clockSnap(songMs, true), input: inputSnap(songMs, evidence(id, songMs, nose)) });
+          const step = (songMs,nose,id) => { const input=inputSnap(songMs,evidence(id,songMs,nose)); return coordinator.advance({timestampMs:songMs,clock:clockSnap(songMs,true),input,equipmentPoses:standaloneTestEquipmentPoses("boxing",input,game.equipmentConfigIdentity)}); };
           return { coordinator, step, events: [obstacle, pad], obstacleId: obstacle.eventId };
         };
         // ── Pixel helpers ──

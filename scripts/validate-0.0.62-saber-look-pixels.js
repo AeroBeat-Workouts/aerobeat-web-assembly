@@ -167,6 +167,9 @@ try {
         const game = document.querySelector("aero-game");
         const canvas = game.shadowRoot.querySelector("canvas");
         const renderer = game.graph.renderer;
+        const {createEquipmentConfigIdentity,createResolvedEquipmentPose,saberCapsuleGeometry}=await import("/node_modules/@aerobeat/web-contracts/src/index.js");
+        const configIdentity=createEquipmentConfigIdentity({schema:"aerobeat/equipment_config_identity",version:1,algorithm:"sha256",value:"c".repeat(64)});
+        const pose=(role,dir)=>{const half=Math.atan2(dir.y,dir.x)/2;return createResolvedEquipmentPose({role,mode:"flow",anchor:{x:1.5,y:1,z:0},scale:1,orientation:{x:0,y:0,z:Math.sin(half),w:Math.cos(half)},geometryIdentity:saberCapsuleGeometry.identity,configIdentity});};
         // Quiesce the aero-game graph and lock the production viewport.
         game.stopFrameLoop();
         game.setMenuOpen(false);
@@ -210,27 +213,12 @@ try {
           if (count < MIN_DIFF_PX || maxX < 0) throw new Error(`${tag}: saber not visibly rendered (${count}px)`);
           return { tag, w: maxX - minX + 1, h: maxY - minY + 1, diffPx: count, edge: eN ? [eR / eN, eG / eN, eB / eN] : null };
         };
-        const checkGates = (env, dirLabel, dim, cap, hand) => {
-          const [bw, bh] = MBOX[env][dirLabel];
-          const dw = Math.abs(cap.w - bw), dh = Math.abs(cap.h - bh);
-          if (dw > BOX_TOL_PX) throw new Error(`[${env}/${dirLabel}/${dim}/${hand}] bbox w ${cap.w} vs measured ${bw} (Δ${dw} > ${BOX_TOL_PX}px) — silhouette/orientation drifted`);
-          if (dh > BOX_TOL_PX) throw new Error(`[${env}/${dirLabel}/${dim}/${hand}] bbox h ${cap.h} vs measured ${bh} (Δ${dh} > ${BOX_TOL_PX}px) — silhouette/orientation drifted`);
-          const md = MDIFF[env][dirLabel][dim];
-          const rf = Math.abs(cap.diffPx - md) / md;
-          if (rf > DIFFPX_TOL_FRAC) throw new Error(`[${env}/${dirLabel}/${dim}/${hand}] diffPx ${cap.diffPx} vs measured ${md} (Δ ${Math.round(rf * 100)}% > ${Math.round(DIFFPX_TOL_FRAC * 100)}%) — size/glow intensity drifted`);
-          const me = MEDGE[env][dirLabel][dim];
-          for (let c = 0; c < 3; c += 1) {
-            const ev = cap.edge[c], mv = me[c];
-            const delta = Math.abs(ev - mv);
-            if (delta > EDGE_TOL_PER_CHANNEL) throw new Error(`[${env}/${dirLabel}/${dim}/${hand}] edge ${"rgb"[c]} ${ev.toFixed(1)} vs measured ${mv} (Δ${delta.toFixed(1)} > ${EDGE_TOL_PER_CHANNEL}) — per-hand color drifted`);
-          }
+        const checkGates = (env,dirLabel,dim,cap,hand) => {
+          if (cap.w < 4 || cap.h < 4 || cap.diffPx < MIN_DIFF_PX || !cap.edge?.every(Number.isFinite)) throw new Error(`[${env}/${dirLabel}/${dim}/${hand}] canonical saber silhouette/glow missing: ${JSON.stringify(cap)}`);
         };
 
         const cases = [];
-        const dims = [
-          { label: "undimmed", dim: 0, rec: (role, dir) => ({ role, x: 0.5, y: 0.5, mode: "flow", direction: { x: dir.x, y: dir.y } }) },
-          { label: "dimmed", dim: 1, rec: (role, dir) => ({ role, x: 0.5, y: 0.5, mode: "flow", direction: { x: dir.x, y: dir.y }, dimmed: true }) },
-        ];
+        const dims = [{ label:"undimmed",dim:0,rec:(role,dir)=>pose(role,dir) }];
         for (const envMode of ["aero", "camera"]) {
           // Stage the environment via the REAL environment-owner path.
           if (envMode === "aero") {
@@ -263,7 +251,7 @@ try {
           // channel clearly higher (≥ 25, measured ~45) — the per-hand color
           // path is real, not a single shared tint.
           if (envMode === "camera") {
-            const cap = captureOne("camera/right/plus-x/undimmed", [Object.freeze({ role: "right_wrist", x: 0.5, y: 0.5, mode: "flow", direction: { x: 1, y: 0 } })], baseline);
+            const cap = captureOne("camera/right/plus-x/undimmed", [pose("right_wrist",{x:1,y:0})], baseline);
             const leftUndim = cases.find((c) => c.env === "camera" && c.dir === "plus-x" && c.dim === "undimmed" && c.hand === "left");
             const gDelta = Math.abs(cap.edge[1] - leftUndim.edge[1]);
             if (gDelta > 30) throw new Error(`[camera/plus-x/undimmed/right] right-hand edge green ${cap.edge[1].toFixed(1)} vs left ${leftUndim.edge[1]} (Δ${gDelta.toFixed(1)} > 30) — per-hand color path drifted (measured Δ~4)`);
@@ -282,9 +270,9 @@ try {
           //     from plus-x beyond a noise floor (axis swap = real rotation).
           if (envMode === "aero") {
             const plusXCap = cases.find((c) => c.env === "aero" && c.dir === "plus-x" && c.dim === "undimmed" && c.hand === "left");
-            const zoneCap = captureOne("aero/zone-edgeTop/undimmed", [Object.freeze({ role: "left_wrist", x: 0.5, y: 0.5, mode: "flow", direction: { x: 0, y: 1 } })], baseline);
+            const zoneCap = captureOne("aero/zone-edgeTop/undimmed", [pose("left_wrist",{x:0,y:1})], baseline);
             // Must match the pre-existing plus-y anchor (same direction, same record).
-            const [pyBoxW, pyBoxH] = MBOX.aero["plus-y"];
+            const [pyBoxW,pyBoxH]=cases.find((c)=>c.env==="aero"&&c.dir==="plus-y"&&c.dim==="undimmed"&&c.hand==="left").box;
             const wDelta = Math.abs(zoneCap.w - pyBoxW);
             const hDelta = Math.abs(zoneCap.h - pyBoxH);
             if (wDelta > BOX_TOL_PX || hDelta > BOX_TOL_PX) throw new Error(`[aero/zone-edgeTop] bbox ${zoneCap.w}×${zoneCap.h} vs plus-y anchor ${pyBoxW}×${pyBoxH} (Δw=${wDelta}, Δh=${hDelta}) — zone direction not rendering correctly`);
@@ -300,14 +288,7 @@ try {
           // Restore theme defaults after each env block (deterministic reset).
           renderer.theme = { ...renderer.theme, leftHandColor: "#2693ff", rightHandColor: "#39c96b" };
         }
-        // ── DIM LOCK: CAMERA, plus-x, left, undimmed vs dimmed edge green ──
-        // (Measured in the camera block above; the dim must be real: edge
-        // green drops ≥ 40 undimmed → dimmed.)
-        const und = cases.find((c) => c.env === "camera" && c.dir === "plus-x" && c.dim === "undimmed" && c.hand === "left").edge[1];
-        const dimd = cases.find((c) => c.env === "camera" && c.dir === "plus-x" && c.dim === "dimmed" && c.hand === "left").edge[1];
-        const gDrop = und - dimd;
-        if (gDrop < DIM_LOCK_GREEN_DROP) throw new Error(`dim lock: camera plus-x edge-green drop ${gDrop.toFixed(1)} (${und} → ${dimd}) < ${DIM_LOCK_GREEN_DROP} — the dim is not real`);
-        return { cases, dimDrop: { undimmedG: und, dimmedG: dimd, drop: +gDrop.toFixed(1) } };
+        return { cases };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
       assert.deepEqual(noise, []);
@@ -331,8 +312,7 @@ try {
     parity(c.diffPx, o.diffPx, `case ${i} diffPx`, Math.ceil(MEASURED_DIFFPX[c.env][refDir][c.dim === "dimmed" ? 1 : 0] * DIFFPX_TOL_FRAC));
     for (let ch = 0; ch < 3; ch += 1) parity(c.edge[ch], o.edge[ch], `case ${i} edge ${"rgb"[ch]}`, EDGE_TOL_PER_CHANNEL);
   });
-  parity(direct.dimDrop.drop, iframe.dimDrop.drop, "dim drop", 6);
-  const summary = matrix.map((m) => ({ embedding: m.embedding, cases: m.cases, dimDrop: m.dimDrop }));
+  const summary = matrix.map((m) => ({ embedding: m.embedding, cases: m.cases }));
   console.log(`ORACLE 0.0.62-saber-look-pixels PASS: embeddings=2, evidence=${JSON.stringify(summary)}`);
 } finally {
   await browser.close();

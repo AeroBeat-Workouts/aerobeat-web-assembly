@@ -1,17 +1,18 @@
 // @ts-check
 import { easeValue } from "./easing.js";
-import { IDENTITY_QUATERNION, quaternionFromEulerDeg, quaternionToEulerDeg, slerpQuaternionShortest } from "./equipment-quaternion.js";
+import { equipmentEulerDegreesToQuaternion, slerpEquipmentQuaternionShortest } from "@aerobeat/web-contracts";
+
+const IDENTITY_QUATERNION = Object.freeze({ x: 0, y: 0, z: 0, w: 1 });
 // Re-export for backwards compatibility (C3 oracle imports easeValue from here).
 export { easeValue };
 // AeroBeat 0.0.63, bead 2m10 (child C3 of bead 376l; plan
 // 2026-09-21-0.0.63-playtest-feedback-0.0.62-retest-successor.md, L-C design,
 // D3 confirmed): BOXING GLOVE ROTATION STATES. The per-hand state selection
-// plus config-driven easing that feeds the per-record rotationZDeg in boxing
-// mode.
+// plus config-driven easing feeds the animated quaternion composed into each
+// canonical resolved boxing pose.
 //
-// The C2 plumbing already exists: equipment records carry rotationZDeg (the
-// renderer applies it as an in-plane Z rotation around the wrist) and the
-// config foundation defines boxing.glove with states, ease, and
+// Equipment records carry only their final contracts-owned orientation, while
+// the config foundation defines boxing.glove with XYZ states, ease, and
 // upcomingBeatWindowMs. This module owns ONLY the selection plus easing
 // decision; it is plain data with no DOM/renderer/session imports so it stays
 // unit-testable.
@@ -259,14 +260,14 @@ export function createGloveRotationTracker() {
   const hands = new Map();
   const evaluate = (entry, nowMs) => {
     const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
-    return slerpQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
+    return slerpEquipmentQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
   };
   return Object.freeze({
-    /** @returns {Readonly<{x:number,y:number,z:number}>} */
+    /** @returns {Readonly<{x:number,y:number,z:number,w:number}>} */
     tick(hand, targetEulerDeg, nowMs, ease, durationMs) {
       if (hand !== "left" && hand !== "right") throw new TypeError("Glove hand must be 'left' or 'right'");
       if (!Number.isFinite(nowMs) || !Number.isFinite(durationMs)) throw new TypeError("Glove rotation tracker: nowMs/durationMs must be finite");
-      const target = quaternionFromEulerDeg(targetEulerDeg);
+      const target = equipmentEulerDegreesToQuaternion(targetEulerDeg);
       const targetKey = `${target.x},${target.y},${target.z},${target.w}`;
       let entry = hands.get(hand);
       if (entry === undefined) {
@@ -277,7 +278,7 @@ export function createGloveRotationTracker() {
         entry = { start: current, target, targetKey, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
         hands.set(hand, entry);
       }
-      return quaternionToEulerDeg(evaluate(entry, nowMs));
+      return evaluate(entry, nowMs);
     },
     reset() { hands.clear(); },
   });

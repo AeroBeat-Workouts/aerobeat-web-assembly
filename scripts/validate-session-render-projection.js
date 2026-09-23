@@ -53,8 +53,9 @@ assert.equal(projectSessionTargets(events,testTruth,2180,straightIndex,180,false
 assert.equal(projectSessionTargets(events,testTruth,2181,straightIndex,180,false).some((entry)=>entry.id==="flow-2"),false,"disabled miss candidate culls rather than becoming a synthetic miss");
 assert.equal(JSON.stringify(projectSessionTargets(events,playHit,1100,straightIndex)),JSON.stringify(projectSessionTargets(events,playHit,1100,straightIndex,180,false)),"false cannot suppress or alter a real Play hit judgement");
 assert.equal(JSON.stringify(projectSessionTargets(events,playMiss,1200,straightIndex)),JSON.stringify(projectSessionTargets(events,playMiss,1200,straightIndex,180,false)),"false cannot suppress or alter a real Play miss judgement");
-const hostileTestTruth=Object.freeze({...testTruth,judgements:Object.freeze([hit])});
-assert.equal(projectSessionTargets(events,hostileTestTruth,1100,straightIndex,180,false)[0]?.judgement,"pending","disabled Visual Test ignores adversarial judgement data exactly as the existing unranked path does");
+const realTestTruth=Object.freeze({...testTruth,judgements:Object.freeze([{...hit,sessionPurpose:"visual_test"}])});
+assert.equal(projectSessionTargets(events,realTestTruth,1100,straightIndex,180,false)[0]?.judgement,"hit","real Visual Test judgement truth drives target feedback when synthetic feedback is disabled");
+assert.equal(projectSessionTargets(events,realTestTruth,1100,straightIndex,180,true)[0]?.judgement,"hit","real and synthetic outcomes remain mutually exclusive");
 
 const sourceGeometry=Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_1",x:1,y:2,width:1,height:3});
 const gameplayGeometry=Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:1,y:0,width:1,height:3});

@@ -7,6 +7,7 @@
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { equipmentEulerDegreesToQuaternion } from "@aerobeat/web-contracts";
 import {
   GLOVE_MOTION_DEAD_ZONE,
   GLOVE_MOTION_WINDOW_MS,
@@ -122,12 +123,13 @@ import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
   }, "upcoming interval remains inclusive at both boundaries");
 
   const assemblySource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
-  const renderGameplayBody = assemblySource.match(/\n  renderGameplay\(graph = this\.graph\) \{(?<body>[\s\S]*?)\n  \}\n\n  \/\*\* @param \{ReturnType<typeof createAeroGameServiceGraph>\} \[graph\] \*\//u)?.groups?.body ?? "";
+  const renderGameplayBody = assemblySource.match(/\n  renderGameplay\(graph = this\.graph, equipmentOverride = null\) \{(?<body>[\s\S]*?)\n  \}\n\n  \/\*\* @param \{ReturnType<typeof createAeroGameServiceGraph>\} \[graph\] \*\//u)?.groups?.body ?? "";
   assert.notEqual(renderGameplayBody, "", "renderGameplay source body must be found");
-  assert.equal((renderGameplayBody.match(/this\.rendererFrame\(\)/gu) ?? []).length, 1, "one rendererFrame projection per renderGameplay call");
-  assert.match(renderGameplayBody, /const frame = this\.rendererFrame\(\)/u, "renderGameplay owns the single frame projection");
-  assert.match(renderGameplayBody, /this\.computeBoxingStateRotations\(graph, frame\)/u, "Boxing state selection receives the rendered frame");
+  assert.match(renderGameplayBody, /const frame = this\.rendererFrame\(\)/u, "renderGameplay owns one presentation frame");
+  assert.match(renderGameplayBody, /equipmentOverride \?\? this\.resolveEquipmentPoses/u, "renderer consumes the already-resolved shared pose frame when supplied");
   assert.match(renderGameplayBody, /renderGameplayFrameWithCursorsAndEquipment\(frame,/u, "renderer consumes that same frame object");
+  const poseBody=assemblySource.match(/\n  resolveEquipmentPoses\(graph, session, equipmentInput, frame\) \{(?<body>[\s\S]*?)\n  \}\n\n  visualTestProductionFrame/u)?.groups?.body??"";
+  assert.match(poseBody,/this\.computeBoxingStateRotations\(graph, frame\)/u,"Boxing state selection receives the rendered frame");
   const boxingRotationBody = assemblySource.match(/\n  computeBoxingStateRotations\(graph, frame\) \{(?<body>[\s\S]*?)\n  \}\n\n  \/\*\*/u)?.groups?.body ?? "";
   assert.notEqual(boxingRotationBody, "", "computeBoxingStateRotations source body must be found");
   assert.doesNotMatch(boxingRotationBody, /rendererFrame\(/u, "Boxing state selection must not project another renderer frame");
@@ -181,24 +183,24 @@ import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
   sparse.tick("left", target, 0, "linear", 100);
   const sparseEnd = sparse.tick("left", target, 100, "linear", 100);
   assert.deepEqual(denseEnd, sparseEnd, "dense and sparse cadences resolve identically");
-  for (const axis of ["x", "y", "z"]) assert.ok(Math.abs(denseEnd[axis] - target[axis]) < 1e-9, `${axis} reaches target`);
+  assert.deepEqual(denseEnd,equipmentEulerDegreesToQuaternion(target),"tracker reaches canonical target quaternion");
 
   const shortest = createGloveRotationTracker();
   shortest.tick("left", { x:0, y:0, z:170 }, 0, "linear", 0);
   shortest.tick("left", { x:0, y:0, z:-170 }, 10, "linear", 100);
   const halfway = shortest.tick("left", { x:0, y:0, z:-170 }, 60, "linear", 100);
-  assert.ok(Math.abs(Math.abs(halfway.z) - 180) < 1e-9, `+170→-170 follows 20° shortest path (got ${halfway.z})`);
+  assert.ok(Math.abs(Math.abs(halfway.z) - 1) < 1e-9 && Math.abs(halfway.w)<1e-9, "+170→-170 follows the shortest path through 180°");
 
   const retarget = createGloveRotationTracker();
   retarget.tick("left", { x:0, y:0, z:90 }, 0, "linear", 100);
   const before = retarget.tick("left", { x:0, y:0, z:90 }, 50, "linear", 100);
   const atRetarget = retarget.tick("left", { x:45, y:20, z:-90 }, 50, "linear", 100);
-  assert.deepEqual(atRetarget, before, "retarget captures the evaluated pose without snapping");
+  for(const key of ["x","y","z","w"]) assert.ok(Math.abs(atRetarget[key]-before[key])<1e-15,"retarget captures the evaluated pose without snapping");
   const done = retarget.tick("left", { x:45, y:20, z:-90 }, 150, "linear", 100);
-  assert.ok(Math.abs(done.x - 45) < 1e-9 && Math.abs(done.y - 20) < 1e-9 && Math.abs(done.z + 90) < 1e-9);
+  assert.deepEqual(done,equipmentEulerDegreesToQuaternion({x:45,y:20,z:-90}));
 
   retarget.reset();
-  assert.deepEqual(retarget.tick("left", { x:0, y:0, z:0 }, 200, "linear", 100), { x:0, y:0, z:0 });
+  assert.deepEqual(retarget.tick("left", { x:0, y:0, z:0 }, 200, "linear", 100), { x:0, y:0, z:0,w:1 });
   assert.throws(() => retarget.tick("nose", target, 0, "linear", 100), TypeError);
   console.log("PASS: fixed-endpoint XYZ quaternion tracker is shortest-path, cadence-independent, retargetable, and resettable");
 }

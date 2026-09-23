@@ -41,19 +41,21 @@ for (const group of ["Flow · hand transforms", "Flow · saber zones", "Boxing �
 // Accepted control edits validate atomically, reset easing trackers so the
 // edited orientation is visible immediately, refresh controls, and explicitly
 // render even when the display loop is stopped.
+const commitStart = source.indexOf("\n  async commitEquipmentConfig(");
 const applyStart = source.indexOf("\n  applyEquipmentConfigControl(");
 const resetStart = source.indexOf("\n  resetEquipmentConfig(");
 const exportStart = source.indexOf("\n  exportEquipmentConfig(");
 const controlsStart = source.indexOf("\n  renderEquipmentConfigControls(");
-assert(applyStart > 0 && resetStart > applyStart && exportStart > resetStart && controlsStart > exportStart, "live equipment methods must exist in canonical order");
-const applyBody = source.slice(applyStart, resetStart);
-assert(applyBody.includes("equipmentConfigCandidate(this.equipmentConfig, path, value)"), "field edit must validate and atomically replace live config");
-assert(applyBody.includes("this.gloveRotationTracker.reset()") && applyBody.includes("this.saberDirectionTracker.reset()"), "field edit must reset live orientation easing");
-assert(applyBody.includes("this.renderEquipmentConfigControls()") && applyBody.includes("this.renderGameplay()"), "field edit must refresh controls and next rendered frame explicitly");
+assert(commitStart > 0 && applyStart > commitStart && resetStart > applyStart && exportStart > resetStart && controlsStart > exportStart, "live equipment methods must exist in canonical order");
+const commitBody=source.slice(commitStart,applyStart),applyBody = source.slice(applyStart, resetStart);
+assert(applyBody.includes("equipmentConfigCandidate(this.equipmentConfig, path, value)"), "field edit must validate a complete candidate");
+assert(commitBody.includes("await this.equipmentIdentityFor(candidate)")&&commitBody.includes("this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity"),"config and strict SHA-256 identity commit atomically after the async boundary");
+assert(commitBody.includes("this.gloveRotationTracker.reset()") && commitBody.includes("this.saberDirectionTracker.reset()"), "field edit must reset live orientation easing");
+assert(commitBody.includes('await this.startSession("visual_test"')&&commitBody.includes("this.renderEquipmentConfigControls()") && commitBody.includes("this.renderGameplay()"), "field edit restarts scoring and refreshes the rendered frame");
 
 const resetBody = source.slice(resetStart, exportStart);
 assert(resetBody.includes("validateEquipmentConfig(equipmentConfigDefaults)"), "Reset must restore validated build defaults");
-assert(resetBody.includes("this.renderEquipmentConfigControls()") && resetBody.includes("this.renderGameplay()"), "Reset must refresh controls and rendering immediately");
+assert(resetBody.includes('this.commitEquipmentConfig(validateEquipmentConfig(equipmentConfigDefaults), "Reset to build defaults.")'), "Reset must use the same atomic identity/restart path");
 
 const exportBody = source.slice(exportStart, controlsStart);
 assert(exportBody.includes("serializeEquipmentConfigYaml(this.equipmentConfig)"), "Export must serialize live validated state, not draft text");

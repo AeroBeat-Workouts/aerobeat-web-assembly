@@ -70,7 +70,7 @@ try {
         renderer.resize({ widthCssPx: 844, heightCssPx: 390, devicePixelRatio: 1 });
         renderer.setEnvironmentVisible(false);
         renderer.setBackgroundProjection({ kind: "solid", colors: ["#071426"], angleDeg: 180 });
-        const [{ createAeroGameplaySessionCoordinator }] = await Promise.all([import("/node_modules/@aerobeat/web-gameplay/src/index.js")]);
+        const [{ createAeroGameplaySessionCoordinator }, { createEquipmentConfigIdentity, createResolvedEquipmentPose, gloveObbGeometry }] = await Promise.all([import("/node_modules/@aerobeat/web-gameplay/src/index.js"),import("/node_modules/@aerobeat/web-contracts/src/index.js")]);
         // Build a real boxing_collider_v1 session with a full-height left-column
         // wall (weave_right) and drive a measured nose sweep into it.
         const HASH = "a".repeat(64);
@@ -95,7 +95,9 @@ try {
         coordinator.advance({ timestampMs: 2, clock: clockSnap(0, false) });
         coordinator.advance({ timestampMs: 3, clock: clockSnap(0, false) });
         // Nose outside → inside (segment entry) → exit → past-end (finalize).
-        const send = (songMs, sx, sy, id) => coordinator.advance({ timestampMs: songMs, clock: clockSnap(songMs, true), input: inputSnap(songMs, evidence(id, songMs, sx, sy)) });
+        const configIdentity=createEquipmentConfigIdentity({schema:"aerobeat/equipment_config_identity",version:1,algorithm:"sha256",value:"b".repeat(64)});
+        const equipmentPoses=Object.freeze([["left_wrist",1,1],["right_wrist",3,1]].map(([role,x,y])=>createResolvedEquipmentPose({role,mode:"boxing",anchor:{x,y,z:0},scale:.75,orientation:{x:0,y:0,z:0,w:1},geometryIdentity:gloveObbGeometry.identity,configIdentity})));
+        const send = (songMs, sx, sy, id) => coordinator.advance({ timestampMs: songMs, clock: clockSnap(songMs, true), input: inputSnap(songMs, evidence(id, songMs, sx, sy)), equipmentPoses });
         const preState = coordinator.getSnapshot().session.state;
         if (preState !== "playing") throw new Error(`session must be "playing" before driving the collision, got "${preState}" (countdownStepMs: 1 required)`);
         send(950, 1, 2, "f0");

@@ -174,6 +174,17 @@ export function parseEquipmentConfigYaml(text) {
   return validateEquipmentConfig(migrated);
 }
 
+/** Canonical JSON bytes used only as the contracts-owned identity input payload. */
+export function canonicalEquipmentConfigJson(config) {
+  const canonical = (value) => {
+    if (value === null || typeof value === "boolean" || typeof value === "string" || typeof value === "number") return JSON.stringify(Object.is(value, -0) ? 0 : value);
+    if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+    const keys = Object.keys(value).sort();
+    return `{${keys.map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+  };
+  return canonical(validateEquipmentConfig(config));
+}
+
 /** Serialize one complete canonical v2 record in deterministic schema order. */
 export function serializeEquipmentConfigYaml(config) {
   return serializeYamlSubset(validateEquipmentConfig(config));

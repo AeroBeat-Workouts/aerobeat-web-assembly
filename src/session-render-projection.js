@@ -89,7 +89,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   const modifiers = Array.isArray(modifierValue) ? modifierValue : [];
   const judgementsValue = recordValue(gameplay, "judgements");
   const obstacleOutcomesValue = recordValue(gameplay, "obstacleOutcomes");
-  const obstacleOutcomes = new Map((visualTest ? [] : Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
+  const obstacleOutcomes = new Map((Array.isArray(obstacleOutcomesValue) ? obstacleOutcomesValue : []).filter(isRecord).map((entry) => [String(recordValue(entry, "eventId") ?? ""), entry]));
   const judgements = Array.isArray(judgementsValue) ? judgementsValue : [];
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
   const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];
@@ -117,8 +117,8 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
     } else if (isRenderableFeedbackType(type)) {
       const eventId = String(recordValue(event, "eventId") ?? "");
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
-      const real = visualTest ? null : realJudgements.get(eventId) ?? null;
-      const syntheticFeedback = visualTest && visualTestSyntheticFeedbackEnabled;
+      const real = realJudgements.get(eventId) ?? null;
+      const syntheticFeedback = visualTest && visualTestSyntheticFeedbackEnabled && real === null;
       const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : timingWindowAfterMs + 1) : null;
       const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
       const realResult = real?.result;
