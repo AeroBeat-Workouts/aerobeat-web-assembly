@@ -1,5 +1,5 @@
 // @ts-check
-// Strict canonical equipment configuration v3, deterministic full v2 -> v3
+// Strict canonical equipment configuration v4, deterministic full v2/v3 -> v4
 // migration, and boundary-only migration for wholly legacy unversioned Z-only YAML.
 
 import { equipmentConfigIdentityInput } from "@aerobeat/web-contracts";
@@ -7,7 +7,8 @@ import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 import { parseYamlSubset, serializeYamlSubset } from "./equipment-config-yaml.js";
 
 export const EQUIPMENT_CONFIG_SCHEMA = "aerobeat/equipment_config";
-export const EQUIPMENT_CONFIG_VERSION = 3;
+export const EQUIPMENT_CONFIG_VERSION = 4;
+export const EQUIPMENT_CONFIG_PREVIOUS_VERSION = 3;
 export const EQUIPMENT_CONFIG_LEGACY_VERSION = 2;
 export const EQUIPMENT_EASE_TYPES = Object.freeze(["linear", "easeIn", "easeOut", "easeInOut"]);
 export const SABER_ZONE_KEYS = Object.freeze(["edgeTop", "edgeBottom", "edgeLeft", "edgeRight"]);
@@ -109,7 +110,7 @@ function validateVersion(value, version, zoneKeys) {
   }
 
   const blendRadius = finite(saber.blendRadius, "(root).flow.saber.blendRadius");
-  if (version === EQUIPMENT_CONFIG_VERSION && (blendRadius <= 0 || blendRadius > 0.5)) throw new Error("equipment config: (root).flow.saber.blendRadius must be in (0, 0.5]");
+  if (version !== EQUIPMENT_CONFIG_LEGACY_VERSION && (blendRadius <= 0 || blendRadius > 0.5)) throw new Error("equipment config: (root).flow.saber.blendRadius must be in (0, 0.5]");
 
   return Object.freeze({
     schema: EQUIPMENT_CONFIG_SCHEMA,
@@ -125,18 +126,26 @@ function validateVersion(value, version, zoneKeys) {
   });
 }
 
-/** Validate and canonicalize one complete v3 runtime record. */
+/** Validate and canonicalize one complete v4 runtime record. */
 export function validateEquipmentConfig(value) {
   return validateVersion(value, EQUIPMENT_CONFIG_VERSION, SABER_ZONE_KEYS);
+}
+
+/** Deterministically migrate one complete strict v3 record to v4 semantics. */
+export function migrateEquipmentConfigV3(value) {
+  const v3 = validateVersion(value, EQUIPMENT_CONFIG_PREVIOUS_VERSION, SABER_ZONE_KEYS);
+  const migrated = structuredClone(v3);
+  migrated.version = EQUIPMENT_CONFIG_VERSION;
+  return validateEquipmentConfig(migrated);
 }
 
 /** Deterministically migrate one complete strict v2 record, deleting authored center. */
 export function migrateEquipmentConfigV2(value) {
   const v2 = validateVersion(value, EQUIPMENT_CONFIG_LEGACY_VERSION, V2_SABER_ZONE_KEYS);
   const migrated = structuredClone(v2);
-  migrated.version = EQUIPMENT_CONFIG_VERSION;
+  migrated.version = EQUIPMENT_CONFIG_PREVIOUS_VERSION;
   delete migrated.flow.saber.zones.center;
-  return validateEquipmentConfig(migrated);
+  return migrateEquipmentConfigV3(migrated);
 }
 
 function walkKeys(value, visit) {
@@ -181,7 +190,7 @@ function overlayLegacy(target, source, path = "(root)") {
   }
 }
 
-/** Parse canonical v3 YAML, fully migrate strict v2, or migrate wholly legacy unversioned YAML. */
+/** Parse canonical v4 YAML, fully migrate strict v2/v3, or migrate wholly legacy unversioned YAML. */
 export function parseEquipmentConfigYaml(text) {
   const parsed = parseYamlSubset(text);
   const root = record(parsed, "(root)");
@@ -191,6 +200,7 @@ export function parseEquipmentConfigYaml(text) {
   if (legacy && (structured || versioned)) throw new Error("equipment config: mixed legacy/versioned document is not allowed");
   if (versioned || structured) {
     if (root.schema === EQUIPMENT_CONFIG_SCHEMA && root.version === EQUIPMENT_CONFIG_LEGACY_VERSION) return migrateEquipmentConfigV2(root);
+    if (root.schema === EQUIPMENT_CONFIG_SCHEMA && root.version === EQUIPMENT_CONFIG_PREVIOUS_VERSION) return migrateEquipmentConfigV3(root);
     return validateEquipmentConfig(root);
   }
   const migrated = cloneDefaults();
@@ -209,7 +219,7 @@ export function canonicalEquipmentConfigJson(config) {
   return canonical(validateEquipmentConfig(config));
 }
 
-/** Contracts-owned identity envelope for one canonical runtime v3 config. */
+/** Contracts-owned identity envelope for one canonical runtime v4 config. */
 export function canonicalEquipmentConfigIdentityInput(config) {
   return equipmentConfigIdentityInput({
     configSchema: EQUIPMENT_CONFIG_SCHEMA,
@@ -218,7 +228,7 @@ export function canonicalEquipmentConfigIdentityInput(config) {
   });
 }
 
-/** Serialize one complete canonical v3 record in deterministic schema order. */
+/** Serialize one complete canonical v4 record in deterministic schema order. */
 export function serializeEquipmentConfigYaml(config) {
   return serializeYamlSubset(validateEquipmentConfig(config));
 }

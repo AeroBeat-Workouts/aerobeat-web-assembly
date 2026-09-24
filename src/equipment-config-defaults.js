@@ -1,24 +1,24 @@
 // @ts-check
 // Canonical build-default bake target for private Visual Test equipment authoring.
-// Exported YAML and baked defaults use aerobeat/equipment_config version 3.
+// Exported YAML and baked defaults use aerobeat/equipment_config version 4.
 
 const euler = (x = 0, y = 0, z = 0) => Object.freeze({ x, y, z });
 
-/** Complete, deeply frozen canonical equipment configuration v3. */
+/** Complete, deeply frozen canonical equipment configuration v4. */
 export const equipmentConfigDefaults = Object.freeze({
   schema: "aerobeat/equipment_config",
-  version: 3,
+  version: 4,
   flow: Object.freeze({
     perHand: Object.freeze({
-      left: Object.freeze({ scale: 2, rotationEulerDeg: euler() }),
-      right: Object.freeze({ scale: 2, rotationEulerDeg: euler() })
+      left: Object.freeze({ scale: 2, rotationEulerDeg: euler(0, -90, 0) }),
+      right: Object.freeze({ scale: 2, rotationEulerDeg: euler(0, -90, 0) })
     }),
     saber: Object.freeze({
       zones: Object.freeze({
-        edgeTop: Object.freeze({ headingDeg: 90, localRotationEulerDeg: euler() }),
-        edgeBottom: Object.freeze({ headingDeg: -90, localRotationEulerDeg: euler() }),
-        edgeLeft: Object.freeze({ headingDeg: -180, localRotationEulerDeg: euler() }),
-        edgeRight: Object.freeze({ headingDeg: 0, localRotationEulerDeg: euler() })
+        edgeTop: Object.freeze({ headingDeg: 90, localRotationEulerDeg: euler(0, 0, 45) }),
+        edgeBottom: Object.freeze({ headingDeg: -90, localRotationEulerDeg: euler(0, 0, -45) }),
+        edgeLeft: Object.freeze({ headingDeg: -180, localRotationEulerDeg: euler(0, -45, 0) }),
+        edgeRight: Object.freeze({ headingDeg: 0, localRotationEulerDeg: euler(0, 145, 0) })
       }),
       ease: Object.freeze({ type: "linear", durationMs: 100 }),
       blendRadius: 0.15
