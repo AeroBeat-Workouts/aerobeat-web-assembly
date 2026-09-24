@@ -18,6 +18,8 @@ export const SABER_ZONE_ANCHORS = Object.freeze({
 });
 
 const ZERO_EULER = Object.freeze({ x: 0, y: 0, z: 0 });
+const IDENTITY_QUATERNION = Object.freeze({ x: 0, y: 0, z: 0, w: 1 });
+const ZERO_WEIGHTS = Object.freeze({ edgeTop: 0, edgeBottom: 0, edgeLeft: 0, edgeRight: 0 });
 const CENTER_EPSILON = 1e-15;
 
 function finite(value, name) {
@@ -56,6 +58,17 @@ export function projectSquareRadialOrientation(x, y) {
   const extent = Math.max(Math.abs(dx), Math.abs(dy));
   if (extent <= CENTER_EPSILON) return null;
   return Object.freeze({ x: 0.5 + dx / (2 * extent), y: 0.5 + dy / (2 * extent) });
+}
+
+/**
+ * Smooth edge influence for a finite point. The square radius is zero at exact
+ * center and one at/on/outside the square; position itself remains caller-owned.
+ */
+export function squareRadialNeutralInfluence(x, y) {
+  const px = Math.max(0, Math.min(1, finite(x, "squareRadialNeutralInfluence: x")));
+  const py = Math.max(0, Math.min(1, finite(y, "squareRadialNeutralInfluence: y")));
+  const radius = Math.max(0, Math.min(1, 2 * Math.max(Math.abs(px - 0.5), Math.abs(py - 0.5))));
+  return Object.freeze({ radius, influence: smoothstep01(radius) });
 }
 
 /**
@@ -100,26 +113,39 @@ export function squareRadialEdgeWeights(x, y, blendRadius) {
 }
 
 /**
- * Resolve the complete spatial target quaternion (heading * local XYZ). This is
- * deliberately null only at exact center; stateful center retention belongs to
- * createSquareRadialSaberTargetTracker().
+ * Resolve the complete spatial target quaternion. The perimeter target composes
+ * heading * local XYZ first; smooth square-radius influence then slerps from the
+ * identity spatial adjustment at center to that target at/on/outside the edge.
  */
 export function squareRadialSaberTarget(x, y, zones, blendRadius) {
   if (zones === null || typeof zones !== "object") throw new TypeError("squareRadialSaberTarget: zones must be an object");
+  const radial = squareRadialNeutralInfluence(x, y);
   const field = squareRadialEdgeWeights(x, y, blendRadius);
-  if (field === null) return null;
+  if (field === null) return Object.freeze({
+    boundary: null,
+    weights: ZERO_WEIGHTS,
+    primary: null,
+    adjacent: null,
+    adjacentWeight: 0,
+    radius: radial.radius,
+    influence: radial.influence,
+    perimeterOrientation: IDENTITY_QUATERNION,
+    orientation: IDENTITY_QUATERNION
+  });
   const primary = edgeQuaternion(zones[field.primary], field.primary);
-  const orientation = field.adjacent === null || field.adjacentWeight === 0
+  const perimeterOrientation = field.adjacent === null || field.adjacentWeight === 0
     ? primary
     : slerpEquipmentQuaternionShortest(primary, edgeQuaternion(zones[field.adjacent], field.adjacent), field.adjacentWeight);
-  return Object.freeze({ ...field, orientation });
+  return Object.freeze({
+    ...field,
+    radius: radial.radius,
+    influence: radial.influence,
+    perimeterOrientation,
+    orientation: slerpEquipmentQuaternionShortest(IDENTITY_QUATERNION, perimeterOrientation, radial.influence)
+  });
 }
 
-/**
- * Stateful complete-target resolver. Exact center retains the last non-center
- * spatial target; without history left bootstraps from edgeLeft and right from
- * edgeRight. Temporal easing always uses fixed quaternion endpoints.
- */
+/** Stateful fixed-endpoint temporal easing over the stateless spatial field. */
 export function createSquareRadialSaberTargetTracker() {
   const hands = new Map();
   const evaluate = (entry, nowMs) => {
@@ -132,30 +158,22 @@ export function createSquareRadialSaberTargetTracker() {
       finite(nowMs, "Square-radial saber tracker: nowMs");
       finite(durationMs, "Square-radial saber tracker: durationMs");
       const spatial = squareRadialSaberTarget(x, y, zones, blendRadius);
+      const target = spatial.orientation;
       let entry = hands.get(hand);
-      let stableTarget = spatial?.orientation ?? entry?.stableTarget;
-      let bootstrapped = false;
-      if (stableTarget === undefined) {
-        const key = hand === "left" ? "edgeLeft" : "edgeRight";
-        stableTarget = edgeQuaternion(zones[key], key);
-        bootstrapped = true;
-      }
       const clampedDuration = Math.max(0, durationMs);
       if (entry === undefined) {
-        entry = { start: stableTarget, target: stableTarget, stableTarget, startMs: nowMs, ease, durationMs: clampedDuration };
-      } else if (!quaternionEqual(stableTarget, entry.target) || ease !== entry.ease || clampedDuration !== entry.durationMs) {
-        entry = { start: evaluate(entry, nowMs), target: stableTarget, stableTarget, startMs: nowMs, ease, durationMs: clampedDuration };
-      } else if (spatial !== null && !quaternionEqual(spatial.orientation, entry.stableTarget)) {
-        entry = { ...entry, stableTarget: spatial.orientation };
+        entry = { start: target, target, startMs: nowMs, ease, durationMs: clampedDuration };
+      } else if (!quaternionEqual(target, entry.target) || ease !== entry.ease || clampedDuration !== entry.durationMs) {
+        entry = { start: evaluate(entry, nowMs), target, startMs: nowMs, ease, durationMs: clampedDuration };
       }
       hands.set(hand, entry);
       return Object.freeze({
         orientation: evaluate(entry, nowMs),
-        targetOrientation: stableTarget,
-        boundary: spatial?.boundary ?? null,
-        weights: spatial?.weights ?? null,
-        retainedCenter: spatial === null && !bootstrapped,
-        bootstrapped
+        targetOrientation: target,
+        boundary: spatial.boundary,
+        weights: spatial.weights,
+        radius: spatial.radius,
+        influence: spatial.influence
       });
     },
     reset() { hands.clear(); }

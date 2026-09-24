@@ -1566,7 +1566,7 @@ export class AeroGame extends HTMLElement {
     return result;
   }
 
-  /** Resolve one complete v3 square-radial Flow quaternion target per hand. */
+  /** Resolve one complete v4 neutral-center Flow quaternion target per hand. */
   computeFlowQuaternionTargets(graph, inputOverride = null) {
     if (this.saberTargetSessionGeneration !== this.sessionGeneration) {
       this.saberTargetTracker.reset();
@@ -1583,7 +1583,7 @@ export class AeroGame extends HTMLElement {
       const anchor = anchors.find((entry) => entry?.anchor === role && entry.valid === true && Number.isFinite(entry.x) && Number.isFinite(entry.y));
       const position = anchor ? { x:Number(anchor.x), y:Number(anchor.y) } : { x:hand === "left" ? 0 : 1, y:.5 };
       const target = this.saberTargetTracker.tick(hand, position.x, 1-position.y, config.zones, config.blendRadius, nowMs, config.ease.type, endpointDurationMs);
-      result[hand] = Object.freeze({ orientation:target.orientation, position:Object.freeze(position), retainedCenter:target.retainedCenter, bootstrapped:target.bootstrapped });
+      result[hand] = Object.freeze({ orientation:target.orientation, position:Object.freeze(position) });
     }
     return result;
   }
