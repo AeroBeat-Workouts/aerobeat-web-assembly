@@ -5,7 +5,6 @@ import {
   conversionRecipeIds,
   createEquipmentConfigIdentity,
   elementNames,
-  equipmentConfigIdentityInput,
   isGameCommand,
   isSafeIframePayload,
   flowCollidersPublicCountMaximum,
@@ -54,7 +53,7 @@ import { isRecord, projectAftermathEntries, projectHazardContactEvents } from ".
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
 import { boxingUpcomingActions, createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
 import { createSquareRadialSaberTargetTracker } from "./saber-zone-direction.js";
-import { canonicalEquipmentConfigJson, serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
+import { canonicalEquipmentConfigIdentityInput, canonicalEquipmentConfigJson, serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 import { testEquipmentInput, testEquipmentMouseHands, visualTestProductionInput } from "./test-equipment-authoring.js";
 
@@ -212,8 +211,8 @@ export class AeroGame extends HTMLElement {
     // v3 square-radial full-quaternion target tracker. Reset whenever the
     // session generation advances so an eased target never crosses a run/mode
     // boundary.
-    this.saberDirectionTracker = createSquareRadialSaberTargetTracker();
-    this.saberDirectionSessionGeneration = -1;
+    this.saberTargetTracker = createSquareRadialSaberTargetTracker();
+    this.saberTargetSessionGeneration = -1;
     this.sessionActionGeneration = 0;
     this.sessionActionIntentOrdinal = 0;
     this.visualTestTransportArmedOrdinal = -1;
@@ -390,8 +389,7 @@ export class AeroGame extends HTMLElement {
   isActionIntentOwner(owner, sessionGeneration, actionGeneration) { return this.sessionActionGeneration === actionGeneration && this.isLifecycleIntentOwner(owner) && this.isSessionCurrent(sessionGeneration, owner.connectionGeneration, owner.graph); }
 
   async equipmentIdentityFor(config) {
-    const canonicalConfigJson = canonicalEquipmentConfigJson(config);
-    const input = equipmentConfigIdentityInput({ configSchema:"aerobeat/equipment_config", configVersion:2, canonicalConfigJson });
+    const input = canonicalEquipmentConfigIdentityInput(config);
     const value = await sha256Hex(input);
     return createEquipmentConfigIdentity({ schema:"aerobeat/equipment_config_identity", version:1, algorithm:"sha256", value });
   }
@@ -684,7 +682,7 @@ export class AeroGame extends HTMLElement {
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
       this.synchronizePausedClock(graph);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
-      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberDirectionTracker.reset();
+      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberTargetTracker.reset();
       this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport();
     }
   }
@@ -1568,11 +1566,11 @@ export class AeroGame extends HTMLElement {
     return result;
   }
 
-  /** Resolve one complete v3 square-radial Flow target quaternion per hand. */
-  computeFlowZoneDirections(graph, inputOverride = null) {
-    if (this.saberDirectionSessionGeneration !== this.sessionGeneration) {
-      this.saberDirectionTracker.reset();
-      this.saberDirectionSessionGeneration = this.sessionGeneration;
+  /** Resolve one complete v3 square-radial Flow quaternion target per hand. */
+  computeFlowQuaternionTargets(graph, inputOverride = null) {
+    if (this.saberTargetSessionGeneration !== this.sessionGeneration) {
+      this.saberTargetTracker.reset();
+      this.saberTargetSessionGeneration = this.sessionGeneration;
     }
     const snapshot = graph.gameplay.getSnapshot();
     const nowMs = Number(snapshot.session?.timestampMs ?? 0);
@@ -1584,7 +1582,7 @@ export class AeroGame extends HTMLElement {
       const role = `${hand}_wrist`;
       const anchor = anchors.find((entry) => entry?.anchor === role && entry.valid === true && Number.isFinite(entry.x) && Number.isFinite(entry.y));
       const position = anchor ? { x:Number(anchor.x), y:Number(anchor.y) } : { x:hand === "left" ? 0 : 1, y:.5 };
-      const target = this.saberDirectionTracker.tick(hand, position.x, 1-position.y, config.zones, config.blendRadius, nowMs, config.ease.type, endpointDurationMs);
+      const target = this.saberTargetTracker.tick(hand, position.x, 1-position.y, config.zones, config.blendRadius, nowMs, config.ease.type, endpointDurationMs);
       result[hand] = Object.freeze({ orientation:target.orientation, position:Object.freeze(position), retainedCenter:target.retainedCenter, bootstrapped:target.bootstrapped });
     }
     return result;
@@ -1600,10 +1598,9 @@ export class AeroGame extends HTMLElement {
     if (equipmentMode === null || this.equipmentConfigIdentity === null) return Object.freeze([]);
     const visualTest = session?.purpose === "visual_test";
     const poseInput = visualTest && equipmentInput?.preview ? equipmentInput.preview : equipmentInput;
-    const snapshot = graph.gameplay.getSnapshot();
     const boxingStateOrientations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph, frame) : null;
-    const flowZoneDirections = equipmentMode === "flow" ? this.computeFlowZoneDirections(graph, visualTest ? poseInput : null) : null;
-    return gameplayEquipmentRecords(this.menuOpen, session, poseInput, equipmentMode, snapshot.saberWristHistory ?? null, boxingStateOrientations, flowZoneDirections, this.equipmentConfig, this.equipmentConfigIdentity);
+    const flowQuaternionTargets = equipmentMode === "flow" ? this.computeFlowQuaternionTargets(graph, visualTest ? poseInput : null) : null;
+    return gameplayEquipmentRecords(this.menuOpen, session, poseInput, equipmentMode, boxingStateOrientations, flowQuaternionTargets, this.equipmentConfig, this.equipmentConfigIdentity);
   }
 
   visualTestProductionFrame(session, audioClock, frameNow) {
@@ -2673,7 +2670,7 @@ export class AeroGame extends HTMLElement {
       const session = this.graph?.gameplay.getSnapshot().session;
       const reseedVisualTest = Boolean(this.graph && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test");
       this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity;
-      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberDirectionTracker.reset();
+      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberTargetTracker.reset();
       if (reseedVisualTest) this.configureGameplayFromContent(false, "visual_test");
       this.equipmentConfigStatus = successMessage; this.renderEquipmentConfigControls(); this.renderGameplay();
       return true;

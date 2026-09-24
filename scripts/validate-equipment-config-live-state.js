@@ -52,7 +52,7 @@ const commitBody=source.slice(commitStart,queueStart),queueBody=source.slice(que
 assert(applyBody.includes("equipmentConfigCandidate(this.equipmentConfigDraft, path, value)"), "field edit must merge against the latest validated pending draft");
 assert(applyBody.includes('this.queueEquipmentConfigCommit(candidate, "Equipment config updated.")'), "field edit must enter the serialized config commit queue");
 assert(commitBody.includes("await this.equipmentIdentityFor(candidate)")&&commitBody.includes("this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity"),"config and strict SHA-256 identity commit atomically after the async boundary");
-assert(commitBody.includes("this.gloveRotationTracker.reset()") && commitBody.includes("this.saberDirectionTracker.reset()"), "field edit must reset live orientation easing");
+assert(commitBody.includes("this.gloveRotationTracker.reset()") && commitBody.includes("this.saberTargetTracker.reset()"), "field edit must reset live quaternion-target easing");
 assert(commitBody.includes('this.configureGameplayFromContent(false, "visual_test")') && !commitBody.includes("startSession("), "active Test edits must reseed gameplay without restarting transport");
 assert(commitBody.includes("this.renderEquipmentConfigControls()") && commitBody.includes("this.renderGameplay()"), "field edit must refresh controls and explicitly render a frame");
 assert(queueBody.includes("canonicalEquipmentConfigJson(candidate) === canonicalEquipmentConfigJson(this.equipmentConfigDraft)"), "duplicate input/change candidates must be suppressed");

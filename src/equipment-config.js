@@ -2,6 +2,7 @@
 // Strict canonical equipment configuration v3, deterministic full v2 -> v3
 // migration, and boundary-only migration for wholly legacy unversioned Z-only YAML.
 
+import { equipmentConfigIdentityInput } from "@aerobeat/web-contracts";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 import { parseYamlSubset, serializeYamlSubset } from "./equipment-config-yaml.js";
 
@@ -206,6 +207,15 @@ export function canonicalEquipmentConfigJson(config) {
     return `{${keys.map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
   };
   return canonical(validateEquipmentConfig(config));
+}
+
+/** Contracts-owned identity envelope for one canonical runtime v3 config. */
+export function canonicalEquipmentConfigIdentityInput(config) {
+  return equipmentConfigIdentityInput({
+    configSchema: EQUIPMENT_CONFIG_SCHEMA,
+    configVersion: EQUIPMENT_CONFIG_VERSION,
+    canonicalConfigJson: canonicalEquipmentConfigJson(config)
+  });
 }
 
 /** Serialize one complete canonical v3 record in deterministic schema order. */
