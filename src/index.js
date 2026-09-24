@@ -208,9 +208,6 @@ export class AeroGame extends HTMLElement {
     // session/mode change.
     this.gloveRotationTracker = createGloveRotationTracker();
     this.gloveRotationSessionGeneration = -1;
-    // v3 square-radial full-quaternion target tracker. Reset whenever the
-    // session generation advances so an eased target never crosses a run/mode
-    // boundary.
     this.sessionActionGeneration = 0;
     this.sessionActionIntentOrdinal = 0;
     this.visualTestTransportArmedOrdinal = -1;
