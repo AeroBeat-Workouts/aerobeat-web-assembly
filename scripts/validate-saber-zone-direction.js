@@ -44,6 +44,9 @@ quatClose(center.orientation, IDENTITY, 0, "exact center identity");
 assert.equal(center.radius, 0); assert.equal(center.influence, 0);
 assert.equal(center.boundary, null); assert.deepEqual(center.weights, {edgeTop:0,edgeBottom:0,edgeLeft:0,edgeRight:0});
 assert.deepEqual(squareRadialNeutralInfluence(.5,.5), {radius:0,influence:0});
+const smallestOffset = .5 + Number.EPSILON;
+const noDeadZone = squareRadialSaberTarget(smallestOffset,.5,ZONES,RADIUS);
+assert(noDeadZone.boundary !== null && noDeadZone.radius > 0 && noDeadZone.influence > 0,"every representable non-center offset has positive influence and no authored dead zone");
 assert.deepEqual(squareRadialNeutralInfluence(1,.75), {radius:1,influence:1});
 assert.deepEqual(squareRadialNeutralInfluence(20,-20), {radius:1,influence:1});
 

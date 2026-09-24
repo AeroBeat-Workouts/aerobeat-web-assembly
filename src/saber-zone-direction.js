@@ -20,7 +20,6 @@ export const SABER_ZONE_ANCHORS = Object.freeze({
 const ZERO_EULER = Object.freeze({ x: 0, y: 0, z: 0 });
 const IDENTITY_QUATERNION = Object.freeze({ x: 0, y: 0, z: 0, w: 1 });
 const ZERO_WEIGHTS = Object.freeze({ edgeTop: 0, edgeBottom: 0, edgeLeft: 0, edgeRight: 0 });
-const CENTER_EPSILON = 1e-15;
 
 function finite(value, name) {
   if (typeof value !== "number" || !Number.isFinite(value)) throw new TypeError(`${name} must be a finite number`);
@@ -56,7 +55,7 @@ export function projectSquareRadialOrientation(x, y) {
   const py = Math.max(0, Math.min(1, finite(y, "projectSquareRadialOrientation: y")));
   const dx = px - 0.5, dy = py - 0.5;
   const extent = Math.max(Math.abs(dx), Math.abs(dy));
-  if (extent <= CENTER_EPSILON) return null;
+  if (extent === 0) return null;
   return Object.freeze({ x: 0.5 + dx / (2 * extent), y: 0.5 + dy / (2 * extent) });
 }
 
