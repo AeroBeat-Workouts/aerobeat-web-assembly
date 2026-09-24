@@ -262,10 +262,10 @@ export class AeroGame extends HTMLElement {
     // atomically validate each accepted field change and render it immediately;
     // reconnect/teardown restores the baked defaults and preview-off state.
     this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults);
+    this.equipmentConfigDraft = this.equipmentConfig;
     this.equipmentConfigIdentity = null;
     this.equipmentConfigIdentityGeneration = 0;
     this.equipmentConfigCommitTail = Promise.resolve(false);
-    this.equipmentConfigRetainedAuthoring = null;
     this.equipmentConfigStatus = "";
     this.visualTestInteractionEpoch = 0;
     this.visualTestInteractionActivationMs = null;
@@ -307,8 +307,8 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "off"; this.testEquipmentPointerPosition = null;
-    this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.equipmentConfigRetainedAuthoring = null; this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]);
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "off"; this.testEquipmentPointerPosition = null;
+    this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]);
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
@@ -1555,6 +1555,7 @@ export class AeroGame extends HTMLElement {
     const upcoming = boxingUpcomingActions(frame.targets, contentNowMs, config.upcomingBeatWindowMs);
     const gameplaySnapshot = graph.gameplay.getSnapshot();
     const trackerNowMs = Number(gameplaySnapshot.session?.timestampMs ?? 0);
+    const endpointDurationMs = gameplaySnapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs;
     const history = gameplaySnapshot.saberWristHistory ?? null;
     const result = { left: null, right: null };
     for (const hand of ["left", "right"]) {
@@ -1562,7 +1563,7 @@ export class AeroGame extends HTMLElement {
       const motion = gloveMotionVector(history ? history[role] : null, trackerNowMs);
       const state = selectGloveState(hand, motion, upcoming[hand] ?? null);
       const targetEulerDeg = config.states[state].rotationEulerDeg;
-      result[hand] = this.gloveRotationTracker.tick(hand, targetEulerDeg, trackerNowMs, config.ease.type, config.ease.durationMs);
+      result[hand] = this.gloveRotationTracker.tick(hand, targetEulerDeg, trackerNowMs, config.ease.type, endpointDurationMs);
     }
     return result;
   }
@@ -1599,6 +1600,7 @@ export class AeroGame extends HTMLElement {
     const snapshot = graph.gameplay.getSnapshot();
     const nowMs = Number(snapshot.session?.timestampMs ?? 0);
     const config = this.equipmentConfig.flow.saber;
+    const endpointDurationMs = snapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs;
     const history = snapshot.saberWristHistory ?? null;
     const anchors = Array.isArray(inputOverride?.anchors) ? inputOverride.anchors : (Array.isArray(snapshot?.anchors) ? snapshot.anchors : []);
     /** @type {{left: {x: number, y: number, position: {x: number, y: number}}, right: {x: number, y: number, position: {x: number, y: number}}}} */
@@ -1622,7 +1624,7 @@ export class AeroGame extends HTMLElement {
       // judge-space direction use Y-up.
       const judgePosition = { x: position.x, y: 1 - position.y };
       const target = zoneDirection(judgePosition.x, judgePosition.y, fallback, config.zones, config.blendRadius);
-      const eased = this.saberDirectionTracker.tick(hand, target, nowMs, config.ease.type, config.ease.durationMs);
+      const eased = this.saberDirectionTracker.tick(hand, target, nowMs, config.ease.type, endpointDurationMs);
       const zoneKey = Object.keys(SABER_ZONE_ANCHORS).reduce((best, key) => {
         const point = SABER_ZONE_ANCHORS[key]; const prior = SABER_ZONE_ANCHORS[best];
         return Math.hypot(judgePosition.x-point.x,judgePosition.y-point.y) < Math.hypot(judgePosition.x-prior.x,judgePosition.y-prior.y) ? key : best;
@@ -2611,7 +2613,7 @@ export class AeroGame extends HTMLElement {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
     this.resetTestEquipmentAuthoringState({ render:false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
@@ -2706,31 +2708,38 @@ export class AeroGame extends HTMLElement {
     return true;
   }
 
-  async commitEquipmentConfig(candidate, successMessage, retained = { visible:this.testEquipmentVisible, automatic:this.testAutomaticFeedbackEnabled, hand:this.testEquipmentMouseHand, pointer:this.testEquipmentPointerPosition }) {
-    if (this.equipmentConfigRetainedAuthoring === null) this.equipmentConfigRetainedAuthoring = retained;
-    retained = this.equipmentConfigRetainedAuthoring;
+  async commitEquipmentConfig(candidate, successMessage) {
     const generation = ++this.equipmentConfigIdentityGeneration;
     this.equipmentConfigStatus = "Computing equipment identity…"; this.renderEquipmentConfigStatus();
     try {
       const identity = await this.equipmentIdentityFor(candidate);
       if (generation !== this.equipmentConfigIdentityGeneration || this.lifecycle !== "connected") return false;
       const session = this.graph?.gameplay.getSnapshot().session;
-      const restartVisualTest = Boolean(this.graph && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test");
-      if (restartVisualTest) this.stopFrameLoop();
+      const reseedVisualTest = Boolean(this.graph && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test");
       this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity;
       this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberDirectionTracker.reset();
-      if (restartVisualTest) {
-        await this.startSession("visual_test", { requireDownloaded:false });
-        if (generation !== this.equipmentConfigIdentityGeneration || this.lifecycle !== "connected") return false;
-        this.testEquipmentVisible=retained.visible; this.testAutomaticFeedbackEnabled=retained.automatic; this.testEquipmentMouseHand=retained.hand; this.testEquipmentPointerPosition=retained.pointer;
-        this.invalidateVisualTestInteraction();
-      }
-      this.equipmentConfigStatus = successMessage; this.equipmentConfigRetainedAuthoring = null; this.renderEquipmentConfigControls(); this.renderGameplay();
+      if (reseedVisualTest) this.configureGameplayFromContent(false, "visual_test");
+      this.equipmentConfigStatus = successMessage; this.renderEquipmentConfigControls(); this.renderGameplay();
       return true;
     } catch (error) {
-      if (generation === this.equipmentConfigIdentityGeneration) { this.equipmentConfigRetainedAuthoring = null; this.equipmentConfigStatus = error instanceof Error ? error.message : String(error); this.renderEquipmentConfigStatus(true); }
+      if (generation === this.equipmentConfigIdentityGeneration) {
+        if (this.equipmentConfigDraft === candidate) this.equipmentConfigDraft = this.equipmentConfig;
+        this.equipmentConfigStatus = error instanceof Error ? error.message : String(error); this.renderEquipmentConfigStatus(true);
+      }
       return false;
     }
+  }
+
+  queueEquipmentConfigCommit(candidate, successMessage) {
+    if (canonicalEquipmentConfigJson(candidate) === canonicalEquipmentConfigJson(this.equipmentConfigDraft)) return false;
+    this.equipmentConfigDraft = candidate;
+    const connectionGeneration = this.connectedGeneration; const graph = this.graph;
+    const operation = async () => {
+      if (!graph || !this.isCurrent(connectionGeneration, graph)) return false;
+      return this.commitEquipmentConfig(candidate, successMessage);
+    };
+    this.equipmentConfigCommitTail = this.equipmentConfigCommitTail.then(operation, operation);
+    return true;
   }
 
   applyEquipmentConfigControl(control) {
@@ -2745,9 +2754,8 @@ export class AeroGame extends HTMLElement {
         else if (!control.validity.valid || !Number.isFinite(control.valueAsNumber)) throw new Error("Enter a finite number.");
         else value = control.valueAsNumber;
       } else return false;
-      const candidate = equipmentConfigCandidate(this.equipmentConfig, path, value);
-      this.equipmentConfigCommitTail = this.commitEquipmentConfig(candidate, "Equipment config updated.");
-      return true;
+      const candidate = equipmentConfigCandidate(this.equipmentConfigDraft, path, value);
+      return this.queueEquipmentConfigCommit(candidate, "Equipment config updated.");
     } catch (error) {
       this.equipmentConfigStatus = error instanceof Error ? error.message : String(error);
       this.renderEquipmentConfigStatus(true);
@@ -2757,8 +2765,7 @@ export class AeroGame extends HTMLElement {
 
   resetEquipmentConfig() {
     if (!this.testPresentationAuthoringSnapshot().enabled) return false;
-    this.equipmentConfigCommitTail = this.commitEquipmentConfig(validateEquipmentConfig(equipmentConfigDefaults), "Reset to build defaults.");
-    return true;
+    return this.queueEquipmentConfigCommit(validateEquipmentConfig(equipmentConfigDefaults), "Reset to build defaults.");
   }
 
   exportEquipmentConfig(event) {

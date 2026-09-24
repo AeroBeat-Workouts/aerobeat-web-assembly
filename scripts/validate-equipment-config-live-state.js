@@ -42,20 +42,27 @@ for (const group of ["Flow · hand transforms", "Flow · saber zones", "Boxing �
 // edited orientation is visible immediately, refresh controls, and explicitly
 // render even when the display loop is stopped.
 const commitStart = source.indexOf("\n  async commitEquipmentConfig(");
+const queueStart = source.indexOf("\n  queueEquipmentConfigCommit(");
 const applyStart = source.indexOf("\n  applyEquipmentConfigControl(");
 const resetStart = source.indexOf("\n  resetEquipmentConfig(");
 const exportStart = source.indexOf("\n  exportEquipmentConfig(");
 const controlsStart = source.indexOf("\n  renderEquipmentConfigControls(");
-assert(commitStart > 0 && applyStart > commitStart && resetStart > applyStart && exportStart > resetStart && controlsStart > exportStart, "live equipment methods must exist in canonical order");
-const commitBody=source.slice(commitStart,applyStart),applyBody = source.slice(applyStart, resetStart);
-assert(applyBody.includes("equipmentConfigCandidate(this.equipmentConfig, path, value)"), "field edit must validate a complete candidate");
+assert(commitStart > 0 && queueStart > commitStart && applyStart > queueStart && resetStart > applyStart && exportStart > resetStart && controlsStart > exportStart, "live equipment methods must exist in canonical order");
+const commitBody=source.slice(commitStart,queueStart),queueBody=source.slice(queueStart,applyStart),applyBody = source.slice(applyStart, resetStart);
+assert(applyBody.includes("equipmentConfigCandidate(this.equipmentConfigDraft, path, value)"), "field edit must merge against the latest validated pending draft");
+assert(applyBody.includes('this.queueEquipmentConfigCommit(candidate, "Equipment config updated.")'), "field edit must enter the serialized config commit queue");
 assert(commitBody.includes("await this.equipmentIdentityFor(candidate)")&&commitBody.includes("this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity"),"config and strict SHA-256 identity commit atomically after the async boundary");
 assert(commitBody.includes("this.gloveRotationTracker.reset()") && commitBody.includes("this.saberDirectionTracker.reset()"), "field edit must reset live orientation easing");
-assert(commitBody.includes('await this.startSession("visual_test"')&&commitBody.includes("this.renderEquipmentConfigControls()") && commitBody.includes("this.renderGameplay()"), "field edit restarts scoring and refreshes the rendered frame");
+assert(commitBody.includes('this.configureGameplayFromContent(false, "visual_test")') && !commitBody.includes("startSession("), "active Test edits must reseed gameplay without restarting transport");
+assert(commitBody.includes("this.renderEquipmentConfigControls()") && commitBody.includes("this.renderGameplay()"), "field edit must refresh controls and explicitly render a frame");
+assert(queueBody.includes("canonicalEquipmentConfigJson(candidate) === canonicalEquipmentConfigJson(this.equipmentConfigDraft)"), "duplicate input/change candidates must be suppressed");
+assert(queueBody.includes("this.equipmentConfigDraft = candidate") && queueBody.includes("this.equipmentConfigCommitTail.then(operation, operation)"), "pending drafts must merge before serialized SHA commits");
+assert(queueBody.includes("this.isCurrent(connectionGeneration, graph)"), "queued commits must reject stale lifecycle owners");
+assert(source.includes('session?.state === "paused_manual" ? 0 : config.ease.durationMs') && source.includes('snapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs'), "paused Boxing and Flow trackers must resolve immediate endpoint poses");
 
 const resetBody = source.slice(resetStart, exportStart);
 assert(resetBody.includes("validateEquipmentConfig(equipmentConfigDefaults)"), "Reset must restore validated build defaults");
-assert(resetBody.includes('this.commitEquipmentConfig(validateEquipmentConfig(equipmentConfigDefaults), "Reset to build defaults.")'), "Reset must use the same atomic identity/restart path");
+assert(resetBody.includes('this.queueEquipmentConfigCommit(validateEquipmentConfig(equipmentConfigDefaults), "Reset to build defaults.")'), "Reset must use the same serialized identity/reseed path");
 
 const exportBody = source.slice(exportStart, controlsStart);
 assert(exportBody.includes("serializeEquipmentConfigYaml(this.equipmentConfig)"), "Export must serialize live validated state, not draft text");
