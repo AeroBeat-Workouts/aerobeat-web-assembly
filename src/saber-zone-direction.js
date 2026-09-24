@@ -44,12 +44,6 @@ function edgeQuaternion(zone, key) {
   );
 }
 
-/** Convert an in-plane angle to a unit vector. */
-export function zoneAngleToVector(deg) {
-  const rad = finite(deg, "zoneAngleToVector: deg") * Math.PI / 180;
-  return Object.freeze({ x: Math.cos(rad), y: Math.sin(rad) });
-}
-
 /**
  * Project a finite non-center point radially onto the normalized square.
  * The input is clamped only for orientation; callers retain the truthful point.
@@ -122,25 +116,6 @@ export function squareRadialSaberTarget(x, y, zones, blendRadius) {
 }
 
 /**
- * Compatibility heading-vector resolver for the current assembly integration.
- * v3 callers should use squareRadialSaberTarget so local XYZ is blended as part
- * of each complete edge target. At the singular center this stateless adapter
- * returns its normalized fallback; the tracker below owns v3 retention.
- */
-export function zoneDirection(x, y, fallbackDir, zones, blendRadius) {
-  const fx = Number(fallbackDir?.x), fy = Number(fallbackDir?.y), magnitude = Math.hypot(fx, fy);
-  const fallback = Number.isFinite(fx) && Number.isFinite(fy) && magnitude > Number.EPSILON
-    ? Object.freeze({ x: fx / magnitude, y: fy / magnitude })
-    : Object.freeze({ x: 1, y: 0 });
-  const headingZones = {};
-  for (const key of SABER_EDGE_KEYS) headingZones[key] = Object.freeze({ headingDeg: zones?.[key]?.headingDeg, localRotationEulerDeg: ZERO_EULER });
-  const target = squareRadialSaberTarget(x, y, headingZones, blendRadius);
-  if (target === null) return fallback;
-  const q = target.orientation;
-  return Object.freeze({ x: 1 - 2 * q.z * q.z, y: 2 * q.w * q.z });
-}
-
-/**
  * Stateful complete-target resolver. Exact center retains the last non-center
  * spatial target; without history left bootstraps from edgeLeft and right from
  * edgeRight. Temporal easing always uses fixed quaternion endpoints.
@@ -182,32 +157,6 @@ export function createSquareRadialSaberTargetTracker() {
         retainedCenter: spatial === null && !bootstrapped,
         bootstrapped
       });
-    },
-    reset() { hands.clear(); }
-  });
-}
-
-/** Existing vector tracker retained for current integration until it consumes full targets. */
-export function createSaberDirectionTracker() {
-  const hands = new Map();
-  const evaluate = (entry, nowMs) => {
-    const t = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
-    return slerpEquipmentQuaternionShortest(entry.start, entry.target, easeValue(t, entry.ease));
-  };
-  const vector = (quaternion) => Object.freeze({ x: 1 - 2 * quaternion.z * quaternion.z, y: 2 * quaternion.w * quaternion.z });
-  return Object.freeze({
-    tick(hand, target, nowMs, ease, durationMs) {
-      if (hand !== "left" && hand !== "right") throw new TypeError("Saber direction tracker: hand must be 'left' or 'right'");
-      const tx = Number(target?.x), ty = Number(target?.y), magnitude = Math.hypot(tx, ty);
-      if (!Number.isFinite(tx) || !Number.isFinite(ty) || magnitude < Number.EPSILON) throw new TypeError("Saber direction tracker: target must be a finite non-zero {x,y} vector");
-      finite(nowMs, "Saber direction tracker: nowMs"); finite(durationMs, "Saber direction tracker: durationMs");
-      const targetX = tx / magnitude, targetY = ty / magnitude;
-      const targetQuaternion = equipmentEulerDegreesToQuaternion({ x: 0, y: 0, z: Math.atan2(targetY, targetX) * 180 / Math.PI });
-      let entry = hands.get(hand);
-      if (entry === undefined) entry = { start: targetQuaternion, target: targetQuaternion, targetX, targetY, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
-      else if (targetX !== entry.targetX || targetY !== entry.targetY || ease !== entry.ease || Math.max(0, durationMs) !== entry.durationMs) entry = { start: evaluate(entry, nowMs), target: targetQuaternion, targetX, targetY, startMs: nowMs, ease, durationMs: Math.max(0, durationMs) };
-      hands.set(hand, entry);
-      return vector(evaluate(entry, nowMs));
     },
     reset() { hands.clear(); }
   });

@@ -17,9 +17,6 @@ const DEFAULT_POSITIONS = Object.freeze({
 
 export const testEquipmentMouseHands = Object.freeze(["off", "left", "right"]);
 
-/** @param {number} value */
-function clampUnit(value) { return Math.min(1, Math.max(0, value)); }
-
 /**
  * Build renderer-only deterministic Test wrist evidence. Only the selected
  * wrist may use the latest finite pointer point; the other stays anchored.
@@ -30,7 +27,7 @@ function clampUnit(value) { return Math.min(1, Math.max(0, value)); }
 export function testEquipmentInput(selectedHand = "off", pointerPosition = null) {
   const hand = testEquipmentMouseHands.includes(String(selectedHand)) ? String(selectedHand) : "off";
   const finitePointer = pointerPosition && typeof pointerPosition === "object" && Number.isFinite(pointerPosition.x) && Number.isFinite(pointerPosition.y)
-    ? Object.freeze({ x: clampUnit(Number(pointerPosition.x)), y: clampUnit(Number(pointerPosition.y)) })
+    ? Object.freeze({ x: Number(pointerPosition.x), y: Number(pointerPosition.y) })
     : null;
   const anchor = (/** @type {"left"|"right"} */ side) => {
     const point = hand === side && finitePointer ? finitePointer : DEFAULT_POSITIONS[side];
@@ -49,11 +46,12 @@ export function visualTestProductionInput(selectedHand, pointerPosition, identit
   if (!identity || !Number.isSafeInteger(identity.frameSequence) || identity.frameSequence < 1 || !Number.isFinite(identity.timestampMs) || identity.timestampMs < 0 || typeof identity.sourceIdentity !== "string" || typeof identity.calibrationId !== "string") throw new TypeError("visual_test_evidence_identity_invalid");
   const preview = testEquipmentInput(selectedHand, pointerPosition);
   const anchors = Object.freeze(preview.anchors.map((entry) => {
-    const column = Math.min(3, Math.max(0, Math.floor(entry.x * 4)));
-    const row = Math.min(2, Math.max(0, Math.floor(entry.y * 3)));
-    const subColumn = Math.min(7, Math.max(0, Math.floor(entry.x * 8)));
-    const subRow = Math.min(5, Math.max(0, Math.floor(entry.y * 6)));
-    return Object.freeze({ schema:"aerobeat/body_grid_anchor_snapshot", version:1, anchor:entry.anchor, calibrationId:identity.calibrationId, measurementTimestampMs:identity.timestampMs, valid:true, confidence:1, rawX:entry.x, rawY:entry.y, x:entry.x, y:entry.y, cell:row*4+column, subcell:subRow*8+subColumn });
+    const onGrid = entry.x >= 0 && entry.x <= 1 && entry.y >= 0 && entry.y <= 1;
+    const column = onGrid ? Math.min(3, Math.floor(entry.x * 4)) : null;
+    const row = onGrid ? Math.min(2, Math.floor(entry.y * 3)) : null;
+    const subColumn = onGrid ? Math.min(7, Math.floor(entry.x * 8)) : null;
+    const subRow = onGrid ? Math.min(5, Math.floor(entry.y * 6)) : null;
+    return Object.freeze({ schema:"aerobeat/body_grid_anchor_snapshot", version:1, anchor:entry.anchor, calibrationId:identity.calibrationId, measurementTimestampMs:identity.timestampMs, valid:true, confidence:1, rawX:entry.x, rawY:entry.y, x:entry.x, y:entry.y, cell:onGrid ? row*4+column : null, subcell:onGrid ? subRow*8+subColumn : null });
   }));
   const evidence = Object.freeze({ schema:"aerobeat/gameplay_evidence_snapshot", version:1, calibrationId:identity.calibrationId, measuredSourceFrameId:`${identity.sourceIdentity}:frame:${identity.frameSequence}`, measurementTimestampMs:identity.timestampMs, provenance:"measured", activeBoxingActions:Object.freeze([]), anchors, entries:Object.freeze([]) });
   return Object.freeze({

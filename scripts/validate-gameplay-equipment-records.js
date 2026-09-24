@@ -8,9 +8,10 @@ const identity = Object.freeze({ schema:"aerobeat/equipment_config_identity", ve
 const session = (state="playing", purpose="play") => ({ state, purpose, timestampMs:1000 });
 const input = (overrides={}) => ({ tracking:{gameplayPaused:false,freshCalibrationRequired:false,allRequiredAnchorsVisible:true,anchorsFrozen:false,degradedAnchors:[],...overrides.tracking},countdownFrozen:false,retainedGeometryDimmed:false,anchors:[{anchor:"nose",valid:true,x:.5,y:.2,confidence:1},{anchor:"left_wrist",valid:true,x:.2,y:.6,confidence:1},{anchor:"right_wrist",valid:true,x:.8,y:.4,confidence:1}],...overrides });
 const history={left_wrist:[{t:940,x:0,y:0},{t:980,x:1,y:0}],right_wrist:[{t:940,x:0,y:0},{t:980,x:0,y:0}]};
+const flowTargets=Object.freeze({left:Object.freeze({orientation:Object.freeze({x:0,y:0,z:0,w:1})}),right:Object.freeze({orientation:Object.freeze({x:0,y:0,z:0,w:1})})});
 
 {
-  const poses=gameplayEquipmentRecords(false,session(),input(),"flow",history,null,null,equipmentConfigDefaults,identity);
+  const poses=gameplayEquipmentRecords(false,session(),input(),"flow",history,null,flowTargets,equipmentConfigDefaults,identity);
   assert.equal(poses.length,2); assert.equal(Object.isFrozen(poses),true);
   for(const pose of poses){assert.equal(isResolvedEquipmentPose(pose),true);assert.equal(Object.isFrozen(pose),true);assert.deepEqual(Object.keys(pose),["role","mode","anchor","scale","orientation","geometryIdentity","configIdentity"]);assert.equal("rotationZDeg" in pose,false);assert.equal("direction" in pose,false);assert.equal(pose.scale,2);assert.deepEqual(pose.configIdentity,identity);}
   assert.deepEqual(poses[0].anchor,{x:.2*4-.5,y:2.5-.6*3,z:0},"left normalized wrist maps exactly to judge WU");
@@ -20,7 +21,7 @@ const history={left_wrist:[{t:940,x:0,y:0},{t:980,x:1,y:0}],right_wrist:[{t:940,
 
 {
   const config=structuredClone(equipmentConfigDefaults); config.flow.perHand.left.scale=3; config.flow.perHand.left.rotationEulerDeg={x:25,y:-20,z:35};
-  const zones={left:{x:1,y:0,localRotationEulerDeg:{x:10,y:5,z:-15}},right:{x:0,y:1,localRotationEulerDeg:{x:0,y:0,z:0}}};
+  const zones={left:{orientation:{x:0,y:0,z:Math.sin(Math.PI/12),w:Math.cos(Math.PI/12)}},right:{orientation:{x:0,y:0,z:Math.SQRT1_2,w:Math.SQRT1_2}}};
   const poses=gameplayEquipmentRecords(false,session("playing","visual_test"),input(),"flow",history,null,zones,config,identity);
   assert.equal(poses[0].scale,3); assert.notDeepEqual(poses[0].orientation,{x:0,y:0,z:0,w:1},"combined XYZ controls affect shared pose");
 }
@@ -39,8 +40,8 @@ for(const [label,menu,state,snapshot] of [
   ["identity unavailable",false,"playing",input()]
 ]){
   const configIdentity=label==="identity unavailable"?null:identity;
-  assert.equal(gameplayEquipmentRecords(menu,session(state,label==="paused play"?"play":"visual_test"),snapshot,"flow",history,null,null,equipmentConfigDefaults,configIdentity).length,0,label);
+  assert.equal(gameplayEquipmentRecords(menu,session(state,label==="paused play"?"play":"visual_test"),snapshot,"flow",history,null,flowTargets,equipmentConfigDefaults,configIdentity).length,0,label);
 }
-assert.equal(gameplayEquipmentRecords(false,session("paused_manual","visual_test"),input(),"flow",history,null,null,equipmentConfigDefaults,identity).length,2,"paused Visual Test still renders frozen shared poses");
+assert.equal(gameplayEquipmentRecords(false,session("paused_manual","visual_test"),input(),"flow",history,null,flowTargets,equipmentConfigDefaults,identity).length,2,"paused Visual Test still renders frozen shared poses");
 
 console.log("Canonical frozen equipment pose records, exact judge anchors, XYZ/scale controls, and suppression gates passed.");

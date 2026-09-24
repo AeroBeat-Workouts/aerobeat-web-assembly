@@ -5,15 +5,12 @@ import {
   equipmentEulerDegreesToQuaternion,
   gloveObbGeometry,
   multiplyEquipmentQuaternions,
-  resolveFlowEquipmentOrientation,
   saberCapsuleGeometry
 } from "@aerobeat/web-contracts";
-import { saberDirectionFromWristHistory } from "@aerobeat/web-gameplay";
 import { validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 
 const IDENTITY_QUATERNION = Object.freeze({ x: 0, y: 0, z: 0, w: 1 });
-const ZERO_EULER = Object.freeze({ x: 0, y: 0, z: 0 });
 
 /**
  * Resolve the only per-frame equipment pose records. Their anchors remain in
@@ -25,11 +22,11 @@ const ZERO_EULER = Object.freeze({ x: 0, y: 0, z: 0 });
  * @param {"flow" | "boxing"} mode
  * @param {Readonly<{ left_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null, right_wrist: ReadonlyArray<Readonly<{t: number, x: number, y: number}>> | null }> | null} [saberWristHistory]
  * @param {Readonly<{left: Readonly<{x:number,y:number,z:number,w:number}>, right: Readonly<{x:number,y:number,z:number,w:number}>}> | null} [boxingStateOrientations]
- * @param {Readonly<{left: Readonly<{x:number,y:number,localRotationEulerDeg?:Readonly<{x:number,y:number,z:number}>}>,right: Readonly<{x:number,y:number,localRotationEulerDeg?:Readonly<{x:number,y:number,z:number}>}>}> | null} [flowZoneDirections]
+ * @param {Readonly<{left: Readonly<{orientation:Readonly<{x:number,y:number,z:number,w:number}>}>,right: Readonly<{orientation:Readonly<{x:number,y:number,z:number,w:number}>}>}> | null} [flowZoneTargets]
  * @param {unknown} [equipmentConfig]
  * @param {unknown} [configIdentity]
  */
-export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateOrientations = null, flowZoneDirections = null, equipmentConfig = equipmentConfigDefaults, configIdentity = null) {
+export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWristHistory = null, boxingStateOrientations = null, flowZoneTargets = null, equipmentConfig = equipmentConfigDefaults, configIdentity = null) {
   if ((mode !== "flow" && mode !== "boxing") || configIdentity === null) return Object.freeze([]);
   const state = String(session?.state ?? "");
   const pausedVisualTest = state === "paused_manual" && session?.purpose === "visual_test";
@@ -50,13 +47,9 @@ export function gameplayEquipmentRecords(menuOpen, session, input, mode, saberWr
     const base = config[mode].perHand[hand];
     let orientation;
     if (mode === "flow") {
-      let direction = flowZoneDirections?.[hand];
-      if (!direction || !Number.isFinite(direction.x) || !Number.isFinite(direction.y)) {
-        const history = saberWristHistory && Array.isArray(saberWristHistory[role]) ? saberWristHistory[role] : Object.freeze([]);
-        direction = saberDirectionFromWristHistory(history, nowMs);
-      }
-      const headingDeg = Math.atan2(Number(direction.y), Number(direction.x)) * 180 / Math.PI;
-      orientation = resolveFlowEquipmentOrientation({ headingDeg, baseEulerDeg: base.rotationEulerDeg, animatedEulerDeg: direction.localRotationEulerDeg ?? ZERO_EULER });
+      const target = flowZoneTargets?.[hand]?.orientation;
+      if (!target || ![target.x,target.y,target.z,target.w].every(Number.isFinite)) return [];
+      orientation = multiplyEquipmentQuaternions(equipmentEulerDegreesToQuaternion(base.rotationEulerDeg), target);
     } else {
       const animated = boxingStateOrientations?.[hand] ?? IDENTITY_QUATERNION;
       orientation = multiplyEquipmentQuaternions(equipmentEulerDegreesToQuaternion(base.rotationEulerDeg), animated);

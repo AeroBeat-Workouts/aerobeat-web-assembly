@@ -10,12 +10,10 @@ import {
 import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
 import {
   SABER_ZONE_ANCHORS,
-  createSaberDirectionTracker,
   createSquareRadialSaberTargetTracker,
   projectSquareRadialOrientation,
   squareRadialEdgeWeights,
-  squareRadialSaberTarget,
-  zoneDirection
+  squareRadialSaberTarget
 } from "../src/saber-zone-direction.js";
 
 const CFG = equipmentConfigDefaults.flow.saber;
@@ -157,11 +155,5 @@ const q30=cadenceResult(30),q60=cadenceResult(60),q120=cadenceResult(120);
 quatClose(q30,q60,1e-8,"30/60 cadence parity"); quatClose(q60,q120,1e-8,"60/120 cadence parity");
 quatClose(q30,slerpEquipmentQuaternionShortest(edgeQ("edgeTop"),edgeQ("edgeRight"),.5),1e-8,"cadence midpoint is fixed-endpoint midpoint");
 
-// Current integration adapters remain usable until index consumes v3 targets.
-const vector=zoneDirection(.5,1,{x:1,y:0},ZONES,RADIUS);
-close(vector.x,0,1e-8,"heading adapter top x"); close(vector.y,1,1e-8,"heading adapter top y");
-assert.deepEqual(zoneDirection(.5,.5,{x:.6,y:.8},ZONES,RADIUS),{x:.6,y:.8});
-const directionTracker=createSaberDirectionTracker();
-assert.deepEqual(directionTracker.tick("left",{x:1,y:0},0,"linear",100),{x:1,y:0});
 
 console.log(`Square-radial saber validation passed (4097-sample rays/perimeter/outside; max perimeter step ${maxStep.toFixed(6)} degrees).`);
