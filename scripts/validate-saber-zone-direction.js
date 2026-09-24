@@ -10,7 +10,6 @@ import {
 import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
 import {
   SABER_ZONE_ANCHORS,
-  createSquareRadialSaberTargetTracker,
   projectSquareRadialOrientation,
   squareRadialEdgeWeights,
   squareRadialNeutralInfluence,
@@ -155,30 +154,31 @@ const branchCorner=squareRadialSaberTarget(1,1,branchZones,RADIUS);
 const rotatedX={x:1-2*branchCorner.orientation.z**2,y:2*branchCorner.orientation.w*branchCorner.orientation.z};
 assert.ok(rotatedX.x<-.999,"±180 corner midpoint remains near 180 degrees");
 
-// Tracker center is stateless identity for both roles; reset cannot change it.
-const tracker=createSquareRadialSaberTargetTracker();
-for(const hand of ["left","right"]){
-  const value=tracker.tick(hand,.5,.5,ZONES,RADIUS,0,"linear",100);
-  quatClose(value.targetOrientation,IDENTITY,0,`${hand} center identity`);
-  assert.equal(value.radius,0); assert.equal(value.influence,0);
-  assert.equal(Object.hasOwn(value,"retainedCenter"),false); assert.equal(Object.hasOwn(value,"bootstrapped"),false);
-}
-tracker.tick("left",.5,1,ZONES,RADIUS,100,"linear",0);
-quatClose(tracker.tick("left",.5,.5,ZONES,RADIUS,101,"linear",0).targetOrientation,IDENTITY,0,"center never retains edge history");
-tracker.reset();
-quatClose(tracker.tick("left",.5,.5,ZONES,RADIUS,200,"linear",0).targetOrientation,IDENTITY,0,"reset center remains identity");
+// The spatial field has no retained role/session history: edge→center is exact
+// identity regardless of prior calls or hand-side conventions.
+squareRadialSaberTarget(.5,1,ZONES,RADIUS);
+quatClose(squareRadialSaberTarget(.5,.5,ZONES,RADIUS).orientation,IDENTITY,0,"center never retains edge history");
+squareRadialSaberTarget(0,.5,ZONES,RADIUS);
+quatClose(squareRadialSaberTarget(.5,.5,ZONES,RADIUS).orientation,IDENTITY,0,"center is independent of prior side");
 
-// Fixed temporal endpoints are independent of 30/60/120 Hz evaluation cadence.
-const cadenceResult=(hz)=>{
-  const candidate=createSquareRadialSaberTargetTracker();
-  candidate.tick("right",.5,1,ZONES,RADIUS,-100,"linear",100);
-  candidate.tick("right",1,.5,ZONES,RADIUS,0,"linear",100);
-  const step=1000/hz;
-  for(let now=step;now<50;now+=step)candidate.tick("right",1,.5,ZONES,RADIUS,now,"linear",100);
-  return candidate.tick("right",1,.5,ZONES,RADIUS,50,"linear",100).orientation;
+// Continuously moving center→edge and center→corner paths must produce the same
+// quaternion at shared wall-clock checkpoints after arbitrary 30/60/120 Hz
+// interstitial evaluation. This catches sample-rate-dependent temporal lag.
+const cadencePath=(hz,ex,ey)=>{
+  const checkpoints=[.1,.25,.5,.75,1], result=[];
+  let nextFrame=0;
+  for(const checkpoint of checkpoints){
+    while(nextFrame<checkpoint){squareRadialSaberTarget(.5+(ex-.5)*nextFrame,.5+(ey-.5)*nextFrame,ZONES,RADIUS);nextFrame+=1/hz;}
+    result.push(squareRadialSaberTarget(.5+(ex-.5)*checkpoint,.5+(ey-.5)*checkpoint,ZONES,RADIUS).orientation);
+  }
+  return result;
 };
-const q30=cadenceResult(30),q60=cadenceResult(60),q120=cadenceResult(120);
-quatClose(q30,q60,1e-8,"30/60 cadence parity"); quatClose(q60,q120,1e-8,"60/120 cadence parity");
-quatClose(q30,slerpEquipmentQuaternionShortest(edgeQ("edgeTop"),edgeQ("edgeRight"),.5),1e-8,"cadence midpoint is fixed-endpoint midpoint");
+for(const [name,ex,ey] of [["edge",1,.5],["corner",1,1]]){
+  const paths=[30,60,120].map((hz)=>cadencePath(hz,ex,ey));
+  for(let checkpoint=0;checkpoint<paths[0].length;checkpoint+=1){
+    quatClose(paths[0][checkpoint],paths[1][checkpoint],0,`${name} 30/60 moving cadence checkpoint ${checkpoint}`);
+    quatClose(paths[1][checkpoint],paths[2][checkpoint],0,`${name} 60/120 moving cadence checkpoint ${checkpoint}`);
+  }
+}
 
 console.log(`Neutral-center square-radial saber validation passed (4097-sample rays/perimeter/outside; max perimeter step ${maxStep.toFixed(6)} degrees).`);

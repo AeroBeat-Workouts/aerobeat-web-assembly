@@ -52,7 +52,7 @@ import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowC
 import { isRecord, projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
 import { boxingUpcomingActions, createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
-import { createSquareRadialSaberTargetTracker } from "./saber-zone-direction.js";
+import { squareRadialSaberTarget } from "./saber-zone-direction.js";
 import { canonicalEquipmentConfigIdentityInput, canonicalEquipmentConfigJson, serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 import { testEquipmentInput, testEquipmentMouseHands, visualTestProductionInput } from "./test-equipment-authoring.js";
@@ -211,8 +211,6 @@ export class AeroGame extends HTMLElement {
     // v3 square-radial full-quaternion target tracker. Reset whenever the
     // session generation advances so an eased target never crosses a run/mode
     // boundary.
-    this.saberTargetTracker = createSquareRadialSaberTargetTracker();
-    this.saberTargetSessionGeneration = -1;
     this.sessionActionGeneration = 0;
     this.sessionActionIntentOrdinal = 0;
     this.visualTestTransportArmedOrdinal = -1;
@@ -682,7 +680,7 @@ export class AeroGame extends HTMLElement {
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
       this.synchronizePausedClock(graph);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
-      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberTargetTracker.reset();
+      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset();
       this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport();
     }
   }
@@ -1568,21 +1566,15 @@ export class AeroGame extends HTMLElement {
 
   /** Resolve one complete v4 neutral-center Flow quaternion target per hand. */
   computeFlowQuaternionTargets(graph, inputOverride = null) {
-    if (this.saberTargetSessionGeneration !== this.sessionGeneration) {
-      this.saberTargetTracker.reset();
-      this.saberTargetSessionGeneration = this.sessionGeneration;
-    }
     const snapshot = graph.gameplay.getSnapshot();
-    const nowMs = Number(snapshot.session?.timestampMs ?? 0);
     const config = this.equipmentConfig.flow.saber;
-    const endpointDurationMs = snapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs;
     const anchors = Array.isArray(inputOverride?.anchors) ? inputOverride.anchors : (Array.isArray(snapshot?.anchors) ? snapshot.anchors : []);
     const result = { left: null, right: null };
     for (const hand of ["left", "right"]) {
       const role = `${hand}_wrist`;
       const anchor = anchors.find((entry) => entry?.anchor === role && entry.valid === true && Number.isFinite(entry.x) && Number.isFinite(entry.y));
       const position = anchor ? { x:Number(anchor.x), y:Number(anchor.y) } : { x:hand === "left" ? 0 : 1, y:.5 };
-      const target = this.saberTargetTracker.tick(hand, position.x, 1-position.y, config.zones, config.blendRadius, nowMs, config.ease.type, endpointDurationMs);
+      const target = squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius);
       result[hand] = Object.freeze({ orientation:target.orientation, position:Object.freeze(position) });
     }
     return result;
@@ -1628,8 +1620,8 @@ export class AeroGame extends HTMLElement {
     // mode, and HIDE the legacy markers by passing an EMPTY cursor array —
     // per the shared `equipmentMarkerVisibility` contract every legacy marker
     // (nose + both wrists) is hidden in both modes, and obstacle nose detection
-    // is gameplay-side and untouched. Flow orientation comes only from the v3
-    // square-radial full-quaternion tracker, so the one frozen resolved pose is
+    // is gameplay-side and untouched. Flow orientation comes only from the v4
+    // cadence-independent square-radial quaternion field, so one frozen pose is
     // both the visible beam and the analytic hit volume.
     const snapshot = graph.gameplay.getSnapshot();
     const session = snapshot.session;
@@ -2670,7 +2662,7 @@ export class AeroGame extends HTMLElement {
       const session = this.graph?.gameplay.getSnapshot().session;
       const reseedVisualTest = Boolean(this.graph && this.sessionStartRequested && this.activeSessionAction === "test" && session?.purpose === "visual_test");
       this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity;
-      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset(); this.saberTargetTracker.reset();
+      this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset();
       if (reseedVisualTest) this.configureGameplayFromContent(false, "visual_test");
       this.equipmentConfigStatus = successMessage; this.renderEquipmentConfigControls(); this.renderGameplay();
       return true;

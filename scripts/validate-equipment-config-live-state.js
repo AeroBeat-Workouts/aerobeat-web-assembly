@@ -38,9 +38,9 @@ for (const token of [
 ]) assert(source.includes(token), `missing generated XYZ/heading controls: ${token}`);
 for (const group of ["Flow · hand transforms", "Flow · saber zones", "Boxing · hand transforms", "Boxing · glove states"]) assert(source.includes(`label:"${group}"`), `missing group ${group}`);
 
-// Accepted control edits validate atomically, reset easing trackers so the
-// edited orientation is visible immediately, refresh controls, and explicitly
-// render even when the display loop is stopped.
+// Accepted control edits validate atomically, reset stateful Boxing easing,
+// keep Flow on its stateless cadence-independent field, refresh controls, and
+// explicitly render even when the display loop is stopped.
 const commitStart = source.indexOf("\n  async commitEquipmentConfig(");
 const queueStart = source.indexOf("\n  queueEquipmentConfigCommit(");
 const applyStart = source.indexOf("\n  applyEquipmentConfigControl(");
@@ -52,13 +52,14 @@ const commitBody=source.slice(commitStart,queueStart),queueBody=source.slice(que
 assert(applyBody.includes("equipmentConfigCandidate(this.equipmentConfigDraft, path, value)"), "field edit must merge against the latest validated pending draft");
 assert(applyBody.includes('this.queueEquipmentConfigCommit(candidate, "Equipment config updated.")'), "field edit must enter the serialized config commit queue");
 assert(commitBody.includes("await this.equipmentIdentityFor(candidate)")&&commitBody.includes("this.equipmentConfig = candidate; this.equipmentConfigIdentity = identity"),"config and strict SHA-256 identity commit atomically after the async boundary");
-assert(commitBody.includes("this.gloveRotationTracker.reset()") && commitBody.includes("this.saberTargetTracker.reset()"), "field edit must reset live quaternion-target easing");
+assert(commitBody.includes("this.gloveRotationTracker.reset()") && !source.includes("saberTargetTracker"), "field edit must reset Boxing easing without reintroducing cadence-dependent Flow state");
 assert(commitBody.includes('this.configureGameplayFromContent(false, "visual_test")') && !commitBody.includes("startSession("), "active Test edits must reseed gameplay without restarting transport");
 assert(commitBody.includes("this.renderEquipmentConfigControls()") && commitBody.includes("this.renderGameplay()"), "field edit must refresh controls and explicitly render a frame");
 assert(queueBody.includes("canonicalEquipmentConfigJson(candidate) === canonicalEquipmentConfigJson(this.equipmentConfigDraft)"), "duplicate input/change candidates must be suppressed");
 assert(queueBody.includes("this.equipmentConfigDraft = candidate") && queueBody.includes("this.equipmentConfigCommitTail.then(operation, operation)"), "pending drafts must merge before serialized SHA commits");
 assert(queueBody.includes("this.isCurrent(connectionGeneration, graph)"), "queued commits must reject stale lifecycle owners");
-assert(source.includes('session?.state === "paused_manual" ? 0 : config.ease.durationMs') && source.includes('snapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs'), "paused Boxing and Flow trackers must resolve immediate endpoint poses");
+assert(source.includes('gameplaySnapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs'), "paused Boxing tracker must resolve immediate endpoint poses");
+assert(source.includes("squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius)"), "Flow must resolve directly from the stateless cadence-independent spatial field");
 
 const resetBody = source.slice(resetStart, exportStart);
 assert(resetBody.includes("validateEquipmentConfig(equipmentConfigDefaults)"), "Reset must restore validated build defaults");

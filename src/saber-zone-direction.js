@@ -2,7 +2,6 @@
 // Pure square-radial Flow saber target field. Position remains caller-owned and
 // unbounded; only the orientation sample is clamped to the normalized square.
 
-import { easeValue } from "./easing.js";
 import {
   equipmentEulerDegreesToQuaternion,
   multiplyEquipmentQuaternions,
@@ -29,10 +28,6 @@ function finite(value, name) {
 function smoothstep01(value) {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
-}
-
-function quaternionEqual(a, b) {
-  return a.x === b.x && a.y === b.y && a.z === b.z && a.w === b.w;
 }
 
 function edgeQuaternion(zone, key) {
@@ -141,40 +136,5 @@ export function squareRadialSaberTarget(x, y, zones, blendRadius) {
     influence: radial.influence,
     perimeterOrientation,
     orientation: slerpEquipmentQuaternionShortest(IDENTITY_QUATERNION, perimeterOrientation, radial.influence)
-  });
-}
-
-/** Stateful fixed-endpoint temporal easing over the stateless spatial field. */
-export function createSquareRadialSaberTargetTracker() {
-  const hands = new Map();
-  const evaluate = (entry, nowMs) => {
-    const progress = entry.durationMs <= 0 ? 1 : Math.max(0, Math.min(1, (nowMs - entry.startMs) / entry.durationMs));
-    return slerpEquipmentQuaternionShortest(entry.start, entry.target, easeValue(progress, entry.ease));
-  };
-  return Object.freeze({
-    tick(hand, x, y, zones, blendRadius, nowMs, ease, durationMs) {
-      if (hand !== "left" && hand !== "right") throw new TypeError("Square-radial saber tracker: hand must be 'left' or 'right'");
-      finite(nowMs, "Square-radial saber tracker: nowMs");
-      finite(durationMs, "Square-radial saber tracker: durationMs");
-      const spatial = squareRadialSaberTarget(x, y, zones, blendRadius);
-      const target = spatial.orientation;
-      let entry = hands.get(hand);
-      const clampedDuration = Math.max(0, durationMs);
-      if (entry === undefined) {
-        entry = { start: target, target, startMs: nowMs, ease, durationMs: clampedDuration };
-      } else if (!quaternionEqual(target, entry.target) || ease !== entry.ease || clampedDuration !== entry.durationMs) {
-        entry = { start: evaluate(entry, nowMs), target, startMs: nowMs, ease, durationMs: clampedDuration };
-      }
-      hands.set(hand, entry);
-      return Object.freeze({
-        orientation: evaluate(entry, nowMs),
-        targetOrientation: target,
-        boundary: spatial.boundary,
-        weights: spatial.weights,
-        radius: spatial.radius,
-        influence: spatial.influence
-      });
-    },
-    reset() { hands.clear(); }
   });
 }
