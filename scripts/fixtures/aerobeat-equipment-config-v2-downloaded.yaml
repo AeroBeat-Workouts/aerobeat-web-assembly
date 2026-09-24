@@ -1,0 +1,97 @@
+schema: "aerobeat/equipment_config"
+version: 2
+flow:
+  perHand:
+    left:
+      scale: 2
+      rotationEulerDeg:
+        x: 0
+        y: 0
+        z: 0
+    right:
+      scale: 2
+      rotationEulerDeg:
+        x: 0
+        y: 0
+        z: 0
+  saber:
+    zones:
+      edgeTop:
+        headingDeg: 90
+        localRotationEulerDeg:
+          x: 0
+          y: 0
+          z: 0
+      edgeBottom:
+        headingDeg: -90
+        localRotationEulerDeg:
+          x: 0
+          y: 0
+          z: 0
+      edgeLeft:
+        headingDeg: -180
+        localRotationEulerDeg:
+          x: 0
+          y: 0
+          z: 0
+      edgeRight:
+        headingDeg: 0
+        localRotationEulerDeg:
+          x: 0
+          y: 0
+          z: 0
+      center:
+        headingDeg: null
+        localRotationEulerDeg:
+          x: 0
+          y: 0
+          z: 0
+    ease:
+      type: linear
+      durationMs: 100
+    blendRadius: 0.15
+boxing:
+  perHand:
+    left:
+      scale: 0.75
+      rotationEulerDeg:
+        x: 0
+        y: 0
+        z: 45
+    right:
+      scale: 0.75
+      rotationEulerDeg:
+        x: 0
+        y: 0
+        z: 45
+  glove:
+    states:
+      straight:
+        rotationEulerDeg:
+          x: 0
+          y: 0
+          z: 0
+      uppercut:
+        rotationEulerDeg:
+          x: 0
+          y: 45
+          z: 0
+      hookL:
+        rotationEulerDeg:
+          x: 45
+          y: 0
+          z: 0
+      hookR:
+        rotationEulerDeg:
+          x: 45
+          y: 0
+          z: 0
+      guard:
+        rotationEulerDeg:
+          x: 0
+          y: 0
+          z: -70
+    ease:
+      type: easeOut
+      durationMs: 100
+    upcomingBeatWindowMs: 500

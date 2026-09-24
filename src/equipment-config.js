@@ -1,22 +1,24 @@
 // @ts-check
-// Strict canonical equipment configuration v2 plus a boundary-only migration
-// for wholly legacy, unversioned Z-only YAML documents.
+// Strict canonical equipment configuration v3, deterministic full v2 -> v3
+// migration, and boundary-only migration for wholly legacy unversioned Z-only YAML.
 
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
 import { parseYamlSubset, serializeYamlSubset } from "./equipment-config-yaml.js";
 
 export const EQUIPMENT_CONFIG_SCHEMA = "aerobeat/equipment_config";
-export const EQUIPMENT_CONFIG_VERSION = 2;
+export const EQUIPMENT_CONFIG_VERSION = 3;
+export const EQUIPMENT_CONFIG_LEGACY_VERSION = 2;
 export const EQUIPMENT_EASE_TYPES = Object.freeze(["linear", "easeIn", "easeOut", "easeInOut"]);
-export const SABER_ZONE_KEYS = Object.freeze(["edgeTop", "edgeBottom", "edgeLeft", "edgeRight", "center"]);
+export const SABER_ZONE_KEYS = Object.freeze(["edgeTop", "edgeBottom", "edgeLeft", "edgeRight"]);
 export const GLOVE_STATE_KEYS = Object.freeze(Object.keys(equipmentConfigDefaults.boxing.glove.states));
 export const PER_HAND_KEYS = Object.freeze(["left", "right"]);
 export const EQUIPMENT_MODE_KEYS = Object.freeze(["flow", "boxing"]);
 export const EQUIPMENT_SCALE_MIN = 0.1;
 export const EQUIPMENT_SCALE_MAX = 4;
 
+const V2_SABER_ZONE_KEYS = Object.freeze([...SABER_ZONE_KEYS, "center"]);
 const LEGACY_KEYS = new Set(["rotationZDeg", "rotationDeg"]);
-const V2_ROTATION_KEYS = new Set(["rotationEulerDeg", "headingDeg", "localRotationEulerDeg"]);
+const STRUCTURED_ROTATION_KEYS = new Set(["rotationEulerDeg", "headingDeg", "localRotationEulerDeg"]);
 
 function record(value, path) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`equipment config: ${path} must be an object`);
@@ -64,32 +66,28 @@ function ease(value, path) {
   return Object.freeze({ type: source.type, durationMs: finite(source.durationMs, `${path}.durationMs`) });
 }
 
-/**
- * Validate and canonicalize one complete v2 runtime record. Missing fields,
- * legacy scalar aliases, wrong schema/version, and unknown keys reject.
- */
-export function validateEquipmentConfig(value) {
+function parsePerHand(value, path) {
+  const hands = record(value, path); exactKeys(hands, PER_HAND_KEYS, path);
+  const out = {};
+  for (const hand of PER_HAND_KEYS) {
+    const handValue = record(hands[hand], `${path}.${hand}`);
+    exactKeys(handValue, ["scale", "rotationEulerDeg"], `${path}.${hand}`);
+    out[hand] = Object.freeze({ scale: scale(handValue.scale, `${path}.${hand}.scale`), rotationEulerDeg: euler(handValue.rotationEulerDeg, `${path}.${hand}.rotationEulerDeg`) });
+  }
+  return Object.freeze(out);
+}
+
+function validateVersion(value, version, zoneKeys) {
   const root = record(value, "(root)");
   exactKeys(root, ["schema", "version", "flow", "boxing"], "(root)");
   if (root.schema !== EQUIPMENT_CONFIG_SCHEMA) throw new Error(`equipment config: schema must be ${EQUIPMENT_CONFIG_SCHEMA}`);
-  if (root.version !== EQUIPMENT_CONFIG_VERSION) throw new Error(`equipment config: version must be ${EQUIPMENT_CONFIG_VERSION}`);
-
-  const parsePerHand = (value, path) => {
-    const hands = record(value, path); exactKeys(hands, PER_HAND_KEYS, path);
-    const out = {};
-    for (const hand of PER_HAND_KEYS) {
-      const handValue = record(hands[hand], `${path}.${hand}`);
-      exactKeys(handValue, ["scale", "rotationEulerDeg"], `${path}.${hand}`);
-      out[hand] = Object.freeze({ scale: scale(handValue.scale, `${path}.${hand}.scale`), rotationEulerDeg: euler(handValue.rotationEulerDeg, `${path}.${hand}.rotationEulerDeg`) });
-    }
-    return Object.freeze(out);
-  };
+  if (root.version !== version) throw new Error(`equipment config: version must be ${version}`);
 
   const flow = record(root.flow, "(root).flow"); exactKeys(flow, ["perHand", "saber"], "(root).flow");
   const saber = record(flow.saber, "(root).flow.saber"); exactKeys(saber, ["zones", "ease", "blendRadius"], "(root).flow.saber");
-  const zones = record(saber.zones, "(root).flow.saber.zones"); exactKeys(zones, SABER_ZONE_KEYS, "(root).flow.saber.zones");
+  const zones = record(saber.zones, "(root).flow.saber.zones"); exactKeys(zones, zoneKeys, "(root).flow.saber.zones");
   const zoneOut = {};
-  for (const key of SABER_ZONE_KEYS) {
+  for (const key of zoneKeys) {
     const zone = record(zones[key], `(root).flow.saber.zones.${key}`);
     exactKeys(zone, ["headingDeg", "localRotationEulerDeg"], `(root).flow.saber.zones.${key}`);
     if (zone.headingDeg === null && key !== "center") throw new Error(`equipment config: ${key}.headingDeg must be a finite number`);
@@ -109,18 +107,35 @@ export function validateEquipmentConfig(value) {
     stateOut[key] = Object.freeze({ rotationEulerDeg: euler(state.rotationEulerDeg, `(root).boxing.glove.states.${key}.rotationEulerDeg`) });
   }
 
+  const blendRadius = finite(saber.blendRadius, "(root).flow.saber.blendRadius");
+  if (version === EQUIPMENT_CONFIG_VERSION && (blendRadius <= 0 || blendRadius > 0.5)) throw new Error("equipment config: (root).flow.saber.blendRadius must be in (0, 0.5]");
+
   return Object.freeze({
     schema: EQUIPMENT_CONFIG_SCHEMA,
-    version: EQUIPMENT_CONFIG_VERSION,
+    version,
     flow: Object.freeze({
       perHand: parsePerHand(flow.perHand, "(root).flow.perHand"),
-      saber: Object.freeze({ zones: Object.freeze(zoneOut), ease: ease(saber.ease, "(root).flow.saber.ease"), blendRadius: finite(saber.blendRadius, "(root).flow.saber.blendRadius") })
+      saber: Object.freeze({ zones: Object.freeze(zoneOut), ease: ease(saber.ease, "(root).flow.saber.ease"), blendRadius })
     }),
     boxing: Object.freeze({
       perHand: parsePerHand(boxing.perHand, "(root).boxing.perHand"),
       glove: Object.freeze({ states: Object.freeze(stateOut), ease: ease(glove.ease, "(root).boxing.glove.ease"), upcomingBeatWindowMs: finite(glove.upcomingBeatWindowMs, "(root).boxing.glove.upcomingBeatWindowMs") })
     })
   });
+}
+
+/** Validate and canonicalize one complete v3 runtime record. */
+export function validateEquipmentConfig(value) {
+  return validateVersion(value, EQUIPMENT_CONFIG_VERSION, SABER_ZONE_KEYS);
+}
+
+/** Deterministically migrate one complete strict v2 record, deleting authored center. */
+export function migrateEquipmentConfigV2(value) {
+  const v2 = validateVersion(value, EQUIPMENT_CONFIG_LEGACY_VERSION, V2_SABER_ZONE_KEYS);
+  const migrated = structuredClone(v2);
+  migrated.version = EQUIPMENT_CONFIG_VERSION;
+  delete migrated.flow.saber.zones.center;
+  return validateEquipmentConfig(migrated);
 }
 
 function walkKeys(value, visit) {
@@ -144,7 +159,7 @@ function overlayLegacy(target, source, path = "(root)") {
     : path.endsWith(".perHand") ? PER_HAND_KEYS
     : /\.perHand\.(left|right)$/u.test(path) ? ["scale", "rotationZDeg"]
     : path.endsWith(".saber") ? ["zones", "ease", "blendRadius"]
-    : path.endsWith(".zones") ? SABER_ZONE_KEYS
+    : path.endsWith(".zones") ? V2_SABER_ZONE_KEYS
     : /\.zones\.[^.]+$/u.test(path) ? ["rotationDeg"]
     : path.endsWith(".glove") ? ["states", "ease", "upcomingBeatWindowMs"]
     : path.endsWith(".states") ? GLOVE_STATE_KEYS
@@ -153,6 +168,11 @@ function overlayLegacy(target, source, path = "(root)") {
   for (const key of Object.keys(src)) if (!allowed.includes(key)) throw new Error(`equipment config: unknown key "${key}" under ${path} (allowed: ${allowed.join(", ")})`);
   for (const [key, child] of Object.entries(src)) {
     const childPath = `${path}.${key}`;
+    if (path.endsWith(".zones") && key === "center") {
+      const center = record(child, childPath); exactKeys(center, ["rotationDeg"], childPath);
+      canonicalEquipmentAngleDeg(center.rotationDeg, `${childPath}.rotationDeg`);
+      continue;
+    }
     if (child !== null && typeof child === "object" && !Array.isArray(child)) { overlayLegacy(target[key], child, childPath); continue; }
     if (key === "rotationZDeg") target.rotationEulerDeg = { x: 0, y: 0, z: child };
     else if (key === "rotationDeg") target.headingDeg = child;
@@ -160,15 +180,18 @@ function overlayLegacy(target, source, path = "(root)") {
   }
 }
 
-/** Parse canonical v2 YAML or migrate one wholly legacy unversioned document. */
+/** Parse canonical v3 YAML, fully migrate strict v2, or migrate wholly legacy unversioned YAML. */
 export function parseEquipmentConfigYaml(text) {
   const parsed = parseYamlSubset(text);
   const root = record(parsed, "(root)");
   const legacy = hasAnyKey(root, LEGACY_KEYS);
-  const v2Rotations = hasAnyKey(root, V2_ROTATION_KEYS);
+  const structured = hasAnyKey(root, STRUCTURED_ROTATION_KEYS);
   const versioned = Object.hasOwn(root, "schema") || Object.hasOwn(root, "version");
-  if (legacy && (v2Rotations || versioned)) throw new Error("equipment config: mixed legacy/v2 document is not allowed");
-  if (versioned || v2Rotations) return validateEquipmentConfig(root);
+  if (legacy && (structured || versioned)) throw new Error("equipment config: mixed legacy/versioned document is not allowed");
+  if (versioned || structured) {
+    if (root.schema === EQUIPMENT_CONFIG_SCHEMA && root.version === EQUIPMENT_CONFIG_LEGACY_VERSION) return migrateEquipmentConfigV2(root);
+    return validateEquipmentConfig(root);
+  }
   const migrated = cloneDefaults();
   overlayLegacy(migrated, root);
   return validateEquipmentConfig(migrated);
@@ -185,7 +208,7 @@ export function canonicalEquipmentConfigJson(config) {
   return canonical(validateEquipmentConfig(config));
 }
 
-/** Serialize one complete canonical v2 record in deterministic schema order. */
+/** Serialize one complete canonical v3 record in deterministic schema order. */
 export function serializeEquipmentConfigYaml(config) {
   return serializeYamlSubset(validateEquipmentConfig(config));
 }
