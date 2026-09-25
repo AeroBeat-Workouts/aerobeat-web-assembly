@@ -1588,7 +1588,7 @@ export class AeroGame extends HTMLElement {
     const visualTest = session?.purpose === "visual_test";
     const poseInput = visualTest && equipmentInput?.preview ? equipmentInput.preview : equipmentInput;
     const boxingStateOrientations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph, frame) : null;
-    const flowQuaternionTargets = equipmentMode === "flow" ? this.computeFlowQuaternionTargets(graph, visualTest ? poseInput : null) : null;
+    const flowQuaternionTargets = equipmentMode === "flow" ? this.computeFlowQuaternionTargets(graph, poseInput) : null;
     return gameplayEquipmentRecords(this.menuOpen, session, poseInput, equipmentMode, boxingStateOrientations, flowQuaternionTargets, this.equipmentConfig, this.equipmentConfigIdentity);
   }
 

@@ -30,12 +30,12 @@ assert.deepEqual(runtimeEnvelope, {
   geometryIdentities: ["aerobeat/saber_capsule_v1", "aerobeat/glove_obb_v1"],
   canonicalConfigJson
 }, "runtime identity input is the exact contracts-owned canonical v4 envelope");
-assert.equal(sha256(runtimeInput), "3f0a26049f027ef012b47d570611f626d42e8787af57eab320aac293d91565f5", "canonical runtime v4 identity golden");
+assert.equal(sha256(runtimeInput), "5c18953e359cc87091d605333770f0529e7d5fe8714ab768dc684d27fcf7ffd4", "canonical runtime v4 identity golden");
 
 const v2Input = equipmentConfigIdentityInput({ configSchema: EQUIPMENT_CONFIG_SCHEMA, configVersion: 2, canonicalConfigJson });
 const v3Input = equipmentConfigIdentityInput({ configSchema: EQUIPMENT_CONFIG_SCHEMA, configVersion: 3, canonicalConfigJson });
-assert.equal(sha256(v2Input), "f1c8305b1beee44110b3b93393af446260cbfd73b445feb0cb14cb5d9fd4405e", "exact v2 envelope golden for current visible values");
-assert.equal(sha256(v3Input), "2284d82734ccb454625820db28351acd502e0c8b1ccaa09c888e6072b9f90b9c", "exact v3 envelope golden for current visible values");
+assert.equal(sha256(v2Input), "e1ee8cbd8e84f93aa5b4ee1ec149e02fc1b4a8c31b63f623658a3d8f54baa63c", "exact v2 envelope golden for current visible values");
+assert.equal(sha256(v3Input), "51aeede88ff57a094311e170cdeceb0160a7facec631aeb2a532296c6bd738dc", "exact v3 envelope golden for current visible values");
 assert.equal(new Set([v2Input, v3Input, runtimeInput]).size, 3, "v2/v3/v4 envelopes remain byte-distinct");
 assert.equal(new Set([sha256(v2Input), sha256(v3Input), sha256(runtimeInput)]).size, 3, "v2/v3/v4 score/config identities remain separated");
 
@@ -55,6 +55,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const downloadedV3 = readFileSync(resolve(root, "scripts/fixtures/aerobeat-equipment-config-v3-downloaded.yaml"), "utf8");
 const migrated = parseEquipmentConfigYaml(downloadedV3);
 assert.equal(migrated.version, EQUIPMENT_CONFIG_VERSION, "strict v3 authoring input migrates before runtime identity");
-assert.equal(canonicalEquipmentConfigIdentityInput(migrated), runtimeInput, "migrated v3 fixture locks the canonical runtime v4 identity");
+assert.equal(sha256(canonicalEquipmentConfigIdentityInput(migrated)), "3f0a26049f027ef012b47d570611f626d42e8787af57eab320aac293d91565f5", "migrated historical v3 fixture retains its exact prior-value runtime identity");
+assert.notEqual(canonicalEquipmentConfigIdentityInput(migrated), runtimeInput, "historical v3 values remain distinct from the latest baked strict v4 defaults");
 
 console.log("Equipment config identity v4 envelope, v2/v3 separation, rejection, migration, and goldens passed.");

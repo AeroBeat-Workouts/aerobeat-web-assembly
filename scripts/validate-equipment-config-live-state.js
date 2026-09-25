@@ -60,6 +60,9 @@ assert(queueBody.includes("this.equipmentConfigDraft = candidate") && queueBody.
 assert(queueBody.includes("this.isCurrent(connectionGeneration, graph)"), "queued commits must reject stale lifecycle owners");
 assert(source.includes('gameplaySnapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs'), "paused Boxing tracker must resolve immediate endpoint poses");
 assert(source.includes("squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius)"), "Flow must resolve directly from the stateless cadence-independent spatial field");
+const resolveEquipmentPosesBody = source.slice(source.indexOf("\n  resolveEquipmentPoses("), source.indexOf("\n  visualTestProductionFrame(", source.indexOf("\n  resolveEquipmentPoses(")));
+assert(resolveEquipmentPosesBody.includes("this.computeFlowQuaternionTargets(graph, poseInput)"), "Test and Play Flow orientation must consume the current private pose input");
+assert.equal(resolveEquipmentPosesBody.includes("visualTest ? poseInput : null"), false, "Play Flow orientation must never discard its current private pose input");
 
 const resetBody = source.slice(resetStart, exportStart);
 assert(resetBody.includes("validateEquipmentConfig(equipmentConfigDefaults)"), "Reset must restore validated build defaults");
