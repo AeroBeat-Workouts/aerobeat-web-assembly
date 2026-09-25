@@ -1,0 +1,129 @@
+{
+  "schema": "aerobeat.photosphere-derivative/v1",
+  "id": "salt-lake-photosphere",
+  "source": {
+    "path": ".testbed/assets/splats/salt-lake/salt-lake.compressed.ply",
+    "sha256": "beb9dab250ad146cbe24199c7405d1745f817a5757e7538e81bb0fbe538aec6a",
+    "bytes": 55619664,
+    "pointCount": 2200000,
+    "aabb": {
+      "position": [
+        -140.184,
+        -138.615,
+        -166.0707
+      ],
+      "size": [
+        283.5669,
+        146.2468,
+        317.2095
+      ]
+    }
+  },
+  "capture": {
+    "tool": ".testbed/tools/photosphere/capture_cubemap.gd",
+    "scene": ".testbed/tools/photosphere/capture_cubemap.tscn",
+    "viewpoint": [
+      0,
+      0,
+      4
+    ],
+    "centerForward": [
+      0,
+      0,
+      -1
+    ],
+    "worldUp": [
+      0,
+      1,
+      0
+    ],
+    "faceSize": 1920,
+    "faceOrder": [
+      "pos_x",
+      "neg_x",
+      "pos_y",
+      "neg_y",
+      "pos_z",
+      "neg_z"
+    ],
+    "loadCount": 1,
+    "requiredExecution": "visible Vulkan Forward+",
+    "versions": {
+      "godot": "4.6.2-stable (official)",
+      "gdgsUpstream": "2.2.0",
+      "aerobeatVendorGdgsCommit": "f5d5e1b6d580ba1342022d1ceac8ac982f9597fb",
+      "gpu": "NVIDIA GeForce RTX 3080",
+      "gpuDriver": "580.173.02",
+      "vulkanReportedByGodot": "1.4.312",
+      "renderingMethod": "forward_plus",
+      "renderingDriver": "vulkan",
+      "displayServer": "X11"
+    }
+  },
+  "stitch": {
+    "tool": ".testbed/tools/photosphere/cube_to_equirect.py",
+    "mapping": "longitude wraps horizontally; -Z center, +Y/-Y poles",
+    "sampling": "bilinear RGB, half-texel pixel centers, face-edge clamp",
+    "versions": {
+      "python": "3.14.2",
+      "pillow": "12.1.0",
+      "numpy": "2.4.2"
+    }
+  },
+  "output": {
+    "path": ".testbed/assets/images/salt-lake-photosphere/salt-lake-photosphere.jpg",
+    "dimensions": [
+      4096,
+      2048
+    ],
+    "mode": "RGB",
+    "encoding": "JPEG",
+    "colorSpace": "sRGB",
+    "jpeg": {
+      "quality": 92,
+      "subsampling": 0,
+      "optimize": false,
+      "progressive": false
+    },
+    "sha256": "2768567c95424d33a0b1727f1c50a48e3e063902d021132642ea7b6f5851185c",
+    "bytes": 2010461
+  },
+  "config": {
+    "path": ".testbed/assets/images/salt-lake-photosphere/salt-lake-photosphere.config.json",
+    "schema": "aerobeat/environment_asset_config",
+    "version": 1,
+    "sha256": "4f602515f85343c8e44ebc0271b5ccadd6a8848d917bb311cc742deea04af5c7",
+    "bytes": 324,
+    "parityIntent": "One-to-one future photosphere/splat transform parity; no runtime splat integration in this package."
+  },
+  "rights": {
+    "authority": "Derrick Barra direct project instruction on 2026-09-03",
+    "statement": "The listed splats were generated and then purchased by AeroBeat and may be used commercially without attribution.",
+    "attributionRequired": false,
+    "scopeLimit": "Applies only to the listed purchased splats and their photosphere derivatives; it does not apply to the rejected third-party alien-moon GLB and does not assert public sublicensing rights."
+  },
+  "continuity": {
+    "metrics": {
+      "seamMeanRgbDelta": 2.5118815104166665,
+      "seamP95RgbDelta": 10.333333333333334,
+      "poleTopChannelSpread": 0.6960499641284187,
+      "poleBottomChannelSpread": 8.203737738803378
+    },
+    "thresholds": {
+      "seamMeanRgbDelta": 5,
+      "seamP95RgbDelta": 16,
+      "poleTopChannelSpread": 16,
+      "poleBottomChannelSpread": 16
+    }
+  },
+  "conversionAssessment": {
+    "classification": "strong-comparison",
+    "note": "Complete open salt-lake coverage with broad low-detail horizons and a detailed salt/water nadir retained from the common viewpoint."
+  },
+  "review": {
+    "folder": ".plans/review/2026-09-03-owned-photosphere-catalog/salt-lake",
+    "report": "stitch-report.json",
+    "fullResolutionFacesRetained": false
+  },
+  "reproducibilityLimit": "Offline stitching is deterministic only for fixed face bytes and pinned versions. Full-resolution GPU faces are omitted; a fresh GDGS/GPU capture may differ due to device rendering, splat sorting, and driver behavior."
+}
