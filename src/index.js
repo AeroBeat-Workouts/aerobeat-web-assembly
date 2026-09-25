@@ -266,6 +266,10 @@ export class AeroGame extends HTMLElement {
     this.visualTestEvidenceFrameSequence = 0;
     this.visualTestEvidenceTimestampMs = -1;
     this.currentEquipmentPoses = Object.freeze([]);
+    // Per-hand last-known shoulder pivot (anchor space) for shoulder-based Flow
+    // rotation; held when a shoulder drops, reset on a new calibration generation.
+    this.lastKnownShoulderPivot = { left: null, right: null };
+    this.lastKnownShoulderCalibrationId = null;
     this.testEquipmentVisible = false;
     this.testAutomaticFeedbackEnabled = true;
     this.testEquipmentMouseHand = "off";
@@ -1566,16 +1570,37 @@ export class AeroGame extends HTMLElement {
   }
 
   /** Resolve one complete v4 neutral-center Flow quaternion target per hand. */
-  computeFlowQuaternionTargets(graph, inputOverride = null) {
+  computeFlowQuaternionTargets(graph, inputOverride = null, visualTest = false) {
     const snapshot = graph.gameplay.getSnapshot();
     const config = this.equipmentConfig.flow.saber;
     const anchors = Array.isArray(inputOverride?.anchors) ? inputOverride.anchors : (Array.isArray(snapshot?.anchors) ? snapshot.anchors : []);
+    // A recalibration remaps the grid, so a stale shoulder pivot is meaningless:
+    // reset the per-hand last-known cache when the calibration generation changes.
+    const calibrationId = inputOverride?.calibration?.calibrationId ?? snapshot?.calibration?.calibrationId ?? null;
+    if (this.lastKnownShoulderCalibrationId !== calibrationId) {
+      this.lastKnownShoulderCalibrationId = calibrationId;
+      this.lastKnownShoulderPivot = { left: null, right: null };
+    }
     const result = { left: null, right: null };
     for (const hand of ["left", "right"]) {
       const role = `${hand}_wrist`;
       const anchor = anchors.find((entry) => entry?.anchor === role && entry.valid === true && Number.isFinite(entry.x) && Number.isFinite(entry.y));
       const position = anchor ? { x:Number(anchor.x), y:Number(anchor.y) } : { x:hand === "left" ? 0 : 1, y:.5 };
-      const target = squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius);
+      let center;
+      if (visualTest) {
+        // Test mode has no body: keep the screen-center pivot.
+        center = { x: 0.5, y: 0.5 };
+      } else {
+        const shoulder = anchors.find((entry) => entry?.anchor === `${hand}_shoulder` && entry.valid === true && Number.isFinite(entry.x) && Number.isFinite(entry.y));
+        if (shoulder) {
+          center = { x: Number(shoulder.x), y: Number(shoulder.y) };
+          this.lastKnownShoulderPivot[hand] = center;
+        } else {
+          // Shoulder lost: hold the last known position, else fall back to center.
+          center = this.lastKnownShoulderPivot[hand] ?? { x: 0.5, y: 0.5 };
+        }
+      }
+      const target = squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius, { x: center.x, y: 1-center.y });
       result[hand] = Object.freeze({ orientation:target.orientation, position:Object.freeze(position) });
     }
     return result;
@@ -1592,7 +1617,7 @@ export class AeroGame extends HTMLElement {
     const visualTest = session?.purpose === "visual_test";
     const poseInput = visualTest && equipmentInput?.preview ? equipmentInput.preview : equipmentInput;
     const boxingStateOrientations = equipmentMode === "boxing" ? this.computeBoxingStateRotations(graph, frame) : null;
-    const flowQuaternionTargets = equipmentMode === "flow" ? this.computeFlowQuaternionTargets(graph, poseInput) : null;
+    const flowQuaternionTargets = equipmentMode === "flow" ? this.computeFlowQuaternionTargets(graph, poseInput, visualTest) : null;
     return gameplayEquipmentRecords(this.menuOpen, session, poseInput, equipmentMode, boxingStateOrientations, flowQuaternionTargets, this.equipmentConfig, this.equipmentConfigIdentity);
   }
 

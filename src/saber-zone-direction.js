@@ -19,6 +19,24 @@ export const SABER_ZONE_ANCHORS = Object.freeze({
 const ZERO_EULER = Object.freeze({ x: 0, y: 0, z: 0 });
 const IDENTITY_QUATERNION = Object.freeze({ x: 0, y: 0, z: 0, w: 1 });
 const ZERO_WEIGHTS = Object.freeze({ edgeTop: 0, edgeBottom: 0, edgeLeft: 0, edgeRight: 0 });
+// Default radial pivot is the normalized-square center. Callers may supply a
+// finite off-center pivot (e.g. a shoulder) so the field radiates from a body
+// point instead of the screen center.
+const DEFAULT_CENTER = Object.freeze({ x: 0.5, y: 0.5 });
+
+/**
+ * Resolve a finite radial pivot. Absent/undefined falls back to the square
+ * center so existing callers are unchanged.
+ * @param {{x?: unknown, y?: unknown} | null | undefined} center
+ */
+function resolveCenter(center) {
+  const cx = center?.x ?? 0.5;
+  const cy = center?.y ?? 0.5;
+  if (typeof cx !== "number" || !Number.isFinite(cx) || typeof cy !== "number" || !Number.isFinite(cy)) {
+    throw new TypeError("squareRadial: center must be a finite {x, y}");
+  }
+  return { cx, cy };
+}
 
 function finite(value, name) {
   if (typeof value !== "number" || !Number.isFinite(value)) throw new TypeError(`${name} must be a finite number`);
@@ -45,10 +63,11 @@ function edgeQuaternion(zone, key) {
  * The input is clamped only for orientation; callers retain the truthful point.
  * Exact center returns null because radial direction is undefined.
  */
-export function projectSquareRadialOrientation(x, y) {
+export function projectSquareRadialOrientation(x, y, center = DEFAULT_CENTER) {
+  const { cx, cy } = resolveCenter(center);
   const px = Math.max(0, Math.min(1, finite(x, "projectSquareRadialOrientation: x")));
   const py = Math.max(0, Math.min(1, finite(y, "projectSquareRadialOrientation: y")));
-  const dx = px - 0.5, dy = py - 0.5;
+  const dx = px - cx, dy = py - cy;
   const extent = Math.max(Math.abs(dx), Math.abs(dy));
   if (extent === 0) return null;
   return Object.freeze({ x: 0.5 + dx / (2 * extent), y: 0.5 + dy / (2 * extent) });
@@ -58,10 +77,11 @@ export function projectSquareRadialOrientation(x, y) {
  * Smooth edge influence for a finite point. The square radius is zero at exact
  * center and one at/on/outside the square; position itself remains caller-owned.
  */
-export function squareRadialNeutralInfluence(x, y) {
+export function squareRadialNeutralInfluence(x, y, center = DEFAULT_CENTER) {
+  const { cx, cy } = resolveCenter(center);
   const px = Math.max(0, Math.min(1, finite(x, "squareRadialNeutralInfluence: x")));
   const py = Math.max(0, Math.min(1, finite(y, "squareRadialNeutralInfluence: y")));
-  const radius = Math.max(0, Math.min(1, 2 * Math.max(Math.abs(px - 0.5), Math.abs(py - 0.5))));
+  const radius = Math.max(0, Math.min(1, 2 * Math.max(Math.abs(px - cx), Math.abs(py - cy))));
   return Object.freeze({ radius, influence: smoothstep01(radius) });
 }
 
@@ -70,10 +90,10 @@ export function squareRadialNeutralInfluence(x, y) {
  * blendRadius-wide C1 band on each side of a corner joins both full targets;
  * the corner itself is exactly 50/50. Exact center returns null.
  */
-export function squareRadialEdgeWeights(x, y, blendRadius) {
+export function squareRadialEdgeWeights(x, y, blendRadius, center = DEFAULT_CENTER) {
   const radius = finite(blendRadius, "squareRadialEdgeWeights: blendRadius");
   if (radius <= 0 || radius > 0.5) throw new RangeError("squareRadialEdgeWeights: blendRadius must be in (0, 0.5]");
-  const boundary = projectSquareRadialOrientation(x, y);
+  const boundary = projectSquareRadialOrientation(x, y, center);
   if (boundary === null) return null;
 
   let primary, adjacent = null, cornerDistance = 0.5;
@@ -111,10 +131,10 @@ export function squareRadialEdgeWeights(x, y, blendRadius) {
  * heading * local XYZ first; smooth square-radius influence then slerps from the
  * identity spatial adjustment at center to that target at/on/outside the edge.
  */
-export function squareRadialSaberTarget(x, y, zones, blendRadius) {
+export function squareRadialSaberTarget(x, y, zones, blendRadius, center = DEFAULT_CENTER) {
   if (zones === null || typeof zones !== "object") throw new TypeError("squareRadialSaberTarget: zones must be an object");
-  const radial = squareRadialNeutralInfluence(x, y);
-  const field = squareRadialEdgeWeights(x, y, blendRadius);
+  const radial = squareRadialNeutralInfluence(x, y, center);
+  const field = squareRadialEdgeWeights(x, y, blendRadius, center);
   if (field === null) return Object.freeze({
     boundary: null,
     weights: ZERO_WEIGHTS,

@@ -181,4 +181,27 @@ for(const [name,ex,ey] of [["edge",1,.5],["corner",1,1]]){
   }
 }
 
+// Off-center (shoulder) pivot: the field radiates from a body point, not the
+// screen center. Wrist at the pivot is neutral; a wrist offset in a direction
+// takes that edge's full target; influence scales with distance from the pivot.
+const SHOULDER = Object.freeze({ x: 0.3, y: 0.5 });
+quatClose(squareRadialSaberTarget(SHOULDER.x, SHOULDER.y, ZONES, RADIUS, SHOULDER).orientation, IDENTITY, 0, "wrist at shoulder is neutral");
+assert.equal(squareRadialNeutralInfluence(SHOULDER.x, SHOULDER.y, SHOULDER).radius, 0, "zero radius at the shoulder pivot");
+const rightOfShoulder = squareRadialSaberTarget(0.8, SHOULDER.y, ZONES, RADIUS, SHOULDER);
+quatClose(rightOfShoulder.orientation, edgeQ("edgeRight"), 1e-8, "wrist right of shoulder takes edgeRight");
+assert.equal(rightOfShoulder.influence, 1, "0.5 from the shoulder in the dominant axis is full influence");
+const aboveShoulder = squareRadialSaberTarget(SHOULDER.x, 1, ZONES, RADIUS, SHOULDER);
+quatClose(aboveShoulder.orientation, edgeQ("edgeTop"), 1e-8, "wrist above shoulder takes edgeTop");
+const halfFromShoulder = squareRadialSaberTarget(SHOULDER.x + 0.25, SHOULDER.y, ZONES, RADIUS, SHOULDER);
+close(halfFromShoulder.radius, 0.5, 1e-12, "0.25 from the shoulder is radius 0.5");
+close(halfFromShoulder.influence, smoothstep(0.5), 1e-12, "influence is smoothstep of the radius");
+// Backward compatibility: the default center (0.5, 0.5) is identical to the
+// explicit center, so pre-shoulder callers are unchanged.
+for (const [x, y] of [[0.5, 0.5], [1, 0.5], [0.2, 0.8], [0, 1]]) {
+  const implicit = squareRadialSaberTarget(x, y, ZONES, RADIUS);
+  const explicit = squareRadialSaberTarget(x, y, ZONES, RADIUS, { x: 0.5, y: 0.5 });
+  quatClose(implicit.orientation, explicit.orientation, 0, `default center matches explicit for ${x},${y}`);
+}
+assert.throws(() => squareRadialSaberTarget(0.5, 0.5, ZONES, RADIUS, { x: NaN, y: 0.5 }), /center must be a finite/u, "non-finite center rejected");
+
 console.log(`Neutral-center square-radial saber validation passed (4097-sample rays/perimeter/outside; max perimeter step ${maxStep.toFixed(6)} degrees).`);

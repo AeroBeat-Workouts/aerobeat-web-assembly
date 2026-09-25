@@ -27,6 +27,12 @@ const cameraIdentitySource = source.match(/updateCameraIdentity\(surface\) \{(?<
 assert.match(cameraIdentitySource, /const aspectFinite = Number\.isFinite\(surface\.sourceAspectRatio\);/u, "camera identity must test aspect finiteness");
 assert.match(cameraIdentitySource, /if \(!aspectFinite && this\.lastCameraIdentity !== ""\) return;/u, "a transient 0×0 surface must not reset calibration when a last identity is known");
 assert.match(cameraIdentitySource, /aspectFinite \? Number\(surface\.sourceAspectRatio\)\.toFixed\(8\) : "unknown"/u, "camera identity aspect must fall back to unknown only when no last identity exists");
+const flowPivotSource = source.match(/computeFlowQuaternionTargets\(graph, inputOverride = null, visualTest = false\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
+assert.match(flowPivotSource, /entry\?\.anchor === `\$\{hand\}_shoulder`/u, "gameplay Flow rotation must pivot on the per-hand shoulder");
+assert.match(flowPivotSource, /this\.lastKnownShoulderPivot\[hand\] \?\? \{ x: 0\.5, y: 0\.5 \}/u, "a lost shoulder must hold the last known position, else fall back to center");
+assert.match(flowPivotSource, /if \(visualTest\) \{[\s\S]*?center = \{ x: 0\.5, y: 0\.5 \}/u, "Test mode must keep the screen-center pivot");
+assert.match(flowPivotSource, /squareRadialSaberTarget\(position\.x, 1-position\.y, config\.zones, config\.blendRadius, \{ x: center\.x, y: 1-center\.y \}\)/u, "the resolved pivot must be passed as the radial center (y-flipped)");
+assert.match(flowPivotSource, /lastKnownShoulderCalibrationId !== calibrationId/u, "the last-known shoulder cache must reset on a new calibration generation");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
   providerId: "cpu-wasm", executionLocation:"worker", minPoseDetectionConfidence: 0.4, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.3,
