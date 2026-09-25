@@ -23,6 +23,10 @@ assert.match(purposeSelectionSource, /this\.menuDisposition !== "terminal"/u, "t
 assert.match(purposeSelectionSource, /\["playing", "paused_manual"\]\.includes\(session\.state\)/u, "only active or manually paused current Visual Test may preserve purpose through selection");
 assert.doesNotMatch(purposeSelectionSource, /\[.*completed|session\?\.purpose === "visual_test"\) \? "visual_test"/u, "completed Visual Test must not use the former unbounded purpose predicate");
 assert.match(projectionSource, /FLOW_DIRECTIONS = Object\.freeze\(\["up", "down", "left", "right", "up-left", "up-right", "down-left", "down-right"\]\)/u, "assembly must preserve all Beat Saber Flow directions for the renderer");
+const cameraIdentitySource = source.match(/updateCameraIdentity\(surface\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
+assert.match(cameraIdentitySource, /const aspectFinite = Number\.isFinite\(surface\.sourceAspectRatio\);/u, "camera identity must test aspect finiteness");
+assert.match(cameraIdentitySource, /if \(!aspectFinite && this\.lastCameraIdentity !== ""\) return;/u, "a transient 0×0 surface must not reset calibration when a last identity is known");
+assert.match(cameraIdentitySource, /aspectFinite \? Number\(surface\.sourceAspectRatio\)\.toFixed\(8\) : "unknown"/u, "camera identity aspect must fall back to unknown only when no last identity exists");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
   providerId: "cpu-wasm", executionLocation:"worker", minPoseDetectionConfidence: 0.4, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.3,

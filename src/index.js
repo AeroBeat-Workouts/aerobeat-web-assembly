@@ -1258,7 +1258,11 @@ export class AeroGame extends HTMLElement {
   }
 
   updateCameraIdentity(surface) {
-    const aspect = Number.isFinite(surface.sourceAspectRatio) ? Number(surface.sourceAspectRatio).toFixed(8) : "unknown";
+    const aspectFinite = Number.isFinite(surface.sourceAspectRatio);
+    // A transient 0×0 surface (no intrinsic dimensions yet, e.g. mid stream
+    // renegotiation) must not reset calibration: keep the last known identity.
+    if (!aspectFinite && this.lastCameraIdentity !== "") return;
+    const aspect = aspectFinite ? Number(surface.sourceAspectRatio).toFixed(8) : "unknown";
     const identity = `${surface.sourceChangeId}|${surface.sourceId}|${surface.mirrored === true}|${aspect}`;
     if (identity === this.lastCameraIdentity) return;
     this.lastCameraIdentity = identity; this.graph.input.resetCalibration("media_source_changed");
