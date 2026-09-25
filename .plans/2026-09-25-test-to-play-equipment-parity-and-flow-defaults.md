@@ -128,9 +128,11 @@ Remaining uncertainty: Physical report may include a separate spatial-anchor sym
 **Runtime-gate follow-up (2026-09-25):** Extended `scripts/validate-equipment-config-panel-browser.js` to drive the real connected component's `runDisplayFrame()` in Play purpose through two distinct measured frames for both wrists in Flow and Boxing. The oracle starts from a live Test-authored config, proves the exact in-memory config identity remains unchanged, independently computes each expected square-radial Flow quaternion and rejects both static fallback endpoints, proves Boxing and Flow anchors follow both measured frames including off-grid coordinates, and verifies the exact same deeply frozen pose array and objects reach gameplay and renderer on every frame. It also checks that measured wrists/config remain absent from public snapshots and storage. `npm run test:equipment-config-panel` passes with the explicit runtime-gate line `PASS: Play Flow/Boxing two-frame measured wrists, identity parity, exact frozen shared poses, and non-fallback quaternions`.
 
 ### Task 3 — Independent QA (`8k54`)
-- [ ] Verify exact downloaded values/default reset/export.
-- [ ] Verify Test→Play config identity and live Flow/Boxing wrist motion.
-- [ ] Run relevant regression suites and report triaged findings.
+- [x] Verify exact downloaded values/default reset/export.
+- [x] Verify Test→Play config identity and live Flow/Boxing wrist motion.
+- [x] Run relevant regression suites and report triaged findings.
+
+**Result (2026-09-25):** Independent QA child `da8e03d1-6dcc-4b5f-a952-351072104f98` returned **GO** on pushed commit `948d9a8d714d7de66ba6fabb4f5a734c95ac3750`, with no likely risk, stale documentation, or unlikely bug in scope. Fixture/default/config identity and the real two-frame Play-purpose Flow/Boxing oracle passed. Focused suites, `npm test`, and a complete `npm run test:browser` rerun passed; the first foreground browser run was harness-killed at its 600-second cap rather than failing an assertion, and the uncapped rerun exited 0. Raw `0.0.69` remained exact and the checkout remained clean.
 
 ### Task 4 — Independent audit and wrap (`vr15`)
 - [ ] Audit diagnosis, diff, provenance, privacy, tests, Beads, commits, and push.
