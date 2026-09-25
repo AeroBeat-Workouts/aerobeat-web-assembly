@@ -270,6 +270,9 @@ export class AeroGame extends HTMLElement {
     // rotation; held when a shoulder drops, reset on a new calibration generation.
     this.lastKnownShoulderPivot = { left: null, right: null };
     this.lastKnownShoulderCalibrationId = null;
+    // Tracks whether the input service's mid-game T-pose recalibration gesture is
+    // disabled (active gameplay). Driven from the session state each frame.
+    this.midGameRecalibrationDisabled = false;
     this.testEquipmentVisible = false;
     this.testAutomaticFeedbackEnabled = true;
     this.testEquipmentMouseHand = "off";
@@ -1299,6 +1302,15 @@ export class AeroGame extends HTMLElement {
       }
       try {
         const beforeAdvance = graph.gameplay.getSnapshot().session; const audioClock = graph.audio.getClockSnapshot();
+        // Disable the mid-game T-pose recalibration gesture while the session is in
+        // active gameplay (playing/countdown) so a T-pose held during a move never
+        // commits a new calibration generation that would pause the game. Initial
+        // calibration and pause-screen / recovery recalibration remain enabled.
+        const midGameActive = beforeAdvance.state === "playing" || beforeAdvance.state === "countdown";
+        if (this.midGameRecalibrationDisabled !== midGameActive) {
+          this.midGameRecalibrationDisabled = midGameActive;
+          if (typeof graph.input.setMidGameRecalibrationEnabled === "function") graph.input.setMidGameRecalibrationEnabled(!midGameActive);
+        }
         const awaitingAudioStart = beforeAdvance.state === "playing" && this.audioSyncPending && graph.audio.getStatus().state !== "playing";
         const awaitingAudioFreeze = ["calibrating", "paused_tracking", "countdown"].includes(beforeAdvance.state) && (this.audioSyncPending || !audioClockAlignedWithGameplay(beforeAdvance, audioClock));
         let frameEquipmentPoses = null;

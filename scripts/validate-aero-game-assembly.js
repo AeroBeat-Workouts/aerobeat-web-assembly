@@ -33,6 +33,12 @@ assert.match(flowPivotSource, /this\.lastKnownShoulderPivot\[hand\] \?\? \{ x: 0
 assert.match(flowPivotSource, /if \(visualTest\) \{[\s\S]*?center = \{ x: 0\.5, y: 0\.5 \}/u, "Test mode must keep the screen-center pivot");
 assert.match(flowPivotSource, /squareRadialSaberTarget\(position\.x, 1-position\.y, config\.zones, config\.blendRadius, \{ x: center\.x, y: 1-center\.y \}\)/u, "the resolved pivot must be passed as the radial center (y-flipped)");
 assert.match(flowPivotSource, /lastKnownShoulderCalibrationId !== calibrationId/u, "the last-known shoulder cache must reset on a new calibration generation");
+// 0.0.72: the mid-game T-pose recalibration gesture must be disabled while the
+// session is in active gameplay (playing/countdown) so a T-pose held during a
+// move never commits a new calibration generation that would pause the game.
+assert.match(source, /this\.midGameRecalibrationDisabled = false;/u, "the assembly must track the mid-game recalibration gate state");
+assert.match(source, /const midGameActive = beforeAdvance\.state === "playing" \|\| beforeAdvance\.state === "countdown";/u, "the gate must treat playing and countdown as active gameplay");
+assert.match(source, /graph\.input\.setMidGameRecalibrationEnabled\(!midGameActive\)/u, "the assembly must disable the mid-game T-pose gesture during active gameplay");
 assert.deepEqual(lockedProductionCvProfile, {
   backendId: "mediapipe", vendorId: "mediapipe-tasks-vision", model: "Pose Landmarker Lite float16 /1/", runtimeVersion: "1.0.1",
   providerId: "cpu-wasm", executionLocation:"worker", minPoseDetectionConfidence: 0.4, minPosePresenceConfidence: 0.5, minTrackingConfidence: 0.3,
