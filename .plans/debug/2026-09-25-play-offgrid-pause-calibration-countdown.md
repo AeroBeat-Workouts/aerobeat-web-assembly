@@ -1,6 +1,6 @@
 # Debug: Play-mode pause + calibration countdown when wrists leave the grid
 
-> **STATUS (2026-09-25): ACTIVE — Derrick reports the pre-0.0.63 "lost tracking pauses gameplay" behavior is back in raw 0.0.70. Diagnose before fixing; preserve immutable raw 0.0.69/0.0.70.**
+> **STATUS (2026-09-25): FIXED + SHIPPED in immutable raw 0.0.71 (served on 5173). Root cause: spurious camera source-identity change from a transient 0×0 video surface firing `resetCalibration("media_source_changed")`. Fix: `refreshSourceIdentity` (aerobeat-web-video) + `updateCameraIdentity` (assembly) ignore a non-finite aspect when a known identity exists; a sustained real aspect change still resets. Facade + assembly oracles added; full unit suites green. Awaiting Derrick's physical playtest to confirm the pause is gone; if it persists, add a privacy-safe change diagnostic to capture the exact drifting component.**
 
 ## Exact Observed Failure
 
