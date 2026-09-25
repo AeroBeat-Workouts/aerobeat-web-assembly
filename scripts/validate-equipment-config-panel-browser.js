@@ -27,6 +27,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { equipmentEulerDegreesToQuaternion, multiplyEquipmentQuaternions } from "@aerobeat/web-contracts";
+import { squareRadialSaberTarget } from "../src/saber-zone-direction.js";
 import { readFile } from "node:fs/promises";
 import { createServer as createViteServer } from "vite";
 import { chromium } from "playwright";
@@ -220,6 +221,72 @@ try {
 
   const overlapping=await game.evaluate(async(element)=>{const original=element.equipmentIdentityFor.bind(element),beforeGeneration=element.graph.gameplay.getSnapshot().generation;let releaseFirst;const firstGate=new Promise(resolve=>{releaseFirst=resolve;});let calls=0;element.equipmentIdentityFor=async(config)=>{calls+=1;if(calls===1)await firstGate;return original(config);};const dispatchBoth=(control,value)=>{control.value=value;control.dispatchEvent(new Event("input",{bubbles:true,composed:true}));control.dispatchEvent(new Event("change",{bubbles:true,composed:true}));};try{const first=element.shadowRoot.querySelector("[data-equipment-config-field='flow.perHand.left.rotationEulerDeg.x']"),second=element.shadowRoot.querySelector("[data-equipment-config-field='flow.perHand.left.rotationEulerDeg.y']");dispatchBoth(first,"22");await Promise.resolve();dispatchBoth(second,"-33");const tail=element.equipmentConfigCommitTail;releaseFirst();await tail;const config=element.describeEquipmentConfig(),serialized=JSON.stringify({snapshot:element.getSnapshot(),input:element.graph.input.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))});return{rotation:structuredClone(config.flow.perHand.left.rotationEulerDeg),calls,generationDelta:element.graph.gameplay.getSnapshot().generation-beforeGeneration,leak:/equipmentConfig|equipment_config|rotationEulerDeg|headingDeg|localRotationEulerDeg/iu.test(serialized)};}finally{element.equipmentIdentityFor=original;}});
   assert.deepEqual(overlapping,{rotation:{x:22,y:-33,z:0},calls:2,generationDelta:2,leak:false},"overlapping two-field edits merge pending drafts, suppress duplicate input/change, reseed twice, and remain private");
+
+  // ---------- real Play-purpose display frames: current measured wrists own Flow/Boxing poses ----------
+  const playRuntime=await game.evaluate((element)=>{
+    const graph=element.graph,gameplay=graph.gameplay,input=graph.input,renderer=graph.renderer;
+    const gameplaySnapshotDescriptor=Object.getOwnPropertyDescriptor(gameplay,"getSnapshot");
+    const gameplayAdvanceDescriptor=Object.getOwnPropertyDescriptor(gameplay,"advance");
+    const inputSnapshotDescriptor=Object.getOwnPropertyDescriptor(input,"getSnapshot");
+    const originalRender=renderer.renderGameplayFrameWithCursorsAndEquipment;
+    const originalAudioPlaying=globalThis.__c5State.audioState.playing;
+    const baseSnapshot=gameplay.getSnapshot(),authoredIdentity=element.equipmentConfigIdentity;
+    const config=structuredClone(element.describeEquipmentConfig());
+    const measured=(timestampMs,left,right)=>Object.freeze({
+      tracking:Object.freeze({gameplayPaused:false,freshCalibrationRequired:false,allRequiredAnchorsVisible:true,anchorsFrozen:false,degradedAnchors:Object.freeze([])}),
+      countdownFrozen:false,retainedGeometryDimmed:false,
+      anchors:Object.freeze([
+        Object.freeze({anchor:"nose",valid:true,x:.5,y:.2,confidence:1}),
+        Object.freeze({anchor:"left_wrist",valid:true,x:left.x,y:left.y,confidence:1}),
+        Object.freeze({anchor:"right_wrist",valid:true,x:right.x,y:right.y,confidence:1})
+      ]),
+      latestEvidence:Object.freeze({measurementTimestampMs:timestampMs,anchors:Object.freeze([
+        Object.freeze({anchor:"nose",valid:true,x:.5,y:.2,confidence:1}),
+        Object.freeze({anchor:"left_wrist",valid:true,x:left.x,y:left.y,confidence:1}),
+        Object.freeze({anchor:"right_wrist",valid:true,x:right.x,y:right.y,confidence:1})
+      ])})
+    });
+    const frames=[
+      measured(4100,{x:.2,y:.3},{x:.8,y:.7}),
+      measured(4200,{x:-.25,y:1.25},{x:1.25,y:-.25})
+    ];
+    let currentSnapshot=baseSnapshot,currentInput=frames[0],advanced=null,rendered=null;
+    const restore=(target,key,descriptor)=>{if(descriptor)Object.defineProperty(target,key,descriptor);else delete target[key];};
+    Object.defineProperty(gameplay,"getSnapshot",{configurable:true,value:()=>currentSnapshot});
+    Object.defineProperty(gameplay,"advance",{configurable:true,value:(frame)=>{advanced=frame.equipmentPoses??null;}});
+    Object.defineProperty(input,"getSnapshot",{configurable:true,value:()=>currentInput});
+    renderer.renderGameplayFrameWithCursorsAndEquipment=function(...args){rendered=args[3];return originalRender.apply(this,args);};
+    globalThis.__c5State.audioState.playing=true;
+    const run=(mode,frame,index)=>{
+      const rulesetId=mode==="flow"?"flow_colliders_v1":"boxing_collider_v1";
+      currentInput=frame;advanced=null;rendered=null;
+      currentSnapshot={...baseSnapshot,session:{...baseSnapshot.session,purpose:"play",state:"playing",rulesetId,timestampMs:5000+index,timelinePositionMs:1000+index},safety:{...baseSnapshot.safety,ready:true}};
+      element.runDisplayFrame(graph);
+      const exactShared=advanced!==null&&advanced===rendered&&advanced.every((pose,poseIndex)=>pose===rendered[poseIndex]);
+      const deeplyFrozen=Object.isFrozen(advanced)&&advanced?.every((pose)=>Object.isFrozen(pose)&&Object.isFrozen(pose.anchor)&&Object.isFrozen(pose.orientation)&&Object.isFrozen(pose.configIdentity));
+      const identityParity=advanced?.every((pose)=>pose.configIdentity?.schema===authoredIdentity.schema&&pose.configIdentity?.version===authoredIdentity.version&&pose.configIdentity?.algorithm===authoredIdentity.algorithm&&pose.configIdentity?.value===authoredIdentity.value)===true;
+      return {exactShared,deeplyFrozen,identityParity,poses:structuredClone(advanced)};
+    };
+    try {
+      const flow=frames.map((frame,index)=>run("flow",frame,index));
+      const boxing=frames.map((frame,index)=>run("boxing",frame,index+10));
+      const publicText=JSON.stringify({snapshot:element.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))});
+      return {config,testIdentity:authoredIdentity.value,playIdentity:element.equipmentConfigIdentity.value,identityStable:element.equipmentConfigIdentity===authoredIdentity,flow,boxing,privacyLeak:/equipmentConfig|equipment_config|rotationEulerDeg|headingDeg|localRotationEulerDeg|latestEvidence|left_wrist|right_wrist/iu.test(publicText)};
+    } finally {
+      restore(gameplay,"getSnapshot",gameplaySnapshotDescriptor);restore(gameplay,"advance",gameplayAdvanceDescriptor);restore(input,"getSnapshot",inputSnapshotDescriptor);renderer.renderGameplayFrameWithCursorsAndEquipment=originalRender;globalThis.__c5State.audioState.playing=originalAudioPlaying;
+    }
+  });
+  const poseFor=(capture,role)=>capture.poses.find((pose)=>pose.role===role);
+  const normalizedAnchor=(pose)=>({x:(pose.anchor.x+.5)/4,y:(2.5-pose.anchor.y)/3});
+  const quaternionClose=(actual,expected,label)=>assert(["x","y","z","w"].every((key)=>Math.abs(actual[key]-expected[key])<1e-9),`${label}: ${JSON.stringify({actual,expected})}`);
+  const pointClose=(actual,expected,label)=>assert(["x","y"].every((key)=>Math.abs(actual[key]-expected[key])<1e-12),`${label}: ${JSON.stringify({actual,expected})}`);
+  const measuredPoints=[{left:{x:.2,y:.3},right:{x:.8,y:.7}},{left:{x:-.25,y:1.25},right:{x:1.25,y:-.25}}];
+  assert.equal(playRuntime.testIdentity,playRuntime.playIdentity,"Test-authored config identity is unchanged in Play-purpose frames");assert.equal(playRuntime.identityStable,true,"Play frames retain the exact in-memory config identity object");assert.equal(playRuntime.privacyLeak,false,"Play measured wrists/config remain absent from public snapshots and storage");
+  for(const [mode,captures] of [["flow",playRuntime.flow],["boxing",playRuntime.boxing]])for(const [index,capture] of captures.entries()){assert.equal(capture.exactShared,true,`${mode} frame ${index} shares the exact pose array and pose objects with gameplay and renderer`);assert.equal(capture.deeplyFrozen,true,`${mode} frame ${index} poses remain deeply frozen`);assert.equal(capture.identityParity,true,`${mode} frame ${index} poses retain the exact authored config identity value`);for(const hand of ["left","right"])pointClose(normalizedAnchor(poseFor(capture,`${hand}_wrist`)),measuredPoints[index][hand],`${mode} frame ${index} ${hand} anchor follows the measured wrist exactly`);}
+  for(const [index,capture] of playRuntime.flow.entries())for(const hand of ["left","right"]){const point=measuredPoints[index][hand],target=squareRadialSaberTarget(point.x,1-point.y,playRuntime.config.flow.saber.zones,playRuntime.config.flow.saber.blendRadius),expected=multiplyEquipmentQuaternions(equipmentEulerDegreesToQuaternion(playRuntime.config.flow.perHand[hand].rotationEulerDeg),target.orientation),fallbackPoint={x:hand==="left"?0:1,y:.5},fallbackTarget=squareRadialSaberTarget(fallbackPoint.x,1-fallbackPoint.y,playRuntime.config.flow.saber.zones,playRuntime.config.flow.saber.blendRadius),fallback=multiplyEquipmentQuaternions(equipmentEulerDegreesToQuaternion(playRuntime.config.flow.perHand[hand].rotationEulerDeg),fallbackTarget.orientation),actual=poseFor(capture,`${hand}_wrist`).orientation;quaternionClose(actual,expected,`Play Flow frame ${index} ${hand} current-wrist quaternion`);assert.notDeepEqual(actual,fallback,`Play Flow frame ${index} ${hand} must not use static fallback orientation`);}
+  for(const mode of ["flow","boxing"])for(const hand of ["left","right"])assert.notDeepEqual(normalizedAnchor(poseFor(playRuntime[mode][0],`${hand}_wrist`)),normalizedAnchor(poseFor(playRuntime[mode][1],`${hand}_wrist`)),`Play ${mode} ${hand} anchor responds across measured frames`);
+  console.log("PASS: Play Flow/Boxing two-frame measured wrists, identity parity, exact frozen shared poses, and non-fallback quaternions");
+
   await scale.fill("9");
   const rejectedScale=await game.evaluate((element)=>({scale:element.describeEquipmentConfig().flow.perHand.left.scale,status:element.equipmentConfigStatus}));
   assert.equal(rejectedScale.scale,3,"invalid field does not partially replace live config"); assert.match(rejectedScale.status,/\[0\.1, 4\]/u);
