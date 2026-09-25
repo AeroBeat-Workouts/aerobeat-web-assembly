@@ -2,8 +2,6 @@
 // Canonical build-default bake target for private Visual Test equipment authoring.
 // Exported YAML and baked defaults use aerobeat/equipment_config version 4.
 
-const euler = (x = 0, y = 0, z = 0) => Object.freeze({ x, y, z });
-
 /** Complete, deeply frozen canonical equipment configuration v4. */
 export const equipmentConfigDefaults = Object.freeze({
     schema: "aerobeat/equipment_config",

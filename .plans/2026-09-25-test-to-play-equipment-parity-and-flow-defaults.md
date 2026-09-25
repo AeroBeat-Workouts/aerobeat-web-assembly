@@ -1,6 +1,6 @@
 # Test-to-Play Equipment Parity and Latest Flow Defaults
 
-> **STATUS (2026-09-25): ACTIVE — Derrick directly authorized immediate execution. Diagnosis precedes code changes. Raw 0.0.69 and its active service remain immutable/unchanged.**
+> **STATUS (2026-09-25): COMPLETE — latest strict-v4 defaults are baked with exact provenance; Test→Play Flow/Boxing live-pose parity is repaired and covered by a real two-frame Play runtime oracle; focused, full unit, full browser, independent QA, and source audit are green. Raw 0.0.69 and its active service remain immutable/unchanged.**
 
 ## Goal
 
@@ -135,9 +135,11 @@ Remaining uncertainty: Physical report may include a separate spatial-anchor sym
 **Result (2026-09-25):** Independent QA child `da8e03d1-6dcc-4b5f-a952-351072104f98` returned **GO** on pushed commit `948d9a8d714d7de66ba6fabb4f5a734c95ac3750`, with no likely risk, stale documentation, or unlikely bug in scope. Fixture/default/config identity and the real two-frame Play-purpose Flow/Boxing oracle passed. Focused suites, `npm test`, and a complete `npm run test:browser` rerun passed; the first foreground browser run was harness-killed at its 600-second cap rather than failing an assertion, and the uncapped rerun exited 0. Raw `0.0.69` remained exact and the checkout remained clean.
 
 ### Task 4 — Independent audit and wrap (`vr15`)
-- [ ] Audit diagnosis, diff, provenance, privacy, tests, Beads, commits, and push.
-- [ ] Fix likely risks; file non-blocking stale/unlikely findings.
-- [ ] Finalize plan, close completed Beads, and verify clean upstream.
+- [x] Audit diagnosis, diff, provenance, privacy, tests, Beads, commits, and push.
+- [x] Fix likely risks; file non-blocking stale/unlikely findings.
+- [x] Finalize plan, close completed Beads, and verify clean upstream.
+
+**Result (2026-09-25):** Independent auditor child `eac519c6-eb65-470d-9d8f-00dc5da950dd` returned **GO WITH FOLLOW-UP** on clean pushed commit `a132c65b564d908d4667b3a4e534cc0b5261d72b`, with no likely normal-use risk or acceptance violation. It independently verified the diagnosis, exact fixture/default/identity provenance, live Play oracle, tracking/freeze/privacy invariants, QA evidence, and unchanged raw/version/build/service state. Its sole stale-code finding—the unused post-bake `euler()` helper—was filed as `vlp9`, removed, focused/browser revalidated, and closed in this non-expedited plan.
 
 ## Validation
 
@@ -146,3 +148,11 @@ Remaining uncertainty: Physical report may include a separate spatial-anchor sym
 - `npm run test:equipment-config-panel`.
 - Relevant unit suite and complete browser suite before wrap.
 - Raw `0.0.69` tree remains `59367ea923b7a6773f624e7e2f0673dcce3ddb5e`.
+
+## Final outcome
+
+- Root cause fixed at the private assembly boundary: Play no longer discards its current pose input before computing Flow orientation.
+- Latest downloaded config is preserved byte-for-byte and is now the canonical source default: Flow hand base Y `90°`, scale `2`, top/bottom local zero, left/right local Y `90°/-90°`, linear `1 ms`, blend radius `0.5`; Boxing retains Derrick's supplied values.
+- Real connected-component Play frames prove both Flow and Boxing follow two distinct measured wrist frames, including off-grid coordinates, while preserving config identity, exact shared frozen gameplay/renderer pose objects, tracking safety, and privacy.
+- Source implementation commits: `cdd11553140ab639f3b993de4529370c4c7b7b62` and `948d9a8d714d7de66ba6fabb4f5a734c95ac3750`; QA evidence commit: `a132c65b564d908d4667b3a4e534cc0b5261d72b`.
+- No version bump, raw build, package publication, or service switch was requested or performed. Active served raw `0.0.69` intentionally remains unchanged; these fixes are landed on `main` for the next successor.
