@@ -47,7 +47,7 @@ const selectedContexts=contextFilter?contexts.filter((context)=>`${context.kind}
 if(selectedContexts.length===0)throw new Error(`Unknown AEROBEAT_SHELL_CONTEXT ${contextFilter}`);
 // 931s: exactly two scale rows remain visible — Bomb + Marker (Note and Obstacle
 // rows are hidden from the drawer, fields stay at their 100 defaults).
-const baseDrawerText = Object.freeze(["0.0.74", "1", "Aero", "Boxing", "Calibration", "Camera", "Cancel import", "Choose local ZIP", "Collider radius", "Collider scale", "Collider timing window (ms)", "Delete", "Depth (Z)", "Depth + (forward)", "Depth − (backward)", "Difficulty", "Direction tolerance (degrees)", "Disabled", "Display", "Download", "Enabled", "Enter fullscreen", "Environment", "Expert", "ExpertPlus", "Export", "First library song", "First result", "Flow", "Flow camera", "Flow saber collider", "Force calibrate now", "Game Setup", "Gameplay", "Hazard vignette decay (ms)", "Hazard vignette intensity", "Hazard vignette pulse (Hz)", "Hazard vignette pulse depth", "Hazard vignette ramp (ms)", "Height (Y)", "Idle · 0%", "Info", "Latest", "Music", "Nose camera parallax", "Obstacles", "Pitch (degrees)", "Preview", "Re-runs the T-pose calibration immediately (pause / between songs). Keeps the grid across songs.", "Reset to default", "Scalable interface text for the glasses-off distance test. Does not scale the 3D playfield.", "Search", "Second library song", "Second result", "Show 4 × 3 grid", "Show collider volume", "Start", "Test", "UI scale (menus & HUD only)", "Version", "Visible collider radius", "Visible tolerance range", "Visuals", "Yaw (degrees)"]);
+const baseDrawerText = Object.freeze(["0.0.74", "1", "Aero", "Any punches in opposite lane", "Boxing", "Calibration", "Camera", "Cancel import", "Choose local ZIP", "Collider scale", "Delete", "Depth (Z)", "Depth + (forward)", "Depth − (backward)", "Difficulty", "Disabled", "Display", "Download", "Enabled", "Enter fullscreen", "Environment", "Expert", "ExpertPlus", "Export", "First library song", "First result", "Flow", "Flow camera", "Flow saber collider", "Force calibrate now", "Game Setup", "Gameplay", "Guard spacing", "Height (Y)", "Idle · 0%", "Info", "Latest", "Music", "Nose camera parallax", "Obstacles", "Pitch (degrees)", "Preview", "Re-runs the T-pose calibration immediately (pause / between songs). Keeps the grid across songs.", "Reset to default", "Scalable interface text for the glasses-off distance test. Does not scale the 3D playfield.", "Search", "Second library song", "Second result", "Show 4 × 3 grid", "Show collider volume", "Start", "Test", "UI scale (menus & HUD only)", "Uppercuts in opposite lane", "Version", "Visible collider radius", "Visible tolerance range", "Visuals", "Yaw (degrees)"]);
 const runningDrawerText = Object.freeze(baseDrawerText.filter((text) => text !== "Choose or import a song to start."));
 const evidence = [],cameraPoseExportHashes=new Set();
 try {
@@ -119,6 +119,18 @@ async function runContext(context) {
   const drawer = await shellSnapshot(game);
   assert(drawer.mapRadios === 2 && drawer.checkedMaps === 1 && drawer.packageRadios === 2 && drawer.checkedPackages === 1 && drawer.environmentRadios === 2 && JSON.stringify(drawer.checkedEnvironment) === JSON.stringify(["aero"]) && drawer.environmentMinimum >= 42, `${label(context)} drawer Music/focus contract failed: ${JSON.stringify(drawer)}`);
   assertExactDrawer(drawer, baseDrawerText, context, "baseline");
+  const converterControls=await game.evaluate(async(element)=>{
+    const module=await import("/src/game-setup-coordinator.js"),before=module.getGameSetupSnapshot();
+    const field=(name)=>element.shadowRoot.querySelector(`[data-game-setup-field='${name}']`);
+    const initial={spacing:field("guardSpacing").value,uppercut:field("uppercutOppositeLane").checked,any:field("anyOppositeLane").checked};
+    field("guardSpacing").value="2";field("guardSpacing").dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;
+    field("uppercutOppositeLane").checked=true;field("uppercutOppositeLane").dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;
+    field("anyOppositeLane").checked=false;field("anyOppositeLane").dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;
+    const persisted=module.getGameSetupSnapshot(),saved=JSON.parse(localStorage.getItem(module.aeroGameSetupStorageKey)??"null");
+    module.setGameSetupSnapshot(before);await element.lifecycleIntentTail;
+    return{initial,persisted:{guardSpacing:persisted.guardSpacing,uppercutOppositeLane:persisted.uppercutOppositeLane,anyOppositeLane:persisted.anyOppositeLane},saved:{guardSpacing:saved?.guardSpacing,uppercutOppositeLane:saved?.uppercutOppositeLane,anyOppositeLane:saved?.anyOppositeLane}};
+  });
+  assert(JSON.stringify(converterControls.initial)===JSON.stringify({spacing:"1",uppercut:false,any:true})&&JSON.stringify(converterControls.persisted)===JSON.stringify({guardSpacing:2,uppercutOppositeLane:true,anyOppositeLane:false})&&JSON.stringify(converterControls.saved)===JSON.stringify(converterControls.persisted),`${label(context)} converter setup controls must persist: ${JSON.stringify(converterControls)}`);
   await game.evaluate((element) => { globalThis.__shellMatrixState.authoringSnapshot = { state: "converting", progress: .5, jobId: "job-1" }; element.renderPresenters(); });
   assertExactDrawer(await shellSnapshot(game), baseDrawerText.map((text) => text === "Idle · 0%" ? "Converting · 50%" : text), context, "actionable progress");
   await game.evaluate((element) => { globalThis.__shellMatrixState.authoringSnapshot = { state: "failed", progress: .5, errorMessage: "Import failed. Retry." }; element.lastError = Object.freeze({ code: "import_failed", message: "Import failed. Retry." }); element.renderPresenters(); });
@@ -273,10 +285,11 @@ async function runContext(context) {
     const gridAfter=element.rendererFrame().showGameplayGrid;
     const gridModel=element.graph.renderer.renderGameplayScene(element.rendererFrame(),null,null).model;
     const gridCells=gridModel.objects.filter(o=>o.kind==="cell"&&o.role==="neutral").length;
-    // Negative control: collider timing window does NOT change mid-session
+    // Negative control: changing visible guard spacing does not change the locked collider timing window mid-session.
     const timingBefore=element.rendererFrame().timingWindowAfterMs;
-    const timingInput=element.shadowRoot.querySelector("input[data-game-setup-field='timingWindowMs']");
-    if(timingInput){timingInput.value="250";timingInput.dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;}
+    const spacingInput=element.shadowRoot.querySelector("input[data-game-setup-field='guardSpacing']");
+    assert(spacingInput,`${label(context)} guard spacing input missing`);
+    spacingInput.value=String(element.desiredGameSetup.guardSpacing===2?1:2);spacingInput.dispatchEvent(new Event("change",{bubbles:true}));await element.lifecycleIntentTail;
     const timingAfter=element.rendererFrame().timingWindowAfterMs;
     // Restore
     module.setGameSetupSnapshot(original);
@@ -768,7 +781,32 @@ function runCanvasSampleValidatorSelfTest(){
   assert(invalidErrors.some((error)=>error.startsWith("opaquePixels "))&&invalidErrors.some((error)=>error.startsWith("background/nonBackground partition ")),`Canvas sample validator self-test must reject a transparent incomplete sample: ${JSON.stringify(invalidErrors)}`);
   console.log("Canvas sample validator self-test passed: transparent invalidated sample rejected");
 }
-async function verifyNativeSetupControl(page,game,context){const timing=game.locator("input[data-game-setup-field='timingWindowMs']");await timing.click();await page.keyboard.press("Control+A");await page.keyboard.type("230");await game.evaluate((element)=>element.renderPresenters());assert(await timing.inputValue()==="230",`${label(context)} focused native draft must survive presenter refresh`);await page.keyboard.press("Enter");await game.evaluate(async(element)=>await element.lifecycleIntentTail);assert(await game.evaluate((element)=>element.desiredGameSetup.timingWindowMs)===230,`${label(context)} native Enter must commit timing`);await timing.click();await page.keyboard.press("ArrowUp");await page.keyboard.press("Enter");await game.evaluate(async(element)=>await element.lifecycleIntentTail);assert(await game.evaluate((element)=>element.desiredGameSetup.timingWindowMs)===231,`${label(context)} native ArrowUp step must commit timing`);const box=await timing.boundingBox();assert(box,`${label(context)} native number bounds missing`);await timing.hover();await page.mouse.click(box.x+box.width-16,box.y+17);await game.evaluate(async(element)=>await element.lifecycleIntentTail);assert(await timing.inputValue()==="232"&&await game.evaluate((element)=>element.desiredGameSetup.timingWindowMs)===232,`${label(context)} pointer-driven native spinner input/change must increment timing`);await timing.click();await page.keyboard.press("Control+A");await page.keyboard.type("301");await page.keyboard.press("Tab");assert(await game.evaluate((element)=>element.desiredGameSetup.timingWindowMs)===232&&await timing.inputValue()==="232",`${label(context)} native overflow blur must restore committed timing`);await timing.click();await page.keyboard.press("Control+A");await page.keyboard.press("Backspace");await page.keyboard.press("Tab");assert(await game.evaluate((element)=>element.desiredGameSetup.timingWindowMs)===232&&await timing.inputValue()==="232",`${label(context)} empty native blur must restore committed timing`);await timing.click();await page.keyboard.press("Control+A");await page.keyboard.type("180");await page.keyboard.press("Tab");await game.evaluate(async(element)=>await element.lifecycleIntentTail);assert(await game.evaluate((element)=>element.desiredGameSetup.timingWindowMs)===180,`${label(context)} native Tab change must restore baseline`);}
+async function verifyNativeSetupControl(page,game,context){
+  const spacing=game.locator("input[data-game-setup-field='guardSpacing']");
+  await spacing.click();await page.keyboard.press("Control+A");await page.keyboard.type("1");
+  await game.evaluate((element)=>element.renderPresenters());
+  assert(await spacing.inputValue()==="1",`${label(context)} focused native draft must survive presenter refresh`);
+  await page.keyboard.press("Enter");await game.evaluate(async(element)=>await element.lifecycleIntentTail);
+  assert(await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===1,`${label(context)} native Enter must commit guard spacing`);
+  await spacing.click();await page.keyboard.press("ArrowUp");await page.keyboard.press("Enter");
+  await game.evaluate(async(element)=>await element.lifecycleIntentTail);
+  assert(await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===2,`${label(context)} native ArrowUp step must commit guard spacing`);
+  // At the upper bound, the native spinner's down control must still change and commit the value.
+  const box=await spacing.boundingBox();assert(box,`${label(context)} native number bounds missing`);
+  await spacing.hover();await page.mouse.click(box.x+box.width-16,box.y+box.height-5);
+  await game.evaluate(async(element)=>await element.lifecycleIntentTail);
+  assert(await spacing.inputValue()==="1"&&await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===1,`${label(context)} pointer-driven native spinner input/change must decrement guard spacing`);
+  await spacing.click();await page.keyboard.press("ArrowUp");await page.keyboard.press("Enter");
+  await game.evaluate(async(element)=>await element.lifecycleIntentTail);
+  assert(await spacing.inputValue()==="2"&&await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===2,`${label(context)} native ArrowUp must restore upper bound`);
+  await spacing.click();await page.keyboard.press("Control+A");await page.keyboard.type("9");await page.keyboard.press("Tab");
+  assert(await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===2&&await spacing.inputValue()==="2",`${label(context)} native overflow blur must restore committed guard spacing`);
+  await spacing.click();await page.keyboard.press("Control+A");await page.keyboard.press("Backspace");await page.keyboard.press("Tab");
+  assert(await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===2&&await spacing.inputValue()==="2",`${label(context)} empty native blur must restore committed guard spacing`);
+  await spacing.click();await page.keyboard.press("Control+A");await page.keyboard.type("1");await page.keyboard.press("Tab");
+  await game.evaluate(async(element)=>await element.lifecycleIntentTail);
+  assert(await game.evaluate((element)=>element.desiredGameSetup.guardSpacing)===1,`${label(context)} native Tab change must restore baseline`);
+}
 async function verifyStorageSynchronization(page,game,context){const local=await game.evaluate(async(element)=>{const module=await import("/src/game-setup-coordinator.js"),original=module.getGameSetupSnapshot();let getterCalls=0;const prototype={};for(const key of["key","storageArea","newValue"])Object.defineProperty(prototype,key,{get(){getterCalls+=1;throw new Error("forged getter invoked");}});module.aeroGameSetupCoordinator.handleStorageEvent(Object.create(prototype));const nativeValue={...original,timingWindowMs:226};module.aeroGameSetupCoordinator.handleStorageEvent(new StorageEvent("storage",{key:module.aeroGameSetupStorageKey,storageArea:localStorage,newValue:JSON.stringify(nativeValue)}));await element.lifecycleIntentTail;return{getterCalls,nativeTiming:element.desiredGameSetup.timingWindowMs,original,key:module.aeroGameSetupStorageKey};});assert(local.getterCalls===0&&local.nativeTiming===226,`${label(context)} descriptor-safe hostile event and branded native StorageEvent path failed: ${JSON.stringify(local)}`);const peerPromise=page.waitForEvent("popup");await page.evaluate((url)=>window.open(url,"_blank"),childUrl);const peer=await peerPromise;try{await peer.waitForLoadState("networkidle");await peer.evaluate(({key,value})=>localStorage.setItem(key,JSON.stringify(value)),{key:local.key,value:{...local.original,timingWindowMs:227}});await waitFor(page,async()=>await game.evaluate(element=>element.desiredGameSetup.timingWindowMs)===227,5000);await peer.evaluate(({key,value})=>localStorage.setItem(key,JSON.stringify(value)),{key:local.key,value:local.original});await waitFor(page,async()=>await game.evaluate(element=>element.desiredGameSetup.timingWindowMs)===local.original.timingWindowMs,5000);}finally{await peer.close();}}
 async function waitFor(page, predicate, timeout=12000) { const started=Date.now(); try { while(Date.now()-started<timeout){ if(await predicate()) return; await page.waitForTimeout(40); } } catch(e) { throw new Error("Timed out waiting for shell matrix state (predicate threw: "+e.message+")"); } throw new Error("Timed out waiting for shell matrix state"); }
 function label(context) { return `${context.kind}:${context.width}x${context.height}@${context.dpr}`; }
