@@ -166,6 +166,24 @@ function spawnForEvent(event, reach) {
   return { x: 0, y: 1, z: 0 };
 }
 
+/**
+ * B3.3 (6wy4): the two guard-target world positions (left + right) at Z=0,
+ * derived from the authored guardTarget leftCell/rightCell. The content
+ * authoring bakes the guard spacing (0..2) into these cells, so the spacing
+ * is already reflected here. Falls back to the central ±0.5 pair when the
+ * cells are missing/invalid (legacy fixtures).
+ * @param {Record<string, unknown>} event Resolved content event (carries authoredBeat).
+ * @returns {{left:{x:number,y:number,z:number},right:{x:number,y:number,z:number}}}
+ */
+function guardSpawnPositionsForEvent(event) {
+  const beat = isRecord(event.authoredBeat) ? event.authoredBeat : {};
+  const guardTarget = isRecord(beat.guardTarget) ? beat.guardTarget : {};
+  const leftCell = guardTarget.leftCell; const rightCell = guardTarget.rightCell;
+  const left = Number.isInteger(leftCell) && leftCell >= 0 && leftCell < 12 ? gridCellToWorldZ0(leftCell) : { x: -0.5, y: 1, z: 0 };
+  const right = Number.isInteger(rightCell) && rightCell >= 0 && rightCell < 12 ? gridCellToWorldZ0(rightCell) : { x: 0.5, y: 1, z: 0 };
+  return { left, right };
+}
+
 /** Convert a canonical 4×3 grid cell to its world position at Z=0. */
 function gridCellToWorldZ0(cell) {
   const column = cell % 4;
@@ -343,20 +361,25 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         // When a future test harness DOES feed the wrist history + an
         // evidence timestamp on the index entry, we can lift this restriction.
         const sliceT = null;
-        candidates.push({
-          commitMs,
-          targetId,
-          entry: {
-            family: mapping.family,
-            hand: mapping.hand,
-            mode: mapping.mode,
-            spawn: spawnForEvent(event, rowReach),
-            seed: aftermathSeedForTargetId(targetId),
-            ...(mapping.shape ? { shape: mapping.shape } : {}),
-            ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {}),
-            ...(sliceT !== null ? { sliceT } : {})
-          }
-        });
+        const baseEntry = {
+          family: mapping.family,
+          hand: mapping.hand,
+          mode: mapping.mode,
+          seed: aftermathSeedForTargetId(targetId),
+          ...(mapping.shape ? { shape: mapping.shape } : {}),
+          ...(mapping.appearanceColor ? { appearanceColor: mapping.appearanceColor } : {}),
+          ...(sliceT !== null ? { sliceT } : {})
+        };
+        if (mapping.family === "guard") {
+          // B3.3 (6wy4): a guard hit spawns TWO corpses — one per guard target
+          // (left + right) at the authored cell positions — instead of one
+          // central bonk. The renderer tints each per hand and desaturates.
+          const positions = guardSpawnPositionsForEvent(event);
+          candidates.push({ commitMs, targetId, entry: { ...baseEntry, hand: "left", spawn: positions.left } });
+          candidates.push({ commitMs, targetId: `${targetId}#r`, entry: { ...baseEntry, hand: "right", spawn: positions.right } });
+        } else {
+          candidates.push({ commitMs, targetId, entry: { ...baseEntry, spawn: spawnForEvent(event, rowReach) } });
+        }
       }
     }
   }
