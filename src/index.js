@@ -699,6 +699,24 @@ export class AeroGame extends HTMLElement {
       const desiredMs = this.desiredTransportSeekMs; this.desiredTransportSeekMs = null;
       if (this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) {
         const session = graph.gameplay.getSnapshot().session;
+        if (session.state === "completed" || session.state === "stopped") {
+          const seekMs = Math.min(this.visualTestDurationMs(graph), Math.max(0, Math.round(desiredMs)));
+          await this.startSession("play", { requireDownloaded: false, transportAlreadySerialized: true });
+          const restartedGeneration = this.sessionGeneration;
+          if (restartedGeneration === sessionGeneration || !this.isPlayTransportCurrent(connectionGeneration, restartedGeneration, graph)) return;
+          this.stopFrameLoop();
+          this.audioSyncPending = true;
+          try {
+            await graph.audio.seek(seekMs / 1000);
+            if (!this.isPlayTransportCurrent(connectionGeneration, restartedGeneration, graph)) return;
+            graph.gameplay.seekTo(graph.audio.getClockSnapshot().positionSeconds * 1000);
+            // A Play restart can still be calibrating or counting down. Its frame
+            // loop advances that gate and syncAudioForGameplay starts audio on play.
+            this.startFrameLoop();
+            this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport(); this.publish("session_changed");
+          } finally { if (this.isSessionCurrent(restartedGeneration, connectionGeneration, graph)) { this.audioSyncPending = false; this.syncAudioForGameplay(); } }
+          return;
+        }
         if (session.state !== "playing" && session.state !== "paused_manual") continue;
         const seekMs = Math.min(this.visualTestDurationMs(graph), Math.max(0, Math.round(desiredMs)));
         // Freeze frame evaluation while audio changes position; restore the
