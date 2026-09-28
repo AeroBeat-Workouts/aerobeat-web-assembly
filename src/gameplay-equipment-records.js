@@ -32,7 +32,10 @@ export function gameplayEquipmentRecords(menuOpen, session, input, mode, boxingS
   if (menuOpen || (!pausedVisualTest && state !== "countdown" && state !== "playing")) return Object.freeze([]);
   const tracking = input?.tracking;
   if (!tracking || tracking.gameplayPaused === true || tracking.freshCalibrationRequired === true || input?.countdownFrozen === true) return Object.freeze([]);
-  const anchorsFrozen = tracking.anchorsFrozen === true;
+  // Before hysteresis latches, input already publishes the last valid frame
+  // as frozen evidence. Its held anchors must stay visible and hit-bearing
+  // through that provisional window just as they do after the F4 latch.
+  const anchorsFrozen = tracking.anchorsFrozen === true || input?.latestEvidence?.provenance === "frozen";
   if (!anchorsFrozen && (tracking.allRequiredAnchorsVisible !== true || input?.retainedGeometryDimmed === true)) return Object.freeze([]);
   const config = validateEquipmentConfig(equipmentConfig);
   const degraded = new Set(Array.isArray(tracking.degradedAnchors) ? tracking.degradedAnchors : []);
