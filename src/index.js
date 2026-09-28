@@ -15,7 +15,7 @@ import {
 } from "@aerobeat/web-contracts";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { sha256Hex } from "@aerobeat/web-hash";
-import { createTestPresentationConfig, defaultTestPresentationConfig, maximumTestPresentationConfigBytes, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
+import { createTestPresentationConfig, defaultGameplayCameraPose, defaultTestPresentationConfig, gameplayCameraPoseBounds, maximumTestPresentationConfigBytes, normalizeGameplayCameraPose, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
@@ -276,6 +276,7 @@ export class AeroGame extends HTMLElement {
     // B2.4: DOM-only UI scale (persisted). Scales menus/panels/HUD for the
     // glasses-off distance test; never scales the 3D renderer canvas.
     this.uiScale = this.loadUiScale();
+    this.cameraPoses = this.loadCameraPoses();
     // Tracks whether the input service's mid-game T-pose recalibration gesture is
     // disabled (active gameplay). Driven from the session state each frame.
     this.midGameRecalibrationDisabled = false;
@@ -1025,6 +1026,59 @@ export class AeroGame extends HTMLElement {
     this.renderPresenters?.();
   }
 
+  /** Each mode retains its own complete, strictly validated camera pose. */
+  loadCameraPoses() {
+    const defaults = { flow: defaultGameplayCameraPose, boxing: defaultGameplayCameraPose };
+    try {
+      const raw = globalThis.localStorage?.getItem("aerobeat.cameraPoses");
+      if (raw === null || raw === undefined) return defaults;
+      const stored = JSON.parse(raw);
+      if (!stored || typeof stored !== "object" || Array.isArray(stored) || Object.keys(stored).length !== 2 || !Object.hasOwn(stored, "flow") || !Object.hasOwn(stored, "boxing")) return defaults;
+      return { flow: normalizeGameplayCameraPose(stored.flow), boxing: normalizeGameplayCameraPose(stored.boxing) };
+    } catch { return defaults; }
+  }
+
+  /** @param {"flow"|"boxing"} mode @param {{y:number,z:number,xPitch:number,yYaw:number}} values */
+  setCameraPose(mode, values) {
+    if (mode !== "flow" && mode !== "boxing") throw new TypeError("Camera mode must be flow or boxing");
+    if (!values || typeof values !== "object" || Object.keys(values).length !== 4 || !["y", "z", "xPitch", "yYaw"].every((key) => Object.hasOwn(values, key))) throw new TypeError("Camera controls require height, depth, pitch and yaw");
+    const current = this.cameraPoses[mode];
+    const pose = normalizeGameplayCameraPose({ ...current, position: { ...current.position, y: values.y, z: values.z }, rotationEulerDegrees: { ...current.rotationEulerDegrees, xPitch: values.xPitch, yYaw: values.yYaw, zRoll: 0 } });
+    this.cameraPoses = { ...this.cameraPoses, [mode]: pose };
+    try { globalThis.localStorage?.setItem("aerobeat.cameraPoses", JSON.stringify(this.cameraPoses)); } catch { /* non-persistable context */ }
+    this.renderCameraPoseControls();
+    if (this.graph && this.equipmentModeForSession(this.graph.gameplay.getSnapshot().session) === mode && this.lifecycle === "connected") this.graph.renderer.setGameplayCameraPose(mode, pose);
+    return pose;
+  }
+
+  /** @param {"flow"|"boxing"} mode */
+  resetCameraPose(mode) {
+    if (mode !== "flow" && mode !== "boxing") throw new TypeError("Camera mode must be flow or boxing");
+    this.cameraPoses = { ...this.cameraPoses, [mode]: defaultGameplayCameraPose };
+    try { globalThis.localStorage?.setItem("aerobeat.cameraPoses", JSON.stringify(this.cameraPoses)); } catch { /* non-persistable context */ }
+    this.renderCameraPoseControls();
+    if (this.graph && this.equipmentModeForSession(this.graph.gameplay.getSnapshot().session) === mode && this.lifecycle === "connected") this.graph.renderer.setGameplayCameraPose(mode, defaultGameplayCameraPose);
+  }
+
+  cameraControlMode() {
+    const session = this.graph?.gameplay.getSnapshot().session;
+    const selectedRulesetId = this.graph?.content.getSnapshot().selectedVariant?.rulesetId;
+    return this.equipmentModeForSession(session) ?? (boxingGameplayRulesetIds.includes(selectedRulesetId) ? "boxing" : "flow");
+  }
+
+  renderCameraPoseControls() {
+    const mode = this.cameraControlMode();
+    const label = this.shadowRoot?.querySelector("[data-role='camera-pose-mode']");
+    if (label instanceof HTMLElement) label.textContent = `${mode === "flow" ? "Flow" : "Boxing"} camera`;
+    const pose = this.cameraPoses[mode];
+    for (const input of this.shadowRoot?.querySelectorAll("input[data-camera-pose-field]") ?? []) {
+      if (!(input instanceof HTMLInputElement) || this.shadowRoot?.activeElement === input) continue;
+      const field = input.dataset.cameraPoseField;
+      if (field === "y" || field === "z") input.value = String(pose.position[field]);
+      else if (field === "xPitch" || field === "yYaw") input.value = String(pose.rotationEulerDegrees[field]);
+    }
+  }
+
   /** Terminal until a disconnect/reconnect creates a fresh graph. */
   destroy() { this.teardown("destroyed"); return this.getSnapshot(); }
 
@@ -1705,6 +1759,8 @@ export class AeroGame extends HTMLElement {
     // both the visible beam and the analytic hit volume.
     const snapshot = graph.gameplay.getSnapshot();
     const session = snapshot.session;
+    graph.renderer.setGameplayCameraPose("flow", this.cameraPoses.flow);
+    graph.renderer.setGameplayCameraPose("boxing", this.cameraPoses.boxing);
     const frame = this.rendererFrame();
     const visualTest = session?.purpose === "visual_test";
     const fallbackInput = visualTest ? testEquipmentInput(this.testEquipmentMouseHand, this.testEquipmentPointerPosition) : graph.input.getSnapshot();
@@ -2054,7 +2110,7 @@ export class AeroGame extends HTMLElement {
   renderPresenters() {
     if (!this.graph) return;
     const versionLabel=this.shadowRoot?.querySelector("[data-role='app-version']");if(versionLabel instanceof HTMLElement&&versionLabel.textContent!==appMetadata.packageVersion)versionLabel.textContent=appMetadata.packageVersion;
-    this.renderInteractionShell(); this.renderGameSetupControls(); this.syncCameraPresentation(); this.syncDebugCameraPresentation();
+    this.renderInteractionShell(); this.renderGameSetupControls(); this.renderCameraPoseControls(); this.syncCameraPresentation(); this.syncDebugCameraPresentation();
     const content = this.graph.content.getSnapshot();
     const gameplay = this.graph.gameplay.getSnapshot();
     const input = this.graph.input.getSnapshot();
@@ -2377,12 +2433,21 @@ export class AeroGame extends HTMLElement {
     else if (action === "equipment-config-export" && event.isTrusted) this.exportEquipmentConfig(event);
     else if (action === "environment-select") { const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select"); if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value); }
     else if (action === "ui-scale-select") { const select = path.find((entry) => entry instanceof HTMLSelectElement && entry.dataset.action === "ui-scale-select"); if (select instanceof HTMLSelectElement) this.setUiScale(Number(select.value)); }
+    else if (action === "camera-pose-reset") this.resetCameraPose(this.cameraControlMode());
   }
 
   handleInteractionInput(event) {
     const target = event.target;
     if((target instanceof HTMLInputElement||target instanceof HTMLSelectElement)&&target.dataset.gameSetupField){if(target instanceof HTMLInputElement&&target.type==="number"&&event.type==="input"){this.gameSetupDrafts.set(target.dataset.gameSetupField,{value:target.value,error:""});this.renderGameSetupError(target.dataset.gameSetupField,"");}else if(event.type==="change")this.applyGameSetupControl(target);}
     else if (target instanceof HTMLSelectElement && target.dataset.action === "environment-asset-select" && event.type === "change") this.selectEnvironment(target.value);
+    else if (target instanceof HTMLInputElement && target.dataset.cameraPoseField && event.type === "change") {
+      const mode = this.cameraControlMode(); const field = target.dataset.cameraPoseField;
+      const pose = this.cameraPoses[mode];
+      if (!["y", "z", "xPitch", "yYaw"].includes(field) || !target.validity.valid || !Number.isFinite(target.valueAsNumber)) { this.renderCameraPoseControls(); return; }
+      const values = { y: pose.position.y, z: pose.position.z, xPitch: pose.rotationEulerDegrees.xPitch, yYaw: pose.rotationEulerDegrees.yYaw };
+      values[field] = target.valueAsNumber;
+      try { this.setCameraPose(mode, values); } catch { target.value = String(field === "y" || field === "z" ? pose.position[field] : pose.rotationEulerDegrees[field]); }
+    }
     else if (target instanceof HTMLInputElement && target.dataset.environmentField) this.applyEnvironmentControls();
     else if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement) && target.dataset.testPresentationField) this.applyTestPresentationControls();
     else if (target instanceof HTMLInputElement && target.dataset.equipmentPreviewToggle === "true") this.setTestEquipmentVisible(target.checked);
@@ -2521,6 +2586,21 @@ export class AeroGame extends HTMLElement {
     // B2.4: populate the UI scale preset select and reflect the persisted value.
     const scaleSelect=this.shadowRoot?.querySelector("select[data-action='ui-scale-select']");
     if(scaleSelect instanceof HTMLSelectElement){for(const preset of AeroGame.uiScalePresets){const option=document.createElement("option");option.value=String(preset.value);option.textContent=`${preset.label} (${Math.round(preset.value*100)}%)`;scaleSelect.append(option);}scaleSelect.value=String(this.uiScale);}
+    const cameraGroup = document.createElement("fieldset"); cameraGroup.className = "gameplay-camera-controls";
+    const legend = document.createElement("legend"); legend.dataset.role = "camera-pose-mode"; cameraGroup.append(legend);
+    for (const [field, title, limits] of [
+      ["y", "Height (Y)", gameplayCameraPoseBounds.position.y], ["z", "Depth (Z)", gameplayCameraPoseBounds.position.z],
+      ["xPitch", "Pitch (degrees)", gameplayCameraPoseBounds.rotationEulerDegrees.xPitch],
+      ["yYaw", "Yaw (degrees)", gameplayCameraPoseBounds.rotationEulerDegrees.yYawInput]
+    ]) {
+      const label = document.createElement("label"); label.className = "game-setup-number-row";
+      const span = document.createElement("span"); span.textContent = title;
+      const input = document.createElement("input"); input.type = "number"; input.min = String(limits[0]); input.max = String(limits[1]); input.step = "any"; input.dataset.cameraPoseField = field;
+      label.append(span, input); cameraGroup.append(label);
+    }
+    const reset = document.createElement("button"); reset.type = "button"; reset.dataset.action = "camera-pose-reset"; reset.textContent = "Reset to default"; cameraGroup.append(reset);
+    this.shadowRoot?.querySelector("[data-section='display']")?.append(cameraGroup);
+    this.renderCameraPoseControls();
   }
   applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["noseCameraRangeXWorldUnits","noseCameraRangeYWorldUnits","timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLInputElement&&["showGameplayGrid","noseCameraParallaxEnabled","visibleToleranceRange","visibleColliderRadius"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
   renderGameSetupError(field,message){const value=this.shadowRoot?.querySelector(`[data-game-setup-error='${field}']`);if(value instanceof HTMLElement)value.textContent=message;}
