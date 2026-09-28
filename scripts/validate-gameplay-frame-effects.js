@@ -271,10 +271,11 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const index = createSessionTargetIndex(events, {});
   const list = projectAftermathEntries(events, testSnapshot(), 5500, null, index);
   const byId = new Map(list.map((e) => [e.targetId, e]));
-  assert.equal(list.length, 2, "Test: even-feedbackIndex targets (t-flow@0, t-guard@2) commit; odd (t-punch@1, t-miss@3) never appear");
+  assert.equal(list.length, 3, "Test: even-feedbackIndex Flow and two guard corpses commit; odd punch and note never appear");
   assert.deepEqual([byId.get("t-flow").family, byId.get("t-flow").hand, byId.get("t-flow").mode], ["flow", "left", "slice"], "0.0.59 B13: Test-mode flow note → flow/left/slice (hand from authoredBeat.hand, not neutral)");
   assert.equal(byId.get("t-flow").hitCommitMs, 5000, "synthetic hit commits exactly at centerTimestampMs");
-  assert.deepEqual([byId.get("t-guard").family, byId.get("t-guard").hand, byId.get("t-guard").mode], ["guard", "both", "bonk"], "guard → guard/both/bonk");
+  assert.deepEqual([byId.get("t-guard").family, byId.get("t-guard").hand, byId.get("t-guard").mode], ["guard", "left", "bonk"], "guard → left-hand corpse");
+  assert.deepEqual([byId.get("t-guard#r").family, byId.get("t-guard#r").hand, byId.get("t-guard#r").mode], ["guard", "right", "bonk"], "guard → right-hand corpse");
   assert.equal(byId.get("t-guard").hitCommitMs, 5400, "synthetic guard commits at centerTimestampMs");
   assert.equal(byId.has("t-punch"), false, "odd feedbackIndex (punch@1) is a miss — never appears");
   assert.equal(byId.has("t-miss"), false, "odd feedbackIndex (note@3) is a miss — never appears");
@@ -395,11 +396,11 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const playPast = projectAftermathEntries([note], playSnapshot([hitJudgement("b11", 5050)]), 5450, null, null);
   assert.deepEqual(playDuring[0].spawn, { x: -1.5, y: 1, z: 0 }, "Play real hit: spawn derived from the authored beat (targets ignored)");
   assert.deepEqual(playDuring[0].spawn, playPast[0].spawn, "Play real hit: spawn stable across the cull boundary");
-  // Guard (cell-less) keeps the lane-anchored center-row fallback on both paths.
+  // A guard produces one corpse at each authored guard target cell.
   const guardEvents = [guard("b11g", false, 7000)];
   const guardIndex = createSessionTargetIndex(guardEvents, {});
   const guardList = projectAftermathEntries(guardEvents, testSnapshot(), 7400, null, guardIndex);
-  assert.deepEqual(guardList[0].spawn, { x: 0, y: 1, z: 0 }, "guard (cell-less) falls back to the lane-anchored center-row spawn");
+  assert.deepEqual(guardList.map(({hand,spawn})=>({hand,spawn})),[{hand:"left",spawn:{x:-.5,y:2,z:0}},{hand:"right",spawn:{x:.5,y:2,z:0}}],"guard pair spawns separately from authored left/right target cells");
 }
 
 // ---------- 0.0.59 B15: boxing punch spawns at the NOTE'S RENDERED position ----------

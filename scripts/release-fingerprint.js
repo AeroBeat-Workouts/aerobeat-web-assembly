@@ -11,9 +11,9 @@ export const releaseDependencyPins = Object.freeze([
   Object.freeze({ name: "@aerobeat/web-content-authoring", directory: "aerobeat-web-content-authoring", commit: "93ade0f407b5f13ba9bfbcd5d2ed2ac1ad856300", tree: "f3aac80810fe523a53108f2c2cbce5424aa59885" }),
   Object.freeze({ name: "@aerobeat/web-content", directory: "aerobeat-web-content", commit: "c66a7de1f15215a1adaf0427fecb69c102137239", tree: "adb721d06696f14ded661edfe02ed4e6b171ab95" }),
   Object.freeze({ name: "@aerobeat/web-audio", directory: "aerobeat-web-audio", commit: "19fd3a91eb67712806a17e4c82e2631d63f72434", tree: "9bd3418296d8fbdbfe72669958087f50a3302675" }),
-  Object.freeze({ name: "@aerobeat/web-contracts", directory: "aerobeat-web-contracts", commit: "50f321dd81c6e7194b35ca6a00d1141da6b17848", tree: "1acd9d6f26b8bebc845ede8da8bca4fd051b0497" }),
-  Object.freeze({ name: "@aerobeat/web-renderer", directory: "aerobeat-web-renderer", commit: "d366413b28d311b6a90093202a190be350501e3c", tree: "59244df292add6898b9884dd1a5d59a7c68b3351" }),
-  Object.freeze({ name: "@aerobeat/web-gameplay", directory: "aerobeat-web-gameplay", commit: "5e18044d663fa8339789d874d8f949f9ee1cf083", tree: "52c6511d06ea0b4024ba56986a117a86d4db4c8d" }),
+  Object.freeze({ name: "@aerobeat/web-contracts", directory: "aerobeat-web-contracts", commit: "aae5ce90be49765d4f9b19b9340cefd0be783f54", tree: "410a181b4c6b783c04a88a0f360de3f7f66fa370" }),
+  Object.freeze({ name: "@aerobeat/web-renderer", directory: "aerobeat-web-renderer", commit: "8d2a7963e6190ca85bfb72f11673bb7eb1559504", tree: "466dc19c874ff441a49943c321001c6d39716f06" }),
+  Object.freeze({ name: "@aerobeat/web-gameplay", directory: "aerobeat-web-gameplay", commit: "3111d0041a6223a6f4724168178de7c7aaa42578", tree: "b4a3443824ad1f77293c36c99a5ec03dab9b8eb2" }),
   Object.freeze({ name: "@aerobeat/web-input", directory: "aerobeat-web-input", commit: "2a003458340d2c12e480c616b93da4a32f08bd7e", tree: "86338f0989527f602b42fe73d1303ef5164a3a6d" }),
   Object.freeze({ name: "@aerobeat/web-ui", directory: "aerobeat-web-ui", commit: "475f099c7f9400d29cad943a3b972c42e7465b82", tree: "991fc14096ff6bec74763ce2d597c76da8985027" })
 ]);

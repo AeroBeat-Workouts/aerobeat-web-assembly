@@ -43,7 +43,7 @@ export function selectedNormalSpawnDistanceWorldUnits(contentService,contentSnap
 export function rendererGameplayVisualConfig(setup){return createGameplayVisualExperimentConfig(setup.guidanceBandMode,setup.noseCameraParallaxEnabled,setup.noseCameraRangeXWorldUnits,setup.noseCameraRangeYWorldUnits,.04,120,3,2,180);}
 
 /** Construct the exact run-locked gameplay authority from persisted scalar setup. @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
-export function gameplayFlowColliderSettings(setup){return createFlowColliderSettings({schema:defaultFlowColliderSettings.schema,version:defaultFlowColliderSettings.version,algorithm:defaultFlowColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs});}
+export function gameplayFlowColliderSettings(setup){return createFlowColliderSettings({schema:defaultFlowColliderSettings.schema,version:defaultFlowColliderSettings.version,algorithm:defaultFlowColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs,colliderVisible:setup.flowColliderVolume.colliderVisible,colliderScale:setup.flowColliderVolume.colliderScale,colliderDepthForward:setup.flowColliderVolume.colliderDepthForward,colliderDepthBackward:setup.flowColliderVolume.colliderDepthBackward});}
 
 /**
  * z2tx: construct the exact run-locked Boxing Collider (boxing_collider_v1)
@@ -54,7 +54,7 @@ export function gameplayFlowColliderSettings(setup){return createFlowColliderSet
  *
  * @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup
  */
-export function gameplayBoxingColliderSettings(setup){return createBoxingColliderSettings({schema:defaultBoxingColliderSettings.schema,version:defaultBoxingColliderSettings.version,algorithm:defaultBoxingColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs,topRowReachWU:setup.topRowReachWU,bottomRowReachWU:setup.bottomRowReachWU,guardCountMode:setup.guardCountMode});}
+export function gameplayBoxingColliderSettings(setup){return createBoxingColliderSettings({schema:defaultBoxingColliderSettings.schema,version:defaultBoxingColliderSettings.version,algorithm:defaultBoxingColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs,topRowReachWU:setup.topRowReachWU,bottomRowReachWU:setup.bottomRowReachWU,guardCountMode:setup.guardCountMode,colliderVisible:setup.boxingColliderVolume.colliderVisible,colliderScale:setup.boxingColliderVolume.colliderScale,colliderDepthForward:setup.boxingColliderVolume.colliderDepthForward,colliderDepthBackward:setup.boxingColliderVolume.colliderDepthBackward});}
 
 /**
  * Consume one measured-only sample without retaining a mirror and expose only normalized deflections.

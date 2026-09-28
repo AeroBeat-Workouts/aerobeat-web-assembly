@@ -80,7 +80,7 @@ export function guidanceBeatTimestamps(index,nowMs,leadMs){if(!validSessionTarge
  * Visual Test hit/miss outcomes; defaults true. Real Play judgements are
  * independent of this option.
  */
-export function projectSessionTargets(events, gameplay, nowMs, index, timingWindowAfterMs = 180, visualTestSyntheticFeedbackEnabled = true) {
+export function projectSessionTargets(events, gameplay, nowMs, index, timingWindowAfterMs = 180, visualTestSyntheticFeedbackEnabled = true, colliderDepthBackward = 1) {
   if(!Number.isFinite(timingWindowAfterMs)||timingWindowAfterMs<0||timingWindowAfterMs>flowColliderSettingsBounds.timingWindowMs.maximum)throw new TypeError("Authoritative late timing window is invalid");
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
@@ -94,7 +94,8 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   const realJudgements = new Map(judgements.filter((entry) => isRecord(entry) && entry.shadow !== true && (entry.result === "hit" || entry.result === "miss")).map((entry) => [String(entry.eventId), entry]));
   const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];
   const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS,skyMode=indexed&&index.skyMode==="prelude"?"prelude":"off",skyPreludeDurationMs=indexed&&skyMode==="prelude"&&Number.isFinite(index.skyPreludeDurationMs)&&index.skyPreludeDurationMs>=0?index.skyPreludeDurationMs:0,skyLeadMs=skyMode==="prelude"?skyPreludeDurationMs:0;
-  const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,timingWindowAfterMs,skyLeadMs) : createOrderedEntries(events);
+  const effectiveLateWindowMs=timingWindowAfterMs*colliderDepthBackward;
+  const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,effectiveLateWindowMs,skyLeadMs) : createOrderedEntries(events);
   const targets = [];
   let fallbackFeedbackIndex = 0;
   for (const entry of orderedEntries) {
@@ -119,7 +120,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
       const real = realJudgements.get(eventId) ?? null;
       const syntheticFeedback = visualTest && visualTestSyntheticFeedbackEnabled && real === null;
-      const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : timingWindowAfterMs + 1) : null;
+      const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : effectiveLateWindowMs + 1) : null;
       const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
       const realResult = real?.result;
       const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
@@ -127,7 +128,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs < Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
-      const pendingVisible = result !== "hit" && result !== "miss" && centerMs + timingWindowAfterMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
+      const pendingVisible = result !== "hit" && result !== "miss" && centerMs + effectiveLateWindowMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result === "hit" && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined,missCommitMs=result==="miss"&&Number.isFinite(commitMs)?Number(commitMs):undefined;
         const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress,missCommitMs,bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null);
