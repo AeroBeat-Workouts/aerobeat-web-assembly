@@ -1763,15 +1763,11 @@ export class AeroGame extends HTMLElement {
     // 4bj9: push live visual scales into the renderer each frame so a scale change takes effect on the very next rendered frame without a restart.
     const liveScalesId=rendererVisualScalesId(this.desiredGameSetup);
     if(liveScalesId!==this.lastAppliedScaleId&&typeof graph.renderer.setVisualScales==="function"){graph.renderer.setVisualScales(rendererVisualScales(this.desiredGameSetup));this.lastAppliedScaleId=liveScalesId;}
-    // 0.0.61 L-F4 (chgy/hk5q/vths): equipment (Flow saber beam / Boxing glove)
-    // REPLACES the legacy wrist + nose markers as the visible + detection
-    // surface (GATE 1). Build equipment records from the active session's
-    // mode, and HIDE the legacy markers by passing an EMPTY cursor array —
-    // per the shared `equipmentMarkerVisibility` contract every legacy marker
-    // (nose + both wrists) is hidden in both modes, and obstacle nose detection
-    // is gameplay-side and untouched. Flow orientation comes only from the v4
-    // cadence-independent square-radial quaternion field, so one frozen pose is
-    // both the visible beam and the analytic hit volume.
+    // Equipment (Flow saber beam / Boxing glove) replaces the wrist markers;
+    // only the tracked nose is staged as a cursor when its Game Setup toggle is
+    // enabled. Obstacle nose detection remains gameplay-side and untouched.
+    // Flow orientation comes from the v4 cadence-independent square-radial
+    // quaternion field, so one frozen pose is both beam and analytic hit volume.
     const snapshot = graph.gameplay.getSnapshot();
     const session = snapshot.session;
     graph.renderer.setGameplayCameraPose("flow", this.cameraPoses.flow);
@@ -1782,8 +1778,12 @@ export class AeroGame extends HTMLElement {
     const resolved = equipmentOverride ?? this.resolveEquipmentPoses(graph, session, fallbackInput, frame);
     const equipment = visualTest && !this.testEquipmentVisible ? Object.freeze([]) : resolved;
     this.currentEquipmentPoses = resolved;
-    const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32 };
-    return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(frame, Object.freeze([]), cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
+    const input = graph.input.getSnapshot();
+    const nose = Array.isArray(input?.anchors) ? input.anchors.find((anchor) => anchor?.anchor === "nose") : null;
+    const validNose = nose?.valid === true && Number.isFinite(nose.x) && nose.x >= 0 && nose.x <= 1 && Number.isFinite(nose.y) && nose.y >= 0 && nose.y <= 1 && Number.isFinite(nose.confidence) && nose.confidence >= 0.5;
+    const cursors = this.desiredGameSetup.noseMarkerVisible && validNose ? Object.freeze([Object.freeze({ role: "nose", x: nose.x, y: nose.y, confidence: nose.confidence })]) : Object.freeze([]);
+    const cursorOptions = { grid: GAMEPLAY_CURSOR_GRID, minConfidence: 0.5, sizeCssPx: 32, noseMarkerVisible: this.desiredGameSetup.noseMarkerVisible, noseMarkerScale: this.desiredGameSetup.noseMarkerScale };
+    return graph.renderer.renderGameplayFrameWithCursorsAndEquipment(frame, cursors, cursorOptions, equipment, { grid: GAMEPLAY_CURSOR_GRID });
   }
 
   /** @param {ReturnType<typeof createAeroGameServiceGraph>} [graph] */
