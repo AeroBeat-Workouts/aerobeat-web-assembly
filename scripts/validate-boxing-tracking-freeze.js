@@ -1,8 +1,8 @@
 // @ts-check
 // Bead 7aew: feed real calibrated input through both production collider rulesets.
 import assert from "node:assert/strict";
-import { createAeroBodyGridService } from "../../aerobeat-web-input/src/index.js";
-import { createAeroGameplaySessionCoordinator } from "../../aerobeat-web-gameplay/src/index.js";
+import { createAeroBodyGridService } from "@aerobeat/web-input";
+import { createAeroGameplaySessionCoordinator } from "@aerobeat/web-gameplay";
 import { gameplayEquipmentRecords } from "../src/gameplay-equipment-records.js";
 import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
 

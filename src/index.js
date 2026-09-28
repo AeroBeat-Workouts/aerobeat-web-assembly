@@ -266,6 +266,9 @@ export class AeroGame extends HTMLElement {
     this.visualTestEvidenceFrameSequence = 0;
     this.visualTestEvidenceTimestampMs = -1;
     this.currentEquipmentPoses = Object.freeze([]);
+    // Last valid (length-2) equipment poses, held to bridge pre-freeze
+    // low-confidence/no-frame windows so active play never drops to zero poses.
+    this.lastValidEquipmentPoses = Object.freeze([]);
     // Per-hand last-known shoulder pivot (anchor space) for shoulder-based Flow
     // rotation; held when a shoulder drops, reset on a new calibration generation.
     this.lastKnownShoulderPivot = { left: null, right: null };
@@ -309,7 +312,7 @@ export class AeroGame extends HTMLElement {
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
     this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "off"; this.testEquipmentPointerPosition = null;
-    this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]);
+    this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]); this.lastValidEquipmentPoses = Object.freeze([]);
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
@@ -412,6 +415,7 @@ export class AeroGame extends HTMLElement {
     this.visualTestEvidenceFrameSequence = 0;
     this.visualTestEvidenceTimestampMs = -1;
     this.currentEquipmentPoses = Object.freeze([]);
+    this.lastValidEquipmentPoses = Object.freeze([]);
   }
 
   /** Start or restart one exact purpose from song time zero. Every accepted call owns one serialized action ordinal and one fresh gameplay generation. @param {"play"|"visual_test"} purpose @param {{requireDownloaded?:boolean,transportAlreadySerialized?:boolean}} [options] */
@@ -1323,8 +1327,15 @@ export class AeroGame extends HTMLElement {
           const poseFrame = this.rendererFrame();
           frameEquipmentPoses = this.resolveEquipmentPoses(graph, beforeAdvance, poseInput, poseFrame);
           this.currentEquipmentPoses = frameEquipmentPoses;
+          // B1.1 (7aew): hold the last valid (length-2) poses so a pre-freeze
+          // low-confidence/no-frame window never drops active play to zero
+          // poses (which tripped the coordinator's two-pose requirement and
+          // froze gameplay while the audio clock advanced). Markers freeze at
+          // the last known position; beats + music stay in sync.
+          if (frameEquipmentPoses.length === 2) this.lastValidEquipmentPoses = frameEquipmentPoses;
           const equipmentMode = this.equipmentModeForSession(beforeAdvance);
-          graph.gameplay.advance({ timestampMs:advanceTimestampMs, clock:audioClock, ...(visualTest ? (productionTestFrame === null ? {} : {input:productionTestFrame.input,interaction:productionTestFrame.interaction}) : {input}), ...(equipmentMode === null || frameEquipmentPoses.length !== 2 ? {} : {equipmentPoses:frameEquipmentPoses}), lease:this.leaseSnapshotForGameplay() });
+          const advanceEquipmentPoses = frameEquipmentPoses.length === 2 ? frameEquipmentPoses : (beforeAdvance.state === "playing" && this.lastValidEquipmentPoses.length === 2 ? this.lastValidEquipmentPoses : null);
+          graph.gameplay.advance({ timestampMs:advanceTimestampMs, clock:audioClock, ...(visualTest ? (productionTestFrame === null ? {} : {input:productionTestFrame.input,interaction:productionTestFrame.interaction}) : {input}), ...(equipmentMode === null || advanceEquipmentPoses === null ? {} : {equipmentPoses:advanceEquipmentPoses}), lease:this.leaseSnapshotForGameplay() });
           if (!visualTest && this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(advanceTimestampMs);
         }
         this.syncAudioForGameplay();
