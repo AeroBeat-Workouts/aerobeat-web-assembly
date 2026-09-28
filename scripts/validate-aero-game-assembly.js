@@ -11,6 +11,11 @@ import { createLockedProductionPoseAdapter } from "../src/service-graph.js";
 
 const source = readFileSync("src/index.js", "utf8");
 const projectionSource = readFileSync("src/session-render-projection.js", "utf8");
+const seekSource = source.match(/async drainTransportSeeks\(connectionGeneration, sessionGeneration, graph\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
+assert.match(seekSource, /this\.isPlayTransportCurrent\(connectionGeneration, sessionGeneration, graph\)/u, "Play must accept transport seeks");
+assert.match(seekSource, /await graph\.audio\.seek\(seekMs \/ 1000\);[\s\S]*?graph\.gameplay\.seekTo\(graph\.audio\.getClockSnapshot\(\)\.positionSeconds \* 1000\)/u, "audio and gameplay must commit the same sought position");
+assert.match(seekSource, /this\.stopFrameLoop\(\)/u, "active Play must stop frame evaluation during seek");
+assert.doesNotMatch(source.match(/enqueueVisualTestSeek\(value\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "", /state !== "paused_manual"\) return/u, "active Play must not reject scrub intents");
 const html = readFileSync("index.html", "utf8");
 assert.match(html, /<aero-game>/u);
 assert.doesNotMatch(html + source, /<aerobeat-app\b|customElements\.define\(["']aerobeat-app/u);

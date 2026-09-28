@@ -626,18 +626,11 @@ export class AeroGame extends HTMLElement {
     if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return;
     const connectionGeneration = this.connectedGeneration; const sessionGeneration = this.sessionGeneration; const graph = this.graph;
     if (!graph || !(this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph))) return;
-    // Play's scored timeline is authoritative: an active workout cannot be scrubbed.
-    // Only paused Play may realign audio to its current gameplay position.
-    if (this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) {
-      if (graph.gameplay.getSnapshot().session.state !== "paused_manual") return;
-      this.enqueueTransportOperation(async () => { if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return; const session=graph.gameplay.getSnapshot().session;if(session.state!=="paused_manual")return;await graph.audio.seek(Math.max(0,Number(session.timelinePositionMs??0))/1000);this.renderVisualTestTransport(); }, connectionGeneration, sessionGeneration, graph);
-      return;
-    }
     this.desiredTransportSeekMs = value;
     if (this.transportSeekQueued) return;
     this.transportSeekQueued = true;
     this.enqueueTransportOperation(async () => {
-      try { await this.drainVisualTestSeeks(connectionGeneration, sessionGeneration, graph); }
+      try { await this.drainTransportSeeks(connectionGeneration, sessionGeneration, graph); }
       finally { if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) this.transportSeekQueued = false; }
     }, connectionGeneration, sessionGeneration, graph);
   }
@@ -701,16 +694,43 @@ export class AeroGame extends HTMLElement {
   }
 
   /** @param {number} connectionGeneration @param {number} sessionGeneration @param {ReturnType<typeof createAeroGameServiceGraph>} graph */
-  async drainVisualTestSeeks(connectionGeneration, sessionGeneration, graph) {
-    while (this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) && this.desiredTransportSeekMs !== null) {
+  async drainTransportSeeks(connectionGeneration, sessionGeneration, graph) {
+    while ((this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph) || this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) && this.desiredTransportSeekMs !== null) {
       const desiredMs = this.desiredTransportSeekMs; this.desiredTransportSeekMs = null;
+      if (this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) {
+        const session = graph.gameplay.getSnapshot().session;
+        if (session.state !== "playing" && session.state !== "paused_manual") continue;
+        const seekMs = Math.min(this.visualTestDurationMs(graph), Math.max(0, Math.round(desiredMs)));
+        // Freeze frame evaluation while audio changes position; restore the
+        // running clock only after both owners have committed the same seek.
+        this.stopFrameLoop();
+        this.audioSyncPending = true;
+        try {
+          if (graph.audio.getStatus().state === "playing") await graph.audio.pause();
+          if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
+          await graph.audio.seek(seekMs / 1000);
+          if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
+          graph.gameplay.seekTo(graph.audio.getClockSnapshot().positionSeconds * 1000);
+          if (session.state === "playing" && !document.hidden) {
+            try { await graph.audio.play(); }
+            catch (error) {
+              graph.gameplay.pause(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)), "transport_seek_audio_failed");
+              throw error;
+            }
+          }
+          if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
+          if (session.state === "playing" && !document.hidden) this.startFrameLoop();
+          this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport(); this.publish("session_changed");
+        } finally { if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) this.audioSyncPending = false; }
+        continue;
+      }
       const session = graph.gameplay.getSnapshot().session;
       if (session.state !== "paused_manual" || graph.audio.getStatus().state === "playing") await this.pauseVisualTestTransport(connectionGeneration, sessionGeneration, graph);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
       const seekMs = Math.min(this.visualTestDurationMs(graph), Math.max(0, Math.round(desiredMs)));
       await graph.audio.seek(seekMs / 1000);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
-      this.synchronizePausedClock(graph);
+      graph.gameplay.seekTo(graph.audio.getClockSnapshot().positionSeconds * 1000);
       if (!this.isVisualTestTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
       this.invalidateVisualTestInteraction(); this.gloveRotationTracker.reset();
       this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport();
