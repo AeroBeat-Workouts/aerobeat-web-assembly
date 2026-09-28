@@ -16,7 +16,7 @@ assert.match(seekSource, /this\.isPlayTransportCurrent\(connectionGeneration, se
 assert.match(seekSource, /await graph\.audio\.seek\(seekMs \/ 1000\);[\s\S]*?graph\.gameplay\.seekTo\(graph\.audio\.getClockSnapshot\(\)\.positionSeconds \* 1000\)/u, "audio and gameplay must commit the same sought position");
 assert.match(seekSource, /this\.stopFrameLoop\(\)/u, "active Play must stop frame evaluation during seek");
 assert.match(seekSource, /session\.state === "completed" \|\| session\.state === "stopped"/u, "terminal Play seeks must restart the run");
-assert.match(seekSource, /await this\.startSession\("play", \{ requireDownloaded: false, transportAlreadySerialized: true \}\);[\s\S]*?await graph\.audio\.seek\(seekMs \/ 1000\);[\s\S]*?graph\.gameplay\.seekTo\(graph\.audio\.getClockSnapshot\(\)\.positionSeconds \* 1000\);[\s\S]*?this\.startFrameLoop\(\)/u, "post-completion Play seeks must restart, align both clocks and re-arm frames");
+assert.match(seekSource, /graph\.gameplay\.seekAndPlay\(graph\.audio\.getClockSnapshot\(\)\.positionSeconds \* 1000\);[\s\S]*?this\.startFrameLoop\(\)/u, "post-completion Play seeks must use seekAndPlay (no calibration re-run, no countdown) and re-arm frames");
 assert.match(seekSource, /if \(session\.state !== "playing" && session\.state !== "paused_manual"\) continue;/u, "active and manually paused Play seeks must remain supported");
 assert.doesNotMatch(source.match(/enqueueVisualTestSeek\(value\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "", /state !== "paused_manual"\) return/u, "active Play must not reject scrub intents");
 const html = readFileSync("index.html", "utf8");
