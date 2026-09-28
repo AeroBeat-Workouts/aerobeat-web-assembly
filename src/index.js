@@ -2128,9 +2128,13 @@ export class AeroGame extends HTMLElement {
     }
     if (!ownsSelection()) return null;
     const content = graph.content.getSnapshot();
+    // B1.4: retain the active mode across a song change. For Boxing, prefer the
+    // exact last recipe, but fall back to ANY boxing variant on the new package
+    // (a different recipe must not silently reset the mode to Flow).
     const equivalent = flowGameplayRulesetIds.includes(retainedRulesetId)
       ? content.variants.find((variant) => variant.rulesetId === retainedRulesetId && (variant.recipeId===null||variant.recipeId===undefined))
-      : content.variants.find((variant) => variant.rulesetId === retainedRulesetId && variant.recipeId === retainedRecipeId);
+      : content.variants.find((variant) => variant.rulesetId === retainedRulesetId && variant.recipeId === retainedRecipeId)
+        ?? content.variants.find((variant) => variant.rulesetId === retainedRulesetId);
     const fallback = content.variants.find((variant) => variant.rulesetId === gameplayRulesetIds.flow) ?? content.variants[0];
     const selected = equivalent ?? fallback;
     if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.performSelectVariant(selected.variantId, modifierIds, owner);
