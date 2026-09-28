@@ -701,20 +701,25 @@ export class AeroGame extends HTMLElement {
         const session = graph.gameplay.getSnapshot().session;
         if (session.state === "completed" || session.state === "stopped") {
           const seekMs = Math.min(this.visualTestDurationMs(graph), Math.max(0, Math.round(desiredMs)));
-          await this.startSession("play", { requireDownloaded: false, transportAlreadySerialized: true });
-          const restartedGeneration = this.sessionGeneration;
-          if (restartedGeneration === sessionGeneration || !this.isPlayTransportCurrent(connectionGeneration, restartedGeneration, graph)) return;
           this.stopFrameLoop();
           this.audioSyncPending = true;
           try {
+            if (graph.audio.getStatus().state === "playing") await graph.audio.pause();
+            if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
             await graph.audio.seek(seekMs / 1000);
-            if (!this.isPlayTransportCurrent(connectionGeneration, restartedGeneration, graph)) return;
-            graph.gameplay.seekTo(graph.audio.getClockSnapshot().positionSeconds * 1000);
-            // A Play restart can still be calibrating or counting down. Its frame
-            // loop advances that gate and syncAudioForGameplay starts audio on play.
+            if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
+            graph.gameplay.seekAndPlay(graph.audio.getClockSnapshot().positionSeconds * 1000);
+            if (!document.hidden) {
+              try { await graph.audio.play(); }
+              catch (error) {
+                graph.gameplay.pause(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0)), "transport_seek_audio_failed");
+                throw error;
+              }
+            }
+            if (!this.isPlayTransportCurrent(connectionGeneration, sessionGeneration, graph)) return;
             this.startFrameLoop();
             this.syncContentPlayback(); this.renderGameplay(graph); this.renderVisualTestTransport(); this.publish("session_changed");
-          } finally { if (this.isSessionCurrent(restartedGeneration, connectionGeneration, graph)) { this.audioSyncPending = false; this.syncAudioForGameplay(); } }
+          } finally { if (this.isSessionCurrent(sessionGeneration, connectionGeneration, graph)) this.audioSyncPending = false; }
           return;
         }
         if (session.state !== "playing" && session.state !== "paused_manual") continue;
