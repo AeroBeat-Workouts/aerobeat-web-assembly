@@ -835,7 +835,27 @@ export class AeroGame extends HTMLElement {
     const selectedRecipeId = graph.content.getSnapshot().selectedVariant?.recipeId;
     if (conversionRecipeIds.includes(selectedRecipeId)) this.lastBoxingRecipeId = selectedRecipeId;
     if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
-    this.configureGameplayFromContent(futureOnly); this.syncContentPlayback();
+    try {
+      this.configureGameplayFromContent(futureOnly);
+    } catch (error) {
+      if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
+      // Content already committed the selection. Leave the old run behind so a
+      // fresh Start can configure the selected variant from scratch.
+      this.sessionStartRequested = false;
+      this.activeSessionAction = "";
+      this.menuDisposition = "terminal";
+      this.menuTransitionGeneration += 1;
+      this.menuOpen = true;
+      this.stopFrameLoop();
+      try { graph.gameplay.stop(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0))); } catch { /* prior session may be unconfigured */ }
+      this.syncContentPlayback();
+      this.handleError(error);
+      this.publish("content_changed");
+      await Promise.allSettled([graph.audio.pause(), graph.cv.stop()]);
+      return this.getSnapshot();
+    }
+    this.lastError = null;
+    this.syncContentPlayback();
     this.publish("content_changed");
     return this.getSnapshot();
   }
@@ -1295,7 +1315,11 @@ export class AeroGame extends HTMLElement {
     // finished session; a new Test/Play starts from the desired setup anyway.
     const stalePreviousRuleset = !futureOnly && typeof activeRuleset === "string" && ["stopped", "completed"].includes(configuredSession?.state) && activeRuleset !== content.selectedVariant.rulesetId;
     const skipForeignSettings = !futureOnly && activeRuleset !== undefined && activeRuleset !== "" && activeRuleset !== content.selectedVariant.rulesetId && !stalePreviousRuleset;
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents: content.resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
+    // Content's future swap retains old judged/past/active objects with their
+    // original variant IDs. Gameplay separately preserves those same objects and
+    // their immutable truth; only new-variant events belong in its input batch.
+    const resolvedEvents = futureOnly ? content.resolvedEvents.filter((event) => event.variantId === content.selectedVariant.variantId && event.chartId === content.selectedVariant.chartId) : content.resolvedEvents;
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else { this.activeSessionSetup=setup;this.applyGameSetup(this.graph,setup);this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined); }
   }

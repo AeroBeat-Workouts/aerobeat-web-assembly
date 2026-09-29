@@ -110,6 +110,21 @@ assert.throws(() => readBoxingRecipeIntent({ recipeId: boxingRecipeIds.balancedH
   assert.equal(target?.variantId, "fixture-boxing-collider", "selectGameplayAxes resolution picks the sole no-recipe collider variant for a new-import package shape");
 }
 
-console.log("Exact z2tx five-resolved-variant matrix (two visible + three hidden storage modes) with scalar privacy validation + 0.0.54 supportedRecipeIds audit / new-shape collider selection passed.");
+// The assembly's future-only input must exclude content's preserved old-variant
+// objects. Gameplay keeps those objects itself (including their immutable truth).
+// Normal between-run configuration must instead receive the entire newly selected
+// timeline so a stopped Boxing→Flow→Play or Flow→Boxing→Play is not truncated.
+{
+  const source = readFileSync(resolve(repoRoot, "aerobeat-web-assembly", "src", "index.js"), "utf8");
+  const configuration = source.match(/configureGameplayFromContent\(futureOnly, purpose = this\.gameplayContentPurpose\(\),bindDesiredSetup=false\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
+  assert.match(configuration, /futureOnly \? content\.resolvedEvents\.filter\(\(event\) => event\.variantId === content\.selectedVariant\.variantId && event\.chartId === content\.selectedVariant\.chartId\) : content\.resolvedEvents/u, "paused swaps forward only new-variant events; stopped sessions forward complete selected timeline");
+  assert.match(configuration, /if \(futureOnly\) this\.graph\.gameplay\.applyFutureContent\(configuration\);/u, "paused swap must preserve gameplay's own previous event truth");
+  assert.match(configuration, /this\.graph\.gameplay\.configureContent\(configuration,/u, "stopped switch configures fresh gameplay before Play");
+  const selection = source.match(/async performSelectVariant\(variantId, modifierIds, owner\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
+  assert.match(selection, /const futureOnly = configured && \["calibrating", "paused_manual", "paused_tracking"\]\.includes\(gameplay\.session\.state\) && this\.sessionStartRequested;/u, "stopped/completed sessions cannot take future-only branch");
+  assert.match(selection, /catch \(error\) \{[\s\S]*?this\.sessionStartRequested = false;[\s\S]*?graph\.gameplay\.stop\([\s\S]*?this\.handleError\(error\);/u, "failed configuration must make fresh Start possible and report error");
+}
+
+console.log("Exact z2tx variant selection matrix and assembly mode-swap/stop recovery assertions passed.");
 
 function variant(variantId, rulesetId, recipeId) { return Object.freeze({ variantId, rulesetId, recipeId }); }
