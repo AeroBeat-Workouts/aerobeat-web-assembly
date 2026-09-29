@@ -59,7 +59,7 @@ assert.equal(normalizeGameSetup({...valid,guardCountMode:"gesture"}).guardCountM
 const validNoGuard={...defaults,noteScalePercent:150,obstacleScalePercent:90,bombScalePercent:200,markerScalePercent:10};
 for(const key of ["obstaclesEnabled","guardSpacing","noseMarkerVisible","noseMarkerScale","trackExtensionWorldUnits","uppercutOppositeLane","anyOppositeLane","visibleWristObstacleRadius","wristBombColliderScale"])delete validNoGuard[key];
 assert.equal(normalizeGameSetup(validNoGuard).guardCountMode,"collision","absent guard count mode defaults to collision (exact key set intact)");
-assert.equal(normalizeGameSetup(validNoGuard).guardSpacing,1);
+assert.equal(normalizeGameSetup(validNoGuard).guardSpacing,0.25);
 assert.equal(normalizeGameSetup(validNoGuard).noseMarkerScale,.25);
 assert.equal(normalizeGameSetup(validNoGuard).trackExtensionWorldUnits,2);
 assert.equal(normalizeGameSetup(validNoGuard).uppercutOppositeLane,false);
