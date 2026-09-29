@@ -1762,7 +1762,7 @@ export class AeroGame extends HTMLElement {
     // z2tx: rowReach emission only for the boxing_collider presentation; other
     // presentations omit the field so the renderer defaults to legacy {1,1}.
     const isBoxingCollider = presentation === "boxing_collider";
-    const cameraActive=setup.noseCameraParallaxEnabled&&session.purpose==="play"&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
+    const cameraActive=setup.noseCameraParallaxEnabled&&(session.purpose==="play"||session.purpose==="visual_test")&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!==";
     const cameraDeflection=sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);this.lastNoseCameraDeflection=cameraDeflection;const normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
     // W3-D: guidance bands are locked to target_arrivals (the drawer select is
     // hidden); the song_beat_grid band computation stays dormant.
@@ -2782,7 +2782,7 @@ export class AeroGame extends HTMLElement {
     // B2.4: populate the UI scale preset select and reflect the persisted value.
     const scaleSelect=this.shadowRoot?.querySelector("select[data-action='ui-scale-select']");
     if(scaleSelect instanceof HTMLSelectElement){for(const preset of AeroGame.uiScalePresets){const option=document.createElement("option");option.value=String(preset.value);option.textContent=`${preset.label} (${Math.round(preset.value*100)}%)`;scaleSelect.append(option);}scaleSelect.value=String(this.uiScale);}
-    const cameraGroup = document.createElement("fieldset"); cameraGroup.className = "gameplay-camera-controls";
+    const cameraGroup = document.createElement("fieldset"); cameraGroup.className = "gameplay-camera-controls"; cameraGroup.style.display = "none"; // camera settings locked in — hidden
     const legend = document.createElement("legend"); legend.dataset.role = "camera-pose-mode"; cameraGroup.append(legend);
     for (const [field, title, limits] of [
       ["y", "Height (Y)", gameplayCameraPoseBounds.position.y], ["z", "Depth (Z)", gameplayCameraPoseBounds.position.z],
