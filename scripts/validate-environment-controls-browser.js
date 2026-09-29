@@ -151,7 +151,7 @@ try {
     if (!(input instanceof HTMLInputElement)) throw new Error("Sky prelude height must be a native input");
     return { type:input.type, min:input.min, max:input.max, step:input.step, value:input.value, valueAsNumber:input.valueAsNumber, valid:input.validity.valid, rangeOverflow:input.validity.rangeOverflow };
   });
-  assert.deepEqual(skyDefault, { type:"number", min:"0", max:"50", step:"0.1", value:"50", valueAsNumber:50, valid:true, rangeOverflow:false }, `${embedding} sky-height native defaults drifted`);
+  assert.deepEqual(skyDefault, { type:"number", min:"0", max:"50", step:"any", value:"50", valueAsNumber:50, valid:true, rangeOverflow:false }, `${embedding} sky-height native defaults drifted`);
   assert.equal(await game.evaluate((element) => element.testPresentationConfig.skyPreludeHeightWorldUnits), 50, `${embedding} private default must remain 50`);
   await skyHeight.fill("50");
   await skyHeight.press("Tab");
