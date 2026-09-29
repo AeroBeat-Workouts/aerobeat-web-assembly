@@ -2,22 +2,29 @@
 
 import { isResolvedEquipmentPose, judgeToPresentationPoint } from "@aerobeat/web-contracts";
 
+/** @typedef {Readonly<{anchor:string,valid:boolean,x:number,y:number,confidence:number}>} WristAnchor */
+/** @typedef {Readonly<{gameplayPaused?:boolean,freshCalibrationRequired?:boolean,allRequiredAnchorsVisible?:boolean,anchorsFrozen?:boolean}>} WristTracking */
+/** @typedef {Readonly<{tracking?:WristTracking,countdownFrozen?:boolean,retainedGeometryDimmed?:boolean,latestEvidence?:Readonly<{provenance?:string,anchors?:readonly WristAnchor[]}>,anchors?:readonly WristAnchor[]}>} WristInput */
+
 /**
- * Private world-space wrist centers for the renderer debug spheres. Follow the
- * same tracking admission and evidence preference as gameplayEquipmentRecords:
- * a stale pose alone cannot put a sphere where gameplay has no valid wrist.
+ * Private world-space wrist centers for the renderer debug spheres. Production
+ * accepts current or held gameplay evidence; only Test's local preview may use
+ * bare input anchors. A pose is admitted only for its matching valid wrist.
  * @param {readonly unknown[] | null} poses
- * @param {unknown} input
+ * @param {WristInput | null} input
  * @param {"flow"|"boxing"} mode
+ * @param {boolean} [visualTestPreview]
  * @returns {Readonly<{left:Readonly<{x:number,y:number,z:number}>|null,right:Readonly<{x:number,y:number,z:number}>|null}>}
  */
-export function equipmentColliderAnchors(poses,input,mode){
+export function equipmentColliderAnchors(poses,input,mode,visualTestPreview=false){
   const projected={left:null,right:null};
   const tracking=input?.tracking;
   if(!tracking||tracking.gameplayPaused===true||tracking.freshCalibrationRequired===true||input?.countdownFrozen===true)return Object.freeze(projected);
   const frozen=tracking.anchorsFrozen===true||input?.latestEvidence?.provenance==="frozen";
   if(!frozen&&(tracking.allRequiredAnchorsVisible!==true||input?.retainedGeometryDimmed===true))return Object.freeze(projected);
-  const anchors=Array.isArray(input?.latestEvidence?.anchors)?input.latestEvidence.anchors:Array.isArray(input?.anchors)?input.anchors:[];
+  const evidence=input?.latestEvidence;
+  const evidenceAnchors=(evidence?.provenance==="measured"||evidence?.provenance==="frozen")&&Array.isArray(evidence.anchors)?evidence.anchors:null;
+  const anchors=evidenceAnchors??(visualTestPreview&&Array.isArray(input?.anchors)?input.anchors:[]);
   for(const hand of ["left","right"]){
     const wrist=anchors.find((entry)=>entry?.anchor===`${hand}_wrist`);
     if(wrist?.valid!==true||typeof wrist.x!=="number"||!Number.isFinite(wrist.x)||wrist.x<0||wrist.x>1||typeof wrist.y!=="number"||!Number.isFinite(wrist.y)||wrist.y<0||wrist.y>1||typeof wrist.confidence!=="number"||!Number.isFinite(wrist.confidence)||wrist.confidence<.5||wrist.confidence>1)continue;

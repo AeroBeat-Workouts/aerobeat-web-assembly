@@ -1927,7 +1927,7 @@ export class AeroGame extends HTMLElement {
     // Do not make measured wrist bomb visualization depend on equipment meshes.
     // The frame owns the centers even when Visual Test hides the model layer.
     const measuredInput = visualTest ? fallbackInput : graph.input.getSnapshot();
-    frame.equipmentColliderAnchors = equipmentColliderAnchors(resolved, measuredInput, frame.presentation === "flow" ? "flow" : "boxing");
+    frame.equipmentColliderAnchors = equipmentColliderAnchors(resolved, measuredInput, frame.presentation === "flow" ? "flow" : "boxing", visualTest);
     const input = graph.input.getSnapshot();
     const nose = Array.isArray(input?.anchors) ? input.anchors.find((anchor) => anchor?.anchor === "nose") : null;
     const validNose = nose?.valid === true && Number.isFinite(nose.x) && nose.x >= 0 && nose.x <= 1 && Number.isFinite(nose.y) && nose.y >= 0 && nose.y <= 1 && Number.isFinite(nose.confidence) && nose.confidence >= 0.5;
