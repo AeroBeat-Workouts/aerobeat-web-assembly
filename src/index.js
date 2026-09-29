@@ -338,7 +338,7 @@ export class AeroGame extends HTMLElement {
       this.applyGameSetup(graph,this.desiredGameSetup);
       graph.audio.setMix(getAudioMixSnapshot());
       this.unsubscribe.push(subscribeAudioMix((mix) => { if (!this.isCurrent(generation, graph)) return; graph.audio.setMix(mix); this.renderVisualTestTransport(); }, false));
-      this.unsubscribe.push(subscribeGameSetup((setup) => { if (!this.isCurrent(generation, graph)) return;void this.enqueueLifecycleIntent("game-setup-sync",(owner)=>{if(!this.isLifecycleIntentOwner(owner))return null;this.desiredGameSetup=setup;const state=graph.gameplay.getSnapshot().session?.state;if(!graph.gameplay.getSnapshot().session?.packageId||["idle","stopped","completed"].includes(state))this.applyGameSetup(graph,setup);this.renderGuidanceModeFrame(setup);this.renderGameSetupControls();this.renderColliderVolumeControls();this.renderGameplay(graph);return null;}).catch((error)=>this.handleError(error)); }, false));
+      this.unsubscribe.push(subscribeGameSetup((setup) => { if (!this.isCurrent(generation, graph)) return;void this.enqueueLifecycleIntent("game-setup-sync",async(owner)=>{if(!this.isLifecycleIntentOwner(owner))return null;const prior=this.desiredGameSetup;this.desiredGameSetup=setup;if(prior.uppercutOppositeLane!==setup.uppercutOppositeLane||prior.anyOppositeLane!==setup.anyOppositeLane)await this.reprocessSelectedBoxing(setup,owner);const state=graph.gameplay.getSnapshot().session?.state;if(!graph.gameplay.getSnapshot().session?.packageId||["idle","stopped","completed"].includes(state))this.applyGameSetup(graph,setup);this.renderGuidanceModeFrame(setup);this.renderGameSetupControls();this.renderColliderVolumeControls();this.renderGameplay(graph);return null;}).catch((error)=>this.handleError(error)); }, false));
       this.renderGameSetupControls();
       this.attachStableSurfaces();
       this.bindGraph();
@@ -795,6 +795,33 @@ export class AeroGame extends HTMLElement {
     return this.enqueueLifecycleIntent("content-select", (owner) => this.performSelectContent(normalized, owner));
   }
 
+  /** Only the selected downloaded difficulty is regenerated; never acquire BeatSaver again. */
+  async reprocessSelectedBoxing(setup, owner) {
+    const graph = owner.graph;
+    const content = graph.content.getSnapshot();
+    if (content.state !== "ready" || !this.libraryView.selectedPackageId || content.packageId !== this.libraryView.selectedPackageId) return;
+    const session = graph.gameplay.getSnapshot().session;
+    // Active runs keep their locked gameplay truth; live reprocessing applies between runs.
+    if (this.sessionStartRequested && !["idle", "stopped", "completed"].includes(session.state)) return;
+    const target = librarySelectionTarget(this.libraryView.collections, this.libraryView.selectedCollectionId, this.libraryView.selectedPackageId);
+    if (!target || typeof graph.authoring.reprocessBoxing !== "function" || typeof graph.content.replaceBoxingPackage !== "function") return;
+    try {
+      const replacement = await graph.authoring.reprocessBoxing({ key: target.packageKey, packageId: target.packageId }, {
+        guardSpacing: setup.guardSpacing, uppercutOppositeLane: setup.uppercutOppositeLane, anyOppositeLane: setup.anyOppositeLane
+      });
+      if (!this.isLifecycleIntentOwner(owner) || graph.content.getSnapshot().packageId !== target.packageId) return;
+      if (this.sessionStartRequested && !["idle", "stopped", "completed"].includes(graph.gameplay.getSnapshot().session.state)) return;
+      await graph.content.replaceBoxingPackage(replacement);
+      if (!this.isLifecycleIntentOwner(owner)) return;
+      if (!session.packageId || ["idle", "stopped", "completed"].includes(session.state)) this.configureGameplayFromContent(false);
+      this.syncContentPlayback();
+      this.publish("content_changed");
+    } catch (error) {
+      if (error?.code === "source_cache_unavailable") return;
+      if (this.isLifecycleIntentOwner(owner)) throw error;
+    }
+  }
+
   async performSelectContent(normalized, owner) {
     const graph = owner.graph; const kind = normalized.kind;
     let profilePackage = kind === "direct" ? packageFromEnvelope(normalized.package) : null;
@@ -1246,8 +1273,8 @@ export class AeroGame extends HTMLElement {
       sourceVersionHash: acquired.sourceHash,
       modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: true,
       converterProfile: converter.profile,
-      // Read Game Setup at import time: authoring bakes these target lanes into
-      // the persisted chart, so changing setup later requires a reimport.
+      // Cache source difficulties locally so lane controls can reprocess without a download.
+      cacheSourceEntries: true,
       converterSettings: Object.freeze({ guardSpacing: this.desiredGameSetup.guardSpacing, uppercutOppositeLane: this.desiredGameSetup.uppercutOppositeLane, anyOppositeLane: this.desiredGameSetup.anyOppositeLane }),
       signal: this.activeAbort.signal
     }); } catch (error) { if (!ownsImport()) return null; throw error; }
@@ -2320,6 +2347,16 @@ export class AeroGame extends HTMLElement {
       if (!ownsSelection()) return null;
       if (flowReimportReason(error)) return this.clearStaleLibrarySelection(selectionGeneration, error, owner);
       throw error;
+    }
+    if (!ownsSelection()) return null;
+    if (typeof graph.authoring.reprocessBoxing === "function" && typeof graph.content.replaceBoxingPackage === "function") {
+      try {
+        const replacement = await graph.authoring.reprocessBoxing({ key: target.packageKey, packageId: target.packageId }, {
+          guardSpacing: this.desiredGameSetup.guardSpacing, uppercutOppositeLane: this.desiredGameSetup.uppercutOppositeLane, anyOppositeLane: this.desiredGameSetup.anyOppositeLane
+        });
+        if (!ownsSelection()) return null;
+        await graph.content.replaceBoxingPackage(replacement);
+      } catch (error) { if (error?.code !== "source_cache_unavailable") throw error; }
     }
     if (!ownsSelection()) return null;
     const content = graph.content.getSnapshot();
