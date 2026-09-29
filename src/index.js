@@ -51,6 +51,7 @@ import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets
 import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
 import { isRecord, projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
+import { equipmentColliderAnchors } from "./equipment-collider-anchors.js";
 import { boxingUpcomingActions, createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
 import { squareRadialSaberTarget } from "./saber-zone-direction.js";
 import { canonicalEquipmentConfigIdentityInput, canonicalEquipmentConfigJson, serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
@@ -1741,6 +1742,7 @@ export class AeroGame extends HTMLElement {
       timingWindowBeforeMs: timingWindowMs,
       timingWindowAfterMs: timingWindowMs,
       colliderSettings:{...(presentation==="flow"?setup.flowColliderVolume:setup.boxingColliderVolume),visibleWristObstacleRadius:setup.visibleWristObstacleRadius,wristBombColliderScale:setup.wristBombColliderScale},
+      visibleWristObstacleRadius:setup.visibleWristObstacleRadius,
       showGameplayGrid:setup.showGameplayGrid,
       noseMarkerVisible:setup.noseMarkerVisible,
       noseMarkerScale:setup.noseMarkerScale,
@@ -1893,6 +1895,10 @@ export class AeroGame extends HTMLElement {
     const resolved = equipmentOverride ?? this.resolveEquipmentPoses(graph, session, fallbackInput, frame);
     const equipment = visualTest && !this.testEquipmentVisible ? Object.freeze([]) : resolved;
     this.currentEquipmentPoses = resolved;
+    // Do not make measured wrist bomb visualization depend on equipment meshes.
+    // The frame owns the centers even when Visual Test hides the model layer.
+    const measuredInput = visualTest ? fallbackInput : graph.input.getSnapshot();
+    frame.equipmentColliderAnchors = equipmentColliderAnchors(resolved, measuredInput, frame.presentation === "flow" ? "flow" : "boxing");
     const input = graph.input.getSnapshot();
     const nose = Array.isArray(input?.anchors) ? input.anchors.find((anchor) => anchor?.anchor === "nose") : null;
     const validNose = nose?.valid === true && Number.isFinite(nose.x) && nose.x >= 0 && nose.x <= 1 && Number.isFinite(nose.y) && nose.y >= 0 && nose.y <= 1 && Number.isFinite(nose.confidence) && nose.confidence >= 0.5;
