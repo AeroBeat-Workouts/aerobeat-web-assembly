@@ -122,7 +122,7 @@ assert.throws(() => readBoxingRecipeIntent({ recipeId: boxingRecipeIds.balancedH
   assert.match(configuration, /this\.graph\.gameplay\.configureContent\(configuration,/u, "stopped switch configures fresh gameplay before Play");
   const selection = source.match(/async performSelectVariant\(variantId, modifierIds, owner\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
   assert.match(selection, /const futureOnly = configured && \["calibrating", "paused_manual", "paused_tracking"\]\.includes\(gameplay\.session\.state\) && this\.sessionStartRequested;/u, "stopped/completed sessions cannot take future-only branch");
-  assert.match(selection, /catch \(error\) \{[\s\S]*?this\.sessionStartRequested = false;[\s\S]*?graph\.gameplay\.stop\([\s\S]*?this\.handleError\(error\);/u, "failed configuration must make fresh Start possible and report error");
+  assert.match(selection, /catch \(error\) \{[\s\S]*?this\.recoverFailedContentConfiguration\(error, graph\);[\s\S]*?return this\.getSnapshot\(\);/u, "failed configuration must make fresh Start possible and report error");
 }
 
 console.log("Exact z2tx variant selection matrix and assembly mode-swap/stop recovery assertions passed.");
