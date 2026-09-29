@@ -339,7 +339,7 @@ export class AeroGame extends HTMLElement {
       this.applyGameSetup(graph,this.desiredGameSetup);
       graph.audio.setMix(getAudioMixSnapshot());
       this.unsubscribe.push(subscribeAudioMix((mix) => { if (!this.isCurrent(generation, graph)) return; graph.audio.setMix(mix); this.renderVisualTestTransport(); }, false));
-      this.unsubscribe.push(subscribeGameSetup((setup) => { if (!this.isCurrent(generation, graph)) return;void this.enqueueLifecycleIntent("game-setup-sync",async(owner)=>{if(!this.isLifecycleIntentOwner(owner))return null;const prior=this.desiredGameSetup;this.desiredGameSetup=setup;if(prior.uppercutOppositeLane!==setup.uppercutOppositeLane||prior.anyOppositeLane!==setup.anyOppositeLane)await this.reprocessSelectedBoxing(setup,owner);const state=graph.gameplay.getSnapshot().session?.state;if(!graph.gameplay.getSnapshot().session?.packageId||["idle","stopped","completed"].includes(state))this.applyGameSetup(graph,setup);this.renderGuidanceModeFrame(setup);this.renderGameSetupControls();this.renderColliderVolumeControls();this.renderGameplay(graph);return null;}).catch((error)=>this.handleError(error)); }, false));
+      this.unsubscribe.push(subscribeGameSetup((setup) => { if (!this.isCurrent(generation, graph)) return;void this.enqueueLifecycleIntent("game-setup-sync",async(owner)=>{if(!this.isLifecycleIntentOwner(owner))return null;const prior=this.desiredGameSetup;this.desiredGameSetup=setup;if(prior.guardSpacing!==setup.guardSpacing||prior.uppercutOppositeLane!==setup.uppercutOppositeLane||prior.anyOppositeLane!==setup.anyOppositeLane)await this.reprocessSelectedBoxing(setup,owner);const state=graph.gameplay.getSnapshot().session?.state;if(!graph.gameplay.getSnapshot().session?.packageId||["idle","stopped","completed"].includes(state))this.applyGameSetup(graph,setup);this.renderGuidanceModeFrame(setup);this.renderGameSetupControls();this.renderColliderVolumeControls();this.renderGameplay(graph);return null;}).catch((error)=>this.handleError(error)); }, false));
       this.renderGameSetupControls();
       this.attachStableSurfaces();
       this.bindGraph();
@@ -837,9 +837,32 @@ export class AeroGame extends HTMLElement {
     if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
     if (profilePackage) this.synchronizeConverterProvenance(profilePackage);
     if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
-    this.configureGameplayFromContent(false); this.syncContentPlayback();
+    try { this.configureGameplayFromContent(false); }
+    catch (error) {
+      if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
+      await this.recoverFailedContentConfiguration(error, graph);
+      throw error;
+    }
+    this.syncContentPlayback();
     this.publish("content_changed");
     return this.getSnapshot();
+  }
+
+  /** After content has committed but gameplay rejected it, retire the old run and leave Start/Test usable. */
+  async recoverFailedContentConfiguration(error, graph) {
+    if (this.graph !== graph || this.lifecycle !== "connected") return;
+    this.sessionStartRequested = false;
+    this.activeSessionAction = "";
+    this.sessionGeneration += 1;
+    this.menuDisposition = "terminal";
+    this.menuTransitionGeneration += 1;
+    this.menuOpen = true;
+    this.stopFrameLoop();
+    try { graph.gameplay.stop(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0))); } catch { /* prior session may be unconfigured */ }
+    this.syncContentPlayback();
+    this.handleError(error);
+    this.publish("content_changed");
+    await Promise.allSettled([graph.audio.pause(), graph.cv.stop()]);
   }
 
   async selectVariant(variantId, modifierIds = []) {
@@ -867,19 +890,8 @@ export class AeroGame extends HTMLElement {
       this.configureGameplayFromContent(futureOnly);
     } catch (error) {
       if (!this.isLifecycleIntentOwner(owner)) return this.getSnapshot();
-      // Content already committed the selection. Leave the old run behind so a
-      // fresh Start can configure the selected variant from scratch.
-      this.sessionStartRequested = false;
-      this.activeSessionAction = "";
-      this.menuDisposition = "terminal";
-      this.menuTransitionGeneration += 1;
-      this.menuOpen = true;
-      this.stopFrameLoop();
-      try { graph.gameplay.stop(Math.max(performance.now(), Number(graph.gameplay.getSnapshot().session.timestampMs ?? 0))); } catch { /* prior session may be unconfigured */ }
-      this.syncContentPlayback();
-      this.handleError(error);
-      this.publish("content_changed");
-      await Promise.allSettled([graph.audio.pause(), graph.cv.stop()]);
+      // Content already committed the selection; a fresh Start must be possible.
+      await this.recoverFailedContentConfiguration(error, graph);
       return this.getSnapshot();
     }
     this.lastError = null;
@@ -1321,7 +1333,10 @@ export class AeroGame extends HTMLElement {
   configureGameplayFromContent(futureOnly, purpose = this.gameplayContentPurpose(),bindDesiredSetup=false) {
     const content = this.graph.content.getSnapshot();
     if (content.state !== "ready" || !content.selectedVariant) return;
-    const session=this.graph.gameplay.getSnapshot().session,runActive=Boolean(session?.packageId)&&!["idle","stopped","completed"].includes(session?.state),scoring = this.graph.profiles.getActive("between_run_ruleset"),setup=bindDesiredSetup||!runActive||!this.activeSessionSetup?this.desiredGameSetup:this.activeSessionSetup;
+    const session=this.graph.gameplay.getSnapshot().session;
+    const newSong = Boolean(session?.packageId) && session.packageId !== content.packageId;
+    if (newSong) purpose = "play"; // Never preserve an outgoing Test while installing a different song.
+    const runActive=Boolean(session?.packageId)&&!newSong&&!["idle","stopped","completed"].includes(session?.state),scoring = this.graph.profiles.getActive("between_run_ruleset"),setup=bindDesiredSetup||!runActive||!this.activeSessionSetup?this.desiredGameSetup:this.activeSessionSetup;
     // z2tx: thread the run-gated collider settings — Flow for flow_colliders_v1,
     // Boxing Collider (reach + guard mode) for boxing_collider_v1. The coordinator
     // locks them for the complete run; mid-run changes reject via
@@ -1341,7 +1356,7 @@ export class AeroGame extends HTMLElement {
     // `configureContent` rejects foreign-ruleset settings with the internal
     // `*_settings_locked` error. The previous run's truth belongs to that
     // finished session; a new Test/Play starts from the desired setup anyway.
-    const stalePreviousRuleset = !futureOnly && typeof activeRuleset === "string" && ["stopped", "completed"].includes(configuredSession?.state) && activeRuleset !== content.selectedVariant.rulesetId;
+    const stalePreviousRuleset = !futureOnly && typeof activeRuleset === "string" && (newSong || ["stopped", "completed"].includes(configuredSession?.state)) && activeRuleset !== content.selectedVariant.rulesetId;
     const skipForeignSettings = !futureOnly && activeRuleset !== undefined && activeRuleset !== "" && activeRuleset !== content.selectedVariant.rulesetId && !stalePreviousRuleset;
     // Content's future swap retains old judged/past/active objects with their
     // original variant IDs. Gameplay separately preserves those same objects and
@@ -1349,7 +1364,21 @@ export class AeroGame extends HTMLElement {
     const resolvedEvents = futureOnly ? content.resolvedEvents.filter((event) => event.variantId === content.selectedVariant.variantId && event.chartId === content.selectedVariant.chartId) : content.resolvedEvents;
     const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
-    else { this.activeSessionSetup=setup;this.applyGameSetup(this.graph,setup);this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined); }
+    else {
+      // A new package cannot inherit the outgoing song's active Test transport.
+      // Retire it before configuring B so gameplay cannot preserve A's timeline.
+      if (newSong) {
+        this.sessionStartRequested = false;
+        this.activeSessionAction = "";
+        this.sessionGeneration += 1;
+        this.menuTransitionGeneration += 1;
+        this.menuDisposition = "terminal";
+        this.menuOpen = true;
+        this.stopFrameLoop();
+        try { this.graph.gameplay.stop(Math.max(performance.now(), Number(session.timestampMs ?? 0))); } catch { /* unconfigured outgoing session */ }
+      }
+      this.activeSessionSetup=setup;this.applyGameSetup(this.graph,setup);this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined);
+    }
   }
 
   gameplayContentPurpose() {
