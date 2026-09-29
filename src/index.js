@@ -1762,8 +1762,10 @@ export class AeroGame extends HTMLElement {
     // z2tx: rowReach emission only for the boxing_collider presentation; other
     // presentations omit the field so the renderer defaults to legacy {1,1}.
     const isBoxingCollider = presentation === "boxing_collider";
-    const cameraActive=setup.noseCameraParallaxEnabled&&(session.purpose==="play"||session.purpose==="visual_test")&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
-    const cameraDeflection=sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);this.lastNoseCameraDeflection=cameraDeflection;const normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
+    // Visual Test has no CV source or calibrated nose. Its renderer uses the
+    // selected fixed mode pose (or the Test-only debug pose), never nose parallax.
+    const cameraActive=setup.noseCameraParallaxEnabled&&session.purpose==="play"&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
+    const cameraDeflection=session.purpose==="visual_test"?null:sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);this.lastNoseCameraDeflection=cameraDeflection;const normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
     // W3-D: guidance bands are locked to target_arrivals (the drawer select is
     // hidden); the song_beat_grid band computation stays dormant.
     const beatGuidance=null;
