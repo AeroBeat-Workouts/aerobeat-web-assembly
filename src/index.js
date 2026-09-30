@@ -1363,7 +1363,7 @@ export class AeroGame extends HTMLElement {
     // original variant IDs. Gameplay separately preserves those same objects and
     // their immutable truth; only new-variant events belong in its input batch.
     const resolvedEvents = futureOnly ? content.resolvedEvents.filter((event) => event.variantId === content.selectedVariant.variantId && event.chartId === content.selectedVariant.chartId) : content.resolvedEvents;
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup), magneticAttraction: { range: setup.magneticAttractionRange, minStrength: setup.magneticAttractionMinStrength, maxStrength: setup.magneticAttractionMaxStrength, backFaceBias: setup.magneticAttractionBackFaceBias } } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else {
       // A new package cannot inherit the outgoing song's active Test transport.
@@ -1772,6 +1772,10 @@ export class AeroGame extends HTMLElement {
     return {
       presentation, nowMs, targets,
       ...(presentation==="flow"?{magneticAttraction:{range:setup.magneticAttractionRange,minStrength:setup.magneticAttractionMinStrength,maxStrength:setup.magneticAttractionMaxStrength,backFaceBias:setup.magneticAttractionBackFaceBias}}:{}),
+      // 0.0.85: the AUTHORITATIVE assisted orientation gameplay used for collision.
+      // The renderer draws this instead of re-deriving the blend, so the visual
+      // saber and the collider that decides hits can never disagree.
+      ...(isRecord(gameplay)&&isRecord(gameplay.assistedSaberOrientations)?{assistedSaberOrientations:gameplay.assistedSaberOrientations}:{}),
       timingWindowBeforeMs: timingWindowMs,
       timingWindowAfterMs: timingWindowMs,
       colliderSettings:{...(presentation==="flow"?setup.flowColliderVolume:setup.boxingColliderVolume),visibleWristObstacleRadius:setup.visibleWristObstacleRadius,wristBombColliderScale:setup.wristBombColliderScale},
