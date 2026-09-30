@@ -2297,6 +2297,7 @@ export class AeroGame extends HTMLElement {
     setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
     setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: this.libraryView.selectedPackageId, preview: this.previewView });
     setPresenter(this, "aero-beatsaver-browser", { ...this.beatSaverView, preview: this.previewView });
+    renderBeatSaverDifficultyCircles(this.shadowRoot?.querySelector("aero-beatsaver-browser"), this.beatSaverView.results);
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
     setPresenter(this, "aero-fullscreen-button", this.fullscreenSnapshot());
     setPresenter(this, "aero-session-actions", this.sessionActionsSnapshot());
@@ -3239,7 +3240,34 @@ function actionableRuntimeMessage(error, limitations) {
 function contentPresenterDataSignature(snapshot) {
   return JSON.stringify([dataValue(snapshot, "state"), dataValue(snapshot, "generation"), dataValue(snapshot, "packageId"), dataValue(snapshot, "selectedVariant"), dataValue(snapshot, "background")]);
 }
-function mapSummary(map) { const versions = playableVersions(map); return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: versions.length, versions: Object.freeze(versions.slice(0, 8).map((version, index) => Object.freeze({ versionHash: version.hash, label: String(index + 1) }))) }); }
+function mapSummary(map) { const versions = playableVersions(map); return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: versions.length, versions: Object.freeze(versions.slice(0, 8).map((version, index) => Object.freeze({ versionHash: version.hash, label: String(index + 1) }))), difficulties: Object.freeze([...new Set(versions.flatMap(standardDifficulties))]) }); }
+const beatSaverDifficultyColors = Object.freeze({ Easy: "#14ff00", Normal: "#00ffff", Hard: "#ff8000", Expert: "#ff0000", ExpertPlus: "#8000ff" });
+/** Decorate remote song titles after the shared UI presenter renders, without altering its selection controls. */
+function renderBeatSaverDifficultyCircles(browser, results) {
+  if (!browser?.shadowRoot) return;
+  const titles = browser.shadowRoot.querySelectorAll('[part="results"] [part="result"] .choice-copy > strong');
+  for (let index = 0; index < titles.length; index += 1) {
+    const title = titles[index];
+    const supported = results?.[index]?.difficulties;
+    if (!Array.isArray(supported)) continue;
+    const row = document.createElement("span");
+    row.style.cssText = "display:inline-flex;align-items:center;gap:4px;min-width:0;max-width:100%";
+    const label = document.createElement("span");
+    label.textContent = title.textContent;
+    label.style.cssText = "min-width:0;overflow-wrap:anywhere";
+    row.append(label);
+    for (const difficulty of Object.keys(beatSaverDifficultyColors)) {
+      if (!supported.includes(difficulty)) continue;
+      const circle = document.createElement("span");
+      circle.setAttribute("role", "img");
+      circle.setAttribute("aria-label", `${difficulty} difficulty`);
+      circle.title = difficulty;
+      circle.style.cssText = `display:inline-block;flex:0 0 10px;width:10px;height:10px;border-radius:50%;background:${beatSaverDifficultyColors[difficulty]};box-shadow:0 0 0 1px rgba(16,52,71,.35)`;
+      row.append(circle);
+    }
+    title.replaceChildren(row);
+  }
+}
 function standardDifficulties(version) { return Object.freeze((version?.difficulties ?? []).filter((entry) => entry.characteristic === "Standard").map((entry) => entry.difficulty).filter((entry, index, all) => all.indexOf(entry) === index)); }
 function playableVersions(map) { return Object.freeze((map?.versions ?? []).filter((version) => standardDifficulties(version).length > 0)); }
 function productLibraryPackages(packages) {
