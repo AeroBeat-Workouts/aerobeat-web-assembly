@@ -40,7 +40,7 @@ export class AeroGameSetupCoordinator{
   subscribe(callback,emitCurrent=true){if(typeof callback!=="function")throw new TypeError("Game setup subscriber must be a function");this.subscribers.add(callback);if(emitCurrent)try{callback(this.getSnapshot());}catch{/* isolate subscriber */}let active=true;return()=>{if(!active)return;active=false;this.subscribers.delete(callback);};}
   destroy(){try{this.eventTarget?.removeEventListener?.("storage",this.storageListener);}catch{/* best effort */}this.subscribers.clear();}
   acquireStorage(){try{const storage=this.storageFactory();return storage&&typeof storage.getItem==="function"&&typeof storage.setItem==="function"?storage:null;}catch{return null;}}
-  readStoredSnapshot(){if(!this.storage)return defaultAeroGameSetupSnapshot;try{const serialized=this.storage.getItem(aeroGameSetupStorageKey);if(serialized!==null){const normalized=normalizeSerializedSetup(serialized);if(normalized)return normalized;this.persistReset(defaultAeroGameSetupSnapshot);return defaultAeroGameSetupSnapshot;}const v2=this.storage.getItem(legacyAeroGameSetupV2StorageKey);if(v2!==null){const migrated=migrateV2GameSetup(v2)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}const v1=this.storage.getItem(legacyAeroGameSetupStorageKey);if(v1===null)return defaultAeroGameSetupSnapshot;const migrated=migrateV1GameSetup(v1)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}catch{return defaultAeroGameSetupSnapshot;}}
+  readStoredSnapshot(){if(!this.storage)return defaultAeroGameSetupSnapshot;try{const serialized=this.storage.getItem(aeroGameSetupStorageKey);if(serialized!==null){const normalized=normalizeSerializedSetup(serialized);if(normalized)return migrateGuardSpacingDefault(this,normalized);this.persistReset(defaultAeroGameSetupSnapshot);return defaultAeroGameSetupSnapshot;}const v2=this.storage.getItem(legacyAeroGameSetupV2StorageKey);if(v2!==null){const migrated=migrateV2GameSetup(v2)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}const v1=this.storage.getItem(legacyAeroGameSetupStorageKey);if(v1===null)return defaultAeroGameSetupSnapshot;const migrated=migrateV1GameSetup(v1)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}catch{return defaultAeroGameSetupSnapshot;}}
   /** @param {AeroGameSetupSnapshot} snapshot */
   persistReset(snapshot){if(this.storage)try{this.storage.setItem(aeroGameSetupStorageKey,JSON.stringify(snapshot));}catch{/* in-memory setup remains authoritative */}}
   /** @param {GameSetupStorageEvent} event */
@@ -104,6 +104,27 @@ function equalSetup(left,right){return JSON.stringify(left)===JSON.stringify(rig
 function deepFreeze(value){if(value&&typeof value==="object")for(const child of Object.values(value))deepFreeze(child);return Object.freeze(value);}
 /** Parse exact data fixtures or a genuine native StorageEvent without consulting forged prototype properties. @param {unknown} event */
 function storageEventEnvelope(event){if(event===null||typeof event!=="object"||Array.isArray(event))return null;const NativeStorageEvent=globalThis.StorageEvent;if(typeof NativeStorageEvent==="function"&&event instanceof NativeStorageEvent){const prototype=NativeStorageEvent.prototype,read=(key)=>{const descriptor=Object.getOwnPropertyDescriptor(prototype,key);if(!descriptor||typeof descriptor.get!=="function")throw new TypeError("Native StorageEvent descriptor is unavailable");return Reflect.apply(descriptor.get,event,[]);};return Object.freeze({key:read("key"),newValue:read("newValue"),storageArea:read("storageArea")});}if(!exactDataRecord(event,["key","newValue","storageArea"]))return null;const read=(key)=>Object.getOwnPropertyDescriptor(event,key)?.value;return Object.freeze({key:read("key"),newValue:read("newValue"),storageArea:read("storageArea")});}
+/**
+ * 0.0.86: guard spacing's default moved from 1 to 0.25. A setup persisted under the
+ * old default still carries 1, which silently overrode the new default forever.
+ * Rewrite exactly that legacy sentinel once, preserving every other stored
+ * preference. The marker makes it a genuine one-shot: a later deliberate 1.0 sticks.
+ */
+const guardSpacingDefaultMigrationKey="aerobeat.game-setup.guard-spacing-default-v2";
+const legacyGuardSpacingDefault=1;
+function migrateGuardSpacingDefault(coordinator,snapshot){
+  const storage=coordinator.storage;
+  if(!storage)return snapshot;
+  let done=false;
+  try{done=storage.getItem(guardSpacingDefaultMigrationKey)==="1";}catch{return snapshot;}
+  if(done)return snapshot;
+  if(Number(snapshot.guardSpacing)!==legacyGuardSpacingDefault)return snapshot;
+  const migrated=freezeSnapshot({...snapshot,guardSpacing:defaultAeroGameSetupSnapshot.guardSpacing});
+  coordinator.persistReset(migrated);
+  try{storage.setItem(guardSpacingDefaultMigrationKey,"1");}catch{/* best effort */}
+  return migrated;
+}
+
 function browserStorage(){return typeof globalThis.localStorage==="undefined"?null:globalThis.localStorage;}
 function browserEventTarget(){return typeof globalThis.addEventListener==="function"?globalThis:null;}
 

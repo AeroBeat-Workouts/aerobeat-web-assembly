@@ -3246,7 +3246,7 @@ function contentPresenterDataSignature(snapshot) {
   return JSON.stringify([dataValue(snapshot, "state"), dataValue(snapshot, "generation"), dataValue(snapshot, "packageId"), dataValue(snapshot, "selectedVariant"), dataValue(snapshot, "background")]);
 }
 function mapSummary(map) { const versions = playableVersions(map); return Object.freeze({ mapId: map.mapId, name: map.mapName || map.songName, songAuthorName: map.songAuthorName, levelAuthorName: map.levelAuthorName, versionCount: versions.length, versions: Object.freeze(versions.slice(0, 8).map((version, index) => Object.freeze({ versionHash: version.hash, label: String(index + 1) }))), difficulties: Object.freeze([...new Set(versions.flatMap(standardDifficulties))]) }); }
-const beatSaverDifficultyColors = Object.freeze({ Easy: "#14ff00", Normal: "#00ffff", Hard: "#ff8000", Expert: "#ff0000", ExpertPlus: "#8000ff" });
+const beatSaverDifficultyColors = Object.freeze({ Easy: "#14ff00", Normal: "#00ffff", Hard: "#ff8000", Expert: "#ff0000", ExpertPlus: "#000000" });
 /** Decorate remote song titles after the shared UI presenter renders, without altering its selection controls. */
 function renderBeatSaverDifficultyCircles(browser, results) {
   if (!browser?.shadowRoot) return;
