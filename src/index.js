@@ -1039,6 +1039,42 @@ export class AeroGame extends HTMLElement {
 
   cancelImport() { this.assertConnected(); this.invalidatePendingSessionStart(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; return this.graph.authoring.cancel(); }
   async deletePackage(handle) { this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview(); const safeHandle = safeData(handle, 0, 16); return this.enqueueLifecycleIntent("package-delete", async (owner) => { const deleted = await owner.graph.authoring.deletePackage(safeHandle); if (!this.isLifecycleIntentOwner(owner)) return deleted; this.desiredLibrarySelection = null; await this.refreshLibrary(owner.connectionGeneration, { autoSelect: false }); if (this.isLifecycleIntentOwner(owner)) this.publish("content_changed"); return deleted; }); }
+  /** 0.0.87 (Derrick): bulk library actions. */
+  async deleteAllLibraryCollections() {
+    this.assertConnected();
+    const ids = this.libraryView.collections.map((entry) => String(entry.collectionId ?? "")).filter((value) => value !== "");
+    // Deleting the selected collection clears the selection, so snapshot it first.
+    for (const collectionId of ids) await this.deleteLibraryCollection(collectionId);
+    this.publish("library_changed");
+    return Object.freeze({ deleted: ids.length });
+  }
+
+  /**
+   * Re-import every downloaded song so a new map schema is picked up. Collections
+   * carry sourceProvider/sourceId/sourceVersionHash, which is exactly the handle a
+   * fresh import needs; local-zip collections have no re-fetchable source and are
+   * reported rather than silently skipped.
+   */
+  async reimportAllLibraryCollections() {
+    this.assertConnected();
+    const collections = this.libraryView.collections.map((entry) => Object.freeze({
+      collectionId: String(entry.collectionId ?? ""),
+      songName: String(entry.songName ?? ""),
+      sourceProvider: String(entry.sourceProvider ?? ""),
+      sourceId: String(entry.sourceId ?? ""),
+      sourceVersionHash: String(entry.sourceVersionHash ?? "")
+    })).filter((entry) => entry.collectionId !== "");
+    const skipped = [];
+    const reimported = [];
+    for (const collection of collections) {
+      if (collection.sourceProvider !== "beatsaver" || collection.sourceId === "") { skipped.push(collection.songName || collection.collectionId); continue; }
+      await this.importBeatSaverById(collection.sourceId, collection.sourceVersionHash || undefined, { requireBrowsed: false });
+      reimported.push(collection.songName || collection.collectionId);
+    }
+    this.publish("library_changed");
+    return Object.freeze({ reimported, skipped });
+  }
+
   async deleteLibraryCollection(collectionIdValue) { this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview(); const collectionId = boundedString(collectionIdValue, ""); if (!collectionId) throw new Error("Downloaded song is unavailable"); this.librarySelectionGeneration += 1; this.desiredLibrarySelection = null; const legacyTarget = this.libraryView.collections.find((entry) => entry.collectionId === collectionId)?.difficulties[0]; return this.enqueueLifecycleIntent("collection-delete", async (owner) => { const graph = owner.graph; const deleted = typeof graph.authoring.deleteCollection === "function" ? await graph.authoring.deleteCollection(collectionId) : legacyTarget ? await graph.authoring.deletePackage({ key: legacyTarget.packageKey, packageId: legacyTarget.packageId }) : false; if (!this.isLifecycleIntentOwner(owner)) return deleted; await this.refreshLibrary(owner.connectionGeneration, { autoSelect: false }); if (this.isLifecycleIntentOwner(owner)) this.publish("content_changed"); return deleted; }); }
 
   setTheme(theme) {
@@ -2856,6 +2892,9 @@ export class AeroGame extends HTMLElement {
     else if (detail.type === "library-preview-toggle") void this.toggleLibraryPreview(dataValue(detail.payload, "packageId")).catch((error) => this.handleError(error));
     else if (detail.type === "library-export") { const target = libraryPackageTarget(this.libraryView.collections, dataValue(detail.payload, "packageId")); if (target) void this.exportLibraryPackage(target).catch((error) => this.handleError(error)); }
     else if (detail.type === "library-delete") void this.deleteLibraryCollection(dataValue(detail.payload, "collectionId")).catch((error) => this.handleError(error));
+    // 0.0.87 (Derrick): bulk library actions from the Downloaded songs panel.
+    else if (detail.type === "library-delete-all") void this.deleteAllLibraryCollections().catch((error) => this.handleError(error));
+    else if (detail.type === "library-reimport-all") void this.reimportAllLibraryCollections().catch((error) => this.handleError(error));
     else if (detail.type === "gameplay-mode-select") {
       try { const rulesetId = readGameplayRulesetIntent(detail.payload); void this.selectGameplayAxes(rulesetId).catch((error) => this.handleError(error)); }
       catch (error) { this.handleError(error); }
