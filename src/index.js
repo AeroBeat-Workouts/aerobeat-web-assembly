@@ -1360,9 +1360,24 @@ export class AeroGame extends HTMLElement {
     const stalePreviousRuleset = !futureOnly && typeof activeRuleset === "string" && (newSong || ["stopped", "completed"].includes(configuredSession?.state)) && activeRuleset !== content.selectedVariant.rulesetId;
     const skipForeignSettings = !futureOnly && activeRuleset !== undefined && activeRuleset !== "" && activeRuleset !== content.selectedVariant.rulesetId && !stalePreviousRuleset;
     // Content's future swap retains old judged/past/active objects with their
-    // original variant IDs. Gameplay separately preserves those same objects and
-    // their immutable truth; only new-variant events belong in its input batch.
-    const resolvedEvents = futureOnly ? content.resolvedEvents.filter((event) => event.variantId === content.selectedVariant.variantId && event.chartId === content.selectedVariant.chartId) : content.resolvedEvents;
+    // original variant IDs, so the published snapshot is deliberately MIXED and
+    // that mixed state persists until the next select. Gameplay separately
+    // preserves those same objects and their immutable truth; only new-variant
+    // events may reach its strict validator.
+    //
+    // 0.0.86: this filter is UNCONDITIONAL. Gating it on `futureOnly` only
+    // protected the swap itself, so any later configure from the still-mixed
+    // snapshot (pressing Play/Test after a mode switch while paused) passed the
+    // outgoing Flow events into normalizeEvents and hard-locked the session with
+    // "Resolved events must belong to the selected variant and chart". Derrick
+    // reported this on completed AND paused runs; it is the paused path that
+    // actually seeds the mixed snapshot.
+    const selectedVariantEvents = content.resolvedEvents.filter((event) => event.variantId === content.selectedVariant.variantId && event.chartId === content.selectedVariant.chartId);
+    // If NOTHING belongs to the selected variant this is not a mixed future-swap
+    // snapshot, it is a genuine content/variant inconsistency. Pass it through
+    // untouched so gameplay's strict validator still rejects it rather than
+    // silently degrading to an empty chart.
+    const resolvedEvents = selectedVariantEvents.length > 0 ? selectedVariantEvents : content.resolvedEvents;
     const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup), magneticAttraction: { range: setup.magneticAttractionRange, minStrength: setup.magneticAttractionMinStrength, maxStrength: setup.magneticAttractionMaxStrength, backFaceBias: setup.magneticAttractionBackFaceBias } } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else {

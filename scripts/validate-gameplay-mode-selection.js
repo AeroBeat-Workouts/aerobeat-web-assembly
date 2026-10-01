@@ -117,7 +117,16 @@ assert.throws(() => readBoxingRecipeIntent({ recipeId: boxingRecipeIds.balancedH
 {
   const source = readFileSync(resolve(repoRoot, "aerobeat-web-assembly", "src", "index.js"), "utf8");
   const configuration = source.match(/configureGameplayFromContent\(futureOnly, purpose = this\.gameplayContentPurpose\(\),bindDesiredSetup=false\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
-  assert.match(configuration, /futureOnly \? content\.resolvedEvents\.filter\(\(event\) => event\.variantId === content\.selectedVariant\.variantId && event\.chartId === content\.selectedVariant\.chartId\) : content\.resolvedEvents/u, "paused swaps forward only new-variant events; stopped sessions forward complete selected timeline");
+  // 0.0.86: this was a source-text regex asserting the OLD conditional filter
+  // shape. Source-shape assertions are exactly how the hard-lock shipped three
+  // times, so the behaviour is now asserted for real in
+  // scripts/validate-mode-switch-after-complete.js, which drives the actual
+  // assembly methods against the real strict gameplay coordinator for completed
+  // AND paused Flow->Boxing switches. Keep only the shape that must survive:
+  // the selected-variant filter plus the fall-through that preserves gameplay's
+  // strict rejection of genuinely inconsistent content.
+  assert.match(configuration, /content\.resolvedEvents\.filter\(\(event\) => event\.variantId === content\.selectedVariant\.variantId && event\.chartId === content\.selectedVariant\.chartId\)/u, "configuration must filter foreign-variant events out of the selected timeline");
+  assert.match(configuration, /selectedVariantEvents\.length > 0 \? selectedVariantEvents : content\.resolvedEvents/u, "a fully inconsistent snapshot must pass through so gameplay's strict validator still rejects it");
   assert.match(configuration, /if \(futureOnly\) this\.graph\.gameplay\.applyFutureContent\(configuration\);/u, "paused swap must preserve gameplay's own previous event truth");
   assert.match(configuration, /this\.graph\.gameplay\.configureContent\(configuration,/u, "stopped switch configures fresh gameplay before Play");
   const selection = source.match(/async performSelectVariant\(variantId, modifierIds, owner\) \{(?<body>[\s\S]*?)\n  \}/u)?.groups?.body ?? "";
