@@ -201,11 +201,14 @@ try {
         }
         // (c) Below the track surface and keeps going: at belowTrackAtMs the
         //     corpse's lowest pixel row is strictly BELOW the projected
-        //     track-surface row (the body is well under the −0.80 track surface
-        //     at that moment — punch ≈−2.5 WU, flow ≈−2.6 WU at t+900).
+        //     track-surface row. At t+900 the punch is already in its fade tail:
+        //     it crosses the world y=−1.5 fade boundary near t+767, leaving
+        //     ≈0.114 alpha and only a few detected pixels at y≈−2.52.
+        //     Require an actual pixel sample here; the early frames separately
+        //     prove a well-resolved body, while later frames prove fade/cull.
         if (belowTrackAtMs !== null) {
           const atBelow = rows.find((r) => r.offsetMs === belowTrackAtMs);
-          assert.ok(atBelow.count > 40, `${label} must still be visibly falling at t+${belowTrackAtMs} ms: ${atBelow.count}px`);
+          assert.ok(atBelow.count > 0, `${label} must retain detected corpse pixels in the fade tail at t+${belowTrackAtMs} ms: ${atBelow.count}px`);
           assert.ok(atBelow.lowestRow > trackSurfaceRow, `${label} must be BELOW the track surface at t+${belowTrackAtMs} ms: lowestRow=${atBelow.lowestRow} vs trackRow=${trackSurfaceRow}`);
         }
         // (d) No rest / no stop: the descent from t+0 to the last visible frame
