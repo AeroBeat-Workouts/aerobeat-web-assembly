@@ -145,29 +145,33 @@ async function runRow(browserInstance, row, origin) {
   // markers are skipped at parse, so the archive now imports cleanly to all
   // Standard difficulties. The hash/integration assertions below remain intact;
   // only the rejection expectation is replaced by a valid-import expectation.
-  // Node-side probe against the SAME parser module the browser uses (both rows
-  // share the exact node_modules resolution). The three inputs below MUST still
-  // be rejected under the post-t7sv parser — keeping the rejection coverage
-  // meaningful now that the 4858 END markers are legal:
-  // (a) a v2 START entry with a negative _duration (the same value 4858 carries,
-  //     but on a real START entry which is no longer skipped);
-  // (b) a v4 metadata x out of bounds (x=4 > grid width 4-1);
-  // (c) a v4 entry-level geometry field conflicting with obstaclesData.
+  // Node-side probe against the same public parser used by browser authoring.
+  // Approved intake omits validated finite-negative v2 START walls and accepts
+  // safe off-grid v4 source geometry; neither creates a playable obstacle.
+  // Missing/present-invalid fields, unsafe extents, and conflicting metadata
+  // must still fail rather than being silently treated as non-playable.
   const { parseBeatMapDifficulty } = await import("@aerobeat/web-content-authoring");
-  const v2NegativeDurationStart = JSON.stringify({ _version: "2.0.0", _notes: [], _obstacles: [{ _time: 83.75, _lineIndex: 3, _type: 0, _duration: -0.25, _width: 1 }] });
-  const v4OutOfBoundsX = JSON.stringify({ obstacles: [{ b: 1, i: 0 }], obstaclesData: [{ d: 1, x: 4, y: 0, w: 1, h: 1 }] });
-  const v4MetadataConflict = JSON.stringify({ obstacles: [{ b: 1, i: 0, w: 1 }], obstaclesData: [{ d: 1, x: 0, y: 0, w: 1, h: 1 }] });
+  const v2Start = { _time: 83.75, _lineIndex: 3, _type: 0, _duration: -0.25, _width: 1 };
+  const v2Document = (obstacle) => JSON.stringify({ _version: "2.0.0", _notes: [], _obstacles: [obstacle] });
+  const v4Document = (data, entry = { b: 1, i: 0 }) => JSON.stringify({ obstacles: [entry], obstaclesData: [data] });
+  const v4OffGrid = { d: 1, x: 4, y: 0, w: 1, h: 1 };
+  assert.deepEqual(parseBeatMapDifficulty(v2Document(v2Start), "v2").obstacles, [], "validated finite-negative v2 START must be non-playable");
+  assert.deepEqual(parseBeatMapDifficulty(v4Document(v4OffGrid), "v4").obstacles, [], "safe off-grid v4 source must be non-playable");
   const codeOf = (document, format) => { try { parseBeatMapDifficulty(document, format); return null; } catch (error) { return error?.code ?? null; } };
   const rejectionCoverage = {
-    v2NegativeDurationStart: codeOf(v2NegativeDurationStart, "v2"),
-    v4OutOfBoundsX: codeOf(v4OutOfBoundsX, "v4"),
-    v4MetadataConflict: codeOf(v4MetadataConflict, "v4")
+    v2InvalidDuration: codeOf(v2Document({ ...v2Start, _duration: "bad" }), "v2"),
+    v2MissingDuration: codeOf(v2Document({ _time: 83.75, _lineIndex: 3, _type: 0, _width: 1 }), "v2"),
+    v4StringX: codeOf(v4Document({ ...v4OffGrid, x: "4" }), "v4"),
+    v4UnsafeExtent: codeOf(v4Document({ ...v4OffGrid, x: Number.MAX_SAFE_INTEGER }), "v4"),
+    v4MetadataConflict: codeOf(v4Document({ ...v4OffGrid, x: 0 }, { b: 1, i: 0, w: 1 }), "v4")
   };
   assert.deepEqual(rejectionCoverage, {
-    v2NegativeDurationStart: "obstacle_duration_invalid",
-    v4OutOfBoundsX: "obstacle_geometry_invalid",
+    v2InvalidDuration: "obstacle_duration_invalid",
+    v2MissingDuration: "obstacle_duration_invalid",
+    v4StringX: "obstacle_geometry_invalid",
+    v4UnsafeExtent: "obstacle_geometry_invalid",
     v4MetadataConflict: "obstacle_geometry_conflict"
-  }, `post-t7sv strict normalization must still reject genuinely malformed inputs: ${JSON.stringify(rejectionCoverage)}`);
+  }, `strict source parsing must reject malformed obstacle evidence: ${JSON.stringify(rejectionCoverage)}`);
   if (row.importKind === "remote") {
     const selected = await game.evaluate((element) => { const ui = element.shadowRoot.querySelector("aero-beatsaver-browser"); const button = ui.shadowRoot.querySelector("button[data-intent='beatsaver-import']"); const radio = ui.shadowRoot.querySelector("input[type='radio']:checked"); button.click(); return { radio: radio?.value, disabled: button.disabled }; });
     assert.deepEqual(selected, { radio: "4858", disabled: false });
