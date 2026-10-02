@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
 const vite = await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("local-browser-regression"), __AEROBEAT_CACHE_BUST__: JSON.stringify("local-browser-regression"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("0.0.88") }, server: { host: "127.0.0.1", port: 0, hmr: false, watch: null, fs: { allow: [new URL("../../", import.meta.url).pathname] } } });
 let browser;
@@ -15,7 +16,12 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  page.on("console", (message) => {
+    const type = message.type(), text = message.text(), location = message.location();
+    if (["warning", "error"].includes(type)
+      && !isExpectedReadPixelsWarning(type, text, location.url, location.lineNumber, location.columnNumber, url)
+      && !isExpectedPlaycanvasMeshWarning(type, text)) errors.push(`${type}: ${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);
+  });
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => typeof document.querySelector("aero-game")?.reimportAllLibraryCollections === "function");
   const game = page.locator("aero-game");
