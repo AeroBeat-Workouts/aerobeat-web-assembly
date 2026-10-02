@@ -9,31 +9,22 @@
 // (world y ≈ −1.5), where it fades out over `aftermathEvictedFadeMs` and the
 // pose returns null.
 //
-// This oracle proves, in REAL rendered canvas pixels (OffscreenCanvas
-// drawImage + getImageData of the PlayCanvas canvas — NOT `frame.model.objects`):
-//   (1) NO SNAP: the corpse's rotation-sensitive feature (its pixel bounding
-//       box width, which oscillates as the glyph tumbles) changes SMOOTHLY
-//       across the whole time series — and keeps varying through the moment
-//       where the old code's settle switch (≈715 ms for a straight punch from
-//       y=1) would have snap'd the rotation.
-//   (2) KEEPS FALLING, NO BELOW-TRACK REST: the corpse's lowest pixel row
-//       (screen space, down = larger y) moves monotonically DOWN across the
-//       series, the corpse crosses BELOW the track surface (world y = −0.80,
-//       projected), and never rests: the 2500 ms frame shows a visible corpse
-//       still descending, and the 1500→2500 descent is at least as large as
-//       the 500→1500 descent (accelerating fall, not a stopped/resting piece).
-//   (3) FALLS OFF-SCREEN: the last series frame (2500 ms) shows the corpse
-//       fully faded — its pixel contribution is near zero.
+// This oracle samples REAL rendered canvas pixels (OffscreenCanvas drawImage
+// + getImageData, not `frame.model.objects`) at +0/200/500/900/1200/1500 ms:
+//   (1) Rotation-sensitive bounding-box widths vary smoothly in the resolved
+//       early frames (+200/+500), without a rephasing snap in that interval.
+//       The historical ≈715 ms settle switch is NOT bracketed by those two
+//       resolved samples; this test does not claim direct rotation proof there.
+//   (2) Each visible body's lowest pixel row moves downward, with total
+//       descent at least twice its first 200 ms descent. The punch's sparse
+//       +900 ms fade-tail pixels remain below the projected track surface;
+//       neither body is shown resting on a below-track floor.
+//   (3) By +1500 ms, both bodies are culled or contribute at most 25
+//       detected pixels under the real-canvas sampling threshold.
 //
-// Two bodies are exercised:
-//   A. a Flow "slice" corpse (two clip-plane halves) from the note column
-//      x = −1.5, sampled at commit + 0/200/500/900/1500/2500 ms — its x = −1.5
-//      launch keeps the column (regression guard for the B11a column contract
-//      inside the fall-off-screen trajectory).
-//   B. a whole boxing "straight" punch corpse at the track center, sampled at
-//      commit + 0/200/500/900/1500/2500 ms — the old code's settle switch sat
-//      INSIDE this series (≈715 ms), so the smooth-width continuity across
-//      frames is the direct no-snap proof.
+// The Flow slice launches from x=−1.5 and stays in its authored column;
+// the whole Boxing straight punch launches at track center. Both run in
+// direct and genuine cross-origin iframe contexts with pixel/row parity.
 //
 // Embedding: direct + genuine_cross_origin_iframe (the playtest surface),
 // mirroring validate-0.0.58-aftermath-pixels.js. Pixel-derived evidence must
@@ -241,16 +232,15 @@ try {
       checkBody("flow slice", proof.flowSeries, proof.proj.flowTrackSurface.y, { minWidthVariants: 3, belowTrackAtMs: null });
       checkBody("punch", proof.punchSeries, proof.proj.punchTrackSurface.y, { minWidthVariants: 4, belowTrackAtMs: 900 });
 
-      // ---- Punch: the direct no-snap proof across the OLD settle moment ----
-      // The old 0.0.58 code switched from the 4.0 rad/s flight tumble to the
-      // damped-settle tumble at ≈OLD_SETTLE_MS; the width continuity across the
-      // well-resolved frames bracketing it (200 ↔ 500) is where a snap would
-      // show (t+900 is near-vanished and perspective-shrunk — too small to
-      // measure a rotation feature).
+      // ---- Punch: resolved early-flight width continuity ----
+      // The +200/+500 frames are both before the old ≈715 ms settle switch.
+      // They prove no early rotation-width jump, not a sampled transition
+      // across that later historical boundary. At +900 the body is already
+      // nearly faded and too small for a reliable rotation-width measurement.
       const w200 = proof.punchSeries.find((r) => r.offsetMs === 200);
       const w500 = proof.punchSeries.find((r) => r.offsetMs === 500);
-      assert.ok(w200.count >= 400 && w500.count >= 400, `punch frames measurable across the old-settle window: px200=${w200.count}, px500=${w500.count}`);
-      assert.ok(Math.abs(w500.bboxW - w200.bboxW) <= w200.bboxW * 0.35 + 6, `punch rotation must stay continuous across the old settle moment (t=${OLD_SETTLE_MS} ms): w ${w200.bboxW} → ${w500.bboxW}`);
+      assert.ok(w200.count >= 400 && w500.count >= 400, `punch early-flight frames measurable before the historical settle moment: px200=${w200.count}, px500=${w500.count}`);
+      assert.ok(Math.abs(w500.bboxW - w200.bboxW) <= w200.bboxW * 0.35 + 6, `punch rotation width must stay continuous over resolved early-flight frames (old settle was t=${OLD_SETTLE_MS} ms, not sampled): w ${w200.bboxW} → ${w500.bboxW}`);
 
       // ---- Flow slice: the column contract survives the fall (B11a guard) ----
       assert.ok(Math.abs(proof.proj.flowColumn.x - proof.proj.trackCenter.x) > 40, "flow column must project clearly away from the track center");
