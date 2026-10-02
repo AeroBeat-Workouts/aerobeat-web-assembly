@@ -2,11 +2,10 @@
 
 // 0.0.61 L-C1 (htc8) real-pixel oracle — Boxing GUARD spawning: a standard
 // `guard` and a `crossed_guard` must both spawn their shield glyphs at the
-// canonical two-LANE pair positions (mirroring the canonical-scene
+// authored two-CELL pair positions (mirroring the canonical-scene
 // guardPairs shape: instanceCount 2, same asset / material / scale /
-// orientation, X-only placement difference) in the GUARD role color — a
-// neutral, per-role fill that is distinct from BOTH hand colors (left blue /
-// right green), with REAL committed-hit judgements from the 0.0.61
+// orientation, X-only placement difference) with left-blue and right-green
+// hand-role fills and white structural outlines, plus REAL committed-hit judgements from the 0.0.61
 // collision-mode detector
 // (both hands' glove volumes overlapping their authored cell boxes in one
 // fresh evidence frame).
@@ -19,16 +18,15 @@
 //       cells, and commits a REAL hit judgement inside its ±180 ms window.
 //   (b) Pre-commit spawn: at center − 600 ms (approach z = −3.6 WU) the
 //       guard renders TWO icon objects — the left and right shield — at the
-//       canonical lane-pair world positions (±0.9, 1.0), with the same
+//       authored cell world positions (±0.5, row-reach Y), with the same
 //       guardPairKey, pair indices 0/1, identical asset
 //       "guard/outlined-shield-v1", identical scale and orientation, and an
 //       X-only placement difference.
 //   (c) Pixels: each shield's diff-pixel core (baseline = same frame minus
 //       the guard target) is substantial, sits within 8 px of the
-//       worldToScreen projection of its lane position, and its mid-luma fill
-//       is the neutral guard-role color — green-dominant teal (g − r ≥ 60),
-//       NOT either hand color (left blue has b − r ≈ +166, right green has
-//       g − b ≈ +94, both excluded). Both shields in a pair share the fill.
+//       worldToScreen projection of its authored cell position, with a white
+//       structural outline and strict distinct left-blue/right-green hand fills
+//       (the pair shares the same asset but not the same tint).
 //   (d) Freeze guard: every sample render advances the renderer frameCount
 //       AND changes the full-scan pixel hash.
 //
@@ -89,10 +87,13 @@ try {
         const CENTROID_TOLERANCE_PX = 8;
         const MIN_SHIELD_PIXELS = 500;
         const MIN_GUARD_FILL_PIXELS = 200;
+        const MIN_OUTLINE_PIXELS = 45;
         const GUARDS = [
           { eventId: "g-standard", family: "guard", crossed: false, leftCell: 5, rightCell: 6, row: 1, center: 6000 },
           { eventId: "g-crossed", family: "crossed_guard", crossed: true, leftCell: 1, rightCell: 2, row: 0, center: 10000 },
         ];
+        // Independent authored-grid oracle, not inferred from rendered positions.
+        const authoredPosition = (cell) => ({ x: -1.5 + (cell % 4), y: Math.floor(cell / 4) === 0 ? 1 + REACH_TOP : 1 });
         const game = document.querySelector("aero-game");
         const canvas = game.shadowRoot.querySelector("canvas");
         const renderer = game.graph.renderer;
@@ -101,11 +102,12 @@ try {
         renderer.resize({ widthCssPx: 844, heightCssPx: 390, devicePixelRatio: 1 });
         renderer.setEnvironmentVisible(false);
         renderer.setBackgroundProjection({ kind: "solid", colors: ["#071426"], angleDeg: 180 });
-        const [{ createAeroGameplaySessionCoordinator }, { projectAftermathEntries }, { projectSessionTargets, createSessionTargetIndex }, { gameplayWorldGrid }] = await Promise.all([
+        const [{ createAeroGameplaySessionCoordinator }, { projectAftermathEntries }, { projectSessionTargets, createSessionTargetIndex }, { buildGameplaySceneModel, gameplayWorldGrid }, { createTestPresentationConfig }] = await Promise.all([
           import("/node_modules/@aerobeat/web-gameplay/src/index.js"),
           import("/src/gameplay-frame-effects.js"),
           import("/src/session-render-projection.js"),
           import("/node_modules/@aerobeat/web-renderer/src/index.js"),
+          import("/node_modules/@aerobeat/web-renderer/src/test-presentation-config.js"),
         ]);
         const HASH = "b4".repeat(32);
         const variant = { variantId: "lcb1-guard", chartId: "chart-lcb1-guard", mode: "boxing", rulesetId: "boxing_collider_v1", recipeId: null, modifierIds: [], ranked: false, localOnly: true, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: HASH }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: HASH }, provenance: { kind: "imported" } };
@@ -200,7 +202,7 @@ try {
         };
         const hashOf = (data) => { let h = 0x811c9dc5; for (let i = 0; i < data.length; i += 4) { h ^= data[i]; h = Math.imul(h ^ (h >>> 13), 0x01000193) >>> 0; } return h; };
         // Tag-scoped hash: two DIFFERENT guards render the same static scene
-        // content (same lane pair, same color), so a global previous-hash
+        // content (same authored X pair and respective hand colors), so a global previous-hash
         // check would false-positive across guards. The freeze property
         // that matters: re-rendering the SAME tag must change nothing unless
         // the scene changed — and full vs base for the same tag is caught
@@ -216,10 +218,27 @@ try {
           freezeGuard.hashes.set(tag, h);
           return px;
         };
-        // Canonical lane-pair world positions (boxingLaneSeparationWorldUnits
-        // default 1.8 → lanes at x = ±0.9, BOXING_LANE_CENTER_Y = 1.0).
-        const LANE_LEFT = { x: -0.9, y: 1.0 };
-        const LANE_RIGHT = { x: 0.9, y: 1.0 };
+        // Guard X follows the authored 4×3 cell grid, not the configurable lane centers.
+        // Capture the actual pair and input cells before testing the independent expectation.
+        const defaultSeparation = renderer.testPresentationConfig.boxingLaneSeparationWorldUnits;
+        if (defaultSeparation !== 1.8) throw new Error(`default Boxing lane separation must be 1.8 WU, got ${defaultSeparation}`);
+        const config = renderer.testPresentationConfig;
+        const separationFour = createTestPresentationConfig(config.bounceLeadBeats, config.bounceHeightWorldUnits, config.bounceApexFraction, config.bounceRiseEasing, config.bounceFallEasing, config.normalSpawnDistanceWorldUnits, config.skyMode, config.skyPreludeHeightWorldUnits, config.skyPreludeDurationMs, config.skyPreludeEasing, 4);
+        const counterfactual = GUARDS.map((g) => {
+          const frame = frameAt(g.center - PRE_COMMIT_OFFSET_MS);
+          const projected = frame.targets.find((target) => target.id === g.eventId);
+          if (JSON.stringify(projected?.cells) !== JSON.stringify([g.leftCell, g.rightCell])) throw new Error(`${g.eventId}: projected guard input cells drifted: ${JSON.stringify(projected?.cells)}`);
+          const laneTargets = ["left", "right"].map((hand) => ({ id: `lane-${hand}`, kind: "punch", family: "straight", hand, cell: null, cells: [], lane: hand, beatCenterMs: g.center }));
+          const positions = (config) => buildGameplaySceneModel({ ...frame, targets: [...frame.targets, ...laneTargets] }, undefined, undefined, config).objects.filter((o) => o.kind === "icon" && (o.targetId === g.eventId || o.targetId?.startsWith("lane-")));
+          const extract = (objects, id) => objects.filter((o) => o.targetId === id).map((o) => o.position.x).sort((a, b) => a - b);
+          const normal = positions(renderer.testPresentationConfig), wide = positions(separationFour);
+          const guardDefault = extract(normal, g.eventId);
+          const guardWide = extract(wide, g.eventId);
+          const laneDefault = [extract(normal, "lane-left")[0], extract(normal, "lane-right")[0]];
+          const laneWide = [extract(wide, "lane-left")[0], extract(wide, "lane-right")[0]];
+          if (JSON.stringify(guardDefault) !== JSON.stringify([-0.5, 0.5]) || JSON.stringify(guardWide) !== JSON.stringify(guardDefault) || JSON.stringify(laneDefault) !== JSON.stringify([-0.9, 0.9]) || JSON.stringify(laneWide) !== JSON.stringify([-2, 2])) throw new Error(`${g.eventId}: authored guard must stay cell-anchored while lane objects follow separation; got ${JSON.stringify({ guardDefault, guardWide, laneDefault, laneWide })}`);
+          return { eventId: g.eventId, inputCells: [g.leftCell, g.rightCell], guardDefault, guardWide, laneDefault, laneWide };
+        });
         const guards = [];
         for (const g of GUARDS) {
           const nowMs = g.center - PRE_COMMIT_OFFSET_MS;
@@ -227,7 +246,7 @@ try {
           renderer.renderGameplayFrame(preFrame);
           guard(`${g.eventId} pre full`);
           const icons = renderer.lastModel.objects.filter((o) => o.kind === "icon" && o.targetId === g.eventId);
-          if (icons.length !== 2) throw new Error(`${g.eventId}: expected the two-lane-pair shield icons, got ${icons.length} icon objects: ${JSON.stringify(icons.map((o) => o.position))}`);
+          if (icons.length !== 2) throw new Error(`${g.eventId}: expected two authored-cell shield icons, input cells ${JSON.stringify([g.leftCell, g.rightCell])}, got ${icons.length} icon objects: ${JSON.stringify(icons.map((o) => o.position))}`);
           // (b) Canonical guardPairs shape: same pair key, indices 0/1, same
           //     asset / scale / orientation / Y / Z, X-only placement diff.
           const [ia, ib] = icons;
@@ -237,20 +256,22 @@ try {
             if (icon.assetId !== "guard/outlined-shield-v1") throw new Error(`${g.eventId} ${tag} shield must use the guard canonical asset "guard/outlined-shield-v1", got ${JSON.stringify(icon.assetId)}`);
             if (Math.abs(icon.position.z - APPROACH_Z_WU) > 0.05) throw new Error(`${g.eventId} ${tag} shield z must be ${APPROACH_Z_WU} ± 0.05 at center − ${PRE_COMMIT_OFFSET_MS} ms, got ${icon.position.z}`);
           }
-          const expA = ia.position.x < ib.position.x ? LANE_LEFT : LANE_RIGHT;
-          const expB = ia.position.x < ib.position.x ? LANE_RIGHT : LANE_LEFT;
-          if (Math.abs(ia.position.x - expA.x) > 1e-6 || Math.abs(ia.position.y - expA.y) > 1e-6) throw new Error(`${g.eventId}: left shield must be at (${expA.x}, ${expA.y}), got (${ia.position.x}, ${ia.position.y})`);
-          if (Math.abs(ib.position.x - expB.x) > 1e-6 || Math.abs(ib.position.y - expB.y) > 1e-6) throw new Error(`${g.eventId}: right shield must be at (${expB.x}, ${expB.y}), got (${ib.position.x}, ${ib.position.y})`);
-          if (Math.abs(ia.position.y - ib.position.y) > 1e-9 || Math.abs(ia.position.z - ib.position.z) > 1e-9 || Math.abs(ia.scale.x - ib.scale.x) > 1e-9 || Math.abs(ia.rotationZRad - ib.rotationZRad) > 1e-9) throw new Error(`${g.eventId}: the pair must differ only in X (same Y, Z, scale, orientation), got ${JSON.stringify({ y: [ia.position.y, ib.position.y], z: [ia.position.z, ib.position.z], sx: [ia.scale.x, ib.scale.x], rot: [ia.rotationZRad, ib.rotationZRad] })}`);
+          const actualPair = [ia, ib].map((icon) => ({ x: icon.position.x, y: icon.position.y })).sort((a, b) => a.x - b.x);
+          const inputCells = [g.leftCell, g.rightCell];
+          const expectedPair = inputCells.map(authoredPosition).sort((a, b) => a.x - b.x);
+          for (let i = 0; i < 2; i += 1) {
+            if (Math.abs(actualPair[i].x - expectedPair[i].x) > 1e-6 || Math.abs(actualPair[i].y - expectedPair[i].y) > 1e-6) throw new Error(`${g.eventId}: shield ${i} for authored cells ${JSON.stringify(inputCells)} must be at (${expectedPair[i].x}, ${expectedPair[i].y}), got (${actualPair[i].x}, ${actualPair[i].y}); actual pair ${JSON.stringify(actualPair)}`);
+          }
+          if (ia.role !== "left" || ib.role !== "right" || ia.guardPairIndex !== 0 || ib.guardPairIndex !== 1) throw new Error(`${g.eventId}: ordered shield roles/indices must be left/0 and right/1, got ${JSON.stringify([ia.role, ia.guardPairIndex, ib.role, ib.guardPairIndex])}`);
+          if (ia.assetId !== ib.assetId || Math.abs(ia.position.y - ib.position.y) > 1e-9 || Math.abs(ia.position.z - ib.position.z) > 1e-9 || Math.abs(ia.scale.x - ib.scale.x) > 1e-9 || Math.abs(ia.scale.y - ib.scale.y) > 1e-9 || Math.abs(ia.scale.z - ib.scale.z) > 1e-9 || Math.abs(ia.rotationZRad - ib.rotationZRad) > 1e-9) throw new Error(`${g.eventId}: the pair must share asset, Y, Z, XYZ scale and orientation, got ${JSON.stringify({ asset: [ia.assetId, ib.assetId], y: [ia.position.y, ib.position.y], z: [ia.position.z, ib.position.z], scale: [ia.scale, ib.scale], rot: [ia.rotationZRad, ib.rotationZRad] })}`);
           const baseFrame = { ...preFrame, targets: preFrame.targets.filter((t) => t.id !== g.eventId) };
           renderer.renderGameplayFrame(baseFrame);
           const base = guard(`${g.eventId} pre base`);
           renderer.renderGameplayFrame(preFrame);
           const full = guard(`${g.eventId} pre full2`);
-          // (c) Pixels per shield: substantial core at the lane projection,
-          //     purple guard-role fill.
+          // (c) Real glyph cores at the authored-cell projection: white structural
+          //     outlines plus distinct left-blue/right-green hand-role fills.
           const shields = [];
-          const fills = [];
           for (const icon of [ia, ib]) {
             const an = project(icon.position.x, icon.position.y, icon.position.z);
             const core = diffPixels(full, base).filter((q) => Math.abs(q.x - an.x) <= CORE_BOX_PX && Math.abs(q.y - an.y) <= CORE_BOX_PX);
@@ -258,31 +279,29 @@ try {
             const xs = core.map((q) => q.x), ys = core.map((q) => q.y);
             const dX = (Math.min(...xs) + Math.max(...xs)) / 2 - an.x;
             const dY = (Math.min(...ys) + Math.max(...ys)) / 2 - an.y;
-            if (Math.abs(dX) > CENTROID_TOLERANCE_PX || Math.abs(dY) > CENTROID_TOLERANCE_PX) throw new Error(`${g.eventId}: shield bbox center must sit at the projected lane position (${an.x.toFixed(1)}, ${an.y.toFixed(1)}) within ${CENTROID_TOLERANCE_PX} px, got offset (${dX.toFixed(1)}, ${dY.toFixed(1)})`);
-            let sr = 0, sg = 0, sb = 0, fn = 0;
+            if (Math.abs(dX) > CENTROID_TOLERANCE_PX || Math.abs(dY) > CENTROID_TOLERANCE_PX) throw new Error(`${g.eventId}: shield bbox center must sit at the projected authored-cell position (${an.x.toFixed(1)}, ${an.y.toFixed(1)}) within ${CENTROID_TOLERANCE_PX} px, got offset (${dX.toFixed(1)}, ${dY.toFixed(1)})`);
+            let sr = 0, sg = 0, sb = 0, fn = 0, outline = 0;
             for (const q of core) {
               const luma = 0.2126 * q.r + 0.7152 * q.g + 0.0722 * q.b;
               if (luma >= 55 && luma <= 170) { sr += q.r; sg += q.g; sb += q.b; fn += 1; }
+              // White structural perimeter is bright and near-neutral, unlike either tinted fill.
+              if (Math.min(q.r, q.g, q.b) >= 185 && Math.max(q.r, q.g, q.b) - Math.min(q.r, q.g, q.b) <= 35) outline += 1;
             }
             if (fn < MIN_GUARD_FILL_PIXELS) throw new Error(`${g.eventId}: shield fill sample too small at (${an.x.toFixed(0)}, ${an.y.toFixed(0)}) (n=${fn}, min ${MIN_GUARD_FILL_PIXELS})`);
+            if (outline < MIN_OUTLINE_PIXELS) throw new Error(`${g.eventId} ${icon.role}: shield white structural outline missing (${outline} pixels, min ${MIN_OUTLINE_PIXELS})`);
             const rAvg = sr / fn, gAvg = sg / fn, bAvg = sb / fn;
             const gMinusR = gAvg - rAvg, bMinusR = bAvg - rAvg, gMinusB = gAvg - bAvg;
-            // The shield asset's fill material ("guard_fill") is NOT retinted by the
-            // renderer (only "note_fill" parts are), so the rendered guard color is the
-            // asset's baked teal-green, distinct from both hand colors:
-            //  - left hand blue #2693FF has b − r ≈ +166  → excluded by b − r < 90
-            //  - right hand green #39C96B has g − b ≈ +94 → excluded by g − b < 70
-            // Measured guard fill ≈ (61, 165, 132): g − r ≈ 104, b − r ≈ 71, g − b ≈ 33.
-            if (!(gAvg >= 120 && gMinusR >= 60 && bMinusR < 90 && gMinusB < 70)) throw new Error(`${g.eventId}: shield fill must be the neutral guard color (green-dominant teal, distinct from both hand colors); got rgb=(${rAvg.toFixed(0)}, ${gAvg.toFixed(0)}, ${bAvg.toFixed(0)}), g − r = ${gMinusR.toFixed(1)}, b − r = ${bMinusR.toFixed(1)}, g − b = ${gMinusB.toFixed(1)}`);
-            fills.push({ r: rAvg, g: gAvg, b: bAvg });
-            shields.push({ screen: [Math.round(an.x), Math.round(an.y)], world: [icon.position.x, icon.position.y, +icon.position.z.toFixed(2)], core: core.length, dX: +dX.toFixed(1), dY: +dY.toFixed(1), fill: { n: fn, rgb: [Math.round(rAvg), Math.round(gAvg), Math.round(bAvg)], gMinusR: +gMinusR.toFixed(1), bMinusR: +bMinusR.toFixed(1), gMinusB: +gMinusB.toFixed(1) } });
+            // Source hand tokens #2693FF and #39C96B retain distinct blue/green
+            // chroma after lighting and antialiasing; reject neutral or swapped fills.
+            const validFill = icon.role === "left"
+              ? bAvg >= 185 && gAvg >= 95 && bMinusR >= 130 && bAvg - gAvg >= 65 && gMinusR >= 45
+              : icon.role === "right" && gAvg >= 130 && bAvg >= 65 && gMinusR >= 75 && gMinusB >= 35 && bMinusR < 85;
+            if (!validFill) throw new Error(`${g.eventId} ${icon.role}: shield must retain its ${icon.role === "left" ? "blue #2693FF" : "green #39C96B"} hand-role fill, got rgb=(${rAvg.toFixed(0)}, ${gAvg.toFixed(0)}, ${bAvg.toFixed(0)}), b − r=${bMinusR.toFixed(1)}, g − r=${gMinusR.toFixed(1)}, g − b=${gMinusB.toFixed(1)}`);
+            shields.push({ screen: [Math.round(an.x), Math.round(an.y)], world: [icon.position.x, icon.position.y, +icon.position.z.toFixed(2)], core: core.length, outline, dX: +dX.toFixed(1), dY: +dY.toFixed(1), fill: { n: fn, rgb: [Math.round(rAvg), Math.round(gAvg), Math.round(bAvg)], gMinusR: +gMinusR.toFixed(1), bMinusR: +bMinusR.toFixed(1), gMinusB: +gMinusB.toFixed(1) } });
           }
-          // (c2) Both shields in a pair must share the SAME guard-role color.
-          const [f0, f1] = fills;
-          if (Math.abs(f0.r - f1.r) > 15 || Math.abs(f0.g - f1.g) > 15 || Math.abs(f0.b - f1.b) > 15) throw new Error(`${g.eventId}: the two shields in a guard pair must share the same role color, got rgb ${JSON.stringify(fills.map((f) => [Math.round(f.r), Math.round(f.g), Math.round(f.b)]))}`);
           guards.push({ eventId: g.eventId, family: g.family, cells: [g.leftCell, g.rightCell], commitOff: commits.get(g.eventId) - g.center, pair: { guardPairKey: ia.guardPairKey, indices: [ia.guardPairIndex, ib.guardPairIndex], assetId: ia.assetId, xGap: +(Math.abs(ia.position.x - ib.position.x)).toFixed(2) }, shields });
         }
-        return { guards };
+        return { defaultSeparation, counterfactual, guards };
       });
       if (noise.length > 0) throw new Error(`unexpected console/page noise: ${JSON.stringify(noise)}`);
       matrix.push({ embedding, ...proof });
@@ -293,6 +312,8 @@ try {
   assert.equal(matrix.length, 2);
   // Cross-embedding parity: same deterministic chart, same camera.
   const [direct, iframe] = matrix;
+  assert.equal(direct.defaultSeparation, 1.8);
+  assert.deepEqual(direct.counterfactual, iframe.counterfactual, "authored guard cells and lane-separation counterfactual must agree across origins");
   assert.equal(direct.guards.length, 2);
   assert.equal(direct.guards.length, iframe.guards.length);
   direct.guards.forEach((row, i) => {
@@ -303,11 +324,18 @@ try {
       const so = o.shields[j];
       assert.ok(Math.abs(sh.core - so.core) <= 100, `${row.eventId} shield ${j}: core count must agree across embeddings (${sh.core} vs ${so.core})`);
       assert.ok(Math.abs(sh.dX - so.dX) <= 3 && Math.abs(sh.dY - so.dY) <= 3, `${row.eventId} shield ${j}: centroid must agree across embeddings`);
-      assert.ok(Math.abs(sh.fill.gMinusR - so.fill.gMinusR) <= 12, `${row.eventId} shield ${j}: fill g − r must agree across embeddings (${sh.fill.gMinusR} vs ${so.fill.gMinusR})`);
+      assert.ok(Math.abs(sh.outline - so.outline) <= 50, `${row.eventId} shield ${j}: white outline count must agree across embeddings`);
+      for (const channel of ["r", "g", "b"]) {
+        const index = { r: 0, g: 1, b: 2 }[channel];
+        assert.ok(Math.abs(sh.fill.rgb[index] - so.fill.rgb[index]) <= 12, `${row.eventId} shield ${j}: ${channel} fill channel must agree across embeddings`);
+      }
+      assert.ok(Math.abs(sh.fill.gMinusR - so.fill.gMinusR) <= 12 && Math.abs(sh.fill.bMinusR - so.fill.bMinusR) <= 12 && Math.abs(sh.fill.gMinusB - so.fill.gMinusB) <= 12, `${row.eventId} shield ${j}: hand-fill chroma must agree across embeddings`);
     });
   });
   const summary = matrix.map((m) => ({
     embedding: m.embedding,
+    defaultSeparation: m.defaultSeparation,
+    counterfactual: m.counterfactual,
     guards: m.guards.map((g) => ({ id: g.eventId, family: g.family, cells: g.cells, commitOff: g.commitOff, pair: g.pair, shields: g.shields })),
   }));
   console.log(`ORACLE 0.0.61-guard-spawn-pixels PASS: embeddings=2, guards=2, evidence=${JSON.stringify(summary)}`);
