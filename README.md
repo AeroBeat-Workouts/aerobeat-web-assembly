@@ -124,7 +124,7 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-input` | `cc07bfa37024c53f2a5af0c9993f3c14548a3122` | `3e981a6573f20e752d9a7fe8636d754575f4e3bd` |
 | `@aerobeat/web-ui` | `fdd340459c123d46b290f8a3fbe831884576966c` | `09ab1d61b77443816b7cd26778b1b858c8dd48b3` |
 
-These `0.0.89` source pins are candidate QA only; live immutable raw `0.0.88` remains unchanged.
+These `0.0.89` source pins match immutable raw `0.0.89`, now served live on HTTP port 5173 and private Tailscale HTTPS port 8443. Immutable raw `0.0.88` remains unchanged for rollback. Physical camera and scored-run behavior still require playtesting.
 
 Ordinary non-loopback HTTP is supported for non-camera workflows even when `isSecureContext` is false and `crypto.subtle` is unavailable: Latest/search/download, local ZIP import, provider/raw hashing, real Worker authoring, IndexedDB persistence/reload, package/chart/asset/audio verification and playback, seven gameplay GLBs, eight owned environments, Flow/Boxing Lanes/Boxing Grid, export, deletion, and cleanup all remain fail-closed. Camera Play is not polyfilled or claimed on insecure HTTP; camera acquisition/calibration still requires localhost or HTTPS. Direct and genuine cross-origin iframe production-bundle controls assert the exact child Window/Worker trust state before conversion and reject network escape or unexpected browser noise.
 
