@@ -51,23 +51,18 @@ try {
   await display.scrollIntoViewIfNeeded();
   await capture("b2.4-ui-scale");
 
-  // B2.3: four real, editable per-mode pose inputs within Display.
-  const pose = display.locator("input[type='number'][data-camera-pose-field]");
-  assert.deepEqual(await pose.evaluateAll((inputs) => inputs.map((input) => input.dataset.cameraPoseField)), ["y", "z", "xPitch", "yYaw"]);
-  for (const field of ["y", "z", "xPitch", "yYaw"]) assert.equal(await display.locator(`input[data-camera-pose-field='${field}']`).isEnabled(), true);
-  assert.match(await display.locator("[data-role='camera-pose-mode']").textContent(), /Flow|Boxing/);
-  await display.locator("[data-role='camera-pose-mode']").scrollIntoViewIfNeeded();
-  await capture("b2.3-camera-controls");
+  // B2.3: pose tuning is retired from Display; its data-intact group is hidden in Game Setup.
+  assert.equal(await display.locator("[data-camera-pose-field], [data-role='camera-pose-mode']").count(), 0);
+  const setup = shadow.locator("[data-section='game-setup']");
+  const cameraGroup = setup.locator("fieldset.gameplay-camera-controls:has([data-role='camera-pose-mode'])");
+  assert.equal(await cameraGroup.count(), 1);
+  assert.equal(await cameraGroup.evaluate((group) => group.style.display), "none");
+  assert.equal(await cameraGroup.isVisible(), false);
+  assert.deepEqual(await cameraGroup.locator("input[type='number'][data-camera-pose-field]").evaluateAll((inputs) => inputs.map((input) => input.dataset.cameraPoseField)), ["y", "z", "xPitch", "yYaw"]);
 
-  // B3.4: preserve the genuine Info button; never trigger a camera permission prompt.
-  const force = info.locator("button[data-action='force-calibrate']");
-  assert.equal(await force.textContent(), "Force calibrate now");
-  assert.equal(await force.isEnabled(), true);
-  await force.evaluate((button) => { const scroller = button.closest(".drawer"); if (scroller) scroller.scrollTop = scroller.scrollHeight; });
-  assert.equal(await force.isVisible(), true);
-  // The production button inherits the global absolute-positioned menu-button
-  // CSS; don't replace its style just to manufacture a prettier screenshot.
-  await capture("b3.4-force-calibrate", { fullPage: false });
+  // Info retains its status alert, but the redundant menu calibration action is gone.
+  assert.equal(await info.locator("button[data-action='force-calibrate']").count(), 0);
+  assert.equal(await info.locator("[data-role='info-action'][role='alert']").count(), 1);
 
   // B3.1: seed only presenter view data, not markup: production presenter renders
   // the five actual BeatSaver difficulty tags inside its nested shadow root.
@@ -103,7 +98,7 @@ try {
     if (renderer.describe().equipment?.instanceCount !== 2) throw new Error("Test equipment not rendered");
   });
   await capture("b2.1-collider-volume");
-  console.log(`PASS 0.0.74: UI scale, camera controls, force calibrate, five difficulty colors, Test-pose equipment/collider scene; screenshots=${proofDir}`);
+  console.log(`PASS historical 0.0.74 proofs on current source: UI scale, retired Display camera controls (hidden Game Setup group), Info alert, five difficulty colors, Test-pose equipment/collider scene; screenshots=${proofDir}`);
   await page.close();
 } finally {
   if (browser) await browser.close();
