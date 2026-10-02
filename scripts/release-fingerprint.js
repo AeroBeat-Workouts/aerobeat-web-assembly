@@ -12,7 +12,7 @@ export const releaseDependencyPins = Object.freeze([
   Object.freeze({ name: "@aerobeat/web-content", directory: "aerobeat-web-content", commit: "c2549a620ac1f9a319e3650bea3593b9edd87b8c", tree: "6562fddbdec12527b953c13f3f79b1dfdba9f26f" }),
   Object.freeze({ name: "@aerobeat/web-audio", directory: "aerobeat-web-audio", commit: "19fd3a91eb67712806a17e4c82e2631d63f72434", tree: "9bd3418296d8fbdbfe72669958087f50a3302675" }),
   Object.freeze({ name: "@aerobeat/web-contracts", directory: "aerobeat-web-contracts", commit: "ea5cffc4287540f16eac48a15435af8dfe9784f8", tree: "464dfd115eddd490027c9dfafce890de3eb80f0f" }),
-  Object.freeze({ name: "@aerobeat/web-renderer", directory: "aerobeat-web-renderer", commit: "2be1466bd4321ae2be624cda7b228c79e7969de1", tree: "865ba26f2b21f1197c13b496cc6fc7a96085e4ee" }),
+  Object.freeze({ name: "@aerobeat/web-renderer", directory: "aerobeat-web-renderer", commit: "e1e7728389cb82dbd721ae42572f8d4132f9cb87", tree: "73536a4a58481444f4774786e0a36c8794283e52" }),
   Object.freeze({ name: "@aerobeat/web-gameplay", directory: "aerobeat-web-gameplay", commit: "b3722d3cba920c8818bad1976625aefde2f738ea", tree: "4c5c3433383dbab77ddd52b4be8cad154c18a573" }),
   Object.freeze({ name: "@aerobeat/web-input", directory: "aerobeat-web-input", commit: "31bb3ee80b0dbbe2c3677f842c04642a3f7ce33a", tree: "cf7dec23c3644dc603cbccaa336c148d53f4f5e8" }),
   Object.freeze({ name: "@aerobeat/web-ui", directory: "aerobeat-web-ui", commit: "785d214edaa51cad0011b8074ee953e2bc69da36", tree: "857513c618fe9b90848c6b4d464fb0758e2b3417" })
