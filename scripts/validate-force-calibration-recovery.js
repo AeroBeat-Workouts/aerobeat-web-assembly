@@ -23,14 +23,14 @@ try {
     element.remove();
     element.serviceGraphFactory = (options) => {
       const original = factory(options);
-      const state = globalThis.__forceRecovery = { retained: null, cameraRequests: 0, cameraFailure: false, videoPlaying: false, videoPlays: 0, cvRunning: false, cvStarts: 0, poseSequence: 0, audioState: "paused", audioPosition: 0 };
+      const state = globalThis.__forceRecovery = { retained: null, cameraRequests: 0, cameraFailure: false, videoPlaying: false, videoPlays: 0, cvRunning: false, cvStarts: 0, poseSequence: 0, audioState: "paused", audioPosition: 0, audioPauseCalls: 0, audioPlayCalls: 0, audioSeekCalls: 0, pauseGate: null, transportLog: [] };
       const hash = "a".repeat(64);
       const variant = { variantId: "force-flow", chartId: "force-chart", mode: "flow", rulesetId: "flow_colliders_v1", recipeId: null, modifierIds: [], ranked: false, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: hash }, provenance: { baseVariantId: "force-flow" } };
       const contentSnapshot = { state: "ready", packageId: "force-package", selectedVariant: variant, variants: [variant], resolvedEvents: [], song: { name: "Calibration regression" }, background: null, lineage: null };
       const content = { getSnapshot: () => contentSnapshot, subscribe() { return () => {}; }, setPlaybackState() {}, readAsset() { return new Uint8Array(); }, destroy() {} };
       const video = { getRetainedCameraStream: () => state.retained, async requestCamera() { state.cameraRequests += 1; if (state.cameraFailure) return { status: "blocked", message: "Permission denied" }; state.retained = { getVideoTracks: () => [{ readyState: "live" }] }; return { status: "granted" }; }, attachCameraStream(element) { element.srcObject = null; return { sourceKind: "live-camera", sourceId: "fixture", sourceChangeId: state.cameraRequests, mirrored: true, sourceAspectRatio: 4 / 3 }; }, async play() { state.videoPlaying = true; state.videoPlays += 1; return { playbackState: "playing" }; }, pause() { state.videoPlaying = false; }, pauseForLease() { state.videoPlaying = false; }, activateLease() {}, releaseLease(options) { state.videoPlaying = false; if (options?.releaseStream) state.retained = null; }, describeSurface() { return { sourceId: "fixture", sourceChangeId: state.cameraRequests, mirrored: true, sourceAspectRatio: 4 / 3 }; }, describeStatus() { return { lifecycleState: "connected" }; }, setDocumentHidden() {}, destroy() {} };
       const cv = { async start() { state.cvStarts += 1; state.cvRunning = true; }, async stop() { state.cvRunning = false; }, getStatus() { return { lifecycleState: state.cvRunning ? "running" : "stopped" }; }, getLatestPoseFrame() { if (!state.cvRunning || !state.videoPlaying) return null; state.poseSequence += 1; return { sourceId: "fixture", mirrored: true, timestampMs: performance.now() + state.poseSequence / 10000, landmarks: [] }; }, async dispose() {} };
-      const audio = { async activateLease() {}, async releaseLease() {}, async pauseForLease() { state.audioState = "paused"; }, async stop() { state.audioState = "stopped"; state.audioPosition = 0; }, async pause() { state.audioState = "paused"; }, async play() { state.audioState = "playing"; }, async seek(seconds) { state.audioPosition = seconds; }, async setDocumentHidden() {}, getStatus() { return { state: state.audioState, durationSeconds: 120 }; }, getClockSnapshot() { return { positionSeconds: state.audioPosition, durationSeconds: 120, playing: state.audioState === "playing", contextTimeSeconds: performance.now() / 1000 }; }, getMixSnapshot() { return { musicVolume: .5, sfxVolume: .5 }; }, setMix() {}, async destroy() {} };
+      const audio = { async activateLease() {}, async releaseLease() {}, async pauseForLease() { state.audioState = "paused"; }, async stop() { state.audioState = "stopped"; state.audioPosition = 0; }, async pause() { state.audioPauseCalls += 1; state.transportLog.push("pause-request"); if (state.pauseGate) { const gate = state.pauseGate; await new Promise((resolve) => { gate.resolve = resolve; }); state.pauseGate = null; } state.audioState = "paused"; state.transportLog.push("pause-settled"); }, async play() { state.audioPlayCalls += 1; state.audioState = "playing"; state.transportLog.push("play"); }, async seek(seconds) { state.audioSeekCalls += 1; state.audioPosition = seconds; state.transportLog.push("seek"); }, async setDocumentHidden() {}, getStatus() { return { state: state.audioState, durationSeconds: 120 }; }, getClockSnapshot() { return { positionSeconds: state.audioPosition, durationSeconds: 120, playing: state.audioState === "playing", contextTimeSeconds: performance.now() / 1000 }; }, getMixSnapshot() { return { musicVolume: .5, sfxVolume: .5 }; }, setMix() {}, async destroy() {} };
       return Object.freeze({ ...original, content, video, cv, audio });
     };
     document.querySelector("main").append(element);
@@ -39,6 +39,46 @@ try {
   assert.equal(start.requests, 1);
   assert.equal(start.state, "calibrating");
   assert.ok(start.forceButton, "Force calibration button missing");
+  // Exercise the real active Play menu reset. The unresolved audio pause must
+  // prevent menu-close recovery, not merely leave a synthetic coordinator paused.
+  const deferred = await game.evaluate(async (element) => {
+    const state = globalThis.__forceRecovery;
+    const session = element.graph.gameplay.getSnapshot().session;
+    const readyInput = { calibration: { calibrationId: "browser-cal", readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: null, straightQualifications: [] };
+    element.stopFrameLoop();
+    element.graph.gameplay.advance({ timestampMs: Math.max(performance.now(), session.timestampMs), clock: element.graph.audio.getClockSnapshot(), input: readyInput, lease: element.leaseSnapshotForGameplay() });
+    const requested = element.graph.gameplay.requestStart(Math.max(performance.now(), element.graph.gameplay.getSnapshot().session.timestampMs));
+    if (!requested.accepted) throw new Error(`Play countdown preparation rejected: ${JSON.stringify(requested)}`);
+    let step = element.graph.gameplay.getSnapshot().session;
+    for (const delta of [1000, 2000, 3000, 4000]) {
+      if (step.state === "playing") break;
+      element.graph.gameplay.advance({ timestampMs: step.timestampMs + delta, clock: element.graph.audio.getClockSnapshot(), input: readyInput, lease: element.leaseSnapshotForGameplay() });
+      step = element.graph.gameplay.getSnapshot().session;
+    }
+    if (step.state !== "playing") throw new Error(`Active Play prerequisite unavailable: ${step.state}`);
+    element.syncAudioForGameplay();
+    await element.audioSyncTail;
+    if (state.audioState !== "playing") throw new Error("Active Play audio prerequisite unavailable");
+    state.transportLog.length = 0;
+    const baseline = { plays: state.audioPlayCalls, seeks: state.audioSeekCalls, cvStarts: state.cvStarts, poses: state.poseSequence, timelineMs: step.timelinePositionMs };
+    state.pauseGate = { resolve: null };
+    element.shadowRoot.querySelector("[data-action='menu-toggle']").click();
+    if (typeof state.pauseGate.resolve !== "function") throw new Error("Public menu did not request audio pause");
+    const pausedSession = element.graph.gameplay.getSnapshot().session;
+    element.shadowRoot.querySelector("[data-action='menu-toggle']").click();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const pending = { menuOpen: element.menuOpen, armed: element.menuPauseArmed, pausePending: Boolean(state.pauseGate?.resolve), session: element.graph.gameplay.getSnapshot().session.state, timelineMs: element.graph.gameplay.getSnapshot().session.timelinePositionMs, countdown: element.graph.gameplay.getSnapshot().countdown?.value ?? null, audio: state.audioState, plays: state.audioPlayCalls - baseline.plays, seeks: state.audioSeekCalls - baseline.seeks, cvStarts: state.cvStarts - baseline.cvStarts, log: [...state.transportLog] };
+    state.pauseGate.resolve();
+    await element.menuPauseTail;
+    await element.lifecycleIntentTail;
+    const deadline = performance.now() + 2000;
+    while ((state.cvStarts === baseline.cvStarts || !element.frameLoop || state.poseSequence === baseline.poses) && performance.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
+    const after = { menuOpen: element.menuOpen, session: element.graph.gameplay.getSnapshot().session.state, audio: state.audioState, cvStarts: state.cvStarts - baseline.cvStarts, poses: state.poseSequence - baseline.poses, loop: Boolean(element.frameLoop), log: [...state.transportLog] };
+    return { activeTimelineMs: baseline.timelineMs, pausedSession: pausedSession.state, pausedTimelineMs: pausedSession.timelinePositionMs, pending, after };
+  });
+  assert.equal(deferred.pausedSession, "paused_manual", `public menu must pause active Play: ${JSON.stringify(deferred)}`);
+  assert.ok(!deferred.pending.menuOpen && !deferred.pending.armed && deferred.pending.pausePending && deferred.pending.session !== "countdown" && deferred.pending.session !== "playing" && deferred.pending.timelineMs === deferred.pausedTimelineMs && deferred.pausedTimelineMs >= deferred.activeTimelineMs && deferred.pending.countdown === null && deferred.pending.audio === "playing" && deferred.pending.plays === 0 && deferred.pending.seeks === 0 && deferred.pending.cvStarts === 0 && JSON.stringify(deferred.pending.log) === JSON.stringify(["pause-request"]), `unresolved pause must block recovery countdown, seek, CV and audio restart: ${JSON.stringify(deferred)}`);
+  assert.ok(!deferred.after.menuOpen && deferred.after.cvStarts >= 1 && deferred.after.poses > 0 && deferred.after.loop && deferred.after.audio === "paused" && ["calibrating", "paused_tracking", "countdown"].includes(deferred.after.session) && deferred.after.log[0] === "pause-request" && deferred.after.log[1] === "pause-settled" && !deferred.after.log.includes("play") && (deferred.after.log.indexOf("seek") === -1 || deferred.after.log.indexOf("pause-settled") < deferred.after.log.indexOf("seek")), `resolving pause must precede frozen-clock alignment and calibration recovery: ${JSON.stringify(deferred)}`);
   const ordinary = await game.evaluate(async (element) => {
     const state = globalThis.__forceRecovery;
     element.setMenuOpen(true);
@@ -92,12 +132,12 @@ try {
   for (const kind of ["normal", "lost-lease"]) {
     const { during, after } = await run(kind);
     assert.ok(during.cvStarts >= 1 && during.owner && during.retained && during.videoPlaying, `${kind} must restart video and CV under an owned lease: ${JSON.stringify(during)}`);
-    assert.ok(after.previewVisible && after.cvRunning && after.freshPoses > 0 && after.frameLoop && !after.menuOpen && ["calibrating", "countdown", "playing"].includes(after.session), `${kind} must show camera, consume fresh CV and enter calibration/countdown/play: ${JSON.stringify(after)}`);
+    assert.ok(after.previewVisible && after.cvRunning && after.freshPoses > 0 && after.frameLoop && !after.menuOpen && ["calibrating", "paused_tracking", "countdown", "playing"].includes(after.session), `${kind} must show camera, consume fresh CV and enter calibration/countdown/play: ${JSON.stringify(after)}`);
   }
   const denied = await run("denied");
   assert.ok(denied.after.menuOpen && !denied.after.frameLoop && !denied.after.cvRunning && /Retry Force calibrate or Start/u.test(denied.after.error), `camera failure must remain recoverable: ${JSON.stringify(denied)}`);
   assert.deepEqual(errors, [], `browser page errors: ${JSON.stringify(errors)}`);
-  console.log("Camera browser recovery PASS: ordinary menu close, racing close, Force retained/lost lease/denied; preview/CV/display and actionable retry verified");
+  console.log("Camera browser recovery PASS: active Play delayed menu pause blocks countdown/audio until resolved; ordinary close, racing close, Force retained/lost lease/denied verified");
   await page.close();
 } finally {
   if (browser) await browser.close();
