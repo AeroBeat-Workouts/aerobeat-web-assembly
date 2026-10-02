@@ -9,8 +9,7 @@
 // already-judged/past events beside the new ones.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createAeroGameplaySessionCoordinator } from "@aerobeat/web-gameplay";
-import { defaultFlowColliderSettings } from "../../aerobeat-web-gameplay/src/flow-collider-collision.js";
+import { createAeroGameplaySessionCoordinator, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
 
 const source = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 function method(name, nextName) {

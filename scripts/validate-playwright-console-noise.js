@@ -59,6 +59,45 @@ try {
   await page.locator("aero-game").locator("[data-action='debug-controls-collapse']").click();
   await page.locator("aero-game").evaluate((game)=>{game.menuOpen=true;game.renderInteractionShell();});
 
+  const constructorLifecycle = await page.evaluate(async () => {
+    const storageKey = "aerobeat.uiScale";
+    const previous = localStorage.getItem(storageKey);
+    const errors = [];
+    const onError = (event) => errors.push(event.message);
+    window.addEventListener("error", onError);
+    let test;
+    try {
+      localStorage.setItem(storageKey, "1.3");
+      test = document.createElement("aero-game");
+      assertBrowser(test instanceof customElements.get("aero-game") && typeof test.getSnapshot === "function", "synchronous custom-element upgrade");
+      assertBrowser(test.attributes.length === 0 && !test.style.getPropertyValue("--aero-ui-scale"), "constructor must leave host attribute-free");
+      test.setUiScale(1.45);
+      assertBrowser(test.attributes.length === 0 && !test.style.getPropertyValue("--aero-ui-scale"), "detached scale update must not mutate host");
+      const parent = document.querySelector("main");
+      parent.append(test);
+      assertBrowser(test.getSnapshot().lifecycle === "connected" && test.style.getPropertyValue("--aero-ui-scale") === "1.45", "first connection applies detached scale");
+      const firstGeneration = test.getSnapshot().generation;
+      test.remove();
+      test.style.removeProperty("--aero-ui-scale");
+      parent.append(test);
+      assertBrowser(test.getSnapshot().lifecycle === "connected" && test.getSnapshot().generation > firstGeneration && test.style.getPropertyValue("--aero-ui-scale") === "1.45", "reconnection reapplies retained scale");
+      test.remove();
+      const persisted = document.createElement("aero-game");
+      assertBrowser(persisted.attributes.length === 0 && persisted.uiScale === 1.45, "new instance loads persisted scale without attributes");
+      parent.append(persisted);
+      assertBrowser(persisted.getSnapshot().lifecycle === "connected" && persisted.style.getPropertyValue("--aero-ui-scale") === "1.45", "new instance applies persisted scale on connection");
+      persisted.remove();
+      assertBrowser(errors.length === 0, `window errors: ${errors.join("; ")}`);
+      return true;
+    } finally {
+      test?.remove();
+      if (previous === null) localStorage.removeItem(storageKey); else localStorage.setItem(storageKey, previous);
+      window.removeEventListener("error", onError);
+    }
+    function assertBrowser(condition, message) { if (!condition) throw new Error(message); }
+  });
+  assert.equal(constructorLifecycle, true, "programmatic constructor and connection lifecycle");
+
   const noAtlasLifecycle = await page.locator("aero-game").evaluate(async (reference) => {
     const originalFetch=globalThis.fetch.bind(globalThis); const atlasFetches=[]; const uploads=[]; let graphSequence=0;
     globalThis.fetch=(input,init)=>{const url=String(input);if(/flow-direction|web-gameplay|branding/iu.test(url))atlasFetches.push(url);return originalFetch(input,init)};
@@ -70,10 +109,48 @@ try {
   if(noAtlasLifecycle.uploads!==0||noAtlasLifecycle.atlasFetches!==0||!noAtlasLifecycle.oldDestroyed||noAtlasLifecycle.lifecycle!=="connected"||noAtlasLifecycle.privateEnvironmentLeaked)throw new Error(`No-atlas lifecycle/privacy failed: ${JSON.stringify(noAtlasLifecycle)}`);
 
   const aeroPackage = await makePackage();
+  // Public action regression: a settled Flow pause keeps its run identity
+  // across a Boxing future swap; the next fresh Start binds Game Setup.
+  const pausedBoxing = await page.locator("aero-game").evaluate(async (game, fixture) => {
+    const setupModule = await import("/src/game-setup-coordinator.js");
+    const original = setupModule.getGameSetupSnapshot();
+    const outcomes = [];
+    try {
+      for (const custom of [false, true]) {
+        await game.stop();
+        await game.selectContent({ kind: "direct", package: { package: fixture.songPackage, assets: [{ path: "song.wav", bytes: new Uint8Array(fixture.audioBytes) }] } });
+        const desired = custom ? { ...original, topRowReachWU: 0.5, bottomRowReachWU: 0.6, guardCountMode: "gesture", boxingColliderVolume: { ...original.boxingColliderVolume, colliderScale: 0.75, colliderDepthBackward: 2 } } : original;
+        setupModule.setGameSetupSnapshot(desired);
+        await game.lifecycleIntentTail;
+        const boxing = game.graph.content.getSnapshot().variants.find((entry) => entry.rulesetId === "boxing_collider_v1");
+        if (!boxing) throw new Error("Boxing variant missing from actual package");
+        await game.startSession("visual_test", { requireDownloaded: false });
+        const flow = game.graph.gameplay.getSnapshot().session;
+        game.setMenuOpen(false);
+        game.setMenuOpen(true);
+        await game.menuPauseTail;
+        const settled = game.menuPauseArmed && game.menuDisposition === "active-paused" && game.graph.gameplay.getSnapshot().session.state === "paused_manual";
+        await game.selectVariant(boxing.variantId);
+        const swapped = game.graph.gameplay.getSnapshot().session;
+        const noRecovery = game.lastError === null && game.menuDisposition === "active-paused" && game.sessionStartRequested && game.activeSessionAction === "test";
+        game.selectPrototypeProfile("aero.scoring.prototype-wide");
+        const scored = game.graph.gameplay.getSnapshot().session;
+        const noProfileError = game.lastError === null && game.menuDisposition === "active-paused";
+        await game.startSession("visual_test", { requireDownloaded: false });
+        const fresh = game.graph.gameplay.getSnapshot().session;
+        const bound = game.activeSessionSetup;
+        outcomes.push({ custom, settled, flow: flow.rulesetId, swapped: swapped.rulesetId, scored: scored.rulesetId, noRecovery, noProfileError, fresh: fresh.rulesetId, desired: [desired.topRowReachWU, desired.bottomRowReachWU, desired.guardCountMode, desired.boxingColliderVolume.colliderScale, desired.boxingColliderVolume.colliderDepthBackward], bound: [bound.topRowReachWU, bound.bottomRowReachWU, bound.guardCountMode, bound.boxingColliderVolume.colliderScale, bound.boxingColliderVolume.colliderDepthBackward] });
+      }
+      return outcomes;
+    } finally { await game.stop(); setupModule.setGameSetupSnapshot(original); await game.lifecycleIntentTail; }
+  }, aeroPackage);
+  for (const result of pausedBoxing) {
+    assert(result.settled && result.flow === "flow_colliders_v1" && result.swapped === "boxing_collider_v1" && result.scored === "boxing_collider_v1" && result.noRecovery && result.noProfileError && result.fresh === "boxing_collider_v1" && JSON.stringify(result.bound) === JSON.stringify(result.desired), `Public Flow pause→Boxing selection/profile/fresh Start failed: ${JSON.stringify(result)}`);
+  }
   const actual = await page.locator("aero-game").evaluate(async (game, fixture) => {
     let staleV5=null;try{await game.selectContent({kind:"direct",package:{package:{schemaId:"aerobeat.song-package.v5",schemaVersion:5,packageVersion:"5.0.0",packageId:"stale-v5"},assets:[]}});}catch(error){staleV5={code:error&&typeof error==="object"?Object.getOwnPropertyDescriptor(error,"code")?.value:undefined,message:error instanceof Error?error.message:""};}
     await game.selectContent({ kind: "direct", package: { package: fixture.songPackage, assets: [{ path: "song.wav", bytes: new Uint8Array(fixture.audioBytes) }] } });
-    await game.graph.audio.activateLease();const lease={schema:"aerobeat/media_lease_snapshot",version:1,ownerInstanceId:game.instanceId,generation:1,state:"owned",resources:["camera","audio"]};const readyInput={calibration:{calibrationId:"browser-cal",readiness:"countdown"},tracking:{gameplayPaused:false,freshCalibrationRequired:false},countdownFrozen:false,latestEvidence:null,straightQualifications:[]};const clock=()=>game.graph.audio.getClockSnapshot();game.graph.gameplay.setLeaseSnapshot(lease);const base=performance.now();game.graph.gameplay.requestStart(base);game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,20));const audioFrozenDuringCalibration=game.graph.gameplay.getSnapshot().session.state==="calibrating"&&game.graph.audio.getStatus().state!=="playing";game.graph.gameplay.advance({timestampMs:base+1,clock:clock(),input:readyInput,lease});game.graph.gameplay.requestStart(base+1);game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,20));const audioFrozenDuringCountdown=game.graph.audio.getStatus().state!=="playing";for(const offset of [1000,2000,3000,4000]){game.graph.gameplay.advance({timestampMs:base+offset,clock:clock(),input:readyInput,lease});if(game.graph.gameplay.getSnapshot().session.state==="playing"){game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,30));break}}const audioAfterPlaying=game.graph.audio.getStatus();const gameplayAfterCountdown=game.graph.gameplay.getSnapshot().session.state;const audioStartedOnlyWhenPlaying=gameplayAfterCountdown==="playing"&&(audioAfterPlaying.state==="playing"||audioAfterPlaying.autoplayState==="blocked");Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"));await new Promise((resolve)=>setTimeout(resolve,40));const hiddenGameplayState=game.graph.gameplay.getSnapshot().session.state,hiddenAudioStatus=game.graph.audio.getStatus();const actualHiddenPause=hiddenGameplayState==="paused_manual"&&hiddenAudioStatus.state!=="playing"&&hiddenAudioStatus.visibilityState==="hidden";Object.defineProperty(document,"hidden",{configurable:true,value:false});document.dispatchEvent(new Event("visibilitychange"));await new Promise((resolve)=>setTimeout(resolve,40));game.graph.gameplay.advance({timestampMs:base+5000,clock:clock(),input:readyInput,lease});const stateBeforeResume=game.graph.gameplay.getSnapshot().session.state;if(stateBeforeResume==="paused_manual"||stateBeforeResume==="paused_tracking")game.graph.gameplay.resume(base+5000);for(const offset of [6000,7000,8000,9000]){game.graph.gameplay.advance({timestampMs:base+offset,clock:clock(),input:readyInput,lease});if(game.graph.gameplay.getSnapshot().session.state==="playing"){game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,30));break}}const unsafeInput={...readyInput,tracking:{gameplayPaused:true,freshCalibrationRequired:true},countdownFrozen:true};game.graph.gameplay.advance({timestampMs:base+9100,clock:clock(),input:unsafeInput,lease});game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,30));const immediateSafetyPause=game.graph.gameplay.getSnapshot().session.state==="paused_tracking"&&game.graph.audio.getStatus().state!=="playing";
+    await game.graph.audio.activateLease();const lease={schema:"aerobeat/media_lease_snapshot",version:1,ownerInstanceId:game.instanceId,generation:1,state:"owned",resources:["camera","audio"]};const readyInput={calibration:{calibrationId:"browser-cal",readiness:"countdown"},tracking:{gameplayPaused:false,freshCalibrationRequired:false},countdownFrozen:false,latestEvidence:null,straightQualifications:[]};const clock=()=>game.graph.audio.getClockSnapshot();game.graph.gameplay.setLeaseSnapshot(lease);const base=performance.now();game.graph.gameplay.requestStart(base);game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,20));const audioFrozenDuringCalibration=game.graph.gameplay.getSnapshot().session.state==="calibrating"&&game.graph.audio.getStatus().state!=="playing";game.graph.gameplay.advance({timestampMs:base+1,clock:clock(),input:readyInput,lease});game.graph.gameplay.requestStart(base+1);game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,20));const audioFrozenDuringCountdown=game.graph.audio.getStatus().state!=="playing";for(const offset of [1000,2000,3000,4000]){game.graph.gameplay.advance({timestampMs:base+offset,clock:clock(),input:readyInput,lease});if(game.graph.gameplay.getSnapshot().session.state==="playing"){game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,30));break}}const audioAfterPlaying=game.graph.audio.getStatus();const gameplayAfterCountdown=game.graph.gameplay.getSnapshot().session.state;const audioStartedOnlyWhenPlaying=gameplayAfterCountdown==="playing"&&(audioAfterPlaying.state==="playing"||audioAfterPlaying.autoplayState==="blocked");Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"));await new Promise((resolve)=>setTimeout(resolve,40));const hiddenGameplayState=game.graph.gameplay.getSnapshot().session.state,hiddenAudioStatus=game.graph.audio.getStatus();const actualHiddenPause=hiddenGameplayState==="paused_manual"&&hiddenAudioStatus.state!=="playing"&&hiddenAudioStatus.visibilityState==="hidden";Object.defineProperty(document,"hidden",{configurable:true,value:false});document.dispatchEvent(new Event("visibilitychange"));await new Promise((resolve)=>setTimeout(resolve,40));game.graph.gameplay.advance({timestampMs:base+5000,clock:clock(),input:readyInput,lease});const stateBeforeResume=game.graph.gameplay.getSnapshot().session.state;if(stateBeforeResume==="paused_manual"||stateBeforeResume==="paused_tracking")game.graph.gameplay.resume(base+5000);for(const offset of [6000,7000,8000,9000]){game.graph.gameplay.advance({timestampMs:base+offset,clock:clock(),input:readyInput,lease});if(game.graph.gameplay.getSnapshot().session.state==="playing"){game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,30));break}}const unsafeInput={...readyInput,tracking:{gameplayPaused:true,freshCalibrationRequired:true},countdownFrozen:true};game.graph.gameplay.advance({timestampMs:base+9100,clock:clock(),input:unsafeInput,lease});game.syncAudioForGameplay();await new Promise((resolve)=>setTimeout(resolve,30));const unsafeGameplayState=game.graph.gameplay.getSnapshot().session.state;const immediateSafetyPause=unsafeGameplayState==="paused_tracking"&&game.graph.audio.getStatus().state!=="playing";
     // 0.0.54 W1-A rebaseline: the successor fixture is the NEW shape (sole
     // boxing_collider_v1 variant + flow; the Lanes/Grid pair is retired for new
     // imports). Selection now exercises the no-recipe collider variant; a legacy
@@ -83,14 +160,22 @@ try {
     await game.selectVariant(target.variantId, []); const after = game.getSnapshot();
     let missingRuleset="";try{await game.selectGameplayAxes("boxing_spatial_grid_v1");}catch(error){missingRuleset=error instanceof Error?error.message:"";}
     let getterCalls=0;const hostile=[];Object.defineProperty(hostile,"0",{enumerable:true,get(){getterCalls+=1;return"crossed_guard"}});hostile.length=1;let hostileRejected=false;try{await game.selectVariant(target.variantId,hostile)}catch{hostileRejected=true}
-    return { staleV5,variantCount: after.services.content.variants.length, initialRuleset:before.services.content.selectedVariant.rulesetId,colliderVariantCount:before.services.content.variants.filter((entry)=>entry.rulesetId==="flow_colliders_v1").length, boxingColliderCount:before.services.content.variants.filter((entry)=>entry.rulesetId==="boxing_collider_v1").length, selectedContent: after.services.content.selectedVariant.variantId, selectedGameplay: after.services.gameplay.selectedVariant.variantId, gameplayState: after.services.gameplay.session.state, missingRuleset, bytesLeaked: /Uint8Array|ArrayBuffer|audioBytes|zipBytes/u.test(JSON.stringify(after)), hostileRejected, getterCalls, audioFrozenDuringCalibration, audioFrozenDuringCountdown, audioStartedOnlyWhenPlaying, actualHiddenPause, immediateSafetyPause, audioAfterPlaying, gameplayAfterCountdown, hiddenGameplayState, hiddenAudioStatus };
+    return { staleV5,variantCount: after.services.content.variants.length, initialRuleset:before.services.content.selectedVariant.rulesetId,colliderVariantCount:before.services.content.variants.filter((entry)=>entry.rulesetId==="flow_colliders_v1").length, boxingColliderCount:before.services.content.variants.filter((entry)=>entry.rulesetId==="boxing_collider_v1").length, selectedContent: after.services.content.selectedVariant.variantId, selectedGameplay: after.services.gameplay.selectedVariant.variantId, gameplayState: after.services.gameplay.session.state, unsafeGameplayState, missingRuleset, bytesLeaked: /Uint8Array|ArrayBuffer|audioBytes|zipBytes/u.test(JSON.stringify(after)), hostileRejected, getterCalls, audioFrozenDuringCalibration, audioFrozenDuringCountdown, audioStartedOnlyWhenPlaying, actualHiddenPause, immediateSafetyPause, audioAfterPlaying, gameplayAfterCountdown, hiddenGameplayState, hiddenAudioStatus };
   }, aeroPackage);
-  if (JSON.stringify(actual.staleV5)!==JSON.stringify({code:"flow_colliders_reimport_required",message:"Package predates explicit flow_colliders_v1 authoring and must be reimported"}) || actual.variantCount !== 2 || actual.initialRuleset !== "flow_colliders_v1" || actual.colliderVariantCount !== 1 || actual.boxingColliderCount !== 1 || actual.selectedContent !== actual.selectedGameplay || actual.gameplayState !== "paused_tracking" || actual.missingRuleset !== "Selected gameplay variant is unavailable" || actual.bytesLeaked || !actual.hostileRejected || actual.getterCalls !== 0 || !actual.audioFrozenDuringCalibration || !actual.audioFrozenDuringCountdown || !actual.audioStartedOnlyWhenPlaying || !actual.actualHiddenPause || !actual.immediateSafetyPause) throw new Error(`Actual content/gameplay integration failed: ${JSON.stringify(actual)}`);
+  if (JSON.stringify(actual.staleV5)!==JSON.stringify({code:"flow_colliders_reimport_required",message:"Package predates explicit flow_colliders_v1 authoring and must be reimported"}) || actual.variantCount !== 2 || actual.initialRuleset !== "flow_colliders_v1" || actual.colliderVariantCount !== 1 || actual.boxingColliderCount !== 1 || actual.selectedContent !== actual.selectedGameplay || actual.unsafeGameplayState !== "paused_tracking" || actual.gameplayState !== "calibrating" || actual.missingRuleset !== "Selected gameplay variant is unavailable" || actual.bytesLeaked || !actual.hostileRejected || actual.getterCalls !== 0 || !actual.audioFrozenDuringCalibration || !actual.audioFrozenDuringCountdown || !actual.audioStartedOnlyWhenPlaying || !actual.actualHiddenPause || !actual.immediateSafetyPause) throw new Error(`Actual content/gameplay integration failed: ${JSON.stringify(actual)}`);
   const profiles=await page.locator("aero-game").evaluate((game)=>{game.selectPrototypeProfile("aero.visual.compact");game.selectPrototypeProfile("aero.scoring.prototype-wide");game.selectPrototypeProfile("aero.converter.prototype-reach");const before=game.getSnapshot();const exported=game.exportPrototypeProfiles();let getterCalls=0;const hostile=structuredClone(exported);Object.defineProperty(hostile.profiles[0],"settings",{enumerable:true,get(){getterCalls+=1;return{}}});let hostileRejected=false;try{game.importPrototypeProfiles(hostile)}catch{hostileRejected=true}const after=game.getSnapshot();const presenter=null;game.importPrototypeProfiles(exported);const imported=game.getSnapshot().services.profiles;game.resetPrototypeProfiles();const reset=game.getSnapshot().services.profiles;return{before:before.services.profiles,after:after.services.profiles,renderer:after.services.renderer.visualProfileIdentity,exportedSchema:exported.schema,hostileRejected,getterCalls,presenter,imported,reset,leakedBundle:JSON.stringify(after).includes("prototype_profile_bundle")}});
   if(profiles.before.active.visual.profileId!=="aero.visual.compact"||profiles.renderer.profileId!=="aero.visual.compact"||profiles.before.active.scoring.profileId!=="aero.scoring.prototype-wide"||profiles.before.active.converter.profileId!=="aero.converter.prototype-reach"||profiles.before.regenerationRequired!==true||profiles.exportedSchema!=="aerobeat/prototype_profile_bundle"||!profiles.hostileRejected||profiles.getterCalls!==0||JSON.stringify(profiles.before)!==JSON.stringify(profiles.after)||profiles.imported.active.visual.profileId!=="aero.visual.compact"||profiles.imported.active.scoring.profileId!=="aero.scoring.prototype-wide"||profiles.reset.active.visual.profileId!=="aero.visual.default"||profiles.reset.active.scoring.profileId!=="aero.scoring.locked"||profiles.reset.active.converter.profileId!=="aero.converter.canonical"||profiles.leakedBundle)throw new Error(`Actual profile integration failed: ${JSON.stringify(profiles)}`);
 
-  await page.locator("aero-game").evaluate((game) => { game.fullscreenAudit = { count: 0, active: false }; game.requestFullscreen = async () => { game.fullscreenAudit.count += 1; game.fullscreenAudit.active = navigator.userActivation.isActive; }; });
-  await page.locator("aero-game").locator("aero-fullscreen-button").locator("button").click();
+  await page.locator("aero-game").evaluate(async (game) => {
+    await game.startSession("visual_test", { requireDownloaded: false });
+    await game.menuPauseTail;
+    if (game.menuOpen) game.setMenuOpen(false);
+    game.fullscreenAudit = { count: 0, active: false };
+    game.requestFullscreen = async () => { game.fullscreenAudit.count += 1; game.fullscreenAudit.active = navigator.userActivation.isActive; };
+  });
+  const fullscreenButton = page.locator("aero-game").locator("aero-visual-test-transport").locator("button[data-role='fullscreen']");
+  assert.equal(await fullscreenButton.isVisible(), true, "Current transport fullscreen button must be visible during public Test");
+  await fullscreenButton.click();
   const fullscreen = await page.locator("aero-game").evaluate((game) => game.fullscreenAudit);
   if (fullscreen.count !== 1 || !fullscreen.active) throw new Error("Fullscreen was not requested from a child user gesture");
 

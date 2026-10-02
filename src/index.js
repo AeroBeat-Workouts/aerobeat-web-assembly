@@ -191,6 +191,9 @@ export class AeroGame extends HTMLElement {
     this.browsedMaps = new Map();
     this.beatSaverView = emptyBeatSaverView();
     this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
+    this.bulkReimport = Object.freeze({ state: "idle", completed: 0, total: 0, reimported: 0, skipped: 0, failed: 0, message: "" });
+    this.bulkReimportTask = null;
+    this.bulkReimportCancelled = false;
     this.librarySelectionGeneration = 0;
     this.librarySelectionTail = Promise.resolve(null);
     this.desiredLibrarySelection = null;
@@ -310,7 +313,6 @@ export class AeroGame extends HTMLElement {
     this.boundDebugCameraPointerRelease = (event) => this.handleDebugCameraPointerRelease(event);
     const root = this.attachShadow({ mode: "open" });
     root.innerHTML = template();
-    this.applyUiScale();
     this.installGameSetupControls();
     this.localZipPicker = document.createElement("input"); this.localZipPicker.type = "file"; this.localZipPicker.accept = ".zip,application/zip"; this.localZipPicker.hidden = true; root.prepend(this.localZipPicker);
     this.cameraPosePicker = document.createElement("input"); this.cameraPosePicker.type = "file"; this.cameraPosePicker.accept = ".json,application/json"; this.cameraPosePicker.hidden = true; this.cameraPosePicker.dataset.role = "debug-camera-pose-picker"; root.prepend(this.cameraPosePicker);
@@ -320,6 +322,7 @@ export class AeroGame extends HTMLElement {
 
   connectedCallback() {
     if (this.lifecycle === "connected") return;
+    this.applyUiScale();
     this.instanceId = this.getAttribute("instance-id") || this.instanceId;
     this.connectedGeneration += 1;
     this.lifecycle = "connected";
@@ -329,6 +332,7 @@ export class AeroGame extends HTMLElement {
     this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]); this.lastValidEquipmentPoses = Object.freeze([]);
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
+    this.bulkReimport = Object.freeze({ state: "idle", completed: 0, total: 0, reimported: 0, skipped: 0, failed: 0, message: "" }); this.bulkReimportTask = null; this.bulkReimportCancelled = false;
     this.librarySelectionGeneration += 1; this.librarySelectionTail = Promise.resolve(null); this.desiredLibrarySelection = null;
     try {
       this.assertPrivateEnvironmentAsset();
@@ -789,6 +793,72 @@ export class AeroGame extends HTMLElement {
     return this.getSnapshot();
   }
 
+  /** Recover the active Play transport, not just its calibration label. Serialized with Start/selection so no stale camera operation can commit after a newer action. */
+  async forceCalibrate() { return this.recoverPlayCamera(true); }
+
+  async recoverPlayCamera(forceReset = false) {
+    this.assertConnected();
+    return this.enqueueLifecycleIntent("recover-play-camera", async (owner) => {
+      const graph = owner.graph; const connectionGeneration = owner.connectionGeneration; const sessionGeneration = this.sessionGeneration;
+      const participant = this.leaseParticipant;
+      const current = () => this.isLifecycleIntentOwner(owner) && this.isSessionCurrent(sessionGeneration, connectionGeneration, graph);
+      if (!current() || graph.gameplay.getSnapshot().session.purpose === "visual_test" || !this.sessionStartRequested || this.activeSessionAction !== "start" || ["completed", "stopped"].includes(graph.gameplay.getSnapshot().session.state)) return this.getSnapshot();
+      const previousTransportTail = this.transportIntentTail;
+      const menuTransition = this.menuTransitionGeneration;
+      const recoveryCurrent = () => current() && this.menuTransitionGeneration === menuTransition;
+      const failRecovery = (error) => {
+        if (!current()) return;
+        this.menuOpen = true; this.menuDisposition = "active-paused"; this.menuPauseArmed = true;
+        this.handleError(new Error(`Camera calibration unavailable: ${errorMessage(error)}. Retry Force calibrate or Start.`));
+        this.publish("session_changed");
+      };
+      await Promise.all([this.menuPauseTail, previousTransportTail, this.audioSyncTail]);
+      if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
+      this.stopFrameLoop();
+      await Promise.allSettled([graph.audio.pause(), graph.cv.stop()]);
+      if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
+      graph.video.pause(this.videoElement());
+      if (forceReset) this.reset();
+      else graph.input.resetCalibration("menu_closed_recalibration_required");
+      const retainedBefore = graph.video.getRetainedCameraStream();
+      let leaseGeneration = null; let leaseAcquired = false; let cameraAcquisitionAttempted = false; let committed = false;
+      try {
+        if (document.hidden) throw new Error("Camera recovery needs a visible page. Return to the tab and retry Force calibrate.");
+        const before = aeroGameMediaLeaseCoordinator.snapshot();
+        const lease = await aeroGameMediaLeaseCoordinator.requestActionResources(participant, Object.freeze(["camera", "audio"]));
+        leaseGeneration = lease.generation; leaseAcquired = lease.generation !== before.generation;
+        if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
+        graph.gameplay.setLeaseSnapshot(lease);
+        const retained = graph.video.getRetainedCameraStream();
+        if (!retained || (typeof retained.getVideoTracks === "function" && !retained.getVideoTracks().some((track) => track.readyState === "live"))) {
+          cameraAcquisitionAttempted = true;
+          const result = await graph.video.requestCamera(createLiveCameraSourceDescriptor({ sourceId: "aero.mediapipe.live", mirrored: true }), { signal: this.activeAbort.signal });
+          if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
+          if (result.status !== "granted") throw new Error(result.message || "Camera unavailable");
+        }
+        this.attachRetainedCamera();
+        const surface = await graph.video.play(this.videoElement());
+        if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
+        if (surface?.playbackState === "error") throw new Error("Camera preview could not play");
+        await this.startCv();
+        if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
+        if (graph.cv.getStatus().lifecycleState !== "running") throw new Error("Camera detection did not start");
+        committed = true;
+        this.lastError = null;
+        this.startFrameLoop(); this.syncCameraPresentation(); this.publish("session_changed");
+        return this.getSnapshot();
+      } catch (error) {
+        if (current()) failRecovery(error);
+        return this.getSnapshot();
+      } finally {
+        if (!committed && leaseGeneration !== null) {
+          await this.rollbackUncommittedMediaAction(graph, participant, leaseGeneration, leaseAcquired, retainedBefore, cameraAcquisitionAttempted, false).catch((error) => { if (current()) this.handleError(error); });
+          if (current()) { this.activeCvSource = null; this.syncCameraPresentation(); }
+        }
+      }
+    });
+  }
+
   /** @param {unknown} source */
   async selectContent(source) {
     this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview();
@@ -1037,7 +1107,7 @@ export class AeroGame extends HTMLElement {
     });
   }
 
-  cancelImport() { this.assertConnected(); this.invalidatePendingSessionStart(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; return this.graph.authoring.cancel(); }
+  cancelImport() { this.assertConnected(); if (this.bulkReimportTask) this.bulkReimportCancelled = true; this.invalidatePendingSessionStart(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; return this.graph.authoring.cancel(); }
   async deletePackage(handle) { this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview(); const safeHandle = safeData(handle, 0, 16); return this.enqueueLifecycleIntent("package-delete", async (owner) => { const deleted = await owner.graph.authoring.deletePackage(safeHandle); if (!this.isLifecycleIntentOwner(owner)) return deleted; this.desiredLibrarySelection = null; await this.refreshLibrary(owner.connectionGeneration, { autoSelect: false }); if (this.isLifecycleIntentOwner(owner)) this.publish("content_changed"); return deleted; }); }
   /** 0.0.87 (Derrick): bulk library actions. */
   async deleteAllLibraryCollections() {
@@ -1049,30 +1119,61 @@ export class AeroGame extends HTMLElement {
     return Object.freeze({ deleted: ids.length });
   }
 
-  /**
-   * Re-import every downloaded song so a new map schema is picked up. Collections
-   * carry sourceProvider/sourceId/sourceVersionHash, which is exactly the handle a
-   * fresh import needs; local-zip collections have no re-fetchable source and are
-   * reported rather than silently skipped.
-   */
+  /** Re-import from private persisted collection provenance, not the public library projection. */
   async reimportAllLibraryCollections() {
     this.assertConnected();
-    const collections = this.libraryView.collections.map((entry) => Object.freeze({
-      collectionId: String(entry.collectionId ?? ""),
-      songName: String(entry.songName ?? ""),
-      sourceProvider: String(entry.sourceProvider ?? ""),
-      sourceId: String(entry.sourceId ?? ""),
-      sourceVersionHash: String(entry.sourceVersionHash ?? "")
-    })).filter((entry) => entry.collectionId !== "");
-    const skipped = [];
-    const reimported = [];
-    for (const collection of collections) {
-      if (collection.sourceProvider !== "beatsaver" || collection.sourceId === "") { skipped.push(collection.songName || collection.collectionId); continue; }
-      await this.importBeatSaverById(collection.sourceId, collection.sourceVersionHash || undefined, { requireBrowsed: false });
-      reimported.push(collection.songName || collection.collectionId);
-    }
-    this.publish("library_changed");
-    return Object.freeze({ reimported, skipped });
+    if (this.bulkReimportTask) return this.bulkReimportTask;
+    const graph = this.graph; const generation = this.connectedGeneration;
+    this.bulkReimportCancelled = false;
+    const update = (status) => { if (this.isCurrent(generation, graph)) { this.bulkReimport = Object.freeze(status); this.renderPresenters(); } };
+    const task = (async () => {
+      const reimported = [], skipped = [], failed = [];
+      update({ state: "running", completed: 0, total: 0, reimported: 0, skipped: 0, failed: 0, message: "Preparing Reimport All…" });
+      try {
+        // libraryView is intentionally presentation-only: it must not carry source IDs.
+        const collections = await graph.authoring.listCollections();
+        if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+        if (!Array.isArray(collections)) throw new Error("Downloaded library list is unavailable");
+        const entries = collections.filter((item) => boundedString(item?.collectionId, "") !== "");
+        const total = entries.length;
+        for (const entry of entries) {
+          if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+          if (this.bulkReimportCancelled) break;
+          const songName = boundedString(entry.songName, boundedString(entry.collectionId, "Downloaded song"));
+          try {
+            const source = await graph.authoring.getCollectionReimportSource(entry.collectionId);
+            if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+            if (this.bulkReimportCancelled) break;
+            if (!source) failed.push(songName);
+            else if (source.sourceProvider !== "beatsaver") skipped.push(songName);
+            else if (!boundedString(source.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) failed.push(songName);
+            else {
+              const imported = await this.importBeatSaverById(source.sourceId, source.sourceVersionHash);
+              if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+              if (this.bulkReimportCancelled) break;
+              if (imported === null) failed.push(songName); else reimported.push(songName);
+            }
+          } catch (error) {
+            if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+            if (this.bulkReimportCancelled) break;
+            failed.push(songName);
+          }
+          const completed = reimported.length + skipped.length + failed.length;
+          update({ state: "running", completed, total, reimported: reimported.length, skipped: skipped.length, failed: failed.length, message: `Reimport All: ${completed}/${total} checked; ${reimported.length} reimported, ${skipped.length} skipped, ${failed.length} failed.` });
+        }
+        const completed = reimported.length + skipped.length + failed.length;
+        const cancelled = this.bulkReimportCancelled;
+        const message = cancelled ? `Reimport All cancelled after ${completed} of ${total} songs; remaining songs were not attempted.` : total === 0 ? "No downloaded songs to reimport." : `Reimport All finished: ${reimported.length} reimported, ${skipped.length} skipped, ${failed.length} failed.${failed.length ? ` Retry ${failed[0]} individually.` : ""}`;
+        update({ state: cancelled ? "cancelled" : failed.length ? "failed" : "complete", completed, total, reimported: reimported.length, skipped: skipped.length, failed: failed.length, message });
+        this.publish("library_changed");
+        return Object.freeze({ reimported, skipped, failed });
+      } catch (error) {
+        update({ state: "failed", completed: reimported.length + skipped.length + failed.length, total: 0, reimported: reimported.length, skipped: skipped.length, failed: failed.length + 1, message: "Reimport All could not read the downloaded library. Retry or import songs individually." });
+        throw error;
+      }
+    })();
+    this.bulkReimportTask = task;
+    try { return await task; } finally { if (this.bulkReimportTask === task) this.bulkReimportTask = null; }
   }
 
   async deleteLibraryCollection(collectionIdValue) { this.assertConnected(); this.invalidatePendingSessionStart(); this.stopPreview(); const collectionId = boundedString(collectionIdValue, ""); if (!collectionId) throw new Error("Downloaded song is unavailable"); this.librarySelectionGeneration += 1; this.desiredLibrarySelection = null; const legacyTarget = this.libraryView.collections.find((entry) => entry.collectionId === collectionId)?.difficulties[0]; return this.enqueueLifecycleIntent("collection-delete", async (owner) => { const graph = owner.graph; const deleted = typeof graph.authoring.deleteCollection === "function" ? await graph.authoring.deleteCollection(collectionId) : legacyTarget ? await graph.authoring.deletePackage({ key: legacyTarget.packageKey, packageId: legacyTarget.packageId }) : false; if (!this.isLifecycleIntentOwner(owner)) return deleted; await this.refreshLibrary(owner.connectionGeneration, { autoSelect: false }); if (this.isLifecycleIntentOwner(owner)) this.publish("content_changed"); return deleted; }); }
@@ -1184,7 +1285,7 @@ export class AeroGame extends HTMLElement {
     const clamped = Number.isFinite(value) ? Math.min(2, Math.max(0.75, value)) : 1;
     this.uiScale = clamped;
     try { globalThis.localStorage?.setItem("aerobeat.uiScale", String(clamped)); } catch { /* non-persistable context */ }
-    this.applyUiScale();
+    if (this.isConnected) this.applyUiScale();
     this.renderPresenters?.();
   }
 
@@ -1374,27 +1475,11 @@ export class AeroGame extends HTMLElement {
     const newSong = Boolean(session?.packageId) && session.packageId !== content.packageId;
     if (newSong) purpose = "play"; // Never preserve an outgoing Test while installing a different song.
     const runActive=Boolean(session?.packageId)&&!newSong&&!["idle","stopped","completed"].includes(session?.state),scoring = this.graph.profiles.getActive("between_run_ruleset"),setup=bindDesiredSetup||!runActive||!this.activeSessionSetup?this.desiredGameSetup:this.activeSessionSetup;
-    // z2tx: thread the run-gated collider settings — Flow for flow_colliders_v1,
-    // Boxing Collider (reach + guard mode) for boxing_collider_v1. The coordinator
-    // locks them for the complete run; mid-run changes reject via
-    // `boxing_collider_settings_locked` / `flow_collider_settings_locked`.
-    // z2tx run-gate (B7): those lock rejections are internal invariants (the
-    // settings are not user-exposed in the menu). On a fresh configure while a
-    // previous session left a different active ruleset behind, skip the
-    // collider-settings keys entirely: `configureContent` then keeps the
-    // previous locked truth (replacing it would require the rejected path) and
-    // the requestStart that follows every new Test/Play clears the run. A
-    // futureOnly swap keeps the active ruleset's own settings, which are the
-    // exact values the run was configured with.
-    const configuredSession = this.graph.gameplay.getSnapshot().session;
-    const activeRuleset = configuredSession?.rulesetId;
-    // A fresh configure while the previous session is still in a terminal state
-    // (stopped/completed) must NOT carry the previous run's locked settings —
-    // `configureContent` rejects foreign-ruleset settings with the internal
-    // `*_settings_locked` error. The previous run's truth belongs to that
-    // finished session; a new Test/Play starts from the desired setup anyway.
-    const stalePreviousRuleset = !futureOnly && typeof activeRuleset === "string" && (newSong || ["stopped", "completed"].includes(configuredSession?.state)) && activeRuleset !== content.selectedVariant.rulesetId;
-    const skipForeignSettings = !futureOnly && activeRuleset !== undefined && activeRuleset !== "" && activeRuleset !== content.selectedVariant.rulesetId && !stalePreviousRuleset;
+    // Fresh configureContent clears run truth and binds the selected Game Setup.
+    // Future-only swaps retain the coordinator's immutable collider identities,
+    // including defaults for a ruleset the current run never configured. Flow's
+    // magnetic presentation settings remain available on future Flow swaps.
+
     // Content's future swap retains old judged/past/active objects with their
     // original variant IDs, so the published snapshot is deliberately MIXED and
     // that mixed state persists until the next select. Gameplay separately
@@ -1414,7 +1499,7 @@ export class AeroGame extends HTMLElement {
     // untouched so gameplay's strict validator still rejects it rather than
     // silently degrading to an empty chart.
     const resolvedEvents = selectedVariantEvents.length > 0 ? selectedVariantEvents : content.resolvedEvents;
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { flowColliderSettings: gameplayFlowColliderSettings(setup), magneticAttraction: { range: setup.magneticAttractionRange, minStrength: setup.magneticAttractionMinStrength, maxStrength: setup.magneticAttractionMaxStrength, backFaceBias: setup.magneticAttractionBackFaceBias } } : {}), ...(!skipForeignSettings && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { ...(!futureOnly ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}), magneticAttraction: { range: setup.magneticAttractionRange, minStrength: setup.magneticAttractionMinStrength, maxStrength: setup.magneticAttractionMaxStrength, backFaceBias: setup.magneticAttractionBackFaceBias } } : {}), ...(!futureOnly && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else {
       // A new package cannot inherit the outgoing song's active Test transport.
@@ -2350,8 +2435,8 @@ export class AeroGame extends HTMLElement {
     const selectorSnapshot = profilePresenterSnapshot(this.graph.profiles.getSnapshot(), content.selectedVariant, session.state);
     const gameplaySelector=this.shadowRoot?.querySelector("aero-prototype-selector[scope='gameplay']");if(gameplaySelector instanceof HTMLElement){const modifiers=content.selectedVariant?.modifierIds??[];gameplaySelector.setAttribute("obstacle-mode",modifiers.includes("no_obstacles")||modifiers.includes("obstacle_visual_only")?"no_obstacles":"default");}
     setPresenter(this, "aero-prototype-selector[scope='gameplay']", selectorSnapshot);
-    setPresenter(this, "aero-content-import-progress", this.graph.authoring.getSnapshot());
-    setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: this.libraryView.selectedPackageId, preview: this.previewView });
+    setPresenter(this, "aero-content-import-progress", { ...this.graph.authoring.getSnapshot(), bulkReimport: this.bulkReimport });
+    setPresenter(this, "aero-content-library", { ...this.libraryView, selectedPackageId: this.libraryView.selectedPackageId, preview: this.previewView, bulkReimport: this.bulkReimport });
     setPresenter(this, "aero-beatsaver-browser", { ...this.beatSaverView, preview: this.previewView });
     renderBeatSaverDifficultyCircles(this.shadowRoot?.querySelector("aero-beatsaver-browser"), this.beatSaverView.results);
     setPresenter(this, "aero-background-environment", content.background ?? { kind: "css-fallback" });
@@ -2675,7 +2760,7 @@ export class AeroGame extends HTMLElement {
     else if (action === "environment-select") { const input = path.find((entry) => entry instanceof HTMLInputElement && entry.dataset.action === "environment-select"); if (input instanceof HTMLInputElement && input.checked) this.setEnvironmentMode(input.value); }
     else if (action === "ui-scale-select") { const select = path.find((entry) => entry instanceof HTMLSelectElement && entry.dataset.action === "ui-scale-select"); if (select instanceof HTMLSelectElement) this.setUiScale(Number(select.value)); }
     else if (action === "camera-pose-reset") this.resetCameraPose(this.cameraControlMode());
-    else if (action === "force-calibrate") { try { this.reset(); } catch (error) { this.handleError(error); } }
+    else if (action === "force-calibrate") void this.forceCalibrate().catch((error) => this.handleError(error));
   }
 
   handleInteractionInput(event) {
@@ -2744,7 +2829,7 @@ export class AeroGame extends HTMLElement {
         this.menuPauseArmed = true;
         if (visualTest && (this.pendingSessionAction !== "" || this.menuStarting)) { /* auto-resume guard: a newly queued/starting action owns the next controlled fresh restart, so do not resume the outgoing Test transport here */ }
         else if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
-        else { graph.input.resetCalibration("menu_closed_recalibration_required"); void this.startCv().catch((error) => this.handleError(error)).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
+        else { this.menuPauseArmed = false; if (this.sessionStartRequested && this.activeSessionAction === "start") void this.recoverPlayCamera().catch((error) => { if (this.isCurrent(this.connectedGeneration, graph)) { this.menuOpen = true; this.menuDisposition = "active-paused"; this.handleError(error); } }); else graph.input.resetCalibration("menu_closed_recalibration_required"); }
       });
     }
     this.renderPresenters(); this.publish("session_changed");
@@ -3197,7 +3282,7 @@ function template() { return `<style>
    distance test. Applied to the DOM UI layers only, never the .renderer 3D
    canvas. --aero-ui-scale is set on :host by the assembly (persisted). */
 .hud,.drawer,.menu-button,.status,.transient-cue,.debug-camera-controls,.backdrop,.hud-presenter{zoom:var(--aero-ui-scale,1)}
-</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-controls" class="debug-camera-controls" role="group" aria-label="Visual Test authoring controls" aria-describedby="debug-camera-state environment-config-status test-presentation-status equipment-config-status" aria-hidden="true" hidden><button class="debug-controls-collapse" data-action="debug-controls-collapse" type="button" aria-controls="visual-test-authoring-body" aria-expanded="true" aria-label="Collapse Visual Test controls">⌄</button><div id="visual-test-authoring-body" data-role="visual-test-authoring-body" class="visual-test-authoring-body"><div class="debug-camera-grid" role="group" aria-label="Camera movement"><button data-action="debug-camera-move" data-debug-camera-intent="forward" type="button" aria-label="Move camera forward" aria-keyshortcuts="W" aria-pressed="false"><span aria-hidden="true">F</span></button><button data-action="debug-camera-move" data-debug-camera-intent="back" type="button" aria-label="Move camera back" aria-keyshortcuts="S" aria-pressed="false"><span aria-hidden="true">B</span></button><button data-action="debug-camera-move" data-debug-camera-intent="up" type="button" aria-label="Move camera up" aria-keyshortcuts="E" aria-pressed="false"><span aria-hidden="true">U</span></button><button data-action="debug-camera-speed" type="button" aria-label="Camera movement speed Normal. Activate Boost." aria-pressed="false"><span data-role="debug-camera-speed-symbol" aria-hidden="true">N</span></button><button data-action="debug-camera-move" data-debug-camera-intent="left" type="button" aria-label="Move camera left" aria-keyshortcuts="A" aria-pressed="false"><span aria-hidden="true">L</span></button><button data-action="debug-camera-move" data-debug-camera-intent="right" type="button" aria-label="Move camera right" aria-keyshortcuts="D" aria-pressed="false"><span aria-hidden="true">R</span></button><button data-action="debug-camera-move" data-debug-camera-intent="down" type="button" aria-label="Move camera down" aria-keyshortcuts="Q" aria-pressed="false"><span aria-hidden="true">D</span></button></div><div class="debug-camera-actions" role="group" aria-label="Camera pose actions"><button data-action="debug-camera-reset" type="button" aria-label="Reset camera"><span aria-hidden="true">↺ Reset</span></button><button data-action="debug-camera-load" type="button" aria-label="Load camera pose"><span aria-hidden="true">Load</span></button><button data-action="debug-camera-export" type="button" aria-label="Export camera pose"><span aria-hidden="true">Export</span></button></div><output id="debug-camera-state" data-role="debug-camera-state" aria-live="polite" aria-label="Camera look not captured; movement speed Normal; 0 active movement intents.">○ · Normal</output><output data-role="debug-camera-pose-status" aria-live="polite"></output><section class="environment-authoring" aria-label="Environment alignment"><label for="environment-asset-select">Environment</label><select id="environment-asset-select" data-action="environment-asset-select">${environmentAssetOptions()}</select><output data-role="environment-background-mode">Background: Aero</output><div class="environment-fields"><label for="environment-position-x">Position X</label><input id="environment-position-x" data-environment-field="position-x" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-x-value"><span id="environment-position-x-value" class="environment-value"><output for="environment-position-x" data-environment-output="position-x"></output></span><label for="environment-position-y">Position Y</label><input id="environment-position-y" data-environment-field="position-y" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-y-value"><span id="environment-position-y-value" class="environment-value"><output for="environment-position-y" data-environment-output="position-y"></output></span><label for="environment-position-z">Position Z</label><input id="environment-position-z" data-environment-field="position-z" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-z-value"><span id="environment-position-z-value" class="environment-value"><output for="environment-position-z" data-environment-output="position-z"></output></span><label for="environment-pitch">Pitch</label><input id="environment-pitch" data-environment-field="pitch" type="range" min="-180" max="180" step="any" aria-describedby="environment-pitch-value"><span id="environment-pitch-value" class="environment-value"><output for="environment-pitch" data-environment-output="pitch"></output><span aria-label=" degrees">°</span></span><label for="environment-yaw">Yaw</label><input id="environment-yaw" data-environment-field="yaw" type="range" min="-180" max="180" step="any" aria-describedby="environment-yaw-value"><span id="environment-yaw-value" class="environment-value"><output for="environment-yaw" data-environment-output="yaw"></output><span aria-label=" degrees">°</span></span><label for="environment-roll">Roll</label><input id="environment-roll" data-environment-field="roll" type="range" min="-180" max="180" step="any" aria-describedby="environment-roll-value"><span id="environment-roll-value" class="environment-value"><output for="environment-roll" data-environment-output="roll"></output><span aria-label=" degrees">°</span></span><label for="environment-scale">Sphere radius scale</label><input id="environment-scale" data-environment-field="scale" type="range" min="0.25" max="4" step="any" aria-describedby="environment-scale-value"><span id="environment-scale-value" class="environment-value"><output for="environment-scale" data-environment-output="scale"></output></span></div><div class="environment-actions"><button data-action="environment-config-load" type="button">Load config</button><button data-action="environment-config-save" type="button">Save config</button><button data-action="environment-asset-retry" type="button">Retry</button></div><output data-role="environment-config-status" id="environment-config-status" role="status" aria-live="polite"></output></section><fieldset class="test-presentation-authoring"><legend>Beats</legend><p id="test-presentation-help">Presentation-only. Values apply on the next frame.</p><label for="test-presentation-lead">Lead (beats)</label><input id="test-presentation-lead" data-test-presentation-field="bounceLeadBeats" type="number" min="0.25" max="8" step="any" value="4" aria-describedby="test-presentation-lead-help"><small id="test-presentation-lead-help">0.25 to 8 beats</small><label for="test-presentation-height">Height (world units)</label><input id="test-presentation-height" data-test-presentation-field="bounceHeightWorldUnits" type="number" min="0" max="1.5" step="any" value="0.9" aria-describedby="test-presentation-height-help"><small id="test-presentation-height-help">0 to 1.5 world units</small><label for="test-presentation-apex">Apex (%)</label><input id="test-presentation-apex" data-test-presentation-field="bounceApexPercent" type="number" min="15" max="85" step="any" value="40" aria-describedby="test-presentation-apex-help"><small id="test-presentation-apex-help">15% to 85%</small><label for="test-presentation-rise">Rise easing</label><select id="test-presentation-rise" data-test-presentation-field="bounceRiseEasing"><option>linear</option><option>in_quad</option><option selected>out_quad</option><option>in_out_sine</option></select><label for="test-presentation-fall">Fall easing</label><select id="test-presentation-fall" data-test-presentation-field="bounceFallEasing"><option>linear</option><option selected>in_quad</option><option>out_quad</option><option>in_out_sine</option></select><label>Normal spawn distance <input data-test-presentation-field="normalSpawnDistanceWorldUnits" type="number" min="3" max="72" step="any"></label><label>Sky mode <select data-test-presentation-field="skyMode"><option value="off">Off</option><option value="prelude">Prelude</option></select></label><label>Sky prelude height <input data-test-presentation-field="skyPreludeHeightWorldUnits" type="number" min="0" max="50" step="any"></label><label>Sky prelude duration ms <input data-test-presentation-field="skyPreludeDurationMs" type="number" min="100" max="10000" step="any"></label><label>Sky prelude easing <select data-test-presentation-field="skyPreludeEasing"><option value="linear">Linear</option><option value="in_quad">In quad</option><option value="out_quad">Out quad</option><option value="in_out_sine">In/out sine</option></select></label><label>Boxing lane separation <input data-test-presentation-field="boxingLaneSeparationWorldUnits" type="number" min="1.7" max="4" step="any"></label><div class="environment-actions"><button data-action="test-presentation-reset" data-test-presentation-action type="button">Reset beats</button><button data-action="test-presentation-load" data-test-presentation-action type="button">Load beats JSON</button><button data-action="test-presentation-save" data-test-presentation-action type="button">Save beats JSON</button></div><output data-role="test-presentation-status" id="test-presentation-status" role="status" aria-live="polite"></output></fieldset><fieldset class="equipment-authoring"><legend>Equipment config</legend><p id="equipment-config-help">Tune private Test equipment live. Export deterministic YAML to bake finalized defaults.</p><label class="equipment-preview-toggle"><input type="checkbox" data-equipment-preview-toggle="true" disabled>Show hand equipment in Test</label><label class="equipment-preview-toggle"><input type="checkbox" data-test-automatic-feedback-toggle="true" checked disabled>Automatic GREAT/MISS feedback</label><fieldset class="equipment-mouse-hand"><legend>Mouse-controlled hand</legend><div><label><input type="radio" name="equipment-mouse-hand" value="off" data-equipment-mouse-hand="off" checked disabled>Off</label><label><input type="radio" name="equipment-mouse-hand" value="left" data-equipment-mouse-hand="left" disabled>Left</label><label><input type="radio" name="equipment-mouse-hand" value="right" data-equipment-mouse-hand="right" disabled>Right</label></div></fieldset>${equipmentControlMarkup()}<div class="equipment-actions"><button data-action="equipment-config-reset" data-equipment-config-action disabled type="button">Reset</button><button data-action="equipment-config-export" data-equipment-config-action disabled type="button">Export YAML</button></div><output data-role="equipment-config-status" id="equipment-config-status" role="status" aria-live="polite"></output></fieldset></div></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><p class="drawer-version" data-role="app-version"></p><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="display" aria-labelledby="drawer-display-heading"><h2 id="drawer-display-heading">Display</h2><div class="game-setup-select-row"><label for="ui-scale-select">UI scale (menus &amp; HUD only)</label><select id="ui-scale-select" data-action="ui-scale-select" aria-label="UI scale preset"></select></div></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p></section></div></div></section></div>`; }
+</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-controls" class="debug-camera-controls" role="group" aria-label="Visual Test authoring controls" aria-describedby="debug-camera-state environment-config-status test-presentation-status equipment-config-status" aria-hidden="true" hidden><button class="debug-controls-collapse" data-action="debug-controls-collapse" type="button" aria-controls="visual-test-authoring-body" aria-expanded="true" aria-label="Collapse Visual Test controls">⌄</button><div id="visual-test-authoring-body" data-role="visual-test-authoring-body" class="visual-test-authoring-body"><div class="debug-camera-grid" role="group" aria-label="Camera movement"><button data-action="debug-camera-move" data-debug-camera-intent="forward" type="button" aria-label="Move camera forward" aria-keyshortcuts="W" aria-pressed="false"><span aria-hidden="true">F</span></button><button data-action="debug-camera-move" data-debug-camera-intent="back" type="button" aria-label="Move camera back" aria-keyshortcuts="S" aria-pressed="false"><span aria-hidden="true">B</span></button><button data-action="debug-camera-move" data-debug-camera-intent="up" type="button" aria-label="Move camera up" aria-keyshortcuts="E" aria-pressed="false"><span aria-hidden="true">U</span></button><button data-action="debug-camera-speed" type="button" aria-label="Camera movement speed Normal. Activate Boost." aria-pressed="false"><span data-role="debug-camera-speed-symbol" aria-hidden="true">N</span></button><button data-action="debug-camera-move" data-debug-camera-intent="left" type="button" aria-label="Move camera left" aria-keyshortcuts="A" aria-pressed="false"><span aria-hidden="true">L</span></button><button data-action="debug-camera-move" data-debug-camera-intent="right" type="button" aria-label="Move camera right" aria-keyshortcuts="D" aria-pressed="false"><span aria-hidden="true">R</span></button><button data-action="debug-camera-move" data-debug-camera-intent="down" type="button" aria-label="Move camera down" aria-keyshortcuts="Q" aria-pressed="false"><span aria-hidden="true">D</span></button></div><div class="debug-camera-actions" role="group" aria-label="Camera pose actions"><button data-action="debug-camera-reset" type="button" aria-label="Reset camera"><span aria-hidden="true">↺ Reset</span></button><button data-action="debug-camera-load" type="button" aria-label="Load camera pose"><span aria-hidden="true">Load</span></button><button data-action="debug-camera-export" type="button" aria-label="Export camera pose"><span aria-hidden="true">Export</span></button></div><output id="debug-camera-state" data-role="debug-camera-state" aria-live="polite" aria-label="Camera look not captured; movement speed Normal; 0 active movement intents.">○ · Normal</output><output data-role="debug-camera-pose-status" aria-live="polite"></output><section class="environment-authoring" aria-label="Environment alignment"><label for="environment-asset-select">Environment</label><select id="environment-asset-select" data-action="environment-asset-select">${environmentAssetOptions()}</select><output data-role="environment-background-mode">Background: Aero</output><div class="environment-fields"><label for="environment-position-x">Position X</label><input id="environment-position-x" data-environment-field="position-x" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-x-value"><span id="environment-position-x-value" class="environment-value"><output for="environment-position-x" data-environment-output="position-x"></output></span><label for="environment-position-y">Position Y</label><input id="environment-position-y" data-environment-field="position-y" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-y-value"><span id="environment-position-y-value" class="environment-value"><output for="environment-position-y" data-environment-output="position-y"></output></span><label for="environment-position-z">Position Z</label><input id="environment-position-z" data-environment-field="position-z" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-z-value"><span id="environment-position-z-value" class="environment-value"><output for="environment-position-z" data-environment-output="position-z"></output></span><label for="environment-pitch">Pitch</label><input id="environment-pitch" data-environment-field="pitch" type="range" min="-180" max="180" step="any" aria-describedby="environment-pitch-value"><span id="environment-pitch-value" class="environment-value"><output for="environment-pitch" data-environment-output="pitch"></output><span aria-label=" degrees">°</span></span><label for="environment-yaw">Yaw</label><input id="environment-yaw" data-environment-field="yaw" type="range" min="-180" max="180" step="any" aria-describedby="environment-yaw-value"><span id="environment-yaw-value" class="environment-value"><output for="environment-yaw" data-environment-output="yaw"></output><span aria-label=" degrees">°</span></span><label for="environment-roll">Roll</label><input id="environment-roll" data-environment-field="roll" type="range" min="-180" max="180" step="any" aria-describedby="environment-roll-value"><span id="environment-roll-value" class="environment-value"><output for="environment-roll" data-environment-output="roll"></output><span aria-label=" degrees">°</span></span><label for="environment-scale">Sphere radius scale</label><input id="environment-scale" data-environment-field="scale" type="range" min="0.25" max="4" step="any" aria-describedby="environment-scale-value"><span id="environment-scale-value" class="environment-value"><output for="environment-scale" data-environment-output="scale"></output></span></div><div class="environment-actions"><button data-action="environment-config-load" type="button">Load config</button><button data-action="environment-config-save" type="button">Save config</button><button data-action="environment-asset-retry" type="button">Retry</button></div><output data-role="environment-config-status" id="environment-config-status" role="status" aria-live="polite"></output></section><fieldset class="test-presentation-authoring"><legend>Beats</legend><p id="test-presentation-help">Presentation-only. Values apply on the next frame.</p><label for="test-presentation-lead">Lead (beats)</label><input id="test-presentation-lead" data-test-presentation-field="bounceLeadBeats" type="number" min="0.25" max="8" step="any" value="4" aria-describedby="test-presentation-lead-help"><small id="test-presentation-lead-help">0.25 to 8 beats</small><label for="test-presentation-height">Height (world units)</label><input id="test-presentation-height" data-test-presentation-field="bounceHeightWorldUnits" type="number" min="0" max="1.5" step="any" value="0.9" aria-describedby="test-presentation-height-help"><small id="test-presentation-height-help">0 to 1.5 world units</small><label for="test-presentation-apex">Apex (%)</label><input id="test-presentation-apex" data-test-presentation-field="bounceApexPercent" type="number" min="15" max="85" step="any" value="40" aria-describedby="test-presentation-apex-help"><small id="test-presentation-apex-help">15% to 85%</small><label for="test-presentation-rise">Rise easing</label><select id="test-presentation-rise" data-test-presentation-field="bounceRiseEasing"><option>linear</option><option>in_quad</option><option selected>out_quad</option><option>in_out_sine</option></select><label for="test-presentation-fall">Fall easing</label><select id="test-presentation-fall" data-test-presentation-field="bounceFallEasing"><option>linear</option><option selected>in_quad</option><option>out_quad</option><option>in_out_sine</option></select><label>Normal spawn distance <input data-test-presentation-field="normalSpawnDistanceWorldUnits" type="number" min="3" max="72" step="any"></label><label>Sky mode <select data-test-presentation-field="skyMode"><option value="off">Off</option><option value="prelude">Prelude</option></select></label><label>Sky prelude height <input data-test-presentation-field="skyPreludeHeightWorldUnits" type="number" min="0" max="50" step="any"></label><label>Sky prelude duration ms <input data-test-presentation-field="skyPreludeDurationMs" type="number" min="100" max="10000" step="any"></label><label>Sky prelude easing <select data-test-presentation-field="skyPreludeEasing"><option value="linear">Linear</option><option value="in_quad">In quad</option><option value="out_quad">Out quad</option><option value="in_out_sine">In/out sine</option></select></label><label>Boxing lane separation <input data-test-presentation-field="boxingLaneSeparationWorldUnits" type="number" min="1.7" max="4" step="any"></label><div class="environment-actions"><button data-action="test-presentation-reset" data-test-presentation-action type="button">Reset beats</button><button data-action="test-presentation-load" data-test-presentation-action type="button">Load beats JSON</button><button data-action="test-presentation-save" data-test-presentation-action type="button">Save beats JSON</button></div><output data-role="test-presentation-status" id="test-presentation-status" role="status" aria-live="polite"></output></fieldset><fieldset class="equipment-authoring"><legend>Equipment config</legend><p id="equipment-config-help">Tune private Test equipment live. Export deterministic YAML to bake finalized defaults.</p><label class="equipment-preview-toggle"><input type="checkbox" data-equipment-preview-toggle="true" disabled>Show hand equipment in Test</label><label class="equipment-preview-toggle"><input type="checkbox" data-test-automatic-feedback-toggle="true" checked disabled>Automatic GREAT/MISS feedback</label><fieldset class="equipment-mouse-hand"><legend>Mouse-controlled hand</legend><div><label><input type="radio" name="equipment-mouse-hand" value="off" data-equipment-mouse-hand="off" checked disabled>Off</label><label><input type="radio" name="equipment-mouse-hand" value="left" data-equipment-mouse-hand="left" disabled>Left</label><label><input type="radio" name="equipment-mouse-hand" value="right" data-equipment-mouse-hand="right" disabled>Right</label></div></fieldset>${equipmentControlMarkup()}<div class="equipment-actions"><button data-action="equipment-config-reset" data-equipment-config-action disabled type="button">Reset</button><button data-action="equipment-config-export" data-equipment-config-action disabled type="button">Export YAML</button></div><output data-role="equipment-config-status" id="equipment-config-status" role="status" aria-live="polite"></output></fieldset></div></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><p class="drawer-version" data-role="app-version"></p><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="display" aria-labelledby="drawer-display-heading"><h2 id="drawer-display-heading">Display</h2><div class="game-setup-select-row"><label for="ui-scale-select">UI scale (menus &amp; HUD only)</label><select id="ui-scale-select" data-action="ui-scale-select" aria-label="UI scale preset"></select></div></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><button data-action="force-calibrate" type="button" class="drawer-action" aria-label="Force calibrate now">Force calibrate now</button><p data-role="info-action" class="drawer-action" role="alert" hidden></p></section></div></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }
