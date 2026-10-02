@@ -122,7 +122,7 @@ Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-we
 | `@aerobeat/web-renderer` | `8e53b2b520dc4b24c93cb5780a135c9887828762` | `069a40a731946ecc0f5e12f0ab49776e138495cb` |
 | `@aerobeat/web-gameplay` | `46624d142db93c81f6aeb4e6f7387c345013f5f4` | `9b2d51f676c66fc22c88203f98e489b3a738588b` |
 | `@aerobeat/web-input` | `cc07bfa37024c53f2a5af0c9993f3c14548a3122` | `3e981a6573f20e752d9a7fe8636d754575f4e3bd` |
-| `@aerobeat/web-ui` | `785d214edaa51cad0011b8074ee953e2bc69da36` | `857513c618fe9b90848c6b4d464fb0758e2b3417` |
+| `@aerobeat/web-ui` | `fdd340459c123d46b290f8a3fbe831884576966c` | `09ab1d61b77443816b7cd26778b1b858c8dd48b3` |
 
 These `0.0.89` source pins are candidate QA only; live immutable raw `0.0.88` remains unchanged.
 
