@@ -1,9 +1,9 @@
 // @ts-check
 // 0.0.61 L-F5 (chgy/hk5q/vths): repurposed from the legacy marker oracle to
 // validate EQUIPMENT staging through the combined production entry
-// renderGameplayFrameWithCursorsAndEquipment. GATE 1: legacy wrist/nose
-// markers are hidden (production always passes an empty cursor array); the
-// Flow saber beam and Boxing glove are the visible + detection surface.
+// renderGameplayFrameWithCursorsAndEquipment. Wrist cursor markers remain
+// retired; the default-enabled measured Nose marker is the sole cursor.
+// Flow saber beams and Boxing gloves remain the wrist detection surface.
 
 import { createServer as createHttpServer } from "node:http";
 import { cameraPreviewToAthlete } from "@aerobeat/web-contracts";
@@ -63,7 +63,8 @@ async function runContext(context) {
     const graph = { ...originalGraph,content:{ getSnapshot:()=>content },gameplay:{ getSnapshot:()=>({ session }) },input:{ getSnapshot:()=>input },renderer };
     element.graph=graph; element.menuOpen=false;
     const sceneDump = () => { const equipment=[]; for(const [assetId,list] of renderer.equipmentPools) for(const entity of list) equipment.push({assetId,name:entity.name,enabled:entity.enabled,x:entity.getPosition().x,y:entity.getPosition().y}); const markers=[...renderer.markerPool].map((entity)=>({name:entity.name,enabled:entity.enabled})); return { equipment, markers }; };
-    const render = (background,environment) => { element.environmentMode=environment; renderer.setBackgroundProjection({kind:"solid",colors:[background],angleDeg:0}); calls.length=0; latestCall=null; element.renderGameplay(graph); const displayed=displayedPixels(); let changedPixels=0; for(let index=0;index<displayed.length;index+=4)if(displayed[index]!==baseline[index]||displayed[index+1]!==baseline[index+1]||displayed[index+2]!==baseline[index+2]||displayed[index+3]!==baseline[index+3])changedPixels+=1; const scene=sceneDump(); const status=renderer.describe(); return {order:[...calls],call:latestCall,scene,changedPixels,environment,background,effectiveDpr:status.devicePixelRatio,serviceId:status.serviceId}; };
+    const render = (background,environment,withoutEquipment=false) => { element.environmentMode=environment; renderer.setBackgroundProjection({kind:"solid",colors:[background],angleDeg:0}); calls.length=0; latestCall=null; element.renderGameplay(graph,withoutEquipment?Object.freeze([]):null); const displayed=displayedPixels(); let changedPixels=0; for(let index=0;index<displayed.length;index+=4)if(displayed[index]!==baseline[index]||displayed[index+1]!==baseline[index+1]||displayed[index+2]!==baseline[index+2]||displayed[index+3]!==baseline[index+3])changedPixels+=1; const scene=sceneDump(); const status=renderer.describe(); return {order:[...calls],call:latestCall,scene,changedPixels,environment,background,effectiveDpr:status.devicePixelRatio,serviceId:status.serviceId}; };
+    const noseOnly=render("#071426","aero",true);
     const dark=render("#071426","aero");
     const light=render("#f5f5f5","camera");
     input=cursorInput({tracking:{gameplayPaused:true,freshCalibrationRequired:true,allRequiredAnchorsVisible:false},retainedGeometryDimmed:true,countdownFrozen:true}); const stale=render("#071426","aero");
@@ -72,10 +73,15 @@ async function runContext(context) {
     session={state:"countdown",purpose:"play",timelinePositionMs:0,rulesetId:"flow_colliders_v1"}; const countdown=render("#071426","aero");
     input=cursorInput({tracking:{gameplayPaused:false,freshCalibrationRequired:false,allRequiredAnchorsVisible:false,anchorsFrozen:true,degradedAnchors:["left_wrist"]}}); const frozen=render("#071426","aero");
     input=cursorInput(); input.anchors[1]={anchor:"left_wrist",valid:true,x:.9,y:.47,confidence:.2}; const lowConfidence=render("#071426","aero");
+    input=cursorInput(); input.anchors[0]={anchor:"nose",valid:true,x:.17,y:.23,confidence:.2}; const invalidNose=render("#071426","aero");
+    input=cursorInput(); input.anchors[0]={anchor:"nose",valid:true,x:1.1,y:.23,confidence:.99}; const outOfRangeNose=render("#071426","aero");
+    input=cursorInput(); element.desiredGameSetup={...element.desiredGameSetup,noseMarkerVisible:false}; const noseOff=render("#071426","aero");
+    element.desiredGameSetup={...element.desiredGameSetup,noseMarkerVisible:true};
     input=cursorInput(); session={state:"playing",purpose:"play",timelinePositionMs:0,rulesetId:"boxing_collider_v1"}; content.selectedVariant={variantId:"cursor-boxing",chartId:"cursor-boxing-chart",mode:"boxing",rulesetId:"boxing_collider_v1"}; const boxing=render("#071426","aero");
     const boxingLight=render("#f5f5f5","camera");
+    const boxingNoseOnly=render("#f5f5f5","camera",true);
     renderer.renderGameplayFrameWithCursorsAndEquipment=originalCombined;renderer.manualTick=originalManualTick;element.graph=originalGraph; const snapshotText=JSON.stringify(element.getSnapshot());
-    return {dark,light,stale,menu,calibrating,countdown,frozen,lowConfidence,boxing,boxingLight,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels|equipmentRecords|gameplayEquipment|private_performance|mediaPipeRuntime|poseAge|cameraFormat/u.test(snapshotText),devicePixelRatio};
+    return {noseOnly,dark,light,stale,menu,calibrating,countdown,frozen,lowConfidence,invalidNose,outOfRangeNose,noseOff,boxing,boxingLight,boxingNoseOnly,snapshotHasCursorPayload:/gameplayCursors|cursorRecords|cursorPixels|equipmentRecords|gameplayEquipment|private_performance|mediaPipeRuntime|poseAge|cameraFormat/u.test(snapshotText),devicePixelRatio};
   },athleteLeftWrist);
   const label=`${context.kind}:${context.width}x${context.height}@${context.dpr}`;
   // Canonical pose roots own each model and presentation-only child geometry.
@@ -84,32 +90,34 @@ async function runContext(context) {
   const hasEnabled=(frame,names)=>names.every((name)=>frame.scene.equipment.some((entry)=>entry.name===name&&entry.enabled===true));
   const anyEnabledEquipment=(frame)=>frame.scene.equipment.some((entry)=>entry.enabled===true);
   const noMarkersEnabled=(frame)=>!frame.scene.markers.some((entry)=>entry.enabled===true);
-  const noCursorNamed=(frame)=>!frame.scene.markers.some((entry)=>/cursor-/u.test(entry.name))&&!frame.scene.equipment.some((entry)=>/cursor-/u.test(entry.name));
-  for(const frame of [result.dark,result.countdown,result.frozen,result.lowConfidence,result.stale,result.menu,result.calibrating]){
+  const onlyNoseMarker=(frame)=>frame.scene.markers.filter((entry)=>entry.enabled).length===1&&frame.scene.markers.some((entry)=>entry.name==="cursor-nose"&&entry.enabled);
+  const noWristCursors=(frame)=>!frame.scene.markers.some((entry)=>/cursor-(left_wrist|right_wrist)/u.test(entry.name))&&!frame.scene.equipment.some((entry)=>/cursor-/u.test(entry.name));
+  const nose={role:"nose",x:.17,y:.23,confidence:.99};
+  for(const frame of [result.noseOnly,result.dark,result.light,result.countdown,result.frozen,result.lowConfidence,result.stale,result.menu,result.calibrating,result.boxing,result.boxingLight,result.boxingNoseOnly,result.invalidNose,result.outOfRangeNose,result.noseOff]){
     assert(JSON.stringify(frame.order)===JSON.stringify(["gameplay","equipment"]),`${label} draw order must be gameplay then equipment: ${JSON.stringify(frame.order)}`);
     assert(frame.serviceId==="aero.renderer.playcanvas",`${label} must use the PlayCanvas renderer: ${JSON.stringify(frame)}`);
-    assert(Array.isArray(frame.call.cursors)&&frame.call.cursors.length===0,`${label} GATE 1: production must pass an empty cursor array (legacy markers hidden): ${JSON.stringify(frame.call.cursors)}`);
-    assert(JSON.stringify(frame.call.cursorOptions.grid)===JSON.stringify({x:0,y:0,width:1,height:1})&&frame.call.cursorOptions.minConfidence===.5&&frame.call.cursorOptions.sizeCssPx===32,`${label} cursor options seam must still carry the exact assembly projection grid: ${JSON.stringify(frame.call.cursorOptions)}`);
+    assert(noWristCursors(frame),`${label} wrist cursor markers must never be present: ${JSON.stringify(frame.scene)}`);
+    assert(JSON.stringify(frame.call.cursorOptions.grid)===JSON.stringify({x:0,y:0,width:1,height:1})&&frame.call.cursorOptions.minConfidence===.5&&frame.call.cursorOptions.sizeCssPx===32&&frame.call.cursorOptions.noseMarkerVisible===(frame!==result.noseOff)&&frame.call.cursorOptions.noseMarkerScale===.25,`${label} cursor options seam must still carry the exact assembly projection grid: ${JSON.stringify(frame.call.cursorOptions)}`);
     assert(JSON.stringify(frame.call.equipmentOptions.grid)===JSON.stringify({x:0,y:0,width:1,height:1}),`${label} equipment options must use the exact assembly projection grid: ${JSON.stringify(frame.call.equipmentOptions)}`);
     assert(frame.call.manualTickDelta===1,`${label} staged gameplay/equipment must use one PlayCanvas tick: ${JSON.stringify(frame.call.manualTickDelta)}`);
-    assert(noMarkersEnabled(frame)&&noCursorNamed(frame),`${label} no legacy marker entities may be enabled or present: ${JSON.stringify(frame.scene)}`);
+    assert((frame===result.invalidNose||frame===result.outOfRangeNose||frame===result.noseOff)?(JSON.stringify(frame.call.cursors)==="[]"&&frame.call.result.cursorCount===0&&noMarkersEnabled(frame)):(JSON.stringify(frame.call.cursors)===JSON.stringify([nose])&&frame.call.result.cursorCount===1&&onlyNoseMarker(frame)),`${label} only valid enabled measured nose may stage a cursor marker: ${JSON.stringify({cursors:frame.call.cursors,count:frame.call.result.cursorCount,markers:frame.scene.markers})}`);
   }
   // Flow, playing, full confidence: both hands staged as saber beams.
   assert(result.dark.call.equipment.length===2&&JSON.stringify(result.dark.call.equipment.map((record)=>record.role))===JSON.stringify(["left_wrist","right_wrist"]),`${label} flow playing must stage both hands: ${JSON.stringify(result.dark.call.equipment)}`);
   assert(result.dark.call.equipment.every((record)=>JSON.stringify(Object.keys(record))===JSON.stringify(["role","mode","anchor","scale","orientation","geometryIdentity","configIdentity"])&&record.mode==="flow"&&[record.anchor.x,record.anchor.y,record.anchor.z,record.orientation.x,record.orientation.y,record.orientation.z,record.orientation.w].every(Number.isFinite)),`${label} flow records must be exact canonical resolved poses: ${JSON.stringify(result.dark.call.equipment)}`);
   const leftPose=result.dark.call.equipment.find((record)=>record.role==="left_wrist"),rightPose=result.dark.call.equipment.find((record)=>record.role==="right_wrist");
   assert(leftPose.anchor.x===athleteLeftWrist.x*4-.5&&leftPose.anchor.y===2.5-athleteLeftWrist.y*3&&rightPose.anchor.x===.53*4-.5&&rightPose.anchor.y===2.5-.71*3,`${label} equipment poses must carry exact judge-space wrist anchors: ${JSON.stringify(result.dark.call.equipment)}`);
-  assert(result.dark.call.result.equipmentCount===2&&result.dark.call.result.cursorCount===0,`${label} renderer must stage both flow equipment records and zero legacy cursors: ${JSON.stringify(result.dark.call.result)}`);
+  assert(result.dark.call.result.equipmentCount===2&&result.dark.call.result.cursorCount===1,`${label} renderer must stage both flow equipment records and only the nose cursor: ${JSON.stringify(result.dark.call.result)}`);
   assert(hasEnabled(result.dark,flowNames(result.dark,"left_wrist"))&&hasEnabled(result.dark,flowNames(result.dark,"right_wrist")),`${label} both flow hands must have enabled equipment + core entities: ${JSON.stringify(result.dark.scene)}`);
   const darkLeft=result.dark.scene.equipment.find((entry)=>entry.name==="equipment-left_wrist-pose-root"); assert(darkLeft&&darkLeft.x>0,`${label} camera x=.1 projected athlete x=.9 must remain athlete-right without a second mirror: ${JSON.stringify(darkLeft)}`);
-  assert(result.dark.changedPixels>0,`${label} flow saber on dark Aero must alter displayed canvas pixels: ${JSON.stringify({changedPixels:result.dark.changedPixels})}`);
+  assert(result.dark.changedPixels>result.noseOnly.changedPixels,`${label} flow sabers must add pixels beyond the legitimate nose marker on dark Aero: ${JSON.stringify({equipment:result.dark.changedPixels,noseOnly:result.noseOnly.changedPixels})}`);
   // Flow on bright Camera: additive glow may not add pixels over #f5f5f5, so prove
   // staging (records + entities), and prove the coordinate seam is environment-stable.
   assert(JSON.stringify(result.dark.call.equipment)===JSON.stringify(result.light.call.equipment),`${label} Aero/Camera equipment coordinates must match`);
   assert(result.light.call.result.equipmentCount===2&&hasEnabled(result.light,flowNames(result.light,"left_wrist"))&&hasEnabled(result.light,flowNames(result.light,"right_wrist")),`${label} flow equipment must stay staged on Camera: ${JSON.stringify(result.light)}`);
-  // Suppressed states: no records, no entities, no pixels.
+  // Suppressed equipment states retain only the independently verified nose pixels.
   for(const frame of [result.stale,result.menu,result.calibrating]){
-    assert(frame.call.equipment.length===0&&frame.call.result.equipmentCount===0&&!anyEnabledEquipment(frame)&&frame.changedPixels===0,`${label} stale/menu/calibrating frames must clear equipment records, entities and pixels: ${JSON.stringify(frame)}`);
+    assert(frame.call.equipment.length===0&&frame.call.result.equipmentCount===0&&!anyEnabledEquipment(frame)&&frame.changedPixels===result.noseOnly.changedPixels,`${label} stale/menu/calibrating frames must clear equipment records, entities and retain only nose pixels: ${JSON.stringify(frame)}`);
   }
   // Countdown retains current calibrated equipment.
   assert(result.countdown.call.equipment.length===2&&result.countdown.call.result.equipmentCount===2&&result.countdown.changedPixels>0,`${label} countdown must retain current calibrated equipment: ${JSON.stringify(result.countdown.call.equipment)} changed=${result.countdown.changedPixels}`);
@@ -120,8 +128,8 @@ async function runContext(context) {
   // Boxing variant: gloves (opaque body + accent), no direction key.
   assert(result.boxing.call.equipment.length===2&&JSON.stringify(result.boxing.call.equipment.map((record)=>record.role))===JSON.stringify(["left_wrist","right_wrist"])&&result.boxing.call.equipment.every((record)=>JSON.stringify(Object.keys(record))===JSON.stringify(["role","mode","anchor","scale","orientation","geometryIdentity","configIdentity"])&&record.mode==="boxing"),`${label} boxing playing must stage both hands as gloves without a direction: ${JSON.stringify(result.boxing.call.equipment)}`);
   assert(result.boxing.call.result.equipmentCount===2&&hasEnabled(result.boxing,gloveNames(result.boxing,"left_wrist"))&&hasEnabled(result.boxing,gloveNames(result.boxing,"right_wrist")),`${label} both boxing hands must have enabled glove GLB entities: ${JSON.stringify(result.boxing.scene)}`);
-  assert(result.boxing.changedPixels>0,`${label} boxing gloves on dark Aero must alter displayed canvas pixels: ${JSON.stringify({changedPixels:result.boxing.changedPixels})}`);
-  assert(result.boxingLight.changedPixels>0,`${label} opaque boxing gloves must stay pixel-visible over bright Camera: ${JSON.stringify({changedPixels:result.boxingLight.changedPixels})}`);
+  assert(result.boxing.changedPixels>result.noseOnly.changedPixels,`${label} boxing gloves must add pixels beyond the nose on dark Aero: ${JSON.stringify({changedPixels:result.boxing.changedPixels})}`);
+  assert(result.boxingLight.changedPixels>result.boxingNoseOnly.changedPixels,`${label} opaque boxing gloves must add pixels beyond the nose over bright Camera: ${JSON.stringify({changedPixels:result.boxingLight.changedPixels})}`);
   assert(!result.snapshotHasCursorPayload,`${label} equipment drawing must add no public cursor/equipment/media payload`);
   assert(result.dark.effectiveDpr===Math.min(context.dpr,2)&&result.boxingLight.effectiveDpr===Math.min(context.dpr,2),`${label} renderer must preserve truthful DPR cap: ${JSON.stringify(result)}`);
   assert(noise.length===0,`${label} emitted console noise: ${noise.join(" | ")}`);
