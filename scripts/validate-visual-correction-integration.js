@@ -80,7 +80,34 @@ try {
       assert.equal(evidence.missIcon.appearanceColor,"#2a3038"); assert(Math.abs(evidence.missIcon.position.z-(1181-1000)*.006)<1e-12,"miss must continue moving through gray feedback at the canonical .006 world units/ms");const expectedBoxingPunches=[["straight_left","#FF0000"],["straight_right","#808080"],["hook_left","#FF0000"],["hook_right","#808080"],["uppercut_left","#FF0000"],["uppercut_right","#808080"]];assert.deepEqual(evidence.boxingModeEvidence.map((entry)=>entry.mode),["boxing_lanes","boxing_spatial_grid"]);for(const entry of evidence.boxingModeEvidence){assert.deepEqual(entry.punches,expectedBoxingPunches,`${entry.mode} renders all six exact punch colors through the private seam`);assert.equal(entry.guards.length,2);assert.equal(entry.guards.every((color)=>color===null),true,`${entry.mode} paired guards remain fixed-color`);} assert.equal(evidence.missFeedback.apparentHeightCssPx,42); assert.equal(evidence.missFeedback.animation,"shake"); assert.notEqual(evidence.missFeedback.offsetX,0,"Miss must use deterministic nine-cycle shake motion"); assert.equal(evidence.missShadows,1,"continuing miss keeps one gameplay-inert shadow");
       assert.deepEqual(evidence.wallFrame.target.gameplayGeometry,{schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:1,y:0,width:1,height:3}); assert.deepEqual(evidence.wallFrame.target.cells,[1,5,9]); assert.equal(evidence.wall.scale.x,1); assert(Math.abs(evidence.wall.scale.y-2.94/.94)<1e-12); assert(Math.abs(evidence.wall.scale.z-.15)<1e-9); assert.deepEqual({x:evidence.wall.position.x,y:evidence.wall.position.y},{x:-.5,y:1}); assert(Math.abs(evidence.wall.position.z+.075)<1e-5); assert(evidence.wallShadow&&evidence.wallShadow.position.y<evidence.wall.position.y&&evidence.wallShadow.targetId===evidence.wall.targetId,"tall wall must retain one directly-below gameplay-inert shadow");
       assert.equal(evidence.appliedDpr,Math.min(requestedDpr,2)); assert.deepEqual(noise,[]);
-      matrix.push({embedding,viewport:viewport.name,requestedDpr,appliedDpr:evidence.appliedDpr,timing:Object.fromEntries(Object.entries(evidence.timingBounds).map(([name,value])=>[name,value.count])),equipmentCount:evidence.equipmentStatus.instanceCount,missZ:evidence.missIcon.position.z,wallScale:evidence.wall.scale});
+      // 0.0.90 (htsg): spawn-distance override proof — with override ON,
+      // normalSpawnMs shifts by exactly distance/0.006 ms vs the song-defined value.
+      const spawnProof = await game.evaluate(async () => {
+        const module = await import("/src/game-setup-coordinator.js");
+        const original = module.getGameSetupSnapshot();
+        // Override OFF: song-defined timing
+        module.setGameSetupSnapshot({ ...original, spawnDistanceOverride: { enabled: false, normalSpawnDistanceWorldUnits: 50 } });
+        await game.lifecycleIntentTail;
+        game.graph = graph;
+        const offFrame = game.rendererFrame();
+        const offTargets = offFrame.targets;
+        // Override ON at 50 WU: normalSpawnMs shifts by 50/0.006 = 8333.33 ms
+        module.setGameSetupSnapshot({ ...original, spawnDistanceOverride: { enabled: true, normalSpawnDistanceWorldUnits: 50 } });
+        await game.lifecycleIntentTail;
+        const onFrame = game.rendererFrame();
+        const onTargets = onFrame.targets;
+        module.setGameSetupSnapshot(original);
+        await game.lifecycleIntentTail;
+        game.graph = originalGraph;
+        const offNormal = offTargets.find(t => t.normalSpawnMs !== null)?.normalSpawnMs ?? null;
+        const onNormal = onTargets.find(t => t.normalSpawnMs !== null)?.normalSpawnMs ?? null;
+        return { offNormal, onNormal, shift: onNormal !== null && offNormal !== null ? onNormal - offNormal : null };
+      });
+      assert.notEqual(spawnProof.offNormal, null, "spawn proof: song-defined normalSpawnMs present");
+      assert.notEqual(spawnProof.onNormal, null, "spawn proof: override normalSpawnMs present");
+      const expectedShift = 50 / 0.006;
+      assert(Math.abs(spawnProof.shift - expectedShift) < 1, `spawn proof: override ON shifts normalSpawnMs by ${expectedShift} ms, got ${spawnProof.shift}`);
+      matrix.push({embedding,viewport:viewport.name,requestedDpr,appliedDpr:evidence.appliedDpr,timing:Object.fromEntries(Object.entries(evidence.timingBounds).map(([name,value])=>[name,value.count])),equipmentCount:evidence.equipmentStatus.instanceCount,missZ:evidence.missIcon.position.z,wallScale:evidence.wall.scale,spawnShift:spawnProof.shift});
     } finally { await context.close(); }
   }
   console.log(`Assembly visual-correction direct/iframe matrix passed: ${JSON.stringify(matrix)}`);
