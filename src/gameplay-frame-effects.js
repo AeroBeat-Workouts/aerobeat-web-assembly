@@ -576,13 +576,17 @@ export function projectHazardContactEvents(gameplay, nowMs) {
     // Flow hazard contact: kind "bomb" (bomb touch) or kind "wall"
     // (flow_colliders_v1 nose–obstacle wall contact), result==="contact".
     if ((outcome.kind !== "bomb" && outcome.kind !== "wall") || outcome.result !== "contact") continue;
-    const committedTimelinePositionMs = Number(outcome.committedTimelinePositionMs);
-    if (!Number.isFinite(committedTimelinePositionMs) || committedTimelinePositionMs < 0) continue;
+    // 0.0.90 (htsg): wall contacts prefer firstContactTimelinePositionMs (the
+    // real contact instant) over committedTimelinePositionMs (the removal tick).
+    // Bombs and legacy outcomes without the field fall back to committed.
+    const firstContact = outcome.kind === "wall" ? outcome.firstContactTimelinePositionMs : null;
+    const atMsValue = firstContact !== null && firstContact !== undefined ? Number(firstContact) : Number(outcome.committedTimelinePositionMs);
+    if (!Number.isFinite(atMsValue) || atMsValue < 0) continue;
     const eventId = String(outcome.eventId ?? "");
     if (eventId.length < 1 || eventId.length > 128 || seenEventIds.has(eventId)) continue;
-    if (nowMs - committedTimelinePositionMs > HAZARD_CONTACT_RETENTION_MS) continue;
+    if (nowMs - atMsValue > HAZARD_CONTACT_RETENTION_MS) continue;
     seenEventIds.add(eventId);
-    events.push({ eventId, atMs: committedTimelinePositionMs });
+    events.push({ eventId, atMs: atMsValue });
   }
   if (events.length === 0) return [];
   // Newest-first sort for a deterministic cap; avoided/miss outcomes produce nothing.

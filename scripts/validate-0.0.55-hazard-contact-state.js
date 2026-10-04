@@ -22,6 +22,7 @@
 // normalize to non-null; genuinely invalid shapes must still return null.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { projectHazardContactEvents } from "../src/gameplay-frame-effects.js";
 
 // Pull the exact `normalizedHazardContactState` function source out of
 // src/index.js so we test the shipped implementation, not a copy.
@@ -105,6 +106,49 @@ const normalizedHazardContactState = new Function(`${match[0]}; return normalize
   assert.equal(normalizedHazardContactState(null), null, "null value is invalid");
   assert.equal(normalizedHazardContactState("nope"), null, "non-object is invalid");
   assert.equal(normalizedHazardContactState([true, 1200, null]), null, "array is invalid");
+}
+
+// ---------- 0.0.90 (htsg): wall hazard outcome with both fields emits at first-contact ----------
+{
+  // Flow wall outcome carrying both firstContactTimelinePositionMs and
+  // committedTimelinePositionMs: the projector must emit at the first-contact
+  // time, not the removal time.
+  const wallOutcome = Object.freeze({
+    schema: "aerobeat/flow_hazard_outcome", version: 1,
+    eventId: "wall-first-contact", kind: "wall", result: "contact",
+    firstContactTimelinePositionMs: 1000,
+    committedTimelinePositionMs: 3500,
+    consequenceApplied: true
+  });
+  const snapshot = Object.freeze({ judgements: [], obstacleOutcomes: [], hazardOutcomes: [wallOutcome] });
+  const events = projectHazardContactEvents(snapshot, 1500);
+  assert.equal(events.length, 1, "wall contact with both fields produces one event");
+  assert.equal(events[0].eventId, "wall-first-contact");
+  assert.equal(events[0].atMs, 1000, "wall contact emits at firstContactTimelinePositionMs, not committedTimelinePositionMs");
+
+  // Legacy wall outcome without firstContactTimelinePositionMs falls back to committed.
+  const legacyWall = Object.freeze({
+    schema: "aerobeat/flow_hazard_outcome", version: 1,
+    eventId: "wall-legacy", kind: "wall", result: "contact",
+    committedTimelinePositionMs: 2000,
+    consequenceApplied: true
+  });
+  const legacySnapshot = Object.freeze({ judgements: [], obstacleOutcomes: [], hazardOutcomes: [legacyWall] });
+  const legacyEvents = projectHazardContactEvents(legacySnapshot, 2500);
+  assert.equal(legacyEvents.length, 1, "legacy wall contact produces one event");
+  assert.equal(legacyEvents[0].atMs, 2000, "legacy wall contact falls back to committedTimelinePositionMs");
+
+  // Bomb outcome is unaffected (no firstContact field).
+  const bombOutcome = Object.freeze({
+    schema: "aerobeat/flow_hazard_outcome", version: 1,
+    eventId: "bomb-1", kind: "bomb", result: "contact",
+    committedTimelinePositionMs: 1500,
+    consequenceApplied: true
+  });
+  const bombSnapshot = Object.freeze({ judgements: [], obstacleOutcomes: [], hazardOutcomes: [bombOutcome] });
+  const bombEvents = projectHazardContactEvents(bombSnapshot, 2000);
+  assert.equal(bombEvents.length, 1, "bomb contact produces one event");
+  assert.equal(bombEvents[0].atMs, 1500, "bomb contact uses committedTimelinePositionMs");
 }
 
 console.log("0.0.55 W1 hazard-contact-state null-tolerance oracle passed.");
