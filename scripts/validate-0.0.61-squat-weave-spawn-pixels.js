@@ -5,14 +5,14 @@
 // two open htc8 gap rows (squat geometry+contact, weave_left geometry+contact).
 //   (a) SQUAT GEOMETRY: a canonical squat (gameplay {x:0,y:0,w:4,h:1} — the
 //       full-width TOP row, gridMask [0,1,2,3], noseSafeCells [4..11])
-//       renders as TWO full-height lane walls — one per lane (the renderer
-//       duplicates squat walls per lane by design,
-//       gameplay-scene-model.js:256-263): exactly two kind:"obstacle" wall
-//       objects at the two lane positions (x = ±0.9, y = 1.0 — the canonical
-//       boxing lane pair), each scaled to the FULL lane height
-//       (2.94 WU = BOXING_LANE_HEIGHT, i.e. scale.y = 2.94/0.94), distinct
-//       from each other, covering both lanes (lastModel + worldToScreen;
-//       per-wall diff-pixel glyph presence at each projected position).
+//       renders as a SINGLE top-row full-width bar (0.0.90 htsg operator
+//       decision: squat = top row only, full row): exactly one
+//       kind:"obstacle" wall object centered at x = 0, y = 2 (the top row),
+//       scaled to one row of height (scale.y = 0.94/0.94) and full grid
+//       width (scale.x = (4 − 0.06)/0.94), duck-under-it (lastModel +
+//       worldToScreen; diff-pixel glyph presence at the projected bar
+//       center). The former two full-height lane walls (x = ±0.9) were the
+//       pre-0.0.90 shape and are NO LONGER correct.
 //   (b) WEAVE_LEFT GEOMETRY: a single-lane-column full-height weave_left
 //       (gameplay {x:3,y:0,w:1,h:3}, gridMask [3,7,11], the mirror of the
 //       weave_right coverage in validate-0.0.58-boxing-vignette-pixels.js at
@@ -124,13 +124,20 @@ try {
         const LANE_RIGHT_X = 0.9;
         const LANE_Y = 1.0;
         const WALL_SCALE_X = 1.7 / 0.94; // BOXING_LANE_WIDTH / GAMEPLAY_CELL_SIZE
+        // 0.0.90 htsg: the SQUAT is a single top-row full-width bar —
+        // centered x = 0, top row y = 2, one row tall, full grid width:
+        // scale.x = (4 − 0.06×1) / 0.94, scale.y = (1 − 0.06×1) / 0.94.
+        const SQUAT_BAR_X = 0;
+        const SQUAT_BAR_Y = 2;
+        const SQUAT_SCALE_X = (4 - 0.06) / 0.94;
+        const SQUAT_SCALE_Y = (1 - 0.06) / 0.94;
         // 0.0.61 L-F8: a weave wall renders at the PRESENTATION X of its
         // authored grid column (columnX: col 3 → +1.5) and spans exactly that
         // column — the flow-wall inset formula at authored width 1:
         // (1 − 0.06×1) / 0.94 = 1.0.
         const WEAVE_COL_X = 1.5;
         const WEAVE_SCALE_X = 1.0;
-        const WALL_SCALE_Y = 2.94 / 0.94; // BOXING_LANE_HEIGHT / GAMEPLAY_CELL_SIZE (full lane height)
+        const WALL_SCALE_Y = 2.94 / 0.94; // BOXING_LANE_HEIGHT / GAMEPLAY_CELL_SIZE (full lane height — weave only)
         const WALL_DEPTH_Z = 2.4; // 400 ms interval × 0.006 WU/ms at mid-interval
         const CORE_BOX_X_PX = 70;
         const CORE_BOX_Y_PX = 80;
@@ -261,23 +268,23 @@ try {
           return px;
         };
         const wallBox = (diff, an) => diff.filter((q) => Math.abs(q.x - an.x) <= CORE_BOX_X_PX && Math.abs(q.y - an.y) <= CORE_BOX_Y_PX);
-        const wallCore = (diff, an) => {
+        const wallCore = (diff, an, centroidTolerance = CENTROID_TOLERANCE_PX) => {
           const core = wallBox(diff, an);
           if (core.length < MIN_WALL_CORE) throw new Error(`wall glyph must be substantially present at (${an.x.toFixed(0)}, ${an.y.toFixed(0)}): ${core.length} diff pixels < ${MIN_WALL_CORE}`);
           const xs = core.map((q) => q.x), ys = core.map((q) => q.y);
           const dX = (Math.min(...xs) + Math.max(...xs)) / 2 - an.x;
           const dY = (Math.min(...ys) + Math.max(...ys)) / 2 - an.y;
-          if (Math.abs(dX) > CENTROID_TOLERANCE_PX || Math.abs(dY) > CENTROID_TOLERANCE_PX) throw new Error(`wall bbox center must sit at the projected lane position (${an.x.toFixed(1)}, ${an.y.toFixed(1)}) within ${CENTROID_TOLERANCE_PX} px, got offset (${dX.toFixed(1)}, ${dY.toFixed(1)})`);
+          if (Math.abs(dX) > centroidTolerance || Math.abs(dY) > centroidTolerance) throw new Error(`wall bbox center must sit at the projected position (${an.x.toFixed(1)}, ${an.y.toFixed(1)}) within ${centroidTolerance} px, got offset (${dX.toFixed(1)}, ${dY.toFixed(1)})`);
           return { count: core.length, dX: +dX.toFixed(1), dY: +dY.toFixed(1) };
         };
-        const checkWalls = (eventId, expectCount, expectX, expectScaleX = WALL_SCALE_X) => {
+        const checkWalls = (eventId, expectCount, expectX, expectScaleX = WALL_SCALE_X, expectY = LANE_Y, expectScaleY = WALL_SCALE_Y) => {
           const walls = renderer.lastModel.objects.filter((o) => o.targetId === eventId && o.kind === "obstacle");
-          if (walls.length !== expectCount) throw new Error(`${eventId}: expected ${expectCount} lane wall(s), got ${walls.length}: ${JSON.stringify(walls.map((o) => ({ id: o.id, x: o.position.x })))}`);
+          if (walls.length !== expectCount) throw new Error(`${eventId}: expected ${expectCount} wall(s), got ${walls.length}: ${JSON.stringify(walls.map((o) => ({ id: o.id, x: o.position.x })))}`);
           for (const w of walls) {
             if (expectX !== null && Math.abs(w.position.x - expectX) > 1e-6) throw new Error(`${eventId}: wall must sit at x = ${expectX}, got ${w.position.x}`);
-            if (Math.abs(w.position.y - LANE_Y) > 1e-6) throw new Error(`${eventId}: wall must sit at y = ${LANE_Y}, got ${w.position.y}`);
+            if (Math.abs(w.position.y - expectY) > 1e-6) throw new Error(`${eventId}: wall must sit at y = ${expectY}, got ${w.position.y}`);
             if (Math.abs(w.position.z - 0) > 0.01) throw new Error(`${eventId}: mid-interval wall z must be 0 (interval straddles the hit plane), got ${w.position.z}`);
-            if (Math.abs(w.scale.x - expectScaleX) > 0.01 || Math.abs(w.scale.y - WALL_SCALE_Y) > 0.01 || Math.abs(w.scale.z - WALL_DEPTH_Z) > 0.01) throw new Error(`${eventId}: wall scale.x must be ${expectScaleX.toFixed(3)} (× ${WALL_SCALE_Y.toFixed(3)} × depth ${WALL_DEPTH_Z}), got (${w.scale.x}, ${w.scale.y}, ${w.scale.z})`);
+            if (Math.abs(w.scale.x - expectScaleX) > 0.01 || Math.abs(w.scale.y - expectScaleY) > 0.01 || Math.abs(w.scale.z - WALL_DEPTH_Z) > 0.01) throw new Error(`${eventId}: wall scale must be (${expectScaleX.toFixed(3)}, ${expectScaleY.toFixed(3)}, ${WALL_DEPTH_Z}), got (${w.scale.x}, ${w.scale.y}, ${w.scale.z})`);
           }
           return walls;
         };
@@ -325,16 +332,19 @@ try {
         const noGlowPx = guard("squat noglow");
         const redBase = redEdge(noGlowPx);
         if (redGlow - redBase < MIN_VIGNETTE_DELTA) throw new Error(`squat contact vignette must add ≥ ${MIN_VIGNETTE_DELTA} red edge pixels over the same-frame no-contact baseline, got ${redGlow} − ${redBase} = ${redGlow - redBase}`);
-        // Wall geometry (model) + per-wall glyph presence (pixels).
-        const squatWalls = checkWalls(SQUAT.eventId, 2, null);
-        // Two DISTINCT walls, one per lane, covering BOTH lanes.
-        const sortedX = squatWalls.map((w) => w.position.x).sort((a, b) => a - b);
-        if (Math.abs(sortedX[0] - LANE_LEFT_X) > 1e-6 || Math.abs(sortedX[1] - LANE_RIGHT_X) > 1e-6) throw new Error(`squat walls must occupy BOTH lanes (x = ${LANE_LEFT_X} and ${LANE_RIGHT_X}), got ${JSON.stringify(sortedX)}`);
+        // Wall geometry (model) + bar glyph presence (pixels).
+        const squatWalls = checkWalls(SQUAT.eventId, 1, SQUAT_BAR_X, SQUAT_SCALE_X, SQUAT_BAR_Y, SQUAT_SCALE_Y);
+        // 0.0.90 htsg: ONE centered top-row bar — no lane walls at ±0.9.
+        if (Math.abs(squatWalls[0].position.x - 0) > 1e-6) throw new Error(`squat bar must be centered at x = 0, got ${squatWalls[0].position.x}`);
         renderer.renderGameplayFrame(frameA(nowA, targetsA.filter((t) => t.id !== SQUAT.eventId), []));
         const emptyPx = guard("squat empty");
         const wallDiff = diffPixels(noGlowPx, emptyPx);
-        const coreL = wallCore(wallDiff, project(LANE_LEFT_X, LANE_Y, 0));
-        const coreR = wallCore(wallDiff, project(LANE_RIGHT_X, LANE_Y, 0));
+        // The wall is a 3D glass box (depth 2.4 WU): from the camera angle the
+        // top face is visible and stretches the silhouette above the
+        // center-plane projection. For the thin top-row bar that centroid shift
+        // is ~15-20 px, so the bar uses a wider centroid tolerance than the
+        // full-height weave wall (whose shift is negligible against its height).
+        const coreBar = wallCore(wallDiff, project(SQUAT_BAR_X, SQUAT_BAR_Y, 0), 25);
         // ════════════════ SESSION B: WEAVE_LEFT — AVOIDED ════════════════
         const B = makeSession("lcb2-weave-browser", WEAVE_CONFIG);
         // (d) AVOIDED drive: nose held in the safe half (sx 1.0 < 2.5 block
@@ -399,8 +409,8 @@ try {
           squat: {
             result: outcomeA.result, firstContact: firstContactA, duration: Number(outcomeA.contactDurationMs),
             glowIntensity: glowA.intensity, redEdge: [redBase, redGlow],
-            walls: squatWalls.map((w) => ({ id: w.id, x: w.position.x, y: w.position.y, scale: [w.scale.x, w.scale.y, w.scale.z], screen: project(w.position.x, LANE_Y, 0) })),
-            cores: [coreL, coreR],
+            walls: squatWalls.map((w) => ({ id: w.id, x: w.position.x, y: w.position.y, scale: [w.scale.x, w.scale.y, w.scale.z], screen: project(w.position.x, w.position.y, 0) })),
+            cores: [coreBar],
           },
           weave: {
             result: outcomeB.result, glowIntensity: glowB.intensity, redEdge: [redNatural, redSynth],
