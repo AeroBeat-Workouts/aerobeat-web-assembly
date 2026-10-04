@@ -355,4 +355,21 @@ let parityComparisons=0;
 for(const truth of [playSession,testTruth,farCommitTruth,noObstacleTruth,contactTruth])for(const nowMs of parityTimes){assert.equal(JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs,parityIndex)),JSON.stringify(projectSessionTargets(parityEvents,truth,nowMs)),`indexed projection must preserve exact target bytes/order at ${nowMs}/${truth.session.purpose}`);parityComparisons+=1;}
 assert.equal(parityComparisons,5*parityTimes.length,"every declared session/boundary parity row must execute");
 assert.equal(createSessionTargetIndex(parityEvents).orderedEntries.length,PARITY_CORPUS_COUNT,"pre-index retains every one of the exact 6,003 events once");
+// 0.0.90 (htsg): spawn-distance override proof — with override ON,
+// normalSpawnMs shifts by exactly distance/0.006 ms vs the song-defined value.
+{
+  const events = [
+    Object.freeze({ eventId: "sd-off", centerTimestampMs: 20000, authoredBeat: { type: "note", hand: "left", placement: 4, direction: "up" } }),
+  ];
+  const options = { mapBeatToTimelineMs: (beat) => beat * 500 };
+  const offIndex = createSessionTargetIndex(events, { ...options, normalSpawnLeadMs: 2500 });
+  const onIndex = createSessionTargetIndex(events, { ...options, normalSpawnLeadMs: 50 / 0.006 });
+  const offTarget = offIndex.orderedEntries.find((t) => t.event.eventId === "sd-off");
+  const onTarget = onIndex.orderedEntries.find((t) => t.event.eventId === "sd-off");
+  assert.equal(offTarget.normalSpawnMs, 20000 - 2500, "song-defined normalSpawnMs = center - 2500");
+  const expectedShift = 2500 - 50 / 0.006;
+  assert(Math.abs((onTarget.normalSpawnMs - offTarget.normalSpawnMs) - expectedShift) < 1,
+    `override ON shifts normalSpawnMs by ${expectedShift} ms (earlier), got ${onTarget.normalSpawnMs - offTarget.normalSpawnMs}`);
+}
+
 console.log(`ORACLE indexed-full-projection-parity PASS: corpus=${PARITY_CORPUS_COUNT}, unique=${PARITY_CORPUS_COUNT}, comparisons=${parityComparisons}, generatedNotesBombs=${PARITY_GENERATED_EVENT_COUNT}, continuousFlow=1, boxingIntervals=${boxingEvents.filter((event)=>event.authoredBeat.type==="weave_left"||event.authoredBeat.type==="weave_right"||event.authoredBeat.type==="squat").length}`);

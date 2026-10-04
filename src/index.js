@@ -831,7 +831,11 @@ export class AeroGame extends HTMLElement {
       try { await this.pauseAudioForGameplay(graph, graph.gameplay.getSnapshot().session, true); }
       catch (error) { failRecovery(error); return this.getSnapshot(); }
       if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
-      graph.input.resetCalibration(forceReset ? "explicit_reset" : "calibration_required");
+      // 0.0.90 (htsg): only reset calibration if no valid calibration exists.
+      // Once calibrated, it persists until an explicit reset or page refresh.
+      const inputSnapshot = graph.input.getSnapshot();
+      const hasCalibration = inputSnapshot?.calibration?.calibrationId != null;
+      if (forceReset || !hasCalibration) graph.input.resetCalibration(forceReset ? "explicit_reset" : "calibration_required");
       const retainedBefore = graph.video.getRetainedCameraStream();
       let leaseGeneration = null; let leaseAcquired = false; let cameraAcquisitionAttempted = false; let committed = false;
       try {
