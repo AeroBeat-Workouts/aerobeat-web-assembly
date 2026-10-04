@@ -831,7 +831,7 @@ export class AeroGame extends HTMLElement {
       try { await this.pauseAudioForGameplay(graph, graph.gameplay.getSnapshot().session, true); }
       catch (error) { failRecovery(error); return this.getSnapshot(); }
       if (!recoveryCurrent()) { if (current() && !this.menuOpen) failRecovery(new Error("Recovery was interrupted")); return this.getSnapshot(); }
-      graph.input.resetCalibration(forceReset ? "explicit_reset" : "menu_closed_recalibration_required");
+      graph.input.resetCalibration(forceReset ? "explicit_reset" : "calibration_required");
       const retainedBefore = graph.video.getRetainedCameraStream();
       let leaseGeneration = null; let leaseAcquired = false; let cameraAcquisitionAttempted = false; let committed = false;
       try {
@@ -2822,7 +2822,6 @@ export class AeroGame extends HTMLElement {
       } else {
         this.menuDisposition = "active-paused";
         const now = Math.max(performance.now(), Number(session.timestampMs ?? 0));
-        if (!visualTest) graph.input.resetCalibration("menu_open");
         try { graph.gameplay.pause(now, "configuration_menu"); } catch { /* unconfigured */ }
         this.menuPauseTail = Promise.allSettled([graph.audio.pause(), graph.cv.stop()]).then(() => {
           if (!this.isCurrent(this.connectedGeneration, graph)) return;
@@ -2839,7 +2838,7 @@ export class AeroGame extends HTMLElement {
         this.menuPauseArmed = true;
         if (visualTest && (this.pendingSessionAction !== "" || this.menuStarting)) { /* auto-resume guard: a newly queued/starting action owns the next controlled fresh restart, so do not resume the outgoing Test transport here */ }
         else if (visualTest) { if (graph.gameplay.getSnapshot().session.state === "paused_manual") void this.resumeVisualTestFromMenu(graph).finally(() => { if (this.graph === graph) this.menuPauseArmed = false; }); }
-        else { this.menuPauseArmed = false; if (this.sessionStartRequested && this.activeSessionAction === "start") void this.recoverPlayCamera().catch((error) => { if (this.isCurrent(this.connectedGeneration, graph)) { this.menuOpen = true; this.menuDisposition = "active-paused"; this.handleError(error); } }); else graph.input.resetCalibration("menu_closed_recalibration_required"); }
+        else { this.menuPauseArmed = false; if (this.sessionStartRequested && this.activeSessionAction === "start") void this.recoverPlayCamera().catch((error) => { if (this.isCurrent(this.connectedGeneration, graph)) { this.menuOpen = true; this.menuDisposition = "active-paused"; this.handleError(error); } }); }
       });
     }
     this.renderPresenters(); this.publish("session_changed");
