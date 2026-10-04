@@ -15,7 +15,7 @@ export const releaseDependencyPins = Object.freeze([
   Object.freeze({ name: "@aerobeat/web-renderer", directory: "aerobeat-web-renderer", commit: "8e0ab6e9402fe0a7b2ee3f65a1bbfa95e37d07e9", tree: "210bbcec628332a1e1411f7d00731c4b7ca3074d" }),
   Object.freeze({ name: "@aerobeat/web-gameplay", directory: "aerobeat-web-gameplay", commit: "d17baa424affb50d4328c932780c45615a8aae45", tree: "48f34e8c89614d93acfd84283668601292ea20ac" }),
   Object.freeze({ name: "@aerobeat/web-input", directory: "aerobeat-web-input", commit: "cc07bfa37024c53f2a5af0c9993f3c14548a3122", tree: "3e981a6573f20e752d9a7fe8636d754575f4e3bd" }),
-  Object.freeze({ name: "@aerobeat/web-ui", directory: "aerobeat-web-ui", commit: "fdd340459c123d46b290f8a3fbe831884576966c", tree: "09ab1d61b77443816b7cd26778b1b858c8dd48b3" })
+  Object.freeze({ name: "@aerobeat/web-ui", directory: "aerobeat-web-ui", commit: "6007b7e9af063b7069568a15cc29c5c09ab0cf5f", tree: "9d7b282545202e70f5d26713331b420c28040dd0" })
 ]);
 
 /**
