@@ -49,7 +49,7 @@ for (const [name, mutate] of [
 }
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
-assert.equal(packageJson.version, "0.0.89", "release source must use the exact authorized 0.0.89 candidate version");
+assert.equal(packageJson.version, "0.0.90", "release source must use the exact authorized 0.0.90 candidate version");
 assert.equal(packageJson.dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages[""].dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages["../aerobeat-web-hash"].name, "@aerobeat/web-hash");
