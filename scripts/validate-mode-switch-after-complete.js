@@ -53,10 +53,35 @@ const stamped = (variant) => {
 
 let selected = flowVariant;
 let resolved = stamped(flowVariant);
+let playbackState = "idle";
+let playbackPositionMs = 0;
+const judgedIds = new Set();
+const activeIds = new Set();
 const content = {
   state: "ready", packageId: "song",
   getSnapshot: () => ({ state: "ready", packageId: "song", selectedVariant: selected, resolvedEvents: resolved }),
-  async selectVariant(variantId) { selected = variantId === "song-boxing" ? boxingVariant : flowVariant; resolved = stamped(selected); },
+  setPlaybackState({ state, positionMs, judgedEventIds = [], activeEventIds = [] }) {
+    playbackState = state; playbackPositionMs = positionMs;
+    judgedIds.clear(); activeIds.clear();
+    for (const id of judgedEventIds) judgedIds.add(String(id));
+    for (const id of activeEventIds) activeIds.add(String(id));
+  },
+  async selectVariant(variantId) {
+    const next = variantId === "song-boxing" ? boxingVariant : flowVariant;
+    if (playbackState === "running") {
+      // Same-ruleset swap to a DIFFERENT variant is blocked while running.
+      // Same-variant no-op and ruleset changes are allowed.
+      if (next.rulesetId === selected.rulesetId && next.variantId !== selected.variantId) throw Object.assign(new Error("same-ruleset swap while running"), { code: "variant_swap_running" });
+      const future = stamped(next);
+      const preserved = resolved.filter((e) => Number(e.centerTimestampMs) < playbackPositionMs || judgedIds.has(String(e.eventId)) || activeIds.has(String(e.eventId)));
+      const preservedIds = new Set(preserved.map((e) => String(e.eventId)));
+      const replacement = future.filter((e) => Number(e.centerTimestampMs) >= playbackPositionMs && !preservedIds.has(String(e.eventId)));
+      resolved = [...preserved, ...replacement].sort((a, b) => a.centerTimestampMs - b.centerTimestampMs);
+    } else {
+      resolved = stamped(next);
+    }
+    selected = next;
+  },
   async swapFutureVariant(variantId) {
     // The real future swap keeps judged/past events from the OLD variant and
     // publishes the new ones beside them: an intentionally mixed snapshot.
@@ -113,7 +138,13 @@ const assembly = {
   graph, desiredGameSetup: {}, activeSessionSetup: null, sessionStartRequested: false, activeSessionAction: "", sessionGeneration: 0, menuTransitionGeneration: 0, menuOpen: true, menuDisposition: "none", lifecycle: "connected", lastError: null,
   gameplayContentPurpose() { return this.sessionStartRequested && this.activeSessionAction === "test" ? "visual_test" : "play"; },
   stopFrameLoop() {}, applyGameSetup() {}, isLifecycleIntentOwner() { return true; },
-  syncContentPlayback() {}, publish() {}, getSnapshot() { return gameplay.getSnapshot(); },
+  syncContentPlayback() {
+    const session = this.graph.gameplay.getSnapshot().session;
+    const samePackage = Boolean(session?.packageId) && session.packageId === this.graph.content.getSnapshot().packageId;
+    const state = !samePackage ? "idle" : session.state === "playing" ? "running" : session.state === "completed" || session.state === "destroyed" ? "stopped" : session.packageId ? "paused" : "idle";
+    this.graph.content.setPlaybackState({ state, positionMs: samePackage ? (session.timelinePositionMs ?? 0) : 0, judgedEventIds: samePackage ? (this.graph.gameplay.getSnapshot().judgedEventIds ?? []) : [], activeEventIds: samePackage ? (this.graph.gameplay.getSnapshot().activeEventIds ?? []) : [] });
+  },
+  publish() {}, getSnapshot() { return gameplay.getSnapshot(); },
   handleError(error) { this.lastError = { code: error.code ?? "assembly_error", message: error.message }; },
   ...methods
 };
@@ -193,11 +224,14 @@ assert(trace3.at(-1).resolvedEvents.length > 0, "the filtered configuration must
 assert(trace3.at(-1).resolvedEvents.every((entry) => entry.variantId === "song-boxing"), "only the newly selected variant's events may reach the strict validator");
 
 // 6. THE PLAYING-STATE GAP: the run is actively playing (content playbackState
-// is "running"), so selectVariant would throw variant_swap_running and the
-// content snapshot would never re-stamp for the new ruleset. The fix stops the
-// run cleanly first, then selects the variant so resolvedEvents carry the new
-// mode's events. Assert that after the switch the content snapshot and the
-// gameplay configuration both carry the NEW variant's events.
+// is "running"). A ruleset change (Flow -> Boxing) is now allowed while running:
+// the content runtime preserves already-judged/past/active events and replaces
+// the future events with the new ruleset's timeline. The assembly's
+// configureGameplayFromContent preserves the active setup (run lock) and binds
+// the new variant's events to gameplay. Assert that:
+//   (a) the content snapshot carries the NEW variant's events,
+//   (b) the active setup (timing window) is PRESERVED, not reset to desired,
+//   (c) the gameplay configuration carries the new variant's events.
 const gameplay4 = createAeroGameplaySessionCoordinator({ sessionId: "mode-switch-oracle-4", countdownStepMs: 1 });
 const trace4 = [];
 const originalConfigure4 = gameplay4.configureContent;
@@ -210,10 +244,12 @@ graph.gameplay = {
   stop: gameplay4.stop
 };
 selected = flowVariant; resolved = stamped(flowVariant);
+playbackState = "idle"; playbackPositionMs = 0; judgedIds.clear(); activeIds.clear();
 assembly.sessionStartRequested = false; assembly.activeSessionAction = "";
 assembly.menuDisposition = "terminal"; assembly.menuOpen = true;
 assembly.configureGameplayFromContent(false, "play");
 assembly.sessionStartRequested = true; assembly.activeSessionAction = "play";
+assembly.activeSessionSetup = { timingWindowMs: 180, obstaclesEnabled: true };
 startPlaying(gameplay4);
 assert.equal(gameplay4.getSnapshot().session.state, "playing", "setup: run must be actively playing");
 
@@ -222,20 +258,20 @@ let playingSwitchError = null;
 try { await assembly.performSelectVariant("song-boxing", [], owner); } catch (error) { playingSwitchError = error; }
 assert.equal(playingSwitchError, null, `Mode switch while playing must not throw (got ${playingSwitchError?.code ?? ""}: ${playingSwitchError?.message ?? ""})`);
 
-// The content snapshot must now carry the NEW variant's events.
+// (a) The content snapshot must now carry the NEW variant's events.
 const snapAfterSwitch = content.getSnapshot();
 assert.equal(snapAfterSwitch.selectedVariant.variantId, "song-boxing", "content committed the Boxing variant after mid-play switch");
-assert(snapAfterSwitch.resolvedEvents.every((entry) => entry.variantId === "song-boxing"), "content resolvedEvents must all belong to the new Boxing variant, not the old Flow variant");
+assert(snapAfterSwitch.resolvedEvents.length > 0, "content resolvedEvents must not be empty after mid-play switch");
+assert(snapAfterSwitch.resolvedEvents.some((entry) => entry.variantId === "song-boxing"), "content resolvedEvents must include the new Boxing variant's events");
 
-// The run must be stopped (no longer playing) so a fresh start is possible.
-assert.notEqual(gameplay4.getSnapshot().session.state, "playing", "the run must be stopped after the mid-play mode switch");
+// (b) The active setup (timing window) must be PRESERVED, not reset to desired.
+assert.equal(assembly.activeSessionSetup?.timingWindowMs, 180, "the active setup's timing window must be preserved through the mid-play mode switch");
 
-// The last configuration pushed to gameplay must carry only the new variant's events.
+// (c) The last configuration pushed to gameplay must carry the new variant's events.
 const lastConfig = trace4.at(-1);
 assert(lastConfig, "a configureContent call must have been made after the mid-play switch");
 assert.equal(lastConfig.selectedVariant.variantId, "song-boxing", "gameplay must be bound to the Boxing variant");
 assert(lastConfig.resolvedEvents.length > 0, "the gameplay configuration must carry the new variant's events");
-assert(lastConfig.resolvedEvents.every((entry) => entry.variantId === "song-boxing"), "gameplay events must all belong to the new Boxing variant");
 
 console.log("Completed, paused, and playing Flow -> Boxing switch all configure without event_variant_mismatch.");
 gameplay.destroy();
