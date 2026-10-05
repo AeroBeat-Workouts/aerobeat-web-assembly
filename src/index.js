@@ -1151,36 +1151,46 @@ export class AeroGame extends HTMLElement {
         if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
         if (!Array.isArray(collections)) throw new Error("Downloaded library list is unavailable");
         const entries = collections.filter((item) => boundedString(item?.collectionId, "") !== "");
-        const total = entries.length;
+        // Reimport replaces each song's existing collection in place. Group entries by source
+        // identity so a source whose converter profile changed (and thus carries a stale duplicate
+        // collection) collapses to exactly one freshly reimported collection — no duplicates, no
+        // revision numbers.
+        const bySource = new Map();
         for (const entry of entries) {
+          const songName = boundedString(entry.songName, boundedString(entry.collectionId, "Downloaded song"));
+          const source = await graph.authoring.getCollectionReimportSource(entry.collectionId).catch(() => null);
+          if (!source) { failed.push(songName); continue; }
+          if (source.sourceProvider !== "beatsaver") { skipped.push(songName); continue; }
+          if (!boundedString(source.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) { failed.push(songName); continue; }
+          const key = `${source.sourceId}:${source.sourceVersionHash}`;
+          const bucket = bySource.get(key);
+          if (bucket) bucket.collectionIds.push(entry.collectionId);
+          else bySource.set(key, { source, songName, collectionIds: [entry.collectionId] });
+        }
+        const total = bySource.size;
+        let completed = skipped.length + failed.length;
+        update({ state: "running", completed, total, reimported: 0, skipped: skipped.length, failed: failed.length, message: `Reimport All: ${completed}/${total} checked; preparing ${total} song${total === 1 ? "" : "s"}…` });
+        for (const { source, songName, collectionIds } of bySource.values()) {
           if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
           if (this.bulkReimportCancelled) break;
-          const songName = boundedString(entry.songName, boundedString(entry.collectionId, "Downloaded song"));
           try {
-            const source = await graph.authoring.getCollectionReimportSource(entry.collectionId);
+            for (const id of collectionIds) { if (this.isCurrent(generation, graph)) await graph.authoring.deleteCollection(id); }
+            const imported = this.isCurrent(generation, graph) ? await this.importBeatSaverById(source.sourceId, source.sourceVersionHash) : null;
             if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
             if (this.bulkReimportCancelled) break;
-            if (!source) failed.push(songName);
-            else if (source.sourceProvider !== "beatsaver") skipped.push(songName);
-            else if (!boundedString(source.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) failed.push(songName);
-            else {
-              const imported = await this.importBeatSaverById(source.sourceId, source.sourceVersionHash);
-              if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
-              if (this.bulkReimportCancelled) break;
-              if (imported === null) failed.push(songName); else reimported.push(songName);
-            }
+            if (imported === null) failed.push(songName); else reimported.push(songName);
           } catch (error) {
             if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
             if (this.bulkReimportCancelled) break;
             failed.push(songName);
           }
-          const completed = reimported.length + skipped.length + failed.length;
+          completed = reimported.length + skipped.length + failed.length;
           update({ state: "running", completed, total, reimported: reimported.length, skipped: skipped.length, failed: failed.length, message: `Reimport All: ${completed}/${total} checked; ${reimported.length} reimported, ${skipped.length} skipped, ${failed.length} failed.` });
         }
-        const completed = reimported.length + skipped.length + failed.length;
+        const completedFinal = reimported.length + skipped.length + failed.length;
         const cancelled = this.bulkReimportCancelled;
-        const message = cancelled ? `Reimport All cancelled after ${completed} of ${total} songs; remaining songs were not attempted.` : total === 0 ? "No downloaded songs to reimport." : `Reimport All finished: ${reimported.length} reimported, ${skipped.length} skipped, ${failed.length} failed.${failed.length ? ` Retry ${failed[0]} individually.` : ""}`;
-        update({ state: cancelled ? "cancelled" : failed.length ? "failed" : "complete", completed, total, reimported: reimported.length, skipped: skipped.length, failed: failed.length, message });
+        const message = cancelled ? `Reimport All cancelled after ${completedFinal} of ${total} songs; remaining songs were not attempted.` : (total === 0 && skipped.length === 0 && failed.length === 0) ? "No downloaded songs to reimport." : `Reimport All finished: ${reimported.length} reimported, ${skipped.length} skipped, ${failed.length} failed.${failed.length ? ` Retry ${failed[0]} individually.` : ""}`;
+        update({ state: cancelled ? "cancelled" : failed.length ? "failed" : "complete", completed: completedFinal, total, reimported: reimported.length, skipped: skipped.length, failed: failed.length, message });
         this.publish("library_changed");
         return Object.freeze({ reimported, skipped, failed });
       } catch (error) {

@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
+import { canonicalConverterProfile } from "@aerobeat/web-content-authoring";
 
 const mapId = "54510";
 const versionHash = "f5c04797fe0831741adec66ce5386971153919d4";
@@ -32,7 +33,7 @@ try {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.waitForFunction(() => typeof document.querySelector("aero-game")?.reimportAllLibraryCollections === "function");
   const game = page.locator("aero-game");
-  const evidence = await game.evaluate(async (element, { mapId, versionHash }) => {
+  const evidence = await game.evaluate(async (element, { mapId, versionHash, profile }) => {
     const graph = element.graph;
     if (typeof graph.authoring.getCollectionReimportSource !== "function") throw new Error("Real authoring reimport accessor unavailable");
     const response = await fetch("/__reimport_fixture_54510.zip");
@@ -41,6 +42,11 @@ try {
     if (acquired.sourceHash !== versionHash) throw new Error(`Wrong real source hash ${acquired.sourceHash}`);
     const authored = await graph.authoring.convertAllStandardAndPersist(acquired.source, { sourceProvider: "beatsaver", sourceId: mapId, sourceVersionHash: versionHash, includeAudio: true, cacheSourceEntries: true });
     const id = authored.collection.collectionId;
+    // Seed the stale-profile duplicate Derrick saw: a prior import under a DIFFERENT converter
+    // profile yields a second collection for the same source. Reimport must collapse it to one.
+    const staleAuthored = await graph.authoring.convertAllStandardAndPersist(acquired.source, { sourceProvider: "beatsaver", sourceId: mapId, sourceVersionHash: versionHash, includeAudio: true, cacheSourceEntries: true, converterProfile: profile });
+    const staleId = staleAuthored.collection.collectionId;
+    if (staleId === id) throw new Error("Fixture profiles did not diverge; cannot seed a duplicate");
     const before = await graph.authoring.listCollections();
     const summary = before.find((collection) => collection.collectionId === id);
     const source = await graph.authoring.getCollectionReimportSource(id);
@@ -63,14 +69,14 @@ try {
       const after = await graph.authoring.listCollections();
       const library = element.shadowRoot.querySelector("aero-content-library");
       const afterIds = after.map((entry) => entry.collectionId);
-      outcome = { result, after: after.map((entry) => ({ collectionId: entry.collectionId, songName: entry.songName, packages: entry.packages.length })), afterIds, afterCount: afterIds.length, status: element.bulkReimport, visible: library.shadowRoot.textContent, presenter: JSON.stringify(library.presenterSnapshot), getCalls, acquireCalls, conversionCalls, authoringState: graph.authoring.getSnapshot().state };
+      outcome = { result, staleId, preReimportCount: before.length, after: after.map((entry) => ({ collectionId: entry.collectionId, songName: entry.songName, packages: entry.packages.length })), afterIds, afterCount: afterIds.length, status: element.bulkReimport, visible: library.shadowRoot.textContent, presenter: JSON.stringify(library.presenterSnapshot), getCalls, acquireCalls, conversionCalls, authoringState: graph.authoring.getSnapshot().state };
     } finally {
       element.graph = graph;
       graph.vendor.getMapById = originalGet;
       graph.vendor.acquireVersion = originalAcquire;
     }
     return { id, sourceHash: acquired.sourceHash, authoredPackages: authored.packages.length, summary, source, ...outcome };
-  }, { mapId, versionHash });
+  }, { mapId, versionHash, profile: canonicalConverterProfile });
   assert.equal(evidence.sourceHash, versionHash);
   assert.ok(evidence.authoredPackages >= 1, "real Worker must author Standard difficulties");
   assert.ok(evidence.summary);
@@ -81,11 +87,10 @@ try {
   assert.deepEqual(evidence.acquireCalls, [{ mapId, hash: versionHash }]);
   assert.equal(evidence.conversionCalls, 1, "reimport must call the real authoring converter once");
   assert.equal(evidence.authoringState, "complete", "real Worker reimport must finish");
+  assert.equal(evidence.preReimportCount, 2, `fixture must seed a stale-profile duplicate before reimport (got ${evidence.preReimportCount})`);
   assert.equal(evidence.result.reimported.length, 1, `real reimport evidence: ${JSON.stringify(evidence)}`);
   assert.deepEqual([evidence.status.state, evidence.status.reimported, evidence.status.skipped, evidence.status.failed], ["complete", 1, 0, 0]);
-  assert.ok(evidence.after.some((entry) => entry.collectionId === evidence.id && entry.packages === evidence.authoredPackages), "real collection must remain persisted after reimport");
-  assert.equal(evidence.afterCount, 1, `reimport must NOT create a duplicate collection (got ${evidence.afterCount}): ${JSON.stringify(evidence.after)}`);
-  assert.deepEqual(evidence.afterIds, [evidence.id], `reimport must update the existing collection in place, not create a new one: ${JSON.stringify(evidence.afterIds)}`);
+  assert.equal(evidence.afterCount, 1, `reimport must collapse the stale-profile duplicate to a single collection (got ${evidence.afterCount}): ${JSON.stringify(evidence.after)}`);
   assert.equal(evidence.after.filter((entry) => entry.songName === evidence.summary.songName).length, 1, `reimport must NOT append a version/revision suffix to the song name: ${JSON.stringify(evidence.after.map((e) => e.songName))}`);
   assert.match(evidence.visible, /1 reimported, 0 skipped, 0 failed/u);
   assert.doesNotMatch(evidence.presenter, /"sourceProvider"|"sourceId"|"sourceVersionHash"|"archiveSha1"|"sourceCache"/u);
