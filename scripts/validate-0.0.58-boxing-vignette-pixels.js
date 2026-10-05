@@ -194,13 +194,14 @@ try {
         const wallObjects = renderer.lastModel.objects.filter((o) => o.targetId === "wall" && o.kind === "obstacle");
         if (wallObjects.length !== 1) throw new Error(`B12 weave must render exactly one wall, got ${wallObjects.length}`);
         const wallObj = wallObjects[0];
-        const AUTHORED_COLUMN_X = -1.5; // gameplay x:0 → presentation columnX[0] = -1.5
-        if (Math.abs(wallObj.position.x - AUTHORED_COLUMN_X) > 1e-9) throw new Error(`B12 weave wall must sit at the AUTHORED column presentation X (${AUTHORED_COLUMN_X}), not the weave-direction lane; got x=${wallObj.position.x}`);
+        const LANE_CENTER_X = -1.0; // blocked column 0 is in the LEFT lane (cols 0-1) → full two-column lane center -1.0 (F6a: weave spans both columns on the blocked side)
+        if (Math.abs(wallObj.position.x - LANE_CENTER_X) > 1e-9) throw new Error(`B12 weave wall must sit at the blocked side's LANE CENTER (${LANE_CENTER_X}), full two-column lane; got x=${wallObj.position.x}`);
+        if (wallObj.scale.x < 1.8) throw new Error(`B12 weave wall must span the FULL two-column lane (scale.x≈2), got ${wallObj.scale.x}`);
         const projectX = (x) => renderer.cameraEntity.camera.worldToScreen({ x, y: wallObj.position.y, z: wallObj.position.z }).x;
         const wallScreenX = projectX(wallObj.position.x);
-        const authoredScreenX = projectX(AUTHORED_COLUMN_X);
+        const laneScreenX = projectX(LANE_CENTER_X);
         const oldLaneScreenX = projectX(0.9); // pre-L-F8 weave-direction lane (lane "right")
-        if (Math.abs(wallScreenX - authoredScreenX) > 1) throw new Error(`B12 weave wall screen X ${wallScreenX.toFixed(1)} must match authored-column projection ${authoredScreenX.toFixed(1)} within 1px`);
+        if (Math.abs(wallScreenX - laneScreenX) > 1) throw new Error(`B12 weave wall screen X ${wallScreenX.toFixed(1)} must match lane-center projection ${laneScreenX.toFixed(1)} within 1px`);
         if (Math.abs(wallScreenX - oldLaneScreenX) < 20) throw new Error(`B12 weave wall must NOT render at the weave-direction lane (screen Δ=${(wallScreenX - oldLaneScreenX).toFixed(1)}px < 20px)`);
         return {
           contactActive: { active: contactActive.active, sinceMs: contactActive.sinceMs },
@@ -208,7 +209,7 @@ try {
           hazardContactActive,
           redEdgeBase, redEdgeColl, totalEdgeBase, totalEdgeColl, differing,
           canvasSize: { width: w, height: h },
-          wall: { modelX: +wallObj.position.x.toFixed(4), screenX: +wallScreenX.toFixed(1), authoredScreenX: +authoredScreenX.toFixed(1), oldLaneScreenX: +oldLaneScreenX.toFixed(1) }
+          wall: { modelX: +wallObj.position.x.toFixed(4), screenX: +wallScreenX.toFixed(1), laneScreenX: +laneScreenX.toFixed(1), oldLaneScreenX: +oldLaneScreenX.toFixed(1) }
         };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
