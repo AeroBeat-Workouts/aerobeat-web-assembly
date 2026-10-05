@@ -135,8 +135,8 @@ try {
         // authored grid column (columnX: col 3 → +1.5) and spans exactly that
         // column — the flow-wall inset formula at authored width 1:
         // (1 − 0.06×1) / 0.94 = 1.0.
-        const WEAVE_COL_X = 1.5;
-        const WEAVE_SCALE_X = 1.0;
+        const WEAVE_COL_X = 1; // 0.0.91 F6a: full two-column right lane center
+        const WEAVE_SCALE_X = 1.94 / 0.94; // 0.0.91 F6a: two-column lane width
         const WALL_SCALE_Y = 2.94 / 0.94; // BOXING_LANE_HEIGHT / GAMEPLAY_CELL_SIZE (full lane height — weave only)
         const WALL_DEPTH_Z = 2.4; // 400 ms interval × 0.006 WU/ms at mid-interval
         const CORE_BOX_X_PX = 70;
@@ -403,8 +403,8 @@ try {
         // The blocked cells' center (column 3, sx 2.5..3.5) — L-F8: the drawn
         // wall now sits exactly here; the wall's screen X must match the
         // blocked-column projection (worldToScreen ground truth, 1px bound).
-        const blockCenterScreen = project(1.5, 1.0, 0);
-        if (Math.abs(project(weaveWalls[0].position.x, LANE_Y, 0).x - blockCenterScreen.x) > 1) throw new Error(`drawn weave wall screen X must match the blocked-column projection within 1px (wall=${project(weaveWalls[0].position.x, LANE_Y, 0).x.toFixed(1)}, block=${blockCenterScreen.x.toFixed(1)})`);
+        const blockCenterScreen = project(1.0, 1.0, 0);
+        if (Math.abs(project(weaveWalls[0].position.x, LANE_Y, 0).x - blockCenterScreen.x) > 1) throw new Error(`drawn weave wall screen X must match the blocked-lane-center projection within 1px (wall=${project(weaveWalls[0].position.x, LANE_Y, 0).x.toFixed(1)}, block=${blockCenterScreen.x.toFixed(1)})`);
         return {
           squat: {
             result: outcomeA.result, firstContact: firstContactA, duration: Number(outcomeA.contactDurationMs),
