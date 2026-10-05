@@ -62,7 +62,8 @@ try {
       const result = await element.reimportAllLibraryCollections();
       const after = await graph.authoring.listCollections();
       const library = element.shadowRoot.querySelector("aero-content-library");
-      outcome = { result, after: after.map((entry) => ({ collectionId: entry.collectionId, packages: entry.packages.length })), status: element.bulkReimport, visible: library.shadowRoot.textContent, presenter: JSON.stringify(library.presenterSnapshot), getCalls, acquireCalls, conversionCalls, authoringState: graph.authoring.getSnapshot().state };
+      const afterIds = after.map((entry) => entry.collectionId);
+      outcome = { result, after: after.map((entry) => ({ collectionId: entry.collectionId, songName: entry.songName, packages: entry.packages.length })), afterIds, afterCount: afterIds.length, status: element.bulkReimport, visible: library.shadowRoot.textContent, presenter: JSON.stringify(library.presenterSnapshot), getCalls, acquireCalls, conversionCalls, authoringState: graph.authoring.getSnapshot().state };
     } finally {
       element.graph = graph;
       graph.vendor.getMapById = originalGet;
@@ -83,6 +84,9 @@ try {
   assert.equal(evidence.result.reimported.length, 1, `real reimport evidence: ${JSON.stringify(evidence)}`);
   assert.deepEqual([evidence.status.state, evidence.status.reimported, evidence.status.skipped, evidence.status.failed], ["complete", 1, 0, 0]);
   assert.ok(evidence.after.some((entry) => entry.collectionId === evidence.id && entry.packages === evidence.authoredPackages), "real collection must remain persisted after reimport");
+  assert.equal(evidence.afterCount, 1, `reimport must NOT create a duplicate collection (got ${evidence.afterCount}): ${JSON.stringify(evidence.after)}`);
+  assert.deepEqual(evidence.afterIds, [evidence.id], `reimport must update the existing collection in place, not create a new one: ${JSON.stringify(evidence.afterIds)}`);
+  assert.equal(evidence.after.filter((entry) => entry.songName === evidence.summary.songName).length, 1, `reimport must NOT append a version/revision suffix to the song name: ${JSON.stringify(evidence.after.map((e) => e.songName))}`);
   assert.match(evidence.visible, /1 reimported, 0 skipped, 0 failed/u);
   assert.doesNotMatch(evidence.presenter, /"sourceProvider"|"sourceId"|"sourceVersionHash"|"archiveSha1"|"sourceCache"/u);
   assert.deepEqual(errors, [], `browser errors: ${JSON.stringify(errors)}`);
