@@ -1796,11 +1796,13 @@ export class AeroGame extends HTMLElement {
     if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
     if (!hidden) this.observeEnvironmentLoad(graph, this.environmentLoadNeedsReconcile);
     if (hidden) {
-      // Tab visibility never changes gameplay session state: a playing session
-      // keeps playing and a paused session keeps paused. Only OS-level resources
-      // (media/CV/frame loop) are released here; the athlete controls pause/resume.
+      // Hiding the tab pauses the session to release gameplay resources cleanly.
+      // This is resource management, NOT tab-detection of resume: on return we do
+      // NOT auto-resume (no 3-2-1 countdown) — the athlete controls when to resume.
       this.stopPreview();
       this.stopFrameLoop(); await graph.cv.stop();
+      if (!this.isCurrent(generation, graph) || visibilityGeneration !== this.visibilityGeneration) return;
+      try { graph.gameplay.pause(Math.max(performance.now(), graph.gameplay.getSnapshot().session.timestampMs), "document_hidden"); if (graph.gameplay.getSnapshot().session.state === "paused_manual") this.synchronizePausedClock(graph); } catch { /* unconfigured */ }
     } else if (aeroGameMediaLeaseCoordinator.snapshot().ownerInstanceId === this.instanceId) {
       graph.gameplay.setLeaseSnapshot(aeroGameMediaLeaseCoordinator.snapshot());
       const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
