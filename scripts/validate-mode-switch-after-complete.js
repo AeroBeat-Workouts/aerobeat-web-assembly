@@ -192,5 +192,50 @@ assert.equal(pausedFailure, null, `Paused Flow -> Boxing switch -> Play must not
 assert(trace3.at(-1).resolvedEvents.length > 0, "the filtered configuration must still carry the new variant's events");
 assert(trace3.at(-1).resolvedEvents.every((entry) => entry.variantId === "song-boxing"), "only the newly selected variant's events may reach the strict validator");
 
-console.log("Completed and paused Flow -> Boxing switch -> Play and Test all configure without event_variant_mismatch.");
+// 6. THE PLAYING-STATE GAP: the run is actively playing (content playbackState
+// is "running"), so selectVariant would throw variant_swap_running and the
+// content snapshot would never re-stamp for the new ruleset. The fix stops the
+// run cleanly first, then selects the variant so resolvedEvents carry the new
+// mode's events. Assert that after the switch the content snapshot and the
+// gameplay configuration both carry the NEW variant's events.
+const gameplay4 = createAeroGameplaySessionCoordinator({ sessionId: "mode-switch-oracle-4", countdownStepMs: 1 });
+const trace4 = [];
+const originalConfigure4 = gameplay4.configureContent;
+graph.gameplay = {
+  getSnapshot: () => gameplay4.getSnapshot(),
+  configureContent(configuration, options) {
+    trace4.push({ selectedVariant: configuration.selectedVariant, resolvedEvents: configuration.resolvedEvents, options });
+    return originalConfigure4({ packageId: configuration.packageId, selectedVariant: configuration.selectedVariant, resolvedEvents: configuration.resolvedEvents, ...(configuration.flowColliderSettings === undefined ? {} : { flowColliderSettings: configuration.flowColliderSettings }) }, options);
+  },
+  stop: gameplay4.stop
+};
+selected = flowVariant; resolved = stamped(flowVariant);
+assembly.sessionStartRequested = false; assembly.activeSessionAction = "";
+assembly.menuDisposition = "terminal"; assembly.menuOpen = true;
+assembly.configureGameplayFromContent(false, "play");
+assembly.sessionStartRequested = true; assembly.activeSessionAction = "play";
+startPlaying(gameplay4);
+assert.equal(gameplay4.getSnapshot().session.state, "playing", "setup: run must be actively playing");
+
+// Switch modes while the run is playing.
+let playingSwitchError = null;
+try { await assembly.performSelectVariant("song-boxing", [], owner); } catch (error) { playingSwitchError = error; }
+assert.equal(playingSwitchError, null, `Mode switch while playing must not throw (got ${playingSwitchError?.code ?? ""}: ${playingSwitchError?.message ?? ""})`);
+
+// The content snapshot must now carry the NEW variant's events.
+const snapAfterSwitch = content.getSnapshot();
+assert.equal(snapAfterSwitch.selectedVariant.variantId, "song-boxing", "content committed the Boxing variant after mid-play switch");
+assert(snapAfterSwitch.resolvedEvents.every((entry) => entry.variantId === "song-boxing"), "content resolvedEvents must all belong to the new Boxing variant, not the old Flow variant");
+
+// The run must be stopped (no longer playing) so a fresh start is possible.
+assert.notEqual(gameplay4.getSnapshot().session.state, "playing", "the run must be stopped after the mid-play mode switch");
+
+// The last configuration pushed to gameplay must carry only the new variant's events.
+const lastConfig = trace4.at(-1);
+assert(lastConfig, "a configureContent call must have been made after the mid-play switch");
+assert.equal(lastConfig.selectedVariant.variantId, "song-boxing", "gameplay must be bound to the Boxing variant");
+assert(lastConfig.resolvedEvents.length > 0, "the gameplay configuration must carry the new variant's events");
+assert(lastConfig.resolvedEvents.every((entry) => entry.variantId === "song-boxing"), "gameplay events must all belong to the new Boxing variant");
+
+console.log("Completed, paused, and playing Flow -> Boxing switch all configure without event_variant_mismatch.");
 gameplay.destroy();

@@ -92,10 +92,12 @@ try {
   assert.deepEqual([evidence.status.state, evidence.status.reimported, evidence.status.skipped, evidence.status.failed], ["complete", 1, 0, 0]);
   assert.equal(evidence.afterCount, 1, `reimport must collapse the stale-profile duplicate to a single collection (got ${evidence.afterCount}): ${JSON.stringify(evidence.after)}`);
   assert.equal(evidence.after.filter((entry) => entry.songName === evidence.summary.songName).length, 1, `reimport must NOT append a version/revision suffix to the song name: ${JSON.stringify(evidence.after.map((e) => e.songName))}`);
-  assert.match(evidence.visible, /1 reimported, 0 skipped, 0 failed/u);
+  // The compact (pause-menu) layout must not show the reimport status; the status
+  // data is verified via `evidence.status` above.
+  assert.doesNotMatch(evidence.visible, /reimported,\s*\d+\s+skipped,\s*\d+\s+failed/u, "compact pause-menu layout must not show the reimport status");
   assert.doesNotMatch(evidence.presenter, /"sourceProvider"|"sourceId"|"sourceVersionHash"|"archiveSha1"|"sourceCache"/u);
   assert.deepEqual(errors, [], `browser errors: ${JSON.stringify(errors)}`);
-  console.log(`Persisted Reimport All browser proof passed: ${mapId}/${versionHash}, ${evidence.authoredPackages} real packages, vendor calls=1, visible 1/0/0, no presenter provenance.`);
+  console.log(`Persisted Reimport All browser proof passed: ${mapId}/${versionHash}, ${evidence.authoredPackages} real packages, vendor calls=1, status 1/0/0 (not shown in pause menu), no presenter provenance.`);
   await context.close();
 } finally {
   await browser?.close();

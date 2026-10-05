@@ -964,6 +964,22 @@ export class AeroGame extends HTMLElement {
     const gameplay = graph.gameplay.getSnapshot();
     const configured = gameplay.session?.packageId === graph.content.getSnapshot().packageId;
     const futureOnly = configured && ["calibrating", "paused_manual", "paused_tracking"].includes(gameplay.session.state) && this.sessionStartRequested;
+    // A mode/variant switch is a between-run action. When the run is actively
+    // playing, the content runtime refuses the swap (variant_swap_running) and
+    // the snapshot is never re-stamped for the new ruleset, so gameplay would
+    // bind the stale old-mode events. Stop the run cleanly first so the content
+    // runtime can re-stamp resolvedEvents for the newly selected variant.
+    if (configured && gameplay.session.state === "playing") {
+      this.sessionStartRequested = false;
+      this.activeSessionAction = "";
+      this.sessionGeneration += 1;
+      this.menuTransitionGeneration += 1;
+      this.menuDisposition = "terminal";
+      this.menuOpen = true;
+      this.stopFrameLoop();
+      try { graph.gameplay.stop(Math.max(performance.now(), Number(gameplay.session.timestampMs ?? 0))); } catch { /* unconfigured outgoing session */ }
+      this.syncContentPlayback();
+    }
     try {
       if (futureOnly) await graph.content.swapFutureVariant(variantId, { modifierIds });
       else await graph.content.selectVariant(variantId, { modifierIds });
