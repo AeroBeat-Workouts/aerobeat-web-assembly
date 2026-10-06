@@ -131,7 +131,13 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const pendingVisible = result !== "hit" && result !== "miss" && centerMs + effectiveLateWindowMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result === "hit" && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined,missCommitMs=result==="miss"&&Number.isFinite(commitMs)?Number(commitMs):undefined;
-        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress,missCommitMs,bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null);
+        // 0.0.96: forward the resolved scoring tier from the real judgement so
+        // the renderer can pick the Great/Good/Almost/Miss feedback label.
+        // Synthetic (Visual Test) feedback has no resolved tier — the renderer
+        // defaults to "great" for hits and "miss" for misses in that case.
+        const realTier = result === "hit" ? recordValue(real, "tier") : result === "miss" ? "miss" : undefined;
+        const tier = typeof realTier === "string" && ["great", "good", "almost", "miss"].includes(realTier) ? realTier : (result === "hit" ? "great" : result === "miss" ? "miss" : undefined);
+        const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress,missCommitMs,bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null, tier);
         if (target) targets.push(target);
       }
       fallbackFeedbackIndex += 1;
@@ -197,11 +203,11 @@ function flowBombTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyLeadM
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"bomb", hand:"neutral", family:"bomb", cell:Number(placement), cells:[], lane:null, beatCenterMs:centerMs,normalSpawnMs,...(skyPreludeStartMs === null ? {} : { skyPreludeStartMs }) };
 }
 
-/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|undefined} missCommitMs @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity */
-function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress,missCommitMs,bounceStartMs = null,normalSpawnMs=null,skyPreludeStartMs=null,arrivalGroupIdentity=null) {
+/** @param {Record<string, unknown>} event @param {string} type @param {"pending"|"hit"|"miss"} judgement @param {number|undefined} feedbackProgress @param {number|undefined} missCommitMs @param {number|null} bounceStartMs @param {number|null} normalSpawnMs @param {number|null} skyPreludeStartMs @param {string|null} arrivalGroupIdentity @param {"great"|"good"|"almost"|"miss"|undefined} [tier] */
+function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgress,missCommitMs,bounceStartMs = null,normalSpawnMs=null,skyPreludeStartMs=null,arrivalGroupIdentity=null,tier=undefined) {
   const beat = authoredBeatFor(event);
   const eventId = String(recordValue(event, "eventId") ?? ""); const beatCenterMs = finiteNumber(recordValue(event, "centerTimestampMs"));
-  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}),...(judgement==="miss"&&Number.isFinite(missCommitMs)?{missCommitMs:Number(missCommitMs)}:{}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupIdentity===null?{}:{arrivalGroupIdentity};
+  const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}),...(judgement==="miss"&&Number.isFinite(missCommitMs)?{missCommitMs:Number(missCommitMs)}:{}),...(judgement!=="pending"&&tier!==undefined&&["great","good","almost","miss"].includes(tier)?{tier}:{}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupIdentity===null?{}:{arrivalGroupIdentity};
   if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), requiresDirection:recordValue(beat,"requiresDirection")!==false, ...(appearance?{appearanceColor:appearance}:{}), ...trajectory, ...group, ...feedback };
   if (type === "guard") { const crossed = recordValue(beat, "modifier") === "crossed_guard"; const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: crossed ? "crossed_guard" : "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...trajectory, ...group, ...feedback }; }
   const punch=Object.hasOwn(BOXING_PUNCH_TYPES,type)?BOXING_PUNCH_TYPES[type]:null;if(!punch)return null;
