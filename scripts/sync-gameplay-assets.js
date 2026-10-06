@@ -11,7 +11,7 @@ import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "2d39285752dc3e2be86ab9891324765d1e1df4d2";
+const rendererCommit = "0c5384bd2a5d2add6a5807be1ec921f9046ec4ca";
 const rendererTree = "24c609b3cc585d857590d58d2548ca1977ce5564";
 const release = "0.0.11";
 const releaseTree = "06fb120939b17326c558b8a698025d6ab8bd093d";
