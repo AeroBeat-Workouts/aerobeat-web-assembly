@@ -192,12 +192,12 @@ Render these in the gameplay HUD (web-ui / renderer as appropriate), driven by t
 
 ## Final Results
 
-**Status:** (pending)
-**What We Built:** (pending)
-**Reference Check:** (pending)
-**Commits:** (pending)
-**Lessons Learned:** (pending)
-**Filed Findings:** (pending)
+**Status:** Complete
+**What We Built:** 7 mobile playtest improvements for AeroBeat 0.0.94: (1) swept time-based collider detection (frame-rate independent, depth half for Great/Good split), (2) boxing squat collider fix + e2e tests, (3) equipment floor shadows (saber rect + glove circle), (4) responsive camera FOV (aspect-ratio driven), (5) 4-tier scoring (Great/Good/Almost/Miss) + combo multiplier x1/x2/x4/x8, (6) score/combo HUD, (7) Play/Pause text→icon swap. Plus: weave wall X fix (full two-column lane center).
+**Reference Check:** All 7 REFERENCE items grounded in code. Swept collider uses `timelinePositionMs` (song time) for pose history axis. Scoring tiers resolved at scoring time (judgement records store raw hit/miss/ignored). HUD is mode-agnostic (reads `score`/`combo` from presenter snapshot).
+**Commits:** assembly `d8d38e9`, contracts `03cfe49`, renderer `2d39285`, gameplay `7ff628a`, ui `2f30339`.
+**Lessons Learned:** (1) Pose history must use song time (`timelinePositionMs`), not wall-clock (`measurementTimestampMs`) — the critical alignment fix. (2) Discrete-path (no-continuous-prior) obstacle enter+exit at the same timestamp causes `hazardContact.active` to read false — first-ever sample must push enter only. (3) Weave wall spans the FULL two-column lane on the blocked side (lane center ±1.0), not the single authored column. (4) Play/Pause icon swap requires updating all browser oracle assertions that check `textContent` (now `aria-label`) and `textInventory`/`visibleTexts` (no longer include the button text).
+**Filed Findings:** Pre-existing pixel test failure (`validate-0.0.62-saber-look-pixels.js`) — right-hand edge red 139.6 vs expected 120 (Δ19.6 < 25 threshold). Test file unmodified this round; responsive FOV landscape guard confirmed unchanged at 48° for 844×390; camera view is `<video>` element, not PlayCanvas canvas. Likely pre-existing pixel-level sensitivity.
 
 ---
 
