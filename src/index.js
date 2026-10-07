@@ -1647,10 +1647,6 @@ export class AeroGame extends HTMLElement {
   synchronizePausedClock(graph = this.graph) {
     if (!graph) return;
     const session = graph.gameplay.getSnapshot().session;
-    // A lease transfer or menu pause of a scored run is not a transport seek.
-    // synchronizePausedClock delegates to seekTo and discards its judgement
-    // history even when the held audio clock differs only until alignment.
-    if (session.purpose === "play" && session.state === "paused_manual") return;
     graph.gameplay.synchronizePausedClock({ timestampMs: Math.max(performance.now(), session.timestampMs), clock: graph.audio.getClockSnapshot() });
   }
 
