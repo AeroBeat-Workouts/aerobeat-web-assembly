@@ -2218,6 +2218,13 @@ export class AeroGame extends HTMLElement {
     if (typeof renderer.setDebugCameraAuthoringInputEnabled === "function") renderer.setDebugCameraAuthoringInputEnabled(this.testEquipmentMouseHand === "off");
     if (before?.debugCameraEnabled === true && !snapshot.enabled) { this.releaseDebugCameraControls(); this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = ""; this.setDebugCameraPoseStatus(""); }
     if (typeof renderer.setDebugCameraEnabled === "function") renderer.setDebugCameraEnabled(snapshot.enabled);
+    // The renderer initializes the debug camera to the production pose of its
+    // last rendered presentation (this.activeGameplayCameraMode). On a fresh
+    // page load that field is null, so a mode switch (e.g. Flow -> Boxing)
+    // leaves the debug camera on the Flow default. Re-apply the active
+    // mode's pose at the enable edge so Test mode starts at the correct
+    // position/rotation before the first frame renders.
+    if (snapshot.enabled && before?.debugCameraEnabled !== true && typeof renderer.setGameplayCameraPose === "function") renderer.setGameplayCameraPose(this.cameraControlMode(), this.cameraPoses[this.cameraControlMode()]);
     if (snapshot.enabled && typeof renderer.setDebugCameraSpeedMode === "function") renderer.setDebugCameraSpeedMode(this.debugCameraSpeedMode);
     const panel = this.shadowRoot?.querySelector("[data-role='debug-camera-controls']");
     if (panel instanceof HTMLElement) { panel.hidden = !snapshot.visible; panel.setAttribute("aria-hidden", snapshot.visible ? "false" : "true"); }
