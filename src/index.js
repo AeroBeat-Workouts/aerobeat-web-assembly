@@ -321,6 +321,7 @@ export class AeroGame extends HTMLElement {
     this.boundInteractionKeydown = (event) => this.handleInteractionKeydown(event);
     this.boundDebugCameraPointerDown = (event) => this.handleDebugCameraPointerDown(event);
     this.boundDebugCameraPointerRelease = (event) => this.handleDebugCameraPointerRelease(event);
+    this.boundBottomUiPointer = (event) => this.handleBottomUiPointer(event);
     const root = this.attachShadow({ mode: "open" });
     root.innerHTML = template();
     this.installGameSetupControls();
@@ -1437,6 +1438,11 @@ export class AeroGame extends HTMLElement {
     this.testPresentationInput().addEventListener("change", this.boundTestPresentationFile);
     this.canvasElement().addEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
     this.canvasElement().addEventListener("pointermove", this.boundTestEquipmentPointerMove);
+    // Bottom-UI dimming (Boxing glove shadow): track pointer proximity to the
+    // bottom edge. pointermove covers mouse + touch uniformly; touchmove is a
+    // fallback for touch inputs where pointermove is unavailable.
+    document.addEventListener("pointermove", this.boundBottomUiPointer);
+    document.addEventListener("touchmove", this.boundBottomUiPointer, { passive: true });
     this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.measureContainer()) : null;
     this.resizeObserver?.observe(this);
     globalThis.addEventListener("resize", this.boundFullscreen);
@@ -3213,7 +3219,7 @@ export class AeroGame extends HTMLElement {
     this.resetTestEquipmentAuthoringState({ render:false });
     this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
-    document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen);
+    document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen); document.removeEventListener("pointermove", this.boundBottomUiPointer); document.removeEventListener("touchmove", this.boundBottomUiPointer);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
     this.canvasElement().removeEventListener("pointermove", this.boundTestEquipmentPointerMove);
     this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("input", this.boundInteractionInput); this.shadowRoot?.removeEventListener("change", this.boundInteractionInput); this.shadowRoot?.removeEventListener("focusout", this.boundInteractionBlur); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.fpsCounterElement()?.removeEventListener("click", this.boundFpsCounterClick); this.stopFpsCounter(); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.environmentConfigInput().removeEventListener("change", this.boundEnvironmentConfigFile); this.testPresentationInput().removeEventListener("change", this.boundTestPresentationFile); this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = ""; this.testPresentationInput().value = "";
@@ -3295,6 +3301,36 @@ export class AeroGame extends HTMLElement {
     this.renderGameplay();
     return true;
   }
+
+  /**
+   * Bottom-UI dimming (Boxing glove shadow): keep the bottom transport/timeline
+   * faint while the pointer is far from the bottom edge so it stops occluding the
+   * floor shadow, and snap it fully opaque when the pointer is nearby or actively
+   * touching. Drives `--aero-bottom-ui-opacity` (default 0.3) on the host and the
+   * `bottom-ui-visible` class on the transport; the transport CSS owns the
+   * transition. Dimming is suppressed while the menu is open, the game is paused,
+   * or the pointer is inside the transport (active interaction).
+   * @param {PointerEvent | TouchEvent} event
+   */
+  handleBottomUiPointer(event) {
+    const clientY = event instanceof TouchEvent ? (event.touches[0]?.clientY ?? event.changedTouches[0]?.clientY) : event.clientY;
+    if (!Number.isFinite(clientY)) return;
+    const nearBottom = clientY >= window.innerHeight - 140;
+    const transport = this.transportElement();
+    if (!transport) return;
+    const suppress = this.menuOpen || this.sessionPaused() || (event instanceof PointerEvent && this.pointerInside(transport, event));
+    transport.style.setProperty("--aero-bottom-ui-opacity", suppress ? "1" : nearBottom ? "1" : "0.3");
+    transport.classList.toggle("bottom-ui-visible", !suppress && nearBottom);
+  }
+
+  /** @returns {HTMLElement | null} */
+  transportElement() { const value = this.shadowRoot?.querySelector("[data-role='visual-test-transport']"); return value instanceof HTMLElement ? value : null; }
+
+  /** True when gameplay is in a manual/tracking pause (user needs full controls). */
+  sessionPaused() { const state = this.graph?.gameplay.getSnapshot().session.state; return state === "paused_manual" || state === "paused_tracking"; }
+
+  /** True when a pointer event targets the transport's subtree (shadow-aware). */
+  pointerInside(transport, event) { return event.composedPath().includes(transport); }
 
   setTestEquipmentVisible(visible) {
     if (!this.testPresentationAuthoringSnapshot().enabled) return false;
