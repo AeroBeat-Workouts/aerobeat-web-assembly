@@ -91,6 +91,8 @@ try {
     const centerPose = pose({ x: 1.5, y: 0.4, z: 0 });
     // Sub-floor saber: anchor Y < floorY → shadow must be hidden.
     const subFloorPose = pose({ x: 1.5, y: FLOOR_Y - 0.3, z: 0 });
+    // Saber entirely off the playfield: anchor far outside the 4×3 grid bounds.
+    const offFieldPose = pose({ x: 5.0, y: 0.4, z: 0 });
 
     // Quiesce the graph and lock the production viewport.
     game.stopFrameLoop();
@@ -154,7 +156,11 @@ try {
     const below = capture([]);
     restore();
 
-    return { above, below, floorY: FLOOR_Y, shadowFloorY: SHADOW_FLOOR_Y, judgeToPresentationOffset: 1.5, canvasW: canvas.width, canvasH: canvas.height };
+    // ── Case 5: saber entirely off the playfield → no shadow ──
+    const offFieldCase = capture([offFieldPose]);
+    restore();
+
+    return { above, below, offField: offFieldCase, floorY: FLOOR_Y, shadowFloorY: SHADOW_FLOOR_Y, judgeToPresentationOffset: 1.5, canvasW: canvas.width, canvasH: canvas.height };
   }, CAMERA);
   assert.deepEqual(noise, []);
 } finally {
@@ -163,7 +169,7 @@ try {
 }
 
 if (!proof) throw new Error("no proof captured");
-const { above, below } = proof;
+const { above, below, offField } = proof;
 
 // ── (1) The saber is visible (bright pixels in the expected region) ──
 assert.ok(above.saber, "saber must render visible bright pixels at a 3/4 view");
@@ -205,4 +211,7 @@ assert.ok(Math.abs(shadowRotation) < 0.6, `equipment shadow rotationZRad ${shado
 // ── (4) The shadow is ABSENT when there is no saber anchor (below-floor case) ──
 assert.ok(Array.isArray(below.shadowObjects) && below.shadowObjects.length === 0, `no saber anchor must produce NO equipment shadow object: ${JSON.stringify(below.shadowObjects)}`);
 
-console.log(`ORACLE 0.0.99-saber-shadow-pixels PASS: 3/4 view (pitch −15°, yaw 30°) | saber blob=${JSON.stringify(above.saber)} | shadow blob=${JSON.stringify(above.shadow)} | shadow Y=${above.shadowObjects.map((o) => o.y)} | sub-floor shadow objects=${below.shadowObjects.length}`);
+// ── (7) Saber entirely off the playfield → NO shadow ──
+assert.ok(Array.isArray(offField.shadowObjects) && offField.shadowObjects.length === 0, `off-field saber must produce NO equipment shadow object: ${JSON.stringify(offField.shadowObjects)}`);
+
+console.log(`ORACLE 0.0.99-saber-shadow-pixels PASS: 3/4 view | saber=${JSON.stringify(above.saber)} | shadow=${JSON.stringify(above.shadow)} | shadowY=${above.shadowObjects.map((o) => o.y)} | sub-floor objs=${below.shadowObjects.length} | off-field objs=${offField.shadowObjects.length}`);
