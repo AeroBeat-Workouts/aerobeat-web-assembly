@@ -1,29 +1,17 @@
 // @ts-check
 
-// 0.0.61 L-C2 (htc8) real-pixel oracle — Boxing SQUAT and WEAVE_LEFT wall
-// geometry + nose contact, in a REAL boxing_collider_v1 session, closing the
-// two open htc8 gap rows (squat geometry+contact, weave_left geometry+contact).
-//   (a) SQUAT GEOMETRY: a canonical squat (gameplay {x:0,y:0,w:4,h:1} — the
-//       full-width TOP row, gridMask [0,1,2,3], noseSafeCells [4..11])
-//       renders as a SINGLE top-row full-width bar (0.0.90 htsg operator
-//       decision: squat = top row only, full row): exactly one
-//       kind:"obstacle" wall object centered at x = 0, y = 2 (the top row),
-//       scaled to one row of height (scale.y = 0.94/0.94) and full grid
-//       width (scale.x = (4 − 0.06)/0.94), duck-under-it (lastModel +
-//       worldToScreen; diff-pixel glyph presence at the projected bar
-//       center). The former two full-height lane walls (x = ±0.9) were the
-//       pre-0.0.90 shape and are NO LONGER correct.
-//   (b) WEAVE_LEFT GEOMETRY: a single-lane-column full-height weave_left
-//       (gameplay {x:3,y:0,w:1,h:3}, gridMask [3,7,11], the mirror of the
-//       weave_right coverage in validate-0.0.58-boxing-vignette-pixels.js at
-//       the OPPOSITE lane) renders exactly ONE full-height wall at the
-//       PRESENTATION X of its AUTHORED grid column (column 3 → columnX[3] =
-//       +1.5 — the same space as the punch icons and the collision), spanning
-//       exactly the authored column (scale.x 1.0), full lane height, with NO
-//       wall at the weave-direction lane positions (x = ±0.9).
-//       0.0.61 L-F8 (aerobeat-web-renderer 931c749) fixed the former
-//       weave-direction-lane placement (weave_left → lane "left" x = −0.9),
-//       which drew the wall on the SAFE side of its blocked column.
+// Boxing Collider real-canvas legacy contact/geometry oracle. The separate
+// fresh-import framebuffer gate now proves the complete visible wall extent.
+//   (a) A source top-row squat remains top-row-masked [0,1,2,3], but its
+//       continuous collision/render geometry is {x:0,y:-3,w:4,h:4.5}. It
+//       renders as ONE full-width wall spanning three rows above the grid,
+//       the top row, and half the next, centered world Y 3.25. Its measured
+//       nose contact and red vignette remain truthful.
+//   (b) A source column-3 weave_left retains that source rectangle but becomes
+//       a right-side TWO-column Boxing wall {x:2,y:0,w:2,h:3}, mask
+//       [2,3,6,7,10,11], center world X +1, with safe left-side nose
+//       evidence and no false contact/vignette. The companion weave_right
+//       blocks the two left columns and renders at world X -1.
 //   (c) SQUAT CONTACT: the measured nose driven through the squat's blocked
 //       cells (top row, sy 1.5..2.5) inside the interval produces a REAL
 //       obstacle outcome {result:"contact"} (firstContact + duration from
@@ -32,61 +20,40 @@
 //       the scene model's hazardGlow.intensity reads the deterministic
 //       envelope (ramp 150 ms / decay 600 ms) and the red edge-band pixels
 //       rise far above the same-frame no-contact baseline.
-//   (d) WEAVE AVOIDED: the nose kept in a safe cell (left half, sx 1.0) with
-//       continuous 40 ms tracking across the whole interval produces a REAL
-//       outcome {result:"avoided"} (full coverage, zero contact), the state
-//       channel stays flat (hazardGlow.intensity 0, no retained contact
-//       events) and the red edge band equals the no-contact baseline; a
-//       synthetic contact event on the SAME frame proves the detector would
-//       fire (large red-edge delta) — so the flatness is the absence of a
-//       contact, not a dead detector.
+//   (d) WEAVE SAFE PASS: the nose held in the clear left side (sx 1.0)
+//       produces no contact event; hazard glow and the red edge band stay
+//       flat. A synthetic same-frame contact proves the detector would fire.
+//       This older oracle does not prove a scored `avoided` result.
 // Proven by reading REAL rendered canvas pixels (OffscreenCanvas drawImage +
 // getImageData of the PlayCanvas canvas) against baseline-subtracted frames,
 // NOT the scene-graph model (model reads are the geometry ground truth).
 //
 // Chart (one obstacle per session + one far-later punch so the session is
 // still alive when the obstacle interval finalizes):
-//   session A: squat   {x:0,y:0,w:4,h:1}  [6000, 6400]  — CONTACT drive
-//   session B: weave   {x:3,y:0,w:1,h:3}  [12000, 12400] — AVOIDED drive
+//   session A: squat   {x:0,y:-3,w:4,h:4.5} [6000,6400] — CONTACT drive
+//   session B: weave   {x:2,y:0,w:2,h:3}   [12000,12400] — AVOIDED drive
 //   (a padding straight_left punch @ 20000 in each session)
-// Contact drive: nose (1.5, 1.0) → (1.5, 2.0) across the interval boundary
-// (segment clip enters the top row at 6010, exits at 6310). Avoided drive:
-// nose (1.0, 1.0) on continuous 40 ms samples from 11920 to 12480 — full
-// [12000, 12400] coverage with zero blocked-cell intersection.
-//
-// L-F8 NOTE (0.0.61): the former mismatch — weave wall drawn in the lane
-// named by the weave DIRECTION (weave_left → lane "left", x = −0.9) while its
-// blocked cells (grid column 3) sit in the right half of the judge grid — was
-// FIXED in aerobeat-web-renderer 931c749: the wall now renders at the
-// presentation X of its authored grid column (+1.5 for column 3), matching the
-// collision lane. This oracle asserts the corrected position.
-//
-// PRODUCTION DEFECT FLAGGED (not fixed here, per lane scope):
-// (1) evaluateBoxingObstacles (aerobeat-web-gameplay session-coordinator.js)
-//     finalizes an expired obstacle BEFORE processing the current frame's
-//     nose sample, so nose coverage can never be recorded through
-//     intervalEnd; a perfectly safe drive therefore closes as
-//     "unevaluated_tracking" and result "avoided" is unreachable for boxing
-//     obstacles (the Flow mirror finalizes after sample processing). This
-//     oracle asserts the physically meaningful properties (zero contact,
-//     flat vignette) and reports the observed result string.
-// (2) Weave wall lane mirroring — FIXED in 0.0.61 L-F8 (aerobeat-web-renderer
-//     931c749): the weave_left wall now renders at the presentation X of its
-//     authored grid column (column 3 → +1.5, i.e. inside the blocked cells'
-//     own lane, sx 2.5..3.5) instead of the weave-direction lane "left"
-//     (x=-0.9). Oracle asserts the corrected position.
+// Contact drive: nose (1.5,0.5) → (1.5,2.0) crosses the lower edge
+// inside the interval; return to 0.5 exits. Avoided drive holds nose
+// (1.0,1.0) left of the right-side two-column weave over 40ms samples.
+// The other-mode direction label must never move the physical wall onto
+// the athlete's safe side. The new fresh-import oracle verifies the full
+// GLB/framebuffer footprint, not merely this legacy core/centroid sample.
 //
 // Embedding: direct + genuine_cross_origin_iframe (the playtest surface).
 import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { fileURLToPath } from "node:url";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
 const VIEW_W = 844;
 const VIEW_H = 390;
 
-const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null } });
+// Isolated non-release browser fixture: release Vite must continue rejecting
+// sibling commit/provenance drift while these tests inspect current source.
+const vite = await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("boxing-squat-weave-pixels-test"), __AEROBEAT_CACHE_BUST__: JSON.stringify("boxing-squat-weave-pixels-test"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("boxing-squat-weave-pixels-test") }, server: { host: "127.0.0.1", port: 0, hmr: false, watch: null, fs: { allow: [fileURLToPath(new URL("../../", import.meta.url))] } } });
 await vite.listen();
 const childUrl = vite.resolvedUrls?.local?.[0];
 if (!childUrl) throw new Error("Vite URL unavailable");
@@ -124,19 +91,16 @@ try {
         const LANE_RIGHT_X = 0.9;
         const LANE_Y = 1.0;
         const WALL_SCALE_X = 1.7 / 0.94; // BOXING_LANE_WIDTH / GAMEPLAY_CELL_SIZE
-        // 0.0.90 htsg: the SQUAT is a single top-row full-width bar —
-        // centered x = 0, top row y = 2, one row tall, full grid width:
-        // scale.x = (4 − 0.06×1) / 0.94, scale.y = (1 − 0.06×1) / 0.94.
+        // The squat spans 4.5 rows: three above the grid, the top row,
+        // and half the next; full 4-column width, center world-Y 3.25.
         const SQUAT_BAR_X = 0;
-        const SQUAT_BAR_Y = 2;
+        const SQUAT_BAR_Y = 3.25;
         const SQUAT_SCALE_X = (4 - 0.06) / 0.94;
-        const SQUAT_SCALE_Y = (1 - 0.06) / 0.94;
-        // 0.0.61 L-F8: a weave wall renders at the PRESENTATION X of its
-        // authored grid column (columnX: col 3 → +1.5) and spans exactly that
-        // column — the flow-wall inset formula at authored width 1:
-        // (1 − 0.06×1) / 0.94 = 1.0.
-        const WEAVE_COL_X = 1; // 0.0.91 F6a: full two-column right lane center
-        const WEAVE_SCALE_X = 1.94 / 0.94; // 0.0.91 F6a: two-column lane width
+        const SQUAT_SCALE_Y = (4.5 - 0.06) / 0.94;
+        // The source weave at column 3 is authored as a full TWO-column
+        // right-side Boxing obstacle, centered at +1 with one outer inset.
+        const WEAVE_COL_X = 1;
+        const WEAVE_SCALE_X = 1.94 / 0.94;
         const WALL_SCALE_Y = 2.94 / 0.94; // BOXING_LANE_HEIGHT / GAMEPLAY_CELL_SIZE (full lane height — weave only)
         const WALL_DEPTH_Z = 2.4; // 400 ms interval × 0.006 WU/ms at mid-interval
         const CORE_BOX_X_PX = 70;
@@ -162,18 +126,18 @@ try {
           import("/src/session-render-projection.js"),
         ]);
         const HASH = "c2".repeat(32);
-        // Canonical squat: full-width TOP row (gameplay y=0), v3 source
-        // rect {x:0,y:2,w:4,h:1} (top layer 2 → gameplay row 0).
+        // Preserve the v3 top-row source rect. Derived Boxing wall extends
+        // three rows above the grid and half a row below its top row.
         const SQUAT_CONFIG = Object.freeze({ type: "squat", start: SQUAT.start, end: SQUAT.end,
           sourceGeometry: Object.freeze({ schema: "aerobeat/obstacle_source_geometry", version: 1, coordinateSpace: "beatsaber_v3_obstacle_rect", kind: "v3_rect", x: 0, y: 2, width: 4, height: 1 }),
-          gameplayGeometry: Object.freeze({ schema: "aerobeat/obstacle_gameplay_geometry", version: 1, coordinateSpace: "aerobeat_top_left_grid", x: 0, y: 0, width: 4, height: 1 }),
+          gameplayGeometry: Object.freeze({ schema: "aerobeat/obstacle_gameplay_geometry", version: 1, coordinateSpace: "aerobeat_top_left_grid", x: 0, y: -3, width: 4, height: 4.5 }),
           gridMask: [0, 1, 2, 3], noseSafeCells: [4, 5, 6, 7, 8, 9, 10, 11] });
-        // weave_left: single right-column full-height wall — the converter's
-        // v2_type_1 obstacle (lineIndex 3): right > left cells → "weave_left".
+        // A single right-column v2 source remains immutable provenance;
+        // Boxing projects it to the two-column right-side weave_left wall.
         const WEAVE_CONFIG = Object.freeze({ type: "weave_left", start: WEAVE.start, end: WEAVE.end,
           sourceGeometry: Object.freeze({ schema: "aerobeat/obstacle_source_geometry", version: 1, coordinateSpace: "beatsaber_v2_legacy_obstacle", kind: "v2_type_1", x: 3, y: 0, width: 1, height: 3 }),
-          gameplayGeometry: Object.freeze({ schema: "aerobeat/obstacle_gameplay_geometry", version: 1, coordinateSpace: "aerobeat_top_left_grid", x: 3, y: 0, width: 1, height: 3 }),
-          gridMask: [3, 7, 11], noseSafeCells: [0, 1, 2, 4, 5, 6, 8, 9, 10] });
+          gameplayGeometry: Object.freeze({ schema: "aerobeat/obstacle_gameplay_geometry", version: 1, coordinateSpace: "aerobeat_top_left_grid", x: 2, y: 0, width: 2, height: 3 }),
+          gridMask: [2, 3, 6, 7, 10, 11], noseSafeCells: [0, 1, 4, 5, 8, 9] });
         const anchor = (name, m, sx, sy) => ({ schema: "aerobeat/body_grid_anchor_snapshot", version: 1, anchor: name, calibrationId: "cal-1", measurementTimestampMs: m, valid: true, confidence: 1, rawX: 0.5, rawY: 0.5, x: (sx + 0.5) / 4, y: (2.5 - sy) / 3, cell: 5, subcell: 20 });
         const evidence = (id, m, nose) => ({ schema: "aerobeat/gameplay_evidence_snapshot", version: 1, calibrationId: "cal-1", measuredSourceFrameId: id, measurementTimestampMs: m, provenance: "measured", activeBoxingActions: [], anchors: [anchor("nose", m, nose.x, nose.y), anchor("left_shoulder", m, 0, 0), anchor("right_shoulder", m, 3, 0), anchor("left_elbow", m, 0, 0), anchor("right_elbow", m, 3, 0), anchor("left_wrist", m, 0.5, 0.5), anchor("right_wrist", m, 2.5, 0.5)], entries: [] });
         const inputSnap = (m, latest) => ({ sourceIdentity: "camera-a", calibration: { calibrationId: "cal-1", readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: latest, straightQualifications: [] });
@@ -290,10 +254,9 @@ try {
         };
         // ════════════════ SESSION A: canonical SQUAT — CONTACT ════════════════
         const A = makeSession("lcb2-squat-browser", SQUAT_CONFIG);
-        // (c) CONTACT drive: nose through the blocked top row inside the
-        // interval. Segment 5960(1.0)→6060(2.0) crosses sy=1.5 at 6010;
-        // 6260(2.0)→6360(1.0) exits at 6310.
-        const SAFE = { x: 1.5, y: 1.0 };
+        // (c) CONTACT drive: nose moves from below the 4.5-row squat
+        // into its blocked vertical footprint and then back out.
+        const SAFE = { x: 1.5, y: 0.5 }; // below the 4.5-row squat's world-Y 1.0 lower edge
         const TOP = { x: 1.5, y: 2.0 };
         A.step(5960, SAFE, "a0");
         A.step(6060, TOP, "a1");
@@ -334,7 +297,7 @@ try {
         if (redGlow - redBase < MIN_VIGNETTE_DELTA) throw new Error(`squat contact vignette must add ≥ ${MIN_VIGNETTE_DELTA} red edge pixels over the same-frame no-contact baseline, got ${redGlow} − ${redBase} = ${redGlow - redBase}`);
         // Wall geometry (model) + bar glyph presence (pixels).
         const squatWalls = checkWalls(SQUAT.eventId, 1, SQUAT_BAR_X, SQUAT_SCALE_X, SQUAT_BAR_Y, SQUAT_SCALE_Y);
-        // 0.0.90 htsg: ONE centered top-row bar — no lane walls at ±0.9.
+        // ONE continuous 4.5-row squat wall, not two per-lane duplicates.
         if (Math.abs(squatWalls[0].position.x - 0) > 1e-6) throw new Error(`squat bar must be centered at x = 0, got ${squatWalls[0].position.x}`);
         renderer.renderGameplayFrame(frameA(nowA, targetsA.filter((t) => t.id !== SQUAT.eventId), []));
         const emptyPx = guard("squat empty");
@@ -344,7 +307,10 @@ try {
         // center-plane projection. For the thin top-row bar that centroid shift
         // is ~15-20 px, so the bar uses a wider centroid tolerance than the
         // full-height weave wall (whose shift is negligible against its height).
-        const coreBar = wallCore(wallDiff, project(SQUAT_BAR_X, SQUAT_BAR_Y, 0), 25);
+        // The 4.5-row wall's true center projects above this landscape viewport;
+        // sample its visible top-grid segment while shape and full height are
+        // checked separately by checkWalls and the fresh-import GLB oracle.
+        const coreBar = wallCore(wallDiff, project(SQUAT_BAR_X, 2, 0), 25);
         // ════════════════ SESSION B: WEAVE_LEFT — AVOIDED ════════════════
         const B = makeSession("lcb2-weave-browser", WEAVE_CONFIG);
         // (d) AVOIDED drive: nose held in the safe half (sx 1.0 < 2.5 block
@@ -375,7 +341,7 @@ try {
         const nowB = 12200;
         const targetsB = frameB(nowB).targets;
         const weaveTarget = targetsB.find((t) => t.id === WEAVE.eventId);
-        if (!weaveTarget || weaveTarget.kind !== "obstacle" || weaveTarget.family !== "weave" || weaveTarget.lane !== "left" || JSON.stringify(weaveTarget.cells) !== JSON.stringify([3, 7, 11])) throw new Error(`weave_left must project as a kind:"obstacle" family:"weave" lane:"left" target with cells [3,7,11], got ${JSON.stringify(weaveTarget ?? null)}`);
+        if (!weaveTarget || weaveTarget.kind !== "obstacle" || weaveTarget.family !== "weave" || weaveTarget.lane !== "left" || JSON.stringify(weaveTarget.cells) !== JSON.stringify([2, 3, 6, 7, 10, 11])) throw new Error(`weave_left must project as a kind:"obstacle" family:"weave" lane:"left" target with cells [2,3,6,7,10,11], got ${JSON.stringify(weaveTarget ?? null)}`);
         // (d) Vignette FLAT: no retained contact events, intensity 0, and a
         // synthetic contact on the SAME frame proves detector power.
         const contactsB = projectHazardContactEvents(snapB, nowB);

@@ -28,7 +28,7 @@ const defaultHazardVignetteFields=Object.freeze(Object.fromEntries(aeroHazardVig
 /** @typedef {{key?:string|null,newValue?:string|null,storageArea?:unknown}} GameSetupStorageEvent */
 /** @typedef {{addEventListener?:(type:string,listener:(event:GameSetupStorageEvent)=>void)=>void,removeEventListener?:(type:string,listener:(event:GameSetupStorageEvent)=>void)=>void}} GameSetupEventTarget */
 
-export const defaultAeroGameSetupSnapshot=freezeSnapshot({schema:aeroGameSetupSchema,version:aeroGameSetupVersion,showGameplayGrid:false,obstaclesEnabled:true,guidanceBandMode:"off",noseCameraParallaxEnabled:false,spawnDistanceOverride:{enabled:false,normalSpawnDistanceWorldUnits:20},noseCameraRangeXWorldUnits:.55,noseCameraRangeYWorldUnits:.35,colliderRadius:defaultFlowColliderSettings.colliderRadius,enforceAuthoredDirection:defaultFlowColliderSettings.enforceAuthoredDirection,directionToleranceDegrees:defaultFlowColliderSettings.directionToleranceDegrees,timingWindowMs:defaultFlowColliderSettings.timingWindowMs,...defaultBoxingColliderFields,guardSpacing:0.25,noseMarkerVisible:true,noseMarkerScale:.25,trackExtensionWorldUnits:2,uppercutOppositeLane:false,anyOppositeLane:false,...defaultVisualScales,flowColliderVolume:defaultFlowColliderVolume,boxingColliderVolume:defaultBoxingColliderVolume,visibleToleranceRange:false,visibleColliderRadius:false,visibleWristObstacleRadius:false,wristBombColliderScale:1,renderScale:1,...defaultHazardVignetteFields});
+export const defaultAeroGameSetupSnapshot=freezeSnapshot({schema:aeroGameSetupSchema,version:aeroGameSetupVersion,showGameplayGrid:false,obstaclesEnabled:true,guidanceBandMode:"off",noseCameraParallaxEnabled:false,spawnDistanceOverride:{enabled:false,normalSpawnDistanceWorldUnits:20},noseCameraRangeXWorldUnits:.55,noseCameraRangeYWorldUnits:.55,colliderRadius:defaultFlowColliderSettings.colliderRadius,enforceAuthoredDirection:defaultFlowColliderSettings.enforceAuthoredDirection,directionToleranceDegrees:defaultFlowColliderSettings.directionToleranceDegrees,timingWindowMs:defaultFlowColliderSettings.timingWindowMs,...defaultBoxingColliderFields,guardSpacing:0.25,noseMarkerVisible:true,noseMarkerScale:.25,trackExtensionWorldUnits:2,uppercutOppositeLane:false,anyOppositeLane:false,...defaultVisualScales,flowColliderVolume:defaultFlowColliderVolume,boxingColliderVolume:defaultBoxingColliderVolume,visibleToleranceRange:false,visibleColliderRadius:false,visibleWristObstacleRadius:false,wristBombColliderScale:1,renderScale:1,...defaultHazardVignetteFields});
 
 export class AeroGameSetupCoordinator{
   /** @param {{storageFactory?:()=>GameSetupStorage|null|undefined,eventTarget?:GameSetupEventTarget|null}} [options] */
@@ -40,11 +40,11 @@ export class AeroGameSetupCoordinator{
   subscribe(callback,emitCurrent=true){if(typeof callback!=="function")throw new TypeError("Game setup subscriber must be a function");this.subscribers.add(callback);if(emitCurrent)try{callback(this.getSnapshot());}catch{/* isolate subscriber */}let active=true;return()=>{if(!active)return;active=false;this.subscribers.delete(callback);};}
   destroy(){try{this.eventTarget?.removeEventListener?.("storage",this.storageListener);}catch{/* best effort */}this.subscribers.clear();}
   acquireStorage(){try{const storage=this.storageFactory();return storage&&typeof storage.getItem==="function"&&typeof storage.setItem==="function"?storage:null;}catch{return null;}}
-  readStoredSnapshot(){if(!this.storage)return defaultAeroGameSetupSnapshot;try{const serialized=this.storage.getItem(aeroGameSetupStorageKey);if(serialized!==null){const normalized=normalizeSerializedSetup(serialized);if(normalized)return migrateGuardSpacingDefault(this,normalized);this.persistReset(defaultAeroGameSetupSnapshot);return defaultAeroGameSetupSnapshot;}const v2=this.storage.getItem(legacyAeroGameSetupV2StorageKey);if(v2!==null){const migrated=migrateV2GameSetup(v2)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}const v1=this.storage.getItem(legacyAeroGameSetupStorageKey);if(v1===null)return defaultAeroGameSetupSnapshot;const migrated=migrateV1GameSetup(v1)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}catch{return defaultAeroGameSetupSnapshot;}}
+  readStoredSnapshot(){if(!this.storage)return defaultAeroGameSetupSnapshot;try{const serialized=this.storage.getItem(aeroGameSetupStorageKey);if(serialized!==null){const normalized=normalizeSerializedSetup(serialized);if(normalized)return migrateNoseCameraRangeYDefault(this,migrateGuardSpacingDefault(this,normalized));this.persistReset(defaultAeroGameSetupSnapshot);return defaultAeroGameSetupSnapshot;}const v2=this.storage.getItem(legacyAeroGameSetupV2StorageKey);if(v2!==null){const migrated=migrateV2GameSetup(v2)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}const v1=this.storage.getItem(legacyAeroGameSetupStorageKey);if(v1===null)return defaultAeroGameSetupSnapshot;const migrated=migrateV1GameSetup(v1)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}catch{return defaultAeroGameSetupSnapshot;}}
   /** @param {AeroGameSetupSnapshot} snapshot */
   persistReset(snapshot){if(this.storage)try{this.storage.setItem(aeroGameSetupStorageKey,JSON.stringify(snapshot));}catch{/* in-memory setup remains authoritative */}}
   /** @param {GameSetupStorageEvent} event */
-  handleStorageEvent(event){try{const envelope=storageEventEnvelope(event);if(!envelope||envelope.key!==aeroGameSetupStorageKey)return;if(envelope.storageArea!=null&&this.storage!=null&&envelope.storageArea!==this.storage)return;const normalized=envelope.newValue===null?defaultAeroGameSetupSnapshot:typeof envelope.newValue==="string"?normalizeSerializedSetup(envelope.newValue):null;if(!normalized)return;this.applySnapshot(normalized,false);}catch{/* hostile or malformed storage event is ignored */}}
+  handleStorageEvent(event){try{const envelope=storageEventEnvelope(event);if(!envelope||envelope.key!==aeroGameSetupStorageKey)return;if(envelope.storageArea!=null&&this.storage!=null&&envelope.storageArea!==this.storage)return;const normalized=envelope.newValue===null?defaultAeroGameSetupSnapshot:typeof envelope.newValue==="string"?normalizeSerializedSetup(envelope.newValue):null;if(!normalized)return;if(envelope.newValue!==null&&this.storage&&normalized.noseCameraRangeYWorldUnits===.35){const stored=this.storage.getItem(aeroGameSetupStorageKey);if(stored!==null&&stored!==envelope.newValue&&normalizeSerializedSetup(stored)?.noseCameraRangeYWorldUnits!==.35)return;}this.applySnapshot(envelope.newValue===null?normalized:migrateNoseCameraRangeYDefault(this,normalized),false);}catch{/* hostile or malformed storage event is ignored */}}
   /** @param {AeroGameSetupSnapshot} snapshot @param {boolean} persist */
   applySnapshot(snapshot,persist){const next=freezeSnapshot(snapshot);if(equalSetup(this.current,next))return this.getSnapshot();this.current=next;if(persist)this.persistReset(next);for(const callback of [...this.subscribers])try{callback(this.getSnapshot());}catch{/* isolate subscriber */}return this.getSnapshot();}
 }
@@ -126,6 +126,22 @@ function migrateGuardSpacingDefault(coordinator,snapshot){
   const migrated=freezeSnapshot({...snapshot,guardSpacing:defaultAeroGameSetupSnapshot.guardSpacing});
   coordinator.persistReset(migrated);
   try{storage.setItem(guardSpacingDefaultMigrationKey,"1");}catch{/* best effort */}
+  return migrated;
+}
+
+// An existing valid v3 setup carries the former Y default. Upgrade that sentinel
+// once, but never rewrite a later deliberate .35 (including cross-tab updates).
+const noseCameraRangeYDefaultMigrationKey="aerobeat.game-setup.nose-camera-range-y-default-v2";
+function migrateNoseCameraRangeYDefault(coordinator,snapshot){
+  const storage=coordinator.storage;
+  if(!storage)return snapshot;
+  let done=false;
+  try{done=storage.getItem(noseCameraRangeYDefaultMigrationKey)==="1";}catch{return snapshot;}
+  if(done||snapshot.noseCameraRangeYWorldUnits!==.35)return snapshot;
+  try{const stored=storage.getItem(aeroGameSetupStorageKey);if(stored!==null&&normalizeSerializedSetup(stored)?.noseCameraRangeYWorldUnits!==.35)return snapshot;}catch{return snapshot;}
+  const migrated=freezeSnapshot({...snapshot,noseCameraRangeYWorldUnits:defaultAeroGameSetupSnapshot.noseCameraRangeYWorldUnits});
+  coordinator.persistReset(migrated);
+  try{storage.setItem(noseCameraRangeYDefaultMigrationKey,"1");}catch{/* best effort */}
   return migrated;
 }
 
