@@ -64,6 +64,15 @@ try{
   for(const mode of ["game","camera","cv"]){const run=report.runs.find(item=>item.mode===mode&&item.renderScale===1);assert(run,`Missing completed ${mode} run`);assert.equal(run.workload,"aerobeat/abccba_historical_default_2500.v1");assert(run.targets.min>=59&&run.targets.max<=64,"Historical deterministic target density changed");assert(run.displayFps>0);assert(run.displayIntervals.p95>0);}
   const game=report.runs.find(item=>item.mode==="game"&&item.renderScale===1),camera=report.runs.find(item=>item.mode==="camera"),cv=report.runs.find(item=>item.mode==="cv");
   assert.equal(game.camera,null);assert.equal(game.cv,null);assert.equal(game.activeCameraTracks,0);assert(camera.cameraNewFrameFps>0);assert.equal(camera.cv,null);assert.equal(camera.activeCameraTracks,1);assert.equal(camera.requestedCamera.video.facingMode,"user");assert(camera.camera.width>0&&camera.camera.frameRate>0);assert(cv.cv.poseOutputFps>0&&cv.cv.poseFrameCount>0&&cv.cv.submittedFrameCount>0);assert(cv.cv.submittedFrameCount<=Math.ceil(cv.cameraNewFrameFps*cv.durationMs/1000)+1,"CV submissions cannot exceed distinct camera frames");assert(cvProbe.videoFrames>=cv.cv.submittedFrameCount,"CV must transfer real VideoFrames");
+  const pipeline=cv.cv.pipeline;
+  assert(pipeline&&pipeline.sampleLimit===512,"CV report must include bounded diagnostic-only pipeline timing");
+  assert.equal(pipeline.counts.observedOpportunities,pipeline.counts.busySkips+pipeline.counts.availabilityChecks,"Observed opportunities must reconcile busy and availability checks");
+  assert.equal(pipeline.counts.availabilityChecks,pipeline.counts.readyFailures+pipeline.counts.heldFrameChecks+pipeline.counts.staleFrameChecks+pipeline.counts.freshChecks,"Freshness checks must partition the admitted opportunities");
+  assert(pipeline.counts.admissions>0&&pipeline.counts.adapterCalls>0&&pipeline.counts.completed>0,"Real CV Worker must produce instrumented accepted estimates");
+  for(const name of ["sourceToAdapterMs","adapterWallMs","workerRoundTripMs","inferenceMs","postprocessMs","workerOtherCombinedMs","admissionGapMs","completionToAdmissionMs"]){
+    const sample=pipeline.timingsMs[name];assert(sample&&sample.count>0&&sample.count<=512&&Number.isFinite(sample.p50)&&Number.isFinite(sample.p95),`Missing bounded real-Worker ${name} timing`);
+  }
+  assert.match(pipeline.note,/not transfer-only/u,"Combined Worker remainder must not masquerade as exact transfer cost");
   await page.locator("aero-button[data-mode=game]").click();await page.locator("#camera").waitFor({state:"hidden"});
   assert.equal(await page.locator("#camera").evaluate(video=>video.srcObject),null,"Leaving CV must detach camera stream");
   assert((await page.evaluate(()=>window.__phoneProbe)).workerTerminations>=1,"Leaving CV must terminate the Worker");

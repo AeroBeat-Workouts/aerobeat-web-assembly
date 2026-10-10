@@ -8,6 +8,7 @@ import { createLockedProductionCvService, createLockedVideoFrameSource } from ".
 import { lockedProductionCvProfile } from "./production-cv-profile.js";
 import { createPrivatePerformanceRecorder } from "./private-performance-recorder.js";
 import { createPhonePerformanceWorkload, phonePerformanceWorkload } from "./phone-performance-workload.js";
+import { createPhonePerformancePipeline } from "./phone-performance-pipeline.js";
 
 defineAeroUiElements();
 const canvas=/** @type {HTMLCanvasElement} */(document.querySelector("#game"));
@@ -32,6 +33,7 @@ const workload=createPhonePerformanceWorkload();
 const recorder=createPrivatePerformanceRecorder({capacity:2048});
 /** @type {MediaStream|null} */ let stream=null;
 /** @type {ReturnType<typeof createLockedProductionCvService>|null} */ let cv=null;
+/** @type {ReturnType<typeof createPhonePerformancePipeline>|null} */ let cvPipeline=null;
 /** @type {Array<Record<string,unknown>>} */ const runs=[];
 /** @type {Array<{mode:string,reason:string}>} */ const failures=[];
 let activeMode="game",desiredMode="game",generation=0,renderScale=1;
@@ -71,6 +73,7 @@ function stopCamera(){
   stream?.getTracks().forEach(track=>track.stop());stream=null;
 }
 async function stopCv(){
+  cvPipeline?.stop();cvPipeline=null;
   const previous=cv;cv=null;
   if(previous)cvDispose=cvDispose.catch(()=>{}).then(()=>previous.dispose());
   await cvDispose;
@@ -115,14 +118,39 @@ function invalidate(reason,releaseCamera){
     void transition.catch(()=>{}).then(async()=>{await stopCv();stopCamera();syncCameraPresentation();});
   }
 }
+function instrumentAdapter(adapter){
+  return Object.freeze({
+    vendorId:adapter.vendorId,model:adapter.model,capabilities:adapter.capabilities,
+    get status(){return adapter.status;},
+    getExecutionStatus:()=>adapter.getExecutionStatus(),
+    getExecutionTelemetry:()=>adapter.getExecutionTelemetry(),
+    getTelemetryStatus:()=>adapter.getTelemetryStatus(),
+    load:()=>adapter.load(),dispose:()=>adapter.dispose(),
+    estimateNormalizedPoseFrame(frameSource,options){
+      const pipeline=cvPipeline,ticket=pipeline?.adapterCalled(performance.now());
+      let pending;
+      try{pending=Reflect.apply(adapter.estimateNormalizedPoseFrame,adapter,[frameSource,options]);}
+      catch(error){pipeline?.settled(ticket,performance.now(),null,true);throw error;}
+      // Observe the original Promise without delaying or changing its result.
+      if(ticket)void pending.then(
+        ()=>pipeline?.settled(ticket,performance.now(),adapter.getExecutionTelemetry()),
+        ()=>pipeline?.settled(ticket,performance.now(),null,true)
+      );
+      return pending;
+    }
+  });
+}
 function uniqueFrameSource(){
   const source=createLockedVideoFrameSource(video,{sourceId:mediaPipeLiveSourceId,mirrored:true});
   return Object.freeze({
     ...source,
     // Production CV remains unchanged. This diagnostic admits each observed
     // camera frame at most once, so frozen video cannot fake fresh pose output.
-    isFrameAvailable:()=>source.isFrameAvailable()&&cameraFrameCount>cvConsumedFrame&&performance.now()-lastCameraAt<2000,
-    getTimestampMs:()=>{cvConsumedFrame=cameraFrameCount;return cameraTimestamp;}
+    isFrameAvailable:()=>{
+      const ready=source.isFrameAvailable(),fresh=cameraFrameCount>cvConsumedFrame,recent=performance.now()-lastCameraAt<2000;
+      return cvPipeline?.checkAvailability({ready,fresh,recent})??Boolean(ready&&fresh&&recent);
+    },
+    getTimestampMs:()=>{cvConsumedFrame=cameraFrameCount;cvPipeline?.admitted(performance.now());return cameraTimestamp;}
   });
 }
 async function changeMode(mode){
@@ -139,7 +167,7 @@ async function changeMode(mode){
       if(mode!=="game"){
         if(!await startCamera(token))return;
         if(mode==="cv"){
-          cvConsumedFrame=0;
+          cvConsumedFrame=0;cvPipeline=createPhonePerformancePipeline();
           const adapter=createMediaPipeWorkerPoseAdapter({
             sourceId:mediaPipeLiveSourceId,mirrored:true,delegate:mediaPipeDelegates.cpuWasm,
             modelUrl:new URL("assets/mediapipe/pose_landmarker_lite.task",location.href).href,
@@ -150,7 +178,7 @@ async function changeMode(mode){
             minPosePresenceConfidence:lockedProductionCvProfile.minPosePresenceConfidence,
             minTrackingConfidence:lockedProductionCvProfile.minTrackingConfidence
           });
-          cv=createLockedProductionCvService({poseAdapter:adapter,submissionCadenceTargetFps:lockedProductionCvProfile.submissionCadenceTargetFps});
+          cv=createLockedProductionCvService({poseAdapter:instrumentAdapter(adapter),submissionCadenceTargetFps:lockedProductionCvProfile.submissionCadenceTargetFps});
           await cv.start(uniqueFrameSource());
           if(token!==generation||disposed||document.hidden){await stopCv();stopCamera();return;}
         }
@@ -193,6 +221,7 @@ function frame(now){
     if(activeMode==="cv"&&!(cvStatus?.poseFrameCount>0)||now-phaseStarted<warmMs)return;
     phase="measuring";windowStart=now;windowGeometry=geometryKey();minTargets=Infinity;maxTargets=0;
     cameraFrameStart=cameraFrameCount;recorder.reset(`${activeMode}-${renderScale}`,now);
+    if(activeMode==="cv")cvPipeline?.reset(cv?.getStatus().droppedFrameCount??0);
     summary.textContent=`Measuring ${label(activeMode)} for ${measureMs/1000} seconds. Keep this tab visible.`;
   }
   if(phase!=="measuring")return;
@@ -224,10 +253,10 @@ function finishWindow(now){
     missedVsync:sample.missedVsyncCount,rendererCpuMs:sample.rendererCpuMs,
     requestedCamera:activeMode==="game"?null:requestedCamera,camera,activeCameraTracks:stream?.getVideoTracks().filter(track=>track.readyState==="live").length??0,
     cameraNewFrameFps:activeMode==="game"?0:Number(((cameraFrameCount-cameraFrameStart)*1000/sample.durationMs).toFixed(3)),
-    cv:activeMode==="cv"?{...sample.cv,poseOutputFps:Number((sample.cv.poseFrameCount*1000/sample.durationMs).toFixed(3)),inferenceMs:sample.mediaPipeRuntimeMs,estimateMs:sample.mediaPipeEndToEndMs,poseAgeMs:sample.poseAgeMs}:null,
+    cv:activeMode==="cv"?{...sample.cv,poseOutputFps:Number((sample.cv.poseFrameCount*1000/sample.durationMs).toFixed(3)),inferenceMs:sample.mediaPipeRuntimeMs,estimateMs:sample.mediaPipeEndToEndMs,poseAgeMs:sample.poseAgeMs,pipeline:cvPipeline?.snapshot(cv?.getStatus().droppedFrameCount??0)}:null,
     durationMs:sample.durationMs,previewOnly
   };
-  runs.push(run);phase="done";
+  runs.push(run);phase="done";cvPipeline?.stop();
   summary.textContent=`${label(activeMode)}: scene ${run.displayFps} FPS; camera ${run.cameraNewFrameFps} new frames/s; pose ${run.cv?.poseOutputFps??0} FPS; frame interval p95 ${sample.displayIntervals.p95} ms. ${runs.length} run(s) saved.`;
   status.textContent=`${label(activeMode)} complete — choose the next mode or change resolution.`;
   fps.setAttribute("heading",`${run.displayFps} scene FPS`);fps.setAttribute("status","Window complete");
