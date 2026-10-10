@@ -21,6 +21,12 @@ try {
   const render=(t,mode,omit=null)=>page.evaluate(([time,kind,without])=>window.__phoneHitFixture.renderAt(time,kind,without),[t,mode,omit]);
   const pixels=()=>page.evaluate(()=>window.__phoneHitFixture.pixels());
   const pair=async (t,omit=null)=>{const base=await render(t,"no-hit"),basePixels=await pixels(),hit=await render(t,"hit",omit),hitPixels=await pixels();return{base,basePixels,hit,hitPixels};};
+  for(const [timeMs,expected] of [[0,59],[209,64],[850,63]]){
+    const baseline=await render(timeMs,"no-hit");
+    assert.equal(baseline.targets,expected,`Test-purpose no-hit baseline at t=${timeMs}ms`);
+    assert.equal(baseline.hitFeedback,0,`Test-purpose no-hit feedback at t=${timeMs}ms`);
+    assert.equal(baseline.aftermathEntries,0,`Test-purpose no-hit aftermath at t=${timeMs}ms`);
+  }
   const before=await pair(4299);
   assert.equal(before.base.targets>=59&&before.base.targets<=64,true);
   assert.equal(before.hit.hitFeedback,0);
@@ -102,7 +108,7 @@ try {
   const seventh=await render(5332,"hit");
   assert.equal(seventh.aftermathEntries,7);
   const eighth=await render(5504,"hit");
-  assert.equal(eighth.aftermathEntries,7,"eighth committed hit evicts first; expired fade entry is absent");
+  assert.equal(eighth.aftermathEntries,7,"frameHit(5504) returns exactly seven aftermath entries; first is already evicted");
   assert.equal(eighth.halves.length,0,"old note-100 halves already off-screen/evicted");
   const lightBefore=await render(4340,"no-hit");
   await page.evaluate(()=>window.__phoneHitFixture.shadowProbe(true));const native=await pixels();
