@@ -3,13 +3,13 @@ import { createPhonePerformanceWorkload, phonePerformanceWorkload } from "./phon
 import { createSessionTargetIndex, projectSessionTargets } from "./session-render-projection.js";
 import { projectAftermathEntries } from "./gameplay-frame-effects.js";
 
-// Presentation-only Test fixture: authored note-100 at 4300 ms, then each fourth
+// Presentation-only Test fixture: authored note-100 at 4300 ms, then each fifth
 // authored note. Walls never become judgements. No wrist evidence is fabricated;
 // the renderer uses its midpoint slice fallback, not a measured cut position.
 export const phoneHitWorkload = Object.freeze({
-  contract: "aerobeat/phone_visual_test_real_hit_every_fourth_note.v1",
+  contract: "aerobeat/phone_visual_test_real_hit_every_fifth_note.v1",
   firstNote: 100,
-  noteStride: 4,
+  noteStride: 5,
   firstHitMs: 4300,
   feedbackDurationMs: 350,
   expectedVisibleMin: 59,
