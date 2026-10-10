@@ -1,14 +1,14 @@
 // Standalone diagnostic build/preview config. Not used by the immutable release builder.
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root=new URL("./",import.meta.url);
 const revision=execFileSync("git",["-C",fileURLToPath(root),"rev-parse","HEAD"],{encoding:"utf8"}).trim();
 const manifest=JSON.parse(readFileSync(new URL("package.json",root),"utf8"));
 const localPackages=Object.entries(manifest.dependencies).filter(([,spec])=>spec.startsWith("file:"));
-const allowed=[fileURLToPath(root),...localPackages.map(([,spec])=>fileURLToPath(new URL(`${spec.slice(5)}/`,root)))];
+const allowed=[fileURLToPath(root),...localPackages.map(([,spec])=>realpathSync(fileURLToPath(new URL(`${spec.slice(5)}/`,root))))];
 // Linked packages have their own import roots. The explicit aliases are diagnostic
 // only; the production configuration retains its strict dependency provenance.
 const aliases=localPackages.flatMap(([name,spec])=>{
