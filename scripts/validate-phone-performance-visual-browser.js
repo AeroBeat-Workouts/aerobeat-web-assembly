@@ -39,7 +39,7 @@ try{
   await fixture.goto(`${base}scripts/fixtures/phone-visual-synthetic.html`);
   await fixture.waitForFunction(()=>window.__phoneVisualFixture?.ready()==="ready",null,{timeout:30000});
   const run=async command=>fixture.evaluate(command=>window.__phoneVisualFixture[command](),command);
-  const state=await run("render");assert.equal(state.state,"running");assert(state.targets>=59&&state.targets<=64,"dense Flow scene must remain frozen");
+  const state=await run("render");assert.equal(state.state,"running");assert.equal(state.targets,78,"frozen dense Flow at t=850ms must use the latest scored-note clearance density");
   assert(state.shadow.light&&state.shadow.receiver&&state.shadow.resolution===2048,"pinned 2048 shadow light and receiver must exist in both modes");
   assert.equal(state.shadow.casting,initiallyCasting,`initial light casting must match Vite-config shadow mode ${declaredShadowMode}`);
   assert.equal(state.equipmentCount,0);assert.equal(state.cursorCount,0);
