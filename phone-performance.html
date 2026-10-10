@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AeroBeat Phone Performance Test</title>
+  <style>
+    :root{font:16px system-ui,sans-serif;color:#effaff;background:#06141f}
+    *{box-sizing:border-box}body{margin:0}main{min-height:100dvh;display:grid;grid-template-rows:auto minmax(270px,1fr) auto;gap:10px;padding:10px}
+    .controls{display:flex;flex-wrap:wrap;align-items:end;gap:8px}.controls aero-button::part(control),.controls aero-select::part(control){min-height:48px}
+    .controls aero-button[aria-pressed="true"]::part(control){background:#66dffb;border:3px solid #fff;color:#06141f;font-weight:800}
+    .controls aero-select{min-width:160px;color:#effaff}.controls aero-select::part(control){font-size:16px}
+    h1{font-size:1rem;margin:0 0 6px}.scope{margin:4px 0 8px;font-size:.78rem;color:#bed9e5}
+    .stage{position:relative;min-height:270px;overflow:hidden;background:#071521;border:1px solid #5494a8;border-radius:10px;isolation:isolate}
+    .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+    .stage video{z-index:0;transform:scaleX(-1)}.stage canvas{z-index:1}
+    aero-status-panel{position:absolute;z-index:2;top:10px;left:10px;max-width:calc(100% - 20px);min-width:120px;pointer-events:none;--aero-color-ink:#fff;--aero-color-surface:rgba(2,19,32,.93);--aero-color-border:#90ecff}
+    aero-status-panel::part(panel){background:rgba(2,19,32,.93);border:2px solid #90ecff;box-shadow:0 3px 14px #000}
+    .results{padding:10px;border:1px solid #427286;border-radius:10px;background:#0b2738;display:grid;gap:7px}
+    .results output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.83rem}.results p{margin:0;font-size:.82rem}.results .actions{display:flex;gap:8px;flex-wrap:wrap}
+    @media (max-width:500px){main{padding:6px;gap:6px}.controls aero-button{flex:1 1 28%;min-width:105px}.controls aero-button::part(control){width:100%;font-size:.8rem;padding:0 5px}.controls aero-select{flex:1 1 100%}.stage{min-height:50dvh}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AeroBeat · Phone Performance Test</h1>
+    <p class="scope">Same deterministic dense Flow scene in every mode. No music, scoring, or calibration. Game + CV uses measured MediaPipe at its existing 15-FPS submission ceiling.</p>
+    <div class="controls" role="group" aria-label="Performance test modes">
+      <aero-button data-mode="game" label="Game" aria-pressed="true"></aero-button>
+      <aero-button data-mode="camera" label="Game + Camera" aria-pressed="false"></aero-button>
+      <aero-button data-mode="cv" label="Game + CV" aria-pressed="false"></aero-button>
+      <aero-select id="quality" label="Gameplay render quality" value="1"></aero-select>
+    </div>
+  </header>
+  <section class="stage" aria-label="Moving AeroBeat PlayCanvas beats">
+    <video id="camera" autoplay muted playsinline aria-hidden="true" hidden></video>
+    <canvas id="game" aria-label="Dense moving Flow beats"></canvas>
+    <aero-status-panel id="fps" heading="Scene FPS" status="Loading"></aero-status-panel>
+  </section>
+  <section class="results" aria-label="Benchmark results">
+    <output id="status" role="status">Loading gameplay assets…</output>
+    <output id="summary" aria-live="polite">Choose a mode. Each mode warms up, then measures for 60 seconds.</output>
+    <div class="actions"><aero-button id="copy" label="Copy results"></aero-button><aero-button id="download" label="Download JSON"></aero-button></div>
+    <p id="notice">Keep this tab visible for the full window. Run Game, then Game + Camera, then Game + CV at the same resolution; paste the copied report here.</p>
+  </section>
+</main>
+<script type="module" src="/src/phone-performance.js"></script>
+</body>
+</html>
