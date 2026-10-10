@@ -61,6 +61,9 @@ try{
   const downloadPromise=page.waitForEvent("download");await page.locator("#download").click();
   const download=await downloadPromise;const stream=await download.createReadStream();let text="";for await(const chunk of stream)text+=chunk.toString();
   const report=JSON.parse(text);assert.equal(report.schema,"aerobeat/phone_performance_ablation");
+  assert.match(report.renderer?.commit??"",/^[0-9a-f]{40}$/u,"Diagnostic must pin the actual renderer Git revision");
+  assert.match(report.renderer?.facadeSha256??"",/^[0-9a-f]{64}$/u,"Diagnostic must fingerprint the compiled renderer source");
+  assert(["native","disabled"].includes(report.renderer?.shadowMode),"Shadow mode must be explicit in the scalar export");
   for(const mode of ["game","camera","cv"]){const run=report.runs.find(item=>item.mode===mode&&item.renderScale===1);assert(run,`Missing completed ${mode} run`);assert.equal(run.workload,"aerobeat/abccba_historical_default_2500.v1");assert(run.targets.min>=59&&run.targets.max<=64,"Historical deterministic target density changed");assert(run.displayFps>0);assert(run.displayIntervals.p95>0);}
   const game=report.runs.find(item=>item.mode==="game"&&item.renderScale===1),camera=report.runs.find(item=>item.mode==="camera"),cv=report.runs.find(item=>item.mode==="cv");
   assert.equal(game.camera,null);assert.equal(game.cv,null);assert.equal(game.activeCameraTracks,0);assert(camera.cameraNewFrameFps>0);assert.equal(camera.cv,null);assert.equal(camera.activeCameraTracks,1);assert.equal(camera.requestedCamera.video.facingMode,"user");assert(camera.camera.width>0&&camera.camera.frameRate>0);assert(cv.cv.poseOutputFps>0&&cv.cv.poseFrameCount>0&&cv.cv.submittedFrameCount>0);assert(cv.cv.submittedFrameCount<=Math.ceil(cv.cameraNewFrameFps*cv.durationMs/1000)+1,"CV submissions cannot exceed distinct camera frames");assert(cvProbe.videoFrames>=cv.cv.submittedFrameCount,"CV must transfer real VideoFrames");

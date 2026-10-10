@@ -25,11 +25,12 @@
 <main>
   <header>
     <h1>AeroBeat · Phone Performance Test</h1>
-    <p class="scope">Same deterministic dense Flow scene in every mode. No music, scoring, or calibration. Game + CV uses measured MediaPipe at its existing 15-FPS submission ceiling.</p>
+    <p class="scope">Same deterministic dense Flow scene in every mode. The first three modes have no calibration or scoring; CV + Visuals adds real T-pose calibration and AeroBeat Flow equipment/nose rendering. Measured MediaPipe keeps its existing 15-FPS submission ceiling. No music or scored Play.</p>
     <div class="controls" role="group" aria-label="Performance test modes">
       <aero-button data-mode="game" label="Game" aria-pressed="true"></aero-button>
       <aero-button data-mode="camera" label="Game + Camera" aria-pressed="false"></aero-button>
       <aero-button data-mode="cv" label="Game + CV" aria-pressed="false"></aero-button>
+      <aero-button data-mode="cv-visual" label="CV + AeroBeat visuals" aria-pressed="false"></aero-button>
       <aero-select id="quality" label="Gameplay render quality" value="1"></aero-select>
     </div>
   </header>
@@ -42,7 +43,7 @@
     <output id="status" role="status">Loading gameplay assets…</output>
     <output id="summary" aria-live="polite">Choose a mode. Each mode warms up, then measures for 60 seconds.</output>
     <div class="actions"><aero-button id="copy" label="Copy results"></aero-button><aero-button id="download" label="Download JSON"></aero-button></div>
-    <p id="notice">Keep this tab visible for the full window. Run Game, then Game + Camera, then Game + CV at the same resolution; paste the copied report here.</p>
+    <p id="notice">Keep this tab visible. Run the original Game, Camera and CV windows, then choose CV + AeroBeat visuals, hold a T-pose until calibration completes, release, and keep your equipment and nose in view for its 60-second window. Compare shadow builds at the same resolution.</p>
   </section>
 </main>
 <script type="module" src="/src/phone-performance.js"></script>

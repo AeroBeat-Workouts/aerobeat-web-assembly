@@ -6,6 +6,14 @@ import { fileURLToPath } from "node:url";
 
 const root=new URL("./",import.meta.url);
 const revision=execFileSync("git",["-C",fileURLToPath(root),"rev-parse","HEAD"],{encoding:"utf8"}).trim();
+const rendererRoot=new URL("../aerobeat-web-renderer/",root);
+const rendererRevision=execFileSync("git",["-C",fileURLToPath(rendererRoot),"rev-parse","HEAD"],{encoding:"utf8"}).trim();
+const rendererFacadeSource=readFileSync(new URL("src/renderer-facade.js",rendererRoot),"utf8");
+const rendererSourceSha256=createHash("sha256").update(rendererFacadeSource).digest("hex");
+const shadowMode=process.env.AEROBEAT_PHONE_SHADOW_MODE??"native";
+if(!["native","disabled"].includes(shadowMode))throw new Error("Unknown diagnostic shadow mode");
+const expectedShadowLight=`castShadows:${shadowMode==="native"?"true":"false"},shadowType:pc.SHADOW_PCF3_32F`;
+if(!rendererFacadeSource.includes(expectedShadowLight))throw new Error(`Diagnostic renderer does not match declared ${shadowMode} shadow mode`);
 const manifest=JSON.parse(readFileSync(new URL("package.json",root),"utf8"));
 const localPackages=Object.entries(manifest.dependencies).filter(([,spec])=>spec.startsWith("file:"));
 const allowed=[fileURLToPath(root),...localPackages.map(([,spec])=>realpathSync(fileURLToPath(new URL(`${spec.slice(5)}/`,root))))];
@@ -35,7 +43,7 @@ function walkAssets(directory,prefix=""){
 const assets=[...mediaFiles,...walkAssets(gameRoot)];
 export default {
   base:"/",
-  define:{__AEROBEAT_PHONE_COMMIT__:JSON.stringify(revision)},
+  define:{__AEROBEAT_PHONE_COMMIT__:JSON.stringify(revision),__AEROBEAT_PHONE_RENDERER_COMMIT__:JSON.stringify(rendererRevision),__AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__:JSON.stringify(rendererSourceSha256),__AEROBEAT_PHONE_SHADOW_MODE__:JSON.stringify(shadowMode)},
   resolve:{alias:aliases},
   optimizeDeps:{exclude:["@aerobeat/web-content-authoring","@aerobeat/web-contracts","@aerobeat/web-gameplay","@aerobeat/web-renderer","@aerobeat/web-ui"]},
   plugins:[{

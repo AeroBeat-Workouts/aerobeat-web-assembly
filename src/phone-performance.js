@@ -9,6 +9,7 @@ import { lockedProductionCvProfile } from "./production-cv-profile.js";
 import { createPrivatePerformanceRecorder } from "./private-performance-recorder.js";
 import { createPhonePerformanceWorkload, phonePerformanceWorkload } from "./phone-performance-workload.js";
 import { createPhonePerformancePipeline } from "./phone-performance-pipeline.js";
+import { createPhoneTrackingVisuals } from "./phone-performance-visual-input.js";
 
 defineAeroUiElements();
 const canvas=/** @type {HTMLCanvasElement} */(document.querySelector("#game"));
@@ -19,7 +20,8 @@ const fps=/** @type {HTMLElement} */(document.querySelector("#fps"));
 const status=/** @type {HTMLOutputElement} */(document.querySelector("#status"));
 const summary=/** @type {HTMLOutputElement} */(document.querySelector("#summary"));
 const notice=/** @type {HTMLElement} */(document.querySelector("#notice"));
-const modes=["game","camera","cv"];
+const modes=["game","camera","cv","cv-visual"];
+const hasCv=(mode)=>mode==="cv"||mode==="cv-visual";
 const qualityOptions=Object.freeze([{value:"1",label:"Full (1.0)"},{value:"0.75",label:"High (0.75)"},{value:"0.5",label:"Medium (0.5)"},{value:"0.25",label:"Low (0.25)"}]);
 const previewOnly=new URLSearchParams(location.search).get("preview")==="1";
 const measureMs=previewOnly?4000:60000;
@@ -34,11 +36,13 @@ const recorder=createPrivatePerformanceRecorder({capacity:2048});
 /** @type {MediaStream|null} */ let stream=null;
 /** @type {ReturnType<typeof createLockedProductionCvService>|null} */ let cv=null;
 /** @type {ReturnType<typeof createPhonePerformancePipeline>|null} */ let cvPipeline=null;
+/** @type {Awaited<ReturnType<typeof createPhoneTrackingVisuals>>|null} */ let visualTracking=null;
 /** @type {Array<Record<string,unknown>>} */ const runs=[];
 /** @type {Array<{mode:string,reason:string}>} */ const failures=[];
 let activeMode="game",desiredMode="game",generation=0,renderScale=1;
 let raf=0,videoCallback=0,cameraFrameCount=0,cameraFrameStart=0,lastCameraAt=0,cameraTimestamp=0,cvConsumedFrame=0,lastMediaTime=-Infinity;
 let phase="loading",phaseStarted=0,windowStart=0,latestStatsAt=0,minTargets=Infinity,maxTargets=0;
+let visualPoseTimestamp=null,visualReadySince=null,visualEquipmentDisplayFrames=0,visualNoseDisplayFrames=0;
 let windowGeometry="",disposed=false,transition=Promise.resolve(),cvDispose=Promise.resolve();
 /** @type {null|(()=>void)} */ let cancelCameraRequest=null;
 
@@ -53,7 +57,7 @@ function resize(){
   renderer.resize({widthCssPx:bounds.width,heightCssPx:bounds.height,devicePixelRatio:devicePixelRatio||1,renderScale});
   if((phase==="warmup"||phase==="measuring")&&windowGeometry&&geometryKey()!==windowGeometry)invalidate("Canvas size or orientation changed during the window.",true);
 }
-function label(mode){return mode==="game"?"Game":mode==="camera"?"Game + Camera":"Game + CV";}
+function label(mode){return mode==="game"?"Game":mode==="camera"?"Game + Camera":mode==="cv-visual"?"CV + AeroBeat visuals":"Game + CV";}
 function updateModeButtons(){for(const button of document.querySelectorAll("aero-button[data-mode]"))button.setAttribute("aria-pressed",String(button.getAttribute("data-mode")===desiredMode));}
 function cameraFormat(){const settings=stream?.getVideoTracks()[0]?.getSettings()??{};return{width:settings.width??video.videoWidth??null,height:settings.height??video.videoHeight??null,frameRate:settings.frameRate??null};}
 function cameraTick(now,metadata){
@@ -74,6 +78,7 @@ function stopCamera(){
 }
 async function stopCv(){
   cvPipeline?.stop();cvPipeline=null;
+  visualTracking?.destroy();visualTracking=null;visualPoseTimestamp=null;visualReadySince=null;
   const previous=cv;cv=null;
   if(previous)cvDispose=cvDispose.catch(()=>{}).then(()=>previous.dispose());
   await cvDispose;
@@ -104,7 +109,7 @@ async function startCamera(token){
 function beginWindow(now){
   phase="warmup";phaseStarted=now;windowStart=0;windowGeometry=geometryKey();cameraFrameStart=cameraFrameCount;
   status.textContent=`${label(activeMode)} warming up…`;
-  summary.textContent="Warming up assets, camera, and pose (if selected)…";
+  summary.textContent=activeMode==="cv-visual"?"Hold a T-pose to calibrate AeroBeat equipment, then release and keep your wrists and nose visible. The timer starts only once tracked equipment is ready.":"Warming up assets, camera, and pose (if selected)…";
 }
 function invalidate(reason,releaseCamera){
   if(phase==="invalid"||disposed)return;
@@ -166,8 +171,13 @@ async function changeMode(mode){
     try{
       if(mode!=="game"){
         if(!await startCamera(token))return;
-        if(mode==="cv"){
+        if(hasCv(mode)){
           cvConsumedFrame=0;cvPipeline=createPhonePerformancePipeline();
+          if(mode==="cv-visual"){
+            const tracking=await createPhoneTrackingVisuals();
+            if(token!==generation||disposed||document.hidden){tracking.destroy();return;}
+            visualTracking=tracking;visualPoseTimestamp=null;visualReadySince=null;
+          }
           const adapter=createMediaPipeWorkerPoseAdapter({
             sourceId:mediaPipeLiveSourceId,mirrored:true,delegate:mediaPipeDelegates.cpuWasm,
             modelUrl:new URL("assets/mediapipe/pose_landmarker_lite.task",location.href).href,
@@ -209,42 +219,67 @@ function frame(now){
   const renderStarted=performance.now();
   const elapsed=phase==="measuring"?now-windowStart:now-phaseStarted;
   const scene=workload.frame(elapsed);
-  // Identical moving beats in every mode; CV never gates scene rendering.
-  const result=renderer.renderGameplayFrameWithCursors(scene,[],{grid:{x:0,y:0,width:1,height:1},minConfidence:.5,sizeCssPx:32});
+  const poseFrame=hasCv(activeMode)?cv?.getLatestPoseFrame():undefined;
+  if(activeMode==="cv-visual"&&poseFrame&&poseFrame.timestampMs!==visualPoseTimestamp){
+    visualPoseTimestamp=poseFrame.timestampMs;
+    visualTracking?.processPose(poseFrame,{sourceAspectRatio:video.videoWidth/video.videoHeight,sourceChangeId:String(generation)});
+  }
+  const visual=activeMode==="cv-visual"?visualTracking?.frame(now):null;
+  // Identical moving beats in every mode; only the additional visual mode
+  // stages calibrated equipment and an optional measured nose in this tick.
+  const cursorOptions={grid:{x:0,y:0,width:1,height:1},minConfidence:.5,sizeCssPx:32,noseMarkerVisible:true,noseMarkerScale:.25};
+  const result=activeMode==="cv-visual"
+    ?renderer.renderGameplayFrameWithCursorsAndEquipment(scene,visual?.cursors??[],cursorOptions,visual?.equipment??[],{grid:{x:0,y:0,width:1,height:1}})
+    :renderer.renderGameplayFrameWithCursors(scene,[],{grid:{x:0,y:0,width:1,height:1},minConfidence:.5,sizeCssPx:32});
   if(result.status.state!=="running"){invalidate(`Renderer failed: ${result.status.errorMessage??result.status.state}`,true);return;}
   if(phase==="warmup"){
-    const cvStatus=activeMode==="cv"?cv?.getStatus():null;
-    if(cvStatus?.lifecycleState==="error"||activeMode==="cv"&&now-phaseStarted>30000&&!(cvStatus?.poseFrameCount>0)){
+    const cvStatus=hasCv(activeMode)?cv?.getStatus():null;
+    if(cvStatus?.lifecycleState==="error"||hasCv(activeMode)&&now-phaseStarted>30000&&!(cvStatus?.poseFrameCount>0)){
       invalidate(`CV did not start: ${cvStatus?.error??"no pose output after 30 seconds"}`,true);return;
     }
     if(activeMode!=="game"&&now-lastCameraAt>2000){invalidate("Camera stopped delivering new frames.",true);return;}
-    if(activeMode==="cv"&&!(cvStatus?.poseFrameCount>0)||now-phaseStarted<warmMs)return;
+    if(activeMode==="cv-visual"){
+      if(now-phaseStarted>90000&&!visual?.calibrationReady){invalidate("T-pose calibration did not complete; retry the visual window.",true);return;}
+      if(!visual?.calibrationReady||!visual.trackingReady||visual.equipment.length!==2){
+        visualReadySince=null;
+        status.textContent="CV + AeroBeat visuals: hold a T-pose, release, then keep both wrists and nose visible.";
+        return;
+      }
+      visualReadySince??=now;
+      if(now-visualReadySince<warmMs)return;
+    }
+    if(hasCv(activeMode)&&!(cvStatus?.poseFrameCount>0)||now-phaseStarted<warmMs)return;
     phase="measuring";windowStart=now;windowGeometry=geometryKey();minTargets=Infinity;maxTargets=0;
     cameraFrameStart=cameraFrameCount;recorder.reset(`${activeMode}-${renderScale}`,now);
-    if(activeMode==="cv")cvPipeline?.reset(cv?.getStatus().droppedFrameCount??0);
+    visualEquipmentDisplayFrames=0;visualNoseDisplayFrames=0;
+    if(hasCv(activeMode))cvPipeline?.reset(cv?.getStatus().droppedFrameCount??0);
     summary.textContent=`Measuring ${label(activeMode)} for ${measureMs/1000} seconds. Keep this tab visible.`;
   }
   if(phase!=="measuring")return;
   if(geometryKey()!==windowGeometry){invalidate("Canvas size or orientation changed during the window.",true);return;}
   if(activeMode!=="game"&&now-lastCameraAt>2000){invalidate("Camera stopped delivering new frames.",true);return;}
-  if(activeMode==="cv"&&cv?.getStatus().lifecycleState==="error"){
+  if(hasCv(activeMode)&&cv?.getStatus().lifecycleState==="error"){
     invalidate(`CV stopped: ${cv.getStatus().error??"unknown error"}`,true);return;
   }
   minTargets=Math.min(minTargets,scene.targets.length);maxTargets=Math.max(maxTargets,scene.targets.length);
-  const latestPose=activeMode==="cv"?cv?.getLatestPoseFrame():undefined;
-  recorder.record({timestampMs:now,rendererCpuMs:performance.now()-renderStarted,poseTimestampMs:latestPose?.timestampMs,poseObservedAtMs:performance.now(),cv:activeMode==="cv"?cv?.getPerformanceSample():null,camera:activeMode==="game"?null:cameraFormat()});
+  if(activeMode==="cv-visual"){
+    if(visual?.equipment.length===2)visualEquipmentDisplayFrames++;
+    if((visual?.cursors.length??0)>0)visualNoseDisplayFrames++;
+  }
+  recorder.record({timestampMs:now,rendererCpuMs:performance.now()-renderStarted,poseTimestampMs:poseFrame?.timestampMs,poseObservedAtMs:performance.now(),cv:hasCv(activeMode)?cv?.getPerformanceSample():null,camera:activeMode==="game"?null:cameraFormat()});
   if(now-latestStatsAt>500){
     latestStatsAt=now;const elapsedMs=Math.max(1,now-windowStart);const current=recorder.snapshot(now);
     const cameraRate=activeMode==="game"?0:Math.round((cameraFrameCount-cameraFrameStart)*1000/elapsedMs);
     fps.setAttribute("heading",`${current.displayRateFps??0} scene FPS`);
-    fps.setAttribute("status",`Camera ${cameraRate}/s · Pose ${activeMode==="cv"?Math.round(current.cv.poseFrameCount*1000/elapsedMs):0}/s`);
+    fps.setAttribute("status",`Camera ${cameraRate}/s · Pose ${hasCv(activeMode)?Math.round(current.cv.poseFrameCount*1000/elapsedMs):0}/s`);
     status.textContent=`${label(activeMode)} · ${Math.ceil((measureMs-elapsedMs)/1000)}s left · ${renderScale}× backing scale · ${canvas.width}×${canvas.height} px`;
   }
   if(now-windowStart>=measureMs)finishWindow(now);
 }
 function finishWindow(now){
   const sample=recorder.snapshot(now),camera=activeMode==="game"?null:cameraFormat();
-  if(activeMode!=="game"&&cameraFrameCount<=cameraFrameStart||activeMode==="cv"&&sample.cv.poseFrameCount<1){invalidate("Missing live camera frames or measured pose output.",true);return;}
+  if(activeMode!=="game"&&cameraFrameCount<=cameraFrameStart||hasCv(activeMode)&&sample.cv.poseFrameCount<1){invalidate("Missing live camera frames or measured pose output.",true);return;}
+  if(activeMode==="cv-visual"&&visualEquipmentDisplayFrames<1){invalidate("No calibrated AeroBeat equipment appeared during the measured window.",true);return;}
   const run={
     mode:activeMode,renderScale,backing:{width:canvas.width,height:canvas.height},
     viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio},
@@ -253,7 +288,8 @@ function finishWindow(now){
     missedVsync:sample.missedVsyncCount,rendererCpuMs:sample.rendererCpuMs,
     requestedCamera:activeMode==="game"?null:requestedCamera,camera,activeCameraTracks:stream?.getVideoTracks().filter(track=>track.readyState==="live").length??0,
     cameraNewFrameFps:activeMode==="game"?0:Number(((cameraFrameCount-cameraFrameStart)*1000/sample.durationMs).toFixed(3)),
-    cv:activeMode==="cv"?{...sample.cv,poseOutputFps:Number((sample.cv.poseFrameCount*1000/sample.durationMs).toFixed(3)),inferenceMs:sample.mediaPipeRuntimeMs,estimateMs:sample.mediaPipeEndToEndMs,poseAgeMs:sample.poseAgeMs,pipeline:cvPipeline?.snapshot(cv?.getStatus().droppedFrameCount??0)}:null,
+    cv:hasCv(activeMode)?{...sample.cv,poseOutputFps:Number((sample.cv.poseFrameCount*1000/sample.durationMs).toFixed(3)),inferenceMs:sample.mediaPipeRuntimeMs,estimateMs:sample.mediaPipeEndToEndMs,poseAgeMs:sample.poseAgeMs,pipeline:cvPipeline?.snapshot(cv?.getStatus().droppedFrameCount??0)}:null,
+    visual:activeMode==="cv-visual"?{equipmentMode:"flow",calibrationReadyAtStart:true,equipmentVisibleDisplayFrames:visualEquipmentDisplayFrames,noseVisibleDisplayFrames:visualNoseDisplayFrames}:null,
     durationMs:sample.durationMs,previewOnly
   };
   runs.push(run);phase="done";cvPipeline?.stop();
@@ -264,6 +300,7 @@ function finishWindow(now){
 function report(){return{
   schema:"aerobeat/phone_performance_ablation",version:1,
   source:typeof __AEROBEAT_PHONE_COMMIT__!=="undefined"?__AEROBEAT_PHONE_COMMIT__:"development",
+  renderer:{commit:typeof __AEROBEAT_PHONE_RENDERER_COMMIT__!=="undefined"?__AEROBEAT_PHONE_RENDERER_COMMIT__:"development",facadeSha256:typeof __AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__!=="undefined"?__AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__:"development",shadowMode:typeof __AEROBEAT_PHONE_SHADOW_MODE__!=="undefined"?__AEROBEAT_PHONE_SHADOW_MODE__:"native"},
   browser:navigator.userAgent.slice(0,200),workload:phonePerformanceWorkload,
   productionCv:{model:lockedProductionCvProfile.model,provider:lockedProductionCvProfile.providerId,location:lockedProductionCvProfile.executionLocation,submissionCeilingFps:lockedProductionCvProfile.submissionCadenceTargetFps},
   statisticsNote:"Display p95 uses the last at most 2048 rendered frame intervals of each window; FPS spans the whole window.",
@@ -273,7 +310,7 @@ document.addEventListener("aero-button-activate",event=>{
   const target=event.target;if(!(target instanceof HTMLElement))return;
   const mode=target.dataset.mode;if(mode){void changeMode(mode);return;}
   if(target.id==="copy")void navigator.clipboard.writeText(JSON.stringify(report())).then(
-    ()=>{notice.textContent="Results copied. Paste the JSON into chat after all three runs.";},
+    ()=>{notice.textContent="Results copied. Paste the JSON into chat after the four diagnostic runs.";},
     ()=>{notice.textContent="Clipboard unavailable. Use Download JSON instead.";}
   );
   if(target.id==="download"){
