@@ -153,9 +153,7 @@ try {
   await page.evaluate(()=>window.__phoneHitFixture.renderWithoutEquipment(4340,"no-hit"));const shortWithoutGear=await pixels();
   const shortGear=changedNear(shortWithoutGear,shortGearPixels,390,270,195,135,195,135);
   assert(shortGear>20,`short portrait static Flow sabers must contribute visible pixels, got ${shortGear}`);
-  await page.evaluate(()=>window.__phoneHitFixture.destroy());
   assert.deepEqual(errors,[],"fixture browser page errors");
-  await context.close();
   const smoke=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1});
   await smoke.addInitScript(()=>{
     const NativeWorker=window.Worker;
@@ -174,6 +172,14 @@ try {
   const live=await smoke.newPage(),liveErrors=[];
   live.on("pageerror",error=>liveErrors.push(error.message));
   await live.goto(`${base}phone-hit-performance.html?preview=1`);
+  const pageGeometry=await live.locator(".stage").evaluate(stage=>{
+    const rect=stage.getBoundingClientRect(),canvas=stage.querySelector("canvas"),canvasRect=canvas.getBoundingClientRect();
+    return{stage:{width:rect.width,height:rect.height},canvasCss:{width:canvasRect.width,height:canvasRect.height},backing:{width:canvas.width,height:canvas.height},dpr:devicePixelRatio};
+  });
+  assert.equal(pageGeometry.dpr,1);
+  assert.equal(pageGeometry.backing.width,Math.round(pageGeometry.canvasCss.width),"Full quality page backing width must match canvas CSS");
+  assert.equal(pageGeometry.backing.height,Math.round(pageGeometry.canvasCss.height),"Full quality page backing height must match canvas CSS");
+  assert(pageGeometry.backing.width>=320&&pageGeometry.backing.width<=900&&pageGeometry.backing.height>=270&&pageGeometry.backing.height<=900,"portrait stage fixture geometry must be within oracle bounds");
   for(const mode of ["no-hit","real-hit"]){
     await live.locator(`aero-button[data-mode="${mode}"]`).click();
     await live.locator("#status").getByText("complete",{exact:false}).waitFor({timeout:45000});
@@ -191,6 +197,8 @@ try {
   assert.equal(report.renderer.commit,JSON.parse(server.config.define.__AEROBEAT_PHONE_RENDERER_COMMIT__));
   assert.equal(report.renderer.facadeSha256,JSON.parse(server.config.define.__AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__));
   assert.deepEqual(report.runs.map(run=>run.mode),["no-hit","real-hit"]);
+  assert(report.runs.every(run=>run.renderScale===1),"both page runs must use Full backing scale");
+  assert(report.runs.every(run=>run.backing.width===pageGeometry.backing.width&&run.backing.height===pageGeometry.backing.height),"both page modes must retain captured portrait stage backing");
   for(const run of report.runs){
     assert(run.displayIntervals.count>2,`${run.mode}: actual display frames required`);
     if(run.mode==="no-hit")assert(run.targets.min>=59&&run.targets.max<=64,`${run.mode}: Test-purpose no-hit target range required`);
@@ -206,7 +214,32 @@ try {
   assert.deepEqual(report.failures,[]);
   assert.deepEqual(liveErrors,[],"new phone page browser errors");
   await smoke.close();
-  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, portrait 390x460 half pixels=${portraitHalfPixels}, gear pixels=${gearPixelCount}; 390x270 half pixels=${shortHalves}, gear pixels=${shortGear}, page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
+  const pageSize=pageGeometry.backing;
+  // Reuse EXACT page stage backing in the independent fixture. The fixture
+  // shares the page's Test wrist recipe, camera and workload; only equipment
+  // or aftermath delivery differs within each frozen time pair.
+  const captured=await page.evaluate(([w,h])=>window.__phoneHitFixture.resize(w,h),[pageSize.width,pageSize.height]);
+  assert.deepEqual(captured,pageSize,"portrait fixture backing must match actual page Full backing");
+  const gearOn=await render(850,"no-hit"),gearOnPixels=await pixels();
+  const gearSubject=await page.evaluate(()=>window.__phoneHitFixture.equipmentCenters());
+  const gearOff=await page.evaluate(()=>window.__phoneHitFixture.renderWithoutEquipment(850,"no-hit")),gearOffPixels=await pixels();
+  assert.equal(gearOn.targets,63,"frozen Test no-hit t850 corpus");
+  assert.equal(gearOff.targets,gearOn.targets,"equipment removal cannot change no-hit targets");
+  assert.equal(gearOn.equipmentCount,2);
+  assert.equal(gearOff.equipmentCount,0);
+  const gearRois=gearSubject.map(point=>changedNear(gearOffPixels,gearOnPixels,pageSize.width,pageSize.height,point.x,point.y,42,50));
+  assert(gearRois.some(n=>n>20),`page-sized portrait static Flow saber pixels require a visible subject, per-hand=${gearRois}, stage=${JSON.stringify(pageGeometry)}`);
+  const portraitHit=await render(4340,"hit"),portraitHitPixels=await pixels();
+  const portraitNoCorpse=await render(4340,"hit","note-100"),portraitNoCorpsePixels=await pixels();
+  assert.equal(portraitHit.halves.length,2);
+  assert.deepEqual(portraitNoCorpse.feedback,portraitHit.feedback,"page-sized corpse-only control keeps Great");
+  assert.equal(portraitNoCorpse.hitFeedback,portraitHit.hitFeedback);
+  const actualStageCenters=await page.evaluate(halves=>halves.map(half=>window.__phoneHitFixture.projected(half.x,half.y,half.z)),portraitHit.halves);
+  const actualStageHalfPixels=actualStageCenters.map(point=>changedNear(portraitNoCorpsePixels,portraitHitPixels,pageSize.width,pageSize.height,point.x,point.y,18,28));
+  assert(actualStageHalfPixels.every(n=>n>20),`page-sized portrait note-100 halves must each be visible, pixels=${actualStageHalfPixels}, centers=${JSON.stringify(actualStageCenters)}, stage=${JSON.stringify(pageGeometry)}`);
+  await page.evaluate(()=>window.__phoneHitFixture.destroy());
+  await context.close();
+  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, portrait 390x460 half pixels=${portraitHalfPixels}, gear pixels=${gearPixelCount}; 390x270 half pixels=${shortHalves}, gear pixels=${shortGear}, real-page stage=${JSON.stringify(pageGeometry)}, exact-stage fixture t850 saber ROIs=${gearRois}, t4340 half ROIs=${actualStageHalfPixels}; page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
 } finally {await browser?.close();await server.close();}
 function changedNear(a,b,w,h,cx,cy,rx,ry){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}
 function changedNearExcluding(a,b,w,h,cx,cy,rx,ry,ex,ey,erx,ery){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){if(Math.abs(x-ex)<=erx&&Math.abs(y-ey)<=ery)continue;const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}

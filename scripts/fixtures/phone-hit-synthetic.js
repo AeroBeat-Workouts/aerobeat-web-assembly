@@ -67,6 +67,15 @@ window.__phoneHitFixture={
   suppressDelivery(value){suppressed=Boolean(value);return renderAt(last.timeMs,last.mode);},
   shadowProbe(value){renderer.shadowLightEntity.light.castShadows=Boolean(value);return renderAt(last.timeMs,last.mode);},
   projected(x,y,z){const p=renderer.cameraEntity.camera.worldToScreen({x,y,z});return{x:p.x,y:p.y};},
+  equipmentCenters(){return equipment.map(record=>{
+    // Judge-space anchor becomes world presentation X at -1.5 WU offset;
+    // use the genuine renderer-owned equipment entity bounds for ROI centers.
+    const entries=renderer.equipmentPools.get(`equipment/flow-saber-v1:${record.role}`)??[];
+    const entity=entries.find(item=>item.enabled);
+    if(!entity)throw new Error(`No staged saber for ${record.role}`);
+    const p=renderer.cameraEntity.camera.worldToScreen(entity.getPosition());
+    return{x:p.x,y:p.y,role:record.role};
+  });},
   destroy(){renderer.destroy();}
 };
 renderAt(0,"no-hit");
