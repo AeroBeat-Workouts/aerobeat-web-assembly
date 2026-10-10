@@ -74,6 +74,7 @@ try {
     return count;
   };
   const visible=assertHalves(withHalves,steady.basePixels,withoutHalves);
+  const corpseOnlyRoi=(full)=>anchors.map(point=>changedNear(withoutHalves,full,844,390,point.x,point.y,18,28));
   const withheld=await page.evaluate(()=>window.__phoneHitFixture.suppressDelivery(true));
   assert.equal(withheld.halves.length,0);
   assert.equal(withheld.aftermathEntries,0,"only aftermath field withheld");
@@ -84,11 +85,14 @@ try {
   assert.deepEqual(withheld.shadow,steady.hit.shadow,"suppression keeps the light and catcher");
   const missing=await pixels();
   assert.deepEqual(missing,withoutHalves,"suppression pixels equal same-hit-minus-aftermath, not no-hit");
+  const redCounts=corpseOnlyRoi(missing);
+  assert.deepEqual(redCounts,[0,0],"corpse-only withheld: both half ROIs have zero pixel delta against same-hit-minus-corpses");
   assert.throws(()=>assertHalves(missing,steady.basePixels,withoutHalves),/note-100 two individually visible clipped corpse halves/u);
   const restored=await page.evaluate(()=>window.__phoneHitFixture.suppressDelivery(false));
   assert.equal(restored.halves.length,2);
   assert.deepEqual(restored.feedback,steady.hit.feedback,"Great feedback stays unchanged through corpse restoration");
-  assertHalves(await pixels(),steady.basePixels,withoutHalves);
+  const restoredCounts=assertHalves(await pixels(),steady.basePixels,withoutHalves);
+  assert.deepEqual(restoredCounts,visible,"corpse-only restored: per-half pixel counts recover exactly");
   assert(changedNear(steady.basePixels,steady.hitPixels,844,390,anchors[0].x,anchors[0].y,55,55)>20,"hit scene must differ from matched no-hit near note-100");
   const fading=await pair(4380);
   assert.equal(fading.hit.iconCount,0,"hit live icon has finished 80ms removal");
@@ -162,7 +166,7 @@ try {
   assert.deepEqual(report.failures,[]);
   assert.deepEqual(liveErrors,[],"new phone page browser errors");
   await smoke.close();
-  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixels ${visible}, suppression RED/restoration GREEN, seventh/eighth eviction, shadow darkening ${darker}, page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
+  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
 } finally {await browser?.close();await server.close();}
 function changedNear(a,b,w,h,cx,cy,rx,ry){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}
 function changedNearExcluding(a,b,w,h,cx,cy,rx,ry,ex,ey,erx,ery){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){if(Math.abs(x-ex)<=erx&&Math.abs(y-ey)<=ery)continue;const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}
