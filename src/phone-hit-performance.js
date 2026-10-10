@@ -23,13 +23,13 @@ const notice = /** @type {HTMLElement} */ (document.querySelector("#notice"));
 const qualityOptions = Object.freeze([{value:"1",label:"Full (1.0)"},{value:"0.75",label:"High (0.75)"},{value:"0.5",label:"Medium (0.5)"},{value:"0.25",label:"Low (0.25)"}]);
 const previewOnly = new URLSearchParams(location.search).get("preview") === "1";
 const warmMs = previewOnly ? 500 : 3000;
-const measureMs = previewOnly ? 4000 : 60000;
+const measureMs = previewOnly ? 6500 : 60000;
 const EMPTY = Object.freeze([]);
 const grid = Object.freeze({x:0,y:0,width:1,height:1});
 const cursorOptions = Object.freeze({grid,minConfidence:.5,sizeCssPx:32});
 const equipmentOptions = Object.freeze({grid});
 quality.setOptions(qualityOptions);
-if (previewOnly) notice.textContent = "PREVIEW ONLY: 4-second windows cannot establish sustained phone hit/corpse cost. Remove ?preview=1 for 60-second windows; the first hit occurs 4.3 seconds after measurement starts.";
+if (previewOnly) notice.textContent = "PREVIEW ONLY: 6.5-second measured windows include the first hit at 4.3 seconds and only 0.5 seconds of steady hits. They are short wiring checks, NOT sustained phone hit/corpse evidence. Remove ?preview=1 for 60-second windows.";
 const workload = createPhoneHitWorkload();
 const renderer = createAeroPlayCanvasRenderer();
 const recorder = createPrivatePerformanceRecorder({capacity:2048});
@@ -39,7 +39,8 @@ const steadyRecorder = createPrivatePerformanceRecorder({capacity:2048});
 /** @type {Array<{mode:string,reason:string}>} */ const failures = [];
 let activeMode = "no-hit", renderScale = 1, phase = "loading", phaseStarted = 0, measuredAt = 0, latestStatsAt = 0;
 let windowGeometry = "", raf = 0, disposed = false, minimum = Infinity, maximum = 0;
-let minPieces = Infinity, maxPieces = 0, maxHitFeedback = 0, firstBurstFrames = 0, steadyFrames = 0;
+let minPieces = Infinity, maxPieces = 0, maxHitFeedback = 0, hitFeedbackFrames = 0, aftermathFrames = 0;
+let firstBurstFrames = 0, firstBurstHitFeedbackFrames = 0, firstBurstAftermathFrames = 0, steadyFrames = 0, steadyAftermathFrames = 0;
 /** @type {unknown} */ let configIdentity = null;
 /** @type {readonly unknown[]} */ let equipment = EMPTY;
 
@@ -68,7 +69,8 @@ function beginWindow(now) {
 }
 function measureStart(now) {
   phase = "measuring"; measuredAt = now; windowGeometry = geometryKey();
-  minimum = Infinity; maximum = 0; minPieces = Infinity; maxPieces = 0; maxHitFeedback = 0; firstBurstFrames = 0; steadyFrames = 0;
+  minimum = Infinity; maximum = 0; minPieces = Infinity; maxPieces = 0; maxHitFeedback = 0; hitFeedbackFrames = 0; aftermathFrames = 0;
+  firstBurstFrames = 0; firstBurstHitFeedbackFrames = 0; firstBurstAftermathFrames = 0; steadyFrames = 0; steadyAftermathFrames = 0;
   recorder.reset("test-hit-display",now);
   firstBurstRecorder.reset("first-hit-burst",now + phoneHitWorkload.firstHitMs);
   steadyRecorder.reset("steady-hits",now + 6000);
@@ -83,8 +85,7 @@ function sceneCounts(scene) {
 }
 function finish(now) {
   const sample = recorder.snapshot(now), firstBurst = firstBurstRecorder.snapshot(now), steady = steadyRecorder.snapshot(now);
-  const comparedSource = activeMode === "real-hit" && !previewOnly;
-  if (comparedSource && (firstBurstFrames < 1 || steadyFrames < 1 || maxPieces < 2 || maxHitFeedback < 1)) { invalidate("Missing first-hit/steady presentation coverage; this hit window cannot be compared."); return; }
+  if (activeMode === "real-hit" && (firstBurstFrames < 1 || steadyFrames < 1 || maxPieces < 2 || maxHitFeedback < 1 || hitFeedbackFrames < 1 || aftermathFrames < 1 || firstBurstHitFeedbackFrames < 1 || firstBurstAftermathFrames < 1 || steadyAftermathFrames < 1)) { invalidate("Missing first-hit feedback/corpses or steady aftermath coverage; this hit window cannot be compared."); return; }
   if (sample.displayFrameCount < 2 || minimum === Infinity || minPieces === Infinity) { invalidate("Insufficient display frames."); return; }
   const run = {
     mode:activeMode,renderScale,backing:{width:canvas.width,height:canvas.height},
@@ -92,11 +93,11 @@ function finish(now) {
     workload:phoneHitWorkload.contract,targets:{min:minimum,max:maximum},
     displayFps:sample.displayRateFps,displayIntervals:sample.displayIntervals,missedVsync:sample.missedVsyncCount,
     rendererCallWallMs:sample.rendererCpuMs,
-    aftermath:{intendedPieceCountMin:minPieces,intendedPieceCountMax:maxPieces,maxHitFeedback,firstHitBurst:{startMs:4300,endMs:6000,displayFrames:firstBurstFrames,displayIntervals:firstBurst.displayIntervals,missedVsync:firstBurst.missedVsyncCount,rendererCallWallMs:firstBurst.rendererCpuMs},steady:{startMs:6000,displayFrames:steadyFrames,displayIntervals:steady.displayIntervals,missedVsync:steady.missedVsyncCount,rendererCallWallMs:steady.rendererCpuMs}},
+    aftermath:{intendedPieceCountMin:minPieces,intendedPieceCountMax:maxPieces,maxHitFeedback,hitFeedbackFrames,aftermathFrames,firstHitBurst:{startMs:4300,endMs:6000,displayFrames:firstBurstFrames,hitFeedbackFrames:firstBurstHitFeedbackFrames,aftermathFrames:firstBurstAftermathFrames,displayIntervals:firstBurst.displayIntervals,missedVsync:firstBurst.missedVsyncCount,rendererCallWallMs:firstBurst.rendererCpuMs},steady:{startMs:6000,displayFrames:steadyFrames,aftermathFrames:steadyAftermathFrames,displayIntervals:steady.displayIntervals,missedVsync:steady.missedVsyncCount,rendererCallWallMs:steady.rendererCpuMs}},
     durationMs:sample.durationMs,previewOnly
   };
   runs.push(run); phase = "done";
-  summary.textContent = `${label(activeMode)}: ${run.displayFps} scene FPS, display p95 ${sample.displayIntervals.p95} ms; ${runs.length} completed run(s). ${previewOnly ? "PREVIEW ONLY; this window ends before the first hit." : "Compare first-hit burst against steady hits, then reverse mode order."}`;
+  summary.textContent = `${label(activeMode)}: ${run.displayFps} scene FPS, display p95 ${sample.displayIntervals.p95} ms; ${runs.length} completed run(s). ${previewOnly ? "PREVIEW ONLY: 6.5s covers the first-hit burst and just 0.5s of steady hits; NOT sustained phone evidence." : "Compare first-hit burst against steady hits, then reverse mode order."}`;
   status.textContent = `${label(activeMode)} complete — choose a mode to measure again.`;
   fps.setAttribute("heading", `${run.displayFps} scene FPS`); fps.setAttribute("status", "Window complete");
 }
@@ -119,7 +120,7 @@ async function prepareEquipment() {
   for (const hand of ["left", "right"]) {
     const anchor = input.anchors.find((entry) => entry.anchor === `${hand}_wrist`);
     if (!anchor) throw new Error("Static Test wrist unavailable");
-    targets[hand] = Object.freeze({orientation:squareRadialSaberTarget(anchor.x,1 - anchor.y,flow.zones,flow.blendRadius).orientation});
+    targets[hand] = Object.freeze({orientation:squareRadialSaberTarget(anchor.x,1 - anchor.y,flow.zones,flow.blendRadius,{x:.5,y:.5}).orientation});
   }
   equipment = gameplayEquipmentRecords(false,{purpose:"visual_test",state:"playing",timestampMs:0},input,"flow",null,targets,equipmentConfigDefaults,configIdentity);
   if (equipment.length !== 2) throw new Error("Static Test Flow equipment unavailable");
@@ -148,9 +149,20 @@ function frame(now) {
   minimum = Math.min(minimum,counts.targets); maximum = Math.max(maximum,counts.targets);
   minPieces = Math.min(minPieces,counts.intendedPieces); maxPieces = Math.max(maxPieces,counts.intendedPieces);
   maxHitFeedback = Math.max(maxHitFeedback,counts.hitFeedback);
+  if (counts.hitFeedback > 0) hitFeedbackFrames++;
+  if (counts.intendedPieces > 0) aftermathFrames++;
   recorder.record({timestampMs:now,rendererCpuMs:renderWallMs});
-  if (elapsed >= phoneHitWorkload.firstHitMs && elapsed < 6000) { firstBurstFrames++; firstBurstRecorder.record({timestampMs:now,rendererCpuMs:renderWallMs}); }
-  if (elapsed >= 6000) { steadyFrames++; steadyRecorder.record({timestampMs:now,rendererCpuMs:renderWallMs}); }
+  if (elapsed >= phoneHitWorkload.firstHitMs && elapsed < 6000) {
+    firstBurstFrames++;
+    if (counts.hitFeedback > 0) firstBurstHitFeedbackFrames++;
+    if (counts.intendedPieces > 0) firstBurstAftermathFrames++;
+    firstBurstRecorder.record({timestampMs:now,rendererCpuMs:renderWallMs});
+  }
+  if (elapsed >= 6000) {
+    steadyFrames++;
+    if (counts.intendedPieces > 0) steadyAftermathFrames++;
+    steadyRecorder.record({timestampMs:now,rendererCpuMs:renderWallMs});
+  }
   if (now - latestStatsAt > 500) {
     latestStatsAt = now;
     const sample = recorder.snapshot(now);
