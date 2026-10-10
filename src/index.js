@@ -15,7 +15,7 @@ import {
 } from "@aerobeat/web-contracts";
 import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { sha256Hex } from "@aerobeat/web-hash";
-import { createTestPresentationConfig, defaultGameplayCameraPose, defaultTestPresentationConfig, gameplayCameraPoseBounds, maximumTestPresentationConfigBytes, normalizeGameplayCameraPose, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
+import { createTestPresentationConfig, defaultGameplayCameraPose, defaultTestPresentationConfig, gameplayCameraPoseBounds, gameplayWorldGrid, maximumTestPresentationConfigBytes, normalizeGameplayCameraPose, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume, beatSaverDifficultyColors } from "@aerobeat/web-ui";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
@@ -49,6 +49,7 @@ import { createPrivatePerformanceRecorder } from "./private-performance-recorder
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets } from "./session-render-projection.js";
 import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
+import { effectivePortraitTrackExtensionWorldUnits } from "./portrait-track-coverage.js";
 import { isRecord, projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
 import { equipmentColliderAnchors } from "./equipment-collider-anchors.js";
@@ -321,7 +322,11 @@ export class AeroGame extends HTMLElement {
     this.boundInteractionKeydown = (event) => this.handleInteractionKeydown(event);
     this.boundDebugCameraPointerDown = (event) => this.handleDebugCameraPointerDown(event);
     this.boundDebugCameraPointerRelease = (event) => this.handleDebugCameraPointerRelease(event);
+    this.bottomUiNearBottom = false;
+    this.bottomUiTouchActive = false;
     this.boundBottomUiPointer = (event) => this.handleBottomUiPointer(event);
+    this.boundBottomUiPointerDown = (event) => this.handleBottomUiPointerDown(event);
+    this.boundBottomUiPointerRelease = (event) => this.handleBottomUiPointerRelease(event);
     const root = this.attachShadow({ mode: "open" });
     root.innerHTML = template();
     this.installGameSetupControls();
@@ -1438,11 +1443,13 @@ export class AeroGame extends HTMLElement {
     this.testPresentationInput().addEventListener("change", this.boundTestPresentationFile);
     this.canvasElement().addEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
     this.canvasElement().addEventListener("pointermove", this.boundTestEquipmentPointerMove);
-    // Bottom-UI dimming (Boxing glove shadow): track pointer proximity to the
-    // bottom edge. pointermove covers mouse + touch uniformly; touchmove is a
-    // fallback for touch inputs where pointermove is unavailable.
+    // Mouse/pen proximity is separate from touch-down/release: mobile idle
+    // transparency must not depend on a finger moving across the screen.
     document.addEventListener("pointermove", this.boundBottomUiPointer);
-    document.addEventListener("touchmove", this.boundBottomUiPointer, { passive: true });
+    document.addEventListener("pointerdown", this.boundBottomUiPointerDown);
+    for (const type of ["pointerup", "pointercancel"]) document.addEventListener(type, this.boundBottomUiPointerRelease);
+    document.addEventListener("touchend", this.boundBottomUiPointerRelease);
+    document.addEventListener("touchcancel", this.boundBottomUiPointerRelease);
     this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.measureContainer()) : null;
     this.resizeObserver?.observe(this);
     globalThis.addEventListener("resize", this.boundFullscreen);
@@ -1919,6 +1926,19 @@ export class AeroGame extends HTMLElement {
     }
   }
 
+  /** Keep the three unscaled glass segments visible down to a portrait screen's bottom. */
+  visualTrackExtensionWorldUnits(configured,presentation) {
+    const renderer=this.graph?.renderer,camera=renderer?.cameraEntity?.camera;
+    // Renderer applies this camera only after building its scene model. Project
+    // against that same pending pose now so the very first portrait frame fills.
+    if(camera&&renderer?.debugEnabled)renderer.applyDebugPose();
+    else if(camera&&renderer){renderer.activeGameplayCameraMode=presentation;renderer.applyProductionCameraPose();}
+    const widthCssPx=Number(renderer?.widthCssPx),heightCssPx=Number(renderer?.heightCssPx);
+    const cameraZ=Number(renderer?.cameraEntity?.getPosition()?.z),nearClip=Number(camera?.nearClip);
+    if(!camera||!Number.isFinite(widthCssPx)||!Number.isFinite(heightCssPx)||widthCssPx<=0||heightCssPx<=0||!Number.isFinite(cameraZ)||!Number.isFinite(nearClip))return configured;
+    return effectivePortraitTrackExtensionWorldUnits(configured,{widthCssPx,heightCssPx,cameraZ,nearClip,projectNearEdgeY:(z)=>camera.worldToScreen({x:0,y:gameplayWorldGrid.floorY-.08,z}).y});
+  }
+
   rendererFrame() {
     const contentService=this.graph.content,content = contentService.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
     const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0),runSetup=this.activeSessionSetup??this.desiredGameSetup;const setup={...runSetup,obstaclesEnabled:this.desiredGameSetup.obstaclesEnabled,guidanceBandMode:this.desiredGameSetup.guidanceBandMode,showGameplayGrid:this.desiredGameSetup.showGameplayGrid,noteScalePercent:this.desiredGameSetup.noteScalePercent,obstacleScalePercent:this.desiredGameSetup.obstacleScalePercent,bombScalePercent:this.desiredGameSetup.bombScalePercent,markerScalePercent:this.desiredGameSetup.markerScalePercent,noseMarkerVisible:this.desiredGameSetup.noseMarkerVisible,noseMarkerScale:this.desiredGameSetup.noseMarkerScale,trackExtensionWorldUnits:this.desiredGameSetup.trackExtensionWorldUnits};
@@ -2023,7 +2043,7 @@ export class AeroGame extends HTMLElement {
       showGameplayGrid:setup.showGameplayGrid,
       noseMarkerVisible:setup.noseMarkerVisible,
       noseMarkerScale:setup.noseMarkerScale,
-      trackExtensionWorldUnits:setup.trackExtensionWorldUnits,
+      trackExtensionWorldUnits:this.visualTrackExtensionWorldUnits(setup.trackExtensionWorldUnits,presentation),
       guidanceBandMode:"target_arrivals",
       ...(beatGuidance===null?{}:{guidanceBeatTimestampsMs:beatGuidance}),
       // p5pr/dntq: always emit the bounded lists so the renderer validates them
@@ -2202,7 +2222,7 @@ export class AeroGame extends HTMLElement {
     return Object.freeze({ active, playing, currentMs, durationMs, musicVolume:mix.musicVolume, soundVolume:mix.sfxVolume });
   }
 
-  renderVisualTestTransport() { setPresenter(this, "aero-visual-test-transport", this.visualTestTransportSnapshot()); }
+  renderVisualTestTransport() { setPresenter(this, "aero-visual-test-transport", this.visualTestTransportSnapshot()); this.syncBottomUiOpacity(); }
 
   debugCameraSnapshot() {
     const session = this.graph?.gameplay.getSnapshot().session;
@@ -3219,7 +3239,7 @@ export class AeroGame extends HTMLElement {
     this.resetTestEquipmentAuthoringState({ render:false });
     this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
-    document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen); document.removeEventListener("pointermove", this.boundBottomUiPointer); document.removeEventListener("touchmove", this.boundBottomUiPointer);
+    document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen); document.removeEventListener("pointermove", this.boundBottomUiPointer); document.removeEventListener("pointerdown", this.boundBottomUiPointerDown); for(const type of ["pointerup","pointercancel"]) document.removeEventListener(type, this.boundBottomUiPointerRelease); document.removeEventListener("touchend", this.boundBottomUiPointerRelease); document.removeEventListener("touchcancel", this.boundBottomUiPointerRelease);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
     this.canvasElement().removeEventListener("pointermove", this.boundTestEquipmentPointerMove);
     this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("input", this.boundInteractionInput); this.shadowRoot?.removeEventListener("change", this.boundInteractionInput); this.shadowRoot?.removeEventListener("focusout", this.boundInteractionBlur); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.fpsCounterElement()?.removeEventListener("click", this.boundFpsCounterClick); this.stopFpsCounter(); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.environmentConfigInput().removeEventListener("change", this.boundEnvironmentConfigFile); this.testPresentationInput().removeEventListener("change", this.boundTestPresentationFile); this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = ""; this.testPresentationInput().value = "";
@@ -3302,25 +3322,35 @@ export class AeroGame extends HTMLElement {
     return true;
   }
 
-  /**
-   * Bottom-UI dimming (Boxing glove shadow): keep the bottom transport/timeline
-   * faint while the pointer is far from the bottom edge so it stops occluding the
-   * floor shadow, and snap it fully opaque when the pointer is nearby or actively
-   * touching. Drives `--aero-bottom-ui-opacity` (default 0.3) on the host and the
-   * `bottom-ui-visible` class on the transport; the transport CSS owns the
-   * transition. Dimming is suppressed while the menu is open, the game is paused,
-   * or the pointer is inside the transport (active interaction).
-   * @param {PointerEvent | TouchEvent} event
-   */
+  /** Initialize and refresh idle dimming even when no mouse movement occurs on touch devices. */
+  syncBottomUiOpacity() {
+    const transport=this.transportElement();if(!transport)return;
+    const forceFull=this.menuOpen||this.sessionPaused()||this.bottomUiTouchActive||this.bottomUiNearBottom;
+    transport.style.setProperty("--aero-bottom-ui-opacity",forceFull?"1":"0.3");
+    transport.classList.toggle("bottom-ui-visible",!this.menuOpen&&!this.sessionPaused()&&(this.bottomUiTouchActive||this.bottomUiNearBottom));
+  }
+
+  /** Mouse proximity is measured against this embedded game, never the window edge. */
   handleBottomUiPointer(event) {
-    const clientY = event instanceof TouchEvent ? (event.touches[0]?.clientY ?? event.changedTouches[0]?.clientY) : event.clientY;
-    if (!Number.isFinite(clientY)) return;
-    const nearBottom = clientY >= window.innerHeight - 140;
-    const transport = this.transportElement();
-    if (!transport) return;
-    const suppress = this.menuOpen || this.sessionPaused() || (event instanceof PointerEvent && this.pointerInside(transport, event));
-    transport.style.setProperty("--aero-bottom-ui-opacity", suppress ? "1" : nearBottom ? "1" : "0.3");
-    transport.classList.toggle("bottom-ui-visible", !suppress && nearBottom);
+    if(!(event instanceof PointerEvent)||(event.pointerType!=="mouse"&&event.pointerType!=="pen"))return;
+    const rect=this.getBoundingClientRect();
+    this.bottomUiNearBottom=event.clientX>=rect.left&&event.clientX<=rect.right&&event.clientY>=rect.bottom-140&&event.clientY<=rect.bottom;
+    this.syncBottomUiOpacity();
+  }
+
+  /** Touch starts only on transport controls should make the bottom bar opaque. */
+  handleBottomUiPointerDown(event) {
+    if(event.pointerType!=="touch"&&event.pointerType!=="pen")return;
+    this.bottomUiNearBottom=false;
+    this.bottomUiTouchActive=Boolean(this.transportElement()&&this.pointerInside(this.transportElement(),event));
+    this.syncBottomUiOpacity();
+  }
+
+  /** A released/cancelled touch must always restore the idle state. */
+  handleBottomUiPointerRelease(event) {
+    if(event instanceof PointerEvent&&event.pointerType!=="touch"&&event.pointerType!=="pen")return;
+    this.bottomUiTouchActive=false;
+    this.syncBottomUiOpacity();
   }
 
   /** @returns {HTMLElement | null} */
