@@ -204,6 +204,8 @@ try {
   assert.equal(report.workload.automaticFeedback,false);
   assert.equal(report.renderer.shadowMode,configured);
   assert.equal(report.source,JSON.parse(server.config.define.__AEROBEAT_PHONE_COMMIT__));
+  assert.equal(report.gameplayCommit,JSON.parse(server.config.define.__AEROBEAT_PHONE_GAMEPLAY_COMMIT__),"report gameplay provenance must match pinned gameplay source");
+  assert.match(report.gameplayCommit,/^[a-f0-9]{40}$/u,"gameplay revision is only a scalar Git commit, not geometry");
   assert.equal(report.renderer.commit,JSON.parse(server.config.define.__AEROBEAT_PHONE_RENDERER_COMMIT__));
   assert.equal(report.renderer.facadeSha256,JSON.parse(server.config.define.__AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__));
   assert.deepEqual(report.runs.map(run=>run.mode),["no-hit","real-hit"]);
