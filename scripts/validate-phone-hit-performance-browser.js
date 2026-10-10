@@ -88,12 +88,27 @@ try {
   assert.deepEqual(errors,[],"fixture browser page errors");
   await context.close();
   const smoke=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1});
+  await smoke.addInitScript(()=>{
+    const NativeWorker=window.Worker;
+    window.__phoneHitMediaCalls={workers:0,cameraRequests:0};
+    window.Worker=class extends NativeWorker {
+      constructor(...args){window.__phoneHitMediaCalls.workers++;super(...args);}
+    };
+    if(navigator.mediaDevices?.getUserMedia){
+      const nativeGetUserMedia=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia=(...args)=>{
+        window.__phoneHitMediaCalls.cameraRequests++;
+        return nativeGetUserMedia(...args);
+      };
+    }
+  });
   const live=await smoke.newPage(),liveErrors=[];
   live.on("pageerror",error=>liveErrors.push(error.message));
   await live.goto(`${base}phone-hit-performance.html?preview=1`);
   for(const mode of ["no-hit","real-hit"]){
     await live.locator(`aero-button[data-mode="${mode}"]`).click();
     await live.locator("#status").getByText("complete",{exact:false}).waitFor({timeout:45000});
+    assert.deepEqual(await live.evaluate(()=>window.__phoneHitMediaCalls),{workers:0,cameraRequests:0},`${mode}: CV-off Test preview must create no Worker or request camera`);
   }
   const download=live.waitForEvent("download");await live.locator("#download").click();
   const stream=await(await download).createReadStream();let text="";for await(const chunk of stream)text+=chunk.toString();
@@ -122,6 +137,6 @@ try {
   assert.deepEqual(report.failures,[]);
   assert.deepEqual(liveErrors,[],"new phone page browser errors");
   await smoke.close();
-  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixels ${visible}, suppression RED/restoration GREEN, seventh/eighth eviction, shadow darkening ${darker}, page modes/provenance/coverage. Synthetic commits are not collision or phone GPU proof.`);
+  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixels ${visible}, suppression RED/restoration GREEN, seventh/eighth eviction, shadow darkening ${darker}, page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
 } finally {await browser?.close();await server.close();}
 function changedNear(a,b,w,h,cx,cy,rx,ry){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}
