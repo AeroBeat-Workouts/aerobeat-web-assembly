@@ -6,7 +6,7 @@ import { readFileSync, mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
-import { gameplayAssets, gameplayAssetReleaseVersion } from "../../aerobeat-web-renderer/src/gameplay-assets.js";
+import { gameplayAssets, gameplayAssetReleaseVersion } from "@aerobeat/web-renderer";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";

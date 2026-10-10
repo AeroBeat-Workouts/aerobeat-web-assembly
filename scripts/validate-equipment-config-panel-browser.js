@@ -29,11 +29,39 @@ import { createHash } from "node:crypto";
 import { equipmentEulerDegreesToQuaternion, multiplyEquipmentQuaternions } from "@aerobeat/web-contracts";
 import { squareRadialSaberTarget } from "../src/saber-zone-direction.js";
 import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+import { gameplayAssets, gameplayAssetReleaseVersion } from "@aerobeat/web-renderer";
 import { createServer as createViteServer } from "vite";
 import { chromium } from "playwright";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
-const HARD_TIMEOUT_MS = 90_000;
+const HARD_TIMEOUT_MS = 120_000;
+const root = fileURLToPath(new URL("../", import.meta.url));
+const touchOnly = process.env.AEROBEAT_EQUIPMENT_TOUCH_ONLY === "1";
+// Counterfactual tests run the same script against a disposable source mirror;
+// linked sibling packages and the nine pinned GLBs remain unchanged.
+const testRoot = process.env.AEROBEAT_EQUIPMENT_TEST_ROOT?.trim() || root;
+const counterfactual = touchOnly && testRoot !== root;
+const siblings = resolve(root, "..");
+const packageVersion = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
+assert.equal(gameplayAssetReleaseVersion, "0.0.11");
+assert.equal(gameplayAssets.length, 9, "exact pinned renderer GLB inventory");
+const assetBase = resolve(siblings, "aerobeat-web-renderer/assets/gameplay", gameplayAssetReleaseVersion);
+const assets = new Map(gameplayAssets.map((asset) => {
+  const data = readFileSync(resolve(assetBase, asset.path));
+  assert.equal(data.length, asset.bytes, `GLB byte length ${asset.id}`);
+  assert.equal(createHash("sha256").update(data).digest("hex"), asset.sha256, `GLB digest ${asset.id}`);
+  return [`/assets/gameplay/${gameplayAssetReleaseVersion}/${asset.path}`, data];
+}));
+const assetPlugin = { name: "qa-pinned-renderer-glbs", configureServer(server) { server.middlewares.use((request, response, next) => {
+  const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+  if (!pathname.startsWith(`/assets/gameplay/${gameplayAssetReleaseVersion}/`)) return next();
+  const data = assets.get(pathname);
+  if (!data) { response.writeHead(404).end(); return; }
+  response.writeHead(200, { "content-type": "model/gltf-binary", "content-length": String(data.length), "cache-control": "no-store" }).end(data);
+}); } };
 let closing = false;
 let browser;
 let vite;
@@ -55,12 +83,20 @@ try {
     )
   );
 
-  vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null } });
+  // Source-only fixture: do not invoke release-fingerprint provenance when
+  // validating an unversioned in-progress implementation.
+  vite = await createViteServer({ root: testRoot, appType: "spa", configFile: false, logLevel: "error", plugins: [assetPlugin],
+    resolve: { alias: [
+      { find: /^@aerobeat\/web-ui$/u, replacement: resolve(siblings, "aerobeat-web-ui/src/index.js") },
+      { find: /^@aerobeat\/web-hash$/u, replacement: resolve(siblings, "aerobeat-web-hash/src/index.js") }
+    ] },
+    define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("equipment-browser-local"), __AEROBEAT_CACHE_BUST__: JSON.stringify("equipment-browser-local"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify(packageVersion) },
+    server: { host: "127.0.0.1", port: 0, hmr: false, fs: { allow: [siblings, testRoot] } } });
   await vite.listen();
   const childUrl = vite.resolvedUrls?.local?.[0];
   assert.ok(childUrl, "Vite URL unavailable");
   browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
   context.setDefaultTimeout(10_000);
   const page = await context.newPage();
   const noise = [];
@@ -80,7 +116,7 @@ try {
     ...["straight","uppercut","hookL","hookR","guard"].flatMap((state)=>xyz(`boxing.glove.states.${state}.rotationEulerDeg`)),"boxing.glove.ease.type","boxing.glove.ease.durationMs","boxing.glove.upcomingBeatWindowMs"
   ];
   const idleEvidence = await game.evaluate((element) => { const root=element.shadowRoot; return {textarea:root.querySelectorAll(".equipment-authoring textarea").length,apply:root.querySelectorAll("[data-action='equipment-config-apply']").length,paths:[...root.querySelectorAll("[data-equipment-config-field]")].map((control)=>control.dataset.equipmentConfigField),groups:[...root.querySelectorAll(".equipment-control-group>legend")].map((legend)=>legend.textContent),toggle:root.querySelector("[data-equipment-preview-toggle='true']")?.checked,automatic:{checked:root.querySelector("[data-test-automatic-feedback-toggle='true']")?.checked,label:root.querySelector("[data-test-automatic-feedback-toggle='true']")?.parentElement?.textContent?.trim()},mouse:{legend:root.querySelector(".equipment-mouse-hand>legend")?.textContent,values:[...root.querySelectorAll("[data-equipment-mouse-hand]")].map((control)=>({value:control.value,checked:control.checked}))},disabled:[...root.querySelectorAll("[data-equipment-config-field],[data-equipment-preview-toggle],[data-test-automatic-feedback-toggle],[data-equipment-mouse-hand],button[data-equipment-config-action]")].every((control)=>control.disabled),snapshotLeak:/equipmentConfig|equipment_config|rotationZDeg|rotationEulerDeg|headingDeg|localRotationEulerDeg|testEquipmentVisible|testAutomaticFeedback|testEquipmentMouseHand|testEquipmentPointerPosition/u.test(JSON.stringify(element.getSnapshot()))}; });
-  assert.equal(idleEvidence.textarea,0,"raw YAML textarea removed"); assert.equal(idleEvidence.apply,0,"Apply path removed"); assert.deepEqual(idleEvidence.paths,expectedPaths,"complete ordered grouped field inventory"); assert.deepEqual(idleEvidence.groups,["Flow · hand transforms","Flow · saber zones","Boxing · hand transforms","Boxing · glove states"]); assert.equal(idleEvidence.toggle,false); assert.deepEqual(idleEvidence.automatic,{checked:true,label:"Automatic GREAT/MISS feedback"}); assert.deepEqual(idleEvidence.mouse,{legend:"Mouse-controlled hand",values:[{value:"off",checked:true},{value:"left",checked:false},{value:"right",checked:false}]}); assert.equal(idleEvidence.disabled,true); assert.equal(idleEvidence.snapshotLeak,false);
+  assert.equal(idleEvidence.textarea,0,"raw YAML textarea removed"); assert.equal(idleEvidence.apply,0,"Apply path removed"); assert.deepEqual(idleEvidence.paths,expectedPaths,"complete ordered grouped field inventory"); assert.deepEqual(idleEvidence.groups,["Flow · hand transforms","Flow · saber zones","Boxing · hand transforms","Boxing · glove states"]); assert.equal(idleEvidence.toggle,false); assert.deepEqual(idleEvidence.automatic,{checked:true,label:"Automatic GREAT/MISS feedback"}); assert.deepEqual(idleEvidence.mouse,{legend:counterfactual?"Mouse-controlled hand":"Mouse or touch-controlled hand",values:[{value:"off",checked:true},{value:"left",checked:false},{value:"right",checked:false}]}); assert.equal(idleEvidence.disabled,true); assert.equal(idleEvidence.snapshotLeak,false);
   console.log("PASS: grouped idle inventory, no YAML editor/Apply, privacy clean");
 
   // ---------- (b) boot a REAL Flow visual_test session ----------
@@ -190,7 +226,53 @@ try {
   const playingAfter=await game.evaluate((element)=>{const snapshot=element.graph.gameplay.getSnapshot(),session=snapshot.session,clock=element.graph.audio.getClockSnapshot(),serialized=JSON.stringify({snapshot:element.getSnapshot(),events:[],input:element.graph.input.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))});return{state:session.state,pauseReason:session.pauseReason,timelinePositionMs:session.timelinePositionMs,timestampMs:session.timestampMs,audio:{state:element.graph.audio.getStatus().state,playing:clock.playing,positionSeconds:clock.positionSeconds},frameTimer:element.frameTimer,sessionGeneration:element.sessionGeneration,gameplayGeneration:snapshot.generation,identity:element.equipmentConfigIdentity.value,judgements:snapshot.judgements.length,scores:snapshot.scorePartitions.length,scale:element.describeEquipmentConfig().flow.perHand.left.scale,leak:/equipmentConfig|equipment_config|rotationEulerDeg|headingDeg|localRotationEulerDeg/iu.test(serialized)};});
   assert.deepEqual({state:playingAfter.state,pauseReason:playingAfter.pauseReason,timelinePositionMs:playingAfter.timelinePositionMs,audio:playingAfter.audio,frameTimer:playingAfter.frameTimer,sessionGeneration:playingAfter.sessionGeneration},{state:playingBefore.state,pauseReason:playingBefore.pauseReason,timelinePositionMs:playingBefore.timelinePositionMs,audio:playingBefore.audio,frameTimer:playingBefore.frameTimer,sessionGeneration:playingBefore.sessionGeneration},"playing equipment edit preserves playback state/timeline/audio/RAF identity"); assert(playingAfter.timestampMs>=playingBefore.timestampMs,"playing display time remains monotonic instead of restarting"); assert.equal(playingAfter.state,"playing"); assert.equal(playingAfter.frameTimer,1); assert(playingAfter.gameplayGeneration>playingBefore.gameplayGeneration,`playing edit reseeds gameplay generation: ${JSON.stringify({playingBefore,playingAfter})}`); assert.notEqual(playingAfter.identity,playingBefore.identity,"playing edit locks a new SHA identity"); assert.deepEqual({judgements:playingAfter.judgements,scores:playingAfter.scores},{judgements:0,scores:0},"playing edit clears score/collider run truth"); assert.equal(playingAfter.scale,2.5); assert.equal(playingAfter.leak,false,"playing authoring remains private");
 
-  const productionBoxing=await game.evaluate(async(element)=>{await element.graph.content.selectVariant("c5-panel-boxing");await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);element.setTestAutomaticFeedbackEnabled(false);element.setTestEquipmentMouseHand("left");element.stopFrameLoop();element.audioSyncPending=false;const renderer=element.graph.renderer,canvas=element.canvasElement(),box=canvas.getBoundingClientRect(),device=renderer.app.graphicsDevice.clientRect,camera=renderer.cameraEntity.camera,Vec3=renderer.cameraEntity.getPosition().constructor;const move=(x,y)=>{const screen=camera.worldToScreen(new Vec3(-2+4*x,2.5-3*y,.45));canvas.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,clientX:box.left+screen.x/device.width*box.width,clientY:box.top+screen.y/device.height*box.height,pointerType:"mouse",pointerId:142}));};const tick=(seconds)=>{globalThis.__c5State.audioState.positionSeconds=seconds;globalThis.__c5State.audioState.playing=true;element.runDisplayFrame();};move(.125,.5);tick(.9);move(.375,.5);tick(1);const setup=element.activeSessionSetup,windowMs=setup?.timingWindowMs,depth=setup?.boxingColliderVolume?.colliderDepthBackward;if(windowMs!==180||depth!==3)throw new Error(`Boxing run must bind the configured 180ms × 3 back-face deadline: ${JSON.stringify({windowMs,depth})}`);const candidates=[];for(const fractionX of [.1,.2,.3,.4,.5,.6,.7,.8,.9])for(const fractionY of [.1,.2,.3,.4,.5,.6,.7,.8,.9]){const clientX=box.left+box.width*fractionX,clientY=box.top+box.height*fractionY,point=renderer.projectDebugEquipmentAnchor(clientX,clientY);if(point&&Object.isFrozen(point)&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.x<=1&&point.y>=0&&point.y<=1&&Math.abs(point.y-.5)>.26)candidates.push({clientX,clientY,point});}if(candidates.length===0)throw new Error("Boxing miss has no accepted within-canvas off-target mouse position");const away=candidates[0];canvas.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,clientX:away.clientX,clientY:away.clientY,pointerType:"mouse",pointerId:142}));if(element.testEquipmentPointerPosition?.x!==away.point.x||element.testEquipmentPointerPosition?.y!==away.point.y)throw new Error(`Boxing miss wrist did not latch real projected off-target pointer: ${JSON.stringify({expected:away.point,actual:element.testEquipmentPointerPosition})}`);tick((1300+windowMs*depth)/1000);const atBackFace=element.graph.gameplay.getSnapshot();if(atBackFace.judgements.length!==1||atBackFace.judgements[0].eventId!=="c5-boxing-hit"||atBackFace.judgements[0].result!=="hit"||atBackFace.scorePartitions.length!==1||atBackFace.scorePartitions[0].hits!==1||atBackFace.scorePartitions[0].misses!==0||atBackFace.scorePartitions[0].combo!==1||atBackFace.scorePartitions[0].maxCombo!==1||atBackFace.scorePartitions[0].ranked!==false||atBackFace.scorePartitions[0].localOnly!==true)throw new Error(`Boxing second punch must remain pending at 1840ms: ${JSON.stringify({judgements:atBackFace.judgements,score:atBackFace.scorePartitions})}`);tick((1300+windowMs*depth+1)/1000);const snapshot=element.graph.gameplay.getSnapshot();return{judgements:snapshot.judgements.map(({eventId,result,sessionPurpose})=>({eventId,result,sessionPurpose})),score:snapshot.scorePartitions.map(({hits,misses,combo,maxCombo,ranked,localOnly})=>({hits,misses,combo,maxCombo,ranked,localOnly}))};});
+  // Real canvas PointerEvents in a DPR3 touch-capable Chromium context. The
+  // renderer's projection is the oracle; no mocked projection or input service.
+  const touchTrace=await game.evaluate(async (element)=>{
+    await element.graph.content.selectVariant("c5-panel-flow");await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);element.setTestAutomaticFeedbackEnabled(false);element.stopFrameLoop();element.audioSyncPending=false;
+    const renderer=element.graph.renderer,canvas=element.canvasElement(),box=canvas.getBoundingClientRect(),device=renderer.app.graphicsDevice.clientRect,camera=renderer.cameraEntity.camera,Vec3=renderer.cameraEntity.getPosition().constructor;
+    const point=(x,y)=>{const screen=camera.worldToScreen(new Vec3(-2+4*x,2.5-3*y,.45));const client={x:box.left+screen.x/device.width*box.width,y:box.top+screen.y/device.height*box.height};const projected=renderer.projectDebugEquipmentAnchor(client.x,client.y);if(!projected||!Object.isFrozen(projected))throw new Error(`DPR3 touch point failed genuine renderer projection: ${JSON.stringify({x,y,client})}`);return{client,projected:structuredClone(projected)};};
+    const send=(type,id,where)=>{const event=new PointerEvent(type,{bubbles:true,composed:true,pointerType:"touch",pointerId:id,isPrimary:id===601,clientX:where.client.x,clientY:where.client.y,buttons:type==="pointerup"||type==="pointercancel"?0:1});canvas.dispatchEvent(event);};
+    const state=()=>{let poses=null;const original=renderer.renderGameplayFrameWithCursorsAndEquipment;renderer.renderGameplayFrameWithCursorsAndEquipment=function(...args){poses=structuredClone(args[3]);return original.apply(this,args);};try{element.renderGameplay();}finally{renderer.renderGameplayFrameWithCursorsAndEquipment=original;}return{latch:structuredClone(element.testEquipmentPointerPosition),poses:poses?.map(({role,anchor})=>({role,x:(anchor.x+.5)/4,y:(2.5-anchor.y)/3})),camera:structuredClone(renderer.exportDebugCameraPoseArtifact().data),cameraInput:renderer.debugCameraAuthoringInputEnabled,privacy:/testEquipmentPointerPosition|left_wrist|right_wrist|equipmentConfig|rotationEulerDeg/iu.test(JSON.stringify({snapshot:element.getSnapshot(),input:element.graph.input.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))}))};};
+    const a=point(.4,.52),b=point(.5,.48),other=point(.6,.4),right=point(.55,.53),invalid={client:{x:box.left-2,y:box.top-2}};
+    const score=()=>{const snapshot=element.graph.gameplay.getSnapshot();return{judgements:snapshot.judgements.map(({eventId,result})=>({eventId,result})),score:snapshot.scorePartitions.map(({hits,misses,ranked,localOnly})=>({hits,misses,ranked,localOnly}))};};
+    const tick=(seconds)=>{globalThis.__c5State.audioState.positionSeconds=seconds;globalThis.__c5State.audioState.playing=true;element.runDisplayFrame();};
+    if(renderer.projectDebugEquipmentAnchor(invalid.client.x,invalid.client.y)!==null)throw new Error("outside-canvas touch must not project");
+    element.setTestEquipmentMouseHand("left");const initial=state();send("pointerdown",601,a);const down=state();send("pointermove",601,b);const moved=state();send("pointerdown",602,other);send("pointermove",602,other);const second=state();send("pointermove",601,invalid);const invalidMove=state();send("pointerup",601,b);send("pointermove",601,a);const released=state();send("pointerdown",603,other);const nextDown=state();send("pointercancel",603,other);send("pointermove",603,a);const canceled=state();element.setTestEquipmentMouseHand("right");send("pointerdown",604,right);const rightDown=state();send("pointercancel",604,right);element.setTestEquipmentMouseHand("off");const off=state();send("pointerdown",605,a);send("pointermove",605,b);send("pointerup",605,b);const offGesture=state();
+    await element.graph.content.selectVariant("c5-panel-boxing");await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);element.setTestAutomaticFeedbackEnabled(false);element.setTestEquipmentMouseHand("left");element.stopFrameLoop();element.audioSyncPending=false;
+    const boxingA=point(.4,.5),boxingB=point(.5,.5);send("pointerdown",611,boxingA);const boxingDown=state();tick(.9);send("pointermove",611,boxingB);const boxingMove=state();tick(1);send("pointerup",611,boxingB);const boxingTruth=score();
+    await element.graph.content.selectVariant("c5-panel-flow");await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);element.setTestAutomaticFeedbackEnabled(false);element.setTestEquipmentMouseHand("left");element.stopFrameLoop();element.audioSyncPending=false;
+    const flowA=point(.4,.5),flowB=point(.5,.5);send("pointerdown",621,flowA);tick(.85);send("pointermove",621,flowB);const flowMove=state();tick(1);send("pointerup",621,flowB);const flowTruth=score();
+    return{dpr:devicePixelRatio,points:{a:a.projected,b:b.projected,other:other.projected,right:right.projected,boxingA:boxingA.projected,boxingB:boxingB.projected,flowB:flowB.projected},initial,down,moved,second,invalidMove,released,nextDown,canceled,rightDown,off,offGesture,boxingDown,boxingMove,boxingTruth,flowMove,flowTruth};
+  });
+  const anchors=(left,right)=>[{role:"left_wrist",...left},{role:"right_wrist",...right}];const idleLeft={x:0,y:.5},idleRight={x:1,y:.5};
+  assert.equal(touchTrace.dpr,3,"touch oracle runs at device pixel ratio three");
+  assert.deepEqual(touchTrace.down.latch,touchTrace.points.a,"touch down immediately places selected left hand using renderer projection");
+  assert.deepEqual(touchTrace.moved.latch,touchTrace.points.b,"held primary touch move steers selected left hand");
+  assert.deepEqual(touchTrace.moved.poses,anchors(touchTrace.points.b,idleRight),"left Flow equipment pose follows projected touch; opposite hand remains idle");
+  assert.deepEqual(touchTrace.second.latch,touchTrace.points.b,"held second touch cannot steal the active hand latch");
+  assert.deepEqual(touchTrace.invalidMove.latch,touchTrace.points.b,"invalid touch projection retains the last valid latch");
+  assert.deepEqual(touchTrace.released.latch,touchTrace.points.b,"pointerup releases touch ownership so subsequent unpressed move cannot steer");
+  assert.deepEqual(touchTrace.nextDown.latch,touchTrace.points.other,"after pointerup a new touch can acquire hand control");
+  assert.deepEqual(touchTrace.canceled.latch,touchTrace.points.other,"pointercancel releases ownership without erasing the last valid pose");
+  assert.deepEqual(touchTrace.rightDown.poses,anchors(idleLeft,touchTrace.points.right),"right Flow selection moves only right equipment pose");
+  assert.equal(touchTrace.off.latch,null,"hand Off clears the touch authoring latch");
+  assert.deepEqual(touchTrace.offGesture.poses,anchors(idleLeft,idleRight),"hand Off touch gestures cannot drive either hand");
+  for(const [name,record] of Object.entries(touchTrace).filter(([key])=>["down","moved","second","invalidMove","released","nextDown","canceled","rightDown","offGesture"].includes(key))){assert.deepEqual(record.camera,touchTrace.initial.camera,`${name} touch does not move the camera`);assert.equal(record.privacy,false,`${name} touch position stays out of public/input/storage state`);}
+  assert.equal(touchTrace.offGesture.cameraInput,true,"hand Off restores camera gesture ownership");
+  assert.deepEqual(touchTrace.boxingDown.latch,touchTrace.points.boxingA,"Boxing touch down places the selected hand");
+  assert.deepEqual(touchTrace.boxingMove.poses,anchors(touchTrace.points.boxingB,idleRight),"Boxing touch drag drives only the selected glove's resolved pose");
+  assert.deepEqual(touchTrace.boxingTruth.judgements,[{eventId:"c5-boxing-hit",result:"hit"}],"automatic-feedback-off Boxing touch feeds a real production judgement");
+  assert.deepEqual(touchTrace.boxingTruth.score,[{hits:1,misses:0,ranked:false,localOnly:true}],"Boxing touch score remains unranked and local-only");
+  assert.deepEqual(touchTrace.flowMove.poses,anchors(touchTrace.points.flowB,idleRight),"Flow touch movement renders selected saber only");
+  assert.deepEqual(touchTrace.flowTruth.judgements,[{eventId:"c5-feedback-left",result:"hit"}],"automatic-feedback-off Flow touch feeds a real production judgement");
+  assert.deepEqual(touchTrace.flowTruth.score,[{hits:1,misses:0,ranked:false,localOnly:true}],"Flow touch score remains unranked and local-only");
+  console.log("PASS: DPR3 touch down/move/multitouch/invalid/up/cancel, left/right Flow, Flow/Boxing real judgement, Off camera and privacy");
+  if (touchOnly) {
+    assert.deepEqual(noise, [], "touch-only counterfactual has no browser console/page errors");
+    console.log("Equipment DPR3 touch-only oracle PASS.");
+  } else {
+  const productionBoxing=await game.evaluate(async(element)=>{await element.graph.content.selectVariant("c5-panel-boxing");await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);element.setTestAutomaticFeedbackEnabled(false);element.setTestEquipmentMouseHand("left");element.stopFrameLoop();element.audioSyncPending=false;const renderer=element.graph.renderer,canvas=element.canvasElement(),box=canvas.getBoundingClientRect(),device=renderer.app.graphicsDevice.clientRect,camera=renderer.cameraEntity.camera,Vec3=renderer.cameraEntity.getPosition().constructor;const move=(x,y)=>{const screen=camera.worldToScreen(new Vec3(-2+4*x,2.5-3*y,.45));canvas.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,clientX:box.left+screen.x/device.width*box.width,clientY:box.top+screen.y/device.height*box.height,pointerType:"mouse",pointerId:142}));};const tick=(seconds)=>{globalThis.__c5State.audioState.positionSeconds=seconds;globalThis.__c5State.audioState.playing=true;element.runDisplayFrame();};move(.125,.5);tick(.9);move(.375,.5);tick(1);const setup=element.activeSessionSetup,windowMs=setup?.timingWindowMs,depth=setup?.boxingColliderVolume?.colliderDepthBackward;if(windowMs!==180||depth!==3)throw new Error(`Boxing run must bind the configured 180ms × 3 back-face deadline: ${JSON.stringify({windowMs,depth})}`);const candidates=[];for(const fractionX of [.1,.2,.3,.4,.5,.6,.7,.8,.9])for(const fractionY of [.1,.2,.3,.4,.5,.6,.7,.8,.9]){const clientX=box.left+box.width*fractionX,clientY=box.top+box.height*fractionY,point=renderer.projectDebugEquipmentAnchor(clientX,clientY);if(point&&Object.isFrozen(point)&&Number.isFinite(point.x)&&Number.isFinite(point.y)&&point.x>=0&&point.x<=1&&point.y>=0&&point.y<=1&&Math.abs(point.y-.5)>.26)candidates.push({clientX,clientY,point});}if(candidates.length===0)throw new Error("Boxing miss has no accepted within-canvas off-target mouse position");const away=candidates[0];canvas.dispatchEvent(new PointerEvent("pointermove",{bubbles:true,clientX:away.clientX,clientY:away.clientY,pointerType:"mouse",pointerId:142}));if(element.testEquipmentPointerPosition?.x!==away.point.x||element.testEquipmentPointerPosition?.y!==away.point.y)throw new Error(`Boxing miss wrist did not latch real projected off-target pointer: ${JSON.stringify({expected:away.point,actual:element.testEquipmentPointerPosition})}`);element.invalidateVisualTestInteraction();const liveTimeline=element.graph.gameplay.getSnapshot().session.timelinePositionMs;if(liveTimeline>=1300)throw new Error(`Boxing negative control epoch must restart before second beat: ${liveTimeline}`);tick(1.15);tick((1300+windowMs*depth)/1000);const atBackFace=element.graph.gameplay.getSnapshot();if(atBackFace.judgements.length!==1||atBackFace.judgements[0].eventId!=="c5-boxing-hit"||atBackFace.judgements[0].result!=="hit"||atBackFace.scorePartitions.length!==1||atBackFace.scorePartitions[0].hits!==1||atBackFace.scorePartitions[0].misses!==0||atBackFace.scorePartitions[0].combo!==1||atBackFace.scorePartitions[0].maxCombo!==1||atBackFace.scorePartitions[0].ranked!==false||atBackFace.scorePartitions[0].localOnly!==true)throw new Error(`Boxing second punch must remain pending at 1840ms: ${JSON.stringify({judgements:atBackFace.judgements,score:atBackFace.scorePartitions})}`);tick((1300+windowMs*depth+1)/1000);const snapshot=element.graph.gameplay.getSnapshot();return{judgements:snapshot.judgements.map(({eventId,result,sessionPurpose})=>({eventId,result,sessionPurpose})),score:snapshot.scorePartitions.map(({hits,misses,combo,maxCombo,ranked,localOnly})=>({hits,misses,combo,maxCombo,ranked,localOnly}))};});
   assert.deepEqual(productionBoxing.judgements,[{eventId:"c5-boxing-hit",result:"hit",sessionPurpose:"visual_test"},{eventId:"c5-boxing-miss",result:"miss",sessionPurpose:"visual_test"}],`real Boxing mouse hit/miss truth: ${JSON.stringify(productionBoxing)}`);assert.deepEqual(productionBoxing.score,[{hits:1,misses:1,combo:0,maxCombo:1,ranked:false,localOnly:true}],"Visual Test Boxing score/combo is truthful and unranked/local-only");
   await game.evaluate(async(element)=>{await element.graph.content.selectVariant("c5-panel-flow");await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);});
 
@@ -355,6 +437,7 @@ try {
 
   clearTimeout(hardTimeout);
   console.log("Equipment config panel browser oracle PASS.");
+  }
 } finally {
   clearTimeout(hardTimeout);
   await cleanup();

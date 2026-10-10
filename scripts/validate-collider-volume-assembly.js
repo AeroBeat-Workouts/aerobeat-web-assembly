@@ -20,6 +20,8 @@ const events=[{eventId:'left',centerTimestampMs:1000,authoredBeat:{type:'note',h
 const game={session:{purpose:'play'},judgements:[]};
 const index=createSessionTargetIndex(events,{normalSpawnLeadMs:2500});
 assert.equal(projectSessionTargets(events,game,1450,index,180,false,3)[0]?.id,'left','pending note remains visible inside tripled back depth');
-assert.equal(projectSessionTargets(events,game,1541,index,180,false,3).length,0,'note expires once past expanded back face');
+assert.equal(projectSessionTargets(events,game,1541,index,180,false,3)[0]?.id,'left','scored Play stays pending past configured back face while the mesh is still in view');
+assert.equal(projectSessionTargets(events,game,2000,index,180,false,3)[0]?.id,'left','scored Play remains pending through the full canonical note clearance deadline');
+assert.equal(projectSessionTargets(events,game,2001,index,180,false,3).length,0,'scored Play note expires strictly after the full canonical clearance deadline');
 setup.destroy();reloaded.destroy();
 console.log('Per-mode collider volume persisted and projected through run settings and back-face visibility.');

@@ -2,7 +2,7 @@
 
 import { isPrivateNoteAppearance } from "@aerobeat/web-contracts";
 import { isObstacleGameplayGeometry, isObstacleGridMask, isObstacleSourceGeometry } from "@aerobeat/web-contracts/obstacle-contracts";
-import { flowColliderSettingsBounds } from "@aerobeat/web-gameplay";
+import { effectivePlayNoteAfterWindowMs, flowColliderSettingsBounds } from "@aerobeat/web-gameplay";
 
 const FEEDBACK_DURATION_MS = 350;
 const FLOW_APPROACH_LEAD_MS = 2500;
@@ -84,6 +84,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   if(!Number.isFinite(timingWindowAfterMs)||timingWindowAfterMs<0||timingWindowAfterMs>flowColliderSettingsBounds.timingWindowMs.maximum)throw new TypeError("Authoritative late timing window is invalid");
   const session = recordValue(gameplay, "session");
   const visualTest = recordValue(session, "purpose") === "visual_test";
+  const scoredPlay = recordValue(session, "purpose") === "play";
   const selectedVariant = recordValue(gameplay, "selectedVariant");
   const modifierValue = recordValue(selectedVariant, "modifierIds");
   const modifiers = Array.isArray(modifierValue) ? modifierValue : [];
@@ -95,7 +96,11 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];
   const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS,skyMode=indexed&&index.skyMode==="prelude"?"prelude":"off",skyPreludeDurationMs=indexed&&skyMode==="prelude"&&Number.isFinite(index.skyPreludeDurationMs)&&index.skyPreludeDurationMs>=0?index.skyPreludeDurationMs:0,skyLeadMs=skyMode==="prelude"?skyPreludeDurationMs:0;
   const effectiveLateWindowMs=timingWindowAfterMs*colliderDepthBackward;
-  const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,effectiveLateWindowMs,skyLeadMs) : createOrderedEntries(events);
+  const playNoteLateWindowMs=effectivePlayNoteAfterWindowMs(0,timingWindowAfterMs,colliderDepthBackward);
+  // Play pending-note projection must match the genuine sweep/finalizer. Test's
+  // synthetic GREAT/MISS preview retains its historical short deadline.
+  const indexedLateWindowMs=scoredPlay?playNoteLateWindowMs:effectiveLateWindowMs;
+  const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,indexedLateWindowMs,skyLeadMs) : createOrderedEntries(events);
   const targets = [];
   let fallbackFeedbackIndex = 0;
   for (const entry of orderedEntries) {
@@ -128,14 +133,15 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs < Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
-      const pendingVisible = result !== "hit" && result !== "miss" && centerMs + effectiveLateWindowMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
+      const noteLateWindowMs=scoredPlay&&(type==="note"||Object.hasOwn(BOXING_PUNCH_TYPES,type))?playNoteLateWindowMs:effectiveLateWindowMs;
+      const pendingVisible = result !== "hit" && result !== "miss" && centerMs + noteLateWindowMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result === "hit" && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined,missCommitMs=result==="miss"&&Number.isFinite(commitMs)?Number(commitMs):undefined;
         // 0.0.96: forward the resolved scoring tier from the real judgement so
         // the renderer can pick the Great/Good/Almost/Miss feedback label.
         // Synthetic (Visual Test) feedback has no resolved tier — the renderer
         // defaults to "great" for hits and "miss" for misses in that case.
-        const realTier = result === "hit" ? recordValue(real, "tier") : result === "miss" ? "miss" : undefined;
+        const realTier = result === "hit" || result === "miss" ? recordValue(real, "tier") : undefined;
         const tier = typeof realTier === "string" && ["great", "good", "almost", "miss"].includes(realTier) ? realTier : (result === "hit" ? "great" : result === "miss" ? "miss" : undefined);
         const target = renderFeedbackTarget(event, type, result === "hit" || result === "miss" ? result : "pending", feedbackProgress,missCommitMs,bounceStartMs,normalSpawnMs,skyPreludeStartMs,typeof entry.arrivalGroupIdentity==="string"?entry.arrivalGroupIdentity:null, tier);
         if (target) targets.push(target);
