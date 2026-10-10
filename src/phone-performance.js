@@ -37,7 +37,7 @@ const recorder=createPrivatePerformanceRecorder({capacity:2048});
 let activeMode="game",desiredMode="game",generation=0,renderScale=1;
 let raf=0,videoCallback=0,cameraFrameCount=0,cameraFrameStart=0,lastCameraAt=0,cameraTimestamp=0,cvConsumedFrame=0,lastMediaTime=-Infinity;
 let phase="loading",phaseStarted=0,windowStart=0,latestStatsAt=0,minTargets=Infinity,maxTargets=0;
-let windowGeometry="",disposed=false,transition=Promise.resolve();
+let windowGeometry="",disposed=false,transition=Promise.resolve(),cvDispose=Promise.resolve();
 /** @type {null|(()=>void)} */ let cancelCameraRequest=null;
 
 renderer.attach(canvas);
@@ -49,7 +49,7 @@ function geometryKey(){return `${stage.clientWidth}:${stage.clientHeight}:${devi
 function resize(){
   const bounds=stage.getBoundingClientRect();if(bounds.width<1||bounds.height<1)return;
   renderer.resize({widthCssPx:bounds.width,heightCssPx:bounds.height,devicePixelRatio:devicePixelRatio||1,renderScale});
-  if((phase==="warmup"||phase==="measuring")&&windowGeometry&&geometryKey()!==windowGeometry)invalidate("Canvas size or orientation changed during the window.",false);
+  if((phase==="warmup"||phase==="measuring")&&windowGeometry&&geometryKey()!==windowGeometry)invalidate("Canvas size or orientation changed during the window.",true);
 }
 function label(mode){return mode==="game"?"Game":mode==="camera"?"Game + Camera":"Game + CV";}
 function updateModeButtons(){for(const button of document.querySelectorAll("aero-button[data-mode]"))button.setAttribute("aria-pressed",String(button.getAttribute("data-mode")===desiredMode));}
@@ -70,7 +70,11 @@ function stopCamera(){
   video.pause();video.srcObject=null;video.hidden=true;
   stream?.getTracks().forEach(track=>track.stop());stream=null;
 }
-async function stopCv(){const previous=cv;cv=null;if(previous)await previous.dispose();}
+async function stopCv(){
+  const previous=cv;cv=null;
+  if(previous)cvDispose=cvDispose.catch(()=>{}).then(()=>previous.dispose());
+  await cvDispose;
+}
 function syncCameraPresentation(){
   const visible=activeMode!=="game"&&Boolean(stream);
   video.hidden=!visible;renderer.setEnvironmentVisible(!visible);
@@ -191,7 +195,7 @@ function frame(now){
     summary.textContent=`Measuring ${label(activeMode)} for ${measureMs/1000} seconds. Keep this tab visible.`;
   }
   if(phase!=="measuring")return;
-  if(geometryKey()!==windowGeometry){invalidate("Canvas size or orientation changed during the window.",false);return;}
+  if(geometryKey()!==windowGeometry){invalidate("Canvas size or orientation changed during the window.",true);return;}
   if(activeMode!=="game"&&now-lastCameraAt>2000){invalidate("Camera stopped delivering new frames.",true);return;}
   if(activeMode==="cv"&&cv?.getStatus().lifecycleState==="error"){
     invalidate(`CV stopped: ${cv.getStatus().error??"unknown error"}`,true);return;
@@ -250,10 +254,16 @@ document.addEventListener("aero-button-activate",event=>{
 });
 quality.addEventListener("aero-select-change",event=>{
   const scale=Number(event.detail?.value);
-  if(!qualityOptions.some(option=>Number(option.value)===scale))return;
-  if(phase==="measuring"||phase==="warmup")invalidate("Render resolution changed mid-window.",false);
+  if(!qualityOptions.some(option=>Number(option.value)===scale)||scale===renderScale)return;
+  const completed=phase==="done";
+  if(phase==="measuring"||phase==="warmup")invalidate("Render resolution changed mid-window.",true);
   renderScale=scale;resize();
-  if(!document.hidden&&["invalid","done"].includes(phase))beginWindow(performance.now());
+  if(completed){
+    phase="invalid";++generation;stopCamera();void stopCv();syncCameraPresentation();
+    fps.setAttribute("heading","— scene FPS");fps.setAttribute("status","Select mode to measure");
+    status.textContent=`Resolution changed to ${renderScale}×. Choose ${label(activeMode)} to start a fresh window.`;
+    summary.textContent=`${runs.length} completed run(s) saved. Changing resolution never restarts a finished window automatically.`;
+  }
 });
 document.addEventListener("visibilitychange",()=>{
   if(document.hidden&&phase!=="invalid")invalidate("Tab hidden before or during a benchmark window.",true);

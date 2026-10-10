@@ -39,6 +39,8 @@ try{
   assert.deepEqual(labels,[["Full (1.0)","1"],["High (0.75)","0.75"],["Medium (0.5)","0.5"],["Low (0.25)","0.25"]]);
   const full=await scene.evaluate(canvas=>({width:canvas.width,height:canvas.height}));
   await selector.locator("select").selectOption("0.5"); // Playwright pierces open component shadow root.
+  await page.locator("#status").getByText(/Resolution changed to 0\.5×\. Choose Game/u).waitFor({timeout:10000});
+  await page.locator("aero-button[data-mode=game]").click();
   await page.locator("#summary").getByText(/^Game: scene/u).waitFor({timeout:25000});
   const half=await scene.evaluate(canvas=>({width:canvas.width,height:canvas.height}));
   assert(half.width>0&&half.width<=Math.ceil(full.width/2)+1&&half.height<=Math.ceil(full.height/2)+1,"Render quality must change real canvas backing size");
@@ -67,6 +69,7 @@ try{
   assert((await page.evaluate(()=>window.__phoneProbe)).workerTerminations>=1,"Leaving CV must terminate the Worker");
   await page.setViewportSize({width:844,height:390});
   await selector.locator("select").selectOption("0.75");
+  await page.locator("aero-button[data-mode=game]").click();
   await page.locator("#summary").getByText(/^Game: scene/u).waitFor({timeout:25000});
   const high=await scene.evaluate(canvas=>({width:canvas.width,height:canvas.height}));
   const landscape=await pixelEvidence(page,await scene.screenshot());assert(landscape.cyan&&landscape.blue,"Landscape High must show dense perspective beats");
@@ -74,6 +77,8 @@ try{
   assert(layout.hud.right<=layout.stage.right&&layout.hud.top>=layout.stage.top,"Landscape HUD must remain inside scene");
   assert(layout.controls.bottom<=layout.stage.top,"Landscape controls cannot overlap the scene HUD");
   await selector.locator("select").selectOption("0.25");
+  await page.locator("#status").getByText(/Resolution changed to 0\.25×\. Choose Game/u).waitFor({timeout:10000});
+  await page.locator("aero-button[data-mode=game]").click();
   await page.locator("#summary").getByText(/^Game: scene/u).waitFor({timeout:25000});
   const low=await scene.evaluate(canvas=>({width:canvas.width,height:canvas.height}));
   assert(low.width>0&&low.width<=high.width/3+2&&low.height<=high.height/3+2,"Low and High must reach renderer backing at correct scales");
@@ -105,12 +110,22 @@ try{
   await geometry.locator("#summary").getByText(/Measuring Game for/u).waitFor({timeout:25000});
   await geometry.setViewportSize({width:460,height:844});
   await geometry.locator("#status").getByText(/Window invalid: Canvas size or orientation changed/u).waitFor({timeout:10000});
+  await geometry.locator("#quality").locator("select").selectOption("0.25");
+  assert.match(await geometry.locator("#status").textContent(),/Window invalid: Canvas size or orientation changed/u,"Changing resolution cannot restart an invalid window");
   await geometry.waitForTimeout(4500);
   const geometryDownload=geometry.waitForEvent("download");await geometry.locator("#download").click();
   const geometryStream=await(await geometryDownload).createReadStream();let geometryJson="";for await(const chunk of geometryStream)geometryJson+=chunk.toString();
   assert.equal(JSON.parse(geometryJson).runs.length,0,"A resized mid-window scene cannot be exported as a valid run");
   await geometry.locator("aero-button[data-mode=game]").click();
   await geometry.locator("#summary").getByText(/^Game: scene/u).waitFor({timeout:25000});
+  await geometry.locator("aero-button[data-mode=game]").click();
+  await geometry.locator("#summary").getByText(/Measuring Game for/u).waitFor({timeout:10000});
+  await geometry.locator("#quality").locator("select").selectOption("0.5");
+  assert.match(await geometry.locator("#status").textContent(),/Window invalid: Render resolution changed mid-window/u,"Changing scale mid-window must require a new mode click");
+  await geometry.waitForTimeout(4500);
+  const interruptedDownload=geometry.waitForEvent("download");await geometry.locator("#download").click();
+  const interruptedStream=await(await interruptedDownload).createReadStream();let interruptedJson="";for await(const chunk of interruptedStream)interruptedJson+=chunk.toString();
+  assert.equal(JSON.parse(interruptedJson).runs.filter(run=>run.mode==="game").length,1,"The interrupted scale change must not save a new window");
   await geometry.locator("aero-button[data-mode=game]").click();
   await geometry.locator("#summary").getByText(/Warming up/u).waitFor({timeout:10000});
   await geometry.evaluate(()=>{Object.defineProperty(document,"hidden",{configurable:true,value:true});document.dispatchEvent(new Event("visibilitychange"));});
@@ -141,6 +156,9 @@ try{
   await frozen.evaluate(()=>{window.__freezeCamera=true;});
   await frozen.waitForFunction(()=>/Window invalid|complete/u.test(document.querySelector("#status")?.textContent??""),undefined,{timeout:15000});
   assert.match(await frozen.locator("#status").textContent(),/Window invalid: Camera stopped delivering new frames/u,"Frozen CV source must invalidate instead of completing a run");
+  await frozen.locator("#quality").locator("select").selectOption("0.25");
+  assert.match(await frozen.locator("#status").textContent(),/Window invalid: Camera stopped delivering new frames/u,"Resolution after invalid CV must require a fresh mode click");
+  assert.equal(await frozen.locator("#camera").evaluate(video=>video.srcObject),null,"Invalid CV cannot retain a camera on resolution change");
   await frozen.waitForTimeout(4500);
   const frozenDownloadPromise=frozen.waitForEvent("download");await frozen.locator("#download").click();
   const frozenStream=await(await frozenDownloadPromise).createReadStream();let frozenJson="";for await(const chunk of frozenStream)frozenJson+=chunk.toString();
