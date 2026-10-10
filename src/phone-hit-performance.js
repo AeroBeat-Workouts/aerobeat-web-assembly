@@ -120,6 +120,7 @@ function finish(now) {
 function report() { return {
   schema:"aerobeat/phone_test_hit_comparison",version:1,
   source:typeof __AEROBEAT_PHONE_COMMIT__ !== "undefined" ? __AEROBEAT_PHONE_COMMIT__ : "development",
+  gameplayCommit:typeof __AEROBEAT_PHONE_GAMEPLAY_COMMIT__ !== "undefined" ? __AEROBEAT_PHONE_GAMEPLAY_COMMIT__ : "development",
   renderer:{commit:typeof __AEROBEAT_PHONE_RENDERER_COMMIT__ !== "undefined" ? __AEROBEAT_PHONE_RENDERER_COMMIT__ : "development",facadeSha256:typeof __AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__ !== "undefined" ? __AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__ : "development",shadowMode:typeof __AEROBEAT_PHONE_SHADOW_MODE__ !== "undefined" ? __AEROBEAT_PHONE_SHADOW_MODE__ : "native"},
   workload:{contract:phoneHitWorkload.contract,firstHitMs:phoneHitWorkload.firstHitMs,noteStride:phoneHitWorkload.noteStride,corpusEvents:workload.events.length,purpose:"visual_test",automaticFeedback:false,equipment:"static canonical Test Flow",slicePosition:"midpoint approximation"},
   browser:navigator.userAgent.slice(0,200),previewOnly,
