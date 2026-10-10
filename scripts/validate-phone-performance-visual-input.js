@@ -63,36 +63,58 @@ for (const key of ["x", "y", "z", "w"]) assert.ok(Math.abs(shifted.orientation[k
 assert.equal(shifted.configIdentity.value, expectedHash);
 const second = visuals.frame(2520);
 assert.equal(second.equipment.length, 2, "display cadence renders held measured frame without inventing another pose");
-assert.equal(visuals.snapshot().measuredFrameCount, 12);
+// Actual Play disables T-pose re-fire once active. Release the first hold, then
+// sustain a second qualified hold beyond BOTH the 2s hold and 2s cooldown.
+// Without post-calibration disable this commits a second calibration generation
+// and hides both sabers until that new pose is physically released.
+for (let at = 2800; at <= 5300; at += 250) {
+  visuals.processPose(pose(at, tPose), context);
+  const repeated = visuals.frame(at);
+  assert.equal(repeated.calibrationReady, true, `repeat T-pose ${at}: Play readiness persists`);
+  assert.equal(repeated.trackingReady, true, `repeat T-pose ${at}: tracking remains usable`);
+  assert.equal(repeated.equipment.length, 2, `repeat T-pose ${at}: sabers stay visible`);
+}
+visuals.processPose(pose(5550, released), context);
+assert.equal(visuals.frame(5550).equipment.length, 2, "release after second hold still has measured sabers");
+// Return the wrists to the established standing position before checking
+// tracking-loss freeze; the deliberately offset orientation probe above is
+// independent of this hysteresis fixture.
+for (const at of [5590, 5630]) {
+  visuals.processPose(pose(at, released), context);
+  visuals.frame(at);
+}
+assert.equal(visuals.snapshot().measuredFrameCount, 26);
 assert.ok(visuals.snapshot().visiblePoseFrameCount >= 2);
 noPrivateReportData(visuals.snapshot());
 
 const lost = { ...released, nose: [.1,.3] };
-visuals.processPose(pose(2600, lost, "camera-a", true, { left_wrist: .2 }), context);
-assert.equal(visuals.frame(2600).equipment.length, 2, "provisional real tracking loss holds last measured equipment");
-for (const at of [2850, 3100, 3350]) visuals.processPose(pose(at, lost, "camera-a", true, { left_wrist: .2 }), context);
-const frozen = visuals.frame(3350);
-assert.equal(frozen.equipment.length, 2, "hysteresis freezes real calibrated evidence");
+visuals.processPose(pose(5650, lost, "camera-a", true, { left_wrist: .2 }), context);
+assert.equal(visuals.frame(5650).equipment.length, 2, "provisional real tracking loss holds last measured equipment");
+// One 750ms silence is a legitimate CV gap and latches the body-grid freeze.
+// Avoid repeatedly submitting low-confidence frames: that service's separate
+// prolonged-loss branch is not the repeated T-pose parity condition here.
+const frozen = visuals.frame(6400);
+assert.equal(frozen.equipment.length, 2, "no-frame loss freezes real calibrated evidence");
 assert.equal(frozen.cursors.length, 1, "held nose remains from the last valid measured frame");
-visuals.processPose(pose(3450, released), context);
-assert.equal(visuals.frame(3450).equipment.length, 2, "good frame releases freeze without synthetic wrist");
-visuals.frame(4600);
-assert.equal(visuals.frame(4600).equipment.length, 2, "no-frame advance preserves real frozen pose");
+visuals.processPose(pose(6500, released), context);
+assert.equal(visuals.frame(6500).equipment.length, 2, "good frame releases freeze without synthetic wrist");
+visuals.frame(7600);
+assert.equal(visuals.frame(7600).equipment.length, 2, "no-frame advance preserves real frozen pose");
 const beforeEpoch = visuals.snapshot().measuredFrameCount;
-visuals.processPose(pose(4700, released), { ...context, sourceChangeId: "camera-epoch-b" });
-const epoch = visuals.frame(4700);
+visuals.processPose(pose(7700, released), { ...context, sourceChangeId: "camera-epoch-b" });
+const epoch = visuals.frame(7700);
 assert.equal(epoch.calibrationReady, false, "camera epoch invalidates T-pose");
 assert.equal(epoch.equipment.length, 0);
 assert.equal(epoch.cursors.length, 0);
 assert.equal(visuals.snapshot().measuredFrameCount, beforeEpoch + 1);
-for (let at = 4950; at <= 7200; at += 250) visuals.processPose(pose(at, tPose), { ...context, sourceChangeId: "camera-epoch-b" });
-assert.equal(visuals.frame(7200).equipment.length, 2, "new epoch requires real fresh T-pose");
-visuals.processPose(pose(7300, released, "camera-b"), { ...context, sourceChangeId: "camera-epoch-b" });
-assert.equal(visuals.frame(7300).equipment.length, 0, "pose source identity also invalidates calibration");
+for (let at = 7950; at <= 10200; at += 250) visuals.processPose(pose(at, tPose), { ...context, sourceChangeId: "camera-epoch-b" });
+assert.equal(visuals.frame(10200).equipment.length, 2, "new epoch requires real fresh T-pose");
+visuals.processPose(pose(10300, released, "camera-b"), { ...context, sourceChangeId: "camera-epoch-b" });
+assert.equal(visuals.frame(10300).equipment.length, 0, "pose source identity also invalidates calibration");
 visuals.destroy();
 assert.equal(visuals.snapshot().calibrationReady, false);
-assert.deepEqual(visuals.frame(7400).equipment, []);
-visuals.processPose(pose(7450), context);
+assert.deepEqual(visuals.frame(10400).equipment, []);
+visuals.processPose(pose(10450), context);
 assert.equal(visuals.snapshot().measuredFrameCount, beforeEpoch + 12);
 noPrivateReportData(visuals.snapshot());
-console.log("Synthetic fixture: authentic T-pose, canonical v4 Flow/nose, measured/frozen loss and camera/pose epoch invalidation passed; physical phone calibration remains unverified.");
+console.log("Synthetic fixture: initial and repeated T-pose Play parity, canonical v4 Flow/nose, frozen loss and camera/pose epoch invalidation passed; physical phone calibration remains unverified.");

@@ -28,6 +28,7 @@ export async function createPhoneTrackingVisuals() {
   let destroyed = false;
   let measuredFrameCount = 0;
   let visiblePoseFrameCount = 0;
+  let midGameRecalibrationDisabled = false;
   let lastPoseTimestampMs = -Infinity;
   let lastAdvanceAtMs = -Infinity;
   let lastSourceChangeId = null;
@@ -63,6 +64,12 @@ export async function createPhoneTrackingVisuals() {
     lastAdvanceAtMs = pose.timestampMs;
     lastPoseTimestampMs = pose.timestampMs;
     measuredFrameCount = increment(measuredFrameCount);
+    // The synthetic Play gate begins only after the first real measured T-pose
+    // commits; initial calibration remains enabled for its full two-second hold.
+    if (!midGameRecalibrationDisabled && next.calibration.calibrationId !== null && next.tracking.freshCalibrationRequired !== true && next.calibration.readiness === "countdown") {
+      input.setMidGameRecalibrationEnabled(false);
+      midGameRecalibrationDisabled = true;
+    }
   }
 
   function frame(nowMs) {
