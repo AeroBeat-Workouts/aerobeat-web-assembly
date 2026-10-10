@@ -159,3 +159,23 @@ Independent, read-only QA child `d09cd8a6-9916-4554-9c08-901e76dbe3cc` was launc
 **Recommended fix:** Let the selector resize immediately but leave invalid/warmup/measuring windows invalid and display a mode-button retry prompt. For a *completed* run, quality change should require a new mode click too (or explicitly call `changeMode()` on that user gesture, which reacquires resources). Prefer one consistent explicit retry rule; retain previous valid runs, never silently start a new measurement. Do not alter production CV defaults.
 
 **Debugging record:** Problem: invalid-window retry bypass; observed symptom: selector calls `beginWindow` from invalid/done and after it invalidates measuring; root cause: quality handler bypasses resource-owning mode transition; evidence: selector listener and QA review; failed approaches: guards without scale-after-invalid test; corrective action: require explicit mode click for every new scale window; verification test: invalid/active/completed scale changes remain idle until mode selected; related files: `src/phone-performance.js`, phone browser test; remaining uncertainty: no physical Moto test yet.
+
+## Debug record: selector during pending mode setup (2026-10-10)
+
+**Exact observed failure:** Independent QA source review of `36c447f` found the selector does nothing to a `phase === "switching"` transition. A camera permission request can remain pending while the user changes quality, then resolve and automatically begin a new window at the changed scale. This is a source-established path, not a Moto observation.
+
+**Expected behavior:** Changing quality while a mode is pending invalidates that attempted configuration and requires a new explicit mode click, just like changing it during warmup or measurement. Late permission resolution must stop its acquired stream and save no run.
+
+**Execution path:** `changeMode()` sets `desiredMode`, increments `generation`, sets `phase="switching"`, then awaits `getUserMedia` and possibly `cv.start`; after completion it checks the generation and calls `beginWindow()`. The quality listener only invalidates warmup/measuring and treats done separately, so switching retains its original generation and continues under new `renderScale`.
+
+**Most likely root cause/evidence:** Missing `switching` in the selector's invalidation predicate leaves the in-flight setup token valid. The source and QA review agree; it is not a camera permission or CV profile failure.
+
+**Alternatives:** A quick permission grant may complete before selection, in which case the existing warmup guard catches it; this is timing-dependent. If the user deliberately selected a scale before granting permission, it might be considered a new choice, but the approved protocol requires a consistent mode/window configuration and an explicit retry after invalidation.
+
+**Previous fixes/unknowns:** The earlier selector fix covered active measuring, warmup, done, and invalid phases, but not asynchronous setup. Whether permission can remain pending indefinitely on the Moto is browser-dependent; a controlled fake-permission promise resolves that uncertainty for the state machine.
+
+**Minimal reproduction and proposed verification:** In project Playwright, hold `getUserMedia`, tap Camera, select Medium while `#status` says Switching, resolve the first camera request, then wait beyond the preview duration. Assert no Camera run, no live stream, and an invalid status; tap Camera again and assert a valid Medium run. Preserve the same test while removing only the switching invalidation in a disposable worktree: it must fail for this exact path.
+
+**Recommended fix:** Invalidate `switching` on quality change with resource teardown/generation cancellation, and label the failure using `desiredMode` rather than the old `activeMode`. Do not restart automatically. Re-run the pinned real-Worker and permission test states.
+
+**Debugging record:** Problem: pending mode survives quality change; observed symptom: source path allowed automatic warmup after late permission; root cause: switching omitted from invalidation; evidence: code and independent QA; failed approach: handling only warmup/measuring/done; corrective action: cancel pending token and require retry; verification test: a controlled delayed-permission Camera setup was cancelled by scale selection, its late track reached `ended`, no Camera window was saved, and a new explicit Camera click completed at Medium in the project-owned browser gate. The same gate now asserts track termination on page exit. Bug-specific counterfactual and pinned-stage rerun are next; related files: diagnostic state machine and browser gate; remaining uncertainty: actual phone permission timing.

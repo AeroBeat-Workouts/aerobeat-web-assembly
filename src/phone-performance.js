@@ -105,7 +105,8 @@ function beginWindow(now){
 }
 function invalidate(reason,releaseCamera){
   if(phase==="invalid"||disposed)return;
-  const previous=activeMode;phase="invalid";failures.push({mode:previous,reason:reason.slice(0,256)});
+  const previous=phase==="switching"?desiredMode:activeMode;
+  phase="invalid";failures.push({mode:previous,reason:reason.slice(0,256)});
   status.textContent=`Window invalid: ${reason} Choose ${label(previous)} to retry.`;
   summary.textContent="No invalid or hidden-tab window is included in the JSON report.";
   fps.setAttribute("status","Invalid window");
@@ -256,7 +257,8 @@ quality.addEventListener("aero-select-change",event=>{
   const scale=Number(event.detail?.value);
   if(!qualityOptions.some(option=>Number(option.value)===scale)||scale===renderScale)return;
   const completed=phase==="done";
-  if(phase==="measuring"||phase==="warmup")invalidate("Render resolution changed mid-window.",true);
+  if(phase==="switching")invalidate("Render resolution changed during mode setup.",true);
+  else if(phase==="measuring"||phase==="warmup")invalidate("Render resolution changed mid-window.",true);
   renderScale=scale;resize();
   if(completed){
     phase="invalid";++generation;stopCamera();void stopCv();syncCameraPresentation();

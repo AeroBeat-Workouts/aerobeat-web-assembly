@@ -105,6 +105,37 @@ try{
   assert.equal(await permission.locator("#camera").isHidden(),true,"Pending camera permission must be cancelled by hidden-tab invalidation");
   await pending.close();
 
+  const latePermission=await browser.newContext({viewport:{width:390,height:844},permissions:["camera"]});
+  await latePermission.addInitScript(()=>{
+    const original=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    let first=true;
+    navigator.mediaDevices.getUserMedia=(...args)=>{
+      if(!first)return original(...args);
+      first=false;
+      return new Promise(resolve=>{window.__grantLateCamera=()=>original(...args).then(acquired=>{window.__lateTrack=acquired.getVideoTracks()[0];resolve(acquired);});});
+    };
+  });
+  const late=await latePermission.newPage();await late.goto(`${base}phone-performance.html?preview=1`);
+  await late.locator("aero-button[data-mode=camera]").click();
+  await late.locator("#status").getByText(/Switching to Game \+ Camera/u).waitFor({timeout:10000});
+  await late.waitForFunction(()=>typeof window.__grantLateCamera==="function");
+  await late.locator("#quality").locator("select").selectOption("0.5");
+  assert.match(await late.locator("#status").textContent(),/Window invalid: Render resolution changed during mode setup\. Choose Game \+ Camera/u,"Switching quality must cancel pending Camera setup");
+  await late.evaluate(()=>window.__grantLateCamera());
+  await late.waitForFunction(()=>window.__lateTrack?.readyState==="ended");
+  await late.waitForTimeout(4500);
+  assert.match(await late.locator("#status").textContent(),/Window invalid/u,"Late camera permission cannot start an implicit window");
+  assert.equal(await late.locator("#camera").evaluate(video=>video.srcObject),null,"Late granted camera track must be detached and stopped");
+  const lateDownload=late.waitForEvent("download");await late.locator("#download").click();
+  const lateStream=await(await lateDownload).createReadStream();let lateJson="";for await(const chunk of lateStream)lateJson+=chunk.toString();
+  const lateReport=JSON.parse(lateJson);assert.equal(lateReport.runs.some(run=>run.mode==="camera"),false,"Cancelled camera setup cannot produce a result");
+  assert(lateReport.failures.some(failure=>failure.mode==="camera"&&failure.reason.includes("mode setup")),"Pending-mode failure must name Camera");
+  await late.locator("aero-button[data-mode=camera]").click();
+  await late.locator("#summary").getByText(/^Game \+ Camera: scene/u).waitFor({timeout:25000});
+  const exit=await late.evaluate(()=>{const video=document.querySelector("#camera"),track=video.srcObject.getVideoTracks()[0];window.dispatchEvent(new Event("pagehide"));return{trackState:track.readyState,source:video.srcObject};});
+  assert.equal(exit.trackState,"ended","Page exit must stop live camera tracks");assert.equal(exit.source,null,"Page exit must detach video source");
+  await latePermission.close();
+
   const invalid=await browser.newContext({viewport:{width:390,height:844}});
   const geometry=await invalid.newPage();await geometry.goto(`${base}phone-performance.html?preview=1`);
   await geometry.locator("#summary").getByText(/Measuring Game for/u).waitFor({timeout:25000});
@@ -165,7 +196,7 @@ try{
   const frozenReport=JSON.parse(frozenJson);assert.equal(frozenReport.runs.some(run=>run.mode==="cv"),false,"A frozen camera cannot yield a valid CV run");
   assert(frozenReport.failures.some(failure=>failure.reason.includes("Camera stopped")),"Frozen camera must be reported as a failure");
   await freeze.close();
-  console.log("Phone performance browser gate passed: Game/Camera/CV, quality and landscape visuals, real worker/export/cleanup, denied/pending permission, hidden-tab cancellation, frozen-camera invalidation.");
+  console.log("Phone performance browser gate passed: Game/Camera/CV pixels, four scales, landscape HUD, real Worker, permission denial/pending and scale-cancelled setup, mid-window/hidden/frozen invalidation, scalar export and live-track page-exit cleanup.");
 }finally{await browser?.close();await server.close();}
 
 async function pixelEvidence(page,bytes){return page.evaluate(async base64=>{const source=await createImageBitmap(await(await fetch(`data:image/png;base64,${base64}`)).blob());const scratch=document.createElement("canvas");scratch.width=source.width;scratch.height=source.height;const context=scratch.getContext("2d");context.drawImage(source,0,0);const colors=new Set();let cyan=false,blue=false;for(let y=Math.floor(source.height*.2);y<source.height;y+=11){for(let x=0;x<source.width;x+=11){const [r,g,b,a]=context.getImageData(x,y,1,1).data;if(a<200)continue;colors.add(`${r>>4}:${g>>4}:${b>>4}`);if(g>130&&b>130&&r<140)cyan=true;if(b>145&&r<90&&g>50&&g<190)blue=true;}}source.close();return{differentColors:colors.size,cyan,blue};},bytes.toString("base64"));}
