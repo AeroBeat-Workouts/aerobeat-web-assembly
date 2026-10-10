@@ -2,6 +2,26 @@
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { createServer } from "vite";
+import { createPhonePerformanceWorkload, phonePerformanceWorkload } from "../src/phone-performance-workload.js";
+
+const currentPlayContract="aerobeat/abccba_play_clearance_2500.v2";
+const historicalContract="aerobeat/abccba_historical_default_2500.v1";
+assert.notEqual(currentPlayContract,historicalContract,"Current Play/clearance workload must not be labeled as historical physical v1");
+assert.equal(phonePerformanceWorkload.contract,currentPlayContract,"Diagnostic workload must carry the current Play/clearance identity");
+assert.equal(phonePerformanceWorkload.eventCount,6000);
+assert.equal(phonePerformanceWorkload.eventIntervalMs,43);
+assert.equal(phonePerformanceWorkload.spawnLeadMs,2500);
+assert.equal(phonePerformanceWorkload.expectedVisibleMin,59);
+assert.equal(phonePerformanceWorkload.expectedVisibleMax,83);
+const playWorkload=createPhonePerformanceWorkload();
+assert.equal(playWorkload.events.length,6000,"Current Play density must retain the same no-hit authored event corpus");
+let sixtySecondMin=Infinity,sixtySecondMax=0;
+for(let at=0;at<60_000;at++){
+  const count=playWorkload.frame(at).targets.length;
+  sixtySecondMin=Math.min(sixtySecondMin,count);sixtySecondMax=Math.max(sixtySecondMax,count);
+}
+assert.deepEqual({min:sixtySecondMin,max:sixtySecondMax},{min:59,max:83},"Exact 60-second current Play/clearance census");
+assert.equal(playWorkload.frame(850).targets.length,78,"Frozen Play density at t=850ms");
 
 // Project-owned phone diagnostic gate: preview windows exercise real PlayCanvas and
 // MediaPipe Worker with fake browser camera; only physical 60s windows are authoritative.
@@ -64,7 +84,7 @@ try{
   assert.match(report.renderer?.commit??"",/^[0-9a-f]{40}$/u,"Diagnostic must pin the actual renderer Git revision");
   assert.match(report.renderer?.facadeSha256??"",/^[0-9a-f]{64}$/u,"Diagnostic must fingerprint the compiled renderer source");
   assert(["native","disabled"].includes(report.renderer?.shadowMode),"Shadow mode must be explicit in the scalar export");
-  for(const mode of ["game","camera","cv"]){const run=report.runs.find(item=>item.mode===mode&&item.renderScale===1);assert(run,`Missing completed ${mode} run`);assert.equal(run.workload,"aerobeat/abccba_historical_default_2500.v1");assert(run.targets.min>=59&&run.targets.max<=64,"Historical deterministic target density changed");assert(run.displayFps>0);assert(run.displayIntervals.p95>0);}
+  for(const mode of ["game","camera","cv"]){const run=report.runs.find(item=>item.mode===mode&&item.renderScale===1);assert(run,`Missing completed ${mode} run`);assert.equal(run.workload,currentPlayContract,`${mode}: export must identify current Play/clearance, not historical v1`);assert.notEqual(run.workload,historicalContract);assert(run.targets.min>=59&&run.targets.max<=83,`${mode}: current Play deterministic target density changed`);assert(run.displayFps>0);assert(run.displayIntervals.p95>0);}
   const game=report.runs.find(item=>item.mode==="game"&&item.renderScale===1),camera=report.runs.find(item=>item.mode==="camera"),cv=report.runs.find(item=>item.mode==="cv");
   assert.equal(game.camera,null);assert.equal(game.cv,null);assert.equal(game.activeCameraTracks,0);assert(camera.cameraNewFrameFps>0);assert.equal(camera.cv,null);assert.equal(camera.activeCameraTracks,1);assert.equal(camera.requestedCamera.video.facingMode,"user");assert(camera.camera.width>0&&camera.camera.frameRate>0);assert(cv.cv.poseOutputFps>0&&cv.cv.poseFrameCount>0&&cv.cv.submittedFrameCount>0);assert(cv.cv.submittedFrameCount<=Math.ceil(cv.cameraNewFrameFps*cv.durationMs/1000)+1,"CV submissions cannot exceed distinct camera frames");assert(cvProbe.videoFrames>=cv.cv.submittedFrameCount,"CV must transfer real VideoFrames");
   const pipeline=cv.cv.pipeline;

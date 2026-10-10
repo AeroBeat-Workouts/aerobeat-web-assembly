@@ -2,14 +2,16 @@
 import { createSessionTargetIndex, projectSessionTargets } from "./session-render-projection.js";
 
 // Exact deterministic ABCCBA profile event geometry/cadence (profile-camera-abccba.mjs).
+// v2 distinguishes current Play's 1000ms post-center note clearance from
+// historical physical v1; the authored no-hit corpus and spawn lead are unchanged.
 export const phonePerformanceWorkload = Object.freeze({
-  contract: "aerobeat/abccba_historical_default_2500.v1",
+  contract: "aerobeat/abccba_play_clearance_2500.v2",
   eventCount: 6000,
   eventIntervalMs: 43,
   spawnLeadMs: 2500,
   cycleMs: 180000,
   expectedVisibleMin: 59,
-  expectedVisibleMax: 64
+  expectedVisibleMax: 83
 });
 
 /** One immutable event/index set, shared across every diagnostic mode. */
