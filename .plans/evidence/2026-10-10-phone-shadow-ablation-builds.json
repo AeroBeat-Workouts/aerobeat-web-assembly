@@ -52,5 +52,20 @@
     "negativeControls": ["Suppress equipment/nose delivery: named synthetic pixel assertion red then green on restore", "Same-renderer castShadows true/false darkened receiver pixel contrast in both declared modes", "Build config rejects disabled label with unpatched native renderer"]
   },
   "limitations": ["Host camera cannot perform a human T-pose; physical 60-second throughput unmeasured", "No hits/corpses in this workload; CV-free Test-mode corpse hitch is separate", "Exact Cookie served-build assembly/renderer provenance not established", "Older 59–64-target v1 phone report is not a directly comparable v2 performance baseline"],
-  "served": null
+  "served": {
+    "privateBaseUrl": "https://derrick-legion-go-8apu1.tail613fcb.ts.net:8448",
+    "nativePath": "/phone-performance.html",
+    "disabledPath": "/shadows-off/phone-performance.html",
+    "htmlEntryAndModelHashesMatchArtifacts": true,
+    "offWasmStatus": 200,
+    "offWasmMime": "application/wasm",
+    "guiHttps8446Status": 200,
+    "realWorkerFakeCameraPreview": {
+      "durationSeconds": 4,
+      "native": {"sourceMatched": true, "rendererAndModeMatched": true, "cvPoseFrames": 12, "pageErrors": 0, "uncalibratedVisualState": "T-pose warmup", "uncalibratedVisualExportRun": false},
+      "disabled": {"sourceMatched": true, "rendererAndModeMatched": true, "cvPoseFrames": 12, "pageErrors": 0, "uncalibratedVisualState": "T-pose warmup", "uncalibratedVisualExportRun": false}
+    },
+    "physicalPhone60SecondRuns": null,
+    "cookieServedBuildParity": null
+  }
 }
