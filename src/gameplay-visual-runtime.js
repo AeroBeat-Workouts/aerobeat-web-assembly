@@ -40,7 +40,7 @@ export function selectedNormalSpawnDistanceWorldUnits(contentService,contentSnap
 }
 
 /** @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
-export function rendererGameplayVisualConfig(setup){return createGameplayVisualExperimentConfig(setup.guidanceBandMode,setup.noseCameraParallaxEnabled,setup.noseCameraRangeXWorldUnits,setup.noseCameraRangeYWorldUnits,.04,120,3,2,180);}
+export function rendererGameplayVisualConfig(setup){return createGameplayVisualExperimentConfig(setup.guidanceBandMode,setup.noseCameraParallaxEnabled,setup.noseCameraRangeXWorldUnits,setup.noseCameraRangeYWorldUnits,.04,120,3,3,180);}
 
 /** Construct the exact run-locked gameplay authority from persisted scalar setup. @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
 export function gameplayFlowColliderSettings(setup){return createFlowColliderSettings({schema:defaultFlowColliderSettings.schema,version:defaultFlowColliderSettings.version,algorithm:defaultFlowColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs,colliderVisible:setup.flowColliderVolume.colliderVisible,colliderScale:setup.flowColliderVolume.colliderScale,colliderDepthForward:setup.flowColliderVolume.colliderDepthForward,colliderDepthBackward:setup.flowColliderVolume.colliderDepthBackward,wristBombColliderScale:setup.wristBombColliderScale});}

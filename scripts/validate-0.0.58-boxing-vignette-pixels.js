@@ -13,12 +13,11 @@
 //         `result:"contact"`, derived through the existing assembly W5 path
 //         (`projectHazardContactEvents` → `hazardContactActive`) with NO new
 //         assembly wiring.
-//   (B12-POS) 0.0.61 L-F8 (2dh7/htc8): the DRAWN weave wall sits at the
-//         presentation X of its AUTHORED grid column (gameplay x:0 →
-//         presentation columnX[0] = -1.5) — the same space as the punch icons
-//         and the collision, NOT the weave-direction lane (+0.9). Proven via
-//         lastModel + camera.worldToScreen with a 1px bound, so wall position
-//         is gated permanently alongside contact/vignette.
+//   (B12-POS) the DRAWN weave_right wall spans BOTH left-side columns,
+//         centered at x=-1.0 for derived Boxing geometry x:0,width:2,
+//         NOT the weave-direction lane (+0.9). Its source one-column rect
+//         is preserved as provenance; separate fresh-import pixels verify
+//         the full extent in addition to this placement check.
 //
 // Approach: drive a real boxing session headlessly via the public input path
 // (calibration-ready pose frames with a measured nose anchor sweeping into an
@@ -33,9 +32,11 @@ import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { fileURLToPath } from "node:url";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
-const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false, watch: null } });
+// Isolated source oracle; formal release Vite provenance remains unchanged.
+const vite = await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("boxing-vignette-pixels-test"), __AEROBEAT_CACHE_BUST__: JSON.stringify("boxing-vignette-pixels-test"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("boxing-vignette-pixels-test") }, server: { host: "127.0.0.1", port: 0, hmr: false, watch: null, fs: { allow: [fileURLToPath(new URL("../../", import.meta.url))] } } });
 await vite.listen();
 const childUrl = vite.resolvedUrls?.local?.[0];
 if (!childUrl) throw new Error("Vite URL unavailable");
@@ -75,9 +76,10 @@ try {
         // wall (weave_right) and drive a measured nose sweep into it.
         const HASH = "a".repeat(64);
         const variant = { variantId: "b12-pixel", chartId: "chart-b12-pixel", mode: "boxing", rulesetId: "boxing_collider_v1", recipeId: null, modifierIds: [], ranked: false, localOnly: true, mapHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: HASH }, scoreIdentityHash: { schema: "aerobeat/content_hash", version: 1, algorithm: "sha256", value: HASH }, provenance: { kind: "imported" } };
-        const G = { x: 0, y: 0, width: 1, height: 3 };
-        const gridMask = [0, 4, 8];
-        const weaveEvent = { schema: "aerobeat/resolved_content_event", version: 3, eventId: "wall", variantId: variant.variantId, chartId: variant.chartId, centerTimestampMs: 1000, intervalStartTimestampMs: 1000, intervalEndTimestampMs: 1300, sourceEventIds: ["s-wall"], type: "weave_right", sourceGeometry: { schema: "aerobeat/obstacle_source_geometry", version: 1, coordinateSpace: "beatsaber_v2_legacy_obstacle", kind: "v2_type_1", ...G }, gameplayGeometry: { schema: "aerobeat/obstacle_gameplay_geometry", version: 1, coordinateSpace: "aerobeat_top_left_grid", ...G }, gridMask, blockedCells: [...gridMask], checkpoint: { kind: "instantaneous", freshnessMs: 150, timingWindowMs: 180, noseSafeCells: [1,2,3,5,6,7,9,10,11] }, spatialTarget: { targetCell: 5, acceptedSubcells: [], sourceCell: -1 } };
+        const sourceRect = { x: 0, y: 0, width: 1, height: 3 };
+        const G = { x: 0, y: 0, width: 2, height: 3 };
+        const gridMask = [0, 1, 4, 5, 8, 9];
+        const weaveEvent = { schema: "aerobeat/resolved_content_event", version: 3, eventId: "wall", variantId: variant.variantId, chartId: variant.chartId, centerTimestampMs: 1000, intervalStartTimestampMs: 1000, intervalEndTimestampMs: 1300, sourceEventIds: ["s-wall"], type: "weave_right", sourceGeometry: { schema: "aerobeat/obstacle_source_geometry", version: 1, coordinateSpace: "beatsaber_v2_legacy_obstacle", kind: "v2_type_1", ...sourceRect }, gameplayGeometry: { schema: "aerobeat/obstacle_gameplay_geometry", version: 1, coordinateSpace: "aerobeat_top_left_grid", ...G }, gridMask, blockedCells: [...gridMask], checkpoint: { kind: "instantaneous", freshnessMs: 150, timingWindowMs: 180, noseSafeCells: [2,3,6,7,10,11] }, spatialTarget: { targetCell: 5, acceptedSubcells: [], sourceCell: -1 } };
         const keeperPunch = { schema: "aerobeat/resolved_content_event", version: 3, eventId: "keeper", variantId: variant.variantId, chartId: variant.chartId, centerTimestampMs: 5000, sourceEventIds: ["s-keeper"], type: "straight_left", spatialTarget: { targetCell: 5, acceptedSubcells: [], sourceCell: -1 } };
         const anchor = (name, m, sx, sy) => ({ schema: "aerobeat/body_grid_anchor_snapshot", version: 1, anchor: name, calibrationId: "cal-1", measurementTimestampMs: m, valid: true, confidence: 1, rawX: 0.5, rawY: 0.5, x: (sx + 0.5) / 4, y: (2.5 - sy) / 3, cell: 5, subcell: 20 });
         const evidence = (id, m, sx, sy) => ({ schema: "aerobeat/gameplay_evidence_snapshot", version: 1, calibrationId: "cal-1", measuredSourceFrameId: id, measurementTimestampMs: m, provenance: "measured", activeBoxingActions: [], anchors: [anchor("nose", m, sx, sy), anchor("left_shoulder", m, 0, 0), anchor("right_shoulder", m, 3, 0), anchor("left_elbow", m, 0, 0), anchor("right_elbow", m, 3, 0), anchor("left_wrist", m, 1, 1), anchor("right_wrist", m, 3, 1)], entries: [] });
@@ -172,13 +174,11 @@ try {
           if (Math.abs(pixels[i] - baseline[i]) + Math.abs(pixels[i + 1] - baseline[i + 1]) + Math.abs(pixels[i + 2] - baseline[i + 2]) > 24) differing += 1;
         }
         // ---- L-F8 (2dh7/htc8): weave wall SCREEN-POSITION gate (permanent) ----
-        // The B12 weave_right blocks authored grid column 0 (gameplay x:0, cells
-        // [0,4,8]). Its drawn DROWN WALL must sit at the PRESENTATION X of that
-        // AUTHORED column — columnX[0] = -1.5, the same 4-column presentation
-        // space as the punch icons and the collision — NOT at the weave-direction
-        // lane (lane "right" → +0.9), which is the pre-L-F8 bug. Proven via
-        // lastModel + camera.worldToScreen with a 1px bound, so the drawn wall
-        // stays gated to its collision lane permanently.
+        // A source one-column weave_right becomes a two-column LEFT-side
+        // Boxing wall (gameplay x:0,width:2, cells [0,1,4,5,8,9]). Its
+        // center is -1.0 and its native GLB scale spans both blocked columns,
+        // never the weave-direction lane "right" at +0.9. This older oracle
+        // checks placement; the fresh-import framebuffer gate checks extent.
         const proj = await import("/src/session-render-projection.js");
         const wallNowMs = 1150; // mid-interval → wall centered at z = 0 (hit plane)
         // The session scorer consumes the flat weaveEvent above; the render
@@ -194,7 +194,7 @@ try {
         const wallObjects = renderer.lastModel.objects.filter((o) => o.targetId === "wall" && o.kind === "obstacle");
         if (wallObjects.length !== 1) throw new Error(`B12 weave must render exactly one wall, got ${wallObjects.length}`);
         const wallObj = wallObjects[0];
-        const LANE_CENTER_X = -1.0; // blocked column 0 is in the LEFT lane (cols 0-1) → full two-column lane center -1.0 (F6a: weave spans both columns on the blocked side)
+        const LANE_CENTER_X = -1.0; // blocked LEFT side (columns 0-1), full two-column center
         if (Math.abs(wallObj.position.x - LANE_CENTER_X) > 1e-9) throw new Error(`B12 weave wall must sit at the blocked side's LANE CENTER (${LANE_CENTER_X}), full two-column lane; got x=${wallObj.position.x}`);
         if (wallObj.scale.x < 1.8) throw new Error(`B12 weave wall must span the FULL two-column lane (scale.x≈2), got ${wallObj.scale.x}`);
         const projectX = (x) => renderer.cameraEntity.camera.worldToScreen({ x, y: wallObj.position.y, z: wallObj.position.z }).x;
