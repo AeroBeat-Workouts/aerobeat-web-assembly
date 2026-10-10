@@ -1,0 +1,78 @@
+{
+  "schema": "aerobeat/phone_test_hit_shadow_ablation_build_evidence",
+  "version": 1,
+  "codeCommit": "eb2cebf20fc361c4f44fcdc175ce269577de7951",
+  "pushedMainAfterDocOnlyMerges": "16d601a2cada28b5c3ccbc804cf997d6d8c6a6f0",
+  "rendererCommit": "0be921cea14933400bd8afdda809ea4453ea772b",
+  "gameplayCommit": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+  "workload": {
+    "contract": "aerobeat/phone_visual_test_real_hit_every_fifth_note.v1",
+    "eventCount": 6000,
+    "eventIntervalMs": 43,
+    "spawnLeadMs": 2500,
+    "purpose": "visual_test",
+    "automaticFeedback": false,
+    "firstCommittedHitMs": 4300,
+    "seventhCommittedHitMs": 5590,
+    "eighthCommittedHitMs": 5805,
+    "noteStride": 5,
+    "visibleTargetsOver60Seconds": {"noHit": {"min": 59, "max": 64}, "hit": {"min": 59, "max": 65}, "noHitAt850": 63}
+  },
+  "variants": {
+    "native": {
+      "shadowMode": "native",
+      "rendererFacadeSha256": "32d64cfb23ebef07e7a0d877e70dfd72b423f807f9066a4c2e70591791feea1a",
+      "basePath": "/hit/",
+      "htmlSha256": "1af2cb703bd4eea1580a0a4dca71f58586b29d7ca551b24f21ced86486d37df4",
+      "entry": "assets/phone-hit-performance-B_EKpip0.js",
+      "entrySha256": "7e215a323b51c14cb08b0fb46dee0d171a5b394415253bfd857d9912b8d0197d",
+      "isolatedGate": "AEROBEAT_PHONE_SHADOW_MODE=native npm run test:phone-hit-performance",
+      "isolatedGatePassed": true
+    },
+    "disabled": {
+      "shadowMode": "disabled",
+      "rendererFacadeSha256": "3de226e1fbc0963f3504c494832828f8e61af66909965475bfb85bf9e5fbaf7c",
+      "basePath": "/hit/shadows-off/",
+      "htmlSha256": "75857cb3963b494616ecf2c387d4835aa1ae3275c1a14c09ff98e8f50befd679",
+      "entry": "assets/phone-hit-performance-CEMRRehw.js",
+      "entrySha256": "72df910b3f574a1b282128ee8e320817da8227e7148bd9b3acc7fd08dc5b344b",
+      "isolatedGate": "AEROBEAT_PHONE_SHADOW_MODE=disabled npm run test:phone-hit-performance",
+      "isolatedGatePassed": true
+    }
+  },
+  "comparison": {
+    "rendererPatch": "Only src/renderer-facade.js directional light castShadows:true to false in the disposable disabled worktree (one line, one insertion and deletion) at the same renderer Git revision.",
+    "identicalCommonBuildFiles": 27,
+    "differentCommonBuildFiles": ["phone-hit-performance.html"],
+    "distinctHashedEntries": true,
+    "buildFilesPerVariant": 29,
+    "modelSha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a"
+  },
+  "projectOwnedQA": {
+    "landscapeSameHitCorpseOnlyPixels": {"greenHalves": [915, 1074], "withheldAftermathHalves": [0, 0], "restoredHalves": [915, 1074]},
+    "portraitPageStageCss": {"width": 378, "height": 464.1875},
+    "portraitPageBacking": {"width": 378, "height": 464, "dpr": 1},
+    "fixtureSamePageBackingLightOffGearPixelsLeftRight": [174, 429],
+    "fixtureSameHitMinusOnlyCorpseHalfPixels": [660, 794],
+    "nativeReceiverShadowPixelDelta": 5524,
+    "previewHitAndSteadyCoveragePassed": true,
+    "browserWorkersAndCameraRequests": 0,
+    "scope": "Real PlayCanvas fixture pixel assertions and separately observed actual-page preview/provenance; no direct actual-page canvas pixel ablation. Host pixels and renderer/projection main-thread wall times are not phone GPU time or real touch scoring."
+  },
+  "served": {
+    "privateBaseUrl": "https://derrick-legion-go-8apu1.tail613fcb.ts.net:8448",
+    "nativePath": "/hit/phone-hit-performance.html",
+    "disabledPath": "/hit/shadows-off/phone-hit-performance.html",
+    "htmlEntryAndModelHttpsHashesMatchBuilds": true,
+    "originalFirstPageHtmlSha256": {"native": "27d9620890d9eb300f476b34f03ad84fa2c69fa0637ad7f5b4e8e3092d2b2993", "disabled": "fc85446999228fc38fa51d17449bba3e8367480c2bafc76268453557cc26708f"},
+    "optimizedPortraitPreview": {
+      "native": {"sourceMatched": true, "rendererGameplayAndModeMatched": true, "backingBothModes": [378, 464], "firstHitFeedbackFrames": 26, "steadyAftermathFrames": 10, "requests": 11, "modelOrWasmRequests": 0, "workers": 0, "cameraRequests": 0, "pageErrors": 0},
+      "disabled": {"sourceMatched": true, "rendererGameplayAndModeMatched": true, "backingBothModes": [378, 464], "firstHitFeedbackFrames": 33, "steadyAftermathFrames": 11, "requests": 11, "modelOrWasmRequests": 0, "workers": 0, "cameraRequests": 0, "pageErrors": 0}
+    },
+    "mediapipeAssetsPackagedButNotDownloadedInPreview": true,
+    "firstPrivateRoutesAndGui8446Status": 200,
+    "publicFunnelEnabled": false,
+    "physicalPhone60SecondRuns": null,
+    "cookieServedBuildParity": null
+  }
+}
