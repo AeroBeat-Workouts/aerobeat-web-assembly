@@ -220,15 +220,19 @@ try {
   // or aftermath delivery differs within each frozen time pair.
   const captured=await page.evaluate(([w,h])=>window.__phoneHitFixture.resize(w,h),[pageSize.width,pageSize.height]);
   assert.deepEqual(captured,pageSize,"portrait fixture backing must match actual page Full backing");
-  const gearOn=await render(850,"no-hit"),gearOnPixels=await pixels();
-  const gearSubject=await page.evaluate(()=>window.__phoneHitFixture.equipmentCenters());
+  // Disable ONLY native light shadow casting for this gear/no-gear pair so
+  // receiver darkening cannot masquerade as painted saber pixels.
+  const gearOn=await page.evaluate(()=>{window.__phoneHitFixture.shadowProbe(false);return window.__phoneHitFixture.renderAt(850,"no-hit");});
+  const gearOnPixels=await pixels(),gearSubject=await page.evaluate(()=>window.__phoneHitFixture.equipmentCenters());
   const gearOff=await page.evaluate(()=>window.__phoneHitFixture.renderWithoutEquipment(850,"no-hit")),gearOffPixels=await pixels();
   assert.equal(gearOn.targets,63,"frozen Test no-hit t850 corpus");
   assert.equal(gearOff.targets,gearOn.targets,"equipment removal cannot change no-hit targets");
   assert.equal(gearOn.equipmentCount,2);
   assert.equal(gearOff.equipmentCount,0);
   const gearRois=gearSubject.map(point=>changedNear(gearOffPixels,gearOnPixels,pageSize.width,pageSize.height,point.x,point.y,42,50));
-  assert(gearRois.some(n=>n>20),`page-sized portrait static Flow saber pixels require a visible subject, per-hand=${gearRois}, stage=${JSON.stringify(pageGeometry)}`);
+  assert.equal(gearOn.shadow.casting,false,"painted-gear comparison must have native shadow casting off");
+  assert.deepEqual(gearSubject.map(point=>point.anchorX),[-.5,3.5],"portrait saber ROI tracks exact Test resolved wrist anchors");
+  assert(gearRois[0]>20,`page-sized portrait LEFT Flow saber must paint >=20 localized pixels with shadows off, left/right=${gearRois}, centers=${JSON.stringify(gearSubject)}, stage=${JSON.stringify(pageGeometry)}`);
   const portraitHit=await render(4340,"hit"),portraitHitPixels=await pixels();
   const portraitNoCorpse=await render(4340,"hit","note-100"),portraitNoCorpsePixels=await pixels();
   assert.equal(portraitHit.halves.length,2);
@@ -237,9 +241,10 @@ try {
   const actualStageCenters=await page.evaluate(halves=>halves.map(half=>window.__phoneHitFixture.projected(half.x,half.y,half.z)),portraitHit.halves);
   const actualStageHalfPixels=actualStageCenters.map(point=>changedNear(portraitNoCorpsePixels,portraitHitPixels,pageSize.width,pageSize.height,point.x,point.y,18,28));
   assert(actualStageHalfPixels.every(n=>n>20),`page-sized portrait note-100 halves must each be visible, pixels=${actualStageHalfPixels}, centers=${JSON.stringify(actualStageCenters)}, stage=${JSON.stringify(pageGeometry)}`);
+  assert.deepEqual(errors,[],"fixture browser page errors through exact page-sized pixel checks");
   await page.evaluate(()=>window.__phoneHitFixture.destroy());
   await context.close();
-  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, portrait 390x460 half pixels=${portraitHalfPixels}, gear pixels=${gearPixelCount}; 390x270 half pixels=${shortHalves}, gear pixels=${shortGear}, real-page stage=${JSON.stringify(pageGeometry)}, exact-stage fixture t850 saber ROIs=${gearRois}, t4340 half ROIs=${actualStageHalfPixels}; page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
+  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, portrait 390x460 half pixels=${portraitHalfPixels}, gear pixels=${gearPixelCount}; 390x270 half pixels=${shortHalves}, gear pixels=${shortGear}, real-page stage=${JSON.stringify(pageGeometry)}, exact-stage fixture shadow-off t850 localized left/right saber ROIs=${gearRois}, t4340 half ROIs=${actualStageHalfPixels}; page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
 } finally {await browser?.close();await server.close();}
 function changedNear(a,b,w,h,cx,cy,rx,ry){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}
 function changedNearExcluding(a,b,w,h,cx,cy,rx,ry,ex,ey,erx,ery){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){if(Math.abs(x-ex)<=erx&&Math.abs(y-ey)<=ery)continue;const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}

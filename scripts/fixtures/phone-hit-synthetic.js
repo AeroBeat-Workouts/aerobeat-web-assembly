@@ -68,13 +68,12 @@ window.__phoneHitFixture={
   shadowProbe(value){renderer.shadowLightEntity.light.castShadows=Boolean(value);return renderAt(last.timeMs,last.mode);},
   projected(x,y,z){const p=renderer.cameraEntity.camera.worldToScreen({x,y,z});return{x:p.x,y:p.y};},
   equipmentCenters(){return equipment.map(record=>{
-    // Judge-space anchor becomes world presentation X at -1.5 WU offset;
-    // use the genuine renderer-owned equipment entity bounds for ROI centers.
-    const entries=renderer.equipmentPools.get(`equipment/flow-saber-v1:${record.role}`)??[];
-    const entity=entries.find(item=>item.enabled);
-    if(!entity)throw new Error(`No staged saber for ${record.role}`);
-    const p=renderer.cameraEntity.camera.worldToScreen(entity.getPosition());
-    return{x:p.x,y:p.y,role:record.role};
+    // Use each resolved pose anchor and the renderer's actual staged wrist root.
+    // These are private fixture facts; never place them in page JSON/reports.
+    const root=renderer.equipmentPoseRoots.get(record.role);
+    if(!root)throw new Error(`No staged saber root for ${record.role}`);
+    const world=root.getPosition(),p=renderer.cameraEntity.camera.worldToScreen(world);
+    return{x:p.x,y:p.y,role:record.role,anchorX:record.anchor.x,anchorY:record.anchor.y,worldY:world.y};
   });},
   destroy(){renderer.destroy();}
 };
