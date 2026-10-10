@@ -54,4 +54,56 @@ The three buttons are mutually exclusive modes, not simultaneous independent tog
 
 ## Current state
 
-Derrick approved the deterministic scene and authorized coding and separate secure staging on 2026-10-10. No product code, build, server, production setting, or live route has changed yet. Assembly/UI/CV source and plans were inspected; assembly Git matches `origin/main`, with this plan the only untracked file. The assembly's authoritative remote Beads database was cloned, but the installed CLI cannot read its v66 schema; recover CLI compatibility before Bead writes. Begin with the bounded implementation and test tasks above; keep the existing live URL and immutable raw releases untouched.
+Derrick approved the deterministic scene and separate secure staging. Initial candidate `7efbbaa` is committed locally on `main` (not yet pushed), uses the shared 6,000-event fixture, and passed the targeted Chromium preview in Game, Camera, and real MediaPipe Worker modes. This short fake-camera/software-renderer result is not physical Moto proof. A pinned-renderer validation worktree at `/tmp/aerobeat-phone-stage.wqBanr96/` preserves the immutable release dependency pins; the ordinary assembly gate initially hit missing sibling dependency installations while staging, not a production-code failure. No live game URL or raw release was changed. Independent QA found the issues below; address them before handoff.
+
+## Debug record: first independent QA findings (2026-10-10)
+
+**Exact observed failure:** Browser preview passes, but code review found an invalid 60-second run can be recorded if the tab was hidden during warmup or the canvas was resized during measurement. A frozen video can be submitted repeatedly as a fresh `VideoFrame`. These are counterfactual risks, not yet observed failures on the Moto.
+
+**Expected behavior:** Only visible, same-geometry windows with distinct camera frames qualify as valid measurements; a lost camera, permission failure, or CV failure must be visible and absent from completed runs.
+
+**Execution path:** `changeMode` starts the stream/worker; `frame()` warms then records while visible-only invalidation currently handles only `phase === "measuring"`. `ResizeObserver` calls `renderer.resize` without invalidating a window. `createLockedVideoFrameSource` checks `video.readyState`, not a distinct callback frame; `createLockedProductionCvService` submits frames on its timer using a fresh `performance.now()` timestamp.
+
+**Most likely root cause:** The diagnostic copied real production CV admission (valid for gameplay) without adding a diagnostic-only freshness gate, and its mode state machine has no single eligibility check spanning visibility, input freshness, and backing geometry. Evidence: `src/phone-performance.js` visibility handler, resize handler, and CV start, plus `src/production-cv-service.js` source availability/timestamp methods. Native rendering/OS throttling and a slow GPU remain alternative physical explanations; they do not explain this bookkeeping flaw.
+
+**Alternative hypotheses:** Browser `requestVideoFrameCallback` may stop whenever video freezes, so the existing independent camera-new-frame counter itself remains accurate; it does not stop CV from resubmitting a held frame. `getUserMedia` may reject on backgrounding in some browsers, but success while hidden is permitted and cannot be trusted as a general safeguard.
+
+**Why previous fixes failed:** The initial implementation had no targeted hidden-warmup, freeze-frame, or resize-mid-window tests; its passing preview only covered the happy path. The existing 15-FPS CV timer measures inference throughput, not unique-camera-frame throughput.
+
+**Unknowns and minimal reproduction:** Hide the tab during CV warmup and reshow it after the clock elapsed; change backing scale or viewport halfway through a window; hold `requestVideoFrameCallback` while leaving a video ready and observe that CV submissions continue. Tests with fake camera and instrumented callback source distinguish diagnostic-state failure from device/browser throttling. No physical Moto rate is known yet.
+
+**Proposed verification:** Add project-owned browser assertions for hidden warmup, frozen-camera callback, mid-window resize, and CV failure. Require invalid/incomplete windows to stay out of JSON. Verify no production CV/profile modification and regression tests pass after changes.
+
+**Recommended fix:** Keep production CV service untouched. In diagnostic mode, wrap its source with one-use requestVideoFrameCallback eligibility/timestamp and a stall check; invalidate any active window on hidden/geometry/input loss, with explicit visible restart. Record requested and negotiated camera constraints and mode errors. Expand named visual/behavior assertions before full gate and secure staging.
+
+**Debugging record:** Problem: unreliable phone evidence; observed symptom: eligible state not enforced; root cause: independent timers/resize/visibility and CV readiness do not share a measurement-validity boundary; evidence: source and QA review above; failed approaches: happy-path preview alone; corrective action: eligibility gate and targeted tests; verification test: hidden/frozen/resized windows fail while stable windows pass; related files: `src/phone-performance.js`, `src/production-cv-service.js`, browser test; remaining uncertainty: Moto hardware behavior until Derrick runs 60-second windows.
+
+## Implementation checkpoint (QA repairs in progress)
+
+The diagnostic now admits each observed camera callback at most once to CV, invalidates hidden/geometry/stalled windows, cancels pending permission requests, keeps production CV settings unchanged, reports requested and negotiated camera settings and failures, and resets its timeline per window. A layout regression exposed by the new geometry guard came from the scene's flexible grid row shrinking as the status copy changed; the scene now has a fixed viewport-relative height. The normal phone browser gate has Game/Camera/CV pixels, mode isolation, Full/Medium/High/Low backing, moving beats, portrait/landscape HUD, denied and pending permission, worker teardown, and a frozen-camera check. After serializing tests and avoiding edits during Vite's live test run, the expanded gate passed. It now also covers hidden warmup, mid-window geometry invalidation, actual nonblank video pixels, worker setup failure, and unique camera media timestamps. The earlier intermittent timeout remains recorded below rather than being misreported as a Moto failure.
+
+A separate optimized diagnostic Vite build copies the exact local 5,777,746-byte MediaPipe Lite model (verified SHA-256 `59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a`), Tasks Vision 1.0.1 JS/WASM, and the pinned gameplay assets. A short headless static preview ran actual worker inference without external network requests. This is not evidence of Moto performance. The generated `dist-phone/` is ignored and will not be packaged or committed; no release build, raw release, live route, or production CV source changed.
+
+Full assembly validation requires the historical environment pin `c8fedde` and renderer pin `b2456f1` in an isolated sibling layout. The first staged full test reached an existing provenance adversary that assumes the linked renderer's `main` is pinned; using a pinned temporary clone resolved it. The next test revealed the production npm-pack allowlist rejects the new root diagnostic HTML and config; `.npmignore` now excludes them and requires a rerun on the final candidate. QA, independent audit, Bead closure, push, and secure staging remain pending.
+
+## Debug record: intermittent expanded browser gate (2026-10-10)
+
+**Exact observed failure:** One gate timed out at `scripts/validate-phone-performance-browser.js:53` waiting 50 seconds for the completed CV summary; a later run timed out at line 109 waiting 30 seconds for the frozen-camera CV measurement to start. A third, isolated run passed every state. The timeout does not reveal the actual page status, so it is not evidence that CV inference itself is broken.
+
+**Expected behavior:** The fake-camera preview should warm the real Worker, measure, and either finish a stable 4-second run or report a specific setup failure. A frozen callback should invalidate a measuring window in under two seconds.
+
+**Execution path:** The browser gate creates Vite, opens Chromium, runs Game, quality changes, Camera, CV, landscape, permission failures, then a frozen-camera CV context. In the application `changeMode()` opens camera, loads Worker and source; `frame()` requires at least one pose output before entering measurement, and invalidates after 30 seconds without output. The test only awaited summary text, not a terminal failure state.
+
+**Most likely explanation (not proven):** The failing runs overlapped heavy full-suite browser tests or live source edits; Vite HMR can reload the test page midway and CPU/software-renderer contention can delay camera/Worker callbacks. Specifically the second timeout followed an edit to `src/phone-performance.js` during that gate. A lone gate without edits or competing tests passed. The first timeout's page state was not captured, so a real intermittent Worker/model failure remains plausible.
+
+**Alternatives:** RequestVideoFrameCallback can stall under software rendering; same-origin model loading or an adapter error may fail during warmup; stale page summary might mask a state. Isolated self-hosted static CV also passed with no external requests, arguing against a consistent asset/config error.
+
+**Why previous attempts failed:** Merely raising a timeout or retrying would obscure the real failure; earlier tests gave no page status on timeout. The passing rerun narrows conditions but does not establish the first failure's precise cause.
+
+**Unknowns and minimal reproduction:** Reproduce with a concurrent expensive gate or change a watched source file during the long browser test; inspect `#status`, `#summary`, page errors, and request failures at timeout. An isolated sequence without edits did not fail. The first failure's exact page state remains unknown.
+
+**Proposed verification:** Rerun the unchanged expanded gate sequentially without overlapping tests or edits; capture diagnostic status if it fails, and rerun against the optimized static build. Keep the frozen-camera invalidation and CV-submission assertions intact.
+
+**Recommended fix:** No speculative product change is justified by these two timeouts. Do not edit watched files while a live-server gate runs; serialize high-load validation. If an isolated timeout recurs, instrument terminal status/errors and correct its proven cause rather than raising the timeout.
+
+**Debugging record:** Problem: intermittent Chromium CV preview timeout; observed symptom: summary wait timed out twice at different phases; root cause: not yet proven (HMR/test load suspected); evidence: overlapping test/edit conditions and lone passing gate; failed approaches: relying on timeout text alone; corrective action: isolate/serialize tests and capture terminal diagnostics; verification test: repeat unchanged gate and static-build CV; related files: `scripts/validate-phone-performance-browser.js`, `src/phone-performance.js`, `vite.phone.config.js`; remaining uncertainty: exact status in first timed-out run.

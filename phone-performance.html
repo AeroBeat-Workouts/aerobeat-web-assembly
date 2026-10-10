@@ -6,12 +6,12 @@
   <title>AeroBeat Phone Performance Test</title>
   <style>
     :root{font:16px system-ui,sans-serif;color:#effaff;background:#06141f}
-    *{box-sizing:border-box}body{margin:0}main{min-height:100dvh;display:grid;grid-template-rows:auto minmax(270px,1fr) auto;gap:10px;padding:10px}
+    *{box-sizing:border-box}body{margin:0}main{min-height:100dvh;display:flex;flex-direction:column;gap:10px;padding:10px}
     .controls{display:flex;flex-wrap:wrap;align-items:end;gap:8px}.controls aero-button::part(control),.controls aero-select::part(control){min-height:48px}
     .controls aero-button[aria-pressed="true"]::part(control){background:#66dffb;border:3px solid #fff;color:#06141f;font-weight:800}
     .controls aero-select{min-width:160px;color:#effaff}.controls aero-select::part(control){font-size:16px}
     h1{font-size:1rem;margin:0 0 6px}.scope{margin:4px 0 8px;font-size:.78rem;color:#bed9e5}
-    .stage{position:relative;min-height:270px;overflow:hidden;background:#071521;border:1px solid #5494a8;border-radius:10px;isolation:isolate}
+    .stage{position:relative;height:clamp(270px,55dvh,720px);flex:none;overflow:hidden;background:#071521;border:1px solid #5494a8;border-radius:10px;isolation:isolate}
     .stage video,.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
     .stage video{z-index:0;transform:scaleX(-1)}.stage canvas{z-index:1}
     aero-status-panel{position:absolute;z-index:2;top:10px;left:10px;max-width:calc(100% - 20px);min-width:120px;pointer-events:none;--aero-color-ink:#fff;--aero-color-surface:rgba(2,19,32,.93);--aero-color-border:#90ecff}

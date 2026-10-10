@@ -5,6 +5,9 @@
 .tmp/
 dist/
 release/
+phone-performance.html
+vite.phone.config.js
+dist-phone/
 assets/.gitkeep
 
 # Repository-only documentation, fixtures, and editable/review evidence.
