@@ -1,0 +1,56 @@
+{
+  "schema": "aerobeat/phone_shadow_ablation_build_evidence",
+  "version": 1,
+  "assemblyCommit": "2255b0caea38259574c44982d07d3389d995f3c7",
+  "rendererCommit": "1580e0b75c6622e10d414d7bbb9e716a76e20cb5",
+  "workloadContract": "aerobeat/abccba_play_clearance_2500.v2",
+  "workload": {"eventCount": 6000, "eventIntervalMs": 43, "spawnLeadMs": 2500, "visibleTargetsOver60Seconds": {"min": 59, "max": 83}},
+  "modelSha256": "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a",
+  "dependencies": {
+    "@aerobeat/web-audio": "19fd3a91eb67712806a17e4c82e2631d63f72434",
+    "@aerobeat/web-content": "704cdff470a77a1f978c80821282527d8251c9f4",
+    "@aerobeat/web-content-authoring": "048858cc1c0b3d3cc202cd005c1b34abdf85da12",
+    "@aerobeat/web-contracts": "79f5fedc2b05fb02f5e9d74c23086d66e560a5c8",
+    "@aerobeat/web-cv": "36a5f0e867d6b556c615449249dec1122eafa7f4",
+    "@aerobeat/web-gameplay": "277a662a455e3641d59397dbe02d8e8ca28d86ef",
+    "@aerobeat/web-hash": "be7249b0bdfffcab568b760c1b582bfe2a0c1e92",
+    "@aerobeat/web-input": "cc07bfa37024c53f2a5af0c9993f3c14548a3122",
+    "@aerobeat/web-style": "63a3cf05f65fc803383960f321957faf24bbd25a",
+    "@aerobeat/web-ui": "21ebb64dd7102e91c0d337974c3365d7b13a5da4",
+    "@aerobeat/web-vendor-beatsaver": "5866f8e418e4a0ef11362f9e6c80ebc5a2ad3c3a",
+    "@aerobeat/web-vendor-mediapipe": "aa088689e8bd6e89ff549f678e887b934b790144",
+    "@aerobeat/web-video": "94697a4e049220032756fa83c47a940b58a7ae48",
+    "aerobeat-vendor-mediapipe-python": "3ee49b97fdba7721bcf9be406a153ab0e354e577"
+  },
+  "variants": {
+    "native": {
+      "shadowMode": "native",
+      "rendererFacadeSha256": "32d64cfb23ebef07e7a0d877e70dfd72b423f807f9066a4c2e70591791feea1a",
+      "basePath": "/",
+      "htmlSha256": "27d9620890d9eb300f476b34f03ad84fa2c69fa0637ad7f5b4e8e3092d2b2993",
+      "entry": "assets/phone-performance-B6fFLQhN.js",
+      "entrySha256": "8465ee17b406d2909f1e83d8c1b46fe42b67ce4f5e2be0539f8a793e4e88703e",
+      "isolatedGate": "npm run test:phone-performance",
+      "isolatedGatePassed": true
+    },
+    "disabled": {
+      "shadowMode": "disabled",
+      "rendererFacadeSha256": "3de226e1fbc0963f3504c494832828f8e61af66909965475bfb85bf9e5fbaf7c",
+      "basePath": "/shadows-off/",
+      "htmlSha256": "fc85446999228fc38fa51d17449bba3e8367480c2bafc76268453557cc26708f",
+      "entry": "assets/phone-performance-BIdN_eN0.js",
+      "entrySha256": "8a2ae134e544d0fd5e22f24ec51bfa1f0c556e4c4db525259a4369da240d0e10",
+      "isolatedGate": "AEROBEAT_PHONE_SHADOW_MODE=disabled npm run test:phone-performance",
+      "isolatedGatePassed": true
+    }
+  },
+  "comparison": {
+    "rendererPatch": "Only src/renderer-facade.js directional light castShadows:true to false in disposable disabled worktree (one line, 1 insertion/1 deletion).",
+    "sharedIdenticalFiles": 28,
+    "differentCommonFiles": ["phone-performance.html"],
+    "separateHashedEntries": true,
+    "negativeControls": ["Suppress equipment/nose delivery: named synthetic pixel assertion red then green on restore", "Same-renderer castShadows true/false darkened receiver pixel contrast in both declared modes", "Build config rejects disabled label with unpatched native renderer"]
+  },
+  "limitations": ["Host camera cannot perform a human T-pose; physical 60-second throughput unmeasured", "No hits/corpses in this workload; CV-free Test-mode corpse hitch is separate", "Exact Cookie served-build assembly/renderer provenance not established", "Older 59–64-target v1 phone report is not a directly comparable v2 performance baseline"],
+  "served": null
+}
