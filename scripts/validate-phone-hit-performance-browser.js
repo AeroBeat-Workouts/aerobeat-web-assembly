@@ -172,6 +172,12 @@ try {
   const live=await smoke.newPage(),liveErrors=[];
   live.on("pageerror",error=>liveErrors.push(error.message));
   await live.goto(`${base}phone-hit-performance.html?preview=1`);
+  await live.waitForFunction(()=>{
+    const stage=document.querySelector(".stage"),canvas=stage?.querySelector("canvas");
+    if(!canvas)return false;
+    const rect=canvas.getBoundingClientRect();
+    return canvas.width>320&&canvas.height>=270&&canvas.width===Math.round(rect.width)&&canvas.height===Math.round(rect.height);
+  },null,{timeout:30000});
   const pageGeometry=await live.locator(".stage").evaluate(stage=>{
     const rect=stage.getBoundingClientRect(),canvas=stage.querySelector("canvas"),canvasRect=canvas.getBoundingClientRect();
     return{stage:{width:rect.width,height:rect.height},canvasCss:{width:canvasRect.width,height:canvasRect.height},backing:{width:canvas.width,height:canvas.height},dpr:devicePixelRatio};
@@ -225,6 +231,7 @@ try {
   const gearOn=await page.evaluate(()=>{window.__phoneHitFixture.shadowProbe(false);return window.__phoneHitFixture.renderAt(850,"no-hit");});
   const gearOnPixels=await pixels(),gearSubject=await page.evaluate(()=>window.__phoneHitFixture.equipmentCenters());
   const gearOff=await page.evaluate(()=>window.__phoneHitFixture.renderWithoutEquipment(850,"no-hit")),gearOffPixels=await pixels();
+  assert.equal(gearOff.status,"running");
   assert.equal(gearOn.targets,63,"frozen Test no-hit t850 corpus");
   assert.equal(gearOff.targets,gearOn.targets,"equipment removal cannot change no-hit targets");
   assert.equal(gearOn.equipmentCount,2);
@@ -233,6 +240,8 @@ try {
   assert.equal(gearOn.shadow.casting,false,"painted-gear comparison must have native shadow casting off");
   assert.deepEqual(gearSubject.map(point=>point.anchorX),[-.5,3.5],"portrait saber ROI tracks exact Test resolved wrist anchors");
   assert(gearRois[0]>20,`page-sized portrait LEFT Flow saber must paint >=20 localized pixels with shadows off, left/right=${gearRois}, centers=${JSON.stringify(gearSubject)}, stage=${JSON.stringify(pageGeometry)}`);
+  const restoredLight=await page.evaluate(initial=>window.__phoneHitFixture.shadowProbe(initial),configured==="native");
+  assert.equal(restoredLight.shadow.casting,configured==="native","fixture restores declared light before corpse visual checks");
   const portraitHit=await render(4340,"hit"),portraitHitPixels=await pixels();
   const portraitNoCorpse=await render(4340,"hit","note-100"),portraitNoCorpsePixels=await pixels();
   assert.equal(portraitHit.halves.length,2);
