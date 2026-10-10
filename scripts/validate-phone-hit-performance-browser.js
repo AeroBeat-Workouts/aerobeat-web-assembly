@@ -119,6 +119,40 @@ try {
   const final=await page.evaluate(initial=>window.__phoneHitFixture.shadowProbe(initial),configured==="native");
   assert.equal(final.shadow.casting,configured==="native");
   assert.equal(final.targets,lightBefore.targets);
+  // Phone-sized exact same scene, static Test sabers and camera: object counts
+  // alone cannot establish that the leftmost note-100 corpse survives clipping.
+  const portrait=await page.evaluate(()=>window.__phoneHitFixture.resize(390,460));
+  assert.deepEqual(portrait,{width:390,height:460});
+  assert.equal((await render(4300,"hit")).halves.length,2);
+  const firstPortrait=await render(4340,"hit");
+  const firstPortraitPixels=await pixels();
+  const omittedPortrait=await render(4340,"hit","note-100");
+  const corpseFreePortraitPixels=await pixels();
+  assert.equal(omittedPortrait.hitFeedback,firstPortrait.hitFeedback,"portrait corpse control preserves Great");
+  const portraitAnchors=await page.evaluate(halves=>halves.map(half=>window.__phoneHitFixture.projected(half.x,half.y,half.z)),firstPortrait.halves);
+  const portraitHalfPixels=portraitAnchors.map(point=>changedNear(corpseFreePortraitPixels,firstPortraitPixels,390,460,point.x,point.y,18,28));
+  assert(portraitHalfPixels.every(count=>count>20),`portrait note-100 clipped corpse halves must EACH be visible: pixels=${portraitHalfPixels}, centers=${JSON.stringify(portraitAnchors)}`);
+  const portraitGear=await render(4340,"no-hit");
+  const portraitGearPixels=await pixels();
+  const withoutGear=await page.evaluate(()=>window.__phoneHitFixture.renderWithoutEquipment(4340,"no-hit"));
+  const withoutGearPixels=await pixels();
+  assert.equal(portraitGear.equipmentCount,2);
+  assert.equal(withoutGear.equipmentCount,0);
+  assert.equal(withoutGear.targets,portraitGear.targets);
+  const gearPixelCount=changedNear(withoutGearPixels,portraitGearPixels,390,460,195,230,195,230);
+  assert(gearPixelCount>20,`portrait static Flow sabers must contribute visible renderer pixels, got ${gearPixelCount}`);
+  // The page's responsive .stage clamps to >=270 CSS px on 390px phones.
+  // Exercise the narrower visible vertical slice as well, not just 390x460.
+  assert.deepEqual(await page.evaluate(()=>window.__phoneHitFixture.resize(390,270)),{width:390,height:270});
+  const shortHit=await render(4340,"hit"),shortHitPixels=await pixels();
+  await render(4340,"hit","note-100");const shortCorpseFree=await pixels();
+  const shortCenters=await page.evaluate(halves=>halves.map(half=>window.__phoneHitFixture.projected(half.x,half.y,half.z)),shortHit.halves);
+  const shortHalves=shortCenters.map(point=>changedNear(shortCorpseFree,shortHitPixels,390,270,point.x,point.y,18,28));
+  assert(shortHalves.every(count=>count>20),`short portrait 390x270 clipped corpse halves must EACH be visible: pixels=${shortHalves}, centers=${JSON.stringify(shortCenters)}`);
+  await render(4340,"no-hit");const shortGearPixels=await pixels();
+  await page.evaluate(()=>window.__phoneHitFixture.renderWithoutEquipment(4340,"no-hit"));const shortWithoutGear=await pixels();
+  const shortGear=changedNear(shortWithoutGear,shortGearPixels,390,270,195,135,195,135);
+  assert(shortGear>20,`short portrait static Flow sabers must contribute visible pixels, got ${shortGear}`);
   await page.evaluate(()=>window.__phoneHitFixture.destroy());
   assert.deepEqual(errors,[],"fixture browser page errors");
   await context.close();
@@ -172,7 +206,7 @@ try {
   assert.deepEqual(report.failures,[]);
   assert.deepEqual(liveErrors,[],"new phone page browser errors");
   await smoke.close();
-  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
+  console.log(`Phone Test hit browser (${configured}) PASS: first hit, Great expiry, clipped halves pixel counts green=${visible}, corpse-only red=${redCounts}, restore=${restoredCounts}, seventh/eighth eviction, shadow darkening ${darker}, portrait 390x460 half pixels=${portraitHalfPixels}, gear pixels=${gearPixelCount}; 390x270 half pixels=${shortHalves}, gear pixels=${shortGear}, page modes/provenance/coverage with zero Worker/camera requests in both modes. Synthetic commits are not collision or phone GPU proof.`);
 } finally {await browser?.close();await server.close();}
 function changedNear(a,b,w,h,cx,cy,rx,ry){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}
 function changedNearExcluding(a,b,w,h,cx,cy,rx,ry,ex,ey,erx,ery){let n=0;for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(w,Math.ceil(cx+rx));x++){if(Math.abs(x-ex)<=erx&&Math.abs(y-ey)<=ery)continue;const i=(y*w+x)*4;if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>=24)n++;}return n;}

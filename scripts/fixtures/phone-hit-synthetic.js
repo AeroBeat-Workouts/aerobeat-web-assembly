@@ -57,7 +57,13 @@ function renderAt(timeMs, mode = "hit", withoutAftermathTarget = null) {
 function pixels(){const sample=new OffscreenCanvas(canvas.width,canvas.height);const ctx=sample.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);return Array.from(ctx.getImageData(0,0,sample.width,sample.height).data);}
 window.__phoneHitFixture={
   ready:()=>renderer.describe().gameplayAssets.state,
+  resize(width,height){if(!Number.isInteger(width)||!Number.isInteger(height)||width<320||height<270||width>900||height>900)throw new TypeError("Invalid oracle viewport");canvas.style.width=`${width}px`;canvas.style.height=`${height}px`;renderer.resize({widthCssPx:width,heightCssPx:height,devicePixelRatio:1,renderScale:1});return{width:canvas.width,height:canvas.height};},
   renderAt, pixels,
+  renderWithoutEquipment(timeMs,mode="no-hit"){
+    const frame=scene(timeMs,mode);
+    const result=renderer.renderGameplayFrameWithCursorsAndEquipment(frame,[],cursorOptions,[],equipmentOptions);
+    return{status:result.status.state,equipmentCount:result.equipmentCount,targets:frame.targets.length};
+  },
   suppressDelivery(value){suppressed=Boolean(value);return renderAt(last.timeMs,last.mode);},
   shadowProbe(value){renderer.shadowLightEntity.light.castShadows=Boolean(value);return renderAt(last.timeMs,last.mode);},
   projected(x,y,z){const p=renderer.cameraEntity.camera.worldToScreen({x,y,z});return{x:p.x,y:p.y};},
