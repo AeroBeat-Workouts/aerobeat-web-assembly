@@ -1,3 +1,4 @@
+// @ts-check
 // Synthetic wiring fixture, never a physical calibration or actual-Play proof.
 import { createAeroPlayCanvasRenderer } from "@aerobeat/web-renderer";
 import { createPhoneTrackingVisuals } from "../../src/phone-performance-visual-input.js";

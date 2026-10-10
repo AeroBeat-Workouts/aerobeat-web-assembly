@@ -1,3 +1,4 @@
+// @ts-check
 // Project-owned visual oracle. Synthetic pose proves wiring/pixels only; a host fake
 // camera cannot perform physical T-pose calibration or reproduce scored Play.
 import assert from "node:assert/strict";
