@@ -35,6 +35,21 @@ const renderer = createAeroPlayCanvasRenderer();
 const recorder = createPrivatePerformanceRecorder({capacity:2048});
 const firstBurstRecorder = createPrivatePerformanceRecorder({capacity:512});
 const steadyRecorder = createPrivatePerformanceRecorder({capacity:2048});
+// A separate scalar-only projection timer; the display recorders above time the
+// renderer call, never the event/aftermath projection or GPU execution.
+const PROJECTION_SAMPLE_CAPACITY = 2048;
+const projectionOverall = [];
+const projectionFirstBurst = [];
+const projectionSteady = [];
+function recordProjection(values, durationMs) {
+  values.push(Math.round(Math.max(0, durationMs) * 1000) / 1000);
+  if (values.length > PROJECTION_SAMPLE_CAPACITY) values.shift();
+}
+function projectionStatistics(values) {
+  if (values.length === 0) return {count:0,p50:null,p95:null,max:null};
+  const sorted = [...values].sort((a,b) => a - b);
+  return {count:sorted.length,p50:sorted[Math.ceil(sorted.length * .5) - 1],p95:sorted[Math.ceil(sorted.length * .95) - 1],max:sorted[sorted.length - 1]};
+}
 /** @type {Array<Record<string,unknown>>} */ const runs = [];
 /** @type {Array<{mode:string,reason:string}>} */ const failures = [];
 let activeMode = "no-hit", renderScale = 1, phase = "loading", phaseStarted = 0, measuredAt = 0, latestStatsAt = 0;
@@ -74,6 +89,7 @@ function measureStart(now) {
   recorder.reset("test-hit-display",now);
   firstBurstRecorder.reset("first-hit-burst",now + phoneHitWorkload.firstHitMs);
   steadyRecorder.reset("steady-hits",now + 6000);
+  projectionOverall.length = 0; projectionFirstBurst.length = 0; projectionSteady.length = 0;
   status.textContent = `${label(activeMode)} measuring${previewOnly ? " · PREVIEW ONLY" : ""}…`;
 }
 function sceneCounts(scene) {
@@ -92,8 +108,8 @@ function finish(now) {
     viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio},
     workload:phoneHitWorkload.contract,targets:{min:minimum,max:maximum},
     displayFps:sample.displayRateFps,displayIntervals:sample.displayIntervals,missedVsync:sample.missedVsyncCount,
-    rendererCallWallMs:sample.rendererCpuMs,
-    aftermath:{intendedPieceCountMin:minPieces,intendedPieceCountMax:maxPieces,maxHitFeedback,hitFeedbackFrames,aftermathFrames,firstHitBurst:{startMs:4300,endMs:6000,displayFrames:firstBurstFrames,hitFeedbackFrames:firstBurstHitFeedbackFrames,aftermathFrames:firstBurstAftermathFrames,displayIntervals:firstBurst.displayIntervals,missedVsync:firstBurst.missedVsyncCount,rendererCallWallMs:firstBurst.rendererCpuMs},steady:{startMs:6000,displayFrames:steadyFrames,aftermathFrames:steadyAftermathFrames,displayIntervals:steady.displayIntervals,missedVsync:steady.missedVsyncCount,rendererCallWallMs:steady.rendererCpuMs}},
+    rendererCallWallMs:sample.rendererCpuMs,projectionWallMs:projectionStatistics(projectionOverall),
+    aftermath:{intendedPieceCountMin:minPieces,intendedPieceCountMax:maxPieces,maxHitFeedback,hitFeedbackFrames,aftermathFrames,firstHitBurst:{startMs:4300,endMs:6000,displayFrames:firstBurstFrames,hitFeedbackFrames:firstBurstHitFeedbackFrames,aftermathFrames:firstBurstAftermathFrames,displayIntervals:firstBurst.displayIntervals,missedVsync:firstBurst.missedVsyncCount,rendererCallWallMs:firstBurst.rendererCpuMs,projectionWallMs:projectionStatistics(projectionFirstBurst)},steady:{startMs:6000,displayFrames:steadyFrames,aftermathFrames:steadyAftermathFrames,displayIntervals:steady.displayIntervals,missedVsync:steady.missedVsyncCount,rendererCallWallMs:steady.rendererCpuMs,projectionWallMs:projectionStatistics(projectionSteady)}},
     durationMs:sample.durationMs,previewOnly
   };
   runs.push(run); phase = "done";
@@ -107,7 +123,7 @@ function report() { return {
   renderer:{commit:typeof __AEROBEAT_PHONE_RENDERER_COMMIT__ !== "undefined" ? __AEROBEAT_PHONE_RENDERER_COMMIT__ : "development",facadeSha256:typeof __AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__ !== "undefined" ? __AEROBEAT_PHONE_RENDERER_SOURCE_SHA256__ : "development",shadowMode:typeof __AEROBEAT_PHONE_SHADOW_MODE__ !== "undefined" ? __AEROBEAT_PHONE_SHADOW_MODE__ : "native"},
   workload:{contract:phoneHitWorkload.contract,firstHitMs:phoneHitWorkload.firstHitMs,noteStride:phoneHitWorkload.noteStride,corpusEvents:workload.events.length,purpose:"visual_test",automaticFeedback:false,equipment:"static canonical Test Flow",slicePosition:"midpoint approximation"},
   browser:navigator.userAgent.slice(0,200),previewOnly,
-  statisticsNote:"Display FPS spans each measured window. Display p95 and renderer-call wall-time p95 use bounded recent 2048 samples (first-hit burst at most 512). Renderer-call time measures main-thread elapsed work, NOT GPU time. Intended aftermath pieces are scene projection counts, not observed pool or material counts. No touch collision or camera/CV is sampled.",
+  statisticsNote:"Display FPS spans each measured window. Display p95 and renderer-call wall-time p95 use bounded recent 2048 samples (first-hit burst at most 512). Projection wall time independently brackets one workload.frame call and retains at most 2048 scalar durations per window/phase; it includes target and aftermath projection, not renderer work. Both wall times measure main-thread elapsed work, NOT GPU time. Intended aftermath pieces are scene projection counts, not observed pool or material counts. No touch collision or camera/CV is sampled.",
   failures,runs
 }; }
 async function prepareEquipment() {
@@ -136,8 +152,10 @@ function frame(now) {
   if (phase === "measuring" && geometryKey() !== windowGeometry) { invalidate("Canvas size or orientation changed during the window."); return; }
   const elapsed = Math.max(0, now - (phase === "measuring" ? measuredAt : phaseStarted));
   let scene;
+  const projectionStarted = performance.now();
   try { scene = activeMode === "real-hit" ? workload.frameHit(elapsed) : workload.frameNoHit(elapsed); }
   catch (error) { invalidate(`Scene projection failed: ${(error instanceof Error ? error.message : String(error)).slice(0,160)}`); return; }
+  const projectionWallMs = performance.now() - projectionStarted;
   const counts = sceneCounts(scene); // One workload projection, never a second frameCounts projection.
   const renderStarted = performance.now();
   let result;
@@ -152,13 +170,16 @@ function frame(now) {
   if (counts.hitFeedback > 0) hitFeedbackFrames++;
   if (counts.intendedPieces > 0) aftermathFrames++;
   recorder.record({timestampMs:now,rendererCpuMs:renderWallMs});
+  recordProjection(projectionOverall,projectionWallMs);
   if (elapsed >= phoneHitWorkload.firstHitMs && elapsed < 6000) {
+    recordProjection(projectionFirstBurst,projectionWallMs);
     firstBurstFrames++;
     if (counts.hitFeedback > 0) firstBurstHitFeedbackFrames++;
     if (counts.intendedPieces > 0) firstBurstAftermathFrames++;
     firstBurstRecorder.record({timestampMs:now,rendererCpuMs:renderWallMs});
   }
   if (elapsed >= 6000) {
+    recordProjection(projectionSteady,projectionWallMs);
     steadyFrames++;
     if (counts.intendedPieces > 0) steadyAftermathFrames++;
     steadyRecorder.record({timestampMs:now,rendererCpuMs:renderWallMs});
