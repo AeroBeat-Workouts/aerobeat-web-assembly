@@ -44,7 +44,7 @@ export function createPhonePerformancePipeline(){
     settled(ticket,atMs,telemetry,error=false){
       if(!active||!ticket||ticket.epoch!==epoch)return;
       const at=validTime(atMs);if(at===null)return;
-      if(error){estimateFailures++;return;}
+      if(error){estimateFailures++;lastCompletionAt=null;return;}
       completed++;lastCompletionAt=at;
       push(samples.adapterWallMs,at-ticket.at);
       const worker=finiteDuration(telemetry?.workerRoundTripDurationMs),inference=finiteDuration(telemetry?.runtimeInferenceDurationMs),postprocess=finiteDuration(telemetry?.postprocessDurationMs);

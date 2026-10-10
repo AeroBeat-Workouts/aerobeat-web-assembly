@@ -20,9 +20,16 @@ assert.deepEqual(report.timingsMs.adapterWallMs,{count:2,p50:88,p95:91,max:91});
 assert(!JSON.stringify(report).includes('"at"'),"Only bounded scalar statistics, no per-frame timestamps");
 p.admitted(350);const failed=p.adapterCalled(351);p.settled(failed,352,null,true);
 assert.equal(p.snapshot(8).counts.estimateFailures,1);
+const gapsBeforeRetry=p.snapshot(8).timingsMs.completionToAdmissionMs.count;assert.equal(gapsBeforeRetry,2);
+p.admitted(360);
+assert.equal(p.snapshot(8).timingsMs.completionToAdmissionMs.count,gapsBeforeRetry,"A failed estimate must break the prior successful completion gap");
 p.stop();p.settled(second,380,null);assert.equal(p.snapshot(8).counts.completed,2,"Stop excludes late completions");
 p.reset(11);p.settled(first,400,null);const empty=p.snapshot(11);
 assert.equal(empty.counts.observedOpportunities,0);assert.equal(empty.counts.completed,0);assert.equal(empty.timingsMs.workerRoundTripMs.count,0,"Retry resets timing and ignores stale epochs");
+p.admitted(410);const mismatched=p.adapterCalled(411);p.settled(mismatched,470,{workerRoundTripDurationMs:40,runtimeInferenceDurationMs:50,postprocessDurationMs:2});
+assert.equal(p.snapshot(11).counts.unpairedWorkerTimings,1,"Contradictory Worker phases must not be assigned a fake transfer remainder");
+assert.equal(p.snapshot(11).timingsMs.workerOtherCombinedMs.count,0);
+p.reset(11);
 for(let i=0;i<520;i++){p.admitted(500+i*100);const ticket=p.adapterCalled(501+i*100);p.settled(ticket,585+i*100,{workerRoundTripDurationMs:83,runtimeInferenceDurationMs:80,postprocessDurationMs:1});}
 const bounded=p.snapshot(11);assert.equal(bounded.counts.admissions,520);assert.equal(bounded.timingsMs.inferenceMs.count,512);assert.equal(bounded.timingsMs.workerRoundTripMs.count,512);
 console.log("Phone pipeline timing unit gate passed: busy/fresh counts, paired segments, reset, bounded samples and scalar privacy.");

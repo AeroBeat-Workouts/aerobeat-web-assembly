@@ -67,8 +67,11 @@ try{
   const pipeline=cv.cv.pipeline;
   assert(pipeline&&pipeline.sampleLimit===512,"CV report must include bounded diagnostic-only pipeline timing");
   assert.equal(pipeline.counts.observedOpportunities,pipeline.counts.busySkips+pipeline.counts.availabilityChecks,"Observed opportunities must reconcile busy and availability checks");
-  assert.equal(pipeline.counts.availabilityChecks,pipeline.counts.readyFailures+pipeline.counts.heldFrameChecks+pipeline.counts.staleFrameChecks+pipeline.counts.freshChecks,"Freshness checks must partition the admitted opportunities");
+  assert.equal(pipeline.counts.availabilityChecks,pipeline.counts.readyFailures+pipeline.counts.heldFrameChecks+pipeline.counts.staleFrameChecks+pipeline.counts.freshChecks,"Freshness checks must partition the observed availability opportunities");
   assert(pipeline.counts.admissions>0&&pipeline.counts.adapterCalls>0&&pipeline.counts.completed>0,"Real CV Worker must produce instrumented accepted estimates");
+  assert(pipeline.counts.admissions<=pipeline.counts.freshChecks&&pipeline.counts.adapterCalls<=pipeline.counts.admissions&&pipeline.counts.completed<=pipeline.counts.adapterCalls,"Instrumented CV stages must respect real fresh-frame admission order");
+  assert.equal(pipeline.timingsMs.adapterWallMs.count,Math.min(pipeline.sampleLimit,pipeline.counts.completed),"Paired adapter completions must match bounded wall samples");
+  assert.equal(pipeline.timingsMs.workerRoundTripMs.count,Math.min(pipeline.sampleLimit,pipeline.counts.completed-pipeline.counts.unpairedWorkerTimings),"Paired Worker phases must match bounded round-trip samples");
   for(const name of ["sourceToAdapterMs","adapterWallMs","workerRoundTripMs","inferenceMs","postprocessMs","workerOtherCombinedMs","admissionGapMs","completionToAdmissionMs"]){
     const sample=pipeline.timingsMs[name];assert(sample&&sample.count>0&&sample.count<=512&&Number.isFinite(sample.p50)&&Number.isFinite(sample.p95),`Missing bounded real-Worker ${name} timing`);
   }
@@ -204,6 +207,14 @@ try{
   const frozenStream=await(await frozenDownloadPromise).createReadStream();let frozenJson="";for await(const chunk of frozenStream)frozenJson+=chunk.toString();
   const frozenReport=JSON.parse(frozenJson);assert.equal(frozenReport.runs.some(run=>run.mode==="cv"),false,"A frozen camera cannot yield a valid CV run");
   assert(frozenReport.failures.some(failure=>failure.reason.includes("Camera stopped")),"Frozen camera must be reported as a failure");
+  await frozen.evaluate(()=>{window.__freezeCamera=false;});
+  await frozen.locator("aero-button[data-mode=cv]").click();
+  await frozen.locator("#summary").getByText(/^Game \+ CV: scene/u).waitFor({timeout:50000});
+  const retryDownload=frozen.waitForEvent("download");await frozen.locator("#download").click();
+  const retryStream=await(await retryDownload).createReadStream();let retryJson="";for await(const chunk of retryStream)retryJson+=chunk.toString();
+  const retryRuns=JSON.parse(retryJson).runs.filter(run=>run.mode==="cv");assert.equal(retryRuns.length,1,"Failed CV window cannot leak into explicit retry evidence");
+  assert(retryRuns[0].cv.pipeline.counts.admissions>0&&retryRuns[0].cv.pipeline.counts.completed>0,"A new CV retry must start fresh in-window pipeline counters");
+  assert.equal(retryRuns[0].cv.pipeline.counts.observedOpportunities,retryRuns[0].cv.pipeline.counts.busySkips+retryRuns[0].cv.pipeline.counts.availabilityChecks,"Retry pipeline counts must reconcile within its own window");
   await freeze.close();
   console.log("Phone performance browser gate passed: Game/Camera/CV pixels, four scales, landscape HUD, real Worker, permission denial/pending and scale-cancelled setup, mid-window/hidden/frozen invalidation, scalar export and live-track page-exit cleanup.");
 }finally{await browser?.close();await server.close();}
