@@ -30,18 +30,18 @@ const profileCountKeys = ["poolCreated","poolReused","sliceCacheMisses","sliceCa
 let sceneProfiling = false;
 const profile = () => ({poolCreated:0,poolReused:0,sliceCacheMisses:0,sliceCacheHits:0,sliceCacheHighWater:0,...Object.fromEntries(profileTimerKeys.map(key=>[key,{bins:new Uint32Array(HISTOGRAM_BINS),count:0,max:null,sumMs:0}]))});
 function profileTime(key, elapsed) {
-  if (!sceneProfiling || !active || !samplingRaf || !isRealTest()) return;
+  if (!sceneProfiling || !active || !samplingRaf) return;
   const ms=bounded(elapsed,MAX_MS),bucket=active.variantProfile[key];
   append(bucket,ms);bucket.sumMs=bounded(bucket.sumMs+ms,1e10);
   if(currentFrameSamples)currentFrameSamples.profile[key].push(ms);
 }
 function profileCount(key, value=1) {
-  if(!samplingRaf || !active || !isRealTest())return;
+  if(!sceneProfiling || !samplingRaf || !active)return;
   active.variantProfile[key]=bounded(active.variantProfile[key]+value,1e9);
   if(currentFrameSamples)currentFrameSamples.profile[key]+=value;
 }
 function profileHighWater(size) {
-  if(!samplingRaf || !active || !isRealTest())return;
+  if(!sceneProfiling || !samplingRaf || !active)return;
   const value=bounded(size,1e6);
   active.variantProfile.sliceCacheHighWater=Math.max(active.variantProfile.sliceCacheHighWater,value);
   if(currentFrameSamples)currentFrameSamples.profile.sliceCacheHighWater=Math.max(currentFrameSamples.profile.sliceCacheHighWater,value);
@@ -256,6 +256,8 @@ function attach(graph) {
       finally{profileTime("sliceVariantLookupMs",NOW()-before);}
     }));
     for(const [method,key] of [["applyAftermathAppearance","clippedAppearanceMs"],["installSliceClipBlocks","installClipMs"],["manualTick","manualTickMs"]])restores.push(wrapper(graph.renderer,method,function(original,args){
+      // Scene eligibility was checked once by updateSceneObjects. A tick
+      // outside it gets one independent check per RAF, never per material part.
       if(!sceneProfiling && !(key==="manualTickMs" && samplingRaf && active && isRealTest()))return original.apply(this,args);
       const before=NOW();try{return original.apply(this,args);}finally{const prior=sceneProfiling;sceneProfiling=true;profileTime(key,NOW()-before);sceneProfiling=prior;}
     }));
