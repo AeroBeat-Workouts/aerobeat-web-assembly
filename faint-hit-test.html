@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AeroBeat historical Test diagnostic — NOT served 8445</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #06141f; color: white; font: 700 13px/1.3 system-ui, sans-serif; }
+    main { width: 100%; height: 100dvh; }
+    aero-game { display: block; width: 100%; height: 100%; }
+    .diagnostic-warning { position: fixed; z-index: 2147483647; left: 50%; bottom: max(6px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100% - 16px); border: 2px solid #ffdf68; border-radius: 6px; padding: 5px 8px; color: #fff; background: #48110c; text-align: center; pointer-events: none; }
+    .diagnostic-panel { position: fixed; z-index: 2147483646; top: max(62px, env(safe-area-inset-top)); right: 8px; width: min(245px, calc(100vw - 16px)); border: 0; border-radius: 7px; background: transparent; font: 600 11px/1.3 system-ui; pointer-events: none; }
+    .diagnostic-panel summary { display: block; width: max-content; max-width: 100%; margin-left: auto; padding: 4px 6px; border: 1px solid #ffdf68; border-radius: 6px; background: #48110c; font: 700 10px/1.2 system-ui; cursor: pointer; pointer-events: auto; list-style: none; }
+    .diagnostic-panel summary::-webkit-details-marker { display: none; }
+    .diagnostic-panel summary::after { content: ' ▾'; }
+    .diagnostic-panel[open] summary::after { content: ' ▴'; }
+    .diagnostic-controls { max-height: 30vh; overflow: auto; margin-top: 2px; padding: 8px; border: 2px solid #ffdf68; border-radius: 7px; background: #241b16ee; pointer-events: auto; }
+    .diagnostic-panel button, .diagnostic-panel label { min-height: 40px; display: inline-flex; align-items: center; margin: 2px; padding: 5px; font: 700 13px system-ui; }
+    .diagnostic-panel pre { white-space: pre-wrap; font-size: 10px; }
+  </style>
+</head>
+<body>
+  <main><aero-game></aero-game></main>
+  <div class="diagnostic-warning" role="note" aria-label="Historical source warning">DIAGNOSTIC: historical 0.0.105. NOT served 8445 / 0.0.127; source parity FALSE.</div>
+  <details id="faint-hit-diagnostic" class="diagnostic-panel" aria-label="Historical hit diagnostic controls">
+    <summary>0.0.105 diagnostic · controls (tap between runs)</summary>
+    <div class="diagnostic-controls">
+      <strong>HISTORICAL TEST · 0.0.105 · NON-PARITY</strong>
+      <label><input id="faint-hit-off" type="checkbox"> Withhold corpse visuals only</label>
+      <button id="faint-hit-reset" type="button">Reset window</button>
+      <button id="faint-hit-download" type="button">Download scalar report</button>
+      <div id="faint-hit-state" role="status">Waiting for graph…</div>
+      <pre id="faint-hit-summary" aria-live="off"></pre>
+    </div>
+  </details>
+  <script type="module" src="/faint-hit-diagnostic.js"></script>
+</body>
+</html>
