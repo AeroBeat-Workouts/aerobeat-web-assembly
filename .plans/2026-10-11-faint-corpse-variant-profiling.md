@@ -24,7 +24,7 @@ Extend the existing phone-friendly 8449 full-app Test recorder and JSON download
 
 ## Delegation and live evidence
 
-Read-only research role `6533c6c9-d842-4e2a-9c0b-5a7ca57c1dda` (direct child verified, finished, no edits) mapped exact historical facade wrappers: `acquireAftermathAssetEntity`, `sliceVariantMaterial`, `applyAftermathAppearance`, the existing `updateSceneObjects` wrapper and `manualTick`. Cache clears on loader generation change, context loss and teardown; off-mode scored frames must have zero corpse work but retain scene/tick work. Timers nest; none proves GPU/shader compilation. Coder will own `caaq`; separate QA `ugwb` and auditor `x26o` will be claimed after a stable candidate. No build/route changes yet.
+Read-only research role `6533c6c9-d842-4e2a-9c0b-5a7ca57c1dda` (direct child verified, finished, no edits) mapped exact historical facade wrappers: `acquireAftermathAssetEntity`, `sliceVariantMaterial`, `applyAftermathAppearance`, the existing `updateSceneObjects` wrapper and `manualTick`. Cache clears on loader generation change, context loss and teardown; off-mode scored frames must have zero corpse work but retain scene/tick work. Timers nest; none proves GPU/shader compilation. Coder `edae02de-61e2-44e3-b869-22e43646d5b5` (direct child verified running, scopes only canonical diagnostic JS and focused unit) owns `caaq`, with RED→GREEN expected. Separate QA `ugwb` and auditor `x26o` will be claimed after a stable candidate. No build/route changes yet. Concurrent upstream Boxing Play commits `68d8a82`/`7e0033b` were integrated by clean rebase of this plan (`07f0da0` pushed), without touching detached historical source.
 
 ## Handoff gate
 
