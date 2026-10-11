@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>AeroBeat historical Test diagnostic — NOT served 8445</title>
+  <title>AeroBeat mixed-era historical Test diagnostic — NOT served 8445</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #06141f; color: white; font: 700 13px/1.3 system-ui, sans-serif; }
@@ -22,11 +22,11 @@
 </head>
 <body>
   <main><aero-game></aero-game></main>
-  <div class="diagnostic-warning" role="note" aria-label="Historical source warning">DIAGNOSTIC: historical 0.0.105. NOT served 8445 / 0.0.127; source parity FALSE.</div>
+  <div class="diagnostic-warning" role="note" aria-label="Historical source warning">MIXED-ERA DIAGNOSTIC: historical app 0.0.105 + newer audio 464fdef. NOT served 8445 / 0.0.127; NOT source-matched to Cookie 0.0.128; source parity FALSE.</div>
   <details id="faint-hit-diagnostic" class="diagnostic-panel" aria-label="Historical hit diagnostic controls">
     <summary>0.0.105 diagnostic · controls (tap between runs)</summary>
     <div class="diagnostic-controls">
-      <strong>HISTORICAL TEST · 0.0.105 · NON-PARITY</strong>
+      <strong>MIXED-ERA TEST · historical app 0.0.105 + newer audio 464fdef · NON-PARITY</strong>
       <label><input id="faint-hit-off" type="checkbox"> Withhold corpse visuals only</label>
       <button id="faint-hit-reset" type="button">Reset window</button>
       <button id="faint-hit-download" type="button">Download scalar report</button>

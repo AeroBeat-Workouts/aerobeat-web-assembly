@@ -1,0 +1,552 @@
+{
+  "schema": "aerobeat/faint_hit_browser_qa",
+  "version": 1,
+  "fixture": "project-owned deterministic imported V2 chart and generated silence, NOT Faint",
+  "sourceChartSha256": "723aa6d605e13fe54a9805ba29ed4b7e640110988cbb29b991fb7f92dc0799e9",
+  "served8445SourceParity": false,
+  "mixedEraAudio": true,
+  "sourceCommits": {
+    "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+    "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+    "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+    "contentAuthoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c",
+    "audio": "464fdeff45fc109876a1600f22d3007708d1b07d"
+  },
+  "geometry": {
+    "backingWidth": 390,
+    "backingHeight": 844,
+    "deviceWidth": 390,
+    "deviceHeight": 844,
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "dpr": 1
+  },
+  "pixelRegions": {
+    "first-hit": {
+      "corpse": {
+        "changed": 8184,
+        "addedInk": 3665,
+        "removedInk": 0,
+        "magnitude": 2133927
+      },
+      "restored": {
+        "changed": 8184,
+        "addedInk": 3665,
+        "removedInk": 0,
+        "magnitude": 2133927
+      },
+      "nativeRestored": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      },
+      "sky": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      },
+      "track": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      },
+      "great": {
+        "count": 6762,
+        "lit": 5353,
+        "red": 0,
+        "blue": 2638,
+        "green": 0,
+        "sum": 3778067
+      },
+      "target": {
+        "count": 8245,
+        "lit": 7645,
+        "red": 0,
+        "blue": 2368,
+        "green": 3025,
+        "sum": 4064821
+      },
+      "skyVisible": {
+        "count": 81000,
+        "lit": 81000,
+        "red": 0,
+        "blue": 81000,
+        "green": 0,
+        "sum": 39690794
+      }
+    },
+    "group": {
+      "corpse": {
+        "changed": 9072,
+        "addedInk": 3144,
+        "removedInk": 0,
+        "magnitude": 2441695
+      },
+      "restored": {
+        "changed": 9072,
+        "addedInk": 3144,
+        "removedInk": 0,
+        "magnitude": 2441695
+      },
+      "nativeRestored": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      },
+      "sky": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      },
+      "track": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      },
+      "great": {
+        "count": 6762,
+        "lit": 5395,
+        "red": 0,
+        "blue": 2448,
+        "green": 0,
+        "sum": 3882985
+      },
+      "target": {
+        "count": 15750,
+        "lit": 14131,
+        "red": 0,
+        "blue": 1548,
+        "green": 12371,
+        "sum": 5712152
+      },
+      "skyVisible": {
+        "count": 81000,
+        "lit": 80988,
+        "red": 0,
+        "blue": 80956,
+        "green": 0,
+        "sum": 39680845
+      }
+    },
+    "saber": {
+      "native": {
+        "count": 4728,
+        "lit": 4728,
+        "red": 0,
+        "blue": 2372,
+        "green": 130,
+        "sum": 2027563
+      },
+      "off": {
+        "count": 4728,
+        "lit": 4728,
+        "red": 0,
+        "blue": 2372,
+        "green": 130,
+        "sum": 2027563
+      },
+      "restored": {
+        "count": 4728,
+        "lit": 4728,
+        "red": 0,
+        "blue": 2372,
+        "green": 130,
+        "sum": 2027563
+      },
+      "nativeOff": {
+        "changed": 0,
+        "addedInk": 0,
+        "removedInk": 0,
+        "magnitude": 0
+      }
+    }
+  },
+  "states": {
+    "native": {
+      "mode": "native",
+      "frames": [
+        {
+          "name": "miss-swing",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 0,
+          "missCount": 0,
+          "scoreHits": 0,
+          "feedbackCount": 0,
+          "greatCount": 0,
+          "targetCount": 5,
+          "aftermathEntries": 0,
+          "modelHalves": 0,
+          "visibleHalves": 0,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        },
+        {
+          "name": "first-hit",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 1,
+          "missCount": 0,
+          "scoreHits": 1,
+          "feedbackCount": 1,
+          "greatCount": 1,
+          "targetCount": 4,
+          "aftermathEntries": 1,
+          "modelHalves": 2,
+          "visibleHalves": 2,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        },
+        {
+          "name": "group",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 3,
+          "missCount": 0,
+          "scoreHits": 3,
+          "feedbackCount": 2,
+          "greatCount": 2,
+          "targetCount": 2,
+          "aftermathEntries": 3,
+          "modelHalves": 4,
+          "visibleHalves": 4,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        }
+      ],
+      "score": [
+        {
+          "hits": 3,
+          "ranked": false,
+          "localOnly": true
+        }
+      ],
+      "screenshots": [
+        "native-miss-swing.png",
+        "native-first-hit.png",
+        "native-group.png"
+      ]
+    },
+    "off": {
+      "mode": "off",
+      "frames": [
+        {
+          "name": "miss-swing",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 0,
+          "missCount": 0,
+          "scoreHits": 0,
+          "feedbackCount": 0,
+          "greatCount": 0,
+          "targetCount": 5,
+          "aftermathEntries": 0,
+          "modelHalves": 0,
+          "visibleHalves": 0,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        },
+        {
+          "name": "first-hit",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 1,
+          "missCount": 0,
+          "scoreHits": 1,
+          "feedbackCount": 1,
+          "greatCount": 1,
+          "targetCount": 4,
+          "aftermathEntries": 1,
+          "modelHalves": 2,
+          "visibleHalves": 0,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        },
+        {
+          "name": "group",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 3,
+          "missCount": 0,
+          "scoreHits": 3,
+          "feedbackCount": 2,
+          "greatCount": 2,
+          "targetCount": 2,
+          "aftermathEntries": 3,
+          "modelHalves": 4,
+          "visibleHalves": 0,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        }
+      ],
+      "score": [
+        {
+          "hits": 3,
+          "ranked": false,
+          "localOnly": true
+        }
+      ],
+      "screenshots": [
+        "off-miss-swing.png",
+        "off-first-hit.png",
+        "off-group.png"
+      ]
+    },
+    "restored": {
+      "mode": "native",
+      "frames": [
+        {
+          "name": "miss-swing",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 0,
+          "missCount": 0,
+          "scoreHits": 0,
+          "feedbackCount": 0,
+          "greatCount": 0,
+          "targetCount": 5,
+          "aftermathEntries": 0,
+          "modelHalves": 0,
+          "visibleHalves": 0,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        },
+        {
+          "name": "first-hit",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 1,
+          "missCount": 0,
+          "scoreHits": 1,
+          "feedbackCount": 1,
+          "greatCount": 1,
+          "targetCount": 4,
+          "aftermathEntries": 1,
+          "modelHalves": 2,
+          "visibleHalves": 2,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        },
+        {
+          "name": "group",
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "deviceWidth": 390,
+            "deviceHeight": 844,
+            "viewportWidth": 390,
+            "viewportHeight": 844,
+            "dpr": 1
+          },
+          "renderScale": 1,
+          "desiredRenderScale": 1,
+          "fullQualityUi": "1",
+          "hitCount": 3,
+          "missCount": 0,
+          "scoreHits": 3,
+          "feedbackCount": 2,
+          "greatCount": 2,
+          "targetCount": 2,
+          "aftermathEntries": 3,
+          "modelHalves": 4,
+          "visibleHalves": 4,
+          "environment": "ready",
+          "cvIdle": true,
+          "automaticOff": true,
+          "hasSaber": true,
+          "panelCollapsed": true
+        }
+      ],
+      "score": [
+        {
+          "hits": 3,
+          "ranked": false,
+          "localOnly": true
+        }
+      ],
+      "screenshots": [
+        "restored-miss-swing.png",
+        "restored-first-hit.png",
+        "restored-group.png"
+      ]
+    }
+  },
+  "diagnosticDownloads": [
+    {
+      "mode": "native",
+      "filename": "aerobeat-faint-hit-native-historical-nonparity.json",
+      "bytes": 23319,
+      "windows": 12,
+      "coverage": "project-owned fixture; synthetic audio seek and manually invoked display frames; not continuous RAF, phone FPS, or served 8445 parity",
+      "attributed": [
+        {
+          "label": "first-hit-burst",
+          "hitCount": 3,
+          "rendererCallCount": 13,
+          "intervalCount": 6,
+          "frameCount": 6,
+          "valid": true,
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "devicePixelRatio": 1,
+            "viewportWidth": 390,
+            "viewportHeight": 844
+          }
+        },
+        {
+          "label": "first-hit-burst",
+          "hitCount": 3,
+          "rendererCallCount": 12,
+          "intervalCount": 6,
+          "frameCount": 6,
+          "valid": true,
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "devicePixelRatio": 1,
+            "viewportWidth": 390,
+            "viewportHeight": 844
+          }
+        }
+      ],
+      "syntheticIntervalSamples": 12
+    },
+    {
+      "mode": "off",
+      "filename": "aerobeat-faint-hit-off-historical-nonparity.json",
+      "bytes": 26762,
+      "windows": 14,
+      "coverage": "project-owned fixture; synthetic audio seek and manually invoked display frames; not continuous RAF, phone FPS, or served 8445 parity",
+      "attributed": [
+        {
+          "label": "first-hit-burst",
+          "hitCount": 3,
+          "rendererCallCount": 13,
+          "intervalCount": 6,
+          "frameCount": 6,
+          "valid": true,
+          "geometry": {
+            "backingWidth": 390,
+            "backingHeight": 844,
+            "devicePixelRatio": 1,
+            "viewportWidth": 390,
+            "viewportHeight": 844
+          }
+        }
+      ],
+      "syntheticIntervalSamples": 6
+    }
+  ],
+  "consolePageErrors": []
+}

@@ -1,7 +1,7 @@
 // Disposable historical 0.0.105 full-app diagnostic. No production source changes.
 import "./src/index.js";
 
-const PINS = Object.freeze({ assembly:"382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408", renderer:"0be921cea14933400bd8afdda809ea4453ea772b", gameplay:"c9c32fc9fcd18964f35e3e283f72f9b146bf22df", contentAuthoring:"f4ee9b4f466660a10d4300354ffd73ecff527d4c" });
+const PINS = Object.freeze({ assembly:"382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408", renderer:"0be921cea14933400bd8afdda809ea4453ea772b", gameplay:"c9c32fc9fcd18964f35e3e283f72f9b146bf22df", contentAuthoring:"f4ee9b4f466660a10d4300354ffd73ecff527d4c", audio:"464fdeff45fc109876a1600f22d3007708d1b07d" });
 const game = document.querySelector("aero-game");
 const panel = document.querySelector("#faint-hit-diagnostic");
 const state = document.querySelector("#faint-hit-state");
@@ -20,11 +20,11 @@ const MAX_MS = 60000;
 const NOW = () => performance.now();
 const bounded = (n, limit = 1e7) => Math.min(limit, Math.max(0, Number.isFinite(n) ? n : 0));
 let mode = "native", installedGraph = null, installedSession = -1, active = null, lastRafAt = null;
-let reportWindows = [], firstHitSeen = false, lastHitCount = 0, firstHitStart = null;
+let reportWindows = [], firstHitSeen = false, firstHitStart = null;
 let methods = null, samplingPointer = false, samplingRaf = false, installationFailed = false;
-const sampleKeys = ["intervals","advance","projection","renderer","presentation","pointer"];
+const sampleKeys = ["intervals","displayFrame","projection","renderer","presentation","pointer"];
 const histogram = () => ({ bins:new Uint32Array(HISTOGRAM_BINS),count:0,max:null,exactMaxValues:null });
-const samples = () => ({ intervals:histogram(), advance:histogram(), projection:histogram(), renderer:histogram(), presentation:histogram(), pointer:histogram() });
+const samples = () => ({ intervals:histogram(), displayFrame:histogram(), projection:histogram(), renderer:histogram(), presentation:histogram(), pointer:histogram() });
 let currentFrameSamples = null;
 function append(bucket, value) {
   const ms=bounded(value,MAX_MS);
@@ -45,7 +45,7 @@ function remove(bucket, value) {
   } else if (!bucket.count) bucket.max=null;
 }
 function timedSample(bucket, value) { append(active[bucket],value); if(currentFrameSamples) currentFrameSamples[bucket].push(bounded(value,MAX_MS)); }
-const fresh = (label, now = NOW()) => ({ label, mode, sessionGeneration:installedSession, started:now, end:now, firstEligibleAt:null, lastEligibleAt:null, eligibleActiveMs:0, eligibleIntervalCount:0, ineligibleFrameCount:0, ...samples(), displayCount:0, pointerRedrawCount:0, hitCount:0, hitGroupCount:0, maxHitDelta:0, aftermathEntriesObserved:0, aftermathPiecesObserved:0, maxAftermathPieces:0, withheldPiecesObserved:0, judgementAdvanceCount:0, projectionCount:0, rendererCallCount:0, errors:0, invalidReasons:[], displayGeometry:null });
+const fresh = (label, now = NOW()) => ({ label, mode, sessionGeneration:installedSession, started:now, end:now, firstEligibleAt:null, lastEligibleAt:null, eligibleActiveMs:0, eligibleIntervalCount:0, ineligibleFrameCount:0, ...samples(), displayCount:0, pointerRedrawCount:0, hitCount:0, hitGroupCount:0, maxHitDelta:0, aftermathEntriesObserved:0, aftermathPiecesObserved:0, maxAftermathPieces:0, withheldPiecesObserved:0, projectionCount:0, rendererCallCount:0, errors:0, invalidReasons:[], displayGeometry:null });
 function summarize(values) {
   if (!values.count) return {count:0,p50ApproxMs:null,p95ApproxMs:null,maxMs:null,quantileBinWidthMs:1};
   const ranks=[Math.ceil(values.count*.5),Math.ceil(values.count*.95)],quantiles=[null,null];
@@ -60,8 +60,8 @@ function endWindow(at = NOW()) {
   if (!active) return;
   active.end = at;
   for(const key of sampleKeys) active[key].exactMaxValues=null;
-  if(active.displayCount+active.pointerRedrawCount+active.judgementAdvanceCount+active.projectionCount+active.rendererCallCount===0&&!active.invalidReasons.includes("no_eligible_samples"))active.invalidReasons.push("no_eligible_samples");
-  reportWindows.push({label:active.label,mode:active.mode,sessionGeneration:active.sessionGeneration,wallElapsedMs:bounded(active.end-active.started),eligibleActiveMs:Math.round(active.eligibleActiveMs*1000)/1000,eligibleIntervalCount:active.eligibleIntervalCount,ineligibleFrameCount:active.ineligibleFrameCount,displayCount:active.displayCount,pointerRedrawCount:active.pointerRedrawCount,judgementAdvanceCount:active.judgementAdvanceCount,projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,maxHitDelta:active.maxHitDelta,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,maxAftermathPieces:active.maxAftermathPieces,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors,valid:active.invalidReasons.length===0,invalidReasons:active.invalidReasons.slice(),displayGeometry:active.displayGeometry,displayIntervalMs:summarize(active.intervals),gameplayAdvanceMs:summarize(active.advance),frameProjectionMs:summarize(active.projection),rendererCallMs:summarize(active.renderer),totalPresentationMs:summarize(active.presentation),pointerTotalMs:summarize(active.pointer)});
+  if(active.displayCount+active.pointerRedrawCount+active.projectionCount+active.rendererCallCount===0&&!active.invalidReasons.includes("no_eligible_samples"))active.invalidReasons.push("no_eligible_samples");
+  reportWindows.push({label:active.label,mode:active.mode,sessionGeneration:active.sessionGeneration,wallElapsedMs:bounded(active.end-active.started),eligibleActiveMs:Math.round(active.eligibleActiveMs*1000)/1000,eligibleIntervalCount:active.eligibleIntervalCount,ineligibleFrameCount:active.ineligibleFrameCount,displayCount:active.displayCount,pointerRedrawCount:active.pointerRedrawCount,projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,maxHitDelta:active.maxHitDelta,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,maxAftermathPieces:active.maxAftermathPieces,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors,valid:active.invalidReasons.length===0,invalidReasons:active.invalidReasons.slice(),displayGeometry:active.displayGeometry,displayIntervalMs:summarize(active.intervals),displayFrameTotalMs:summarize(active.displayFrame),frameProjectionMs:summarize(active.projection),rendererCallMs:summarize(active.renderer),totalPresentationMs:summarize(active.presentation),pointerTotalMs:summarize(active.pointer)});
   if (reportWindows.length > MAX_WINDOWS) reportWindows.shift();
   active = null;
 }
@@ -99,16 +99,15 @@ function validateWindow(sampledFrame=false) {
 function isRealTest() { return eligibility().length===0; }
 function withinActiveTest() { return isRealTest(); }
 function countHits(snapshot) { const judgements = snapshot?.judgements; if (!Array.isArray(judgements)) return 0; let hits = 0; for (const judgement of judgements) if (judgement?.result === "hit" && judgement?.shadow !== true) hits += 1; return bounded(hits, 100000); }
-function recordHits(snapshot) {
+function recordHits(snapshot, beforeCount) {
   if (!active || !withinActiveTest()) return;
-  const count = countHits(snapshot), delta = Math.max(0,count-lastHitCount);
-  lastHitCount = count;
+  const count = countHits(snapshot), delta = Math.max(0,count-beforeCount);
   if (!delta) return;
   active.hitCount += delta;
   active.maxHitDelta = Math.max(active.maxHitDelta,delta);
   if (delta > 1) active.hitGroupCount += 1;
-  // Keep the hit-bearing frame (including its advance/projection/render) in
-  // first-hit-burst; promote its complete samples only after the RAF returns.
+  // Keep the hit-bearing frame (including its full display/projection/render)
+  // in first-hit-burst; promote its complete samples only after the RAF returns.
   if (!firstHitSeen) { firstHitSeen = true; firstHitStart = NOW(); }
 }
 function promoteFirstHitFrame(frameStart, frame) {
@@ -120,7 +119,7 @@ function promoteFirstHitFrame(frameStart, frame) {
   for (const key of sampleKeys) {
     for (const value of frame.samples[key]) { remove(prior[key],value); append(burst[key],value); }
   }
-  for (const key of ["judgementAdvanceCount","projectionCount","rendererCallCount","pointerRedrawCount","hitCount","hitGroupCount","aftermathEntriesObserved","aftermathPiecesObserved","withheldPiecesObserved","errors"]) {
+  for (const key of ["projectionCount","rendererCallCount","pointerRedrawCount","hitCount","hitGroupCount","aftermathEntriesObserved","aftermathPiecesObserved","withheldPiecesObserved","errors"]) {
     burst[key]=Math.min(prior[key],frame[key]);prior[key]-=burst[key];
   }
   burst.eligibleActiveMs=frame.eligibleActiveMs;
@@ -153,7 +152,7 @@ function wrapper(object, key, callback) {
 }
 function detach() { if (methods) { for (const restore of methods.reverse()) restore(); methods=null; } endWindow(); installedGraph=null; installedSession=-1; lastRafAt=null; samplingRaf=false; samplingPointer=false; currentFrameSamples=null; }
 function attach(graph) {
-  if (!graph || typeof graph !== "object" || !graph.renderer || typeof graph.renderer.updateSceneObjects !== "function" || typeof graph.renderer.renderGameplayScene !== "function" || typeof graph.renderer.renderGameplayFrameWithCursorsAndEquipment !== "function" || typeof graph.gameplay?.advance !== "function") throw new Error("historical facade seam missing");
+  if (!graph || typeof graph !== "object" || !graph.renderer || typeof graph.renderer.updateSceneObjects !== "function" || typeof graph.renderer.renderGameplayScene !== "function" || typeof graph.renderer.renderGameplayFrameWithCursorsAndEquipment !== "function" || typeof graph.gameplay?.getSnapshot !== "function" || typeof graph.gameplay.advance !== "function" || typeof game?.runDisplayFrame !== "function" || typeof game?.renderGameplay !== "function") throw new Error("historical facade seam missing");
   const restores = [];
   const previousGraph = installedGraph;
   installedGraph = graph;
@@ -181,10 +180,6 @@ function attach(graph) {
       if (!withinActiveTest()) return original.apply(this,args);
       const before=NOW();try{return original.apply(this,args);}finally {if(active){active.rendererCallCount++;timedSample("renderer",NOW()-before);}}
     }));
-    restores.push(wrapper(graph.gameplay,"advance",function(original,args) {
-      if (!samplingRaf || !withinActiveTest()) return original.apply(this,args);
-      const before=NOW();let completed=false;try{const result=original.apply(this,args);completed=true;return result;}finally {if(active){active.judgementAdvanceCount++;timedSample("advance",NOW()-before);if(completed)recordHits(graph.gameplay.getSnapshot());else active.errors++;}}
-    }));
     restores.push(wrapper(game,"rendererFrame",function(original,args) {
       if (!samplingRaf || !withinActiveTest()) return original.apply(this,args);
       const before=NOW();try{const frame=original.apply(this,args);if(active){active.projectionCount++;active.aftermathEntriesObserved += Array.isArray(frame?.aftermath)?frame.aftermath.length:0;}return frame;}finally {if(active)timedSample("projection",NOW()-before);}
@@ -205,8 +200,9 @@ function attach(graph) {
       const wasRaf=withinActiveTest(),frameStart=NOW(),interval=wasRaf && lastRafAt !== null ? frameStart-lastRafAt : null;
       if (active && wasRaf) validateWindow(true);
       const priorEligibleActiveMs=active?.eligibleActiveMs??0,priorEligibleIntervalCount=active?.eligibleIntervalCount??0;
-      const before=active ? {judgementAdvanceCount:active.judgementAdvanceCount,projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,pointerRedrawCount:active.pointerRedrawCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors} : null;
-      const frameSamples={intervals:[],advance:[],projection:[],renderer:[],presentation:[],pointer:[]};currentFrameSamples=frameSamples;
+      const before=active ? {projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,pointerRedrawCount:active.pointerRedrawCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors} : null;
+      const hitsBefore=wasRaf?countHits(graph.gameplay.getSnapshot()):null;
+      const frameSamples={intervals:[],displayFrame:[],projection:[],renderer:[],presentation:[],pointer:[]};currentFrameSamples=frameSamples;
       if (active && !wasRaf) active.ineligibleFrameCount++;
       if (wasRaf && active) {
         if(active.firstEligibleAt===null)active.firstEligibleAt=frameStart;
@@ -217,10 +213,18 @@ function attach(graph) {
       lastRafAt=wasRaf?frameStart:null;
       samplingRaf=true;
       try{return original.apply(this,args);}finally {
+        // Snapshot comparison is at the mutable app-frame boundary, not a
+        // measurement or replacement of the frozen gameplay facade. This
+        // includes a scored hit even if the app frame later handles an error.
+        if (active && wasRaf) {
+          try { recordHits(graph.gameplay.getSnapshot(),hitsBefore); }
+          catch { active.errors++; }
+          timedSample("displayFrame",NOW()-frameStart);
+        }
         samplingRaf=false;currentFrameSamples=null;
         if (active && wasRaf) validateWindow(true);
         if (active && before && firstHitSeen && active.label === "before-first-hit" && active.hitCount > before.hitCount) {
-          const frame={};for(const key of ["judgementAdvanceCount","projectionCount","rendererCallCount","pointerRedrawCount","hitCount","hitGroupCount","aftermathEntriesObserved","aftermathPiecesObserved","withheldPiecesObserved","errors"])frame[key]=active[key]-before[key];
+          const frame={};for(const key of ["projectionCount","rendererCallCount","pointerRedrawCount","hitCount","hitGroupCount","aftermathEntriesObserved","aftermathPiecesObserved","withheldPiecesObserved","errors"])frame[key]=active[key]-before[key];
           frame.samples=frameSamples;
           frame.eligibleActiveMs=active.eligibleActiveMs-priorEligibleActiveMs;
           frame.eligibleIntervalCount=active.eligibleIntervalCount-priorEligibleIntervalCount;
@@ -235,7 +239,7 @@ function attach(graph) {
     }));
   } catch (cause) { for (const restore of restores.reverse()) restore(); installedGraph=previousGraph; throw cause; }
   methods=restores; installedSession=game.sessionGeneration;
-  firstHitSeen=false;firstHitStart=null;lastHitCount=countHits(graph.gameplay.getSnapshot());startWindow("before-first-hit");refresh();
+  firstHitSeen=false;firstHitStart=null;startWindow("before-first-hit");refresh();
 }
 function reconcile() {
   if (installationFailed) return;
@@ -243,13 +247,13 @@ function reconcile() {
     const graph = game?.graph;
     if (graph !== installedGraph) { detach(); if (graph) attach(graph); }
     else if (graph && installedSession !== game.sessionGeneration) {
-      endWindow(); installedSession=game.sessionGeneration;lastHitCount=countHits(graph.gameplay.getSnapshot());firstHitSeen=false;firstHitStart=null;lastRafAt=null;startWindow("before-first-hit");
+      endWindow(); installedSession=game.sessionGeneration;firstHitSeen=false;firstHitStart=null;lastRafAt=null;startWindow("before-first-hit");
     }
   } catch (cause) { detach();installationFailed=true;error(cause instanceof Error?cause.message:"wrapper installation failed"); }
 }
-function report() { endWindow(); const result = {schema:"aerobeat/faint_hit_diagnostic",version:1,packageVersion:"0.0.105",served8445SourceParity:false,warning:"Historical source; NOT served 8445 / 0.0.127",sourceCommits:PINS,currentMode:mode,measurements:"main-thread wall time, not GPU time; rendererCallMs times only renderer facade invocation, totalPresentationMs includes projection and pose resolution, pointerTotalMs measures the outer pointer-triggered presentation; wallElapsedMs includes menu/setup and MUST NOT be used for FPS; eligibleActiveMs sums only consecutive eligible display intervals, eligibleIntervalCount and ineligibleFrameCount expose coverage; 1-ms approximate p50/p95 histogram over every sample in each window; count and exact max cover the entire window; aftermath observed totals sum entries/pieces across render calls, not distinct frames",coverage:"valid windows require playing Test, Automatic Feedback OFF, visible selected hand, CV confirmed idle and stable reported backing/viewport/DPR; invalidReasons mark violations; compare hit counts/section manually; each window carries its own mode and session generation",windows:reportWindows.slice()};startWindow(firstHitSeen?"steady-after-export":"before-first-hit");return result; }
-toggle.addEventListener("change", () => { if (installationFailed) return; endWindow();mode=toggle.checked?"off":"native";firstHitSeen=false;firstHitStart=null;lastHitCount=installedGraph?countHits(installedGraph.gameplay.getSnapshot()):0;lastRafAt=null;startWindow("before-first-hit");refresh(); });
-reset.addEventListener("click", () => { if (installationFailed) return; reportWindows=[];firstHitSeen=false;firstHitStart=null;lastHitCount=installedGraph?countHits(installedGraph.gameplay.getSnapshot()):0;startWindow("before-first-hit");refresh(); });
+function report() { endWindow(); const result = {schema:"aerobeat/faint_hit_diagnostic",version:1,packageVersion:"0.0.105",served8445SourceParity:false,mixedEraAudio:true,warning:"MIXED ERA: historical 0.0.105 app + newer pushed audio 464fdeff; NOT served 8445 / 0.0.127; NOT source-matched to Cookie 0.0.128",sourceCommits:PINS,currentMode:mode,measurements:"main-thread wall time, not GPU time; rendererCallMs times only renderer facade invocation, totalPresentationMs includes projection and pose resolution, displayFrameTotalMs times the entire eligible runDisplayFrame invocation (gameplay, clock/input/pose, projection, rendering, sync and UI), not exact gameplay.advance CPU; do not subtract nested wall times to infer scoring CPU; scored-hit deltas compare gameplay snapshots at app-frame entry/exit; pointerTotalMs measures the outer pointer-triggered presentation; wallElapsedMs includes menu/setup and MUST NOT be used for FPS; eligibleActiveMs sums only consecutive eligible display intervals, eligibleIntervalCount and ineligibleFrameCount expose coverage; 1-ms approximate p50/p95 histogram over every sample in each window; count and exact max cover the entire window; aftermath observed totals sum entries/pieces across render calls, not distinct frames",coverage:"valid windows require playing Test, Automatic Feedback OFF, visible selected hand, CV confirmed idle and stable reported backing/viewport/DPR; invalidReasons mark violations; compare hit counts/section manually; each window carries its own mode and session generation",windows:reportWindows.slice()};startWindow(firstHitSeen?"steady-after-export":"before-first-hit");return result; }
+toggle.addEventListener("change", () => { if (installationFailed) return; endWindow();mode=toggle.checked?"off":"native";firstHitSeen=false;firstHitStart=null;lastRafAt=null;startWindow("before-first-hit");refresh(); });
+reset.addEventListener("click", () => { if (installationFailed) return; reportWindows=[];firstHitSeen=false;firstHitStart=null;startWindow("before-first-hit");refresh(); });
 download.addEventListener("click", () => {
   if (installationFailed) return;
   const data=JSON.stringify(report(),null,2),blob=new Blob([data],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");

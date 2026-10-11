@@ -1,7 +1,7 @@
 // @ts-check
 
 // Diagnostic-only regression: window mode remains attributable and the
-// first hit-bearing frame keeps its advance/projection/renderer timings.
+// first hit-bearing frame keeps its full display/projection/renderer timings.
 import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
@@ -13,20 +13,29 @@ const element=(id)=>({id,textContent:"",checked:false,disabled:false,addEventLis
 const game=element("game"),panel=element("faint-hit-diagnostic"),state=element("faint-hit-state"),output=element("faint-hit-summary"),toggle=element("faint-hit-off"),download=element("faint-hit-download"),reset=element("faint-hit-reset");
 panel.open=true;
 const elements=new Map([["aero-game",game],["#faint-hit-diagnostic",panel],["#faint-hit-state",state],["#faint-hit-summary",output],["#faint-hit-off",toggle],["#faint-hit-download",download],["#faint-hit-reset",reset],["main",element("main")]]);
-const scene=[];let hits=0;const session={purpose:"visual_test",state:"playing"};
+const scene=[];let hits=0, nextHitDelta=1;const session={purpose:"visual_test",state:"playing"};
 const canvas={width:300,height:150};game.shadowRoot={querySelector(selector){return selector==="canvas[data-role='renderer']"?canvas:null;}};
-const gameplay={getSnapshot(){return {session,judgements:Array.from({length:hits},()=>({result:"hit",shadow:false}))};},advance(){now+=80;hits++;}};
+const gameplay=Object.freeze({getSnapshot(){return {session,judgements:Array.from({length:hits},()=>({result:"hit",shadow:false}))};},advance(){now+=80;hits+=nextHitDelta;nextHitDelta=1;}});
+assert.equal(Object.getOwnPropertyDescriptor(gameplay,"advance").writable,false,"historical gameplay facade is frozen");
+const originalAdvance=gameplay.advance;
 const renderer={renderGameplayScene(){},updateSceneObjects(objects){scene.push(objects);},renderGameplayFrameWithCursorsAndEquipment(){this.updateSceneObjects([{kind:"aftermath"},{kind:"feedback"}],null);now+=23;}};
+const rendererUpdateSceneObjects=renderer.updateSceneObjects;
 const cv={getStatus(){return {running:false};}};
 game.graph={renderer,gameplay,cv};game.sessionGeneration=1;game.testAutomaticFeedbackEnabled=false;game.testEquipmentVisible=true;game.testEquipmentMouseHand="left";
 game.rendererFrame=function(){now+=7;return {aftermath:[{}]};};
 game.renderGameplay=function(){const frame=this.rendererFrame();now+=9;this.graph.renderer.renderGameplayFrameWithCursorsAndEquipment(frame,[],{},[],{});now+=10;return frame;};
-game.runDisplayFrame=function(){if(session.state==="playing")this.graph.gameplay.advance();this.renderGameplay();};
+game.runDisplayFrame=function(){if(session.state==="playing")this.graph.gameplay.advance();this.renderGameplay();now+=11;};
 game.projectTestEquipmentPointer=function(){this.renderGameplay();};
 game.stopFrameLoop=function(){};
 game.startFrameLoop=function(){};
 const context={document:{querySelector(selector){return elements.get(selector)??null;},createElement(){return element("a");}},devicePixelRatio:2,innerWidth:540,innerHeight:960,performance:{now:()=>now},MutationObserver:class{observe(){}},setInterval(){},setTimeout(){},URL:{createObjectURL(){return "blob:test";},revokeObjectURL(){}},Blob:class{},console};
 vm.runInNewContext(source,context,{filename:"faint-hit-diagnostic.js"});
+assert.equal(vm.runInNewContext("installedGraph === game.graph",context),true,"frozen gameplay must not prevent attach");
+assert.equal(vm.runInNewContext("methods?.length > 0",context),true,"frozen gameplay must retain renderer filter");
+assert.notEqual(game.graph.renderer.updateSceneObjects,rendererUpdateSceneObjects,"frozen attach must install scene filter");
+assert.doesNotMatch(state.textContent,/DIAGNOSTIC INACTIVE/u);
+assert.equal(game.graph.gameplay,gameplay,"instrumentation must not replace gameplay facade");
+assert.equal(gameplay.advance,originalAdvance,"instrumentation must not mutate frozen advance");
 assert.equal(typeof game.graph.renderer.updateSceneObjects,"function");
 assert.equal(scene.length,0);
 // Graph attach occurs long before the user has selected music/Test. Idle time
@@ -43,6 +52,7 @@ assert.equal(panel.open,false,"playing user cannot leave expanded controls over 
 game.runDisplayFrame();
 assert.equal(hits,1);
 assert.equal(scene[0].length,2,"native forwards both scene objects");
+assert.doesNotMatch(state.textContent,/DIAGNOSTIC INACTIVE/u,"first scored native hit must not disable diagnostic");
 const first=vm.runInNewContext("active",context);
 assert.equal(first.label,"first-hit-burst");
 assert.equal(first.mode,"native");
@@ -50,9 +60,8 @@ assert.equal(first.hitCount,1);
 assert.equal(first.displayCount,1);
 assert.equal(first.eligibleActiveMs,0,"first eligible frame has no preceding eligible interval");
 assert.equal(first.ineligibleFrameCount,0,"first hit frame itself was eligible");
-assert.equal(first.judgementAdvanceCount,1);
-assert.equal(first.advance.count,1);
-assert.equal(first.advance.max,80,"first hit advance stall retained");
+assert.equal(first.displayFrame.count,1);
+assert.equal(first.displayFrame.max,140,"first hit full app frame includes 80ms gameplay, 49ms presentation and 11ms subsequent app work");
 assert.equal(first.projection.max,7,"first hit projection retained");
 assert.equal(first.renderer.max,23,"facade call excludes projection and pose preparation");
 assert.equal(first.presentation.max,49,"outer presentation includes projection, preparation, facade and post-work");
@@ -85,7 +94,10 @@ assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='befo
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').invalidReasons.includes('not_playing')",context),false,"idle before samples is not a mixed measured window");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleIntervalCount",context),1);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleActiveMs>=17",context),true);
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').gameplayAdvanceMs.maxMs",context),80);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.maxMs",context),140);
+assert.equal(vm.runInNewContext("'gameplayAdvanceMs' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false,"do not report unmeasurable exact advance time");
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.count",context),2,"burst includes later eligible frame before mode switch");
+assert.equal(vm.runInNewContext("'judgementAdvanceCount' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').rendererCallMs.maxMs",context),23);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').totalPresentationMs.maxMs",context),49);
 game.projectTestEquipmentPointer();
@@ -95,8 +107,12 @@ assert.equal(vm.runInNewContext("active.renderer.count",context),1,"pointer faca
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathEntriesObserved",context),2,"two projections observed across two calls");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),2,"two pieces observed across two calls");
 assert.equal(vm.runInNewContext("reportWindows.some(window=>'aftermathEntryFrames' in window || 'aftermathPieceFrames' in window || 'withheldPieceFrames' in window)",context),false);
+nextHitDelta=2;
 game.runDisplayFrame();
 assert.equal(scene.at(-1).length,1,"off withholds only aftermath");
+assert.equal(vm.runInNewContext("active.hitCount",context),2,"app-frame snapshot delta preserves grouped scored hit coverage");
+assert.equal(vm.runInNewContext("active.hitGroupCount",context),1);
+assert.equal(vm.runInNewContext("active.maxHitDelta",context),2);
 assert.equal(scene.at(-1)[0].kind,"feedback");
 assert.equal(vm.runInNewContext("active.mode",context),"off");
 assert.equal(vm.runInNewContext("reportWindows.every(window=>window.mode==='native' || window.mode==='off')",context),true);
@@ -116,6 +132,9 @@ session.state="playing";
 game.renderGameplay();
 assert.equal(scene.at(-1).length,1,"off resumes only for genuine active Test");
 assert.equal(offObjects[0].kind,"feedback");
+assert.equal(hits,4,"off retains native scored gameplay judgements");
+assert.equal(gameplay.getSnapshot().judgements.length,hits,"off retains gameplay feedback truth");
+assert.equal(gameplay.advance,originalAdvance,"scoring method remains frozen and unchanged");
 // Pause after an eligible measured run, then export. No samples are taken
 // during the paused interval, so it must not retroactively invalidate it.
 const measuredBeforePause=vm.runInNewContext("active",context);
@@ -132,7 +151,7 @@ game.runDisplayFrame();
 const continuousFrameStart=vm.runInNewContext("lastRafAt",context);
 now+=233;game.runDisplayFrame();
 const continuousGap=vm.runInNewContext("active.intervals.max",context);
-assert.equal(continuousGap,now-80-49-continuousFrameStart,"continuous display gap includes genuine stall");
+assert.equal(continuousGap,now-140-continuousFrameStart,"continuous display gap includes genuine stall");
 assert.equal(continuousGap>=233,true);
 const continuousIntervalCount=vm.runInNewContext("active.intervals.count",context);
 assert.equal(continuousIntervalCount,1,"window starts without an interval across export boundary");
@@ -173,7 +192,16 @@ assert.equal(invalidWindow.valid,false);
 assert.equal(invalidWindow.invalidReasons.includes("cv_not_confirmed_idle"),true);
 assert.equal(invalidWindow.invalidReasons.includes("display_geometry_changed"),true);
 assert.equal(invalidWindow.displayGeometry.backingWidth,840);
+assert.match(invalidReport.measurements,/displayFrameTotalMs.*not exact gameplay\.advance CPU.*do not subtract nested wall times/u);
+assert.equal("gameplayAdvanceMs" in invalidWindow,false);
+assert.equal("judgementAdvanceCount" in invalidWindow,false);
+assert.equal("preRenderAppPhaseMs" in invalidWindow,false);
 assert.equal(invalidReport.served8445SourceParity,false);
+assert.equal(invalidReport.mixedEraAudio,true);
+assert.equal(invalidReport.sourceCommits.audio,"464fdeff45fc109876a1600f22d3007708d1b07d");
+assert.match(invalidReport.warning,/MIXED ERA.*newer pushed audio 464fdeff.*NOT served 8445.*NOT source-matched to Cookie 0\.0\.128/u);
+assert.match(readFileSync(new URL("../faint-hit-test.html",import.meta.url),"utf8"),/NOT served 8445.*NOT source-matched to Cookie 0\.0\.128/u);
+assert.match(readFileSync(new URL("../vite.faint-hit.config.js",import.meta.url),"utf8"),/NOT-COOKIE-0\.0\.128-SOURCE-MATCHED/u);
 // Missing facade on reconnect is a terminal diagnostic failure, never a
 // fallback that silently presents an uninstrumented comparison.
 game.graph={renderer:{renderGameplayScene(){}},gameplay,cv};
@@ -181,6 +209,7 @@ vm.runInNewContext("reconcile()",context);
 assert.equal(toggle.disabled,true);
 assert.equal(download.disabled,true);
 assert.match(state.textContent,/DIAGNOSTIC INACTIVE: historical facade seam missing/u);
+assert.equal(gameplay.advance,originalAdvance,"rollback must not write frozen gameplay");
 game.graph={renderer,gameplay,cv};
 vm.runInNewContext("reconcile();refresh()",context);
 assert.equal(toggle.disabled,true,"refresh/reconnect cannot re-enable after seam failure");

@@ -14,6 +14,9 @@ const historicalPins = Object.freeze({
   "aerobeat-web-gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
   "aerobeat-web-content-authoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c"
 });
+// Newer pushed audio supplies the real silent scoring tail. It is deliberately
+// not a fifth historical pin and changes both diagnostic variants identically.
+const mixedEraAudioPin = "464fdeff45fc109876a1600f22d3007708d1b07d";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const git = (directory, ...args) => execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" }).trim();
 for (const [directory, expected] of Object.entries(historicalPins)) {
@@ -38,6 +41,12 @@ for (const [directory] of Object.entries(historicalPins).filter(([name]) => name
     throw new Error(`Faint-hit historical dependency link drifted: ${directory}`);
   }
 }
+const audioPath = realpathSync(fileURLToPath(new URL("../aerobeat-web-audio/", root)));
+if (!packageRoots.some(([name, path]) => name === "@aerobeat/web-audio" && path === audioPath)) {
+  throw new Error("Faint-hit mixed-era audio dependency link drifted");
+}
+if (git(audioPath, "rev-parse", "HEAD") !== mixedEraAudioPin) throw new Error("Faint-hit mixed-era audio pin drifted");
+if (git(audioPath, "status", "--porcelain=v1", "--untracked-files=all") !== "") throw new Error("Faint-hit mixed-era audio dependency is dirty");
 const aliases = packageRoots.flatMap(([name, path]) => {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
   const owned = JSON.parse(readFileSync(new URL("package.json", `file://${path}/`), "utf8"));
@@ -80,7 +89,7 @@ const mediaAssets = mediaFiles.map(([fileName, url, expected]) => {
 });
 const mediaInventory = hash(Buffer.from(mediaAssets.map(([name, bytes]) => `${name}\t${bytes.byteLength}\t${hash(bytes)}\n`).join("")));
 if (mediaAssets.length !== 8 || mediaInventory !== "73dce3877d951dff100ed46655b82143d6644b1e1308164b8feab48dda0fee9b") throw new Error("Faint-hit MediaPipe inventory drifted");
-const diagnosticStamp = `DIAGNOSTIC-NONPARITY-0.0.105-${historicalPins["aerobeat-web-assembly"].slice(0, 8)}-served8445SourceParity:false`;
+const diagnosticStamp = `DIAGNOSTIC-MIXED-ERA-0.0.105-${historicalPins["aerobeat-web-assembly"].slice(0, 8)}-AUDIO-${mixedEraAudioPin.slice(0, 8)}-served8445SourceParity:false-NOT-COOKIE-0.0.128-SOURCE-MATCHED`;
 export default {
   base: "/",
   define: {
