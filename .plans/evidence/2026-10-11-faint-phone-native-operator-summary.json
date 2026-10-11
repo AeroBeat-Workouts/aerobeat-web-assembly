@@ -1,0 +1,58 @@
+{
+  "schema": "aerobeat/faint_phone_native_operator_summary",
+  "source": "Derrick pasted the bounded JSON report in chat; summary transcribed from that report, not an independently retrieved phone file",
+  "reportSchema": "aerobeat/faint_hit_diagnostic",
+  "reportVersion": 1,
+  "mode": "native",
+  "sessionGenerationAnalyzed": 2,
+  "build": {
+    "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+    "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+    "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+    "served8445SourceParity": false,
+    "cookieRelease0128SourceParity": false
+  },
+  "geometry": {"backingWidth": 864, "backingHeight": 1618, "devicePixelRatio": 2.5, "viewportWidth": 432, "viewportHeight": 809},
+  "excludedWindow": "sessionGeneration 1 before-first-hit: invalid no_eligible_samples, zero display samples",
+  "windows": {
+    "beforeFirstHit": {
+      "valid": true, "wallElapsedMs": 12119.4, "ineligibleFrameCount": 550,
+      "displayCount": 124, "eligibleIntervalCount": 123, "eligibleActiveMs": 2309.3, "hitCount": 0,
+      "displayIntervalMs": {"p50ApproxMs": 17.5, "p95ApproxMs": 33.5, "maxMs": 102.5},
+      "displayFrameTotalMs": {"p50ApproxMs": 15.5, "p95ApproxMs": 30.5, "maxMs": 69.5},
+      "rendererCallMs": {"p50ApproxMs": 3.5, "p95ApproxMs": 7.5, "maxMs": 68.4}
+    },
+    "firstHitBurst": {
+      "valid": true, "displayCount": 38, "eligibleIntervalCount": 38, "eligibleActiveMs": 1393.5,
+      "hitCount": 2, "hitGroupCount": 0, "aftermathPiecesObserved": 144, "maxAftermathPieces": 4,
+      "displayIntervalMs": {"p50ApproxMs": 26.5, "p95ApproxMs": 109.5, "maxMs": 167.6},
+      "displayFrameTotalMs": {"p50ApproxMs": 19.5, "p95ApproxMs": 92.5, "maxMs": 149.7},
+      "rendererCallMs": {"p50ApproxMs": 3.5, "p95ApproxMs": 65.5, "maxMs": 122.4},
+      "pointerTotalMs": {"p95ApproxMs": 12.5, "maxMs": 13.6},
+      "postHitRendererCallMs": {"count": 38, "p95ApproxMs": 77.5, "maxMs": 122.4}
+    },
+    "steadyAfterFirstHit": {
+      "valid": true, "wallElapsedMs": 62500, "displayCount": 1849,
+      "eligibleIntervalCount": 1848, "eligibleActiveMs": 60604.2,
+      "hitCount": 112, "hitGroupCount": 1, "maxHitDelta": 2,
+      "aftermathPiecesObserved": 10096, "maxAftermathPieces": 8,
+      "displayIntervalMs": {"p50ApproxMs": 27.5, "p95ApproxMs": 106.5, "maxMs": 156.3},
+      "displayFrameTotalMs": {"p50ApproxMs": 20.5, "p95ApproxMs": 94.5, "maxMs": 144},
+      "frameProjectionMs": {"p95ApproxMs": 0.5, "maxMs": 6.9},
+      "rendererCallMsAllRenderCalls": {"count": 3573, "p95ApproxMs": 9.5, "maxMs": 128.5},
+      "pointerTotalMs": {"count": 1724, "p95ApproxMs": 9.5, "maxMs": 28.8},
+      "postHitBurst": {
+        "triggeredFrameCount": 111, "frameCount": 1639, "displayIntervalCount": 1638,
+        "displayIntervalP95ApproxMs": 110.5,
+        "displayFrameTotalP95ApproxMs": 98.5,
+        "rendererCallCount": 1639, "rendererCallP95ApproxMs": 83.5, "rendererCallMaxMs": 128.5
+      }
+    }
+  },
+  "interpretation": {
+    "measured": "A real phone native/corpse-on full-song Test run has valid scored hits and repeated long display intervals/full app frames. Hit-associated display-frame renderer-facade calls also have long main-thread wall times while projection and pointer redraw summaries are much smaller.",
+    "limitations": "No matched corpse-off phone file yet; cannot isolate corpse cost from hit feedback, scene/model/material work, scoring, browser GPU synchronization or device state. Histograms are aggregate, not per-frame aligned; never subtract nested phase quantiles or infer exact gameplay/GPU CPU. The 1.2-s post-hit union covers 1639 of 1849 later display frames, so it is not a clean independent no-hit control. Before-first-hit has only 123 eligible intervals across 2.3093 s amid 550 ineligible frames, and wallElapsedMs must not be used as FPS.",
+    "nextEvidence": "Repeat the same Faint Expert Flow section on this 8449 build with Hide corpse visuals ON and Automatic Feedback OFF, obtain the off-mode JSON; compare valid similar hit counts, geometry, coverage and device warmth. A longer no-hit stretch before hits would strengthen the baseline."
+  },
+  "rootCauseProven": false
+}
