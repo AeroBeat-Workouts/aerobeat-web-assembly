@@ -1,0 +1,52 @@
+{
+  "schema": "aerobeat/faint_phone_paired_corpse_operator_summary",
+  "source": "Derrick pasted separate native and corpse-off bounded JSON reports in chat. Values here are transcribed and derived from their valid generation-2 windows; no raw phone files or per-frame samples were retrieved.",
+  "reportSchema": "aerobeat/faint_hit_diagnostic",
+  "sourcePinsMatchBetweenModes": true,
+  "served8445SourceParity": false,
+  "matchingGeometry": {"backingWidth": 864, "backingHeight": 1618, "devicePixelRatio": 2.5, "viewportWidth": 432, "viewportHeight": 809},
+  "invalidWindowsExcluded": {"native": 1, "off": 2, "reason": "sessionGeneration 1 before-first-hit windows have no eligible samples"},
+  "preFirstHit": {
+    "native": {"hits": 0, "eligibleIntervalCount": 123, "eligibleActiveMs": 2309.3, "ineligibleFrameCount": 550, "approxIntervalsPerEligibleSecond": 53.26, "intervalP95ApproxMs": 33.5, "rendererAllCallsP95ApproxMs": 7.5},
+    "off": {"hits": 0, "eligibleIntervalCount": 421, "eligibleActiveMs": 7206.7, "ineligibleFrameCount": 313, "approxIntervalsPerEligibleSecond": 58.42, "intervalP95ApproxMs": 24.5, "rendererAllCallsP95ApproxMs": 5.5}
+  },
+  "firstHitBurst": {
+    "native": {"hits": 2, "eligibleIntervalCount": 38, "eligibleActiveMs": 1393.5, "intervalP95ApproxMs": 109.5, "wholeDisplayFrameP95ApproxMs": 92.5, "postHitRendererCallP95ApproxMs": 77.5, "postHitRendererCallMaxMs": 122.4, "aftermathPiecesObserved": 144, "withheldPiecesObserved": 0},
+    "off": {"hits": 3, "eligibleIntervalCount": 52, "eligibleActiveMs": 1243.3, "intervalP95ApproxMs": 33.5, "wholeDisplayFrameP95ApproxMs": 25.5, "postHitRendererCallP95ApproxMs": 8.5, "postHitRendererCallMaxMs": 48.5, "aftermathPiecesObserved": 248, "withheldPiecesObserved": 248}
+  },
+  "steadyAfterFirstHit": {
+    "native": {
+      "hits": 112, "groupedHitFrames": 1, "maxHitDelta": 2,
+      "eligibleIntervalCount": 1848, "eligibleActiveMs": 60604.2, "approxIntervalsPerEligibleSecond": 30.49,
+      "intervalMedianApproxMs": 27.5, "intervalP95ApproxMs": 106.5, "intervalMaxMs": 156.3,
+      "wholeDisplayFrameP95ApproxMs": 94.5, "wholeDisplayFrameMaxMs": 144,
+      "postHitFrameCount": 1639, "postHitCoverageOfDisplayFramesPercent": 88.6,
+      "postHitRendererCallP95ApproxMs": 83.5, "postHitRendererCallMaxMs": 128.5,
+      "rendererAllCallsP95ApproxMs": 9.5, "rendererAllCallsMaxMs": 128.5,
+      "frameProjectionP95ApproxMs": 0.5, "pointerTotalP95ApproxMs": 9.5,
+      "aftermathPiecesObserved": 10096, "withheldPiecesObserved": 0, "maxAftermathPiecesInOneSceneUpdate": 8
+    },
+    "off": {
+      "hits": 175, "groupedHitFrames": 0, "maxHitDelta": 1,
+      "eligibleIntervalCount": 2951, "eligibleActiveMs": 85559.3, "approxIntervalsPerEligibleSecond": 34.49,
+      "intervalMedianApproxMs": 28.5, "intervalP95ApproxMs": 42.5, "intervalMaxMs": 75.9,
+      "wholeDisplayFrameP95ApproxMs": 35.5, "wholeDisplayFrameMaxMs": 48.6,
+      "postHitFrameCount": 2668, "postHitCoverageOfDisplayFramesPercent": 90.4,
+      "postHitRendererCallP95ApproxMs": 5.5, "postHitRendererCallMaxMs": 12.1,
+      "rendererAllCallsP95ApproxMs": 5.5, "rendererAllCallsMaxMs": 21.9,
+      "frameProjectionP95ApproxMs": 1.5, "pointerTotalP95ApproxMs": 6.5,
+      "aftermathPiecesObserved": 18902, "withheldPiecesObserved": 18902, "maxAftermathPiecesInOneSceneUpdate": 10
+    },
+    "approxIntervalsPerEligibleSecondOffVsNativePercentChange": 13.1,
+    "intervalP95NativeOverOffRatio": 2.51,
+    "wholeDisplayFrameP95NativeOverOffRatio": 2.66,
+    "postHitRendererCallP95NativeOverOffRatio": 15.18
+  },
+  "interpretation": {
+    "measuredBoundary": "The corpse-off scene-only filter withheld every observed aftermath piece while gameplay scored at least as many individual hits. The severe tail of hit-linked renderer-facade wall time and display-frame/interval latency was much smaller than in the separate native phone run. Corpse visual delivery is a strong contributing lead for long stalls in this historical build, but not the sole cause of low sustained frame cadence: off still averaged about 34.5 eligible display intervals/s, not the reported >100 FPS miss-swing rate.",
+    "likelyRendererWorkToProfileNotProven": "Historical renderer updateSceneObjects acquires dedicated corpse asset entities, applies clipped half appearances, and sliceVariantMaterial caches a cloned material keyed by asset part, cut-plane position and axis; fragment shader clip blocks and material.update can be involved. Instrument cache misses/size, corpse entity acquisition, appearance updates and renderer/GPU stages before changing production. The report itself does not count materials, shader compilations or GPU milliseconds.",
+    "confounders": "Separate sequential plays differ in length (native about 60.6 s vs off about 85.6 s after first hit), scored-hit count (112 vs 175), grouped frames (one vs zero), before-hit eligible coverage and possibly song section/thermal/cache state. Both have the same source pins and backing geometry. Histograms are aggregate and not aligned by frame or song time; post-hit unions span about 89-90% of later display frames. Do not subtract phase quantiles, treat aftermath piece sums as unique corpses, or claim the exact mechanism, served8445 parity or GPU cause.",
+    "nextDecision": "A reverse-order matched group-section on/off replication can strengthen attribution; scoped corpse material/pool/GPU timing is required to decide the optimization target. Keep the independent physical investigation Bead e218 open."
+  },
+  "rootCauseExactRendererSubstageProven": false
+}
