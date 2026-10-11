@@ -9,10 +9,10 @@ import vm from "node:vm";
 const source = readFileSync(new URL("../faint-hit-diagnostic.js", import.meta.url), "utf8").replace('import "./src/index.js";', "");
 let now=0;
 const listeners=new Map();
-const element=(id)=>({id,textContent:"",checked:false,disabled:false,addEventListener(name,fn){listeners.set(`${id}:${name}`,fn);}});
-const game=element("game"),panel=element("faint-hit-diagnostic"),state=element("faint-hit-state"),output=element("faint-hit-summary"),toggle=element("faint-hit-off"),download=element("faint-hit-download"),reset=element("faint-hit-reset");
+const element=(id)=>({id,textContent:"",dataset:{},checked:false,disabled:false,addEventListener(name,fn){listeners.set(`${id}:${name}`,fn);}});
+const game=element("game"),recorder=element("faint-hit-recorder"),panel=element("faint-hit-diagnostic"),state=element("faint-hit-state"),recording=element("faint-hit-recording"),output=element("faint-hit-summary"),toggle=element("faint-hit-off"),download=element("faint-hit-download"),reset=element("faint-hit-reset");
 panel.open=true;
-const elements=new Map([["aero-game",game],["#faint-hit-diagnostic",panel],["#faint-hit-state",state],["#faint-hit-summary",output],["#faint-hit-off",toggle],["#faint-hit-download",download],["#faint-hit-reset",reset],["main",element("main")]]);
+const elements=new Map([["aero-game",game],["#faint-hit-recorder",recorder],["#faint-hit-diagnostic",panel],["#faint-hit-state",state],["#faint-hit-recording",recording],["#faint-hit-summary",output],["#faint-hit-off",toggle],["#faint-hit-download",download],["#faint-hit-reset",reset],["main",element("main")]]);
 const scene=[];let hits=0, nextHitDelta=1;const session={purpose:"visual_test",state:"playing"};
 const canvas={width:300,height:150};game.shadowRoot={querySelector(selector){return selector==="canvas[data-role='renderer']"?canvas:null;}};
 const gameplay=Object.freeze({getSnapshot(){return {session,judgements:Array.from({length:hits},()=>({result:"hit",shadow:false}))};},advance(){now+=80;hits+=nextHitDelta;nextHitDelta=1;}});
@@ -46,9 +46,11 @@ assert.equal(vm.runInNewContext("active.displayGeometry",context),null,"idle/def
 canvas.width=840;canvas.height=890;
 session.purpose="visual_test";session.state="playing";
 vm.runInNewContext("refresh()",context);
-assert.equal(panel.open,false,"active play collapses large touch-intercepting controls");
-panel.open=true;listeners.get("faint-hit-diagnostic:toggle")();
-assert.equal(panel.open,false,"playing user cannot leave expanded controls over targets");
+assert.equal(panel.open,true,"details no longer auto-close while recording is active");
+listeners.get("faint-hit-diagnostic:toggle")();
+assert.equal(panel.open,true,"playing user can reach corpse controls while JSON save stays visible");
+assert.match(recording.textContent,/Recording/u,"the phone must see recording status during eligible Test");
+assert.equal(download.disabled,false,"save must stay enabled during Test");
 game.runDisplayFrame();
 assert.equal(hits,1);
 assert.equal(scene[0].length,2,"native forwards both scene objects");
@@ -57,6 +59,10 @@ const first=vm.runInNewContext("active",context);
 assert.equal(first.label,"first-hit-burst");
 assert.equal(first.mode,"native");
 assert.equal(first.hitCount,1);
+assert.equal(first.hitBurst.triggeredFrameCount,1,"first scored frame begins a real hit burst");
+assert.equal(first.hitBurst.frameCount,1);
+assert.equal(first.hitBurst.displayFrame.max,140);
+assert.equal(first.hitBurst.renderer.max,23);
 assert.equal(first.displayCount,1);
 assert.equal(first.eligibleActiveMs,0,"first eligible frame has no preceding eligible interval");
 assert.equal(first.ineligibleFrameCount,0,"first hit frame itself was eligible");
@@ -107,11 +113,20 @@ assert.equal(vm.runInNewContext("active.renderer.count",context),1,"pointer faca
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathEntriesObserved",context),2,"two projections observed across two calls");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),2,"two pieces observed across two calls");
 assert.equal(vm.runInNewContext("reportWindows.some(window=>'aftermathEntryFrames' in window || 'aftermathPieceFrames' in window || 'withheldPieceFrames' in window)",context),false);
+// A new Test can start and score before the 250-ms graph/session timer runs.
+// Its very first display frame must synchronously claim the new generation.
+game.sessionGeneration=2;
 nextHitDelta=2;
 game.runDisplayFrame();
+assert.equal(vm.runInNewContext("installedSession",context),2,"first new-session frame aligns recorder generation before sampling");
+assert.equal(vm.runInNewContext("active.sessionGeneration",context),2,"hit window belongs to the scored new session");
+vm.runInNewContext("reconcile()",context);
+assert.equal(vm.runInNewContext("active.hitCount",context),2,"late periodic reconcile must not discard scored first frame");
 assert.equal(scene.at(-1).length,1,"off withholds only aftermath");
 assert.equal(vm.runInNewContext("active.hitCount",context),2,"app-frame snapshot delta preserves grouped scored hit coverage");
 assert.equal(vm.runInNewContext("active.hitGroupCount",context),1);
+assert.equal(vm.runInNewContext("active.hitBurst.triggeredFrameCount",context),1,"group hit is counted by the post-hit recorder");
+assert.equal(vm.runInNewContext("active.hitBurst.frameCount",context),1);
 assert.equal(vm.runInNewContext("active.maxHitDelta",context),2);
 assert.equal(scene.at(-1)[0].kind,"feedback");
 assert.equal(vm.runInNewContext("active.mode",context),"off");
@@ -144,6 +159,9 @@ const pausedReport=vm.runInNewContext("report()",context);
 const measuredWindow=pausedReport.windows.at(-1);
 assert.equal(measuredWindow.valid,true,"pause-to-download preserves measured window validity");
 assert.equal(measuredWindow.displayCount>0,true);
+assert.equal(measuredWindow.postHitBurst.triggeredFrameCount,1);
+assert.equal(measuredWindow.postHitBurst.displayFrameTotalMs.count>=1,true);
+assert.equal(measuredWindow.postHitBurst.rendererCallMs.count>=1,true);
 assert.equal(measuredWindow.invalidReasons.includes("not_playing"),false);
 session.state="playing";
 // A continuous-playing 233-ms stall is real; do not discard long intervals.
@@ -155,8 +173,10 @@ assert.equal(continuousGap,now-140-continuousFrameStart,"continuous display gap 
 assert.equal(continuousGap>=233,true);
 const continuousIntervalCount=vm.runInNewContext("active.intervals.count",context);
 assert.equal(continuousIntervalCount,1,"window starts without an interval across export boundary");
-// An explicit reset while still playing also begins a fresh interval series.
+// An explicit reset while still playing begins a new interval/burst series.
+vm.runInNewContext("postHitUntil=NOW()+1200",context);
 listeners.get("faint-hit-reset:click")();
+assert.equal(vm.runInNewContext("postHitUntil",context),null,"cleared recording cannot inherit an earlier hit-burst window");
 assert.equal(vm.runInNewContext("active.intervals.count",context),0);
 now+=233;game.runDisplayFrame();
 assert.equal(vm.runInNewContext("active.intervals.count",context),0,"reset discards previous window timestamp");
@@ -199,8 +219,9 @@ assert.equal("preRenderAppPhaseMs" in invalidWindow,false);
 assert.equal(invalidReport.served8445SourceParity,false);
 assert.equal(invalidReport.mixedEraAudio,true);
 assert.equal(invalidReport.sourceCommits.audio,"464fdeff45fc109876a1600f22d3007708d1b07d");
-assert.match(invalidReport.warning,/MIXED ERA.*newer pushed audio 464fdeff.*NOT served 8445.*NOT source-matched to Cookie 0\.0\.128/u);
-assert.match(readFileSync(new URL("../faint-hit-test.html",import.meta.url),"utf8"),/NOT served 8445.*NOT source-matched to Cookie 0\.0\.128/u);
+assert.equal(invalidReport.cookieRelease0128SourceParity,false);
+assert.equal("warning" in invalidReport,false,"build provenance is structured JSON, not play-screen prose");
+assert.doesNotMatch(readFileSync(new URL("../faint-hit-test.html",import.meta.url),"utf8"),/MIXED-ERA DIAGNOSTIC|NOT served 8445/u);
 assert.match(readFileSync(new URL("../vite.faint-hit.config.js",import.meta.url),"utf8"),/NOT-COOKIE-0\.0\.128-SOURCE-MATCHED/u);
 // Missing facade on reconnect is a terminal diagnostic failure, never a
 // fallback that silently presents an uninstrumented comparison.

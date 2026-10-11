@@ -1,6 +1,6 @@
 # Faint Expert Flow real-Test hit versus aftermath diagnostic
 
-**Status: ready for Derrick's physical comparison.** The separate diagnostic passed real Test-hit browser QA, the corpse-only pixel GREEN→RED→GREEN check, and independent audit. Git and Dolt are pushed. Actual Faint phone FPS and its cause are **not known**.
+**Status: superseded for phone data capture by `.plans/2026-10-11-faint-in-game-performance-recorder.md`.** Derrick physically reproduced the corpse-hit slowdown on this separate build, but the prior page hid JSON export during Test and yielded no transferable run data. The successor fixes the in-game recorder/export before asking for new Faint measurements. The separate diagnostic passed real Test-hit browser QA, the corpse-only pixel GREEN→RED→GREEN check, and independent audit. Git and Dolt are pushed. Actual Faint phone FPS and its cause are **not known**.
 
 **Source:** Four historical 0.0.105-era app pins plus Cookie's newer pushed audio `464fdeff45fc109876a1600f22d3007708d1b07d`, approved for scoring-clock compatibility. This mixed-era candidate matches neither served 8445 nor Cookie's 0.0.128 release. Browser QA verifies Full 1.0, saber and corpse pixels, and actual paused-user native/off JSON downloads. Audit Bead `kiom` closed GO WITH FOLLOW-UPS.
 

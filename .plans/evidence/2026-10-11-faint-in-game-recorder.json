@@ -1,0 +1,57 @@
+{
+  "schema": "aerobeat/faint_hit_recorder_handoff_evidence",
+  "status": "final_script_browser_and_counterfactual_verified_private_route_pending",
+  "page": "faint-hit-test.html",
+  "historicalSourceAndPrivacy": {
+    "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+    "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+    "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+    "contentAuthoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c",
+    "audio": "464fdeff45fc109876a1600f22d3007708d1b07d",
+    "served8445SourceParity": false,
+    "cookieRelease0128SourceParity": false,
+    "mixedEraAudio": true,
+    "rawSongOrTouchDataRecorded": false
+  },
+  "finalBuild": {
+    "artifactCount": 47,
+    "artifactBytes": 61050630,
+    "inventoryOrder": "global relative-path sort; each line path, byte count, SHA-256 separated by tabs and terminated by newline",
+    "aggregateInventorySha256": "7123580ae9b53ff8c09e1253e831f938bd0eee6a6fb77137d169a04f370bb34f",
+    "htmlSha256": "2f755a8f7087e70fb7c6b6fc543fb6b5951bf544106ceac0ef78ebf20d806a6e",
+    "mainJsSha256": "3c58e51fa23ff6ba009192e6be388a79140ecf746c8761936fb0b3b3ef9237b9",
+    "diagnosticSourceSha256": "2f128f871bd1f7f346e037fb3de9fde2b057b51944e9b231e11f554843ee7b25"
+  },
+  "focusedRegressions": {
+    "immediateNewSession": "RED old recorder installed generation 1 instead of scored generation 2 before periodic timer; GREEN after synchronous runDisplayFrame alignment and late reconcile retains hits",
+    "clearRecordedWindows": "RED old recorder retained previous 1.2-s postHitUntil; GREEN after clear resets burst timer",
+    "command": "node scripts/validate-faint-hit-diagnostic-window.js"
+  },
+  "browserQa": {
+    "script": "scripts/validate-faint-hit-browser.js",
+    "scriptSha256": "603a2e54893325749fdfaa0910619d2c4f595f34932d74b8572544cc747182a8",
+    "fixture": "project-owned imported V2 chart and generated silence, genuine Worker/IndexedDB Test scored touches; manually seeks and invokes display frames, NOT actual Faint or physical phone FPS",
+    "command": "AEROBEAT_FAINT_QA_URL=http://127.0.0.1:4185/faint-hit-test.html AEROBEAT_FAINT_QA_EVIDENCE=/tmp/aerobeat-faint-hit-qa-v3-stable-green-2 node scripts/validate-faint-hit-browser.js from detached stage",
+    "independentGreenRuns": ["/tmp/aerobeat-faint-hit-qa-v3-stable-green-1.log", "/tmp/aerobeat-faint-hit-qa-v3-stable-green-2.log"],
+    "namedVisibleStates": ["playing recorder before hit", "native, off and restored scored Test", "miss swing with live saber", "first hit with Great, live target and animated corpse on/off", "grouped hit with Great, live target and animated corpse on/off", "playing touchscreen JSON download native and off", "paused click JSON download native and off", "ineligible setup prompt"],
+    "scoredPostHit": {
+      "native": {"hitsPerWindow": 3, "aftermathPiecesObserved": 32, "withheldPiecesObserved": 0, "burstFrames": 6},
+      "off": {"hitsPerWindow": 3, "aftermathPiecesObserved": 32, "withheldPiecesObserved": 32, "burstFrames": 6}
+    },
+    "semanticCorpsePixelOracle": "ROI [0,405,140,490], each RGB channel 90..150 and spread<35: native/restored >=4000 gray pixels, off <=700; both first-hit and group; confirmed against independently timed failed old exact-pixel fixture and passed on final v3",
+    "persistedArtifactsDirectory": ".plans/evidence/faint-hit-recorder-browser",
+    "persistedArtifacts": {"fileCount": 23, "totalBytes": 6559265, "inventorySha256": "5e303be03697774be216c317c1e6a23b921a0ff5c792237a8ac7126498c410f8", "qaSummarySha256": "816ebdd1de34aca55087b3b828980eb2b68a1932db24ce85a44bf9e1dfd02519"},
+    "sameScriptCounterfactual": {
+      "qaScriptSha256": "603a2e54893325749fdfaa0910619d2c4f595f34932d74b8572544cc747182a8",
+      "v3BaselineGreen": "/tmp/aerobeat-faint-hit-qa-v3-stable-green-2.log",
+      "sceneFilterOnlyRed": "/tmp/aerobeat-faint-hit-qa-v3-stable-filter-red.log: first-hit semantic gray corpse face must appear in native/restored and vanish in off",
+      "sceneFilterRestoredGreen": "/tmp/aerobeat-faint-hit-qa-v3-stable-filter-restored-green.log; exact entry JS SHA restored",
+      "recorderExportOnlyRed": "/tmp/aerobeat-faint-hit-qa-v3-stable-recorder-red.log: playing export must be exposed without opening a disclosure",
+      "recorderExportRestoredGreen": "/tmp/aerobeat-faint-hit-qa-v3-stable-recorder-restored-green.log; exact HTML SHA restored",
+      "isolation": "only the compiled scene aftermath filter or the compiled HTML download display rule removed per negative run; no scoring, chart, fixtures, tests, canonical app, or existing private route changed"
+    }
+  },
+  "privatePhoneRoute": {"url": "https://derrick-legion-go-8apu1.tail613fcb.ts.net:8449/faint-hit-test.html", "status": "old build on loopback 4181 until final cutover", "funnelEnabled": false},
+  "phoneFpsOrRootCauseKnown": false,
+  "remainingPhysicalInvestigationBead": "aerobeat-web-assembly-e218"
+}

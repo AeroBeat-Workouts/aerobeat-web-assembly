@@ -1,0 +1,1172 @@
+{
+  "schema": "aerobeat/faint_hit_diagnostic",
+  "version": 1,
+  "packageVersion": "0.0.105",
+  "served8445SourceParity": false,
+  "cookieRelease0128SourceParity": false,
+  "mixedEraAudio": true,
+  "sourceCommits": {
+    "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+    "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+    "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+    "contentAuthoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c",
+    "audio": "464fdeff45fc109876a1600f22d3007708d1b07d"
+  },
+  "currentMode": "native",
+  "measurements": "main-thread wall time, not GPU time; rendererCallMs times only renderer facade invocation, totalPresentationMs includes projection and pose resolution, displayFrameTotalMs times the entire eligible runDisplayFrame invocation (gameplay, clock/input/pose, projection, rendering, sync and UI), not exact gameplay.advance CPU; do not subtract nested wall times to infer scoring CPU; scored-hit deltas compare gameplay snapshots at app-frame entry/exit; pointerTotalMs measures the outer pointer-triggered presentation; wallElapsedMs includes menu/setup and MUST NOT be used for FPS; eligibleActiveMs sums only consecutive eligible display intervals, eligibleIntervalCount and ineligibleFrameCount expose coverage; 1-ms approximate p50/p95 histogram over every sample in each window; count and exact max cover the entire window; aftermath observed totals sum entries/pieces across render calls, not distinct frames; postHitBurst summarizes the union of scored-hit display frames and eligible display frames starting within 1200 ms after each scored hit, retaining aggregate histograms but no per-note records; display intervals are browser presentation cadence, not GPU time",
+  "coverage": "valid windows require playing Test, Automatic Feedback OFF, visible selected hand, CV confirmed idle and stable reported backing/viewport/DPR; invalidReasons mark violations; compare hit counts/section manually; each window carries its own mode and session generation",
+  "windows": [
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 1,
+      "wallElapsedMs": 968.6999998092651,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 0,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": false,
+      "invalidReasons": [
+        "no_eligible_samples"
+      ],
+      "displayGeometry": null,
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 2,
+      "wallElapsedMs": 789,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 1,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 2,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 2,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.4,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 2,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 3.4,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 3,
+      "wallElapsedMs": 438.30000019073486,
+      "eligibleActiveMs": 49.3,
+      "eligibleIntervalCount": 1,
+      "ineligibleFrameCount": 0,
+      "displayCount": 2,
+      "pointerRedrawCount": 3,
+      "projectionCount": 4,
+      "rendererCallCount": 6,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 2,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 1,
+        "p50ApproxMs": 49.5,
+        "p95ApproxMs": 49.5,
+        "maxMs": 49.3,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 5.5,
+        "p95ApproxMs": 43.5,
+        "maxMs": 43.7,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 4,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.5,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 6,
+        "p50ApproxMs": 3.5,
+        "p95ApproxMs": 38.5,
+        "maxMs": 38,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 6,
+        "p50ApproxMs": 3.5,
+        "p95ApproxMs": 38.5,
+        "maxMs": 38.6,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 3,
+        "p50ApproxMs": 4.5,
+        "p95ApproxMs": 28.5,
+        "maxMs": 28.4,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "first-hit-burst",
+      "mode": "native",
+      "sessionGeneration": 3,
+      "wallElapsedMs": 984.3000001907349,
+      "eligibleActiveMs": 765.2,
+      "eligibleIntervalCount": 6,
+      "ineligibleFrameCount": 0,
+      "displayCount": 6,
+      "pointerRedrawCount": 4,
+      "projectionCount": 12,
+      "rendererCallCount": 13,
+      "hitCount": 3,
+      "hitGroupCount": 0,
+      "maxHitDelta": 1,
+      "aftermathEntriesObserved": 19,
+      "aftermathPiecesObserved": 32,
+      "maxAftermathPieces": 4,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 6,
+        "p50ApproxMs": 41.5,
+        "p95ApproxMs": 352.5,
+        "maxMs": 352.3,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 6,
+        "p50ApproxMs": 6.5,
+        "p95ApproxMs": 47.5,
+        "maxMs": 47.9,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 12,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.6,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 13,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 43.5,
+        "maxMs": 43.3,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 13,
+        "p50ApproxMs": 3.5,
+        "p95ApproxMs": 44.5,
+        "maxMs": 44,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 4,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 4.5,
+        "maxMs": 4,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 3,
+        "frameCount": 6,
+        "displayIntervalMs": {
+          "count": 6,
+          "p50ApproxMs": 41.5,
+          "p95ApproxMs": 352.5,
+          "maxMs": 352.3,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 6,
+          "p50ApproxMs": 6.5,
+          "p95ApproxMs": 47.5,
+          "maxMs": 47.9,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 6,
+          "p50ApproxMs": 4.5,
+          "p95ApproxMs": 43.5,
+          "maxMs": 43.3,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "off",
+      "sessionGeneration": 3,
+      "wallElapsedMs": 44.40000009536743,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 1,
+      "projectionCount": 0,
+      "rendererCallCount": 1,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 1,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.2,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 1,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.7,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 1,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.7,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 201.5,
+      "eligibleActiveMs": 9,
+      "eligibleIntervalCount": 1,
+      "ineligibleFrameCount": 0,
+      "displayCount": 2,
+      "pointerRedrawCount": 2,
+      "projectionCount": 4,
+      "rendererCallCount": 5,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 2,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 1,
+        "p50ApproxMs": 9.5,
+        "p95ApproxMs": 9.5,
+        "maxMs": 9,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 6.5,
+        "maxMs": 6.8,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 4,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.3,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 5,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 4.5,
+        "maxMs": 4.4,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 5,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 4.5,
+        "maxMs": 4.7,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 3.2,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "first-hit-burst",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 782.5,
+      "eligibleActiveMs": 434.1,
+      "eligibleIntervalCount": 6,
+      "ineligibleFrameCount": 0,
+      "displayCount": 6,
+      "pointerRedrawCount": 4,
+      "projectionCount": 12,
+      "rendererCallCount": 12,
+      "hitCount": 3,
+      "hitGroupCount": 0,
+      "maxHitDelta": 1,
+      "aftermathEntriesObserved": 19,
+      "aftermathPiecesObserved": 32,
+      "maxAftermathPieces": 4,
+      "withheldPiecesObserved": 32,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 6,
+        "p50ApproxMs": 7.5,
+        "p95ApproxMs": 215.5,
+        "maxMs": 215.4,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 6,
+        "p50ApproxMs": 4.5,
+        "p95ApproxMs": 5.5,
+        "maxMs": 5.5,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 12,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.2,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 12,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.4,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 12,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.6,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 4,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 1.5,
+        "maxMs": 1.9,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 3,
+        "frameCount": 6,
+        "displayIntervalMs": {
+          "count": 6,
+          "p50ApproxMs": 7.5,
+          "p95ApproxMs": 215.5,
+          "maxMs": 215.4,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 6,
+          "p50ApproxMs": 4.5,
+          "p95ApproxMs": 5.5,
+          "maxMs": 5.5,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 6,
+          "p50ApproxMs": 2.5,
+          "p95ApproxMs": 2.5,
+          "maxMs": 2.4,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "steady-after-export",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 221.90000009536743,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 0,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": false,
+      "invalidReasons": [
+        "no_eligible_samples"
+      ],
+      "displayGeometry": null,
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "steady-after-export",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 128.59999990463257,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 1,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 1,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 1.5,
+        "maxMs": 1.2,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 1,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 1.5,
+        "maxMs": 1.6,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "off",
+      "sessionGeneration": 5,
+      "wallElapsedMs": 90.19999980926514,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 0,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": false,
+      "invalidReasons": [
+        "no_eligible_samples"
+      ],
+      "displayGeometry": null,
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 5,
+      "wallElapsedMs": 297,
+      "eligibleActiveMs": 10.1,
+      "eligibleIntervalCount": 1,
+      "ineligibleFrameCount": 0,
+      "displayCount": 2,
+      "pointerRedrawCount": 3,
+      "projectionCount": 4,
+      "rendererCallCount": 6,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 2,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 1,
+        "p50ApproxMs": 10.5,
+        "p95ApproxMs": 10.5,
+        "maxMs": 10.1,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 4.5,
+        "p95ApproxMs": 7.5,
+        "maxMs": 7,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 4,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.4,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 6,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 4.5,
+        "maxMs": 4.6,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 6,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 4.5,
+        "maxMs": 4.9,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 3,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.8,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        }
+      }
+    },
+    {
+      "label": "first-hit-burst",
+      "mode": "native",
+      "sessionGeneration": 5,
+      "wallElapsedMs": 828.2000002861023,
+      "eligibleActiveMs": 483.7,
+      "eligibleIntervalCount": 6,
+      "ineligibleFrameCount": 0,
+      "displayCount": 6,
+      "pointerRedrawCount": 4,
+      "projectionCount": 12,
+      "rendererCallCount": 12,
+      "hitCount": 3,
+      "hitGroupCount": 0,
+      "maxHitDelta": 1,
+      "aftermathEntriesObserved": 19,
+      "aftermathPiecesObserved": 32,
+      "maxAftermathPieces": 4,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 6,
+        "p50ApproxMs": 7.5,
+        "p95ApproxMs": 231.5,
+        "maxMs": 231.1,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 6,
+        "p50ApproxMs": 4.5,
+        "p95ApproxMs": 5.5,
+        "maxMs": 5.1,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 12,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.3,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 12,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 3,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 12,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 3.2,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 4,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2,
+        "quantileBinWidthMs": 1
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 3,
+        "frameCount": 6,
+        "displayIntervalMs": {
+          "count": 6,
+          "p50ApproxMs": 7.5,
+          "p95ApproxMs": 231.5,
+          "maxMs": 231.1,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 6,
+          "p50ApproxMs": 4.5,
+          "p95ApproxMs": 5.5,
+          "maxMs": 5.1,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 6,
+          "p50ApproxMs": 2.5,
+          "p95ApproxMs": 3.5,
+          "maxMs": 3,
+          "quantileBinWidthMs": 1
+        }
+      }
+    }
+  ]
+}

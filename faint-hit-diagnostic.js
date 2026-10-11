@@ -3,15 +3,16 @@ import "./src/index.js";
 
 const PINS = Object.freeze({ assembly:"382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408", renderer:"0be921cea14933400bd8afdda809ea4453ea772b", gameplay:"c9c32fc9fcd18964f35e3e283f72f9b146bf22df", contentAuthoring:"f4ee9b4f466660a10d4300354ffd73ecff527d4c", audio:"464fdeff45fc109876a1600f22d3007708d1b07d" });
 const game = document.querySelector("aero-game");
+const recorder = document.querySelector("#faint-hit-recorder");
 const panel = document.querySelector("#faint-hit-diagnostic");
 const state = document.querySelector("#faint-hit-state");
+const recording = document.querySelector("#faint-hit-recording");
 const output = document.querySelector("#faint-hit-summary");
 const toggle = document.querySelector("#faint-hit-off");
 const download = document.querySelector("#faint-hit-download");
 const reset = document.querySelector("#faint-hit-reset");
-// Keep the page-owned details closed during play; never resize the game or
-// add a large touch-intercepting overlay to the measurement viewport.
-const COLLAPSE_WHEN_PLAYING = true;
+// The small save control stays available during Test. Only the optional
+// details panel expands; it never changes the game canvas or hides export.
 // Full-window 1-ms histogram, plus exact scalar max, bounded independently
 // of frame rate or window duration. Quantiles are labeled approximations.
 const HISTOGRAM_BINS = 60001;
@@ -20,11 +21,13 @@ const MAX_MS = 60000;
 const NOW = () => performance.now();
 const bounded = (n, limit = 1e7) => Math.min(limit, Math.max(0, Number.isFinite(n) ? n : 0));
 let mode = "native", installedGraph = null, installedSession = -1, active = null, lastRafAt = null;
-let reportWindows = [], firstHitSeen = false, firstHitStart = null;
+let reportWindows = [], firstHitSeen = false, firstHitStart = null, postHitUntil = null;
 let methods = null, samplingPointer = false, samplingRaf = false, installationFailed = false;
+let exportNoticeUntil = 0;
 const sampleKeys = ["intervals","displayFrame","projection","renderer","presentation","pointer"];
 const histogram = () => ({ bins:new Uint32Array(HISTOGRAM_BINS),count:0,max:null,exactMaxValues:null });
 const samples = () => ({ intervals:histogram(), displayFrame:histogram(), projection:histogram(), renderer:histogram(), presentation:histogram(), pointer:histogram() });
+const hitBurst = () => ({ triggeredFrameCount:0,frameCount:0,intervals:histogram(),displayFrame:histogram(),renderer:histogram() });
 let currentFrameSamples = null;
 function append(bucket, value) {
   const ms=bounded(value,MAX_MS);
@@ -45,7 +48,7 @@ function remove(bucket, value) {
   } else if (!bucket.count) bucket.max=null;
 }
 function timedSample(bucket, value) { append(active[bucket],value); if(currentFrameSamples) currentFrameSamples[bucket].push(bounded(value,MAX_MS)); }
-const fresh = (label, now = NOW()) => ({ label, mode, sessionGeneration:installedSession, started:now, end:now, firstEligibleAt:null, lastEligibleAt:null, eligibleActiveMs:0, eligibleIntervalCount:0, ineligibleFrameCount:0, ...samples(), displayCount:0, pointerRedrawCount:0, hitCount:0, hitGroupCount:0, maxHitDelta:0, aftermathEntriesObserved:0, aftermathPiecesObserved:0, maxAftermathPieces:0, withheldPiecesObserved:0, projectionCount:0, rendererCallCount:0, errors:0, invalidReasons:[], displayGeometry:null });
+const fresh = (label, now = NOW()) => ({ label, mode, sessionGeneration:installedSession, started:now, end:now, firstEligibleAt:null, lastEligibleAt:null, eligibleActiveMs:0, eligibleIntervalCount:0, ineligibleFrameCount:0, ...samples(), hitBurst:hitBurst(), displayCount:0, pointerRedrawCount:0, hitCount:0, hitGroupCount:0, maxHitDelta:0, aftermathEntriesObserved:0, aftermathPiecesObserved:0, maxAftermathPieces:0, withheldPiecesObserved:0, projectionCount:0, rendererCallCount:0, errors:0, invalidReasons:[], displayGeometry:null });
 function summarize(values) {
   if (!values.count) return {count:0,p50ApproxMs:null,p95ApproxMs:null,maxMs:null,quantileBinWidthMs:1};
   const ranks=[Math.ceil(values.count*.5),Math.ceil(values.count*.95)],quantiles=[null,null];
@@ -61,7 +64,7 @@ function endWindow(at = NOW()) {
   active.end = at;
   for(const key of sampleKeys) active[key].exactMaxValues=null;
   if(active.displayCount+active.pointerRedrawCount+active.projectionCount+active.rendererCallCount===0&&!active.invalidReasons.includes("no_eligible_samples"))active.invalidReasons.push("no_eligible_samples");
-  reportWindows.push({label:active.label,mode:active.mode,sessionGeneration:active.sessionGeneration,wallElapsedMs:bounded(active.end-active.started),eligibleActiveMs:Math.round(active.eligibleActiveMs*1000)/1000,eligibleIntervalCount:active.eligibleIntervalCount,ineligibleFrameCount:active.ineligibleFrameCount,displayCount:active.displayCount,pointerRedrawCount:active.pointerRedrawCount,projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,maxHitDelta:active.maxHitDelta,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,maxAftermathPieces:active.maxAftermathPieces,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors,valid:active.invalidReasons.length===0,invalidReasons:active.invalidReasons.slice(),displayGeometry:active.displayGeometry,displayIntervalMs:summarize(active.intervals),displayFrameTotalMs:summarize(active.displayFrame),frameProjectionMs:summarize(active.projection),rendererCallMs:summarize(active.renderer),totalPresentationMs:summarize(active.presentation),pointerTotalMs:summarize(active.pointer)});
+  reportWindows.push({label:active.label,mode:active.mode,sessionGeneration:active.sessionGeneration,wallElapsedMs:bounded(active.end-active.started),eligibleActiveMs:Math.round(active.eligibleActiveMs*1000)/1000,eligibleIntervalCount:active.eligibleIntervalCount,ineligibleFrameCount:active.ineligibleFrameCount,displayCount:active.displayCount,pointerRedrawCount:active.pointerRedrawCount,projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,maxHitDelta:active.maxHitDelta,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,maxAftermathPieces:active.maxAftermathPieces,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors,valid:active.invalidReasons.length===0,invalidReasons:active.invalidReasons.slice(),displayGeometry:active.displayGeometry,displayIntervalMs:summarize(active.intervals),displayFrameTotalMs:summarize(active.displayFrame),frameProjectionMs:summarize(active.projection),rendererCallMs:summarize(active.renderer),totalPresentationMs:summarize(active.presentation),pointerTotalMs:summarize(active.pointer),postHitBurst:{triggeredFrameCount:active.hitBurst.triggeredFrameCount,frameCount:active.hitBurst.frameCount,displayIntervalMs:summarize(active.hitBurst.intervals),displayFrameTotalMs:summarize(active.hitBurst.displayFrame),rendererCallMs:summarize(active.hitBurst.renderer)}});
   if (reportWindows.length > MAX_WINDOWS) reportWindows.shift();
   active = null;
 }
@@ -137,12 +140,20 @@ function promoteFirstHitFrame(frameStart, frame) {
 }
 function refresh() {
   if (installationFailed) return;
-  if (COLLAPSE_WHEN_PLAYING && currentSession()?.state === "playing" && panel.open) panel.open=false;
-  const connected = Boolean(installedGraph),reasons=eligibility();
-  state.textContent = connected ? `Historical Test diagnostic · ${mode} · ${reasons.length?`INVALID COVERAGE: ${reasons.join(", ")}`:"eligible: measured Test, CV idle"}` : "Waiting for historical app graph…";
-  output.textContent = JSON.stringify({ mode, activeWindow:active?.label ?? null, hitCount:active?.hitCount ?? 0, pointerRedrawCount:active?.pointerRedrawCount ?? 0, frameCount:active?.displayCount ?? 0, firstHitSeen },null,2);
+  const connected=Boolean(installedGraph),session=currentSession(),reasons=eligibility();
+  const windows=reportWindows.filter(window=>window.sessionGeneration===installedSession&&window.mode===mode);
+  const recordedHits=windows.reduce((n,window)=>n+window.hitCount,active?.mode===mode?active.hitCount:0);
+  const recordedFrames=windows.reduce((n,window)=>n+window.displayCount,active?.mode===mode?active.displayCount:0);
+  const eligible=connected&&reasons.length===0;
+  recorder.dataset.gameMenu=game?.menuOpen?"true":"false";
+  const notice=NOW()<exportNoticeUntil?" · JSON download requested": "";
+  recording.dataset.recording=eligible?"true":"false";
+  recording.textContent=eligible?`● Recording · corpses ${mode==="native"?"ON":"OFF"}`:recordedFrames?`● ${session?.state==="playing"?"Needs setup":"Paused"} · ${recordedFrames} frames saved`:`● ${connected?"Waiting for Test setup":"Waiting for game"}`;
+  const missing={not_visual_test:"Start Test to record",not_playing:"Start or resume Test",automatic_feedback_on:"Turn Automatic Feedback OFF",equipment_hidden:"Show the saber",hand_not_selected:"Choose a left or right mouse hand",cv_not_confirmed_idle:"CV must be idle"};
+  state.textContent=!connected?"Open game and start Test":eligible?`${recordedHits} scored hits · ${recordedFrames} frames${notice}`:recordedFrames&&session?.state!=="playing"?`${recordedHits} scored hits · ${recordedFrames} frames saved${notice}`:`Not recording: ${reasons.map(reason=>missing[reason]??reason).join("; ")}${notice}`;
+  if(panel.open) output.textContent=JSON.stringify({mode,activeWindow:active?.label??null,scoredHits:recordedHits,displayFrames:recordedFrames,postHitFrames:active?.hitBurst.frameCount??0,firstHitSeen},null,2);
 }
-function error(message) { installationFailed = true; if (active) active.errors += 1; state.textContent = `DIAGNOSTIC INACTIVE: ${message}`; toggle.disabled = true; download.disabled = true; }
+function error(message) { installationFailed=true; if(active)active.errors+=1; recording.dataset.recording="false";recording.textContent="Recorder unavailable";state.textContent=`DIAGNOSTIC INACTIVE: ${message}`;toggle.disabled=true;download.disabled=true; }
 function wrapper(object, key, callback) {
   const original = object[key];
   if (typeof original !== "function") throw new Error(`${key} seam missing`);
@@ -150,7 +161,7 @@ function wrapper(object, key, callback) {
   object[key] = wrapped;
   return () => { if (object[key] === wrapped) object[key] = original; };
 }
-function detach() { if (methods) { for (const restore of methods.reverse()) restore(); methods=null; } endWindow(); installedGraph=null; installedSession=-1; lastRafAt=null; samplingRaf=false; samplingPointer=false; currentFrameSamples=null; }
+function detach() { if (methods) { for (const restore of methods.reverse()) restore(); methods=null; } endWindow(); installedGraph=null; installedSession=-1; lastRafAt=null; postHitUntil=null; samplingRaf=false; samplingPointer=false; currentFrameSamples=null; }
 function attach(graph) {
   if (!graph || typeof graph !== "object" || !graph.renderer || typeof graph.renderer.updateSceneObjects !== "function" || typeof graph.renderer.renderGameplayScene !== "function" || typeof graph.renderer.renderGameplayFrameWithCursorsAndEquipment !== "function" || typeof graph.gameplay?.getSnapshot !== "function" || typeof graph.gameplay.advance !== "function" || typeof game?.runDisplayFrame !== "function" || typeof game?.renderGameplay !== "function") throw new Error("historical facade seam missing");
   const restores = [];
@@ -197,7 +208,13 @@ function attach(graph) {
       }));
     }
     restores.push(wrapper(game,"runDisplayFrame",function(original,args) {
+      // A scored first frame may arrive before the 250-ms identity check.
+      // Attribute it to its actual session before measuring or taking snapshots.
+      if (installedSession!==game.sessionGeneration) {
+        endWindow();installedSession=game.sessionGeneration;firstHitSeen=false;firstHitStart=null;lastRafAt=null;postHitUntil=null;startWindow("before-first-hit");
+      }
       const wasRaf=withinActiveTest(),frameStart=NOW(),interval=wasRaf && lastRafAt !== null ? frameStart-lastRafAt : null;
+      const withinPostHitBurst=wasRaf&&postHitUntil!==null&&frameStart<=postHitUntil;
       if (active && wasRaf) validateWindow(true);
       const priorEligibleActiveMs=active?.eligibleActiveMs??0,priorEligibleIntervalCount=active?.eligibleIntervalCount??0;
       const before=active ? {projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,pointerRedrawCount:active.pointerRedrawCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors} : null;
@@ -223,7 +240,8 @@ function attach(graph) {
         }
         samplingRaf=false;currentFrameSamples=null;
         if (active && wasRaf) validateWindow(true);
-        if (active && before && firstHitSeen && active.label === "before-first-hit" && active.hitCount > before.hitCount) {
+        const hitBearingFrame=Boolean(active&&before&&wasRaf&&active.hitCount>before.hitCount);
+         if (active && before && firstHitSeen && active.label === "before-first-hit" && active.hitCount > before.hitCount) {
           const frame={};for(const key of ["projectionCount","rendererCallCount","pointerRedrawCount","hitCount","hitGroupCount","aftermathEntriesObserved","aftermathPiecesObserved","withheldPiecesObserved","errors"])frame[key]=active[key]-before[key];
           frame.samples=frameSamples;
           frame.eligibleActiveMs=active.eligibleActiveMs-priorEligibleActiveMs;
@@ -231,7 +249,14 @@ function attach(graph) {
           frame.maxHitDelta=active.maxHitDelta;frame.maxAftermathPieces=active.maxAftermathPieces;
           promoteFirstHitFrame(frameStart,frame);
         }
-        if(active?.label === "first-hit-burst" && firstHitStart !== null && NOW()-firstHitStart >= 1200) startWindow("steady-after-first-hit");
+        // Aggregate hit-bearing frames and the next 1.2 seconds without retaining
+         // per-note identities or individual frame samples in the JSON.
+         if(active&&wasRaf&&(hitBearingFrame||withinPostHitBurst)) {
+           if(hitBearingFrame) { active.hitBurst.triggeredFrameCount++;postHitUntil=NOW()+1200; }
+           active.hitBurst.frameCount++;
+           for(const [key,bucket] of [["intervals",active.hitBurst.intervals],["displayFrame",active.hitBurst.displayFrame],["renderer",active.hitBurst.renderer]]) for(const value of frameSamples[key]) append(bucket,value);
+         }
+         if(active?.label === "first-hit-burst" && firstHitStart !== null && NOW()-firstHitStart >= 1200) startWindow("steady-after-first-hit");
       }
     }));
     restores.push(wrapper(game,"projectTestEquipmentPointer",function(original,args) {
@@ -239,7 +264,7 @@ function attach(graph) {
     }));
   } catch (cause) { for (const restore of restores.reverse()) restore(); installedGraph=previousGraph; throw cause; }
   methods=restores; installedSession=game.sessionGeneration;
-  firstHitSeen=false;firstHitStart=null;startWindow("before-first-hit");refresh();
+  firstHitSeen=false;firstHitStart=null;postHitUntil=null;startWindow("before-first-hit");refresh();
 }
 function reconcile() {
   if (installationFailed) return;
@@ -247,20 +272,23 @@ function reconcile() {
     const graph = game?.graph;
     if (graph !== installedGraph) { detach(); if (graph) attach(graph); }
     else if (graph && installedSession !== game.sessionGeneration) {
-      endWindow(); installedSession=game.sessionGeneration;firstHitSeen=false;firstHitStart=null;lastRafAt=null;startWindow("before-first-hit");
+      endWindow(); installedSession=game.sessionGeneration;firstHitSeen=false;firstHitStart=null;lastRafAt=null;postHitUntil=null;startWindow("before-first-hit");
     }
   } catch (cause) { detach();installationFailed=true;error(cause instanceof Error?cause.message:"wrapper installation failed"); }
 }
-function report() { endWindow(); const result = {schema:"aerobeat/faint_hit_diagnostic",version:1,packageVersion:"0.0.105",served8445SourceParity:false,mixedEraAudio:true,warning:"MIXED ERA: historical 0.0.105 app + newer pushed audio 464fdeff; NOT served 8445 / 0.0.127; NOT source-matched to Cookie 0.0.128",sourceCommits:PINS,currentMode:mode,measurements:"main-thread wall time, not GPU time; rendererCallMs times only renderer facade invocation, totalPresentationMs includes projection and pose resolution, displayFrameTotalMs times the entire eligible runDisplayFrame invocation (gameplay, clock/input/pose, projection, rendering, sync and UI), not exact gameplay.advance CPU; do not subtract nested wall times to infer scoring CPU; scored-hit deltas compare gameplay snapshots at app-frame entry/exit; pointerTotalMs measures the outer pointer-triggered presentation; wallElapsedMs includes menu/setup and MUST NOT be used for FPS; eligibleActiveMs sums only consecutive eligible display intervals, eligibleIntervalCount and ineligibleFrameCount expose coverage; 1-ms approximate p50/p95 histogram over every sample in each window; count and exact max cover the entire window; aftermath observed totals sum entries/pieces across render calls, not distinct frames",coverage:"valid windows require playing Test, Automatic Feedback OFF, visible selected hand, CV confirmed idle and stable reported backing/viewport/DPR; invalidReasons mark violations; compare hit counts/section manually; each window carries its own mode and session generation",windows:reportWindows.slice()};startWindow(firstHitSeen?"steady-after-export":"before-first-hit");return result; }
-toggle.addEventListener("change", () => { if (installationFailed) return; endWindow();mode=toggle.checked?"off":"native";firstHitSeen=false;firstHitStart=null;lastRafAt=null;startWindow("before-first-hit");refresh(); });
-reset.addEventListener("click", () => { if (installationFailed) return; reportWindows=[];firstHitSeen=false;firstHitStart=null;startWindow("before-first-hit");refresh(); });
+function report() { endWindow(); postHitUntil=null; const result = {schema:"aerobeat/faint_hit_diagnostic",version:1,packageVersion:"0.0.105",served8445SourceParity:false,cookieRelease0128SourceParity:false,mixedEraAudio:true,sourceCommits:PINS,currentMode:mode,measurements:"main-thread wall time, not GPU time; rendererCallMs times only renderer facade invocation, totalPresentationMs includes projection and pose resolution, displayFrameTotalMs times the entire eligible runDisplayFrame invocation (gameplay, clock/input/pose, projection, rendering, sync and UI), not exact gameplay.advance CPU; do not subtract nested wall times to infer scoring CPU; scored-hit deltas compare gameplay snapshots at app-frame entry/exit; pointerTotalMs measures the outer pointer-triggered presentation; wallElapsedMs includes menu/setup and MUST NOT be used for FPS; eligibleActiveMs sums only consecutive eligible display intervals, eligibleIntervalCount and ineligibleFrameCount expose coverage; 1-ms approximate p50/p95 histogram over every sample in each window; count and exact max cover the entire window; aftermath observed totals sum entries/pieces across render calls, not distinct frames; postHitBurst summarizes the union of scored-hit display frames and eligible display frames starting within 1200 ms after each scored hit, retaining aggregate histograms but no per-note records; display intervals are browser presentation cadence, not GPU time",coverage:"valid windows require playing Test, Automatic Feedback OFF, visible selected hand, CV confirmed idle and stable reported backing/viewport/DPR; invalidReasons mark violations; compare hit counts/section manually; each window carries its own mode and session generation",windows:reportWindows.slice()};startWindow(firstHitSeen?"steady-after-export":"before-first-hit");return result; }
+toggle.addEventListener("change", () => { if (installationFailed) return; endWindow();mode=toggle.checked?"off":"native";firstHitSeen=false;firstHitStart=null;lastRafAt=null;postHitUntil=null;startWindow("before-first-hit");refresh(); });
+reset.addEventListener("click", () => { if (installationFailed) return; reportWindows=[];firstHitSeen=false;firstHitStart=null;postHitUntil=null;startWindow("before-first-hit");refresh(); });
 download.addEventListener("click", () => {
   if (installationFailed) return;
-  const data=JSON.stringify(report(),null,2),blob=new Blob([data],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");
-  link.href=url;link.download=`aerobeat-faint-hit-${mode}-historical-nonparity.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),0);refresh();
+  try {
+    const data=JSON.stringify(report(),null,2),blob=new Blob([data],{type:"application/json"}),url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=`aerobeat-test-performance-${mode}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+    exportNoticeUntil=NOW()+4000;refresh();
+  } catch (cause) { state.textContent=`Download failed: ${cause instanceof Error?cause.message:"browser error"}`; }
 });
-if (!game || !panel || !state || !output || !toggle || !download || !reset) throw new Error("Faint-hit diagnostic HTML controls missing");
-panel.addEventListener("toggle", () => { if (COLLAPSE_WHEN_PLAYING && currentSession()?.state === "playing" && panel.open) panel.open=false; });
+if (!game || !recorder || !panel || !state || !recording || !output || !toggle || !download || !reset) throw new Error("Faint-hit recorder controls missing");
+panel.addEventListener("toggle", refresh);
 new MutationObserver(reconcile).observe(document.querySelector("main"),{childList:true});
 // The connected graph is created synchronously; periodic identity checks
 // cover disconnect/reconnect without replacing the production lifecycle.
