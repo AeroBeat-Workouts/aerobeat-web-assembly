@@ -96,12 +96,18 @@ function endWindow(at = NOW()) {
   if (!active) return;
   active.end = at;
   for(const key of sampleKeys) active[key].exactMaxValues=null;
+  for(const key of profileTimerKeys)active.variantProfile[key].exactMaxValues=null;
+  for(const cohort of Object.values(active.variantCohorts))for(const key of ["displayFrameTotalMs","sceneUpdateMs","manualTickMs","rendererCallMs"])cohort[key].exactMaxValues=null;
   if(active.displayCount+active.pointerRedrawCount+active.projectionCount+active.rendererCallCount===0&&!active.invalidReasons.includes("no_eligible_samples"))active.invalidReasons.push("no_eligible_samples");
   reportWindows.push({label:active.label,mode:active.mode,sessionGeneration:active.sessionGeneration,wallElapsedMs:bounded(active.end-active.started),eligibleActiveMs:Math.round(active.eligibleActiveMs*1000)/1000,eligibleIntervalCount:active.eligibleIntervalCount,ineligibleFrameCount:active.ineligibleFrameCount,displayCount:active.displayCount,pointerRedrawCount:active.pointerRedrawCount,projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,maxHitDelta:active.maxHitDelta,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,maxAftermathPieces:active.maxAftermathPieces,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors,valid:active.invalidReasons.length===0,invalidReasons:active.invalidReasons.slice(),displayGeometry:active.displayGeometry,displayIntervalMs:summarize(active.intervals),displayFrameTotalMs:summarize(active.displayFrame),frameProjectionMs:summarize(active.projection),rendererCallMs:summarize(active.renderer),totalPresentationMs:summarize(active.presentation),pointerTotalMs:summarize(active.pointer),variantProfile:summarizeProfile(active.variantProfile),variantCohorts:summarizeCohorts(active.variantCohorts),postHitBurst:{triggeredFrameCount:active.hitBurst.triggeredFrameCount,frameCount:active.hitBurst.frameCount,displayIntervalMs:summarize(active.hitBurst.intervals),displayFrameTotalMs:summarize(active.hitBurst.displayFrame),rendererCallMs:summarize(active.hitBurst.renderer),variantProfile:summarizeProfile(active.hitBurst.variantProfile)}});
   if (reportWindows.length > MAX_WINDOWS) reportWindows.shift();
   active = null;
 }
-function startWindow(label) { endWindow(); lastRafAt=null; active = fresh(label); if(label === "before-first-hit") for(const key of sampleKeys) active[key].exactMaxValues=[]; }
+function startWindow(label) { endWindow(); lastRafAt=null; active = fresh(label); if(label === "before-first-hit") {
+  for(const key of sampleKeys)active[key].exactMaxValues=[];
+  for(const key of profileTimerKeys)active.variantProfile[key].exactMaxValues=[];
+  for(const cohort of Object.values(active.variantCohorts))for(const key of ["displayFrameTotalMs","sceneUpdateMs","manualTickMs","rendererCallMs"])cohort[key].exactMaxValues=[];
+} }
 function currentSession() { return installedGraph?.gameplay?.getSnapshot?.()?.session ?? null; }
 function displayGeometry() {
   const canvas=game?.shadowRoot?.querySelector?.("canvas[data-role='renderer']");
@@ -160,6 +166,7 @@ function promoteFirstHitFrame(frameStart, frame) {
   }
   for(const key of profileCountKeys){burst.variantProfile[key]=frame.profile[key];prior.variantProfile[key]=Math.max(0,prior.variantProfile[key]-frame.profile[key]);}
   burst.variantProfile.sliceCacheHighWater=frame.profile.sliceCacheHighWater;
+  prior.variantProfile.sliceCacheHighWater=frame.priorSliceCacheHighWater;
   if(frame.cohort)transferCohort(prior.variantCohorts[frame.cohort],burst.variantCohorts[frame.cohort],frame);
   for(const key of profileTimerKeys)for(const value of frame.profile[key]){remove(prior.variantProfile[key],value);prior.variantProfile[key].sumMs=Math.max(0,prior.variantProfile[key].sumMs-value);append(burst.variantProfile[key],value);burst.variantProfile[key].sumMs+=value;}
   burst.eligibleActiveMs=frame.eligibleActiveMs;
@@ -282,6 +289,7 @@ function attach(graph) {
       const withinPostHitBurst=wasRaf&&postHitUntil!==null&&frameStart<=postHitUntil;
       if (active && wasRaf) validateWindow(true);
       const priorEligibleActiveMs=active?.eligibleActiveMs??0,priorEligibleIntervalCount=active?.eligibleIntervalCount??0;
+      const priorSliceCacheHighWater=active?.variantProfile.sliceCacheHighWater??0;
       const before=active ? {projectionCount:active.projectionCount,rendererCallCount:active.rendererCallCount,pointerRedrawCount:active.pointerRedrawCount,hitCount:active.hitCount,hitGroupCount:active.hitGroupCount,aftermathEntriesObserved:active.aftermathEntriesObserved,aftermathPiecesObserved:active.aftermathPiecesObserved,withheldPiecesObserved:active.withheldPiecesObserved,errors:active.errors} : null;
       const hitsBefore=wasRaf?countHits(graph.gameplay.getSnapshot()):null;
       const frameSamples={intervals:[],displayFrame:[],projection:[],renderer:[],presentation:[],pointer:[],observedAftermathPieces:0,profile:{...Object.fromEntries(profileCountKeys.map(key=>[key,0])),sliceCacheHighWater:0,...Object.fromEntries(profileTimerKeys.map(key=>[key,[]]))}};currentFrameSamples=frameSamples;
@@ -311,7 +319,7 @@ function attach(graph) {
         const hitBearingFrame=Boolean(active&&before&&wasRaf&&active.hitCount>before.hitCount);
          if (active && before && firstHitSeen && active.label === "before-first-hit" && active.hitCount > before.hitCount) {
           const frame={};for(const key of ["projectionCount","rendererCallCount","pointerRedrawCount","hitCount","hitGroupCount","aftermathEntriesObserved","aftermathPiecesObserved","withheldPiecesObserved","errors"])frame[key]=active[key]-before[key];
-          frame.samples=frameSamples;frame.profile=frameSamples.profile;frame.cohort=frameCohort;
+          frame.samples=frameSamples;frame.profile=frameSamples.profile;frame.cohort=frameCohort;frame.priorSliceCacheHighWater=priorSliceCacheHighWater;
           frame.eligibleActiveMs=active.eligibleActiveMs-priorEligibleActiveMs;
           frame.eligibleIntervalCount=active.eligibleIntervalCount-priorEligibleIntervalCount;
           frame.maxHitDelta=active.maxHitDelta;frame.maxAftermathPieces=active.maxAftermathPieces;
