@@ -18,12 +18,16 @@ const canvas={width:300,height:150};game.shadowRoot={querySelector(selector){ret
 const gameplay=Object.freeze({getSnapshot(){return {session,judgements:Array.from({length:hits},()=>({result:"hit",shadow:false}))};},advance(){now+=80;hits+=nextHitDelta;nextHitDelta=1;}});
 assert.equal(Object.getOwnPropertyDescriptor(gameplay,"advance").writable,false,"historical gameplay facade is frozen");
 const originalAdvance=gameplay.advance;
+class VariantCache extends Map {
+  values(){throw new Error("profiler must not enumerate the slice variant cache");}
+}
 const renderer={
-  aftermathAssetPools:new Map(),sliceVariantMaterials:new Map(),
+  aftermathAssetPools:new Map(),sliceVariantMaterials:new VariantCache(),
   acquireAftermathAssetEntity(assetId,index){let entries=this.aftermathAssetPools.get(assetId);if(!entries){entries=[];this.aftermathAssetPools.set(assetId,entries);}while(entries.length<=index)entries.push({});now+=2;return entries[index];},
   installSliceClipBlocks(){now+=1;},
   sliceVariantMaterial(record,sign,plane,axisX,axisY){const key=`${sign}:${record.materialUid}:${plane}:${axisX}:${axisY}`;let value=this.sliceVariantMaterials.get(key);if(!value){value={};this.installSliceClipBlocks(value,sign,plane,axisX,axisY);this.sliceVariantMaterials.set(key,value);}now+=3;return value;},
-  applyAftermathAppearance(object,entity){this.sliceVariantMaterial({materialUid:1},1,0,1,0);now+=4;},
+  nextSlicePlane:0,
+  applyAftermathAppearance(object,entity){this.sliceVariantMaterial({materialUid:1},1,this.nextSlicePlane,1,0);now+=4;},
   manualTick(){now+=5;},renderGameplayScene(){},
   updateSceneObjects(objects){scene.push(objects);for(const object of objects)if(object.kind==="aftermath")this.applyAftermathAppearance(object,this.acquireAftermathAssetEntity("note",0));now+=6;},
   renderGameplayFrameWithCursorsAndEquipment(){this.updateSceneObjects([{kind:"aftermath"},{kind:"feedback"}],null);this.manualTick();now+=23;}
@@ -129,14 +133,25 @@ assert.equal(nativeCohorts.aftermathNoNewVariant.manualTickMs.count,1);
 assert.equal(nativeCohorts.aftermathNoNewVariant.rendererCallMs.count,1);
 assert.equal(nativeCohorts.aftermathNoNewVariant.sceneUpdateMs.max,15);
 assert.equal(nativeCohorts.aftermathNoNewVariant.manualTickMs.max,5);
+// Different cuts create distinct variants; returning to a previously seen cut is a hit.
+for(const plane of [1,2,3,1]){
+  renderer.nextSlicePlane=plane;
+  game.runDisplayFrame();
+}
+assert.equal(vm.runInNewContext("active.variantProfile.sliceCacheMisses",context),4);
+assert.equal(vm.runInNewContext("active.variantProfile.sliceCacheHits",context),2);
+assert.equal(vm.runInNewContext("active.variantProfile.sliceCacheHighWater",context),4);
+assert.equal(nativeCohorts.cacheMiss.frameCount,4);
+assert.equal(nativeCohorts.aftermathNoNewVariant.frameCount,2);
+renderer.nextSlicePlane=0;
 // Pointer-triggered redraws use the same renderer but must not enter RAF cohorts.
 const cohortFrameCount=nativeCohorts.cacheMiss.frameCount+nativeCohorts.aftermathNoNewVariant.frameCount;
 game.projectTestEquipmentPointer();
 assert.equal(vm.runInNewContext("active.variantCohorts.cacheMiss.frameCount+active.variantCohorts.aftermathNoNewVariant.frameCount",context),cohortFrameCount);
 toggle.checked=true;listeners.get("faint-hit-off:change")();
 const closedCohorts=vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').variantCohorts",context);
-assert.equal(closedCohorts.cacheMiss.frameCount,1);
-assert.equal(closedCohorts.aftermathNoNewVariant.frameCount,1);
+assert.equal(closedCohorts.cacheMiss.frameCount,4);
+assert.equal(closedCohorts.aftermathNoNewVariant.frameCount,2);
 assert.equal(closedCohorts.cacheMiss.displayFrameTotalMs.maxMs,161);
 assert.equal(closedCohorts.aftermathNoNewVariant.sceneUpdateMs.maxMs,15);
 
@@ -147,11 +162,11 @@ assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='befo
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').eligibleActiveMs",context),0);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').wallElapsedMs>=60000",context),true);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').invalidReasons.includes('not_playing')",context),false,"idle before samples is not a mixed measured window");
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleIntervalCount",context),1);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleIntervalCount",context),5);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleActiveMs>=17",context),true);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.maxMs",context),161);
 assert.equal(vm.runInNewContext("'gameplayAdvanceMs' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false,"do not report unmeasurable exact advance time");
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.count",context),2,"burst includes later eligible frame before mode switch");
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.count",context),6,"burst includes five later eligible frames before mode switch");
 assert.equal(vm.runInNewContext("'judgementAdvanceCount' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').rendererCallMs.maxMs",context),44);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').totalPresentationMs.maxMs",context),70);
@@ -159,8 +174,8 @@ game.projectTestEquipmentPointer();
 assert.equal(vm.runInNewContext("active.pointer.count",context),1);
 assert.equal(vm.runInNewContext("active.pointer.max",context),60,"pointer total includes all presentation work");
 assert.equal(vm.runInNewContext("active.renderer.count",context),1,"pointer facade call timed separately");
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathEntriesObserved",context),2,"two projections observed across two calls");
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),3,"two RAF pieces and one pointer piece observed without adding a cohort frame");
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathEntriesObserved",context),6,"six RAF projections observed");
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),7,"six RAF pieces and one pointer piece observed without adding a cohort frame");
 assert.equal(vm.runInNewContext("reportWindows.some(window=>'aftermathEntryFrames' in window || 'aftermathPieceFrames' in window || 'withheldPieceFrames' in window)",context),false);
 // A new Test can start and score before the 250-ms graph/session timer runs.
 // Its very first display frame must synchronously claim the new generation.
@@ -196,7 +211,7 @@ session.state="playing";
 game.renderGameplay();
 assert.equal(scene.at(-1).length,1,"off resumes only for genuine active Test");
 assert.equal(offObjects[0].kind,"feedback");
-assert.equal(hits,4,"off retains native scored gameplay judgements");
+assert.equal(hits,8,"off retains native scored gameplay judgements after varied-cut frames");
 assert.equal(gameplay.getSnapshot().judgements.length,hits,"off retains gameplay feedback truth");
 assert.equal(gameplay.advance,originalAdvance,"scoring method remains frozen and unchanged");
 // Pause after an eligible measured run, then export. No samples are taken
@@ -286,6 +301,7 @@ assert.equal(invalidReport.mixedEraAudio,true);
 assert.equal(invalidReport.sourceCommits.audio,"464fdeff45fc109876a1600f22d3007708d1b07d");
 assert.equal(invalidReport.cookieRelease0128SourceParity,false);
 assert.equal("warning" in invalidReport,false,"build provenance is structured JSON, not play-screen prose");
+assert.match(invalidReport.measurements,/constant-time before\/after Map size.*unexpected shrink or growth greater than one/u);
 assert.doesNotMatch(readFileSync(new URL("../faint-hit-test.html",import.meta.url),"utf8"),/MIXED-ERA DIAGNOSTIC|NOT served 8445/u);
 assert.match(readFileSync(new URL("../vite.faint-hit.config.js",import.meta.url),"utf8"),/NOT-COOKIE-0\.0\.128-SOURCE-MATCHED/u);
 // Missing facade on reconnect is a terminal diagnostic failure, never a
