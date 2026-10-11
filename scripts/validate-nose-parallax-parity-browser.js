@@ -1,5 +1,5 @@
 // @ts-check
-// Project-owned regression: real PlayCanvas + pinned gameplay GLB, assembly setup/config/input boundary.
+// Focused renderer/config regression: real PlayCanvas + pinned GLB; NOT scored AeroGame Play/iframe framebuffer evidence.
 // Run: node scripts/validate-nose-parallax-parity-browser.js
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
@@ -41,6 +41,9 @@ try {
         storage.setItem(f.aeroGameSetupStorageKey, JSON.stringify({ ...historical, noseCameraRangeYWorldUnits: .48 }));
         const customCoordinator = new f.AeroGameSetupCoordinator({ storageFactory: () => storage, eventTarget: null });
         const custom = customCoordinator.getSnapshot();
+        storage.setItem(f.aeroGameSetupStorageKey, JSON.stringify({ ...historical, noseCameraRangeYWorldUnits: .55 }));
+        const savedCoordinator = new f.AeroGameSetupCoordinator({ storageFactory: () => storage, eventTarget: null });
+        const savedY = savedCoordinator.getSnapshot().noseCameraRangeYWorldUnits;
         const config = f.rendererGameplayVisualConfig({ ...defaultSetup, noseCameraParallaxEnabled: true });
         const offConfig = f.rendererGameplayVisualConfig(defaultSetup);
         const measured = (x, y, now = 1000, timestamp = 990) => f.sanitizedNoseCameraDeflection({ [f.INTERNAL_INPUT_MEASURED_NOSE_PARALLAX]: () => ({ calibrationId: "calibration", sourceIdentity: "source", measuredSourceFrameId: "frame", measurementTimestampMs: timestamp, xDeflection: x, yDeflection: y }) }, now, true);
@@ -86,8 +89,8 @@ try {
             for (let i = 0; i < data.length; i += 40) if (data[i] > 50 || data[i + 1] > 50 || data[i + 2] > 50) lit++;
             results.push({ presentation, early, steady, off, glb: Boolean(glb), lit });
           }
-          return { defaultSetup: { x: defaultSetup.noseCameraRangeXWorldUnits, y: defaultSetup.noseCameraRangeYWorldUnits, on: defaultSetup.noseCameraParallaxEnabled }, migrated: { x: migrated.noseCameraRangeXWorldUnits, y: migrated.noseCameraRangeYWorldUnits, persistedY: persisted.noseCameraRangeYWorldUnits }, customY: custom.noseCameraRangeYWorldUnits, config: { speedX: config.maximumHorizontalVelocityWorldUnitsPerSecond, speedY: config.maximumVerticalVelocityWorldUnitsPerSecond }, stale: measured(1, 1, 1000, 850), assets: assets?.state, canvas: [canvas.width, canvas.height], results, privacy: JSON.stringify(renderer.describe()).includes("measuredSourceFrameId") || JSON.stringify(renderer.describe()).includes("sourceIdentity") };
-        } finally { renderer.destroy(); coordinator.destroy(); migratedCoordinator.destroy(); customCoordinator.destroy(); }
+          return { defaultSetup: { x: defaultSetup.noseCameraRangeXWorldUnits, y: defaultSetup.noseCameraRangeYWorldUnits, on: defaultSetup.noseCameraParallaxEnabled }, migrated: { x: migrated.noseCameraRangeXWorldUnits, y: migrated.noseCameraRangeYWorldUnits, persistedY: persisted.noseCameraRangeYWorldUnits }, customY: custom.noseCameraRangeYWorldUnits, savedY, config: { rangeX: config.horizontalRangeWorldUnits, rangeY: config.verticalRangeWorldUnits, speedX: config.maximumHorizontalVelocityWorldUnitsPerSecond, speedY: config.maximumVerticalVelocityWorldUnitsPerSecond }, stale: measured(1, 1, 1000, 850), assets: assets?.state, canvas: [canvas.width, canvas.height], results, privacy: JSON.stringify(renderer.describe()).includes("measuredSourceFrameId") || JSON.stringify(renderer.describe()).includes("sourceIdentity") };
+        } finally { renderer.destroy(); coordinator.destroy(); migratedCoordinator.destroy(); customCoordinator.destroy(); savedCoordinator.destroy(); }
       }, { width: viewport.width, height: viewport.height, dpr: viewport.dpr });
       assert.deepEqual(errors, [], `${viewport.name}: browser startup must be clean`);
       assert.equal(evidence.assets, "ready", `${viewport.name}: pinned gameplay GLB preload`);
@@ -96,6 +99,8 @@ try {
       assert.equal(evidence.privacy, false, "raw nose identities stay out of renderer public description");
       assert.equal(evidence.defaultSetup.on, false, "Nose defaults off");
       assert.equal(evidence.customY, .48, "custom Y setting survives migration");
+      assert.equal(evidence.savedY, .55, "existing saved .55 stays .55 despite stronger fresh default");
+      assert.deepEqual(evidence.config, { rangeX: .55, rangeY: 1.1, speedX: 3, speedY: 3 }, "new renderer config doubles vertical range, not velocity or X");
       for (const row of evidence.results) {
         const label = `${viewport.name} ${row.presentation}`;
         assert.ok(row.glb && row.lit > 50, `${label}: pinned GLB and nonblank framebuffer required, got ${JSON.stringify({ glb: row.glb, lit: row.lit })}`);
@@ -103,12 +108,14 @@ try {
           const { x, y } = sample;
           assert.ok(x.worldX > 0 && y.worldY < 0, `${label} ${sample.t}ms: +X moves camera right and +Y lowers it`);
           assert.ok(x.screenX < 0 && y.screenY < 0, `${label} ${sample.t}ms: +X moves scene left, lowered camera moves scene up: ${JSON.stringify({ x, y })}`);
-          assert.ok(Math.abs(Math.abs(x.worldX) - Math.abs(y.worldY)) < .015, `${label} ${sample.t}ms: X/Y camera travel parity: ${JSON.stringify({ x, y })}`);
-          assert.ok(Math.abs(Math.abs(x.screenX) - Math.abs(y.screenY)) < 4, `${label} ${sample.t}ms: X/Y projected scene travel parity: ${JSON.stringify({ x, y })}`);
+          if (sample.t === 640) {
+            assert.ok(Math.abs(y.worldY) > 1.8 * Math.abs(x.worldX), `${label}: tuned Y camera travel exceeds X as intended: ${JSON.stringify({ x, y })}`);
+            assert.ok(Math.abs(y.screenY) > 1.8 * Math.abs(x.screenX), `${label}: tuned Y projected scene travel exceeds X: ${JSON.stringify({ x, y })}`);
+          }
         }
         assert.ok(Math.abs(row.off.worldX) < 1e-6 && Math.abs(row.off.worldY) < 1e-6, `${label}: disabled Nose never drifts`);
       }
-      assert.ok(Math.abs(evidence.defaultSetup.x - evidence.defaultSetup.y) < 1e-9, `${viewport.name}: new setup X/Y range parity: ${JSON.stringify(evidence.defaultSetup)}`);
+      assert.equal(evidence.defaultSetup.y, 2 * evidence.defaultSetup.x, `${viewport.name}: fresh setup Y travel doubles X while parallax remains off by default`);
       assert.ok(Math.abs(evidence.migrated.x - evidence.migrated.y) < 1e-9 && evidence.migrated.persistedY === evidence.migrated.y, `${viewport.name}: old persisted .35 default migrates atomically: ${JSON.stringify(evidence.migrated)}`);
       console.log(`${viewport.name}: Flow, Boxing Lanes, Boxing Grid early/steady real GLB projections and setup migration passed`);
     } finally { await context.close(); }

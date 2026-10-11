@@ -90,7 +90,7 @@ try {
         const MIN_OUTLINE_PIXELS = 45;
         const GUARDS = [
           { eventId: "g-standard", family: "guard", crossed: false, leftCell: 5, rightCell: 6, row: 1, center: 6000 },
-          { eventId: "g-crossed", family: "crossed_guard", crossed: true, leftCell: 1, rightCell: 2, row: 0, center: 10000 },
+          { eventId: "g-crossed", family: "crossed_guard", crossed: true, leftCell: 2, rightCell: 1, row: 0, center: 10000 },
         ];
         // Independent authored-grid oracle, not inferred from rendered positions.
         const authoredPosition = (cell) => ({ x: -1.5 + (cell % 4), y: Math.floor(cell / 4) === 0 ? 1 + REACH_TOP : 1 });
@@ -262,7 +262,14 @@ try {
           for (let i = 0; i < 2; i += 1) {
             if (Math.abs(actualPair[i].x - expectedPair[i].x) > 1e-6 || Math.abs(actualPair[i].y - expectedPair[i].y) > 1e-6) throw new Error(`${g.eventId}: shield ${i} for authored cells ${JSON.stringify(inputCells)} must be at (${expectedPair[i].x}, ${expectedPair[i].y}), got (${actualPair[i].x}, ${actualPair[i].y}); actual pair ${JSON.stringify(actualPair)}`);
           }
-          if (ia.role !== "left" || ib.role !== "right" || ia.guardPairIndex !== 0 || ib.guardPairIndex !== 1) throw new Error(`${g.eventId}: ordered shield roles/indices must be left/0 and right/1, got ${JSON.stringify([ia.role, ia.guardPairIndex, ib.role, ib.guardPairIndex])}`);
+          if (ia.role !== "left" || ib.role !== "right" || ia.guardPairIndex !== 0 || ib.guardPairIndex !== 1) throw new Error(`${g.eventId}: authored shield roles/indices must be left/0 and right/1, got ${JSON.stringify([ia.role, ia.guardPairIndex, ib.role, ib.guardPairIndex])}`);
+          // Crossing reverses X order, not the hand required to score each shield.
+          // Without this assertion, a sorted pair colors the WRONG authored hand
+          // while both GLBs and the easy centered-score oracle still pass.
+          for (const [icon,cell] of [[ia,g.leftCell],[ib,g.rightCell]]) {
+            const expected=authoredPosition(cell);
+            if (Math.abs(icon.position.x-expected.x)>1e-6 || Math.abs(icon.position.y-expected.y)>1e-6) throw new Error(`${g.eventId}: visible ${icon.role} hand-colored guard must occupy authored cell ${cell}; expected ${JSON.stringify(expected)}, got ${JSON.stringify(icon.position)}`);
+          }
           if (ia.assetId !== ib.assetId || Math.abs(ia.position.y - ib.position.y) > 1e-9 || Math.abs(ia.position.z - ib.position.z) > 1e-9 || Math.abs(ia.scale.x - ib.scale.x) > 1e-9 || Math.abs(ia.scale.y - ib.scale.y) > 1e-9 || Math.abs(ia.scale.z - ib.scale.z) > 1e-9 || Math.abs(ia.rotationZRad - ib.rotationZRad) > 1e-9) throw new Error(`${g.eventId}: the pair must share asset, Y, Z, XYZ scale and orientation, got ${JSON.stringify({ asset: [ia.assetId, ib.assetId], y: [ia.position.y, ib.position.y], z: [ia.position.z, ib.position.z], scale: [ia.scale, ib.scale], rot: [ia.rotationZRad, ib.rotationZRad] })}`);
           const baseFrame = { ...preFrame, targets: preFrame.targets.filter((t) => t.id !== g.eventId) };
           renderer.renderGameplayFrame(baseFrame);

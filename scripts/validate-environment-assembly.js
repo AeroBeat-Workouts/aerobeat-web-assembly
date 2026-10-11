@@ -48,8 +48,8 @@ const expectedGameplayPaths = [
 ];
 const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
 const rendererRoot = resolve(root, "../aerobeat-web-renderer");
-const rendererCommit = "5277efae42518f7e81dfed049a8fb58649c7a5b3";
-const rendererTree = "bf95367793b4c546848970bdebd897c5c1a93537";
+const rendererCommit = "a2afa12577b76173776cda2fd53334092036b4f3";
+const rendererTree = "a3e37aebc708212394374ded12f472bf7c69f34c";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), rendererTree, "linked renderer tree drifted");
 validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");
