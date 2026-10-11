@@ -1,6 +1,6 @@
 {
   "schema": "aerobeat/faint_hit_recorder_handoff_evidence",
-  "status": "final_script_browser_and_counterfactual_verified_private_route_pending",
+  "status": "private_https_exact_browser_verified_physical_phone_data_pending",
   "page": "faint-hit-test.html",
   "historicalSourceAndPrivacy": {
     "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
@@ -51,7 +51,18 @@
       "isolation": "only the compiled scene aftermath filter or the compiled HTML download display rule removed per negative run; no scoring, chart, fixtures, tests, canonical app, or existing private route changed"
     }
   },
-  "privatePhoneRoute": {"url": "https://derrick-legion-go-8apu1.tail613fcb.ts.net:8449/faint-hit-test.html", "status": "old build on loopback 4181 until final cutover", "funnelEnabled": false},
+  "privatePhoneRoute": {
+    "url": "https://derrick-legion-go-8apu1.tail613fcb.ts.net:8449/faint-hit-test.html",
+    "status": "validated final v3 build on managed loopback 4185",
+    "managedPreviewJobId": "bash-146",
+    "htmlAndEntryJsHttpStatus": 200,
+    "servedHtmlSha256": "2f755a8f7087e70fb7c6b6fc543fb6b5951bf544106ceac0ef78ebf20d806a6e",
+    "servedEntryJsSha256": "3c58e51fa23ff6ba009192e6be388a79140ecf746c8761936fb0b3b3ef9237b9",
+    "funnelEnabled": false,
+    "otherRoutesUnchanged": {"8446": "http://127.0.0.1:3084", "8448": "http://127.0.0.1:4174"},
+    "actualHttpsBrowserQa": "Final SHA603a full browser gate PASS on exact HTTPS, imported chart with genuine scored touch; native/off/restored semantic corpse/miss/saber/Great/sky/target pixels; actual playing touchscreen and paused click downloads in both modes; off 3 scored hits/32 withheld pieces/6 burst frames and native 0 withheld; no page errors",
+    "qaLog": "/tmp/aerobeat-faint-hit-qa-served-8449-final.log"
+  },
   "phoneFpsOrRootCauseKnown": false,
   "remainingPhysicalInvestigationBead": "aerobeat-web-assembly-e218"
 }
