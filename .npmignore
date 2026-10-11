@@ -8,6 +8,14 @@ release/
 phone-performance.html
 vite.phone.config.js
 dist-phone/
+
+# Git-tracked release proof inventory and diagnostic-only preview entrypoints.
+raw-0.0.128-sha256.tsv
+faint-hit-diagnostic.js
+faint-hit-test.html
+phone-hit-performance.html
+vite.faint-hit.config.js
+vite.phone-hit.config.js
 assets/.gitkeep
 
 # Repository-only documentation, fixtures, and editable/review evidence.

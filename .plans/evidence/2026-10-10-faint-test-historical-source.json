@@ -1,0 +1,51 @@
+{
+  "schema": "aerobeat/faint_test_historical_source_evidence",
+  "version": 1,
+  "interpretation": "Derrick explicitly chose a historically pushed diagnostic, not the deployed 8445 build. Exact served source commits and copyrighted song assets are unavailable in this checkout. Do not claim served build parity or physical-phone FPS from this file.",
+  "served8445": {
+    "kind": "read_only_non_release_playtest",
+    "embeddedStamp": "NON-RELEASE-nose-parallax-boxing-footprints-preview-0.0.127",
+    "bundleSha256": "106268b748da9304c577d3117ac4c73efd2d138f0f48d13b1e2d2d3460b7f229",
+    "bundleBytes": 4924151,
+    "exactSourcePinsKnown": false
+  },
+  "historicalCandidate": {
+    "assemblyVersion": "0.0.105",
+    "served8445SourceParity": false,
+    "sourcePins": {
+      "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+      "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+      "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+      "contentAuthoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c"
+    },
+    "supportingLocalRepoHeadsAtStageCreation": {
+      "audio": "19fd3a91eb67712806a17e4c82e2631d63f72434",
+      "content": "704cdff470a77a1f978c80821282527d8251c9f4",
+      "contracts": "79f5fedc2b05fb02f5e9d74c23086d66e560a5c8",
+      "cv": "36a5f0e867d6b556c615449249dec1122eafa7f4",
+      "hash": "be7249b0bdfffcab568b760c1b582bfe2a0c1e92",
+      "input": "cc07bfa37024c53f2a5af0c9993f3c14548a3122",
+      "style": "63a3cf05f65fc803383960f321957faf24bbd25a",
+      "ui": "21ebb64dd7102e91c0d337974c3365d7b13a5da4",
+      "vendorBeatSaver": "5866f8e418e4a0ef11362f9e6c80ebc5a2ad3c3a",
+      "vendorMediaPipe": "aa088689e8bd6e89ff549f678e887b934b790144",
+      "video": "94697a4e049220032756fa83c47a940b58a7ae48",
+      "vendorMediaPipePythonModels": "3ee49b97fdba7721bcf9be406a153ab0e354e577"
+    },
+    "supportingLocalReposAreSymlinks": true,
+    "supportingRepoParityWith8445Unknown": true,
+    "temporaryStage": "/tmp/aerobeat-faint-hit-stage.CsobHv/aerobeat-web-assembly",
+    "diagnosticConfig": "vite.faint-hit.config.js",
+    "diagnosticEntry": "faint-hit-test.html",
+    "phaseABuild": {
+      "status": "passed",
+      "artifactCount": 47,
+      "aggregateInventorySha256": "1b9d342b244bfade53b21362dad49d36de3d859589f4051d2f21e0cfc034b942",
+      "htmlSha256": "d843d572316e7fae05f2bc5f7f05dbbc6f20affb89093b0ff12dc2078ca0ee26",
+      "mainJsSha256": "120470cc7cffe5740c81a974de2b9c114f4d5200c5186de516867f0a1c830e82",
+      "usableForPhoneHandoff": false
+    },
+    "protectedProductionBuild": "Historical assembly release fingerprint correctly rejects preview dependency commits; diagnostic build does not modify or bypass release scripts.",
+    "phoneFaintChart": "Operator must import/select own exact Faint Expert Flow chart in separate browser origin; no audio/chart bytes distributed by diagnostic."
+  }
+}
