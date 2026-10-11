@@ -49,7 +49,7 @@
     "phoneFaintChart": "Operator must import/select own exact Faint Expert Flow chart in separate browser origin; no audio/chart bytes distributed by diagnostic."
   },
   "mixedEraCompatibilityCandidate": {
-    "status": "real_touch_visual_report_export_and_final_revision_filter_counterfactual_passed_audit_private_phone_pending",
+    "status": "independently_audited_private_phone_handoff_ready_physical_Faint_result_pending",
     "supersedes": "historicalCandidate.phaseABuild as an executable diagnostic; does not rewrite the earlier assembly/source inventory",
     "assemblyAndCoreSourcePins": {
       "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
@@ -100,7 +100,17 @@
       "aggregateInventorySha256": "8edd04aa9755efeed90f25fdd5577e3eafb4f343e8f5664d7bdeebd08ac19818",
       "htmlSha256": "04cf955377de080241ec20b5c83bb532323ac5bcd8bad1bf6661a0d50f0b3294",
       "mainJsSha256": "e0a7b2e30e5ce184e50f10da523c5abea20b832bdee0a9e2a911daf065e3a385",
-      "usableForPhoneHandoff": false
+      "usableForPhoneHandoff": true
+    },
+    "audit": {
+      "bead": "aerobeat-web-assembly-kiom",
+      "verdict": "GO WITH FOLLOW-UPS; independent source, privacy, browser pixel, release-preservation and private HTTPS hash verification passed",
+      "publishedAssemblyCommits": ["db0de41", "51cea5f"],
+      "protectedReleaseAncestor": "07bc17643f2a317fff66c588c3901bb8bc278faf",
+      "gitAndDoltPushed": true,
+      "phoneFpsOrRootCauseKnown": false,
+      "remainingPhysicalInvestigationBead": "aerobeat-web-assembly-e218",
+      "canonicalReleaseCheckNote": "Normal 0.0.128 check:console refuses existing canonical content-authoring HEAD 048858c versus release pin f4ee9b4; canonical audio HEAD 19fd3a9 versus release pin 464fdef. Dedicated detached diagnostic build and QA pass; no release guard bypass or canonical sibling branch changes."
     }
   }
 }
