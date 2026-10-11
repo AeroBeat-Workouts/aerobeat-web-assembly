@@ -152,7 +152,7 @@ try {
   assert(selection.versionTag === "OUTPUT" && selection.versionOptions === null && selection.versionValue === "1" && selection.difficultyTag === undefined && selection.difficultyOptions === null, `remote compact must expose only singleton Version and never Difficulty: ${JSON.stringify(selection)}`);
   assert(selection.optionButtonCount === 0 && selection.cancelTag === "BUTTON" && ["Search", "Latest", "Choose local ZIP", "Preview", "Download"].every((label) => selection.browserActions.includes(label)) && JSON.stringify(selection.libraryActions) === JSON.stringify(["Preview", "Export", "Delete", "Reimport All", "Delete All"]) && JSON.stringify(selection.exportCalls) === JSON.stringify(["package-first"]), `Music must expose selected-only Preview/Export/Delete actions and no Play: ${JSON.stringify(selection)}`);
   const drawerCopy = await composedDrawerText(game);
-  const allowedDrawerText = new Set(["0.0.105", "Start", "Test", "Download Music first.", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Nose marker", "Nose marker scale", "Track extension (units)", "Visible tolerance range", "Visible collider radius", "Uppercuts in opposite lane", "Any punches in opposite lane", "Guard spacing", "Wrist Bomb Collider Scale", "Visible wrist obstacle radius", "Reimport All", "Delete All", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Hazard vignette intensity", "Hazard vignette pulse (Hz)", "Hazard vignette pulse depth", "Hazard vignette ramp (ms)", "Hazard vignette decay (ms)", "Enter a value within the allowed range and step.", "Gameplay", "Flow", "Boxing", "Obstacles", "Enabled", "Disabled", "Balanced Height", "Source Height", "Conversion", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "2", "Difficulty", "Expert", "Download", "Idle · 0%", "First library song", "Current library song", "Export", "Delete", "Cancel import", "Info", "Enter fullscreen", "Exit fullscreen", "Flow saber collider", "Show collider volume", "Collider scale", "Depth + (forward)", "Depth − (backward)", "Display", "UI scale (menus & HUD only)", "Scalable interface text for the glasses-off distance test. Does not scale the 3D playfield.", "Flow camera", "Height (Y)", "Depth (Z)", "Pitch (degrees)", "Yaw (degrees)", "Reset to default", "Calibration", "Note appearance: custom distance", "Appearance distance (world units)", "Gameplay render quality", "≈ 3333 ms"]);
+  const allowedDrawerText = new Set(["0.0.128", "Start", "Test", "Download Music first.", "Game Setup", "Show 4 × 3 grid", "Nose camera parallax", "Nose marker", "Nose marker scale", "Track extension (units)", "Visible tolerance range", "Visible collider radius", "Uppercuts in opposite lane", "Any punches in opposite lane", "Guard spacing", "Wrist Bomb Collider Scale", "Visible wrist obstacle radius", "Reimport All", "Delete All", "Collider timing window (ms)", "Collider radius", "Direction tolerance (degrees)", "Hazard vignette intensity", "Hazard vignette pulse (Hz)", "Hazard vignette pulse depth", "Hazard vignette ramp (ms)", "Hazard vignette decay (ms)", "Enter a value within the allowed range and step.", "Gameplay", "Flow", "Boxing", "Obstacles", "Enabled", "Disabled", "Balanced Height", "Source Height", "Conversion", "Visuals", "Default", "Compact", "Environment", "Aero", "Camera", "Music", "Search", "Latest", "Choose local ZIP", "First result", "Second result", "Preview", "Version", "1", "2", "Difficulty", "Expert", "Download", "Idle · 0%", "First library song", "Current library song", "Export", "Delete", "Cancel import", "Info", "Enter fullscreen", "Exit fullscreen", "Flow saber collider", "Show collider volume", "Collider scale", "Depth + (forward)", "Depth − (backward)", "Display", "UI scale (menus & HUD only)", "Scalable interface text for the glasses-off distance test. Does not scale the 3D playfield.", "Flow camera", "Height (Y)", "Depth (Z)", "Pitch (degrees)", "Yaw (degrees)", "Reset to default", "Calibration", "Note appearance: custom distance", "Appearance distance (world units)", "Gameplay render quality", "≈ 3333 ms"]);
   assert(Array.isArray(drawerCopy) && drawerCopy.every((text) => typeof text === "string"), "drawer copy must be a list of visible text strings");
   const unexpectedDrawerText = drawerCopy.filter((text) => !allowedDrawerText.has(text));
   assert(unexpectedDrawerText.length === 0 && !drawerCopy.includes("AeroBeat"), `compact drawer composed text must match the product allowlist: ${JSON.stringify({ drawerCopy, unexpectedDrawerText })}`);
@@ -370,6 +370,8 @@ try {
     lossProgression.push(await game.evaluate((element) => {
       const input = element.graph.input.getSnapshot(), session = element.graph.gameplay.getSnapshot().session;
       return { frozen: input.tracking.anchorsFrozen, paused: input.tracking.gameplayPaused, fresh: input.tracking.freshCalibrationRequired,
+        measuredTimestampMs: input.tracking.timestampMs, injectedFrameAtMs: globalThis.__mobileState.fixturePoseClockMs,
+        lossDurationMs: input.tracking.lossDurationMs, lossThresholdMs: input.tracking.lossThresholdMs,
         calibrationId: input.calibration.calibrationId, anchors: input.anchors, provenance: input.latestEvidence?.provenance,
         state: session.state, timelineMs: session.timelinePositionMs, audioState: globalThis.__mobileState.audioState,
         audioPauseCalls: globalThis.__mobileState.audioPauseCalls, audioPlayCalls: globalThis.__mobileState.audioPlayCalls,
@@ -377,7 +379,19 @@ try {
     }));
   }
   const frozenLoss = lossProgression.at(-1);
-  assert(lossProgression.slice(0, -1).every((entry) => !entry.frozen) && frozenLoss.frozen &&
+  const firstBadInjectedAtMs = lossProgression[0].injectedFrameAtMs;
+  const firstUnlatchedLossStartedAtMs = lossProgression[0].measuredTimestampMs - lossProgression[0].lossDurationMs;
+  // Browser frames do not arrive at nominal request offsets. Use the first bad
+  // fixture frame and the first UNLATCHED input sample as independent clocks:
+  // triggerTrackingPause clamps reported lossDurationMs to >=750 on freeze, so
+  // that public duration alone cannot prove that an early latch would RED.
+  assert(!lossProgression[0].frozen && frozenLoss.frozen && Number.isFinite(firstBadInjectedAtMs) &&
+    firstUnlatchedLossStartedAtMs >= firstBadInjectedAtMs - 1 && firstUnlatchedLossStartedAtMs <= firstBadInjectedAtMs + 1000 / 15 &&
+    lossProgression.every((entry, index) => entry.lossThresholdMs === 750 && Number.isFinite(entry.lossDurationMs) && entry.lossDurationMs >= 0 &&
+      Number.isFinite(entry.measuredTimestampMs) && Number.isFinite(entry.injectedFrameAtMs) && entry.measuredTimestampMs >= entry.injectedFrameAtMs &&
+      (!entry.frozen || (entry.measuredTimestampMs - firstBadInjectedAtMs >= entry.lossThresholdMs &&
+        entry.measuredTimestampMs - firstUnlatchedLossStartedAtMs >= entry.lossThresholdMs)) &&
+      (index === 0 || (entry.injectedFrameAtMs > lossProgression[index - 1].injectedFrameAtMs && entry.measuredTimestampMs > lossProgression[index - 1].measuredTimestampMs && entry.lossDurationMs >= lossProgression[index - 1].lossDurationMs))) &&
     lossProgression.every((entry) => entry.state === "playing" && entry.audioState === "playing" && !entry.paused && !entry.fresh &&
       entry.calibrationId === beforeLoss.calibrationId && entry.audioPauseCalls === beforeLoss.audioPauseCalls &&
       entry.audioPlayCalls === beforeLoss.audioPlayCalls && entry.inputResetCalls === beforeLoss.inputResetCalls && !entry.audioSyncPending &&

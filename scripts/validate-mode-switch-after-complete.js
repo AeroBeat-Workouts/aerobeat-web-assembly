@@ -20,6 +20,7 @@ function method(name, nextName) {
   assert(position >= 0 && end > position, `Assembly method ${name} missing`);
   return source.slice(position, end);
 }
+const extendScoringClock = method("extendSelectedScoringClock", "configureGameplayFromContent");
 const configure = method("configureGameplayFromContent", "gameplayContentPurpose");
 const selectVariant = method("performSelectVariant", "selectGameplayAxes");
 const selectContent = source.slice(source.indexOf("  async performSelectContent("), source.indexOf("\n  async selectVariant(", source.indexOf("  async performSelectContent(")));
@@ -30,7 +31,7 @@ const methods = new Function(
   "gameplayBoxingColliderSettings",
   "VISUAL_TEST_CONTENT_OPTIONS",
   "conversionRecipeIds",
-  `return ({${configure},${selectVariant},${selectContent.replace(/\n  async recoverFailedContentConfiguration\(/u, ",\n  async recoverFailedContentConfiguration(")}})`
+  `return ({${extendScoringClock},${configure},${selectVariant},${selectContent.replace(/\n  async recoverFailedContentConfiguration\(/u, ",\n  async recoverFailedContentConfiguration(")}})`
 )(
   { flow: "flow_colliders_v1", boxingCollider: "boxing_collider_v1" },
   () => defaultFlowColliderSettings,
@@ -133,10 +134,13 @@ const gameplayGraph = {
   },
   stop: gameplay.stop
 };
-const graph = { content, gameplay: gameplayGraph, audio: { pause: async () => {} }, cv: { stop: async () => {} }, profiles: { getActive: () => ({}) } };
+// The mode-switch fixture has no decoded music. Exercise the real clock-extension
+// method while its exact source-ID gate prevents an invented audio source.
+const graph = { content, gameplay: gameplayGraph, audio: { getSource: () => null, getStatus: () => ({ state: "idle", positionSeconds: 0, durationSeconds: 0 }), pause: async () => {} }, cv: { stop: async () => {} }, profiles: { getActive: () => ({}) } };
 const assembly = {
   graph, desiredGameSetup: {}, activeSessionSetup: null, sessionStartRequested: false, activeSessionAction: "", sessionGeneration: 0, menuTransitionGeneration: 0, menuOpen: true, menuDisposition: "none", lifecycle: "connected", lastError: null,
   gameplayContentPurpose() { return this.sessionStartRequested && this.activeSessionAction === "test" ? "visual_test" : "play"; },
+  selectedScoringClockMinimum() { return 2; }, // Positive minimum exercises the real extension's no-source guard.
   stopFrameLoop() {}, applyGameSetup() {}, isLifecycleIntentOwner() { return true; },
   syncContentPlayback() {
     const session = this.graph.gameplay.getSnapshot().session;
@@ -257,6 +261,7 @@ assert.equal(gameplay4.getSnapshot().session.state, "playing", "setup: run must 
 let playingSwitchError = null;
 try { await assembly.performSelectVariant("song-boxing", [], owner); } catch (error) { playingSwitchError = error; }
 assert.equal(playingSwitchError, null, `Mode switch while playing must not throw (got ${playingSwitchError?.code ?? ""}: ${playingSwitchError?.message ?? ""})`);
+assert.equal(assembly.lastError, null, "mid-play mode switch must not swallow a failed content configuration");
 
 // (a) The content snapshot must now carry the NEW variant's events.
 const snapAfterSwitch = content.getSnapshot();

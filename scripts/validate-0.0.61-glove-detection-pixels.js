@@ -4,9 +4,13 @@
 // in a REAL boxing_collider_v1 session: the rendered BOXING GLOVE (the 0.34 ×
 // 0.28 WU detection volume, @aerobeat/web-contracts gloveGeometry) is the hit
 // surface. A wrist that drives the glove INTO the authored punch's 1×1 judge
-// cell inside the ±180 ms window commits a REAL judged hit (corpse at the note
-// icon position, both hands); a wrist held clearly OUTSIDE the box commits a
-// REAL miss (the icon turns the desaturated MISS gray, no corpse). The legacy
+// cell during the Play note's actual timing clearance commits a REAL judged
+// hit (corpse at the note icon position, both hands); a wrist held clearly
+// OUTSIDE the box until beyond center+1000ms commits a REAL miss. Because the
+// miss icon is behind the default camera after that clearance, a supported
+// production Boxing camera pose at Z9 proves its GLB actually renders gray
+// (separately from the red Miss feedback glyph), without changing game scoring
+// or rewinding presentation time. A miss never spawns a corpse. The legacy
 // nose marker is HIDDEN in production (empty cursor array) — proven here at
 // the pixel level: the canonical gold nose dot (#F4C20D) is ABSENT at the
 // projected nose position in the production frame while the gloves ARE visible,
@@ -15,8 +19,10 @@
 // Detection geometry (flow-collider-collision.gloveBoxContactsBoxingTarget):
 //   glove box  = [sx−0.34, sx+0.34] × [sy−0.28, sy+0.28]  (judge space)
 //   target box = [tx−0.5, tx+0.5] × [ty−0.5, ty+0.5]       (the 1×1 cell)
-//   hit ⇔ boxes overlap AND sample within [center−180, center+180]
-//   straights are overlap-only (no direction gate).
+//   Play punch hit ⇔ swept boxes overlap while sampled within the production
+//   arrival/late-clearance interval; late misses finalize only after
+//   max(center+180×depthBackward, center+1000).
+//   Straights are overlap-only (no authored direction gate).
 //   cell 4 (straight_left,  judge (0,1))  cell 6 (straight_right, judge (2,1))
 //
 // Chart (one session, three punches):
@@ -123,7 +129,9 @@ try {
         drive(6000, "left", 0, 1.25, "hl");   // LEFT glove into cell 4 → HIT
         drive(10000, "right", 2, 1.25, "hr"); // RIGHT glove into cell 6 → HIT
         step(12000, { x: 1, y: 0.5 }, { x: 2.5, y: 0.5 }, "eq"); // nose/equipment frame
-        drive(14000, "left", 3, 1.0, "ms");   // LEFT glove outside cell 4 → MISS
+        drive(14000, "left", 3, 1.0, "ms");   // LEFT glove remains outside cell 4; still unjudged at 14200
+        if (coordinator.getSnapshot().judgements.some((j)=>j.eventId==="p-miss")) throw new Error("p-miss must NOT be judged before the Play note's 1000ms late clearance");
+        step(15001, IDLE, IDLE, "miss-clearance"); // real measured out-of-box wrist after 14000+1000
         const snap = coordinator.getSnapshot();
         const judgement = (id) => snap.judgements.find((j) => j.eventId === id);
         // (a) GATE-ASSERT: two real hits (both hands) + one real miss.
@@ -134,6 +142,7 @@ try {
         const commitL = Number(hitL.committedTimelinePositionMs), commitR = Number(hitR.committedTimelinePositionMs), missCommit = Number(miss.committedTimelinePositionMs);
         if (Math.abs(commitL - 6000) > 180) throw new Error(`p-hit-L commit ${commitL} outside ±180 of 6000`);
         if (Math.abs(commitR - 10000) > 180) throw new Error(`p-hit-R commit ${commitR} outside ±180 of 10000`);
+        if (missCommit !== 15001) throw new Error(`p-miss must commit only after its exact Play clearance, got ${missCommit}`);
         // ── pixel helpers ──
         const readPixels = () => { const s = new OffscreenCanvas(canvas.width, canvas.height); const c = s.getContext("2d", { willReadFrequently: true }); c.drawImage(canvas, 0, 0); return c.getImageData(0, 0, s.width, s.height).data; };
         const project = (x, y, z) => { const o = renderer.cameraEntity.camera.worldToScreen({ x, y, z }); return { x: o.x, y: o.y }; };
@@ -180,8 +189,18 @@ try {
         const hitRpx = checkHit("p-hit-R", commitR, 10000, "hitR");
         // (c) MISS: no corpse + the icon turns MISS gray.
         const missNow = missCommit + 50;
+        // The 1000ms Play miss clearance puts the orb behind the default Z5
+        // camera by commit. Use the real renderer's bounded Boxing camera pose
+        // (Z9) to PROVE its GLB gray fill at the truthful post-commit song time;
+        // do not mistake the separately visible red Miss glyph for the orb.
+        const { defaultGameplayCameraPose } = await import("/node_modules/@aerobeat/web-renderer/src/index.js");
+        renderer.setGameplayCameraPose("boxing",{...defaultGameplayCameraPose,position:{...defaultGameplayCameraPose.position,z:9}});
         const missFrame = frameAt(missNow);
         renderer.renderGameplayFrame(missFrame); const missWithPx = guard("miss with");
+        const missIcon = renderer.lastModel.objects.find((o)=>o.kind==="icon"&&o.targetId==="p-miss");
+        if (!missIcon || missIcon.state!=="miss" || missIcon.appearanceColor!=="#2a3038" || missIcon.assetId!=="any-note/outlined-circle-v1") throw new Error(`p-miss must retain the gray GLB icon, got ${JSON.stringify(missIcon??null)}`);
+        const missScreen=project(missIcon.position.x,missIcon.position.y,missIcon.position.z);
+        if (!Number.isFinite(missScreen.x)||!Number.isFinite(missScreen.y)||missScreen.x<46||missScreen.x>canvas.width-46||missScreen.y<46||missScreen.y>canvas.height-46) throw new Error(`p-miss gray GLB must be visibly within the controlled camera: ${JSON.stringify(missScreen)}`);
         const missBase = frameAt(missNow, missFrame.targets.filter((t) => t.id !== "p-miss"));
         renderer.renderGameplayFrame(missBase); const missBasePx = guard("miss base");
         // (c-i) NO corpse: no aftermath entry / scene object for the miss.
@@ -196,6 +215,12 @@ try {
         const missMeanSat = msat / missDiff.length, missMeanLuma = mlum / missDiff.length;
         if (missMeanSat >= 45) throw new Error(`p-miss: miss icon must be the desaturated MISS gray (mean channel-spread ${missMeanSat.toFixed(1)} ≥ 45 reads as a colored note, not a gray turn)`);
         if (missMeanLuma < 30 || missMeanLuma > 130) throw new Error(`p-miss: miss icon luma ${missMeanLuma.toFixed(1)} not in dark-miss range (expected ~#2a3038 with white outline, luma 30-130)`);
+        // The red Miss feedback is a distinct object; require real gray GLB
+        // pixels in a tight region around its measured projected position.
+        const iconPixels=missDiff.filter((p)=>Math.hypot(p.x-missScreen.x,p.y-missScreen.y)<46);
+        if (iconPixels.length<1000) throw new Error(`p-miss: visible gray GLB requires ≥1000 localized changed pixels, got ${iconPixels.length}`);
+        const iconMeanSat=iconPixels.reduce((sum,p)=>sum+Math.max(p.r,p.g,p.b)-Math.min(p.r,p.g,p.b),0)/iconPixels.length;
+        if (iconMeanSat>=45) throw new Error(`p-miss: localized gray GLB channel-spread ${iconMeanSat.toFixed(1)} ≥45 (not the separate red feedback)`);
         // (d) NOSE MARKER ABSENT + equipment visible (production frame).
         const cursorOptions = { grid: { x: 0, y: 0, width: 1, height: 1 }, minConfidence: 0.5, sizeCssPx: 32 };
         const equipmentInput=inputSnap(12000,evidence("eq-render",12000,{x:1,y:.5},{x:2.5,y:.5}));
@@ -224,9 +249,10 @@ try {
         // restore a clean frame.
         renderer.renderGameplayFrameWithCursorsAndEquipment(eqFrame, Object.freeze([]), cursorOptions, equipment, { grid: { x: 0, y: 0, width: 1, height: 1 } });
         guard("nose restore");
+        renderer.setGameplayCameraPose("boxing",null); // leave production pose unchanged after proof
         return {
           hitL: hitLpx, hitR: hitRpx,
-          miss: { commit: missCommit, meanSat: +missMeanSat.toFixed(1), meanLuma: +missMeanLuma.toFixed(1), diffPx: missDiff.length },
+          miss: { commit: missCommit, meanSat: +missMeanSat.toFixed(1), meanLuma: +missMeanLuma.toFixed(1), diffPx: missDiff.length, iconPixels: iconPixels.length, iconMeanSat: +iconMeanSat.toFixed(1), iconScreen: {x:+missScreen.x.toFixed(1),y:+missScreen.y.toFixed(1)} },
           nose: { screen: { x: +noseScreen.x.toFixed(1), y: +noseScreen.y.toFixed(1) }, prodGold, ctrlGold, equipmentCount: eqDiag.instanceCount, gloveDiffPx: gloveDiff.length },
         };
       });
@@ -247,6 +273,10 @@ try {
   }
   parity(direct.miss.meanSat, iframe.miss.meanSat, "miss meanSat", 12);
   parity(direct.miss.meanLuma, iframe.miss.meanLuma, "miss meanLuma", 12);
+  parity(direct.miss.iconPixels, iframe.miss.iconPixels, "miss localized gray GLB pixels", 100);
+  parity(direct.miss.iconMeanSat, iframe.miss.iconMeanSat, "miss localized gray GLB saturation", 12);
+  parity(direct.miss.iconScreen.x, iframe.miss.iconScreen.x, "miss icon screen X", 3);
+  parity(direct.miss.iconScreen.y, iframe.miss.iconScreen.y, "miss icon screen Y", 3);
   parity(direct.nose.prodGold, iframe.nose.prodGold, "nose prodGold", 20);
   parity(direct.nose.ctrlGold, iframe.nose.ctrlGold, "nose ctrlGold", 100);
   assert.equal(direct.nose.equipmentCount, iframe.nose.equipmentCount, "equipment count must match");

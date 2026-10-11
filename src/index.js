@@ -1548,6 +1548,9 @@ export class AeroGame extends HTMLElement {
     const minimum = this.selectedScoringClockMinimum(content, setup);
     if (minimum === undefined || this.graph.audio.getSource()?.id !== `${content.packageId}:audio`) return;
     const status = this.graph.audio.getStatus();
+    // A source ID survives a failed decode; only decoded-ready encoded audio
+    // can extend its scoring clock. Do not turn a selectable fixture into audio.
+    if (!["ready", "playing", "paused", "stopped"].includes(status.state)) return;
     // On a naturally completed song the next Start rewinds first. Extending
     // while ended is forbidden by audio, and the explicit completed-variant
     // path reloads first if a newly selected chart needs a longer duration.
@@ -2012,14 +2015,12 @@ export class AeroGame extends HTMLElement {
     // legacy grid row. Absent for non-boxing_collider presentations (the
     // defaults apply; flow notes ignore reach entirely).
     const isBoxingColliderForAftermath = presentation === "boxing_collider";
-    // 0.0.63 D5: pass the session's PRE-push saber wrist history so each Flow
-    // note hit gets a `sliceT` at the blade's actual cut position (the SAME
-    // frozen arrays the coordinator orients the visible beam from — chgy).
-    // Absent for non-flow rulesets / sessions without a snapshot field; the
-    // projection tolerates it and every entry omits sliceT (renderer midpoint
-    // fallback, identical to pre-D5 behavior).
-    const aftermathSaberWristHistory = isRecord(gameplay) && isRecord(gameplay.saberWristHistory) ? gameplay.saberWristHistory : null;
-    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex, isBoxingColliderForAftermath ? Object.freeze({ topRowReachWU: Number(setup.topRowReachWU), bottomRowReachWU: Number(setup.bottomRowReachWU) }) : null, aftermathSaberWristHistory, this.testAutomaticFeedbackEnabled);
+    // Gameplay alone owns accepted swept 3D Flow contact. Pass only its private
+    // per-event scalar lookup; public snapshots and current wrist samples cannot
+    // reconstruct the first crossing after a hit or history eviction.
+    const internalSlice = this.graph.gameplay[Symbol.for("aerobeat.web-gameplay.internal-flow-slice")];
+    const acceptedFlowSliceT = typeof internalSlice === "function" ? (eventId) => internalSlice.call(this.graph.gameplay, eventId) : null;
+    const aftermath = projectAftermathEntries(events, gameplay, nowMs, targets, this.renderEventIndex, isBoxingColliderForAftermath ? Object.freeze({ topRowReachWU: Number(setup.topRowReachWU), bottomRowReachWU: Number(setup.bottomRowReachWU) }) : null, acceptedFlowSliceT, this.testAutomaticFeedbackEnabled);
     // dntq: bounded hazard-contact events (assembly-owned) — obstacle head-collision
     // contact outcomes (Flow + Boxing) plus Flow bomb touch; avoided/miss produce nothing.
     const hazardContacts = setup.obstaclesEnabled ? projectHazardContactEvents(gameplay, nowMs) : projectHazardContactEvents({...gameplay,obstacleOutcomes:[],hazardOutcomes:(gameplay.hazardOutcomes??[]).filter((outcome)=>outcome.kind==="bomb")}, nowMs);

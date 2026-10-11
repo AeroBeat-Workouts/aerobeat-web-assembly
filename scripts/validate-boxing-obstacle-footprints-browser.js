@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { createServer } from "vite";
 import { fileURLToPath } from "node:url";
+import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 // Optional disposable git-archive HEAD mirrors for same-fixture production counterfactuals.
@@ -30,14 +31,20 @@ try {
   for (const viewport of [{ name: "phone portrait DPR3", width: 390, height: 844, dpr: 3 }, { name: "desktop landscape", width: 844, height: 390, dpr: 1 }]) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: viewport.dpr });
     const page = await context.newPage();
-    const errors = [];
-    page.on("pageerror", error => errors.push(error.message));
-    page.on("console", message => { if (message.type() === "error") errors.push(`console: ${message.text()}`); });
+    const noise = [];
+    page.on("console", message => {
+      const type = message.type(), text = message.text(), location = message.location();
+      if (["warning", "error"].includes(type)
+        && !isExpectedReadPixelsWarning(type, text, location.url, location.lineNumber, location.columnNumber, url)
+        && !isExpectedPlaycanvasMeshWarning(type, text))
+        noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}:lineNumber=${location.lineNumber}:columnNumber=${location.columnNumber}`);
+    });
+    page.on("pageerror", error => noise.push(`pageerror:${error.message}`));
     try {
       await page.goto(url, { waitUntil: "domcontentloaded" });
       await page.addScriptTag({ type: "module", content: 'import "/boxing-footprints-fixture.js";' });
       await page.waitForFunction(() => Boolean(window.__boxingFootprints) || Boolean(window.__boxingFootprintsError), null, { timeout: 20000 });
-      assert.deepEqual(errors, [], `${viewport.name}: module import errors`);
+      assert.deepEqual(noise, [], `${viewport.name}: module import warnings/errors`);
       const evidence = await page.evaluate(async ({ width, height, dpr }) => {
         const f = window.__boxingFootprints;
         const bytes = value => new TextEncoder().encode(JSON.stringify(value));
@@ -128,7 +135,7 @@ try {
           return { emitted: obstacles.length, proof };
         } finally { renderer.destroy(); runtime.destroy(); authoring.destroy(); }
       }, viewport);
-      assert.deepEqual(errors, [], `${viewport.name}: page errors`);
+      assert.deepEqual(noise, [], `${viewport.name}: browser warnings/errors`);
       assert.equal(evidence.emitted, 3, `${viewport.name}: all three obstacles survive four-second cooldown`);
       for (const row of evidence.proof) {
         const label = `${viewport.name} ${row.presentation} ${row.type}`;

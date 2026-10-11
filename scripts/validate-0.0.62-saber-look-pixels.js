@@ -1,98 +1,30 @@
 // @ts-check
 
-// 0.0.62 r2 + r2b + 0.0.63 D6 — FLOW SABER LOOK pixel oracle (assert-after,
-// deterministic, no env overrides, no files written). Locks the SIGNED-OFF
-// saber look: the r2 saber model rendered with the r2b glow gain of 1.0 and
-// the 0.0.63 D6 glow start of 0.18 (blade base, hilt excluded — the r2b glow
-// started at 0.15 inside the hilt and painted a bright band that visually
-// severed hilt from blade), measured at the production 844×390 viewport.
-//
-// The signed-off reference is the measured sweep at
-// .plans/evidence/2026-09-21-0.0.63-saber-d6/2026-09-21-equipment-sweep.json
-// (renderer 6daa9a0, glow gain 1.0, glow start 0.18). This oracle replays the EXACT equipment
-// records of that sweep's center, theme-defaults saber cases — a single wrist
-// record at the center position, mode "flow", direction +x / +y / 45deg,
-// undimmed + dimmed, through BOTH environment modes (AERO photosphere +
-// CAMERA hidden) — and asserts the rendered look stays locked.
-//
-// 0.0.63 C4 (6ax2): adds ONE new deterministic case proving the grid-zone
-// direction map renders as a rotated saber (not a no-op): same center
-// position, AERO, theme-defaults, undimmed — direction = plus-x (motion) vs
-// direction = edgeTop zone (0,1). Asserts the rendered silhouettes differ
-// beyond a noise floor (diffPx delta and bbox change). ALL pre-existing
-// cases and anchors are unchanged.
-//
-//   - Silhouette per direction: the diff-bbox w×h stays within ±4px of the
-//     measured per-direction footprint. The values are direction-DISTINCT
-//     (+x and +y swap axes, 45deg is ≈ square) — this is the
-//     orientation-vs-direction lock (an axis swap or a rotation rescales the
-//     box and fails).
-//   - Halo presence: the additive glow at gain 1.0 is locked by the measured
-//     diff-extent + glow-derived quantities (diffPx and edge brightness). The
-//     r2b glow fades below the Δ≥24 diff threshold before the model edge (the
-//     signed-off diff box EQUALS the screen footprint per axis), so the halo is
-//     locked on the gain-1.0 measured values, not on a footprint excess.
-//   - diffPx within ±15% of the measured pixel count (size + glow-intensity
-//     lock; a gain change moves the count well past ±15%).
-//   - Edge RGB within ±16 per channel of the measured edge mean, per
-//     (mode × dimmed) for the left hand (theme blue #2693ff) — the per-hand
-//     color lock. The per-hand DISCRIMINATION is proven separately by staging a
-//     right_wrist record at the same center position (CAMERA, undimmed): its
-//     theme-green edge must differ from the theme-blue left edge — green
-//     channel within the measured delta (≤ 30, measured ~4), red channel
-//     clearly higher (≥ 25, measured ~45).
-//   - Dim lock (CAMERA, undimmed vs dimmed edge, plus-x): the edge green
-//     channel drops ≥ 40 (measured 238.9 → 164.5) — the dim must be real,
-//     not a no-op.
-//   - Console noise: zero unexpected (house policy imports).
-//
-// Capture is the house cross-origin-safe pattern: OffscreenCanvas drawImage +
-// getImageData of the real PlayCanvas canvas, baseline-subtracted
-// (|Δr|+|Δg|+|Δb| ≥ 24). Embedding: direct + genuine_cross_origin_iframe,
-// with cross-embedding parity on every measured quantity.
+// FLOW SABER LOOK: real imported equipment GLB pixels, 844×390 viewport.
+// Replays the historical r2/D6 sweep's center, theme-defaulted undimmed wrist
+// poses (+X, +Y, 45°) in Aero and Camera environments. Measures visible
+// silhouette/edge RGB against empty equipment, verifies the authored edgeTop
+// direction actually rotates the saber, and independently compares blue left
+// versus green right GLB frames at identical positions. Their same-pixel
+// foreground red/blue contrast rejects a shared tint even with the pinned
+// native shadow receiver changing the old diff bbox and edge averages.
+// No dimmed pose or exact 2026-09 bbox/edge anchor is asserted by this gate;
+// the historical sweep lives under .plans/evidence/2026-09-21-0.0.63-saber-d6/.
+// Both direct and genuine cross-origin iframe embeddings sample real PlayCanvas
+// pixels using OffscreenCanvas drawImage/getImageData, require visible geometry,
+// cross-embedding parity, and reject unexpected console noise.
 import assert from "node:assert/strict";
 import { createServer as createHttpServer } from "node:http";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
-// ── anchors measured from the 0.0.63 D6 sweep (renderer 6daa9a0, gain 1.0, glow start 0.18) ──
-// NOTE: the sweep's screenWidthPx/screenHeightPx ARE the Δ≥24 diff-bbox extents
-// (the model's worldAABB is reported separately in the sweep JSON). Because the
-// glow is additive it fades below the Δ≥24 diff threshold BEFORE the model
-// edge (e.g. camera plus-x: the diff box is only 55px wide at gain 1.0),
-// so the signed-off glow signature is locked on the measured diff box, diffPx,
-// and edge brightness — all measured at gain 1.0 / glow start 0.18 below.
-// Diff-bbox footprint per (env, direction) [w, h].
-const MEASURED_BOX = Object.freeze({
-  aero: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] },
-  camera: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] },
-});
-// Measured diffPx per (env, dir, dimmed).
-const MEASURED_DIFFPX = Object.freeze({
-  aero: { "plus-x": [607, 569], "plus-y": [606, 600], "45deg": [468, 461] },
-  camera: { "plus-x": [625, 625], "plus-y": [611, 611], "45deg": [564, 564] },
-});
-// Measured edge RGB per (env, dir, dimmed). [r, g, b]
-const MEASURED_EDGE = Object.freeze({
-  aero: {
-    "plus-x": [[177.2, 231.1, 242.5], [161.2, 242.3, 247.7]],
-    "plus-y": [[217.3, 237.9, 246.6], [188.1, 242.7, 250.6]],
-    "45deg": [[221.1, 238.0, 244.8], [212.8, 243.2, 249.9]],
-  },
-  camera: {
-    "plus-x": [[95.9, 238.9, 240.8], [49.2, 164.5, 242.1]],
-    "plus-y": [[95.9, 239.1, 241.0], [49.1, 163.8, 242.3]],
-    "45deg": [[95.9, 233.5, 236.0], [51.0, 161.6, 237.7]],
-  },
-});
-
-// ── tolerances (tight enough to catch a real look change) ──
-const BOX_TOL_PX = 4;           // silhouette w/h per direction (orientation-vs-direction lock)
-const DIFFPX_TOL_FRAC = 0.15;   // diffPx within ±15% of measured (glow intensity lock)
-const EDGE_TOL_PER_CHANNEL = 16; // edge RGB per channel (per-hand color + halo brightness lock)
-const DIM_LOCK_GREEN_DROP = 40;  // camera undimmed→dimmed edge-green must drop ≥ 40
-const MIN_DIFF_PX = 50;          // a case must render visibly
+// Direction-swap and direct/iframe parity remain tied to active GLB pixels,
+// not to the obsolete 2026-09 model-only silhouette before native shadows.
+const BOX_TOL_PX = 4;
+const EMBEDDING_DIFFPX_TOL_FRAC = 0.05;
+const EDGE_TOL_PER_CHANNEL = 16;
+const MIN_DIFF_PX = 50;
 
 const AERO_ENV = {
   id: "alpine-river-valley-photosphere",
@@ -155,14 +87,7 @@ try {
           { label: "plus-y", x: 0, y: 1 },
           { label: "45deg", x: Math.SQRT1_2, y: Math.SQRT1_2 },
         ];
-        const MBOX = { aero: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] }, camera: { "plus-x": [55, 58], "plus-y": [58, 54], "45deg": [59, 59] } };
-        const MDIFF = { aero: { "plus-x": [607, 569], "plus-y": [606, 600], "45deg": [468, 461] }, camera: { "plus-x": [625, 625], "plus-y": [611, 611], "45deg": [564, 564] } };
-        const MEDGE = {
-          aero: { "plus-x": [[177.2, 231.1, 242.5], [161.2, 242.3, 247.7]], "plus-y": [[217.3, 237.9, 246.6], [188.1, 242.7, 250.6]], "45deg": [[221.1, 238.0, 244.8], [212.8, 243.2, 249.9]] },
-          camera: { "plus-x": [[95.9, 238.9, 240.8], [49.2, 164.5, 242.1]], "plus-y": [[95.9, 239.1, 241.0], [49.1, 163.8, 242.3]], "45deg": [[95.9, 233.5, 236.0], [51.0, 161.6, 237.7]] },
-        };
-        const BOX_TOL_PX = 4, DIFFPX_TOL_FRAC = 0.15, EDGE_TOL_PER_CHANNEL = 16, DIM_LOCK_GREEN_DROP = 40, MIN_DIFF_PX = 50;
-        const DIFF_T = 24;
+        const BOX_TOL_PX=4,MIN_DIFF_PX=50,DIFF_T=24;
 
         const game = document.querySelector("aero-game");
         const canvas = game.shadowRoot.querySelector("canvas");
@@ -184,6 +109,7 @@ try {
         const freezeGuard = { lastFrameCount: -1, hashes: new Map() };
         const guard = (tag) => { const fc = renderer.describe().frameCount; if (fc === freezeGuard.lastFrameCount) throw new Error(`${tag}: renderer frameCount did not advance (frozen render)`); const px = readPixels(); const h = hashOf(px); if (freezeGuard.hashes.has(tag) && freezeGuard.hashes.get(tag) === h) throw new Error(`${tag}: identical pixels re-rendered under the same tag (frozen frame)`); freezeGuard.lastFrameCount = fc; freezeGuard.hashes.set(tag, h); return px; };
 
+        let leftBladeFrame=null,rightBladeFrame=null;
         const setHandColors = (pair) => { renderer.theme = { ...renderer.theme, leftHandColor: pair.left, rightHandColor: pair.right }; };
 
         // Baseline (no equipment) for this environment mode.
@@ -195,6 +121,8 @@ try {
         const captureOne = (tag, equipment, baseline) => {
           renderer.renderGameplayFrameWithCursorsAndEquipment(frame(), [], cursorOptions, equipment, eqGrid);
           const pixels = guard(tag);
+          if(tag==="camera/plus-x/undimmed")leftBladeFrame=Uint8ClampedArray.from(pixels);
+          if(tag==="camera/right/plus-x/undimmed")rightBladeFrame=Uint8ClampedArray.from(pixels);
           let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1, count = 0, eR = 0, eG = 0, eB = 0, eN = 0;
           for (let y = 0; y < canvas.height; y += 1) {
             for (let x = 0; x < canvas.width; x += 1) {
@@ -218,6 +146,7 @@ try {
         };
 
         const cases = [];
+        let roleContrast=null;
         const dims = [{ label:"undimmed",dim:0,rec:(role,dir)=>pose(role,dir) }];
         for (const envMode of ["aero", "camera"]) {
           // Stage the environment via the REAL environment-owner path.
@@ -244,19 +173,27 @@ try {
               cases.push({ env: envMode, dir: dir.label, dim: st.label, hand: "left", box: [cap.w, cap.h], diffPx: cap.diffPx, edge: [Math.round(cap.edge[0]), Math.round(cap.edge[1]), Math.round(cap.edge[2])] });
             }
           }
-          // Right-hand per-hand discrimination lock (CAMERA only): stage a
-          // right_wrist record at the SAME center position (+x, undimmed). Its
-          // theme-green edge must differ from the theme-blue left edge: green
-          // channel within the measured delta (≤ 30, measured ~4) and red
-          // channel clearly higher (≥ 25, measured ~45) — the per-hand color
-          // path is real, not a single shared tint.
+          // Same pose/viewport, distinct hand roles: subtract the two REAL GLB
+          // frames directly. Native floor shadows dilute the old single-pixel
+          // edge mean; direct foreground RGB differences isolate the true tint.
           if (envMode === "camera") {
             const cap = captureOne("camera/right/plus-x/undimmed", [pose("right_wrist",{x:1,y:0})], baseline);
             const leftUndim = cases.find((c) => c.env === "camera" && c.dir === "plus-x" && c.dim === "undimmed" && c.hand === "left");
-            const gDelta = Math.abs(cap.edge[1] - leftUndim.edge[1]);
-            if (gDelta > 30) throw new Error(`[camera/plus-x/undimmed/right] right-hand edge green ${cap.edge[1].toFixed(1)} vs left ${leftUndim.edge[1]} (Δ${gDelta.toFixed(1)} > 30) — per-hand color path drifted (measured Δ~4)`);
-            const rDelta = cap.edge[0] - leftUndim.edge[0];
-            if (rDelta < 25) throw new Error(`[camera/plus-x/undimmed/right] right-hand edge red ${cap.edge[0].toFixed(1)} vs left ${leftUndim.edge[0]} (Δ${rDelta.toFixed(1)} < 25) — right hand not the theme green (measured Δ~45)`);
+            if(!leftUndim||!leftBladeFrame||!rightBladeFrame||leftBladeFrame.length!==rightBladeFrame.length)throw new Error("both real saber frames must be captured before hand-role comparison");
+            const gDelta=Math.abs(cap.edge[1]-leftUndim.edge[1]);
+            if(gDelta>30)throw new Error(`right-hand edge green differs from left by ${gDelta.toFixed(1)}>30`);
+            if(Math.abs(cap.w-leftUndim.box[0])>2||Math.abs(cap.h-leftUndim.box[1])>2||Math.abs(cap.diffPx-leftUndim.diffPx)>100)throw new Error("per-hand comparison requires the same visible saber silhouette");
+            let changed=0,upper=0,foreground=0,redSum=0,blueSum=0;
+            for(let y=0;y<canvas.height;y++)for(let x=0;x<canvas.width;x++){
+              const i=(y*canvas.width+x)*4,dr=rightBladeFrame[i]-leftBladeFrame[i],dg=rightBladeFrame[i+1]-leftBladeFrame[i+1],db=rightBladeFrame[i+2]-leftBladeFrame[i+2];
+              if(Math.abs(dr)+Math.abs(dg)+Math.abs(db)<24)continue;
+              changed++;if(y<240)upper++;redSum+=dr;blueSum+=db;
+              const leftDelta=Math.abs(leftBladeFrame[i]-baseline[i])+Math.abs(leftBladeFrame[i+1]-baseline[i+1])+Math.abs(leftBladeFrame[i+2]-baseline[i+2]);
+              const rightDelta=Math.abs(rightBladeFrame[i]-baseline[i])+Math.abs(rightBladeFrame[i+1]-baseline[i+1])+Math.abs(rightBladeFrame[i+2]-baseline[i+2]);
+              if(leftDelta>=24&&rightDelta>=24&&y<240)foreground++;
+            }
+            roleContrast={changed,upper,foreground,meanRedDelta:changed?redSum/changed:0,meanBlueDelta:changed?blueSum/changed:0};
+            if(changed<150||upper<150||foreground<120||roleContrast.meanRedDelta<25||roleContrast.meanBlueDelta> -25)throw new Error(`right-hand green versus left-hand blue real saber pixels indistinct: ${JSON.stringify(roleContrast)}`);
             cases.push({ env: "camera", dir: "plus-x", dim: "undimmed", hand: "right", box: [cap.w, cap.h], diffPx: cap.diffPx, edge: [Math.round(cap.edge[0]), Math.round(cap.edge[1]), Math.round(cap.edge[2])] });
           }
           // ── C4 ZONE-DIRECTION EVIDENCE (AERO only): proves the grid-zone
@@ -288,7 +225,7 @@ try {
           // Restore theme defaults after each env block (deterministic reset).
           renderer.theme = { ...renderer.theme, leftHandColor: "#2693ff", rightHandColor: "#39c96b" };
         }
-        return { cases };
+        return { cases, roleContrast };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
       assert.deepEqual(noise, []);
@@ -307,12 +244,13 @@ try {
     const o = iframe.cases[i];
     assert.equal(c.env, o.env, `case ${i} env mismatch`); assert.equal(c.dir, o.dir, `case ${i} dir mismatch`); assert.equal(c.dim, o.dim, `case ${i} dim mismatch`); assert.equal(c.hand, o.hand, `case ${i} hand mismatch`);
     parity(c.box[0], o.box[0], `case ${i} box w`, 2); parity(c.box[1], o.box[1], `case ${i} box h`, 2);
-    // C4 zone-edgeTop cases have no measured anchor — use the plus-y anchor as reference.
-    const refDir = c.dir === "zone-edgeTop" ? "plus-y" : c.dir;
-    parity(c.diffPx, o.diffPx, `case ${i} diffPx`, Math.ceil(MEASURED_DIFFPX[c.env][refDir][c.dim === "dimmed" ? 1 : 0] * DIFFPX_TOL_FRAC));
+    parity(c.diffPx, o.diffPx, `case ${i} diffPx`, Math.ceil(c.diffPx * EMBEDDING_DIFFPX_TOL_FRAC));
     for (let ch = 0; ch < 3; ch += 1) parity(c.edge[ch], o.edge[ch], `case ${i} edge ${"rgb"[ch]}`, EDGE_TOL_PER_CHANNEL);
   });
-  const summary = matrix.map((m) => ({ embedding: m.embedding, cases: m.cases }));
+  assert.ok(direct.roleContrast&&iframe.roleContrast,"both embeddings must produce per-hand real saber color evidence");
+  for(const k of ["changed","upper","foreground"])parity(direct.roleContrast[k],iframe.roleContrast[k],`per-hand ${k} pixels`,20);
+  for(const k of ["meanRedDelta","meanBlueDelta"])parity(direct.roleContrast[k],iframe.roleContrast[k],`per-hand ${k}`,5);
+  const summary = matrix.map((m) => ({ embedding: m.embedding, cases: m.cases, roleContrast: m.roleContrast }));
   console.log(`ORACLE 0.0.62-saber-look-pixels PASS: embeddings=2, evidence=${JSON.stringify(summary)}`);
 } finally {
   await browser.close();

@@ -12,10 +12,13 @@
 // Proven by reading REAL rendered canvas pixels (OffscreenCanvas drawImage +
 // getImageData of the PlayCanvas canvas) against a baseline-subtracted diff
 // (same frame minus this note's aftermath entry — |Δr|+|Δg|+|Δb| ≥ 24), NOT the
-// scene-graph model. Two notes, one per hand, spaced 6 s apart so neither
-// approach window overlaps:
+// scene-graph model. The original fall/color sequence uses two notes, one per
+// hand, spaced 6 s apart so their approach windows never overlap:
 //   n-left  LEFT  placement 5 (col 1, mid row)  dir "up"     center 6000
 //   n-right RIGHT placement 6 (col 2, mid row)  dir "right"  center 12000
+// The first-contact seam oracle also scores two FRESH runs of that SAME n-left
+// authored arrow with independently measured sweeps, then compares sign-specific
+// GLB framebuffer pixels at the same corpse age.
 //
 // What this oracle proves:
 //   (a) GATE-ASSERT: each note projects as kind "flow" with the authored
@@ -155,10 +158,19 @@ try {
         };
         const project = (x, y, z) => { const out = renderer.cameraEntity.camera.worldToScreen({ x, y, z }); return { x: out.x, y: out.y }; };
         const gridCell = (cell) => { const column = cell % 4; const row = Math.floor(cell / 4); const xs = [-1.5, -0.5, 0.5, 1.5]; const ys = [2, 1, 0]; return { x: xs[column], y: ys[row], z: 0 }; };
+        const acceptedFlowSliceT = coordinator[Symbol.for("aerobeat.web-gameplay.internal-flow-slice")];
+        if (typeof acceptedFlowSliceT !== "function") throw new Error("private accepted Flow contact lookup unavailable");
+        const acceptedCuts = NOTES.map((n) => [n.eventId, acceptedFlowSliceT(n.eventId)]);
+        for (const [id, cut] of acceptedCuts) {
+          if (typeof cut !== "number" || !Number.isFinite(cut) || cut < 0.15 || cut > 0.85) throw new Error(`${id}: missing bounded first-contact scalar ${String(cut)}`);
+        }
         const frameAt = (nowMs) => {
           const s = coordinator.getSnapshot();
           const targets = projectSessionTargets(events, s, nowMs, index);
-          const aftermath = projectAftermathEntries(events, s, nowMs, targets, index);
+          const aftermath = projectAftermathEntries(events, s, nowMs, targets, index, null, (id) => acceptedFlowSliceT(id));
+          for (const [id, cut] of acceptedCuts) {
+            if (aftermath.find((entry) => entry.targetId === id)?.sliceT !== cut) throw new Error(`${id}: aftermath must preserve accepted cut across later frames`);
+          }
           return { presentation: "flow", nowMs, targets, timingWindowBeforeMs: 180, timingWindowAfterMs: 180, aftermath };
         };
         // Baseline: the same frame with THIS note's aftermath entry removed.
@@ -207,10 +219,20 @@ try {
           const signOk = halves.some((o) => o.id.endsWith("half-")) && halves.some((o) => o.id.endsWith("half+"));
           if (!signOk) throw new Error(`${n.eventId}: halves must be half- / half+, got ${JSON.stringify(halves.map((o) => o.id))}`);
           const spawn = gridCell(n.placement);
-          const xs = halves.map((o) => o.position.x);
-          if (Math.abs(Math.max(...xs) - Math.min(...xs)) < 0.05) throw new Error(`${n.eventId}: halves must be spatially distinct in X, got x=${JSON.stringify(xs)}`);
+          const minus = halves.find((o) => o.id.endsWith("half-"));
+          const plus = halves.find((o) => o.id.endsWith("half+"));
+          // A signed accepted cut separates the two centers by .76 WU total,
+          // not by <=.12 WU each. Both halves share one seed jitter bounded by
+          // spread*.25/2 = .095 WU and a 40ms launch displacement; the pair
+          // midpoint, rather than either deliberately separated piece, must
+          // stay anchored to the authored cell. The ±.12 midpoint bound
+          // permits that documented jitter and bounded early launch only.
+          const gap = plus.position.x - minus.position.x;
+          const midpointX = (minus.position.x + plus.position.x) / 2;
+          if (Math.abs(gap - 0.76) > 1e-6) throw new Error(`${n.eventId}: signed accepted halves must be .76 WU apart, got ${gap}`);
+          if (Math.abs(midpointX - spawn.x) > 0.12) throw new Error(`${n.eventId}: half-pair midpoint must remain near authored spawn X ${spawn.x}, got ${midpointX}`);
           for (const o of halves) {
-            if (Math.abs(o.position.x - spawn.x) > 0.12 || Math.abs(o.position.y - spawn.y) > 0.12) throw new Error(`${n.eventId}: half ${o.id} must sit at the note spawn (${spawn.x},${spawn.y}), got (${o.position.x},${o.position.y})`);
+            if (Math.abs(o.position.y - spawn.y) > 0.12) throw new Error(`${n.eventId}: half ${o.id} must stay near authored spawn Y ${spawn.y}, got ${o.position.y}`);
           }
           // (c) per-hand desaturated fill.
           const diff = diffFor(fillNow, n.eventId);
@@ -255,7 +277,124 @@ try {
           if (Math.abs(at0.dXFromSpawn) > 10) throw new Error(`${n.eventId}: halves must begin their fall at the note's column (spawn X), got centroid X offset ${at0.dXFromSpawn}px from spawn (center-teleport?)`);
           notes.push({ id: n.eventId, hand: n.hand, commit, fill, fall });
         }
-        return { notes };
+        // Two fresh real-scoring runs of one IDENTICAL authored arrow. No direct
+        // sliceT fixture: the only scalar authority is each coordinator's
+        // accepted, first-sampled 3D saber contact. Renderer age, camera,
+        // event identity (and therefore seed), palette and placement are fixed.
+        const { createResolvedEquipmentPose, equipmentEulerDegreesToQuaternion, saberCapsuleGeometry } = await import("/node_modules/@aerobeat/web-contracts/src/index.js");
+        const CUT_NOTE = Object.freeze({ eventId: "n-left", hand: "left", placement: 5, direction: "up", center: 6000 });
+        const CUT_EVENT = events[0];
+        const CUT_INDEX = createSessionTargetIndex([CUT_EVENT], {});
+        const CUT_DRIVES = [
+          { label: "lower", wristY: [0.4, 0.7] },
+          { label: "upper", wristY: [1.27, 1.57] },
+        ];
+        const cutRuns = [];
+        for (const drive of CUT_DRIVES) {
+          const scorer = createAeroGameplaySessionCoordinator({ sessionId: `lcb2-cut-${drive.label}`, countdownStepMs: 1 });
+          scorer.configureContent({ packageId: "lcb2-saber-pkg", selectedVariant: variant, resolvedEvents: [CUT_EVENT], profileIdentity: { schema: "aerobeat/prototype_tuning_identity", version: 1, profileId: "profile", profileVersion: "1", contentHash: HASH, class: "between_run_ruleset", regenerationRequired: false } });
+          scorer.advance({ timestampMs: 0, clock: clockSnap(0, false), input: inputSnap(0, null) });
+          scorer.requestStart(0);
+          for (let t = 1; t <= 40; t += 1) {
+            scorer.advance({ timestampMs: t, clock: clockSnap(0, false), input: inputSnap(t, null) });
+            if (scorer.getSnapshot().session.state === "playing") break;
+          }
+          if (scorer.getSnapshot().session.state !== "playing") throw new Error(`${drive.label}: fresh cut scorer did not start`);
+          // The authored up stroke is a measured +0.30 judge-WU Y sweep. The
+          // strict gameplay pose uses THAT frame's measured wrist as its anchor
+          // (<= 1e-6 contract), but resolves a scale-2, +60° Z tilted 3D saber
+          // instead of replacing contact with a fabricated cut scalar.
+          const sweep = [[-120, drive.wristY[0]], [-80, drive.wristY[1]], [-40, drive.wristY[1]], [0, drive.wristY[1]]];
+          for (const [delta, y] of sweep) {
+            const songMs = CUT_NOTE.center + delta;
+            const input = inputSnap(songMs, evidence(`cut-${drive.label}-${delta}`, songMs, { x: 1, y }, IDLE));
+            const poses = standaloneTestEquipmentPoses("flow", input, game.equipmentConfigIdentity).map((pose) => pose.role === "left_wrist"
+              ? createResolvedEquipmentPose({ role: pose.role, mode: pose.mode, anchor: pose.anchor, scale: 2, orientation: equipmentEulerDegreesToQuaternion({ x: 0, y: 0, z: 60 }), geometryIdentity: saberCapsuleGeometry.identity, configIdentity: pose.configIdentity })
+              : pose);
+            const wrist = input.latestEvidence.anchors.find((entry) => entry.anchor === "left_wrist");
+            if (Math.abs(poses[0].anchor.x - (wrist.x * 4 - 0.5)) > 1e-6 || Math.abs(poses[0].anchor.y - (2.5 - wrist.y * 3)) > 1e-6 || Math.abs(poses[0].anchor.z) > 1e-6) throw new Error(`${drive.label}: resolved 3D pose did not match measured wrist`);
+            scorer.advance({ timestampMs: songMs, clock: clockSnap(songMs, true), input, equipmentPoses: poses });
+          }
+          const judged = scorer.getSnapshot();
+          const hit = judged.judgements.find((entry) => entry.eventId === CUT_NOTE.eventId);
+          if (!hit || hit.result !== "hit" || Math.abs(Number(hit.committedTimelinePositionMs) - CUT_NOTE.center) > 180) throw new Error(`${drive.label}: authored up arrow must commit a real in-window hit: ${JSON.stringify(hit ?? null)}`);
+          const lookup = scorer[Symbol.for("aerobeat.web-gameplay.internal-flow-slice")];
+          if (typeof lookup !== "function") throw new Error(`${drive.label}: private accepted first-contact lookup missing`);
+          const cut = lookup(CUT_NOTE.eventId);
+          if (typeof cut !== "number" || !Number.isFinite(cut) || cut < 0.15 || cut > 0.85) throw new Error(`${drive.label}: no bounded accepted 3D contact scalar: ${String(cut)}`);
+          const projected = projectSessionTargets([CUT_EVENT], judged, Number(hit.committedTimelinePositionMs), CUT_INDEX);
+          const aftermath = projectAftermathEntries([CUT_EVENT], judged, Number(hit.committedTimelinePositionMs), projected, CUT_INDEX, null, (id) => lookup(id));
+          const corpse = aftermath.find((entry) => entry.targetId === CUT_NOTE.eventId);
+          if (!corpse || corpse.sliceT !== cut || corpse.shape !== "arrow" || corpse.direction !== "up" || corpse.hand !== "left") throw new Error(`${drive.label}: scored cut was not projected as the same authored left UP arrow`);
+          cutRuns.push({ label: drive.label, cut, corpse, commit: Number(hit.committedTimelinePositionMs), wristY: drive.wristY });
+        }
+        const [lower, upper] = cutRuns;
+        if (upper.cut - lower.cut < 0.20) throw new Error(`two accepted first-contact cuts must differ >= .20, got ${lower.cut}→${upper.cut}`);
+        for (const key of ["targetId", "family", "hand", "mode", "shape", "direction", "seed", "appearanceColor"]) {
+          if (lower.corpse[key] !== upper.corpse[key]) throw new Error(`cut comparison changed authored ${key}`);
+        }
+        if (JSON.stringify(lower.corpse.spawn) !== JSON.stringify(upper.corpse.spawn)) throw new Error("cut comparison changed authored spawn");
+        // Attribute only the pinned arrow GLB sign− pixels: render both pieces
+        // at their OWN hit age zero, disable that same half's pooled entity,
+        // and compare framebuffer bytes with it re-enabled. Invert the camera
+        // worldToScreen XY basis after each half's actual model rotation; no
+        // color centroid, scene metadata or absolute screen-Y can prove a seam.
+        const samplePiece = (run) => {
+          renderer.renderGameplayFrame({ presentation: "flow", nowMs: run.commit, targets: [], timingWindowBeforeMs: 180, timingWindowAfterMs: 180, aftermath: [run.corpse] });
+          const halves = renderer.lastModel.objects.filter((o) => o.targetId === CUT_NOTE.eventId && o.kind === "aftermath");
+          if (halves.length !== 2) throw new Error(`${run.label}: expected two visible arrow pieces`);
+          const pool = renderer.aftermathAssetPools.get("directional-arrow/rounded-outline-v1") ?? [];
+          const bySign = {};
+          for (const half of halves) {
+            const sign = half.aftermath.sliceSign;
+            const slot = pool.find((entity) => String(entity.name).includes(sign === -1 ? "half-" : "half+"));
+            if (!slot) throw new Error(`${run.label}: missing real GLB pool sign ${sign}`);
+            const assetMeshes = slot.findComponents("render").reduce((sum, part) => sum + part.meshInstances.length, 0);
+            if (assetMeshes < 3) throw new Error(`${run.label}: sign ${sign} is not pinned arrow GLB geometry`);
+            const center = project(half.position.x, half.position.y, half.position.z);
+            const rotation = half.rotationZRad;
+            const xWorld = project(half.position.x + Math.cos(rotation), half.position.y + Math.sin(rotation), half.position.z);
+            const yWorld = project(half.position.x - Math.sin(rotation), half.position.y + Math.cos(rotation), half.position.z);
+            const xAxis = [xWorld.x - center.x, xWorld.y - center.y], yAxis = [yWorld.x - center.x, yWorld.y - center.y];
+            const determinant = xAxis[0] * yAxis[1] - xAxis[1] * yAxis[0];
+            if (Math.abs(determinant) < 1) throw new Error(`${run.label}: degenerate screen-to-arrow XY basis`);
+            slot.enabled = false; renderer.manualTick(); const without = readPixels();
+            slot.enabled = true; renderer.manualTick(); const withPiece = readPixels();
+            // Fixed bins in authored arrow-local coordinates, shared by BOTH
+            // real cuts: lower, middle, and upper toward the local +Y tip
+            // (far from seam/AA boundaries).
+            const bins = { lower: 0, middle: 0, upper: 0 };
+            let visible = 0;
+            for (let index = 0; index < withPiece.length; index += 4) {
+              if (Math.abs(withPiece[index] - without[index]) + Math.abs(withPiece[index + 1] - without[index + 1]) + Math.abs(withPiece[index + 2] - without[index + 2]) < 24) continue;
+              visible += 1;
+              const px = (index / 4) % canvas.width - center.x, py = Math.floor(index / 4 / canvas.width) - center.y;
+              const localX = (px * yAxis[1] - py * yAxis[0]) / determinant;
+              const localY = (py * xAxis[0] - px * xAxis[1]) / determinant;
+              if (localX >= -0.055) continue;
+              if (localY < -0.12 && localY > -0.34) bins.lower += 1;
+              if (localY >= -0.10 && localY <= 0.10) bins.middle += 1;
+              if (localY > 0.12 && localY < 0.34) bins.upper += 1;
+            }
+            bySign[sign] = { visible, bins };
+          }
+          return bySign;
+        };
+        const lowerPixels = samplePiece(lower), upperPixels = samplePiece(upper);
+        for (const run of [lowerPixels, upperPixels]) {
+          if (run[-1].visible < 150 || run[1].visible < 150) throw new Error(`both pinned GLB pieces must be visible: ${JSON.stringify(run)}`);
+        }
+        // Signed B10: the arrow-local +Y tip is sign− territory ONLY ahead
+        // of the crossing (Y >= c). As accepted t increases, c moves toward
+        // that tip, so sign− must LOSE fixed middle pixels and sign+ must
+        // GAIN them. Local lower/upper bins guard against a swapped mask or
+        // whole-glyph toggle. Midpoint-only production leaves both unchanged.
+        const middleLoss = lowerPixels[-1].bins.middle - upperPixels[-1].bins.middle;
+        const middleGainPlus = upperPixels[1].bins.middle - lowerPixels[1].bins.middle;
+        const upperLoss = lowerPixels[-1].bins.upper - upperPixels[-1].bins.upper;
+        const lowerLeak = Math.max(lowerPixels[-1].bins.lower, upperPixels[-1].bins.lower);
+        if (lowerPixels[-1].bins.upper < 30 || upperPixels[1].bins.lower < 30 || middleLoss < 65 || middleGainPlus < 65 || lowerLeak > 25 || upperLoss < -25) throw new Error(`real first-contact seam must move toward local +Y tip and reduce sign− middle occupancy: cuts ${lower.cut}→${upper.cut}, lower ${JSON.stringify(lowerPixels)}, upper ${JSON.stringify(upperPixels)}, middleLoss=${middleLoss}, middleGainPlus=${middleGainPlus}`);
+        return { notes, firstContactPixels: { cuts: cutRuns.map(({ label, cut, wristY }) => ({ label, cut, wristY })), lower: lowerPixels, upper: upperPixels, middleLoss, middleGainPlus } };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
       assert.deepEqual(noise, []);
@@ -289,6 +428,15 @@ try {
   const summary = matrix.map((m) => ({
     embedding: m.embedding,
     notes: m.notes.map((n) => ({ id: n.id, hand: n.hand, commit: n.commit, fill: n.fill, fall: n.fall })),
+    firstContactPixels: {
+      cuts: m.firstContactPixels.cuts.map(({ label, cut }) => ({ label, cut })),
+      middleLoss: m.firstContactPixels.middleLoss,
+      middleGainPlus: m.firstContactPixels.middleGainPlus,
+      halfCounts: Object.fromEntries(["lower", "upper"].map((position) => [position, Object.fromEntries([-1, 1].map((sign) => [sign, {
+        visible: m.firstContactPixels[position][sign].visible,
+        bins: m.firstContactPixels[position][sign].bins,
+      }]))])),
+    },
   }));
   console.log(`ORACLE 0.0.61-saber-cut-aftermath-pixels PASS: embeddings=2, evidence=${JSON.stringify(summary)}`);
 } finally {

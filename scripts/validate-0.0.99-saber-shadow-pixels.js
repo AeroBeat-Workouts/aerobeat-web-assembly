@@ -1,41 +1,21 @@
 // @ts-check
 
 // 0.0.99 — SABER FLOOR-SHADOW e2e VISUAL oracle at a 3/4 view angle.
-//
-// Proves, with real rendered canvas pixels, that the renderer's
-// `equipmentShadowObjects` floor-shadow path (0.0.92 im3p) renders a saber's
-// floor shadow correctly when the camera is at a 3/4 view (pitch −15°, yaw 30°)
-// instead of the flat production default:
-//
-//   1. The saber is VISIBLE: bright (Δ≥24 baseline-subtracted) pixels form a
-//      connected blob in the expected upper region of the play area.
-//   2. The shadow is VISIBLE: dark pixels (the shadow darkens the floor) sit
-//      BELOW the saber blob, offset in the direction the light/shadow is cast.
-//   3. The shadow is at FLOOR level: the scene model places the shadow object
-//      at `floorY + 0.018` (just above the play-lane floor), not at the saber's
-//      height — verified structurally from the rendered scene model.
-//   4. The shadow is ABSENT when there is no saber anchor (the below-floor /
-//      no-collider-anchor case): the scene model contains no equipment shadow
-//      object when no anchor exists — the shadow is driven purely by the
-//      per-frame anchor, so no saber → no shadow.
-//
-// The camera is driven through the REAL production pose path
-// (`setGameplayCameraPose("flow", …)`), the saber is a REAL resolved equipment
-// record (web-contracts `createResolvedEquipmentPose`), and capture is the
-// house cross-origin-safe pattern: OffscreenCanvas drawImage + getImageData of
-// the real PlayCanvas canvas, baseline-subtracted (|Δr|+|Δg|+|Δb| ≥ 24).
-//
-// The scene model is inspected through `renderer.lastModel` (the authoritative
-// per-frame model the renderer just staged), so the floor-Y and hidden-below-
-// floor assertions are exact, not pixel guesses.
+// A real resolved saber GLB and the production camera pose render into the
+// actual PlayCanvas canvas. Baseline-subtracted pixels prove a bright blade and
+// a separate lower, horizontally offset DARK floor shadow; no equipment or an
+// off-playfield saber produces neither. The native PCF3 light and multiplicative
+// shadow receiver sit just below the authored glass track. Active scene models
+// must emit ZERO old fake floor-shadow meshes. Screenshots or a model-only count
+// cannot substitute for the positive and negative framebuffer assertions.
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from "./readpixels-console-policy.js";
 
-// ── scene-model constants mirrored from aerobeat-web-renderer ──
+// ── production native-receiver constants from aerobeat-web-renderer ──
 const FLOOR_Y = -0.72;          // gameplayWorldGrid.floorY
-const SHADOW_FLOOR_Y = FLOOR_Y + 0.018; // equipmentShadowObjects places the shadow here
+const RECEIVER_TOP_Y = FLOOR_Y - 0.15; // shadowFloorEntity sits .01 below glass track
 const JUDGE_TO_PRESENTATION_OFFSET = 1.5; // judgeToPresentationPoint: presentation.x = judge.x − 1.5
 
 // ── 3/4 view camera pose (the whole point of this oracle) ──
@@ -52,7 +32,7 @@ const CAMERA = Object.freeze({
 const DIFF_T = 24;               // baseline-subtracted Δ per-channel sum threshold
 const MIN_SABER_DIFF_PX = 40;    // saber must render visibly
 const MIN_SHADOW_DIFF_PX = 20;   // shadow must be visibly present
-const FLOOR_Y_TOL = 0.0005;      // scene-model shadow Y must equal floorY + 0.018
+const FLOOR_Y_TOL = 0.0005;      // native receiver top must equal floorY - 0.15
 const VIEWPORT_W = 844;
 const VIEWPORT_H = 390;
 
@@ -73,7 +53,7 @@ try {
   await page.waitForFunction(() => document.querySelector("aero-game")?.graph?.renderer?.describe?.().gameplayAssets?.state === "ready", { timeout: 20000 });
   proof = await page.evaluate(async (cameraPose) => {
     const FLOOR_Y = -0.72;
-    const SHADOW_FLOOR_Y = FLOOR_Y + 0.018;
+    const RECEIVER_TOP_Y = FLOOR_Y - 0.15;
     const DIFF_T = 24;
     const MIN_SABER = 40;
     const MIN_SHADOW = 20;
@@ -89,8 +69,6 @@ try {
     const pose = (anchor) => createResolvedEquipmentPose({ role: "left_wrist", mode: "flow", anchor, scale: 1, orientation: { x: 0, y: 0, z: Math.sin(Math.PI / 8), w: Math.cos(Math.PI / 8) }, geometryIdentity: saberCapsuleGeometry.identity, configIdentity });
     // Center of the play area, comfortably above the floor (floorY = −0.72).
     const centerPose = pose({ x: 1.5, y: 0.4, z: 0 });
-    // Sub-floor saber: anchor Y < floorY → shadow must be hidden.
-    const subFloorPose = pose({ x: 1.5, y: FLOOR_Y - 0.3, z: 0 });
     // Saber entirely off the playfield: anchor far outside the 4×3 grid bounds.
     const offFieldPose = pose({ x: 5.0, y: 0.4, z: 0 });
 
@@ -149,18 +127,17 @@ try {
     const above = capture([centerPose]);
     restore();
 
-    // ── Case 2: no saber at all (the below-floor / no-anchor case) → no shadow.
-    //     The renderer's equipmentShadowObjects pushes a shadow ONLY for a non-null
-    //     anchor; when there is no saber (a sub-floor saber produces no collider
-    //     anchor), there is no equipment floor-shadow object.
-    const below = capture([]);
+    // ── Case 2: no saber at all → no bright blade or dark floor pixels.
+    const noSaber = capture([]);
     restore();
 
     // ── Case 5: saber entirely off the playfield → no shadow ──
     const offFieldCase = capture([offFieldPose]);
     restore();
 
-    return { above, below, offField: offFieldCase, floorY: FLOOR_Y, shadowFloorY: SHADOW_FLOOR_Y, judgeToPresentationOffset: 1.5, canvasW: canvas.width, canvasH: canvas.height };
+    const receiver=renderer.shadowFloorEntity,light=renderer.shadowLightEntity,receiverPosition=receiver?.getPosition(),receiverScale=receiver?.getLocalScale();
+    const native={receiverTop:receiverPosition&&receiverScale?receiverPosition.y+receiverScale.y/2:null,receiverWidth:receiverScale?.x,receiverLength:receiverScale?.z,receiveShadows:receiver?.render?.receiveShadows,castShadows:receiver?.render?.castShadows,shadowCatcher:receiver?.render?.material?.shadowCatcher,lightCastShadows:light?.light?.castShadows,lightLayers:light?.light?.layers,receiverLayerId:renderer.shadowReceiverLayer?.id};
+    return { above, noSaber, offField: offFieldCase, floorY: FLOOR_Y, receiverTopExpected: RECEIVER_TOP_Y, native, judgeToPresentationOffset: 1.5, canvasW: canvas.width, canvasH: canvas.height };
   }, CAMERA);
   assert.deepEqual(noise, []);
 } finally {
@@ -169,7 +146,7 @@ try {
 }
 
 if (!proof) throw new Error("no proof captured");
-const { above, below, offField } = proof;
+const { above, noSaber, offField, native } = proof;
 
 // ── (1) The saber is visible (bright pixels in the expected region) ──
 assert.ok(above.saber, "saber must render visible bright pixels at a 3/4 view");
@@ -196,22 +173,20 @@ const saberCx = (above.saber.x[0] + above.saber.x[1]) / 2;
 const shadowCx = (above.shadow.x[0] + above.shadow.x[1]) / 2;
 assert.ok(Math.abs(shadowCx - saberCx) >= 4, `shadow must be horizontally offset from the saber in the blade direction (Δcenter ${Math.abs(shadowCx - saberCx).toFixed(1)} < 4px) — shadow not following the blade`);
 
-// ── (3) The shadow is at floor level (scene model: floorY + 0.018) ──
-assert.ok(Array.isArray(above.shadowObjects) && above.shadowObjects.length >= 1, `scene model must contain the equipment floor-shadow object: ${JSON.stringify(above.shadowObjects)}`);
-for (const so of above.shadowObjects) {
-  assert.equal(so.kind, "shadow", `equipment shadow kind is ${so.kind}`);
-  assert.ok(Math.abs(so.y - proof.shadowFloorY) <= FLOOR_Y_TOL, `equipment shadow Y ${so.y} must be floorY+0.018 (${proof.shadowFloorY}) — shadow not at the play-lane floor`);
-  assert.ok(Number.isFinite(so.rotationZRad), `equipment shadow rotationZRad must be finite radians: ${so.rotationZRad}`);
-}
-// The shadow rotation is the blade's in-plane direction in RADIANS (atan2(z, x)).
-// For a +45°-about-Z saber the projected floor direction is +X, so angle ≈ 0.
-const shadowRotation = above.shadowObjects[0].rotationZRad;
-assert.ok(Math.abs(shadowRotation) < 0.6, `equipment shadow rotationZRad ${shadowRotation.toFixed(3)} rad should be ~0 for a +X floor direction`);
+// ── (3) Native PCF3 light and catcher receive the real GLB's floor shadow ──
+assert.equal(proof.floorY,FLOOR_Y); assert.equal(proof.receiverTopExpected,RECEIVER_TOP_Y); assert.equal(proof.judgeToPresentationOffset,JUDGE_TO_PRESENTATION_OFFSET);
+assert.ok(Math.abs(native.receiverTop-RECEIVER_TOP_Y)<=FLOOR_Y_TOL,`native shadow catcher top ${native.receiverTop} must be floorY-.15 (${RECEIVER_TOP_Y}), below the authored glass`);
+assert.ok(Math.abs(native.receiverWidth-4.2)<1e-4&&native.receiverLength>=24,`native receiver spans the playfield/track: ${JSON.stringify(native)}`);
+assert.equal(native.receiveShadows,true,"floor receiver must receive shadows"); assert.equal(native.castShadows,false,"receiver must not cast a fake shadow"); assert.equal(native.shadowCatcher,true,"receiver material must catch native directional shadows");
+assert.equal(native.lightCastShadows,true,"production directional light must cast real GLB shadows"); assert.ok(Array.isArray(native.lightLayers)&&native.lightLayers.includes(native.receiverLayerId),"native light must illuminate its receiver layer");
+assert.ok(Array.isArray(above.shadowObjects)&&above.shadowObjects.length===0,"a visible native saber shadow must not duplicate retired fake floor meshes");
 
-// ── (4) The shadow is ABSENT when there is no saber anchor (below-floor case) ──
-assert.ok(Array.isArray(below.shadowObjects) && below.shadowObjects.length === 0, `no saber anchor must produce NO equipment shadow object: ${JSON.stringify(below.shadowObjects)}`);
+// ── (4) No saber means no bright blade OR dark floor pixels ──
+assert.equal(noSaber.saber,null,"no equipment must produce zero saber pixels"); assert.equal(noSaber.shadow,null,"no equipment must produce zero dark shadow pixels");
+assert.ok(Array.isArray(noSaber.shadowObjects)&&noSaber.shadowObjects.length===0,"no equipment must emit no fake shadow mesh");
 
-// ── (7) Saber entirely off the playfield → NO shadow ──
-assert.ok(Array.isArray(offField.shadowObjects) && offField.shadowObjects.length === 0, `off-field saber must produce NO equipment shadow object: ${JSON.stringify(offField.shadowObjects)}`);
+// ── (5) Saber entirely off playfield produces no blade or floor shadow ──
+assert.equal(offField.saber,null,"off-playfield saber must not leave bright blade pixels"); assert.equal(offField.shadow,null,"off-playfield saber must not darken the playfield");
+assert.ok(Array.isArray(offField.shadowObjects)&&offField.shadowObjects.length===0,"off-playfield saber must emit no fake shadow mesh");
 
-console.log(`ORACLE 0.0.99-saber-shadow-pixels PASS: 3/4 view | saber=${JSON.stringify(above.saber)} | shadow=${JSON.stringify(above.shadow)} | shadowY=${above.shadowObjects.map((o) => o.y)} | sub-floor objs=${below.shadowObjects.length} | off-field objs=${offField.shadowObjects.length}`);
+console.log(`ORACLE 0.0.99-saber-shadow-pixels PASS: native 3/4 view | saber=${JSON.stringify(above.saber)} | darkShadow=${JSON.stringify(above.shadow)} | receiverTop=${native.receiverTop} | nativeLight=${native.lightCastShadows} | no-saber and off-field visible pixels=0`);

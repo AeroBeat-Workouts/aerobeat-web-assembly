@@ -6,13 +6,12 @@
 // column walls). The raw fixture bytes remain pinned so any drift in the
 // vendored chart is caught immediately.
 //
-// Coverage preservation: this oracle's purpose was "the exact 3c9d Flow
-// obstacle renders one red wall + one shadow at the exact golden AABB across
-// direct and genuine cross-origin iframe embeddings." That rendering proof is
-// now anchored on a synthetic two-cell full-height wall built the way this
-// repo's other oracles build fixtures, so the pixel-level wall/shadow/AABB
-// coverage survives while the 3c9d package itself asserts its new
-// zero-obstacle outcome.
+// Coverage preservation: 3C9D's exact fixture asserts zero actual obstacles;
+// a separately labeled synthetic two-cell full-height wall asserts red GLB
+// framebuffer pixels, scene-model position/scale/interval, and direct/iframe
+// parity. Logged mesh AABB values are diagnostic only, not asserted. The test
+// rejects obsolete fake wall-shadow objects; native shadow pixels and caster/
+// receiver geometry are asserted by the dedicated shadow oracle instead.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -83,7 +82,7 @@ try{
         assert(row.redWallPixels>100,`${embedding}/${row.variantId} synthetic wall must produce directly read red wall pixels`);
         assert.match(row.pixelHash,/^[0-9a-f]{64}$/u);
         assert.equal(row.walls.length,1);
-        assert.equal(row.shadows,1);
+        assert.equal(row.shadows,0,`${embedding}/${row.variantId} native wall shadow must not duplicate an obsolete fake scene shadow`);
         assert.equal(row.activeWallAssets,1);
         assert.equal(row.walls[0].assetId,"wall/red-glass-v1");
         assert.deepEqual(row.walls[0].interval,[40_000,41_000]);

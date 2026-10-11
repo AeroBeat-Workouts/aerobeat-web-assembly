@@ -9,13 +9,12 @@
 // the vendored chart is caught immediately (mirrors the authoring repo's
 // `validate-flow-obstacles.js` raw-byte invariant).
 //
-// Coverage preservation: this oracle's purpose was "an exact 3c9d Flow obstacle
-// renders one wall + one shadow at the exact golden position/scale." That
-// rendering proof is now anchored on a synthetic two-cell full-height wall
+// Coverage preservation: this oracle's wall asset/geometry/interval/scale
+// proof is now anchored on a synthetic two-cell full-height wall
 // (sourceGeometry `x:0, y:0, width:2, height:3` — the classic `_width:4` =
 // two-cell span, gameplay height 3) built the way this repo's other oracles
-// build fixtures, plus the four Boxing charts of the real 3c9d package (which
-// now contain no weave/squat beats because the source has no obstacles —
+// build fixtures, plus the one Boxing collider chart in the real 3c9d package (which
+// now contains no weave/squat beats because the source has no obstacles —
 // matching the authoring repo's re-baselined claim).
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -51,8 +50,9 @@ await content.selectVariant(flowVariant.variantId);
 const snapshot = content.getSnapshot();
 assert.equal(snapshot.resolvedEvents.filter((event) => event.authoredBeat.type === "obstacle").length, 0, "3c9d Flow variant must resolve zero obstacles after t7sv END-skip");
 // Re-anchored rendering proof: a synthetic two-cell full-height wall (the classic
-// `_width:4` two-cell span) exercises the exact same wall+shadow scene-model path
-// the old 3c9d obstacle proof did, so obstacle rendering coverage survives.
+// `_width:4` two-cell span) exercises the wall scene-model path without synthetic
+// shadow primitives. Renderer scripts/validate-target-shadows-browser.js owns
+// native PlayCanvas light/GLB shadow framebuffer coverage.
 const sourceGeometry=Object.freeze({schema:"aerobeat/obstacle_source_geometry",version:1,coordinateSpace:"beatsaber_v2_legacy_obstacle",kind:"v2_type_0",x:0,y:0,width:2,height:3});
 const gameplayGeometry=Object.freeze({schema:"aerobeat/obstacle_gameplay_geometry",version:1,coordinateSpace:"aerobeat_top_left_grid",x:0,y:0,width:2,height:3});
 const obstacleStartMs=40_000;
@@ -64,9 +64,9 @@ const targets=projectSessionTargets([syntheticObstacle],synthesisGameplay.getSna
 assert.equal(targets.length,1,"synthetic wall must project exactly one target mid-interval");
 const model=buildGameplaySceneModel({presentation:"flow",nowMs:obstacleStartMs+500,targets});
 const walls=model.objects.filter((entry)=>entry.targetId===syntheticObstacle.eventId&&entry.kind==="obstacle");
-const shadows=model.objects.filter((entry)=>entry.targetId===syntheticObstacle.eventId&&entry.kind==="shadow");
+const fakeShadows=model.objects.filter((entry)=>entry.targetId===syntheticObstacle.eventId&&entry.kind==="shadow");
 assert.equal(walls.length,1,"synthetic re-anchored wall must render exactly one wall");
-assert.equal(shadows.length,1,"synthetic re-anchored wall owns one renderer-only shadow");
+assert.equal(fakeShadows.length,0,"native light/GLB shadows must not create synthetic wall shadow objects");
 assert.equal(walls[0].assetId,"wall/red-glass-v1");
 assert.equal(walls[0].intervalStartMs,obstacleStartMs);
 assert.equal(walls[0].intervalEndMs,obstacleStartMs+1000);
@@ -76,9 +76,6 @@ assert.deepEqual({x:walls[0].position.x,y:walls[0].position.y},{x:-1,y:1},"two-c
 // ((2-.06)/.94, (3-.06)/.94, depth).
 assert.ok(Math.abs(walls[0].scale.x-((2-.06)/.94))<1e-9&&Math.abs(walls[0].scale.y-((3-.06)/.94))<1e-9,"two-cell full-height wall scale must match the scene-model formula");
 assert.ok(walls[0].scale.z>0&&Number.isFinite(walls[0].scale.z),"wall depth must be positive and finite");
-assert.deepEqual({x:shadows[0].position.x,y:shadows[0].position.y},{x:-1,y:-.702},"wall shadow must project to the wall's floor X at the floor Y");
-assert.deepEqual(shadows[0].scale,{x:1.94,y:.012,z:walls[0].scale.z},"shadow footprint must match the wall's cell span");
-assert.equal(shadows[0].transparent,true);
 assert.equal(synthesisGameplay.getJudgements().length,0,"no judgements before scoring input");
 synthesisGameplay.destroy();
 
@@ -95,4 +92,4 @@ for(const chart of boxingCharts){
   assert.equal(chart.beats.some((beat)=>String(beat.type??"").startsWith("weave_")||String(beat.type??"")==="squat"),false,`${chart.chartId} Boxing chart must contain no weave/squat beats because there are no source obstacles`);
 }
 content.destroy();
-console.log(`ORACLE exact-3c9d-flow-zero-obstacle-t7sv + synthetic re-anchored wall+shadow PASS: fixtureBytes=${bytes.byteLength}, fixtureSha256=${oracle.source.sha256}, boxingCharts=${boxingCharts.length}`);
+console.log(`ORACLE exact-3c9d-flow-zero-obstacle-t7sv + synthetic wall/native-shadow ownership PASS: fixtureBytes=${bytes.byteLength}, fixtureSha256=${oracle.source.sha256}, boxingCharts=${boxingCharts.length}`);
