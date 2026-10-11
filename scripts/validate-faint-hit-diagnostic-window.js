@@ -100,6 +100,14 @@ for(const name of ["poolLookupMs","sliceVariantLookupMs","clippedAppearanceMs","
 assert.equal(nativeProfile.poolLookupMs.sumMs,2);
 assert.equal(nativeProfile.sceneUpdateMs.sumMs,16);
 assert.equal(nativeProfile.manualTickMs.sumMs,5);
+const firstCohorts=vm.runInNewContext("active.variantCohorts",context);
+assert.equal(firstCohorts.cacheMiss.frameCount,1,"first scored native RAF belongs to miss cohort");
+assert.equal(firstCohorts.cacheMiss.displayFrameTotalMs.count,1);
+assert.equal(firstCohorts.cacheMiss.displayFrameTotalMs.max,161);
+assert.equal(firstCohorts.cacheMiss.sceneUpdateMs.max,16);
+assert.equal(firstCohorts.cacheMiss.manualTickMs.max,5);
+assert.equal(firstCohorts.cacheMiss.rendererCallMs.max,44);
+assert.equal(firstCohorts.aftermathNoNewVariant.frameCount,0);
 
 // More than 512 intervals must still produce full-window count, p95 and
 // exact maximum; the first outlier cannot disappear into a recent tail.
@@ -112,7 +120,26 @@ assert.equal(summary.maxMs,233.8);
 assert.equal(summary.p95ApproxMs,8.5);
 assert.equal(summary.quantileBinWidthMs,1);
 now+=17;game.runDisplayFrame();
+const nativeCohorts=vm.runInNewContext("active.variantCohorts",context);
+assert.equal(nativeCohorts.cacheMiss.frameCount,1);
+assert.equal(nativeCohorts.aftermathNoNewVariant.frameCount,1,"warmed slice variant remains visible in a separate RAF cohort");
+assert.equal(nativeCohorts.aftermathNoNewVariant.displayFrameTotalMs.count,1);
+assert.equal(nativeCohorts.aftermathNoNewVariant.sceneUpdateMs.count,1);
+assert.equal(nativeCohorts.aftermathNoNewVariant.manualTickMs.count,1);
+assert.equal(nativeCohorts.aftermathNoNewVariant.rendererCallMs.count,1);
+assert.equal(nativeCohorts.aftermathNoNewVariant.sceneUpdateMs.max,15);
+assert.equal(nativeCohorts.aftermathNoNewVariant.manualTickMs.max,5);
+// Pointer-triggered redraws use the same renderer but must not enter RAF cohorts.
+const cohortFrameCount=nativeCohorts.cacheMiss.frameCount+nativeCohorts.aftermathNoNewVariant.frameCount;
+game.projectTestEquipmentPointer();
+assert.equal(vm.runInNewContext("active.variantCohorts.cacheMiss.frameCount+active.variantCohorts.aftermathNoNewVariant.frameCount",context),cohortFrameCount);
 toggle.checked=true;listeners.get("faint-hit-off:change")();
+const closedCohorts=vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').variantCohorts",context);
+assert.equal(closedCohorts.cacheMiss.frameCount,1);
+assert.equal(closedCohorts.aftermathNoNewVariant.frameCount,1);
+assert.equal(closedCohorts.cacheMiss.displayFrameTotalMs.maxMs,161);
+assert.equal(closedCohorts.aftermathNoNewVariant.sceneUpdateMs.maxMs,15);
+
 assert.equal(vm.runInNewContext("reportWindows.at(-1).mode",context),"native","mode change closes old mode before switching");
 assert.equal(vm.runInNewContext("active.mode",context),"off");
 assert.equal(vm.runInNewContext("active.sessionGeneration",context),1);
@@ -133,7 +160,7 @@ assert.equal(vm.runInNewContext("active.pointer.count",context),1);
 assert.equal(vm.runInNewContext("active.pointer.max",context),60,"pointer total includes all presentation work");
 assert.equal(vm.runInNewContext("active.renderer.count",context),1,"pointer facade call timed separately");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathEntriesObserved",context),2,"two projections observed across two calls");
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),2,"two pieces observed across two calls");
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),3,"two RAF pieces and one pointer piece observed without adding a cohort frame");
 assert.equal(vm.runInNewContext("reportWindows.some(window=>'aftermathEntryFrames' in window || 'aftermathPieceFrames' in window || 'withheldPieceFrames' in window)",context),false);
 // A new Test can start and score before the 250-ms graph/session timer runs.
 // Its very first display frame must synchronously claim the new generation.
@@ -181,6 +208,10 @@ const pausedReport=vm.runInNewContext("report()",context);
 const measuredWindow=pausedReport.windows.at(-1);
 assert.equal(pausedReport.version,2);
 assert.equal(measuredWindow.valid,true,"pause-to-download preserves measured window validity");
+assert.equal(measuredWindow.variantCohorts.cacheMiss.frameCount,0,"off never enters native cohorts");
+assert.equal(measuredWindow.variantCohorts.aftermathNoNewVariant.frameCount,0);
+assert.equal(measuredWindow.variantCohorts.cacheMiss.displayFrameTotalMs.count,0);
+assert.equal(measuredWindow.variantCohorts.aftermathNoNewVariant.manualTickMs.count,0);
 assert.equal(measuredWindow.displayCount>0,true);
 assert.equal(measuredWindow.variantProfile.poolCreated,0);
 assert.equal(measuredWindow.variantProfile.poolReused,0);
