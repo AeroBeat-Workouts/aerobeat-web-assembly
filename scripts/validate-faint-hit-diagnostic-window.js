@@ -18,7 +18,16 @@ const canvas={width:300,height:150};game.shadowRoot={querySelector(selector){ret
 const gameplay=Object.freeze({getSnapshot(){return {session,judgements:Array.from({length:hits},()=>({result:"hit",shadow:false}))};},advance(){now+=80;hits+=nextHitDelta;nextHitDelta=1;}});
 assert.equal(Object.getOwnPropertyDescriptor(gameplay,"advance").writable,false,"historical gameplay facade is frozen");
 const originalAdvance=gameplay.advance;
-const renderer={renderGameplayScene(){},updateSceneObjects(objects){scene.push(objects);},renderGameplayFrameWithCursorsAndEquipment(){this.updateSceneObjects([{kind:"aftermath"},{kind:"feedback"}],null);now+=23;}};
+const renderer={
+  aftermathAssetPools:new Map(),sliceVariantMaterials:new Map(),
+  acquireAftermathAssetEntity(assetId,index){let entries=this.aftermathAssetPools.get(assetId);if(!entries){entries=[];this.aftermathAssetPools.set(assetId,entries);}while(entries.length<=index)entries.push({});now+=2;return entries[index];},
+  installSliceClipBlocks(){now+=1;},
+  sliceVariantMaterial(record,sign,plane,axisX,axisY){const key=`${sign}:${record.materialUid}:${plane}:${axisX}:${axisY}`;let value=this.sliceVariantMaterials.get(key);if(!value){value={};this.installSliceClipBlocks(value,sign,plane,axisX,axisY);this.sliceVariantMaterials.set(key,value);}now+=3;return value;},
+  applyAftermathAppearance(object,entity){this.sliceVariantMaterial({materialUid:1},1,0,1,0);now+=4;},
+  manualTick(){now+=5;},renderGameplayScene(){},
+  updateSceneObjects(objects){scene.push(objects);for(const object of objects)if(object.kind==="aftermath")this.applyAftermathAppearance(object,this.acquireAftermathAssetEntity("note",0));now+=6;},
+  renderGameplayFrameWithCursorsAndEquipment(){this.updateSceneObjects([{kind:"aftermath"},{kind:"feedback"}],null);this.manualTick();now+=23;}
+};
 const rendererUpdateSceneObjects=renderer.updateSceneObjects;
 const cv={getStatus(){return {running:false};}};
 game.graph={renderer,gameplay,cv};game.sessionGeneration=1;game.testAutomaticFeedbackEnabled=false;game.testEquipmentVisible=true;game.testEquipmentMouseHand="left";
@@ -51,6 +60,7 @@ listeners.get("faint-hit-diagnostic:toggle")();
 assert.equal(panel.open,true,"playing user can reach corpse controls while JSON save stays visible");
 assert.match(recording.textContent,/Recording/u,"the phone must see recording status during eligible Test");
 assert.equal(download.disabled,false,"save must stay enabled during Test");
+renderer.aftermathAssetPools.clear();renderer.sliceVariantMaterials.clear();
 game.runDisplayFrame();
 assert.equal(hits,1);
 assert.equal(scene[0].length,2,"native forwards both scene objects");
@@ -61,16 +71,16 @@ assert.equal(first.mode,"native");
 assert.equal(first.hitCount,1);
 assert.equal(first.hitBurst.triggeredFrameCount,1,"first scored frame begins a real hit burst");
 assert.equal(first.hitBurst.frameCount,1);
-assert.equal(first.hitBurst.displayFrame.max,140);
-assert.equal(first.hitBurst.renderer.max,23);
+assert.equal(first.hitBurst.displayFrame.max,161);
+assert.equal(first.hitBurst.renderer.max,44);
 assert.equal(first.displayCount,1);
 assert.equal(first.eligibleActiveMs,0,"first eligible frame has no preceding eligible interval");
 assert.equal(first.ineligibleFrameCount,0,"first hit frame itself was eligible");
 assert.equal(first.displayFrame.count,1);
-assert.equal(first.displayFrame.max,140,"first hit full app frame includes 80ms gameplay, 49ms presentation and 11ms subsequent app work");
+assert.equal(first.displayFrame.max,161,"first hit full app frame includes 80ms gameplay, 49ms presentation and 11ms subsequent app work");
 assert.equal(first.projection.max,7,"first hit projection retained");
-assert.equal(first.renderer.max,23,"facade call excludes projection and pose preparation");
-assert.equal(first.presentation.max,49,"outer presentation includes projection, preparation, facade and post-work");
+assert.equal(first.renderer.max,44,"facade call excludes projection and pose preparation");
+assert.equal(first.presentation.max,70,"outer presentation includes projection, preparation, facade and post-work");
 assert.equal(first.aftermathEntriesObserved,1,"projected entries sum, not frame count");
 assert.equal(first.aftermathPiecesObserved,1,"scene pieces sum, not frame count");
 assert.equal(first.displayGeometry.backingWidth,840);
@@ -79,6 +89,18 @@ assert.equal(first.displayGeometry.devicePixelRatio,2);
 assert.equal(first.displayGeometry.viewportWidth,540);
 assert.equal(first.displayGeometry.viewportHeight,960);
 assert.equal(first.invalidReasons.length,0);
+
+const nativeProfile=vm.runInNewContext("summarizeProfile(active.variantProfile)",context);
+assert.equal(nativeProfile.poolCreated,1);
+assert.equal(nativeProfile.poolReused,0);
+assert.equal(nativeProfile.sliceCacheMisses,1);
+assert.equal(nativeProfile.sliceCacheHits,0);
+assert.equal(nativeProfile.sliceCacheHighWater,1);
+for(const name of ["poolLookupMs","sliceVariantLookupMs","clippedAppearanceMs","sceneUpdateMs","manualTickMs","installClipMs"])assert.equal(nativeProfile[name].count,1,name);
+assert.equal(nativeProfile.poolLookupMs.sumMs,2);
+assert.equal(nativeProfile.sceneUpdateMs.sumMs,16);
+assert.equal(nativeProfile.manualTickMs.sumMs,5);
+
 // More than 512 intervals must still produce full-window count, p95 and
 // exact maximum; the first outlier cannot disappear into a recent tail.
 const full=vm.runInNewContext("histogram()",context);
@@ -100,15 +122,15 @@ assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='befo
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').invalidReasons.includes('not_playing')",context),false,"idle before samples is not a mixed measured window");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleIntervalCount",context),1);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleActiveMs>=17",context),true);
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.maxMs",context),140);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.maxMs",context),161);
 assert.equal(vm.runInNewContext("'gameplayAdvanceMs' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false,"do not report unmeasurable exact advance time");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.count",context),2,"burst includes later eligible frame before mode switch");
 assert.equal(vm.runInNewContext("'judgementAdvanceCount' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false);
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').rendererCallMs.maxMs",context),23);
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').totalPresentationMs.maxMs",context),49);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').rendererCallMs.maxMs",context),44);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').totalPresentationMs.maxMs",context),70);
 game.projectTestEquipmentPointer();
 assert.equal(vm.runInNewContext("active.pointer.count",context),1);
-assert.equal(vm.runInNewContext("active.pointer.max",context),49,"pointer total includes all presentation work");
+assert.equal(vm.runInNewContext("active.pointer.max",context),60,"pointer total includes all presentation work");
 assert.equal(vm.runInNewContext("active.renderer.count",context),1,"pointer facade call timed separately");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathEntriesObserved",context),2,"two projections observed across two calls");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').aftermathPiecesObserved",context),2,"two pieces observed across two calls");
@@ -157,8 +179,20 @@ assert.equal(measuredBeforePause.invalidReasons.length,0);
 session.state="paused_manual";
 const pausedReport=vm.runInNewContext("report()",context);
 const measuredWindow=pausedReport.windows.at(-1);
+assert.equal(pausedReport.version,2);
 assert.equal(measuredWindow.valid,true,"pause-to-download preserves measured window validity");
 assert.equal(measuredWindow.displayCount>0,true);
+assert.equal(measuredWindow.variantProfile.poolCreated,0);
+assert.equal(measuredWindow.variantProfile.poolReused,0);
+assert.equal(measuredWindow.variantProfile.sliceCacheMisses,0);
+assert.equal(measuredWindow.variantProfile.sliceCacheHits,0);
+assert.equal(measuredWindow.variantProfile.poolLookupMs.count,0);
+assert.equal(measuredWindow.variantProfile.sliceVariantLookupMs.count,0);
+assert.equal(measuredWindow.variantProfile.clippedAppearanceMs.count,0);
+assert.equal(measuredWindow.variantProfile.sceneUpdateMs.count>0,true);
+assert.equal(measuredWindow.variantProfile.manualTickMs.count>0,true);
+assert.equal(measuredWindow.postHitBurst.variantProfile.sceneUpdateMs.count>0,true);
+assert.equal(measuredWindow.postHitBurst.variantProfile.poolLookupMs.count,0);
 assert.equal(measuredWindow.postHitBurst.triggeredFrameCount,1);
 assert.equal(measuredWindow.postHitBurst.displayFrameTotalMs.count>=1,true);
 assert.equal(measuredWindow.postHitBurst.rendererCallMs.count>=1,true);
@@ -169,7 +203,7 @@ game.runDisplayFrame();
 const continuousFrameStart=vm.runInNewContext("lastRafAt",context);
 now+=233;game.runDisplayFrame();
 const continuousGap=vm.runInNewContext("active.intervals.max",context);
-assert.equal(continuousGap,now-140-continuousFrameStart,"continuous display gap includes genuine stall");
+assert.equal(continuousGap,now-151-continuousFrameStart,"continuous display gap includes genuine stall");
 assert.equal(continuousGap>=233,true);
 const continuousIntervalCount=vm.runInNewContext("active.intervals.count",context);
 assert.equal(continuousIntervalCount,1,"window starts without an interval across export boundary");
