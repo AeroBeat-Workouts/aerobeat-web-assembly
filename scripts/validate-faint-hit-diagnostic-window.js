@@ -77,6 +77,7 @@ assert.equal(vm.runInNewContext("active.variantCohorts.cacheMiss.frameCount",con
 assert.equal(gameplay.advance,originalAdvanceForWarmup);
 renderer.nextSlicePlane=1;
 renderer.poolDelay=30;renderer.sceneDelay=30;renderer.tickDelay=30;
+now+=200; // The preceding eligible interval belongs before the scored RAF.
 game.runDisplayFrame();
 renderer.poolDelay=2;renderer.sceneDelay=6;renderer.tickDelay=5;
 assert.equal(hits,1);
@@ -91,7 +92,10 @@ assert.equal(first.hitBurst.frameCount,1);
 assert.equal(first.hitBurst.displayFrame.max,238);
 assert.equal(first.hitBurst.renderer.max,121);
 assert.equal(first.displayCount,1);
-assert.equal(first.eligibleActiveMs>0,true,"first hit follows an eligible unscored warmup");
+assert.equal(first.eligibleActiveMs,0,"pre-scored 200ms gap stays before first hit");
+assert.equal(first.eligibleIntervalCount,0,"first-hit burst begins without an inherited interval");
+assert.equal(first.intervals.count,0);
+assert.equal(first.hitBurst.intervals.count,0,"first scored frame has no post-hit interval yet");
 assert.equal(first.ineligibleFrameCount,0,"first hit frame itself was eligible");
 assert.equal(first.displayFrame.count,1);
 assert.equal(first.displayFrame.max,238,"first hit full app frame includes slow facade work");
@@ -141,6 +145,10 @@ assert.equal(preHitWindow.variantCohorts.cacheMiss.rendererCallMs.maxMs,44);
 assert.equal(preHitWindow.variantProfile.sliceCacheHighWater,1,"first-hit cache growth must not inflate pre-hit high-water");
 assert.equal(preHitWindow.variantProfile.sliceCacheMisses,1);
 assert.equal(preHitWindow.variantCohorts.cacheMiss.frameCount,1);
+assert.equal(preHitWindow.eligibleIntervalCount,1,"pre-hit retains gap ending at scored RAF start");
+assert.equal(preHitWindow.eligibleActiveMs>=200,true);
+assert.equal(preHitWindow.displayIntervalMs.count,1);
+assert.equal(preHitWindow.displayIntervalMs.maxMs>=200,true);
 
 // More than 512 intervals must still produce full-window count, p95 and
 // exact maximum; the first outlier cannot disappear into a recent tail.
@@ -202,10 +210,11 @@ assert.equal(vm.runInNewContext("reportWindows.at(-1).mode",context),"native","m
 assert.equal(vm.runInNewContext("active.mode",context),"off");
 assert.equal(vm.runInNewContext("active.sessionGeneration",context),1);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').ineligibleFrameCount",context),1);
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').eligibleActiveMs",context),0);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').eligibleActiveMs",context),361,"pre-scored interval remains in pre-hit active time");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').wallElapsedMs>=60000",context),true);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='before-first-hit').invalidReasons.includes('not_playing')",context),false,"idle before samples is not a mixed measured window");
-assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleIntervalCount",context),7);
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleIntervalCount",context),6,"only intervals beginning after first score belong to burst");
+assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').postHitBurst.displayIntervalMs.count",context),6,"post-hit union retains subsequent intervals");
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').eligibleActiveMs>=17",context),true);
 assert.equal(vm.runInNewContext("reportWindows.find(window=>window.label==='first-hit-burst').displayFrameTotalMs.maxMs",context),556);
 assert.equal(vm.runInNewContext("'gameplayAdvanceMs' in reportWindows.find(window=>window.label==='first-hit-burst')",context),false,"do not report unmeasurable exact advance time");
