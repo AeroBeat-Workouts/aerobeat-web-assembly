@@ -187,16 +187,30 @@ try{
           const negative=await game.evaluate(async element=>{
             const renderer=element.graph.renderer,original=renderer.updateSceneObjects,unwrapped=Object.getPrototypeOf(renderer).updateSceneObjects;
             if(typeof unwrapped!=="function")throw Error("negative control needs the original scene boundary");
-            await element.graph.audio.seek(4);await element.graph.audio.play();
+            const scored=element.graph.gameplay.getSnapshot().session.timelinePositionMs;
+            if(!Number.isFinite(scored)||scored<3900||scored>4100)throw Error("mutant needs the scored group near 4s");
+            // Advance one ORDINARY OFF scored frame first. This makes the
+            // previous literal seek(4) deterministically RED with the real
+            // audio_clock_rollback guard, without modifying production logic.
+            await element.graph.audio.seek((scored+80)/1000);await element.graph.audio.play();element.runDisplayFrame();
+            if(element.graph.gameplay.getSnapshot().session.state!=="playing"||[...renderer.aftermathAssetPools.values()].flat().some(x=>x.enabled))throw Error("primer must stay an eligible corpse-free scored frame");
+            const prior=element.graph.gameplay.getSnapshot().session.timelinePositionMs;
+            if(!Number.isFinite(prior)||prior<3900||prior>4200)throw Error("mutant needs the scored group near 4s");
+            // The live audio runs while Playwright transfers actual raw frames.
+            // Rewind it only to a point FORWARD of gameplay's last scored frame;
+            // seeking to literal 4.0 can trigger production audio_clock_rollback.
+            await element.graph.audio.seek((prior+80)/1000);await element.graph.audio.play();
+            const clock=element.graph.audio.getClockSnapshot();
+            if(!clock.playing||clock.positionSeconds*1000<prior+40)throw Error("mutant audio must be monotonic with scored Test");
             renderer.updateSceneObjects=function(objects,...rest){return unwrapped.call(this,objects,...rest);};
             let negativeResult;
-            try{element.runDisplayFrame();const canvas=element.canvasElement(),c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);const model=renderer.lastModel?.objects??[];negativeResult={image:Array.from(ctx.getImageData(0,0,c.width,c.height).data),width:c.width,halves:[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,modelHalves:model.filter(x=>x.kind==="aftermath").length};return negativeResult;}
+            try{element.runDisplayFrame();if(element.graph.gameplay.getSnapshot().session.state!=="playing")throw Error("mutant scored Test lost playing eligibility");const canvas=element.canvasElement(),c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);const model=renderer.lastModel?.objects??[];negativeResult={image:Array.from(ctx.getImageData(0,0,c.width,c.height).data),width:c.width,halves:[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,modelHalves:model.filter(x=>x.kind==="aftermath").length};return negativeResult;}
             finally{
               renderer.updateSceneObjects=original;
               // Do NOT seek back to exactly 4s here: the leaked frame may have
               // advanced to 4.01s. Production correctly pauses on a backward
               // audio clock, which would make this OFF cleanup ineligible.
-              if(element.graph.gameplay.getSnapshot().session.state!=="playing")throw Error("mutant cleanup needs a still-playing Test");
+              if(element.graph.gameplay.getSnapshot().session.state!=="playing")throw Error(`mutant cleanup needs a still-playing Test: ${element.graph.gameplay.getSnapshot().session.pauseReason??"unknown pause"}`);
               element.runDisplayFrame();
               const pool=[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,session=element.graph.gameplay.getSnapshot().session;
               if(negativeResult)negativeResult.cleanup={pool,playing:session.state==="playing",off:document.querySelector("#faint-hit-off")?.checked===true};
