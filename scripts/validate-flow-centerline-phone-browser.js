@@ -1,8 +1,10 @@
 // @ts-check
 // Clean, committed source only: build with vite.flow-centerline.config.js, then
 // generate the sidecar with write-flow-centerline-bundle-manifest.js. This test
-// never launches a preview or changes a route; pass the existing local preview
-// URL with AEROBEAT_FLOW_QA_URL. Synthetic seeks are NOT phone frame cadence.
+// never launches a preview or changes a route; it defaults to the existing
+// loopback preview. After a separately authorized private cutover, explicitly
+// set AEROBEAT_FLOW_QA_REMOTE=1 and AEROBEAT_FLOW_QA_URL to the fixed HTTPS8449
+// tester to verify its actual browser journey. Synthetic seeks are NOT phone FPS.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
@@ -14,9 +16,10 @@ import { chromium } from "playwright";
 const root = fileURLToPath(new URL("../", import.meta.url));
 const output = resolve(root, "dist-flow-centerline-phone");
 const target = new URL(process.env.AEROBEAT_FLOW_QA_URL ?? "http://127.0.0.1:4182/flow-centerline-test.html");
-assert.equal(target.pathname, "/flow-centerline-test.html");
-assert.equal(target.hostname,"127.0.0.1","cross-origin iframe requires the preview on 127.0.0.1");
-assert.equal(target.protocol,"http:","only an existing local loopback preview is permitted");
+const remoteUrl="https://derrick-legion-go-8apu1.tail613fcb.ts.net:8449/flow-centerline-test.html";
+assert.equal(target.pathname,"/flow-centerline-test.html");
+if(process.env.AEROBEAT_FLOW_QA_REMOTE==="1")assert.equal(target.href,remoteUrl,"remote QA permits only the explicit private HTTPS8449 route");
+else{assert.equal(target.hostname,"127.0.0.1","local QA requires the preview on 127.0.0.1");assert.equal(target.protocol,"http:","local QA requires loopback HTTP");}
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 const hex = value => typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
 const keys = (value, names, label) => assert.deepEqual(Object.keys(value).sort(), names.slice().sort(), label);
@@ -89,8 +92,8 @@ assert(local.js.some(entry=>servedHtml.includes(`/${entry.path}`)),"HTML referen
 const code=(await Promise.all(local.js.map(entry=>readFile(resolve(output,entry.path),"utf8")))).join("\n");
 assert(code.includes(local.buildStamp),"built JavaScript embeds the same build stamp");
 
-// The parent document is deliberately localhost while the preview child is
-// 127.0.0.1: two actual origins; the child runs the identical scorer fixture.
+// The parent is deliberately localhost; the child is 127.0.0.1 loopback
+// or the explicit private HTTPS8449 origin: genuine cross-origin in both modes.
 const parent=createServer((_request,response)=>{response.writeHead(200,{"content-type":"text/html; charset=utf-8"});response.end(`<!doctype html><style>html,body{margin:0}iframe{width:390px;height:844px;border:0}</style><iframe allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${target.href}"></iframe>`);});
 await new Promise(resolve=>parent.listen(0,"localhost",resolve));
 const address=parent.address();assert(address&&typeof address!=="string");
@@ -186,14 +189,26 @@ try{
             if(typeof unwrapped!=="function")throw Error("negative control needs the original scene boundary");
             await element.graph.audio.seek(4);await element.graph.audio.play();
             renderer.updateSceneObjects=function(objects,...rest){return unwrapped.call(this,objects,...rest);};
-            try{element.runDisplayFrame();const canvas=element.canvasElement(),c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);const model=renderer.lastModel?.objects??[];return {image:Array.from(ctx.getImageData(0,0,c.width,c.height).data),width:c.width,halves:[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,modelHalves:model.filter(x=>x.kind==="aftermath").length};}
-            finally{renderer.updateSceneObjects=original;await element.graph.audio.seek(4);await element.graph.audio.play();element.runDisplayFrame();}
+            let negativeResult;
+            try{element.runDisplayFrame();const canvas=element.canvasElement(),c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);const model=renderer.lastModel?.objects??[];negativeResult={image:Array.from(ctx.getImageData(0,0,c.width,c.height).data),width:c.width,halves:[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,modelHalves:model.filter(x=>x.kind==="aftermath").length};return negativeResult;}
+            finally{
+              renderer.updateSceneObjects=original;
+              // Do NOT seek back to exactly 4s here: the leaked frame may have
+              // advanced to 4.01s. Production correctly pauses on a backward
+              // audio clock, which would make this OFF cleanup ineligible.
+              if(element.graph.gameplay.getSnapshot().session.state!=="playing")throw Error("mutant cleanup needs a still-playing Test");
+              element.runDisplayFrame();
+              const pool=[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,session=element.graph.gameplay.getSnapshot().session;
+              if(negativeResult)negativeResult.cleanup={pool,playing:session.state==="playing",off:document.querySelector("#faint-hit-off")?.checked===true};
+            }
           });
           const leakFace=gray(negative.image,negative.width,face);
           assert(negative.modelHalves>=2&&negative.halves>=2&&leakFace>=3000,`${embedding}: same-scored-RAF corpse-off scene leak must turn GLB pixel oracle RED`);
           assert(!(leakFace<=1000),`${embedding}: negative leak must fail the unchanged off-face assertion`);
+          assert(negative.cleanup?.playing&&negative.cleanup.off,`${embedding}: restored corpse-off scored Test remains eligible`);
+          assert.equal(negative.cleanup.pool,0,`${embedding}: adjacent scored OFF frame clears mutated corpse entities`);
           const cleaned=await game.evaluate(element=>[...element.graph.renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length);
-          assert.equal(cleaned,0,`${embedding}: restore corpse-off wrapper and clear leaked entities`);
+          assert.equal(cleaned,0,`${embedding}: restored corpse-off wrapper remains clean after browser transfer`);
         }
         const button=frame.locator("#faint-hit-download");assert(await button.isVisible()&&await button.isEnabled());const box=await button.boundingBox();assert(box&&box.width>=40&&box.height>=40&&box.x>=0&&box.y>=0&&box.x+box.width<=390&&box.y+box.height<=844);
         // Use a real touch gesture even in the iframe: script-triggered click()
