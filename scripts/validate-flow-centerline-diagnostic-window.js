@@ -13,7 +13,7 @@ manifest.sources["@aerobeat/web-renderer"].commit=rendererCommit;
 manifest.sources["@aerobeat/web-renderer"].tree=rendererTree;
 const stamp="FLOW-CENTERLINE-EXPERIMENTAL-0.0.128-0123456789abcdef01234567";
 const entry=(path)=>({path,bytes:123,sha256:"a".repeat(64)});
-const bundle={schema:"aerobeat/flow_centerline_bundle_manifest",version:1,sourceManifest:manifest,buildStamp:stamp,html:entry("flow-centerline-test.html"),js:[entry("assets/flow-centerline-entry-123.js")]};
+const bundle={schema:"aerobeat/flow_centerline_bundle_manifest",version:1,sourceManifest:manifest,buildStamp:stamp,html:entry("flow-centerline-test.html"),js:[entry("assets/flow-centerline-entry-123.js"),entry("assets/mediapipe/vision_bundle.js"),entry("assets/mediapipe/wasm/vision_wasm_internal.js")]};
 const run=async (options={})=>{
   let now=0,hits=0,hitDelta=0,requests=0,urls=0,clicks=0,snapshotCalls=0,cvCalls=0;
   const listeners=new Map(),forwarded=[];
@@ -103,7 +103,7 @@ assert.equal(report.windows.at(-1).valid,true,"paused download retains eligible 
 assert.equal("sliceCacheMisses" in report.windows.at(-1).variantProfile,false,"obsolete variant key absent");
 assert.equal("gpuCompileCount" in report,false);
 await t.download();assert.equal(t.counts.requests,1);assert.equal(t.counts.clicks,1);assert.equal(t.counts.urls,1);
-assert.equal(t.saved[0].bundleManifest.schema,"aerobeat/flow_centerline_bundle_manifest");assert.equal(t.saved[0].bundleManifest.buildStamp,stamp);assert.equal(t.saved[1],"aerobeat-flow-centerline-v3-off.json");
+assert.equal(t.saved[0].bundleManifest.schema,"aerobeat/flow_centerline_bundle_manifest");assert.equal(t.saved[0].bundleManifest.buildStamp,stamp);assert.equal(t.saved[0].bundleManifest.js.length,3,"download retains hashed chunks and both classes of static MediaPipe JS");assert.equal(t.saved[1],"aerobeat-flow-centerline-v3-off.json");
 off.checked=false;t.listeners.get("faint-hit-off:change")();await t.download();assert.equal(t.saved.at(-1),"aerobeat-flow-centerline-v3-native.json");
 const allowedLabels=new Set(["before-first-hit","first-hit-burst","steady-after-first-hit"]);
 for(const exported of [t.saved[0],t.saved[2]])for(const window of exported.windows)assert(allowedLabels.has(window.label),`v3 export window label ${window.label} must be comparable across modes`);
@@ -112,7 +112,7 @@ assert.equal(afterExport.evalIn("active.label"),"steady-after-first-hit","first-
 afterExport.controls["faint-hit-off"].checked=true;afterExport.listeners.get("faint-hit-off:change")();await afterExport.download();
 for(const window of afterExport.saved.at(-2).windows)assert(allowedLabels.has(window.label),`after toggle unsupported label ${window.label}`);
 assert.doesNotMatch(JSON.stringify(t.saved[0]),/poseLandmarks|VideoFrame|rawCv|cameraPixels/u);
-for(const bad of [{...bundle,buildStamp:"WRONG"},{...bundle,sourceManifest:{...manifest,packageVersion:"0.0.127"}},{...bundle,js:[entry("assets/entry.js"),{...entry("assets/other.js"),sha256:"bad"}]}]){
+for(const bad of [{...bundle,buildStamp:"WRONG"},{...bundle,sourceManifest:{...manifest,packageVersion:"0.0.127"}},{...bundle,js:[entry("assets/entry.js"),{...entry("assets/other.js"),sha256:"bad"}]},{...bundle,js:[entry("assets/mediapipe/vision_bundle.js")]},{...bundle,js:[...bundle.js,entry("assets/mediapipe/../escape.js")]}]){
   const rejected=await run({bundle:bad});rejected.frame(1);await rejected.download();
   assert.equal(rejected.counts.requests,1);assert.equal(rejected.counts.urls,0);assert.equal(rejected.counts.clicks,0);
   assert.match(rejected.controls["faint-hit-state"].textContent,/Download failed/u);

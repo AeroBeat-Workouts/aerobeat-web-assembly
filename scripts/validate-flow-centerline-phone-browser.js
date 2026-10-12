@@ -137,7 +137,9 @@ try{
         const result=await game.evaluate(async element=>{
           const renderer=element.graph.renderer,canvas=element.canvasElement(),camera=renderer.cameraEntity.camera,box=canvas.getBoundingClientRect(),device=renderer.app.graphicsDevice.clientRect,Vec3=renderer.cameraEntity.getPosition().constructor;
           const buffer=document.createElement("canvas");buffer.width=canvas.width;buffer.height=canvas.height;const ctx=buffer.getContext("2d",{willReadFrequently:true});
-          const capture=()=>{element.renderGameplay();ctx.drawImage(canvas,0,0);const snap=element.graph.gameplay.getSnapshot(),scene=renderer.lastModel?.objects??[];return {image:Array.from(ctx.getImageData(0,0,canvas.width,canvas.height).data),hitCount:snap.judgements.filter(j=>j.result==="hit").length,scoreHits:snap.scorePartitions.reduce((n,s)=>n+(s.hits??0),0),localOnly:snap.scorePartitions.some(s=>s.hits>0&&s.localOnly===true&&s.ranked===false),great:scene.filter(o=>o.kind==="feedback"&&o.feedback?.text==="Great").length,live:scene.filter(o=>o.kind==="icon"&&o.state!=="hit").length,halves:[...renderer.aftermathAssetPools.values()].flat().filter(e=>e.enabled).length,modelHalves:scene.filter(o=>o.kind==="aftermath").length,saber:[...renderer.equipmentPools.values()].flat().some(e=>e.enabled),environment:renderer.describe().environment?.state,session:snap.session.state};};
+          // Capture the display-frame's already-rendered canvas. An extra out-of-band
+          // renderGameplay() would bypass the recorder's RAF-only off filter.
+          const capture=()=>{ctx.drawImage(canvas,0,0);const snap=element.graph.gameplay.getSnapshot(),scene=renderer.lastModel?.objects??[];return {image:Array.from(ctx.getImageData(0,0,canvas.width,canvas.height).data),png:buffer.toDataURL("image/png"),hitCount:snap.judgements.filter(j=>j.result==="hit").length,scoreHits:snap.scorePartitions.reduce((n,s)=>n+(s.hits??0),0),localOnly:snap.scorePartitions.some(s=>s.hits>0&&s.localOnly===true&&s.ranked===false),great:scene.filter(o=>o.kind==="feedback"&&o.feedback?.text==="Great").length,live:scene.filter(o=>o.kind==="icon"&&o.state!=="hit").length,halves:[...renderer.aftermathAssetPools.values()].flat().filter(e=>e.enabled).length,modelHalves:scene.filter(o=>o.kind==="aftermath").length,saber:[...renderer.equipmentPools.values()].flat().some(e=>e.enabled),environment:renderer.describe().environment?.state,session:snap.session.state};};
           const pos=(x,y)=>{const p=camera.worldToScreen(new Vec3(-2+4*x,2.5-3*y,.45));const client={x:box.left+p.x/device.width*box.width,y:box.top+p.y/device.height*box.height};if(!renderer.projectDebugEquipmentAnchor(client.x,client.y))throw Error("pointer projection failed");return client;};
           const send=(type,p)=>canvas.dispatchEvent(new PointerEvent(type,{bubbles:true,composed:true,pointerType:"touch",pointerId:621,isPrimary:true,clientX:p.x,clientY:p.y,buttons:type==="pointerup"?0:1}));
           const tick=async ms=>{await element.graph.audio.seek(ms/1000);await element.graph.audio.play();element.runDisplayFrame();};
@@ -152,36 +154,53 @@ try{
         assert(result.frames.group.hitCount-result.frames.hit.hitCount>=2);
         for(const key of ["hit","group"]){const f=result.frames[key];assert(f.great>0&&f.live>0&&f.saber&&f.environment==="ready"&&f.session==="playing");assert(f.modelHalves>=2);}
         assert.doesNotMatch(result.diagnostic,/DIAGNOSTIC INACTIVE/u);
-        const capturePath=resolve(evidenceDir,`${embedding}-${label}.png`);
-        const screenshot=await game.locator("canvas[data-role='renderer']").screenshot({path:capturePath});
-        assert(screenshot.length>1000&&screenshot.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])),`${embedding}/${label}: real gameplay canvas screenshot is PNG`);
-        const face=[0,405,140,490],first=result.frames.hit.image,group=result.frames.group.image;
+        // The Playwright element screenshot includes composited HTML panels above
+        // the canvas; preserve PNGs from the SAME raw gameplay canvas as the
+        // pixel oracle so the visual artifact is not a falsely occluded scene.
+        for(const [state,file] of [["miss",`${embedding}-${label}-miss.png`],["hit",`${embedding}-${label}-hit.png`],["group",`${embedding}-${label}.png`]]){
+          const png=Buffer.from(result.frames[state].png.replace(/^data:image\/png;base64,/u,""),"base64");
+          assert(png.length>1000&&png.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])),`${embedding}/${label}/${state}: actual raw gameplay canvas PNG`);
+          await writeFile(resolve(evidenceDir,file),png,{flag:"w"});
+        }
+        // Portrait fixture: the leftmost center-split orb extends partially
+        // beyond x=0 and the simultaneous scored pair reaches x≈200. Both
+        // resolved frames fit this ROI; direct/iframe calibration measured
+        // native/restored 4150/4680 gray px vs corpse-off 512/574 gray px.
+        const face=[0,335,220,555],first=result.frames.hit.image,group=result.frames.group.image;
         const faces=[gray(first,result.width,face),gray(group,result.width,face)];
-        for(const value of faces)assert(off?value<=700:value>=4000,`${embedding}/${label}: actual GLB corpse face ${value}`);
+        console.log(`[flow-phone-pixels] ${embedding}/${label} corpseROI=${JSON.stringify(faces)} poolHalves=${result.frames.hit.halves}/${result.frames.group.halves} modelHalves=${result.frames.hit.modelHalves}/${result.frames.group.modelHalves} scoredHits=${result.frames.hit.hitCount}/${result.frames.group.hitCount}`);
+        for(const value of faces)assert(off?value<=1000:value>=3000,`${embedding}/${label}: actual GLB corpse face ${value}`);
+        assert(off?result.frames.hit.halves===0&&result.frames.group.halves===0:result.frames.hit.halves>=2&&result.frames.group.halves>=2,`${embedding}/${label}: actual rendered aftermath entity visibility`);
         const g=result.frames.hit.image,w=result.width;
         assert(region(g,w,[4,370,165,412],(r,b,c)=>r+b+c>240)>250,"visible Great pixels");
-        assert(region(g,w,[207,335,292,432],(r,g,b)=>g>r*1.45&&g>b*1.18)>600,"live arrow pixels");
+        assert(region(g,w,[207,335,292,432],(r,g,b)=>g>r*1.45&&g>b*1.18)>600,"intact colored live any-note/orb pixels");
         assert(region(g,w,[15,35,375,260],(r,g,b)=>b>r*1.4&&b>g*1.1)>10000,"sky pixels");
         assert(region(g,w,[40,605,360,780],(r,g,b)=>r+g+b>240)>1000,"track pixels");
         assert(region(result.frames.miss.image,w,[174,585,198,782],(r,g,b)=>b>r*1.4&&b>g*1.1)>350,"actual saber pixels");
         if(label==="off"){
-          // One same-script negative control: intentionally leak only the corpse
-          // scene input on a scored OFF frame, then restore the wrapper in finally.
-          // This checks that the pixel oracle, not pool metadata, detects leakage.
+          // Bug-specific negative: bypass the recorder's scene filter for ONE
+          // actual eligible display frame, not an out-of-band renderGameplay()
+          // (which must always use native input). Restore and re-render OFF.
           const negative=await game.evaluate(async element=>{
-            const renderer=element.graph.renderer,original=renderer.updateSceneObjects,unwrapped=Object.getPrototypeOf(renderer).updateSceneObjects,model=renderer.lastModel?.objects??[];
-            if(typeof unwrapped!=="function"||!model.some(x=>x.kind==="aftermath"))throw Error("negative control needs actual scored corpse and unwrapped scene boundary");
-            // Bypass only the recorder's off-mode scene wrapper for one render;
-            // passing its full model back through the wrapper would re-filter it.
-            renderer.updateSceneObjects=function(objects,...rest){return unwrapped.call(this,objects.every(x=>x.kind!=="aftermath")?model:objects,...rest);};
-            try{element.renderGameplay();const canvas=element.canvasElement(),c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);return {image:Array.from(ctx.getImageData(0,0,c.width,c.height).data),width:c.width,halves:[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length};}finally{renderer.updateSceneObjects=original;element.renderGameplay();}
+            const renderer=element.graph.renderer,original=renderer.updateSceneObjects,unwrapped=Object.getPrototypeOf(renderer).updateSceneObjects;
+            if(typeof unwrapped!=="function")throw Error("negative control needs the original scene boundary");
+            await element.graph.audio.seek(4);await element.graph.audio.play();
+            renderer.updateSceneObjects=function(objects,...rest){return unwrapped.call(this,objects,...rest);};
+            try{element.runDisplayFrame();const canvas=element.canvasElement(),c=document.createElement("canvas");c.width=canvas.width;c.height=canvas.height;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);const model=renderer.lastModel?.objects??[];return {image:Array.from(ctx.getImageData(0,0,c.width,c.height).data),width:c.width,halves:[...renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length,modelHalves:model.filter(x=>x.kind==="aftermath").length};}
+            finally{renderer.updateSceneObjects=original;await element.graph.audio.seek(4);await element.graph.audio.play();element.runDisplayFrame();}
           });
           const leakFace=gray(negative.image,negative.width,face);
-          assert(negative.halves>=2&&leakFace>=4000,`${embedding}: same-script corpse-off scene leak must turn pixel oracle RED`);
-          assert(!(leakFace<=700),`${embedding}: negative leak must fail the unchanged off-face assertion`);
+          assert(negative.modelHalves>=2&&negative.halves>=2&&leakFace>=3000,`${embedding}: same-scored-RAF corpse-off scene leak must turn GLB pixel oracle RED`);
+          assert(!(leakFace<=1000),`${embedding}: negative leak must fail the unchanged off-face assertion`);
+          const cleaned=await game.evaluate(element=>[...element.graph.renderer.aftermathAssetPools.values()].flat().filter(x=>x.enabled).length);
+          assert.equal(cleaned,0,`${embedding}: restore corpse-off wrapper and clear leaked entities`);
         }
         const button=frame.locator("#faint-hit-download");assert(await button.isVisible()&&await button.isEnabled());const box=await button.boundingBox();assert(box&&box.width>=40&&box.height>=40&&box.x>=0&&box.y>=0&&box.x+box.width<=390&&box.y+box.height<=844);
-        const transfer=page.waitForEvent("download",{timeout:15000});await frame.evaluate(()=>document.querySelector("#faint-hit-download").click());const download=await transfer;const text=await readFile(await download.path(),"utf8"),data=JSON.parse(text);
+        // Use a real touch gesture even in the iframe: script-triggered click()
+        // is not evidence that the phone can download with user activation.
+        const transfer=page.waitForEvent("download",{timeout:15000});await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
+        let download;try{download=await transfer;}catch(cause){throw new Error(`${embedding}/${label}: download did not start; UI state=${JSON.stringify(await frame.locator("#faint-hit-state").innerText())}`,{cause});}
+        const text=await readFile(await download.path(),"utf8"),data=JSON.parse(text);
         assert.equal(download.suggestedFilename(),`aerobeat-flow-centerline-v3-${off?"off":"native"}.json`);
         assert(text.length>100&&text.length<250000);keys(data,["schema","version","packageVersion","sourceManifest","buildStamp","bundleManifest","served8445SourceParity","historicalSourceParity","gpuTiming","currentMode","measurements","coverage","windows"],"v3 report");
         assert.equal(data.schema,"aerobeat/flow_centerline_diagnostic");assert.equal(data.version,3);assert.equal(data.packageVersion,local.sourceManifest.packageVersion);assert.deepEqual(data.sourceManifest,local.sourceManifest);assert.equal(data.buildStamp,local.buildStamp);assert.deepEqual(data.bundleManifest,local,"downloaded manifest must match independently hashed served HTML and JS");

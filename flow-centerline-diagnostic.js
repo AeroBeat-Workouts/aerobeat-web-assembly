@@ -377,10 +377,16 @@ async function verifiedBundleManifest() {
   const manifest = await response.json();
   const hex = (value) => typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
   const asset = (entry, pattern) => entry && pattern.test(entry.path) && Number.isSafeInteger(entry.bytes) && entry.bytes > 0 && hex(entry.sha256);
+  // The clean Vite build emits hashed chunks AND copies un-hashed MediaPipe
+  // runtime JS beneath assets/mediapipe[/wasm]. All remain integrity-bound
+  // by the real sidecar; never omit them from the downloaded report.
+  const viteChunk = /^assets\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*-[A-Za-z0-9_-]+\.js$/u;
+  const mediapipeStatic = /^assets\/mediapipe\/(?:wasm\/)?[A-Za-z0-9_-]+\.js$/u;
   if (manifest?.schema !== "aerobeat/flow_centerline_bundle_manifest" || manifest.version !== 1 ||
       manifest.buildStamp !== BUILD_STAMP || JSON.stringify(manifest.sourceManifest) !== JSON.stringify(SOURCE_MANIFEST) ||
       !asset(manifest.html, /^flow-centerline-test\.html$/u) || !Array.isArray(manifest.js) || !manifest.js.length ||
-      !manifest.js.every((entry) => asset(entry, /^assets\/[A-Za-z0-9_.-]+\.js$/u)) ||
+      !manifest.js.some((entry) => asset(entry, viteChunk)) ||
+      !manifest.js.every((entry) => asset(entry, viteChunk) || asset(entry, mediapipeStatic)) ||
       new Set(manifest.js.map((entry) => entry.path)).size !== manifest.js.length) {
     throw new Error("source-matched build manifest and reporter disagree");
   }
