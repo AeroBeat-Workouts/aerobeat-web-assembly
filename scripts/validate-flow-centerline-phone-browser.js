@@ -65,8 +65,8 @@ const assertSource = value => {
   assert(/^0\.0\.\d+$/u.test(value.packageVersion));
   assert.equal(Object.keys(value.sources).length,15);
   for(const [name,source] of Object.entries(value.sources)){assert(/^@aerobeat\/web-[a-z-]+$/u.test(name));keys(source,["commit","tree","sourceSha256"],name);assert(/^[0-9a-f]{40}$/u.test(source.commit)&&/^[0-9a-f]{40}$/u.test(source.tree)&&hex(source.sourceSha256));}
-  assert.equal(value.sources["@aerobeat/web-renderer"].commit,"e6b369472e33a56e0520bb2085fb3d4c6a707c55");
-  assert.equal(value.sources["@aerobeat/web-renderer"].tree,"5ff8c34070c2743e83b66453f7f9570c2f044407");
+  assert.equal(value.sources["@aerobeat/web-renderer"].commit,"2d987f5d4c00d11f7eac92dfa0437c4aaa3fe28c");
+  assert.equal(value.sources["@aerobeat/web-renderer"].tree,"6ec7080c544327e4601f5e61f4f2611572471056");
 };
 const local = JSON.parse(await readFile(resolve(output,"flow-centerline-bundle-manifest.json"),"utf8"));
 // Parent integration hook: bundleManifest must be asynchronously fetched from
@@ -144,8 +144,8 @@ try{
              const pool=id=>(renderer.aftermathAssetPools.get(id)??[]).map(entity=>({enabled:entity.enabled,materials:renderer.assetMaterials.get(entity)?.length??0}));
              return {arrow:pool("directional-arrow/rounded-outline-v1"),any:pool("any-note/outlined-circle-v1"),variants:renderer.sliceVariantMaterials.size,ready:renderer.flowSliceWarmupGeneration===renderer.gameplayAssetLoader.describe().generation,corpses:renderer.lastModel?.objects.filter(x=>x.kind==="aftermath").length??0,hits:snap.judgements.filter(x=>x.result==="hit").length};
            });
-           for(const [name,pool] of [["arrow",preHit.arrow],["Any",preHit.any]]){
-             assert.equal(pool.length,2,`${embedding}: pre-hit ${name} has exactly two built corpse halves`);
+           for(const [name,pool,expected] of [["arrow",preHit.arrow,2],["Any",preHit.any,4]]){
+             assert.equal(pool.length,expected,`${embedding}: pre-hit ${name} has all bounded corpse halves built`);
              assert(pool.every(half=>half.materials>0&&!half.enabled),`${embedding}: pre-hit ${name} halves stay invisible`);
            }
            const expectedVariants=[...preHit.arrow,...preHit.any].reduce((sum,half)=>sum+half.materials,0);

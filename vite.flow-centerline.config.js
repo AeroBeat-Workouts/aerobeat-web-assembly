@@ -10,7 +10,7 @@ const root = new URL("./", import.meta.url);
 const rootPath = realpathSync(fileURLToPath(root));
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const git = (path, ...args) => execFileSync("git", ["-C", path, ...args], { encoding: "utf8" }).trim();
-const expectedRenderer = Object.freeze({ commit: "e6b369472e33a56e0520bb2085fb3d4c6a707c55", tree: "5ff8c34070c2743e83b66453f7f9570c2f044407" });
+const expectedRenderer = Object.freeze({ commit: "2d987f5d4c00d11f7eac92dfa0437c4aaa3fe28c", tree: "6ec7080c544327e4601f5e61f4f2611572471056" });
 const assemblyPackage = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));
 if (assemblyPackage.name !== "@aerobeat/web-assembly" || !/^0\.0\.(?:12[8-9]|1[3-9]\d|[2-9]\d\d|\d{4,})$/u.test(assemblyPackage.version)) {
   throw new Error("Flow tester requires a current assembly package version (at least 0.0.128)");
