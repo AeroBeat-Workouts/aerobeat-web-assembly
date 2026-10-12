@@ -295,19 +295,50 @@ try {
     const text=await readFile(await download.path(),"utf8"),data=JSON.parse(text);
     assert.equal(download.suggestedFilename(),`aerobeat-test-performance-${mode}.json`,`${phase}: neutral performance JSON filename`);
     assert(text.length>100&&text.length<250_000,`${mode}: diagnostic download must stay bounded`);
-    assert.equal(data.schema,"aerobeat/faint_hit_diagnostic");assert.equal(data.packageVersion,"0.0.105");
+    assert.equal(data.schema,"aerobeat/faint_hit_diagnostic");assert.equal(data.version,2,`${phase}: exported variant profiler must use v2`);assert.equal(data.packageVersion,"0.0.105");
     assert.equal(data.mixedEraAudio,true);assert.equal(data.served8445SourceParity,false);assert.equal(data.cookieRelease0128SourceParity,false);
     assert.deepEqual(data.sourceCommits,{assembly:"382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",renderer:"0be921cea14933400bd8afdda809ea4453ea772b",gameplay:"c9c32fc9fcd18964f35e3e283f72f9b146bf22df",contentAuthoring:"f4ee9b4f466660a10d4300354ffd73ecff527d4c",audio:"464fdeff45fc109876a1600f22d3007708d1b07d"});
     assert.equal(data.currentMode,mode);assert.equal(Object.hasOwn(data,"warning"),false,"provenance remains structured, not repeated warning prose");
     assert(Array.isArray(data.windows)&&data.windows.length<=32);
     const topKeys=["schema","version","packageVersion","served8445SourceParity","cookieRelease0128SourceParity","mixedEraAudio","sourceCommits","currentMode","measurements","coverage","windows"];
-    const windowKeys=["label","mode","sessionGeneration","wallElapsedMs","eligibleActiveMs","eligibleIntervalCount","ineligibleFrameCount","displayCount","pointerRedrawCount","projectionCount","rendererCallCount","hitCount","hitGroupCount","maxHitDelta","aftermathEntriesObserved","aftermathPiecesObserved","maxAftermathPieces","withheldPiecesObserved","errors","valid","invalidReasons","displayGeometry","displayIntervalMs","displayFrameTotalMs","frameProjectionMs","rendererCallMs","totalPresentationMs","pointerTotalMs","postHitBurst"];
+    const windowKeys=["label","mode","sessionGeneration","wallElapsedMs","eligibleActiveMs","eligibleIntervalCount","ineligibleFrameCount","displayCount","pointerRedrawCount","projectionCount","rendererCallCount","hitCount","hitGroupCount","maxHitDelta","aftermathEntriesObserved","aftermathPiecesObserved","maxAftermathPieces","withheldPiecesObserved","errors","valid","invalidReasons","displayGeometry","displayIntervalMs","displayFrameTotalMs","frameProjectionMs","rendererCallMs","totalPresentationMs","pointerTotalMs","variantProfile","variantCohorts","postHitBurst"];
     const histogramKeys=["count","p50ApproxMs","p95ApproxMs","maxMs","quantileBinWidthMs"];
+    const profileCounters=["poolCreated","poolReused","sliceCacheMisses","sliceCacheHits","sliceCacheHighWater"];
+    const profileTimers=["poolLookupMs","sliceVariantLookupMs","clippedAppearanceMs","sceneUpdateMs","manualTickMs","installClipMs"];
+    const cohortHistograms=["displayFrameTotalMs","sceneUpdateMs","manualTickMs","rendererCallMs"];
+    const boundedCount=(value,limit,label)=>assert(Number.isSafeInteger(value)&&value>=0&&value<=limit,`${phase}: ${label} bounded nonnegative integer`);
+    const boundedHistogram=(value,label,limit=100000,withSum=false)=>{
+      assert.deepEqual(Object.keys(value).sort(),(withSum?[...histogramKeys,"sumMs"]:histogramKeys).sort(),`${phase}: ${label} has histogram-only scalar fields`);
+      boundedCount(value.count,limit,`${label}.count`);
+      assert.equal(value.quantileBinWidthMs,1,`${phase}: ${label} uses bounded 1ms bins`);
+      for(const field of ["p50ApproxMs","p95ApproxMs","maxMs"])assert(value[field]===null&&value.count===0||Number.isFinite(value[field])&&value[field]>=0&&value[field]<=60000&&value.count>0,`${phase}: ${label}.${field} bounded and matches count`);
+      if(withSum)assert(Number.isFinite(value.sumMs)&&value.sumMs>=0&&value.sumMs<=1e10&&(!value.count||value.sumMs<=value.count*60000),`${phase}: ${label}.sumMs bounded scalar`);
+    };
+    const boundedProfile=(value,label,limit=100000)=>{
+      assert.deepEqual(Object.keys(value).sort(),[...profileCounters,...profileTimers].sort(),`${phase}: ${label} contains only allowed counters and timers`);
+      for(const key of profileCounters)boundedCount(value[key],key==="sliceCacheHighWater"?1000000:1000000000,`${label}.${key}`);
+      for(const key of profileTimers)boundedHistogram(value[key],`${label}.${key}`,limit,true);
+      assert(value.sliceCacheMisses<=value.sliceVariantLookupMs.count&&value.sliceCacheHits<=value.sliceVariantLookupMs.count,`${phase}: ${label} cache calls cover counted hits and misses`);
+      assert(value.poolCreated+value.poolReused<=value.poolLookupMs.count,`${phase}: ${label} pool calls cover created and reused entities`);
+    };
     assert.deepEqual(Object.keys(data).sort(),topKeys.sort(),`${mode}: only bounded provenance and summary keys may download`);
     for(const w of data.windows){
       assert.deepEqual(Object.keys(w).sort(),windowKeys.sort(),`${phase}: only allowed window fields`);
       for(const key of ["displayIntervalMs","displayFrameTotalMs","frameProjectionMs","rendererCallMs","totalPresentationMs","pointerTotalMs"]){assert.deepEqual(Object.keys(w[key]).sort(),histogramKeys.sort());assert(Number.isSafeInteger(w[key].count)&&w[key].count>=0&&w[key].count<=100000,`${mode}: bounded histogram sample count`);}
-      assert.deepEqual(Object.keys(w.postHitBurst).sort(),["triggeredFrameCount","frameCount","displayIntervalMs","displayFrameTotalMs","rendererCallMs"].sort(),`${phase}: post-hit burst contains scalar aggregates only`);
+      boundedProfile(w.variantProfile,`${w.label}.variantProfile`);
+      assert.deepEqual(Object.keys(w.variantCohorts).sort(),["cacheMiss","aftermathNoNewVariant"].sort(),`${phase}: exactly two bounded native cohorts`);
+      for(const [name,cohort] of Object.entries(w.variantCohorts)){
+        assert.deepEqual(Object.keys(cohort).sort(),["frameCount",...cohortHistograms].sort(),`${phase}: ${name} has only frame count and histograms`);
+        boundedCount(cohort.frameCount,w.displayCount,`${name}.frameCount`);
+        for(const key of cohortHistograms)boundedHistogram(cohort[key],`${name}.${key}`,w.displayCount);
+        assert.equal(cohort.displayFrameTotalMs.count,cohort.frameCount,`${phase}: ${name} counts full eligible frames`);
+        assert(cohort.sceneUpdateMs.count>=cohort.frameCount&&cohort.manualTickMs.count>=cohort.frameCount&&cohort.rendererCallMs.count>=cohort.frameCount,`${phase}: ${name} frames include scene, tick, renderer`);
+      }
+      assert(w.variantCohorts.cacheMiss.frameCount+w.variantCohorts.aftermathNoNewVariant.frameCount<=w.displayCount,`${phase}: native cohorts partition only eligible aftermath frames`);
+      assert.deepEqual(Object.keys(w.postHitBurst).sort(),["triggeredFrameCount","frameCount","displayIntervalMs","displayFrameTotalMs","rendererCallMs","variantProfile"].sort(),`${phase}: post-hit burst contains scalar aggregates only`);
+      boundedProfile(w.postHitBurst.variantProfile,`${w.label}.postHitBurst.variantProfile`);
+      for(const key of profileCounters.slice(0,4))assert(w.postHitBurst.variantProfile[key]<=w.variantProfile[key],`${phase}: hit-linked ${key} belongs to window`);
+      for(const key of profileTimers)assert(w.postHitBurst.variantProfile[key].count<=w.variantProfile[key].count,`${phase}: hit-linked ${key} samples belong to window`);
       for(const key of ["triggeredFrameCount","frameCount"]){assert(Number.isSafeInteger(w.postHitBurst[key])&&w.postHitBurst[key]>=0&&w.postHitBurst[key]<=100000,`${phase}: bounded post-hit ${key}`);}
       assert(w.postHitBurst.triggeredFrameCount<=w.postHitBurst.frameCount&&w.postHitBurst.frameCount<=w.displayCount,`${phase}: post-hit frames belong to eligible window`);
       for(const key of ["displayIntervalMs","displayFrameTotalMs","rendererCallMs"]){
@@ -319,7 +350,7 @@ try {
       }
       if(w.displayGeometry!==null){assert.deepEqual(Object.keys(w.displayGeometry).sort(),["backingWidth","backingHeight","devicePixelRatio","viewportWidth","viewportHeight"].sort());assert(w.displayGeometry.backingWidth===390&&w.displayGeometry.backingHeight===844&&w.displayGeometry.devicePixelRatio===1);}else assert.equal(w.displayCount,0,"unsampled window may omit display geometry");assert(Array.isArray(w.invalidReasons)&&w.invalidReasons.length<20);
     }
-    assert(!/"(?:eventId|sourceEventIds|chart|audioBytes|pointerPosition|clientX|clientY|judgements|scorePartitions|videoFrame|cvFrame)"/u.test(text),`${mode}: raw chart/audio/coords/event IDs or scored records must not be exported`);
+    assert(!/"(?:eventId|sourceEventIds|chart|audioBytes|pointerPosition|clientX|clientY|judgements|scorePartitions|videoFrame|cvFrame|cutPlane|cutAxis|cutDirection|materialKey|variantKey|cacheKey|sourceNote|noteId|frameSamples|rawFrames)"/iu.test(text),`${mode}: raw chart/audio/cut coordinates/material keys/touch data or per-note/frame records must not be exported`);
     const attributed=data.windows.filter(w=>w.mode===mode&&w.valid&&w.hitCount>0&&w.rendererCallCount>0&&w.displayFrameTotalMs?.count>0);
     assert(attributed.length>0,`${mode}: download must contain a valid attributed hit window with renderer and display samples`);
     const intervals=attributed.reduce((n,w)=>n+(w.displayIntervalMs?.count??0),0);
@@ -333,13 +364,30 @@ try {
     if(mode==="off"){
       assert(attributed.some(w=>w.withheldPiecesObserved>0),`${phase}: real corpse-OFF hit window must withhold scene pieces`);
       assert(burstWindows.some(w=>w.aftermathPiecesObserved>0&&w.withheldPiecesObserved>0),`${phase}: valid OFF scored post-hit window must observe and withhold corpse pieces`);
+      for(const w of attributed){
+        assert.equal(w.aftermathPiecesObserved,w.withheldPiecesObserved,`${phase}: every observed OFF aftermath piece was withheld`);
+        assert(w.variantProfile.sceneUpdateMs.count>0&&w.variantProfile.manualTickMs.count>0,`${phase}: OFF still stages the scene and ticks the renderer`);
+        assert(w.postHitBurst.variantProfile.sceneUpdateMs.count>0&&w.postHitBurst.variantProfile.manualTickMs.count>0,`${phase}: OFF hit-linked frames still stage scene and tick`);
+        for(const profile of [w.variantProfile,w.postHitBurst.variantProfile]){
+          for(const key of profileCounters)assert.equal(profile[key],0,`${phase}: OFF ${key} must remain zero`);
+          for(const key of profileTimers.filter(key=>key!=="sceneUpdateMs"&&key!=="manualTickMs")){assert.equal(profile[key].count,0,`${phase}: OFF ${key} must have zero samples`);assert.equal(profile[key].sumMs,0,`${phase}: OFF ${key} must have zero total`);}
+        }
+        for(const cohort of Object.values(w.variantCohorts))assert.equal(cohort.frameCount,0,`${phase}: OFF cannot join native-only variant cohorts`);
+      }
     }else{
       assert(burstWindows.some(w=>w.aftermathPiecesObserved>0&&w.withheldPiecesObserved===0),`${phase}: valid native scored post-hit window must observe corpse pieces without withholding them`);
+      const profiled=burstWindows.filter(w=>w.aftermathPiecesObserved>0&&w.withheldPiecesObserved===0);
+      assert(profiled.some(w=>w.variantProfile.sliceCacheMisses>0&&w.variantProfile.poolCreated+w.variantProfile.poolReused>0&&w.variantProfile.sliceCacheHighWater>0),`${phase}: native scored window must record real cache misses and pool operations`);
+      assert(profiled.some(w=>w.postHitBurst.variantProfile.sliceCacheMisses>0&&w.postHitBurst.variantProfile.poolCreated+w.postHitBurst.variantProfile.poolReused>0),`${phase}: scored first-hit/post-hit frames must own cache misses and pool operations`);
+      assert(profiled.some(w=>w.variantCohorts.cacheMiss.frameCount>0&&w.variantCohorts.cacheMiss.displayFrameTotalMs.count>0&&w.variantCohorts.cacheMiss.sceneUpdateMs.count>0&&w.variantCohorts.cacheMiss.manualTickMs.count>0),`${phase}: cache-miss frames require full-frame, scene and tick cohort samples`);
+      assert(profiled.some(w=>w.variantCohorts.aftermathNoNewVariant.frameCount>0&&w.variantCohorts.aftermathNoNewVariant.sceneUpdateMs.count>0&&w.variantCohorts.aftermathNoNewVariant.manualTickMs.count>0),`${phase}: native scored aftermath-without-new-variant cohort must be sampled`);
+      assert(profiled.some(w=>w.variantProfile.clippedAppearanceMs.count>0&&w.variantProfile.poolLookupMs.count>0&&w.variantProfile.sliceVariantLookupMs.count>0&&w.variantProfile.installClipMs.count>0&&w.variantProfile.sceneUpdateMs.count>0&&w.variantProfile.manualTickMs.count>0),`${phase}: native hit must traverse all six synchronous stage timers`);
+      assert(profiled.some(w=>w.postHitBurst.variantProfile.clippedAppearanceMs.count>0&&w.postHitBurst.variantProfile.installClipMs.count>0),`${phase}: hit-linked clipped appearance and clip installation must be sampled`);
     }
     // The QA fixture seeks among hand-picked music times while the real app
     // judges touch. Intervals therefore prove only synthetic tick coverage;
     // they are never physical-phone cadence or FPS measurements.
-    downloaded.push({mode,phase,filename:download.suggestedFilename(),bytes:text.length,windows:data.windows.length,coverage:"project-owned fixture; synthetic audio seek and manually invoked display frames; not continuous RAF, phone FPS, or served 8445 parity",attributed:attributed.map(w=>({label:w.label,hitCount:w.hitCount,rendererCallCount:w.rendererCallCount,intervalCount:w.displayIntervalMs?.count??0,frameCount:w.displayFrameTotalMs.count,aftermathPiecesObserved:w.aftermathPiecesObserved,withheldPiecesObserved:w.withheldPiecesObserved,valid:w.valid,geometry:w.displayGeometry})),syntheticIntervalSamples:intervals,postHitBurst:burstWindows.map(w=>({label:w.label,triggeredFrameCount:w.postHitBurst.triggeredFrameCount,frameCount:w.postHitBurst.frameCount,intervalCount:w.postHitBurst.displayIntervalMs.count,displayFrameCount:w.postHitBurst.displayFrameTotalMs.count,rendererCount:w.postHitBurst.rendererCallMs.count}))});
+    downloaded.push({mode,phase,filename:download.suggestedFilename(),bytes:text.length,windows:data.windows.length,coverage:"project-owned fixture; synthetic audio seek and manually invoked display frames; not continuous RAF, phone FPS, or served 8445 parity",attributed:attributed.map(w=>({label:w.label,hitCount:w.hitCount,rendererCallCount:w.rendererCallCount,intervalCount:w.displayIntervalMs?.count??0,frameCount:w.displayFrameTotalMs.count,aftermathPiecesObserved:w.aftermathPiecesObserved,withheldPiecesObserved:w.withheldPiecesObserved,variantCounters:Object.fromEntries(profileCounters.map(key=>[key,w.variantProfile[key]])),postHitCounters:Object.fromEntries(profileCounters.map(key=>[key,w.postHitBurst.variantProfile[key]])),stageSamples:Object.fromEntries(profileTimers.map(key=>[key,w.variantProfile[key].count])),postHitStageSamples:Object.fromEntries(profileTimers.map(key=>[key,w.postHitBurst.variantProfile[key].count])),cohortFrames:Object.fromEntries(Object.entries(w.variantCohorts).map(([key,value])=>[key,value.frameCount])),valid:w.valid,geometry:w.displayGeometry})),syntheticIntervalSamples:intervals,postHitBurst:burstWindows.map(w=>({label:w.label,triggeredFrameCount:w.postHitBurst.triggeredFrameCount,frameCount:w.postHitBurst.frameCount,intervalCount:w.postHitBurst.displayIntervalMs.count,displayFrameCount:w.postHitBurst.displayFrameTotalMs.count,rendererCount:w.postHitBurst.rendererCallMs.count}))});
     await writeFile(resolve(evidence,`diagnostic-download-${phase}.json`),text);
   }
   // Named ineligible state: restore a fresh Test without changing the chart;
