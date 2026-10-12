@@ -28,9 +28,9 @@ export function scoringClockMinimumDurationSeconds(events, variant, settings) {
     const type = event.authoredBeat?.type ?? event.type;
     if (variant.rulesetId === "flow_colliders_v1" && type === "note" || variant.rulesetId === "boxing_collider_v1" && punchActions.has(type)) {
       lastDeadlineMs = Math.max(lastDeadlineMs, effectivePlayNoteAfterWindowMs(centerMs, windowMs, depth));
-    } else if (variant.rulesetId === "boxing_collider_v1" && (type === "guard" || type === "crossed_guard" || type === "squat" || type === "weave_left" || type === "weave_right")) {
+    } else if (variant.rulesetId === "boxing_collider_v1" && (type === "guard" || type === "squat" || type === "weave_left" || type === "weave_right")) {
       const checkpointMs = Number(event.checkpoint?.timingWindowMs);
-      const deadlineMs = type === "guard" || type === "crossed_guard"
+      const deadlineMs = type === "guard"
         ? Number.isFinite(checkpointMs) && checkpointMs > 0 ? checkpointMs : windowMs * depth
         : windowMs * depth;
       lastDeadlineMs = Math.max(lastDeadlineMs, centerMs + deadlineMs);

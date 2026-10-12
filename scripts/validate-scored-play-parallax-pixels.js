@@ -21,10 +21,10 @@ try {
   assert.ok(address && typeof address !== 'string');
   browser = await chromium.launch({headless:true});
   const results = [];
-  // Each setting has its own connected game: no unsupported same-element restart.
+  // Each stored setup has its own connected game: no same-element restart.
   for (const embedding of ['direct','cross-origin iframe']) {
     const measurements = {};
-    for (const setting of [{name:'high',on:true,y:1.1},{name:'low',on:true,y:.55},{name:'off',on:false,y:1.1}]) {
+    for (const setting of [{name:'fresh'},{name:'legacy-off',on:false,x:.55,y:.55},{name:'legacy-custom',on:true,x:.8,y:.4}]) {
       const context = await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1});
       try {
         const page = await context.newPage();
@@ -40,13 +40,23 @@ try {
           const harness = await installScoredPlayHarness(element,{events:[event]});
           await harness.waitForAssets();
           await harness.selectChart();
-          // Fresh users must actually receive the stronger default; explicit
-          // per-run tuning would otherwise conceal the old .55 regression.
-          const {getGameSetupSnapshot: freshSetup}=await import('/src/game-setup-coordinator.js');
-          require(freshSetup().noseCameraRangeYWorldUnits===1.1 && freshSetup().noseCameraParallaxEnabled===false,'fresh Game Setup Y default or opt-in toggle regressed');
-          await harness.setSetup({noseCameraParallaxEnabled:setting.on,noseCameraRangeYWorldUnits:setting.y});
+          const {aeroGameSetupStorageKey,getGameSetupSnapshot,setGameSetupSnapshot,AeroGameSetupCoordinator}=await import('/src/game-setup-coordinator.js');
+          const fixed = setup => setup.noseCameraParallaxEnabled===true && setup.noseCameraRangeXWorldUnits===1.1 && setup.noseCameraRangeYWorldUnits===1.1;
+          require(fixed(getGameSetupSnapshot()),'fresh Game Setup must fix both camera axes on');
+          require(!element.shadowRoot.querySelector('[data-game-setup-field="noseCameraParallaxEnabled"],[data-game-setup-field="noseCameraRangeYWorldUnits"]'),'retired camera controls still visible');
+          require(element.shadowRoot.querySelector('[data-game-setup-field="noseMarkerVisible"]') instanceof HTMLInputElement,'independent nose marker control missing');
+          if(setting.name!=='fresh'){
+            const legacy={...getGameSetupSnapshot(),noseCameraParallaxEnabled:setting.on,noseCameraRangeXWorldUnits:setting.x,noseCameraRangeYWorldUnits:setting.y,noseMarkerVisible:false,guardSpacing:.75};
+            localStorage.setItem(aeroGameSetupStorageKey,JSON.stringify(legacy));
+            const migrated=new AeroGameSetupCoordinator({storageFactory:()=>localStorage,eventTarget:null});
+            require(fixed(migrated.getSnapshot()) && migrated.getSnapshot().noseMarkerVisible===false && migrated.getSnapshot().guardSpacing===.75,'stored legacy camera migration lost unrelated fields');
+            require(fixed(JSON.parse(localStorage.getItem(aeroGameSetupStorageKey))),'stored off/custom values were not migrated on disk');
+            setGameSetupSnapshot(legacy);
+            migrated.destroy();
+            await element.lifecycleIntentTail;
+          }
           // The fixture's generic field assertion does not understand the two
-          // native UI fields that commit into nested spawnDistanceOverride.
+          // native spawn controls that commit into nested spawnDistanceOverride.
           for(const [name,value] of [['spawnDistanceOverrideEnabled',true],['spawnDistanceOverrideWorldUnits',20]]) {
             const input=element.shadowRoot.querySelector(`[data-game-setup-field='${name}']`);
             require(input instanceof HTMLInputElement,`native spawn control ${name} missing`);
@@ -54,12 +64,11 @@ try {
             else {input.focus();input.value=String(value);input.dispatchEvent(new Event('change',{bubbles:true}));input.blur();}
             await element.lifecycleIntentTail;
           }
-          const {aeroGameSetupStorageKey,getGameSetupSnapshot}=await import('/src/game-setup-coordinator.js');
           const setup=getGameSetupSnapshot(),stored=JSON.parse(localStorage.getItem(aeroGameSetupStorageKey));
-          require(setup.spawnDistanceOverride.enabled && setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits===20 && stored.spawnDistanceOverride.enabled && stored.spawnDistanceOverride.normalSpawnDistanceWorldUnits===20 && setup.noseCameraParallaxEnabled===setting.on && setup.noseCameraRangeYWorldUnits===setting.y,'native setup did not persist');
+          require(setup.spawnDistanceOverride.enabled && setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits===20 && stored.spawnDistanceOverride.enabled && stored.spawnDistanceOverride.normalSpawnDistanceWorldUnits===20 && fixed(setup) && fixed(stored),'native setup did not persist fixed camera and other fields');
           await harness.startPlay();
           const locked = harness.element.activeSessionSetup;
-          require(locked?.spawnDistanceOverride.enabled && locked.spawnDistanceOverride.normalSpawnDistanceWorldUnits === 20 && locked.noseCameraRangeYWorldUnits === setting.y && locked.noseCameraParallaxEnabled === setting.on,'fresh scored Play did not lock native setup');
+          require(locked?.spawnDistanceOverride.enabled && locked.spawnDistanceOverride.normalSpawnDistanceWorldUnits === 20 && fixed(locked),'scored Play did not lock fixed camera and native setup');
           await harness.calibrate();
           const gloves = harness.assertGlovePixels();
           // Move the loaded audio device clock exactly once; every subsequent pose
@@ -73,8 +82,8 @@ try {
             require(framebuffer.session.state === 'playing' && framebuffer.session.purpose === 'play','active scored Play required');
             return framebuffer.pixels;
           };
-          const pose = noseY => {
-            harness.feedPose({nose:{x:.5,y:noseY}});
+          const pose = (noseX,noseY) => {
+            harness.feedPose({nose:{x:noseX,y:noseY}});
             const input = harness.graph.input.getSnapshot();
             require(input.latestEvidence?.provenance === 'measured' && !input.tracking.gameplayPaused,'fresh production measured input required');
             return input;
@@ -112,33 +121,34 @@ try {
             const measured = harness.graph.input[Symbol.for('aerobeat.web-input.internal-measured-nose-parallax')]?.();
             const gameplay = harness.graph.gameplay.getSnapshot();
             require(gameplay.session.state === 'playing' && gameplay.judgements.length === 0,'scored Play/judgements changed without a hit');
-            return {pixels:count,x:sx/count,y:sy/count,world:[world.x,world.y,world.z],cameraY:renderer.cameraEntity.getPosition().y,deflection:element.lastNoseCameraDeflection,measured:measured?.yDeflection ?? null,ageMs:ageBeforeFrameMs,postCaptureAgeMs:measured ? performance.now()-measured.measurementTimestampMs : null,provenance:input.latestEvidence?.provenance,score:JSON.stringify(gameplay.scorePartitions),judgements:gameplay.judgements.length,session:gameplay.session.state,frameMs:frame.nowMs};
+            return {pixels:count,x:sx/count,y:sy/count,world:[world.x,world.y,world.z],cameraX:renderer.cameraEntity.getPosition().x,cameraY:renderer.cameraEntity.getPosition().y,deflection:element.lastNoseCameraDeflection,measuredX:measured?.xDeflection ?? null,measuredY:measured?.yDeflection ?? null,ageMs:ageBeforeFrameMs,postCaptureAgeMs:measured ? performance.now()-measured.measurementTimestampMs : null,provenance:input.latestEvidence?.provenance,score:JSON.stringify(gameplay.scorePartitions),judgements:gameplay.judgements.length,session:gameplay.session.state,frameMs:frame.nowMs};
           };
           // Calibration's 15fps measured clock can initially lead wall time.
           // Catch up naturally before asking production's <=150ms freshness
           // gate to consume nose samples; never fabricate a future fresh pose.
           const initialLead=element.latestPoseTimestampMs-performance.now();
           if(initialLead>0)await delay(initialLead+20);
-          // Camera Y is rate-limited to 3 world units/sec; hold each fresh pose
-          // long enough for convergence without moving the song clock.
-          const settle = async (noseY) => { for(let i=0;i<24;i++){pose(noseY);await delay(35);} pose(noseY);return sample(); };
-          const standing = await settle(.2);
-          const squat = await settle(.43);
-          let stale = null;
-          if (setting.name === 'high') {
-            await delay(200);
-            element.runDisplayFrame();
-            stale = sample();
-          }
-          return {origin:location.origin,parentOrigin:document.referrer ? new URL(document.referrer).origin:null,locked:{on:locked.noseCameraParallaxEnabled,y:locked.noseCameraRangeYWorldUnits,spawn:locked.spawnDistanceOverride.normalSpawnDistanceWorldUnits},gloves,standing,squat,stale};
+          // Both axes are rate-limited to 3 world units/sec; settle fresh measured
+          // poses while keeping the same song frame and guard world position.
+          const settle = async (noseX,noseY) => { for(let i=0;i<24;i++){pose(noseX,noseY);await delay(35);} pose(noseX,noseY);return sample(); };
+          const standing = await settle(.5,.2);
+          // The fixture supplies camera-preview X; production mirrors it into
+          // athlete space. Moving preview nose left yields +athlete X travel.
+          const horizontal = await settle(.2,.2);
+          const squat = await settle(.2,.43);
+          await delay(200);
+          element.runDisplayFrame();
+          const stale = sample();
+          return {origin:location.origin,parentOrigin:document.referrer ? new URL(document.referrer).origin:null,locked:{on:locked.noseCameraParallaxEnabled,x:locked.noseCameraRangeXWorldUnits,y:locked.noseCameraRangeYWorldUnits,spawn:locked.spawnDistanceOverride.normalSpawnDistanceWorldUnits},gloves,standing,horizontal,squat,stale};
         },setting);
         const proof = measurements[setting.name];
         if (embedding !== 'direct') assert.notEqual(proof.origin,proof.parentOrigin,'iframe must be truly cross-origin');
-        assert.equal(proof.locked.y,setting.y);
-        assert.equal(proof.locked.on,setting.on);
+        assert.equal(proof.locked.y,1.1);
+        assert.equal(proof.locked.x,1.1);
+        assert.equal(proof.locked.on,true);
         assert.equal(proof.locked.spawn,20);
         assert.ok(proof.gloves.changed >= 100,'real pinned glove pixels required');
-        for (const name of ['standing','squat']) {
+        for (const name of ['standing','horizontal','squat']) {
           const row = proof[name];
           assert.equal(row.session,'playing');
           assert.equal(row.judgements,0);
@@ -146,23 +156,22 @@ try {
           assert.ok(row.pixels >= 100 && Number.isFinite(row.y));
           assert.ok(row.ageMs >= 0 && row.ageMs < 150,`${embedding}/${setting.name}/${name}: input age at frame start ${row.ageMs} (after QA pixel capture ${row.postCaptureAgeMs})`);
         }
-        assert.deepEqual(proof.standing.world,proof.squat.world,`${embedding}/${setting.name}: guard world anchor must remain fixed`);
-        assert.equal(proof.standing.score,proof.squat.score,'no fabricated score changes');
-        assert.ok(proof.squat.measured > .2,`${embedding}/${setting.name}: actual measured squat deflection required`);
+        assert.deepEqual(proof.standing.world,proof.horizontal.world,`${embedding}/${setting.name}: horizontal pose cannot move guard world anchor`);
+        assert.deepEqual(proof.standing.world,proof.squat.world,`${embedding}/${setting.name}: squat cannot move guard world anchor`);
+        assert.equal(proof.standing.score,proof.horizontal.score,'horizontal movement cannot fabricate score');
+        assert.equal(proof.standing.score,proof.squat.score,'squat cannot fabricate score');
+        assert.ok(proof.horizontal.measuredX > .2 && proof.squat.measuredY > .2,`${embedding}/${setting.name}: measured horizontal and squat deflections required`);
+        assert.ok(proof.horizontal.cameraX>proof.standing.cameraX+.3 && proof.horizontal.x<proof.standing.x-4,`${embedding}/${setting.name}: measured horizontal camera and guard pixels must move: ${JSON.stringify(proof.horizontal)}`);
+        assert.ok(proof.standing.cameraY>proof.squat.cameraY+.1 && proof.standing.y>proof.squat.y+4,`${embedding}/${setting.name}: measured squat camera and guard pixels must move: ${JSON.stringify(proof.squat)}`);
+        assert.ok(proof.stale?.session==='playing' && proof.stale.pixels>=100 && !proof.stale.deflection?.active && proof.stale.cameraY>proof.squat.cameraY+.02 && proof.stale.cameraX<proof.squat.cameraX-.02,`${embedding}/${setting.name}: stale nose must recenter both axes with visible guard: ${JSON.stringify(proof.stale)}`);
       } finally { await context.close(); }
     }
-    const high = measurements.high, low = measurements.low, off = measurements.off;
-    const shift = proof => proof.standing.y-proof.squat.y;
-    const highShift = shift(high), lowShift = shift(low), offShift = shift(off);
-    assert.ok(highShift >= 6 && highShift >= lowShift*1.7 && lowShift > 2,`${embedding}: pinned guard pixel shift must scale with locked Y: ${JSON.stringify({highShift,lowShift})}`);
-    assert.ok(Math.abs(offShift)<1,`${embedding}: disabled camera must not shift GLB: ${offShift}`);
-    assert.ok(high.standing.cameraY > high.squat.cameraY && low.standing.cameraY > low.squat.cameraY,`${embedding}: source Play camera Y did not respond to measured squat`);
-    // Production camera pose has a +1 world-unit base, so the measured
-    // deflection targets approximately 1.64/1.82 in world coordinates.
-    assert.ok(Math.abs(high.squat.cameraY-1.64)<.18 && Math.abs(low.squat.cameraY-1.82)<.18,`${embedding}: measured source camera targets: ${JSON.stringify({high:high.squat.cameraY,low:low.squat.cameraY})}`);
-    assert.ok(Math.abs(off.standing.cameraY-off.squat.cameraY)<.01,`${embedding}: disabled camera moved`);
-    assert.ok(high.stale?.session === 'playing' && high.stale.pixels >= 100 && !high.stale.deflection?.active && high.stale.cameraY > high.squat.cameraY+.02,`${embedding}: stale measured sample must recenter while Play GLB stays visible: ${JSON.stringify(high.stale)}`);
-    results.push({embedding,highShift,lowShift,offShift,highCameraY:high.squat.cameraY,lowCameraY:low.squat.cameraY,staleCameraY:high.stale.cameraY,guardPixels:high.squat.pixels,glovePixels:high.gloves.changed});
+    const fresh=measurements.fresh,legacyOff=measurements['legacy-off'],legacyCustom=measurements['legacy-custom'];
+    const shifts=Object.fromEntries(Object.entries(measurements).map(([name,proof])=>[name,{x:proof.standing.x-proof.horizontal.x,y:proof.standing.y-proof.squat.y}]));
+    for(const [name,shift] of Object.entries(shifts))assert.ok(shift.x>4&&shift.y>4,`${embedding}/${name}: fixed camera must visibly move pinned guard in both axes: ${JSON.stringify(shift)}`);
+    assert.ok(Math.abs(fresh.squat.cameraY-1.64)<.18,`${embedding}: fixed 1.1 squat world target changed: ${fresh.squat.cameraY}`);
+    for(const [name,proof] of [['legacy-off',legacyOff],['legacy-custom',legacyCustom]])assert.ok(Math.abs(proof.squat.cameraY-fresh.squat.cameraY)<.12&&Math.abs(proof.horizontal.cameraX-fresh.horizontal.cameraX)<.12,`${embedding}/${name}: saved off/custom must not change active camera travel`);
+    results.push({embedding,shifts,standingCameraX:fresh.standing.cameraX,horizontalCameraX:fresh.horizontal.cameraX,squatCameraY:fresh.squat.cameraY,staleCameraY:fresh.stale.cameraY,guardPixels:fresh.squat.pixels,glovePixels:fresh.gloves.changed});
     console.log(`${embedding}: scored Play parallax PASS ${JSON.stringify(results.at(-1))}`);
   }
 } finally {

@@ -33,7 +33,7 @@ try {
         const storage = { getItem: key => storageValues.get(key) ?? null, setItem: (key, value) => storageValues.set(key, value) };
         const coordinator = new f.AeroGameSetupCoordinator({ storageFactory: () => storage, eventTarget: null });
         const defaultSetup = coordinator.getSnapshot();
-        const historical = { ...defaultSetup, noseCameraParallaxEnabled: true, noseCameraRangeXWorldUnits: .55, noseCameraRangeYWorldUnits: .35 };
+        const historical = { ...defaultSetup, noseCameraParallaxEnabled: false, noseCameraRangeXWorldUnits: .55, noseCameraRangeYWorldUnits: .35, noseMarkerVisible:false };
         storage.setItem(f.aeroGameSetupStorageKey, JSON.stringify(historical));
         const migratedCoordinator = new f.AeroGameSetupCoordinator({ storageFactory: () => storage, eventTarget: null });
         const migrated = migratedCoordinator.getSnapshot();
@@ -44,8 +44,9 @@ try {
         storage.setItem(f.aeroGameSetupStorageKey, JSON.stringify({ ...historical, noseCameraRangeYWorldUnits: .55 }));
         const savedCoordinator = new f.AeroGameSetupCoordinator({ storageFactory: () => storage, eventTarget: null });
         const savedY = savedCoordinator.getSnapshot().noseCameraRangeYWorldUnits;
-        const config = f.rendererGameplayVisualConfig({ ...defaultSetup, noseCameraParallaxEnabled: true });
-        const offConfig = f.rendererGameplayVisualConfig(defaultSetup);
+        const config = f.rendererGameplayVisualConfig(defaultSetup);
+        // Renderer-only disabled config exercises native recenter behavior; Game Setup stays on.
+         const offConfig = f.rendererGameplayVisualConfig({ ...defaultSetup, noseCameraParallaxEnabled:false });
         const measured = (x, y, now = 1000, timestamp = 990) => f.sanitizedNoseCameraDeflection({ [f.INTERNAL_INPUT_MEASURED_NOSE_PARALLAX]: () => ({ calibrationId: "calibration", sourceIdentity: "source", measuredSourceFrameId: "frame", measurementTimestampMs: timestamp, xDeflection: x, yDeflection: y }) }, now, true);
         let now = 0;
         const canvas = document.createElement("canvas");
@@ -89,7 +90,7 @@ try {
             for (let i = 0; i < data.length; i += 40) if (data[i] > 50 || data[i + 1] > 50 || data[i + 2] > 50) lit++;
             results.push({ presentation, early, steady, off, glb: Boolean(glb), lit });
           }
-          return { defaultSetup: { x: defaultSetup.noseCameraRangeXWorldUnits, y: defaultSetup.noseCameraRangeYWorldUnits, on: defaultSetup.noseCameraParallaxEnabled }, migrated: { x: migrated.noseCameraRangeXWorldUnits, y: migrated.noseCameraRangeYWorldUnits, persistedY: persisted.noseCameraRangeYWorldUnits }, customY: custom.noseCameraRangeYWorldUnits, savedY, config: { rangeX: config.horizontalRangeWorldUnits, rangeY: config.verticalRangeWorldUnits, speedX: config.maximumHorizontalVelocityWorldUnitsPerSecond, speedY: config.maximumVerticalVelocityWorldUnitsPerSecond }, stale: measured(1, 1, 1000, 850), assets: assets?.state, canvas: [canvas.width, canvas.height], results, privacy: JSON.stringify(renderer.describe()).includes("measuredSourceFrameId") || JSON.stringify(renderer.describe()).includes("sourceIdentity") };
+          return { defaultSetup: { x: defaultSetup.noseCameraRangeXWorldUnits, y: defaultSetup.noseCameraRangeYWorldUnits, on: defaultSetup.noseCameraParallaxEnabled }, migrated: { x: migrated.noseCameraRangeXWorldUnits, y: migrated.noseCameraRangeYWorldUnits, on:migrated.noseCameraParallaxEnabled, marker:migrated.noseMarkerVisible, persistedX:persisted.noseCameraRangeXWorldUnits, persistedY: persisted.noseCameraRangeYWorldUnits }, customY: custom.noseCameraRangeYWorldUnits, savedY, config: { rangeX: config.horizontalRangeWorldUnits, rangeY: config.verticalRangeWorldUnits, speedX: config.maximumHorizontalVelocityWorldUnitsPerSecond, speedY: config.maximumVerticalVelocityWorldUnitsPerSecond }, stale: measured(1, 1, 1000, 850), assets: assets?.state, canvas: [canvas.width, canvas.height], results, privacy: JSON.stringify(renderer.describe()).includes("measuredSourceFrameId") || JSON.stringify(renderer.describe()).includes("sourceIdentity") };
         } finally { renderer.destroy(); coordinator.destroy(); migratedCoordinator.destroy(); customCoordinator.destroy(); savedCoordinator.destroy(); }
       }, { width: viewport.width, height: viewport.height, dpr: viewport.dpr });
       assert.deepEqual(errors, [], `${viewport.name}: browser startup must be clean`);
@@ -97,10 +98,11 @@ try {
       assert.ok(evidence.canvas[0] > 0 && evidence.canvas[1] > 0, `${viewport.name}: real PlayCanvas surface`);
       assert.equal(evidence.stale.active, false, "150ms-old measured nose is rejected");
       assert.equal(evidence.privacy, false, "raw nose identities stay out of renderer public description");
-      assert.equal(evidence.defaultSetup.on, false, "Nose defaults off");
-      assert.equal(evidence.customY, .48, "custom Y setting survives migration");
-      assert.equal(evidence.savedY, .55, "existing saved .55 stays .55 despite stronger fresh default");
-      assert.deepEqual(evidence.config, { rangeX: .55, rangeY: 1.1, speedX: 3, speedY: 3 }, "new renderer config doubles vertical range, not velocity or X");
+      assert.deepEqual(evidence.defaultSetup,{x:1.1,y:1.1,on:true},"fresh Nose defaults fixed on with equal travel");
+      assert.deepEqual(evidence.migrated,{x:1.1,y:1.1,on:true,marker:false,persistedX:1.1,persistedY:1.1},"legacy off/custom migrates to persisted fixed camera without losing marker preference");
+       assert.equal(evidence.customY,1.1,"custom Y cannot override the fixed range");
+      assert.equal(evidence.savedY,1.1,"saved .55 cannot override the fixed range");
+      assert.deepEqual(evidence.config, { rangeX: 1.1, rangeY: 1.1, speedX: 3, speedY: 3 }, "renderer receives fixed equal ranges and existing speed caps");
       for (const row of evidence.results) {
         const label = `${viewport.name} ${row.presentation}`;
         assert.ok(row.glb && row.lit > 50, `${label}: pinned GLB and nonblank framebuffer required, got ${JSON.stringify({ glb: row.glb, lit: row.lit })}`);
@@ -109,14 +111,14 @@ try {
           assert.ok(x.worldX > 0 && y.worldY < 0, `${label} ${sample.t}ms: +X moves camera right and +Y lowers it`);
           assert.ok(x.screenX < 0 && y.screenY < 0, `${label} ${sample.t}ms: +X moves scene left, lowered camera moves scene up: ${JSON.stringify({ x, y })}`);
           if (sample.t === 640) {
-            assert.ok(Math.abs(y.worldY) > 1.8 * Math.abs(x.worldX), `${label}: tuned Y camera travel exceeds X as intended: ${JSON.stringify({ x, y })}`);
-            assert.ok(Math.abs(y.screenY) > 1.8 * Math.abs(x.screenX), `${label}: tuned Y projected scene travel exceeds X: ${JSON.stringify({ x, y })}`);
+            assert.ok(Math.abs(Math.abs(y.worldY)-Math.abs(x.worldX)) < .08 && Math.abs(x.worldX)>.85, `${label}: fixed X/Y world travel must match 1.1: ${JSON.stringify({ x, y })}`);
+            assert.ok(Math.abs(x.screenX)>2&&Math.abs(y.screenY)>2,`${label}: both fixed axes visibly move the projected scene: ${JSON.stringify({ x, y })}`);
           }
         }
         assert.ok(Math.abs(row.off.worldX) < 1e-6 && Math.abs(row.off.worldY) < 1e-6, `${label}: disabled Nose never drifts`);
       }
-      assert.equal(evidence.defaultSetup.y, 2 * evidence.defaultSetup.x, `${viewport.name}: fresh setup Y travel doubles X while parallax remains off by default`);
-      assert.ok(Math.abs(evidence.migrated.x - evidence.migrated.y) < 1e-9 && evidence.migrated.persistedY === evidence.migrated.y, `${viewport.name}: old persisted .35 default migrates atomically: ${JSON.stringify(evidence.migrated)}`);
+      assert.equal(evidence.defaultSetup.y,evidence.defaultSetup.x,`${viewport.name}: fixed X/Y travel matches`);
+      assert.equal(evidence.migrated.persistedX,evidence.migrated.persistedY,`${viewport.name}: old off/custom setup persists equal fixed ranges`);
       console.log(`${viewport.name}: Flow, Boxing Lanes, Boxing Grid early/steady real GLB projections and setup migration passed`);
     } finally { await context.close(); }
   }

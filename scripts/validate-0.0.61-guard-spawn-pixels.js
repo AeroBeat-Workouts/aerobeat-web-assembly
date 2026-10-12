@@ -1,7 +1,7 @@
 // @ts-check
 
 // 0.0.61 L-C1 (htc8) real-pixel oracle — Boxing GUARD spawning: a standard
-// `guard` and a `crossed_guard` must both spawn their shield glyphs at the
+// standard and formerly reversed-source guards must both spawn shield glyphs at the
 // authored two-CELL pair positions (mirroring the canonical-scene
 // guardPairs shape: instanceCount 2, same asset / material / scale /
 // orientation, X-only placement difference) with left-blue and right-green
@@ -14,7 +14,7 @@
 // the public input path — measured wrist evidence, REAL committed HIT
 // judgements; guardCountMode "collision"):
 //   (a) GATE-ASSERT: every authored guard projects as kind "guard",
-//       hand "both", family "guard" / "crossed_guard" with the authored
+//       hand "both", family "guard" with same-side authored
 //       cells, and commits a REAL hit judgement inside its ±180 ms window.
 //   (b) Pre-commit spawn: at center − 600 ms (approach z = −3.6 WU) the
 //       guard renders TWO icon objects — the left and right shield — at the
@@ -36,8 +36,8 @@
 // overlap their targets in the first in-window sample (center − 150 ms) and
 // the guard commits a hit there. Top row uses reach 0.5 (judge Y 1.5).
 //
-// Chart: guard-1 {leftCell 5, rightCell 6} mid row @ 6000; crossed-1
-// {leftCell 1, rightCell 2, crossed, modifier crossed_guard} top row @ 10000.
+// Chart: guard-1 {leftCell 5, rightCell 6} mid row @ 6000; former-reversed-source
+// guard {leftCell 1, rightCell 2, sourcePair [2,1]} top row @ 10000.
 //
 // Embedding: direct + genuine_cross_origin_iframe (the playtest surface).
 import assert from "node:assert/strict";
@@ -89,8 +89,8 @@ try {
         const MIN_GUARD_FILL_PIXELS = 200;
         const MIN_OUTLINE_PIXELS = 45;
         const GUARDS = [
-          { eventId: "g-standard", family: "guard", crossed: false, leftCell: 5, rightCell: 6, row: 1, center: 6000 },
-          { eventId: "g-crossed", family: "crossed_guard", crossed: true, leftCell: 2, rightCell: 1, row: 0, center: 10000 },
+          { eventId: "g-standard", family: "guard", leftCell: 5, rightCell: 6, sourcePair: [5, 6], row: 1, center: 6000 },
+          { eventId: "g-former-reversed-source", family: "guard", leftCell: 1, rightCell: 2, sourcePair: [2, 1], row: 0, center: 10000 },
         ];
         // Independent authored-grid oracle, not inferred from rendered positions.
         const authoredPosition = (cell) => ({ x: -1.5 + (cell % 4), y: Math.floor(cell / 4) === 0 ? 1 + REACH_TOP : 1 });
@@ -117,10 +117,13 @@ try {
           centerTimestampMs: g.center, sourceEventIds: [`s-${g.eventId}`],
           authoredBeat: Object.freeze({
             type: "guard",
-            guardTarget: Object.freeze({ leftCell: g.leftCell, rightCell: g.rightCell, ...(g.crossed ? { crossed: true } : {}) }),
-            ...(g.crossed ? { modifier: "crossed_guard" } : {}),
+            guardTarget: Object.freeze({ leftCell: g.leftCell, rightCell: g.rightCell, sourcePair: g.sourcePair }),
           }),
         }));
+        for (const event of events) {
+          const target = event.authoredBeat.guardTarget;
+          if (target.leftCell % 4 !== 1 || target.rightCell % 4 !== 2 || target.leftCell >= target.rightCell || Object.hasOwn(target, "crossed") || Object.hasOwn(event.authoredBeat, "modifier")) throw new Error(`${event.eventId}: authored guard must be same-side with no crossing field or modifier`);
+        }
         const anchor = (name, m, sx, sy) => ({ schema: "aerobeat/body_grid_anchor_snapshot", version: 1, anchor: name, calibrationId: "cal-1", measurementTimestampMs: m, valid: true, confidence: 1, rawX: 0.5, rawY: 0.5, x: (sx + 0.5) / 4, y: (2.5 - sy) / 3, cell: 5, subcell: 20 });
         const evidence = (id, m, lw, rw) => ({ schema: "aerobeat/gameplay_evidence_snapshot", version: 1, calibrationId: "cal-1", measuredSourceFrameId: id, measurementTimestampMs: m, provenance: "measured", activeBoxingActions: [], anchors: [anchor("nose", m, 2, 1.5), anchor("left_shoulder", m, 0, 0), anchor("right_shoulder", m, 3, 0), anchor("left_elbow", m, 0, 0), anchor("right_elbow", m, 3, 0), anchor("left_wrist", m, lw.x, lw.y), anchor("right_wrist", m, rw.x, rw.y)], entries: [] });
         const inputSnap = (m, latest) => ({ sourceIdentity: "camera-a", calibration: { calibrationId: "cal-1", readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: latest, straightQualifications: [] });
@@ -262,10 +265,9 @@ try {
           for (let i = 0; i < 2; i += 1) {
             if (Math.abs(actualPair[i].x - expectedPair[i].x) > 1e-6 || Math.abs(actualPair[i].y - expectedPair[i].y) > 1e-6) throw new Error(`${g.eventId}: shield ${i} for authored cells ${JSON.stringify(inputCells)} must be at (${expectedPair[i].x}, ${expectedPair[i].y}), got (${actualPair[i].x}, ${actualPair[i].y}); actual pair ${JSON.stringify(actualPair)}`);
           }
-          if (ia.role !== "left" || ib.role !== "right" || ia.guardPairIndex !== 0 || ib.guardPairIndex !== 1) throw new Error(`${g.eventId}: authored shield roles/indices must be left/0 and right/1, got ${JSON.stringify([ia.role, ia.guardPairIndex, ib.role, ib.guardPairIndex])}`);
-          // Crossing reverses X order, not the hand required to score each shield.
-          // Without this assertion, a sorted pair colors the WRONG authored hand
-          // while both GLBs and the easy centered-score oracle still pass.
+          if (ia.role !== "left" || ib.role !== "right" || ia.guardPairIndex !== 0 || ib.guardPairIndex !== 1 || !(ia.position.x < 0 && ib.position.x > 0 && ia.position.x < ib.position.x)) throw new Error(`${g.eventId}: authored shield roles/indices must be player-left/0 and player-right/1, got ${JSON.stringify([ia.role, ia.guardPairIndex, ia.position.x, ib.role, ib.guardPairIndex, ib.position.x])}`);
+          // Each hand-role shield must stay on its matching player side.
+          // Sorting the pair above would conceal a reversed-hand regression.
           for (const [icon,cell] of [[ia,g.leftCell],[ib,g.rightCell]]) {
             const expected=authoredPosition(cell);
             if (Math.abs(icon.position.x-expected.x)>1e-6 || Math.abs(icon.position.y-expected.y)>1e-6) throw new Error(`${g.eventId}: visible ${icon.role} hand-colored guard must occupy authored cell ${cell}; expected ${JSON.stringify(expected)}, got ${JSON.stringify(icon.position)}`);

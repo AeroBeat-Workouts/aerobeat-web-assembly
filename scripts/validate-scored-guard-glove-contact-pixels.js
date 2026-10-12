@@ -34,20 +34,21 @@ try{
       const result=await game.evaluate(async element=>{
         const {installScoredPlayHarness}=await import('/scripts/fixtures/scored-play-browser-harness.js');
         const cases=[
-          {id:'standard-front',left:5,right:6,at:6000,path:'front',hit:true},
-          {id:'crossed-front',left:6,right:5,at:10000,path:'front',hit:true},
-          {id:'standard-back',left:5,right:6,at:14000,path:'back',hit:true},
-          {id:'crossed-back',left:6,right:5,at:18000,path:'back',hit:true},
-          {id:'standard-side',left:5,right:6,at:22000,path:'side',hit:true},
-          {id:'crossed-side',left:6,right:5,at:26000,path:'side',hit:true},
-          {id:'one-hand-only',left:5,right:6,at:30000,path:'one-hand',hit:false},
-          {id:'near-miss',left:5,right:6,at:34000,path:'near',hit:false},
-          {id:'opposite-side',left:6,right:5,at:36000,path:'side-right',hit:true},
-          {id:'late-inside-window',left:6,right:5,at:40000,path:'back-late',hit:true},
-          {id:'off-time',left:5,right:6,at:42000,path:'late',hit:false},
-          {id:'settling-tail',left:5,right:6,at:46000,path:'near',hit:false}, // Keeps Play active after off-time miss.
+          {id:'standard-front',left:5,right:6,sourcePair:[5,6],at:6000,path:'front',hit:true},
+          {id:'former-reversed-front',left:5,right:6,sourcePair:[6,5],at:10000,path:'front',hit:true},
+          {id:'standard-back',left:5,right:6,sourcePair:[5,6],at:14000,path:'back',hit:true},
+          {id:'former-reversed-back',left:5,right:6,sourcePair:[6,5],at:18000,path:'back',hit:true},
+          {id:'standard-side',left:5,right:6,sourcePair:[5,6],at:22000,path:'side',hit:true},
+          {id:'former-reversed-side',left:5,right:6,sourcePair:[6,5],at:26000,path:'side',hit:true},
+          {id:'one-hand-only',left:5,right:6,sourcePair:[5,6],at:30000,path:'one-hand',hit:false},
+          {id:'near-miss',left:5,right:6,sourcePair:[5,6],at:34000,path:'near',hit:false},
+          {id:'swapped-wrists',left:5,right:6,sourcePair:[6,5],at:36000,path:'swapped',hit:false},
+          {id:'former-reversed-late-inside-window',left:5,right:6,sourcePair:[6,5],at:40000,path:'back-late',hit:true},
+          {id:'off-time',left:5,right:6,sourcePair:[5,6],at:42000,path:'late',hit:false},
+          {id:'settling-tail',left:5,right:6,sourcePair:[5,6],at:46000,path:'near',hit:false}, // Keeps Play active after off-time miss.
         ];
-        const events=cases.map(row=>({schema:'aerobeat/resolved_content_event',version:3,eventId:row.id,centerTimestampMs:row.at,sourceEventIds:[`source-${row.id}`],authoredBeat:{type:'guard',guardTarget:{leftCell:row.left,rightCell:row.right,...(row.left>row.right?{crossed:true}:{})},...(row.left>row.right?{modifier:'crossed_guard'}:{})}}));
+        const events=cases.map(row=>({schema:'aerobeat/resolved_content_event',version:3,eventId:row.id,centerTimestampMs:row.at,sourceEventIds:[`source-${row.id}`],authoredBeat:{type:'guard',guardTarget:{leftCell:row.left,rightCell:row.right,sourcePair:row.sourcePair}}}));
+        for(const event of events){const target=event.authoredBeat.guardTarget;if(target.leftCell%4!==1||target.rightCell%4!==2||target.leftCell>=target.rightCell||Object.hasOwn(target,'crossed')||Object.hasOwn(event.authoredBeat,'modifier'))throw Error(`${event.eventId}: scored Play fixture must contain only same-side guards without a crossing type/modifier/flag`);}
         const harness=await installScoredPlayHarness(element,{events,songDurationMs:49000});
         await harness.waitForAssets();await harness.selectChart();
         await harness.setSetup({noseMarkerVisible:false});
@@ -81,9 +82,9 @@ try{
           const left=wrist(row.left),right=wrist(row.right),outLeft=wrist(row.left,0,.85),outRight=wrist(row.right,0,.85);
           const nearLeft=wrist(row.left,row.left%4===3?.98:-.98,0),nearRight=wrist(row.right,row.right%4===3?.98:-.98,0);
           const sideL=wrist(row.left,row.left%4===0?.85:-.85,0),sideR=wrist(row.right,row.right%4===0?.85:-.85,0);
-          const startL=row.path==='side'?sideL:row.path==='side-right'?wrist(row.left,.85,0):row.path==='near'?nearLeft:row.path==='back'||row.path==='back-late'?wrist(row.left,0,-.85):outLeft;
-          const startR=row.path==='side'?sideR:row.path==='side-right'?wrist(row.right,.85,0):row.path==='near'?nearRight:row.path==='back'||row.path==='back-late'?wrist(row.right,0,-.85):outRight;
-          const endL=row.path==='near'?nearLeft:left,endR=row.path==='near'?nearRight:row.path==='one-hand'?outRight:right;
+          const startL=row.path==='side'?sideL:row.path==='near'?nearLeft:row.path==='back'||row.path==='back-late'?wrist(row.left,0,-.85):outLeft;
+          const startR=row.path==='side'?sideR:row.path==='near'?nearRight:row.path==='back'||row.path==='back-late'?wrist(row.right,0,-.85):outRight;
+          const endL=row.path==='near'?nearLeft:row.path==='swapped'?right:left,endR=row.path==='near'?nearRight:row.path==='one-hand'?outRight:row.path==='swapped'?left:right;
           const beforeTimeline=harness.graph.gameplay.getSnapshot().session.timelinePositionMs,beforeWall=harness.graph.gameplay.getSnapshot().session.timestampMs;
           await moveAt(row.at-900,startL,startR,`${row.id} approach`);
           await moveAt(row.at-350,startL,startR,`${row.id} shield capture`);
@@ -92,7 +93,7 @@ try{
           if(guards.length!==2||guards.some(object=>object.assetId!=='guard/outlined-shield-v1'))throw Error(`${row.id}: two real pinned shield GLBs required at scored approach, got ${guards.length}; session=${JSON.stringify(harness.graph.gameplay.getSnapshot().session)}, judgement=${JSON.stringify(harness.graph.gameplay.getSnapshot().judgements.find(j=>j.eventId===row.id)??null)}, frame=${JSON.stringify({nowMs:game.rendererFrame().nowMs,targets:game.rendererFrame().targets.map(t=>[t.id,t.kind,t.judgement,t.cells])})}, objects=${JSON.stringify(scene.objects.filter(o=>o.kind==='icon').map(o=>[o.targetId,o.assetId]))}`);
           if(renderer.describe().equipment.instanceCount!==2||renderer.describe().equipment.assetMode!=='glb')throw Error(`${row.id}: two real pinned glove GLBs required in the same frame: ${JSON.stringify(renderer.describe().equipment)}`);
           const full=sample(),frame=game.rendererFrame(),equipment=game.currentEquipmentPoses;
-          if(guards[0].role!=='left'||guards[0].position.x!==row.left%4-1.5||guards[1].role!=='right'||guards[1].position.x!==row.right%4-1.5)throw Error(`${row.id}: authored guard hand-role color/cell mismatch in the actual GLB frame: ${JSON.stringify(guards.map(g=>[g.role,g.position.x]))}`);
+          if(guards[0].role!=='left'||guards[0].position.x!==row.left%4-1.5||guards[1].role!=='right'||guards[1].position.x!==row.right%4-1.5||!(guards[0].position.x<0&&guards[1].position.x>0&&guards[0].position.x<guards[1].position.x))throw Error(`${row.id}: player-side guard hand-role color/cell mismatch in the actual GLB frame: ${JSON.stringify(guards.map(g=>[g.role,g.position.x]))}`);
           // Pixel-only readback controls: temporarily remove each layer from the
           // same exact production frame and restore via the real display loop.
           renderer.renderGameplayFrameWithCursorsAndEquipment({...frame,targets:frame.targets.filter(target=>target.id!==row.id)},[],{grid:{x:0,y:0,width:1,height:1},minConfidence:.5,sizeCssPx:32},equipment,{grid:{x:0,y:0,width:1,height:1}});
@@ -134,7 +135,7 @@ try{
             const gloveByRole=new Map(equipmentAtContact.map(entry=>[entry.role.replace('_wrist',''),entry]));
             for(const [i,icon] of target.entries()){
               const glove=gloveByRole.get(icon.role),expectedX=icon.position.x+1.5;
-              if(!glove||Math.abs(glove.anchor.x-expectedX)>.06||Math.abs(glove.anchor.y-icon.position.y)>.06)throw Error(`${row.id}: ${icon.role} glove's real 3D pose must enter its AUTHORED visible guard GLB (not the opposite crossed hand): ${JSON.stringify({i,icon:icon.position,glove:glove?.anchor??null})}`);
+              if(!glove||Math.abs(glove.anchor.x-expectedX)>.06||Math.abs(glove.anchor.y-icon.position.y)>.06)throw Error(`${row.id}: ${icon.role} glove's real 3D pose must enter its AUTHORED visible guard GLB (never the opposite player hand): ${JSON.stringify({i,icon:icon.position,glove:glove?.anchor??null})}`);
               const guardScreen=project(icon.position),gloveScreen=project({x:glove.anchor.x-1.5,y:glove.anchor.y,z:glove.anchor.z});
               if(Math.hypot(guardScreen.x-gloveScreen.x,guardScreen.y-gloveScreen.y)>45)throw Error(`${row.id}: ${icon.role} guard/glove projected center diverged at contact: ${JSON.stringify({guardScreen,gloveScreen})}`);
             }
@@ -169,6 +170,27 @@ try{
           if(!(after.session.timelinePositionMs>beforeTimeline&&after.session.timestampMs>beforeWall))throw Error(`${row.id}: production Play song-time/wall-clock must advance strictly: ${JSON.stringify({beforeTimeline,beforeWall,afterTimeline:after.session.timelinePositionMs,afterWall:after.session.timestampMs})}`);
           if(row.hit&&(!judgement||judgement.result!=='hit'||delta<=0))throw Error(`${row.id}: ${row.path} shield/glove contact must score a real Play HIT; judgement=${JSON.stringify(judgement??null)}, scoreDelta=${delta}, session=${JSON.stringify(after.session)}, input=${JSON.stringify({calibration:harness.graph.input.getSnapshot().calibration,tracking:harness.graph.input.getSnapshot().tracking,evidence:harness.graph.input.getSnapshot().latestEvidence?.measurementTimestampMs})}, equipment=${JSON.stringify(game.currentEquipmentPoses.map(p=>[p.role,p.anchor]))}, otherJudgements=${JSON.stringify(after.judgements.map(j=>[j.eventId,j.result]))}`);
           if(!row.hit&&(judgement?.result==='hit'||delta>0))throw Error(`${row.id}: ${row.path} negative falsely scored: judgement=${JSON.stringify(judgement??null)}, scoreDelta=${delta}`);
+          if(row.path==='swapped'){
+            const swappedEvidence=contactEvidence?.anchors??[];
+            const leftWrist=swappedEvidence.find(anchor=>anchor.anchor==='left_wrist'),rightWrist=swappedEvidence.find(anchor=>anchor.anchor==='right_wrist');
+            if(!leftWrist||!rightWrist||leftWrist.cell!==row.right||rightWrist.cell!==row.left)throw Error(`${row.id}: actual fresh measured evidence must swap BOTH wrist cells, not merely omit input: ${JSON.stringify(swappedEvidence.map(anchor=>[anchor.anchor,anchor.cell]))}`);
+            if(judgement?.result==='hit'||delta!==0)throw Error(`${row.id}: opposite named wrist cells must not score during the active guard window: ${JSON.stringify({judgement:judgement??null,delta})}`);
+            // The +80-ms contact frame is inside the guard window. This
+            // synthetic event has no checkpoint override, so the authoritative
+            // miss deadline is the configured 180 ms times the Boxing collider's
+            // backward depth (3 by default). Keep fresh swapped wrists until
+            // real Play passes that deadline.
+            const checkpointWindowMs=Number(events.find(entry=>entry.eventId===row.id)?.authoredBeat?.checkpoint?.timingWindowMs);
+            const deadlineMs=row.at+(Number.isFinite(checkpointWindowMs)&&checkpointWindowMs>0?checkpointWindowMs:180*Number(game.desiredGameSetup.boxingColliderVolume.colliderDepthBackward));
+            await moveAt(deadlineMs+100,endL,endR,`${row.id} after guard miss deadline`);
+            const expired=harness.graph.gameplay.getSnapshot(),miss=expired.judgements.find(entry=>entry.eventId===row.id),expiredScore=score(expired)-preScore;
+            if(!(expired.session.timelinePositionMs>deadlineMs))throw Error(`${row.id}: fixture did not pass guard deadline: ${JSON.stringify({deadlineMs,timelinePositionMs:expired.session.timelinePositionMs})}`);
+            const expiredEvidence=harness.graph.input.getSnapshot().latestEvidence,expiredLeft=expiredEvidence?.anchors.find(anchor=>anchor.anchor==='left_wrist'),expiredRight=expiredEvidence?.anchors.find(anchor=>anchor.anchor==='right_wrist');
+            if(expiredEvidence?.provenance!=='measured'||expiredEvidence.measurementTimestampMs!==game.latestPoseTimestampMs||expiredLeft?.cell!==row.right||expiredRight?.cell!==row.left)throw Error(`${row.id}: post-deadline Play frame must still contain fresh opposite named wrists: ${JSON.stringify({timestamp:expiredEvidence?.measurementTimestampMs,left:expiredLeft?.cell,right:expiredRight?.cell})}`);
+            if(miss?.result!=='miss'||expiredScore!==0)throw Error(`${row.id}: role-swapped gloves at a same-side guard must commit an authoritative MISS with zero score after deadline: ${JSON.stringify({miss:miss??null,expiredScore,deadlineMs,timelinePositionMs:expired.session.timelinePositionMs,backwardDepth:game.desiredGameSetup.boxingColliderVolume.colliderDepthBackward})}`);
+            rows.push({id:row.id,cells:[row.left,row.right],path:row.path,guardPixels,glovePixels,chroma,overlapApproach,overlapContact,contactOcclusion,pixelOverlapByHand,result:miss.result,scoreDelta:expiredScore});
+            continue;
+          }
           if(row.id==='off-time'&&judgement?.result!=='miss')throw Error(`${row.id}: contact after timing window must commit an authoritative MISS, not remain an unevaluated pending icon: ${JSON.stringify(judgement??null)}`);
           rows.push({id:row.id,cells:[row.left,row.right],path:row.path,guardPixels,glovePixels,chroma,overlapApproach,overlapContact,contactOcclusion,pixelOverlapByHand,result:judgement?.result??'pending',scoreDelta:delta});
         }

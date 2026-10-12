@@ -59,7 +59,7 @@ const TEST_COMMITTED_HIT_SCAN_BOUND = 64;
 
 /**
  * p5pr box-family authored beat types → punch family/hand/mode mapping.
- * Flow note → flow/slice; guard/crossed_guard → guard/bonk (both hands);
+ * Flow note → flow/slice; guard → guard/bonk (both hands);
  * straight/hook/uppercut × left/right → punch/(mode)/(hand).
  */
 const PUNCH_FAMILIES = Object.freeze({
@@ -70,7 +70,7 @@ const PUNCH_FAMILIES = Object.freeze({
   uppercut_left: Object.freeze({ hand: "left", mode: "uppercut" }),
   uppercut_right: Object.freeze({ hand: "right", mode: "uppercut" })
 });
-const GUARD_TYPES = Object.freeze(["guard", "crossed_guard"]);
+const GUARD_TYPES = Object.freeze(["guard"]);
 const BOX_OBSTACLE_FAMILY_TYPES = Object.freeze(["squat", "weave_left", "weave_right"]);
 const FLOW_OMITTED_TYPES = Object.freeze(new Set(["arc", "burst"]));
 
@@ -332,7 +332,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         const event = recordValue(entry, "event");
         if (!isRecord(event)) continue;
         // Map through the resolved content event (definitive type + authoredBeat):
-        // note → flow/slice, punch family → punch/mode/hand, guard/crossed_guard
+        // note → flow/slice, punch family → punch/mode/hand, guard
         // → guard/bonk; anything else (bombs, obstacles) → null so it never
         // appears. This matches the Play real-judgement mapping exactly.
         const mapping = aftermathMappingForEvent(event);

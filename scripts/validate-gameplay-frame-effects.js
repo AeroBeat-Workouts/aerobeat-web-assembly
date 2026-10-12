@@ -12,7 +12,7 @@ const playSnapshot = (judgements) => Object.freeze({ judgements: Object.freeze(j
 
 const flowNote = (id, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "note", centerTimestampMs: center, authoredBeat: { type: "note", hand: "left", placement: 4, direction: "right" } });
 const punch = (id, type, hand, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type, centerTimestampMs: center, authoredBeat: { type, spatialTarget: { targetCell: 4, entryDirection: "up" } }, hand });
-const guard = (id, crossed, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: crossed ? "crossed_guard" : "guard", centerTimestampMs: center, authoredBeat: { type: crossed ? "crossed_guard" : "guard", guardTarget: { leftCell: 1, rightCell: 2, ...(crossed ? { crossed: true } : {}) } } });
+const guard = (id, center, sourcePair = [1, 2]) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "guard", centerTimestampMs: center, authoredBeat: { type: "guard", guardTarget: { leftCell: 1, rightCell: 2, sourcePair } } });
 const bomb = (id, center) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "bomb", centerTimestampMs: center, authoredBeat: { type: "bomb", placement: 5 } });
 const obstacleFlow = (id, start, end) => Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: id, type: "obstacle", centerTimestampMs: start, intervalStartTimestampMs: start, intervalEndTimestampMs: end, authoredBeat: { type: "obstacle" } });
 
@@ -22,7 +22,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
 
 // ---------- Mapping per family/mode ----------
 {
-  const events = [flowNote("n1", 1000), punch("p1", "straight_left", "left", 1200), punch("p2", "hook_right", "right", 1400), punch("p3", "uppercut_left", "left", 1600), guard("g1", false, 1800), guard("g2", true, 2000), bomb("b1", 900), obstacleFlow("o1", 950, 1100)];
+  const events = [flowNote("n1", 1000), punch("p1", "straight_left", "left", 1200), punch("p2", "hook_right", "right", 1400), punch("p3", "uppercut_left", "left", 1600), guard("g1", 1800), guard("g2", 2000, [2, 1]), bomb("b1", 900), obstacleFlow("o1", 950, 1100)];
   // Commit times: n1@1000 is already past the retention window at nowMs 2100
   // (retention tail is 950 ms). p1..g2 fall inside.
   const js = [hitJudgement("n1", 1000), hitJudgement("p1", 1350), hitJudgement("p2", 1550), hitJudgement("p3", 1750), hitJudgement("g1", 1900), hitJudgement("g2", 2000)];
@@ -39,7 +39,13 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.equal(byId.get("p2").hand, "right"); assert.equal(byId.get("p2").mode, "hook");
   assert.equal(byId.get("p3").hand, "left"); assert.equal(byId.get("p3").mode, "uppercut");
   assert.deepEqual([byId.get("g1").family, byId.get("g1").hand, byId.get("g1").mode], ["guard", "both", "bonk"], "guard collision mode → guard/bonk");
-  assert.deepEqual([byId.get("g2").family, byId.get("g2").hand, byId.get("g2").mode], ["guard", "both", "bonk"], "crossed_guard gesture/collision → guard/bonk");
+  assert.deepEqual([byId.get("g2").family, byId.get("g2").hand, byId.get("g2").mode], ["guard", "both", "bonk"], "formerly reversed source pair remains a same-side guard/bonk");
+  for (const entry of events.filter((event) => event.authoredBeat.type === "guard")) {
+    assert.equal(entry.authoredBeat.guardTarget.leftCell % 4, 1, "left-hand guard remains in the player's left center column");
+    assert.equal(entry.authoredBeat.guardTarget.rightCell % 4, 2, "right-hand guard remains in the player's right center column");
+    assert.equal(Object.hasOwn(entry.authoredBeat.guardTarget, "crossed"), false, "no crossing flag survives on guard targets");
+    assert.equal(Object.hasOwn(entry.authoredBeat, "modifier"), false, "no crossing modifier survives on guards");
+  }
   // Separate Flow mapping check with a recent commit + a matching projection target.
   const nfTarget = Object.freeze({ id: "nf", kind: "flow", hand: "left", family: "flow", cell: 4, cells: [4], lane: null, beatCenterMs: 3000 });
   const freshFlow = projectAftermathEntries([flowNote("nf", 3000)], snapshot([hitJudgement("nf", 3000)]), 3200, [nfTarget]);
@@ -239,7 +245,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   // this; these fixtures mirror the real shape exactly.
   const realFlow = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr1", variantId: "v1", chartId: "c1", centerTimestampMs: 4000, authoredBeat: { type: "note", hand: "left", placement: 4, direction: "right" } });
   const realPunch = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr2", variantId: "v1", chartId: "c1", centerTimestampMs: 4200, authoredBeat: { type: "straight_right", spatialTarget: { targetCell: 4, entryDirection: "up" } } });
-  const realGuard = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr3", variantId: "v1", chartId: "c1", centerTimestampMs: 4400, authoredBeat: { type: "crossed_guard", guardTarget: { leftCell: 1, rightCell: 2, crossed: true } } });
+  const realGuard = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr3", variantId: "v1", chartId: "c1", centerTimestampMs: 4400, authoredBeat: { type: "guard", guardTarget: { leftCell: 1, rightCell: 2, sourcePair: [2, 1] } } });
   const realBomb = Object.freeze({ schema: "aerobeat/resolved_content_event", version: 3, eventId: "rr4", variantId: "v1", chartId: "c1", centerTimestampMs: 4600, authoredBeat: { type: "bomb", placement: 5 } });
   const events = [realFlow, realPunch, realGuard, realBomb];
   const js = [hitJudgement("rr1", 4000), hitJudgement("rr2", 4200), hitJudgement("rr3", 4400)];
@@ -248,7 +254,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const byId = new Map(list.map((e) => [e.targetId, e]));
   assert.deepEqual([byId.get("rr1").family, byId.get("rr1").hand, byId.get("rr1").mode], ["flow", "left", "slice"], "0.0.59 B13: real flow note → flow/left/slice (hand from authoredBeat.hand) via authoredBeat.type");
   assert.deepEqual([byId.get("rr2").family, byId.get("rr2").hand, byId.get("rr2").mode], ["punch", "right", "straight"], "real punch → punch/right/straight via authoredBeat.type");
-  assert.deepEqual([byId.get("rr3").family, byId.get("rr3").hand, byId.get("rr3").mode], ["guard", "both", "bonk"], "real crossed_guard → guard/both/bonk via authoredBeat.type");
+  assert.deepEqual([byId.get("rr3").family, byId.get("rr3").hand, byId.get("rr3").mode], ["guard", "both", "bonk"], "real normalized reversed-source guard → guard/both/bonk via authoredBeat.type");
   assert.equal(byId.has("rr4"), false, "real bomb still produces no aftermath entry via authoredBeat.type");
 }
 
@@ -263,7 +269,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   const events = [
     flowNote("t-flow", 5000),
     punch("t-punch", "straight_left", "left", 5200),
-    guard("t-guard", false, 5400),
+    guard("t-guard", 5400),
     flowNote("t-miss", 5600)
   ];
   const index = createSessionTargetIndex(events, {});
@@ -395,7 +401,7 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(playDuring[0].spawn, { x: -1.5, y: 1, z: 0 }, "Play real hit: spawn derived from the authored beat (targets ignored)");
   assert.deepEqual(playDuring[0].spawn, playPast[0].spawn, "Play real hit: spawn stable across the cull boundary");
   // A guard produces one corpse at each authored guard target cell.
-  const guardEvents = [guard("b11g", false, 7000)];
+  const guardEvents = [guard("b11g", 7000)];
   const guardIndex = createSessionTargetIndex(guardEvents, {});
   const guardList = projectAftermathEntries(guardEvents, testSnapshot(), 7400, null, guardIndex);
   assert.deepEqual(guardList.map(({hand,spawn})=>({hand,spawn})),[{hand:"left",spawn:{x:-.5,y:2,z:0}},{hand:"right",spawn:{x:.5,y:2,z:0}}],"guard pair spawns separately from authored left/right target cells");
