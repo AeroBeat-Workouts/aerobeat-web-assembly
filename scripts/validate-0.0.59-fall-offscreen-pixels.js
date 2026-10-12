@@ -11,8 +11,11 @@
 //
 // This oracle samples REAL rendered canvas pixels (OffscreenCanvas drawImage
 // + getImageData, not `frame.model.objects`) at +0/200/500/900/1200/1500 ms:
-//   (1) Rotation-sensitive bounding-box widths vary smoothly in the resolved
-//       early frames (+200/+500), without a rephasing snap in that interval.
+//   (1) Real-framebuffer normalized second moments of Flow's resolved
+//       silhouettes change across +0/+200/+500 despite equal later bbox widths.
+//       Setting only the production pose's tumble-rate tuning to zero while
+//       preserving gravity, perspective and real GLB pixels must fail it. Early bbox
+//       widths remain smooth, without a rephasing snap in that interval.
 //       The historical ≈715 ms settle switch is NOT bracketed by those two
 //       resolved samples; this test does not claim direct rotation proof there.
 //   (2) Each visible body's lowest pixel row moves downward, with total
@@ -100,9 +103,8 @@ try {
           const out = renderer.cameraEntity.camera.worldToScreen({ x, y, z });
           return { x: out.x, y: out.y };
         };
-        // Per-offset corpse pixel stats (baseline-diffed): count, bbox (the
-        // rotation-sensitive width), lowest/highest screen row (monotonic-fall
-        // + below-track evidence).
+        // Per-offset baseline-diffed framebuffer stats: count, bbox,
+        // translation/scale-normalized shape moments and screen rows.
         const series = (entry, offsets) => {
           const rows = [];
           for (const offsetMs of offsets) {
@@ -111,20 +113,33 @@ try {
             const baseline = readPixels();
             renderer.renderGameplayFrame({ presentation: "flow", nowMs, targets: [], timingWindowBeforeMs: 180, timingWindowAfterMs: 180, aftermath: [entry] });
             const pixels = readPixels();
-            let count = 0, sumX = 0, minX = Infinity, maxX = -Infinity, minRow = Infinity, maxRow = -Infinity;
+            let count = 0, sumX = 0, sumY = 0, sumXX = 0, sumYY = 0, sumXY = 0, minX = Infinity, maxX = -Infinity, minRow = Infinity, maxRow = -Infinity;
             for (let i = 0; i < pixels.length; i += 4) {
               if (deltaRGB(pixels, baseline, i) <= 30) continue;
               count += 1;
               const x = (i / 4) % canvas.width, y = Math.floor(i / 4 / canvas.width);
               sumX += x;
+              sumY += y;
+              sumXX += x * x;
+              sumYY += y * y;
+              sumXY += x * y;
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minRow) minRow = y;
               if (y > maxRow) maxRow = y;
             }
+            const varianceX = count ? sumXX / count - (sumX / count) ** 2 : 0;
+            const varianceY = count ? sumYY / count - (sumY / count) ** 2 : 0;
+            const covarianceXY = count ? sumXY / count - sumX * sumY / (count * count) : 0;
+            const trace = varianceX + varianceY;
             rows.push({
               offsetMs,
               count,
+              // Translation-invariant second moment, normalized by its trace:
+              // XY covariance and X/Y anisotropy resist uniform perspective
+              // scaling while changing with the rendered halves' orientation.
+              momentXY: trace > 0 ? 2 * covarianceXY / trace : null,
+              momentAxis: trace > 0 ? (varianceX - varianceY) / trace : null,
               meanX: count ? sumX / count : null,
               bboxW: count ? maxX - minX + 1 : 0,
               bboxH: count ? maxRow - minRow + 1 : 0,
@@ -157,6 +172,17 @@ try {
         };
         const flowSeries = series(flowEntry, flowOffsets);
         const punchSeries = series(punchEntry, punchOffsets);
+        // Counterfactual at the actual production pose calculation boundary:
+        // zero only the tunable tumble rate, then run the unchanged framebuffer
+        // sampler through the renderer's ordinary scene/model/GLB path.
+        const originalTuning = renderer.tuning;
+        let frozenFlowSeries;
+        try {
+          renderer.tuning = { ...originalTuning, aftermathSettledTumbleRadPerS: 0 };
+          frozenFlowSeries = series(flowEntry, flowOffsets);
+        } finally {
+          renderer.tuning = originalTuning;
+        }
         // Projection anchors at the live camera pose:
         //  - the flow note column (x=−1.5) vs the track center (x=0);
         //  - the track SURFACE (y=trackY) at each body's x / z, used to prove
@@ -168,19 +194,19 @@ try {
           punchTrackSurface: project(punchSpawn.x, trackY, 0),
           offscreenLine: project(flowSpawn.x, -1.5, 0)
         };
-        return { flowSeries, punchSeries, proj, canvasSize: { width: canvas.width, height: canvas.height } };
+        return { flowSeries, frozenFlowSeries, punchSeries, proj, canvasSize: { width: canvas.width, height: canvas.height } };
       }, { hitCommitMs: HIT_COMMIT_MS, flowSpawn: FLOW_SPAWN, punchSpawn: PUNCH_SPAWN, flowFill: FLOW_FILL, punchFill: PUNCH_FILL, flowOffsets: FLOW_OFFSETS_MS, punchOffsets: PUNCH_OFFSETS_MS, trackY: -0.80 });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
       assert.deepEqual(noise, []);
-      const fmt = (rows) => JSON.stringify(rows.map((r) => ({ ms: r.offsetMs, px: r.count, w: r.bboxW, row: r.lowestRow, cx: r.meanX !== null ? Math.round(r.meanX) : null })));
-      console.log(`[fall-offscreen] ${embedding} flow=${fmt(proof.flowSeries)} punch=${fmt(proof.punchSeries)} proj={flowCol:${Math.round(proof.proj.flowColumn.x)},center:${Math.round(proof.proj.trackCenter.x)},flowTrack:${Math.round(proof.proj.flowTrackSurface.y)},punchTrack:${Math.round(proof.proj.punchTrackSurface.y)},off:${Math.round(proof.proj.offscreenLine.y)}}`);
+      const fmt = (rows) => JSON.stringify(rows.map((r) => ({ ms: r.offsetMs, px: r.count, w: r.bboxW, row: r.lowestRow, cx: r.meanX !== null ? Math.round(r.meanX) : null, xy: r.momentXY?.toFixed(4), axis: r.momentAxis?.toFixed(4) })));
+      console.log(`[fall-offscreen] ${embedding} flow=${fmt(proof.flowSeries)} frozen=${fmt(proof.frozenFlowSeries)} punch=${fmt(proof.punchSeries)} proj={flowCol:${Math.round(proof.proj.flowColumn.x)},center:${Math.round(proof.proj.trackCenter.x)},flowTrack:${Math.round(proof.proj.flowTrackSurface.y)},punchTrack:${Math.round(proof.proj.punchTrackSurface.y)},off:${Math.round(proof.proj.offscreenLine.y)}}`);
 
       // ---- Shared per-body checks over the whole series ----
       // Frames where the corpse still renders (before fade/null). The last
       // series frame (t+1500) must be fully faded (off-screen + fade complete);
       // the flow slice additionally vanishes earlier than the punch because its
       // −Z launch recedes into the distance (perspective shrink + 150 ms fade).
-      const checkBody = (label, rows, trackSurfaceRow, { minWidthVariants, belowTrackAtMs }) => {
+      const checkBody = (label, rows, trackSurfaceRow, { minWidthVariants = null, belowTrackAtMs }) => {
         const visible = rows.filter((r) => r.count > 0);
         // (a) The last frame is fully faded: the corpse has fallen off-screen.
         assert.ok(rows[rows.length - 1].count <= 25, `${label} last frame (t+${rows[rows.length - 1].offsetMs} ms) must be OFF-SCREEN/faded: ${rows[rows.length - 1].count}px remain`);
@@ -221,16 +247,37 @@ try {
           const prev = resolved[i - 1].bboxW, next = resolved[i].bboxW;
           assert.ok(Math.abs(next - prev) <= prev * 0.35 + 6, `${label} rotation-sensitive width JUMPED (snap) t+${resolved[i - 1].offsetMs}→t+${resolved[i].offsetMs}: w ${prev} → ${next}`);
         }
-        // (f) Rotation keeps varying across the series (no frozen/resting pose):
-        //     at least minWidthVariants distinct bbox widths among visible frames.
-        const widths = new Set(visible.map((r) => r.bboxW));
-        assert.ok(widths.size >= minWidthVariants, `${label} bbox width must keep varying (continuous tumble), got ${widths.size} distinct values (need ${minWidthVariants}): ${[...widths].join(",")}`);
+        // Punch retains its existing independent bounding-width guard. Flow's
+        // centerline halves instead use actual-frame normalized shape moments.
+        if (minWidthVariants !== null) {
+          const widths = new Set(visible.map((r) => r.bboxW));
+          assert.ok(widths.size >= minWidthVariants, `${label} bbox width must keep varying (continuous tumble), got ${widths.size} distinct values (need ${minWidthVariants}): ${[...widths].join(",")}`);
+        }
       };
 
       // Flow slice: vanishes around t+900 (−Z recession + fade), so the
       // below-track proof is carried by the punch instead.
-      checkBody("flow slice", proof.flowSeries, proof.proj.flowTrackSurface.y, { minWidthVariants: 3, belowTrackAtMs: null });
+      checkBody("flow slice", proof.flowSeries, proof.proj.flowTrackSurface.y, { belowTrackAtMs: null });
       checkBody("punch", proof.punchSeries, proof.proj.punchTrackSurface.y, { minWidthVariants: 4, belowTrackAtMs: 900 });
+
+      // A change in normalized anisotropy at +500 cannot be explained by the
+      // body's translation or uniform perspective shrink. Compare a temporary
+      // production-pose zero-tumble-rate run through the SAME canvas sampler:
+      // it keeps the parabola, depth, shading and clipping but not the tumble.
+      const flowShapeChange = (rows) => {
+        const resolved = rows.filter((row) => row.count >= 1000);
+        assert.equal(resolved.length, 3, `Flow moment needs three well-resolved framebuffer samples, got ${resolved.length}`);
+        return Math.abs(resolved[2].momentAxis - resolved[0].momentAxis);
+      };
+      const actualShapeChange = flowShapeChange(proof.flowSeries);
+      const frozenShapeChange = flowShapeChange(proof.frozenFlowSeries);
+      assert.ok(actualShapeChange > 0.25, `Flow pixel shape must keep tumbling after the width plateaus: normalized anisotropy Δ=${actualShapeChange.toFixed(4)} (need >0.25)`);
+      assert.ok(frozenShapeChange < 0.08, `Frozen-rotation framebuffer control must retain its orientation despite falling/perspective: normalized anisotropy Δ=${frozenShapeChange.toFixed(4)} (need <0.08)`);
+      // Apply precisely the positive oracle to the counterfactual and require
+      // its bug-specific failure rather than merely observing a smaller value.
+      assert.throws(() => assert.ok(frozenShapeChange > 0.25, `Flow pixel shape must keep tumbling: normalized anisotropy Δ=${frozenShapeChange.toFixed(4)}`),
+        /Flow pixel shape must keep tumbling/, "frozen orientation must fail the real-framebuffer tumble assertion");
+      console.log(`[fall-offscreen] ${embedding} Flow orientation Δaxis=${actualShapeChange.toFixed(4)} frozen=${frozenShapeChange.toFixed(4)} threshold=0.25`);
 
       // ---- Punch: resolved early-flight width continuity ----
       // The +200/+500 frames are both before the old ≈715 ms settle switch.

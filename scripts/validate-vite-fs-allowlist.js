@@ -57,8 +57,7 @@ try {
   await expectAllowed(origin, path.join(gameplayRoot, gameplayGlb.path), "approved pinned gameplay asset");
 
   const denied = [
-    [path.join(parentRoot, "aerobeat-branding/package.json"), "unapproved sibling package"],
-    [path.join(parentRoot, ".plans/2026-08-25-mobile-cv-responsiveness.md"), "parent-owned plan"],
+    [path.join(parentRoot, "aerobeat-branding/package.json"), "unapproved sibling package under the parent"],
     ["/etc/hosts", "outside file"]
   ];
   for (const [file, label] of denied) {

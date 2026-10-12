@@ -80,6 +80,10 @@ try {
             return input;
           };
           const sample = () => {
+            // Production consumes this pose for rendererFrame; the three later
+            // framebuffer captures/pixel scans are QA overhead, not pose age at use.
+            const measuredBeforeFrame = harness.graph.input[Symbol.for('aerobeat.web-input.internal-measured-nose-parallax')]?.();
+            const ageBeforeFrameMs = measuredBeforeFrame ? performance.now()-measuredBeforeFrame.measurementTimestampMs : null;
             const frame = element.rendererFrame();
             const guard = renderer.lastModel?.objects?.filter(object => object.kind === 'icon' && object.targetId === event.eventId && object.assetId === 'guard/outlined-shield-v1');
             require(guard?.length === 2 && frame.targets.some(target => target.id === event.eventId),'authored pinned guard not staged in scored Play');
@@ -108,7 +112,7 @@ try {
             const measured = harness.graph.input[Symbol.for('aerobeat.web-input.internal-measured-nose-parallax')]?.();
             const gameplay = harness.graph.gameplay.getSnapshot();
             require(gameplay.session.state === 'playing' && gameplay.judgements.length === 0,'scored Play/judgements changed without a hit');
-            return {pixels:count,x:sx/count,y:sy/count,world:[world.x,world.y,world.z],cameraY:renderer.cameraEntity.getPosition().y,deflection:element.lastNoseCameraDeflection,measured:measured?.yDeflection ?? null,ageMs:measured ? performance.now()-measured.measurementTimestampMs : null,provenance:input.latestEvidence?.provenance,score:JSON.stringify(gameplay.scorePartitions),judgements:gameplay.judgements.length,session:gameplay.session.state,frameMs:frame.nowMs};
+            return {pixels:count,x:sx/count,y:sy/count,world:[world.x,world.y,world.z],cameraY:renderer.cameraEntity.getPosition().y,deflection:element.lastNoseCameraDeflection,measured:measured?.yDeflection ?? null,ageMs:ageBeforeFrameMs,postCaptureAgeMs:measured ? performance.now()-measured.measurementTimestampMs : null,provenance:input.latestEvidence?.provenance,score:JSON.stringify(gameplay.scorePartitions),judgements:gameplay.judgements.length,session:gameplay.session.state,frameMs:frame.nowMs};
           };
           // Calibration's 15fps measured clock can initially lead wall time.
           // Catch up naturally before asking production's <=150ms freshness
@@ -140,7 +144,7 @@ try {
           assert.equal(row.judgements,0);
           assert.equal(row.provenance,'measured');
           assert.ok(row.pixels >= 100 && Number.isFinite(row.y));
-          assert.ok(row.ageMs >= 0 && row.ageMs < 150,`${embedding}/${setting.name}/${name}: stale measurement ${row.ageMs}`);
+          assert.ok(row.ageMs >= 0 && row.ageMs < 150,`${embedding}/${setting.name}/${name}: input age at frame start ${row.ageMs} (after QA pixel capture ${row.postCaptureAgeMs})`);
         }
         assert.deepEqual(proof.standing.world,proof.squat.world,`${embedding}/${setting.name}: guard world anchor must remain fixed`);
         assert.equal(proof.standing.score,proof.squat.score,'no fabricated score changes');

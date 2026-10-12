@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Flow fixed-centerline experimental Test · AeroBeat</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #06141f; color: white; font: 700 13px/1.3 system-ui, sans-serif; }
+    main { width: 100%; height: 100dvh; }
+    aero-game { display: block; width: 100%; height: 100%; }
+    .recorder { position: fixed; z-index: 2147483646; top: max(62px, env(safe-area-inset-top)); right: 8px; width: min(216px, calc(100vw - 16px)); padding: 6px; border: 1px solid #9df2c5; border-radius: 8px; background: #071820f5; box-shadow: 0 2px 8px #0008; font: 600 11px/1.3 system-ui; pointer-events: none; }
+    .recorder button, .recorder summary, .recorder label { pointer-events: auto; touch-action: manipulation; }
+    .recorder button { min-height: 44px; border: 1px solid #a5eec5; border-radius: 6px; background: #123f35; color: #fff; font: 700 13px system-ui; cursor: pointer; }
+    .recorder button:disabled { opacity: .6; cursor: not-allowed; }
+    /* Keep both menu Start and Test unobstructed, even on a narrow phone. */
+    .recorder[data-game-menu="true"] { padding: 0; border: 0; box-shadow: none; background: transparent; }
+    .recorder[data-game-menu="true"] #faint-hit-recording, .recorder[data-game-menu="true"] #faint-hit-state, .recorder[data-game-menu="true"] .diagnostic-panel { display: none; }
+    .recorder[data-game-menu="true"] #faint-hit-download { min-height: 36px; margin: 0; }
+    .experiment-label { display: block; color: #9df2c5; font-size: 11px; }
+    .recorder[data-game-menu="true"] .experiment-label { position: fixed; top: max(4px, env(safe-area-inset-top)); left: 8px; right: 8px; width: max-content; max-width: calc(100vw - 16px); padding: 3px 5px; border-radius: 4px; background: #071820f5; pointer-events: none; }
+    #faint-hit-recording { display: block; min-height: 16px; color: #9df2c5; font-size: 12px; }
+    #faint-hit-recording[data-recording="false"] { color: #ffdf82; }
+    #faint-hit-download { display: block; width: 100%; margin: 3px 0; }
+    #faint-hit-state { min-height: 14px; color: #eaf4fa; }
+    .diagnostic-panel summary { display: block; width: max-content; max-width: 100%; margin: 4px 0 0 auto; padding: 4px; color: #d5ebf3; cursor: pointer; list-style: none; }
+    .diagnostic-panel summary::-webkit-details-marker { display: none; }
+    .diagnostic-panel summary::after { content: ' ▾'; }
+    .diagnostic-panel[open] summary::after { content: ' ▴'; }
+    .diagnostic-controls { max-height: 28vh; overflow: auto; padding: 6px; border-top: 1px solid #9df2c5; background: #071820f5; }
+    .diagnostic-controls label { display: flex; min-height: 44px; align-items: center; gap: 4px; font-size: 12px; }
+    .diagnostic-controls button { padding: 4px 8px; }
+    .diagnostic-panel pre { white-space: pre-wrap; font: 500 10px/1.3 ui-monospace, monospace; }
+  </style>
+</head>
+<body>
+  <main><aero-game></aero-game></main>
+  <aside id="faint-hit-recorder" class="recorder" data-game-menu="true" aria-label="Flow fixed-centerline experimental Test performance recorder">
+    <strong class="experiment-label">Flow fixed-centerline experimental Test</strong>
+    <strong id="faint-hit-recording" data-recording="false" role="status">Recorder · waiting for Test</strong>
+    <button id="faint-hit-download" type="button">Download performance JSON</button>
+    <div id="faint-hit-state" role="status">Run Test to capture frame timing and scored hits. No camera data is saved.</div>
+    <details id="faint-hit-diagnostic" class="diagnostic-panel">
+      <summary>Corpse visuals and recording options</summary>
+      <div class="diagnostic-controls">
+        <label><input id="faint-hit-off" type="checkbox"> Hide corpse visuals (switch between runs)</label>
+        <button id="faint-hit-reset" type="button">Clear recorded windows</button>
+        <pre id="faint-hit-summary" aria-live="off"></pre>
+      </div>
+    </details>
+  </aside>
+  <script type="module" src="/flow-centerline-diagnostic.js"></script>
+</body>
+</html>

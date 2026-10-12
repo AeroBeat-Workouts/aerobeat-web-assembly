@@ -16,9 +16,10 @@
 // hand, spaced 6 s apart so their approach windows never overlap:
 //   n-left  LEFT  placement 5 (col 1, mid row)  dir "up"     center 6000
 //   n-right RIGHT placement 6 (col 2, mid row)  dir "right"  center 12000
-// The first-contact seam oracle also scores two FRESH runs of that SAME n-left
+// The fixed-centerline seam oracle also scores two FRESH runs of that SAME n-left
 // authored arrow with independently measured sweeps, then compares sign-specific
-// GLB framebuffer pixels at the same corpse age.
+// GLB framebuffer pixels at the same corpse age: accepted gameplay contact differs,
+// but each corpse owns its arrow-local X side through both tail and tip.
 //
 // What this oracle proves:
 //   (a) GATE-ASSERT: each note projects as kind "flow" with the authored
@@ -334,7 +335,7 @@ try {
           if (lower.corpse[key] !== upper.corpse[key]) throw new Error(`cut comparison changed authored ${key}`);
         }
         if (JSON.stringify(lower.corpse.spawn) !== JSON.stringify(upper.corpse.spawn)) throw new Error("cut comparison changed authored spawn");
-        // Attribute only the pinned arrow GLB sign− pixels: render both pieces
+        // Attribute each pinned arrow GLB sign's pixels: render both pieces
         // at their OWN hit age zero, disable that same half's pooled entity,
         // and compare framebuffer bytes with it re-enabled. Invert the camera
         // worldToScreen XY basis after each half's actual model rotation; no
@@ -360,10 +361,11 @@ try {
             if (Math.abs(determinant) < 1) throw new Error(`${run.label}: degenerate screen-to-arrow XY basis`);
             slot.enabled = false; renderer.manualTick(); const without = readPixels();
             slot.enabled = true; renderer.manualTick(); const withPiece = readPixels();
-            // Fixed bins in authored arrow-local coordinates, shared by BOTH
-            // real cuts: lower, middle, and upper toward the local +Y tip
-            // (far from seam/AA boundaries).
-            const bins = { lower: 0, middle: 0, upper: 0 };
+            // Ignore seam AA and the outer silhouette. Both signs must fill
+            // their own arrow-local X interior in the tail AND tip ROIs, and
+            // must leave the opposite interior empty. These fixed bins count
+            // only actual per-entity framebuffer differences, not model flags.
+            const bins = { tail: { own: 0, opposite: 0 }, tip: { own: 0, opposite: 0 } };
             let visible = 0;
             for (let index = 0; index < withPiece.length; index += 4) {
               if (Math.abs(withPiece[index] - without[index]) + Math.abs(withPiece[index + 1] - without[index + 1]) + Math.abs(withPiece[index + 2] - without[index + 2]) < 24) continue;
@@ -371,10 +373,9 @@ try {
               const px = (index / 4) % canvas.width - center.x, py = Math.floor(index / 4 / canvas.width) - center.y;
               const localX = (px * yAxis[1] - py * yAxis[0]) / determinant;
               const localY = (py * xAxis[0] - px * xAxis[1]) / determinant;
-              if (localX >= -0.055) continue;
-              if (localY < -0.12 && localY > -0.34) bins.lower += 1;
-              if (localY >= -0.10 && localY <= 0.10) bins.middle += 1;
-              if (localY > 0.12 && localY < 0.34) bins.upper += 1;
+              const region = localY > -0.34 && localY < -0.12 ? bins.tail : localY > 0.12 && localY < 0.34 ? bins.tip : null;
+              if (!region || Math.abs(localX) < 0.055 || Math.abs(localX) > 0.28) continue;
+              region[localX * sign > 0 ? "own" : "opposite"] += 1;
             }
             bySign[sign] = { visible, bins };
           }
@@ -384,17 +385,26 @@ try {
         for (const run of [lowerPixels, upperPixels]) {
           if (run[-1].visible < 150 || run[1].visible < 150) throw new Error(`both pinned GLB pieces must be visible: ${JSON.stringify(run)}`);
         }
-        // Signed B10: the arrow-local +Y tip is sign− territory ONLY ahead
-        // of the crossing (Y >= c). As accepted t increases, c moves toward
-        // that tip, so sign− must LOSE fixed middle pixels and sign+ must
-        // GAIN them. Local lower/upper bins guard against a swapped mask or
-        // whole-glyph toggle. Midpoint-only production leaves both unchanged.
-        const middleLoss = lowerPixels[-1].bins.middle - upperPixels[-1].bins.middle;
-        const middleGainPlus = upperPixels[1].bins.middle - lowerPixels[1].bins.middle;
-        const upperLoss = lowerPixels[-1].bins.upper - upperPixels[-1].bins.upper;
-        const lowerLeak = Math.max(lowerPixels[-1].bins.lower, upperPixels[-1].bins.lower);
-        if (lowerPixels[-1].bins.upper < 30 || upperPixels[1].bins.lower < 30 || middleLoss < 65 || middleGainPlus < 65 || lowerLeak > 25 || upperLoss < -25) throw new Error(`real first-contact seam must move toward local +Y tip and reduce sign− middle occupancy: cuts ${lower.cut}→${upper.cut}, lower ${JSON.stringify(lowerPixels)}, upper ${JSON.stringify(upperPixels)}, middleLoss=${middleLoss}, middleGainPlus=${middleGainPlus}`);
-        return { notes, firstContactPixels: { cuts: cutRuns.map(({ label, cut, wristY }) => ({ label, cut, wristY })), lower: lowerPixels, upper: upperPixels, middleLoss, middleGainPlus } };
+        // Both real contacts retain their DIFFERENT accepted sliceT, while
+        // only the corpse visual is fixed. The signed longitudinal seam must
+        // follow arrow-local X=0 all the way from tail to tip, independently
+        // for each pinned GLB half; moving transverse cuts cannot satisfy this.
+        const ROI_MIN_PIXELS = 30;
+        const OPPOSITE_MAX_PIXELS = 18; // excludes seam AA via |localX| >= .055
+        const ROI_MATCH_TOLERANCE = 12; // absolute pixel-count delta per sign/ROI
+        for (const [label, pixels] of [["lower", lowerPixels], ["upper", upperPixels]]) {
+          for (const sign of [-1, 1]) {
+            for (const region of ["tail", "tip"]) {
+              const { own, opposite } = pixels[sign].bins[region];
+              if (own < ROI_MIN_PIXELS || opposite > OPPOSITE_MAX_PIXELS) throw new Error(`${label}: fixed centerline local-X sign ${sign} ${region} must own its side through tail AND tip (own >= ${ROI_MIN_PIXELS}, opposite <= ${OPPOSITE_MAX_PIXELS}): cuts ${lower.cut}→${upper.cut}, pixels ${JSON.stringify(pixels)}`);
+            }
+          }
+        }
+        for (const sign of [-1, 1]) for (const region of ["tail", "tip"]) {
+          const a = lowerPixels[sign].bins[region].own, b = upperPixels[sign].bins[region].own;
+          if (Math.abs(a - b) > ROI_MATCH_TOLERANCE) throw new Error(`fixed centerline local-X sign ${sign} ${region} must ignore accepted contact (ROI count delta <= ${ROI_MATCH_TOLERANCE}): cuts ${lower.cut}→${upper.cut}, lower=${a}, upper=${b}`);
+        }
+        return { notes, firstContactPixels: { cuts: cutRuns.map(({ label, cut, wristY }) => ({ label, cut, wristY })), lower: lowerPixels, upper: upperPixels, roiMinPixels: ROI_MIN_PIXELS, oppositeMaxPixels: OPPOSITE_MAX_PIXELS, roiMatchTolerance: ROI_MATCH_TOLERANCE } };
       });
       if (embedding !== "direct") assert.notEqual(new URL(childUrl).origin, new URL(parentUrl).origin, "iframe must be genuinely cross-origin");
       assert.deepEqual(noise, []);
@@ -430,8 +440,9 @@ try {
     notes: m.notes.map((n) => ({ id: n.id, hand: n.hand, commit: n.commit, fill: n.fill, fall: n.fall })),
     firstContactPixels: {
       cuts: m.firstContactPixels.cuts.map(({ label, cut }) => ({ label, cut })),
-      middleLoss: m.firstContactPixels.middleLoss,
-      middleGainPlus: m.firstContactPixels.middleGainPlus,
+      roiMinPixels: m.firstContactPixels.roiMinPixels,
+      oppositeMaxPixels: m.firstContactPixels.oppositeMaxPixels,
+      roiMatchTolerance: m.firstContactPixels.roiMatchTolerance,
       halfCounts: Object.fromEntries(["lower", "upper"].map((position) => [position, Object.fromEntries([-1, 1].map((sign) => [sign, {
         visible: m.firstContactPixels[position][sign].visible,
         bins: m.firstContactPixels[position][sign].bins,

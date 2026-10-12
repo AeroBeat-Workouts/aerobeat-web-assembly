@@ -8,6 +8,7 @@ release/
 phone-performance.html
 vite.phone.config.js
 dist-phone/
+dist-flow-centerline-phone/
 
 # Git-tracked release proof inventory and diagnostic-only preview entrypoints.
 raw-0.0.128-sha256.tsv
@@ -15,6 +16,12 @@ faint-hit-diagnostic.js
 faint-hit-test.html
 phone-hit-performance.html
 vite.faint-hit.config.js
+flow-centerline-diagnostic.js
+flow-centerline-test.html
+vite.flow-centerline.config.js
+scripts/write-flow-centerline-bundle-manifest.js
+scripts/validate-flow-centerline-phone-browser.js
+scripts/validate-flow-centerline-diagnostic-window.js
 vite.phone-hit.config.js
 assets/.gitkeep
 

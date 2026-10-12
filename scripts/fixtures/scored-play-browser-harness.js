@@ -91,7 +91,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     state.pose = { sourceId: SOURCE_ID, timestampMs, mirrored: true, landmarks: Object.entries(points).map(([name, position]) => ({ name, ...position, confidence })) };
     if (render) {
       element.runDisplayFrame();
-      required(element.latestPoseTimestampMs === timestampMs && !element.lastError, 'fresh measured frame was not consumed cleanly');
+      required(element.latestPoseTimestampMs === timestampMs && !element.lastError, `fresh measured frame was not consumed cleanly: ${JSON.stringify({ expectedTimestampMs: timestampMs, consumedTimestampMs: element.latestPoseTimestampMs, cvTimestampMs: graph.cv.getLatestPoseFrame()?.timestampMs, wallNowMs: performance.now(), calibration: graph.input.getSnapshot().calibration.state, evidenceTimestampMs: graph.input.getSnapshot().latestEvidence?.measurementTimestampMs, lastError: element.lastError ? { message: element.lastError.message, stack: element.lastError.stack } : null })}`);
     } else {
       // Same measured input seam as runDisplayFrame, before GLB projection; the
       // next real display consumes this CV frame and advances gameplay itself.
@@ -196,7 +196,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
       // Explicit 15fps measurement cadence: real performance.now() is still
       // used by the display/coordinator for countdown, but a slow GLB render
       // must not masquerade as lost camera frames in the measured input seam.
-      measurementMs = Math.max(measurementMs + 1000 / 15, Number(element.latestPoseTimestampMs ?? 0) + 1);
+      measurementMs = Math.max(performance.now(), measurementMs + 1000 / 15, Number(element.latestPoseTimestampMs ?? 0) + 1);
       feedPose({ tPose, timestampMs: measurementMs, render });
       required(state.pose !== before && graph.input.getSnapshot().tracking.allRequiredAnchorsVisible, 'calibration measured upper-body sample unavailable');
     };
