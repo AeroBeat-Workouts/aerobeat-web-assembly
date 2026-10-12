@@ -70,7 +70,7 @@ function run() {
     }];
   }));
   const renderer = sources["@aerobeat/web-renderer"];
-  if (renderer?.commit !== "9f72a3ea2b890a29c3cb3c42176b97bcd101c282" || renderer.tree !== "604e32a846ae5464905767e3e60e0e605361ff74") fail("renderer pin mismatch");
+  if (renderer?.commit !== "e6b369472e33a56e0520bb2085fb3d4c6a707c55" || renderer.tree !== "5ff8c34070c2743e83b66453f7f9570c2f044407") fail("renderer pin mismatch");
   const manifest = sourceManifest(pkg.version, sources);
   const buildStamp = `FLOW-CENTERLINE-EXPERIMENTAL-${pkg.version}-${sha256(Buffer.from(JSON.stringify(manifest))).slice(0, 24)}`;
   const out = path.join(root, outputName);

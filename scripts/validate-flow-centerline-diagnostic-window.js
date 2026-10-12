@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
 const source = readFileSync(new URL("../flow-centerline-diagnostic.js", import.meta.url), "utf8").replace('import "./src/index.js";', "");
-const rendererCommit = "9f72a3ea2b890a29c3cb3c42176b97bcd101c282";
-const rendererTree = "604e32a846ae5464905767e3e60e0e605361ff74";
+const rendererCommit = "e6b369472e33a56e0520bb2085fb3d4c6a707c55";
+const rendererTree = "5ff8c34070c2743e83b66453f7f9570c2f044407";
 const names = ["assembly", "renderer", "gameplay", "input", "ui", "audio", "content", "content-authoring", "contracts", "web-hash", "vendor-beatsaver", "vendor-mediapipe", "branding", "environment-assets", "asset-release"];
 const manifest = { schema:"aerobeat/flow_centerline_source_manifest", version:1, packageVersion:"0.0.128", sources:Object.fromEntries(names.map((name,index)=>[`@aerobeat/web-${name}`, {commit:(index+1).toString(16).padStart(40,"0"),tree:(index+20).toString(16).padStart(40,"0"),sourceSha256:(index+50).toString(16).padStart(64,"0")}])) };
 manifest.sources["@aerobeat/web-renderer"].commit=rendererCommit;

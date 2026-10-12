@@ -65,8 +65,8 @@ const assertSource = value => {
   assert(/^0\.0\.\d+$/u.test(value.packageVersion));
   assert.equal(Object.keys(value.sources).length,15);
   for(const [name,source] of Object.entries(value.sources)){assert(/^@aerobeat\/web-[a-z-]+$/u.test(name));keys(source,["commit","tree","sourceSha256"],name);assert(/^[0-9a-f]{40}$/u.test(source.commit)&&/^[0-9a-f]{40}$/u.test(source.tree)&&hex(source.sourceSha256));}
-  assert.equal(value.sources["@aerobeat/web-renderer"].commit,"9f72a3ea2b890a29c3cb3c42176b97bcd101c282");
-  assert.equal(value.sources["@aerobeat/web-renderer"].tree,"604e32a846ae5464905767e3e60e0e605361ff74");
+  assert.equal(value.sources["@aerobeat/web-renderer"].commit,"e6b369472e33a56e0520bb2085fb3d4c6a707c55");
+  assert.equal(value.sources["@aerobeat/web-renderer"].tree,"5ff8c34070c2743e83b66453f7f9570c2f044407");
 };
 const local = JSON.parse(await readFile(resolve(output,"flow-centerline-bundle-manifest.json"),"utf8"));
 // Parent integration hook: bundleManifest must be asynchronously fetched from
@@ -133,8 +133,26 @@ try{
       await game.locator("aero-session-actions").getByRole("button",{name:"Test",exact:true}).click();
       await frame.waitForFunction(()=>document.querySelector("aero-game")?.graph?.gameplay?.getSnapshot?.().session?.state==="playing");
       const modes=[];
+       let preHit; // inspect the first native run before its scored touch
       for(const [label,off] of [["native",false],["off",true],["restored",false]]){
         await game.evaluate(async element=>{await element.startSession("visual_test",{requireDownloaded:false});element.setMenuOpen(false);await element.menuPauseTail;element.setTestEquipmentVisible(true);element.setTestAutomaticFeedbackEnabled(false);element.setTestEquipmentMouseHand("left");element.stopFrameLoop();element.audioSyncPending=false;});
+         if(label==="native"){
+           // Observe the startup's pre-contact frame; do not draw, seek, hit, or
+           // change scoring/audio just to seed the fixture.
+           preHit=await game.evaluate(element=>{
+             const renderer=element.graph.renderer,snap=element.graph.gameplay.getSnapshot();
+             const pool=id=>(renderer.aftermathAssetPools.get(id)??[]).map(entity=>({enabled:entity.enabled,materials:renderer.assetMaterials.get(entity)?.length??0}));
+             return {arrow:pool("directional-arrow/rounded-outline-v1"),any:pool("any-note/outlined-circle-v1"),variants:renderer.sliceVariantMaterials.size,ready:renderer.flowSliceWarmupGeneration===renderer.gameplayAssetLoader.describe().generation,corpses:renderer.lastModel?.objects.filter(x=>x.kind==="aftermath").length??0,hits:snap.judgements.filter(x=>x.result==="hit").length};
+           });
+           for(const [name,pool] of [["arrow",preHit.arrow],["Any",preHit.any]]){
+             assert.equal(pool.length,2,`${embedding}: pre-hit ${name} has exactly two built corpse halves`);
+             assert(pool.every(half=>half.materials>0&&!half.enabled),`${embedding}: pre-hit ${name} halves stay invisible`);
+           }
+           const expectedVariants=[...preHit.arrow,...preHit.any].reduce((sum,half)=>sum+half.materials,0);
+           assert(preHit.ready&&expectedVariants>0&&preHit.variants>=expectedVariants&&preHit.variants<=256,`${embedding}: bounded prebuilt signed arrow/Any variants`);
+           assert.equal(preHit.corpses,0,`${embedding}: warmup shows no corpse`);
+           assert.equal(preHit.hits,0,`${embedding}: warmup scores no hit`);
+         }
         const options=frame.locator("#faint-hit-diagnostic");if(!await options.evaluate(x=>x.open))await options.locator("summary").click();
         await frame.locator("#faint-hit-off").setChecked(off);assert.equal(await frame.locator("#faint-hit-off").isChecked(),off);await options.locator("summary").click();
         const result=await game.evaluate(async element=>{
@@ -241,7 +259,19 @@ try{
         assert(data.windows.some(win=>win.mode===data.currentMode&&win.label==="before-first-hit"&&win.displayCount>0),`${label}: sampled pre-hit window`);
         assert(attributed.some(win=>win.displayIntervalMs.count>0&&win.postHitBurst.displayFrameTotalMs.count>0),`${label}: sampled hit intervals and aftermath`);
         if(off){assert(attributed.some(win=>win.withheldPiecesObserved>0));for(const win of attributed){assert.equal(win.withheldPiecesObserved,win.aftermathPiecesObserved);for(const key of profileCounters)assert.equal(win.variantProfile[key],0);for(const name of cohortNames)assert.equal(win.variantCohorts[name].frameCount,0);assert(win.variantProfile.sceneUpdateMs.count>0&&win.variantProfile.manualTickMs.count>0);}}
-        else assert(attributed.some(win=>win.aftermathPiecesObserved>0&&win.withheldPiecesObserved===0&&win.variantProfile.materialVariantInsertions>0&&win.variantProfile.materialVariantHighWater>0&&win.variantCohorts.materialVariantInsertion.frameCount>0&&win.variantCohorts.aftermathNoNewVariant.frameCount>0),"native has bounded pooled-variant insertion and reuse cohorts, not GPU compile measurements");
+        else {
+           assert(attributed.some(win=>win.aftermathPiecesObserved>0&&win.withheldPiecesObserved===0&&win.variantProfile.materialVariantHighWater>0&&win.variantCohorts.aftermathNoNewVariant.frameCount>0),"native retains real aftermath and a no-new-variant cohort; not GPU compile measurements");
+           if(label==="native"){
+             assert(preHit&&preHit.variants>0,"first scored native cut follows a prebuilt pool");
+             const first=attributed.filter(win=>win.label==="first-hit-burst");
+             assert(first.length>0,"first scored native burst is attributed");
+             for(const win of first){
+               assert.equal(win.variantProfile.materialVariantInsertions,0,"first scored native hit inserts no material clones");
+               assert.equal(win.postHitBurst.variantProfile.materialVariantInsertions,0,"first scored native aftermath burst inserts no material clones");
+               assert.equal(win.variantCohorts.materialVariantInsertion.frameCount,0,"first scored native hit has no insertion cohort");
+             }
+           }
+         }
         assert(!/"(?:eventId|sourceEventIds|chart|audioBytes|pointerPosition|clientX|clientY|judgements|scorePartitions|videoFrame|cvFrame|cutPlane|materialKey|variantKey|cacheKey|frameSamples|rawFrames)"/iu.test(text),"report contains no raw note, touch, frame or material keys");
         // Retain only validated synthetic browser JSON for exact build QA; the
         // operator's paired physical-phone reports remain a separate requirement.

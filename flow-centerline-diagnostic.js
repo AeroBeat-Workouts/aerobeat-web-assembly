@@ -8,7 +8,7 @@ if (SOURCE_MANIFEST?.schema !== "aerobeat/flow_centerline_source_manifest" || SO
 const sourceEntries = SOURCE_MANIFEST.sources;
 const sha256Hex = value => typeof value === "string" && /^[0-9a-f]{64}$/u.test(value);
 const gitHex = value => typeof value === "string" && /^[0-9a-f]{40}$/u.test(value);
-if (!sourceEntries || typeof sourceEntries !== "object" || Array.isArray(sourceEntries) || !Object.hasOwn(sourceEntries,"@aerobeat/web-assembly") || !Object.hasOwn(sourceEntries,"@aerobeat/web-renderer") || !Object.values(sourceEntries).every(entry => entry && gitHex(entry.commit) && gitHex(entry.tree) && sha256Hex(entry.sourceSha256)) || sourceEntries["@aerobeat/web-renderer"].commit !== "9f72a3ea2b890a29c3cb3c42176b97bcd101c282" || sourceEntries["@aerobeat/web-renderer"].tree !== "604e32a846ae5464905767e3e60e0e605361ff74") throw new Error("Flow source manifest entries missing or malformed");
+if (!sourceEntries || typeof sourceEntries !== "object" || Array.isArray(sourceEntries) || !Object.hasOwn(sourceEntries,"@aerobeat/web-assembly") || !Object.hasOwn(sourceEntries,"@aerobeat/web-renderer") || !Object.values(sourceEntries).every(entry => entry && gitHex(entry.commit) && gitHex(entry.tree) && sha256Hex(entry.sourceSha256)) || sourceEntries["@aerobeat/web-renderer"].commit !== "e6b369472e33a56e0520bb2085fb3d4c6a707c55" || sourceEntries["@aerobeat/web-renderer"].tree !== "5ff8c34070c2743e83b66453f7f9570c2f044407") throw new Error("Flow source manifest entries missing or malformed");
 const game = document.querySelector("aero-game");
 const recorder = document.querySelector("#faint-hit-recorder");
 const panel = document.querySelector("#faint-hit-diagnostic");
