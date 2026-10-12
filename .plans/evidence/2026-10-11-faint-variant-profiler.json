@@ -1,6 +1,6 @@
 {
   "schema": "aerobeat/faint_variant_profiler_handoff_evidence",
-  "status": "scored_browser_qa_go_final_audit_and_private_cutover_pending",
+  "status": "private_https_8449_exact_browser_verified_physical_phone_data_pending",
   "page": "faint-hit-test.html",
   "ownership": {"implementationBead": "aerobeat-web-assembly-caaq", "qaBead": "aerobeat-web-assembly-ugwb", "auditBead": "aerobeat-web-assembly-x26o", "physicalInvestigationBead": "aerobeat-web-assembly-e218"},
   "historicalPins": {
@@ -40,7 +40,7 @@
     "inventoryOrder": "global relative-path sort; each line path, byte count, SHA-256 separated by tabs and terminated by newline"
   },
   "qa": {
-    "status": "GO; Bead ugwb closed; exact private HTTPS browser verification pending",
+    "status": "GO; Bead ugwb closed; exact private HTTPS browser verification passed",
     "script": "scripts/validate-faint-hit-browser.js",
     "scriptCommit": "b00ef05",
     "scriptSha256": "cb0900521ef3c7b3336db63ad3266bae336a8d061f07696bd4426163dccf3ff1",
@@ -68,6 +68,19 @@
       "likelihoodAndImpact": "Unlikely QA-only false-negative from transient moving track bands; no evidence of changed corpse rendering; recommendation safe to fix this protected pixel oracle later"
     }
   },
-  "privatePhoneRoute": {"status": "old validated v1 recorder remains live on loopback 4185 until final QA/audit and isolated cutover", "funnelEnabled": false},
+  "privatePhoneRoute": {
+    "url": "https://derrick-legion-go-8apu1.tail613fcb.ts.net:8449/faint-hit-test.html",
+    "status": "final audited v2 candidate on managed loopback 4186; old rollback preview 4185 retired after post-cutover audit",
+    "managedPreviewJobId": "bash-158",
+    "servedHtmlSha256": "7254d00375fde892cdb1f8df378da829c751720a42dc540bfa5a76bad84d3c01",
+    "servedEntryJsSha256": "b3534400efd6b26e7ccd7a7fa5a9dc9919a1c9dfd20992edebbc75a49db8feeb",
+    "htmlAndEntryJsHttpStatus": 200,
+    "otherRoutesUnchanged": {"8446": "http://127.0.0.1:3084", "8448": "http://127.0.0.1:4174"},
+    "funnelEnabled": false,
+    "actualHttpsBrowserQa": "Unmodified SHA cb090052 browser gate passed against served HTTPS: real imported Test scored native/off 3 hits each, first-hit/group visual states, playing-touch and paused-click v2 downloads, native 24 misses, off 32/32 pieces withheld and zero on-only work, positive scene/tick in both, bounded/privacy assertions and no page errors",
+    "qaLog": "/tmp/aerobeat-faint-variant-served-8449-green.log",
+    "qaSummarySha256": "d01accf24da494c8046c11470b849f3076bc711713ea33788ee3dd3fbd98f7d6",
+    "independentAuditVerdict": "GO WITH FOLLOW-UPS: no likely risk; x26o closed, Dolt pushed; low-likelihood animated track QA false-negative dft2 remains open"
+  },
   "exactShaderOrGpuCauseKnown": false
 }
