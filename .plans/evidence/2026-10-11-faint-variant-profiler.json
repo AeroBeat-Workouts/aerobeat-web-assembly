@@ -1,0 +1,73 @@
+{
+  "schema": "aerobeat/faint_variant_profiler_handoff_evidence",
+  "status": "scored_browser_qa_go_final_audit_and_private_cutover_pending",
+  "page": "faint-hit-test.html",
+  "ownership": {"implementationBead": "aerobeat-web-assembly-caaq", "qaBead": "aerobeat-web-assembly-ugwb", "auditBead": "aerobeat-web-assembly-x26o", "physicalInvestigationBead": "aerobeat-web-assembly-e218"},
+  "historicalPins": {
+    "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+    "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+    "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+    "contentAuthoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c",
+    "compatibleAudio": "464fdeff45fc109876a1600f22d3007708d1b07d",
+    "served8445SourceParity": false,
+    "cookieRelease0128SourceParity": false,
+    "siblingRendererSourceChanged": false
+  },
+  "measurementContract": {
+    "reportSchema": "aerobeat/faint_hit_diagnostic",
+    "reportVersion": 2,
+    "newScopes": ["per-window variantProfile", "postHitBurst.variantProfile", "eligible native RAF cacheMiss / aftermathNoNewVariant aggregate cohorts"],
+    "onOnlyCounters": ["poolCreated", "poolReused", "sliceCacheMisses", "sliceCacheHits", "sliceCacheHighWater"],
+    "timedStages": ["poolLookupMs", "sliceVariantLookupMs", "clippedAppearanceMs", "sceneUpdateMs", "manualTickMs", "installClipMs"],
+    "privacy": "No cut coordinates, material/cache keys, per-note judgements, raw chart/audio/touch data or individual frames in downloaded JSON",
+    "limits": "Nested observer-influenced main-thread wall time, not GPU or shader compilation timing; histograms and cohorts are aggregate, not per-frame export or proof of causality"
+  },
+  "focusedUnit": {
+    "command": "node scripts/validate-faint-hit-diagnostic-window.js",
+    "result": "GREEN after independently repeated focused test, two JS syntax checks, check:jsdoc, check:imports, check:components and check:docs",
+    "counterfactuals": ["missing profiler fields", "missing frame cohorts", "O(cache-size) probe traversal", "stale first-hit profiler histogram max/high-water", "repeated per-material eligibility snapshot calls", "preceding pre-hit interval moved into first-hit burst"]
+  },
+  "localCandidate": {
+    "url": "http://127.0.0.1:4186/faint-hit-test.html",
+    "previewJobId": "bash-158",
+    "htmlSha256": "7254d00375fde892cdb1f8df378da829c751720a42dc540bfa5a76bad84d3c01",
+    "entryJsSha256": "b3534400efd6b26e7ccd7a7fa5a9dc9919a1c9dfd20992edebbc75a49db8feeb",
+    "httpStatus": 200,
+    "diagnosticSourceSha256": "c2233aea4e7c106078a389d5c33362ff083cf81b5bb4697a7a7f6c6f0eb13df0",
+    "artifactCount": 47,
+    "artifactBytes": 61057068,
+    "aggregateInventorySha256": "a327c3203a092bfc187b596f5d24684944556e8c82233c9aea18f53ed0e41d4a",
+    "inventoryOrder": "global relative-path sort; each line path, byte count, SHA-256 separated by tabs and terminated by newline"
+  },
+  "qa": {
+    "status": "GO; Bead ugwb closed; exact private HTTPS browser verification pending",
+    "script": "scripts/validate-faint-hit-browser.js",
+    "scriptCommit": "b00ef05",
+    "scriptSha256": "cb0900521ef3c7b3336db63ad3266bae336a8d061f07696bd4426163dccf3ff1",
+    "browserFixture": "Project-owned imported V2 chart with genuine scored Test touches; manually driven frames are not physical phone FPS",
+    "independentGreenRuns": ["/tmp/aerobeat-faint-variant-qa-green-final-2", "/tmp/aerobeat-faint-variant-qa-green-final-3", "/tmp/aerobeat-faint-variant-instrument-restored-green"],
+    "namedVisibleStates": ["playing recorder before hit", "native/off/restored scored Test with Great, target, sky, track, saber, animated corpse", "playing touchscreen JSON download native/off", "paused click JSON download native/off", "ineligible setup prompt"],
+    "scoredFirstHit": {
+      "native": {"hits": 3, "piecesObserved": 32, "piecesWithheld": 0, "cacheMisses": 24, "poolCreated": 4, "poolReused": 12, "cacheMissCohortFrames": 4, "noNewVariantCohortFrames": 2},
+      "off": {"hits": 3, "piecesObserved": 32, "piecesWithheld": 32, "onOnlyCounterAndTimerSamples": 0, "sceneAndTickSamplesEach": 6, "nativeCohortFrames": 0}
+    },
+    "fourDownloadsBytesRange": [53126, 95615],
+    "noPageErrors": true,
+    "persistedArtifacts": {"directory": ".plans/evidence/faint-variant-profiler-browser", "fileCount": 23, "totalBytes": 6752589, "inventorySha256": "3ddb1d0bdc01b8ee86c108f619be0b9dbdf9e6bc4b9a5f61a572cedf26b5f5be", "qaSummarySha256": "47442a4eb1c0ea4058ecd96cb1a635d16e72127ca9b78a565e27860d85900dd1"},
+    "sameScriptInstrumentationNegative": {
+      "scope": "Removed only slice-cache hit/miss observation line in disposable historical source; no gameplay/renderer source or off scene filter modification",
+      "negativeBuildHtmlSha256": "2f93c924af57648a823821051c083d4b7eb9dac5089e54da39c47bec979810b9",
+      "negativeBuildJsSha256": "b7b1d89165d897c040fdfc4991e2e341611232221f2761f8b91cfa609f637d5d",
+      "redLog": "/tmp/aerobeat-faint-variant-instrument-only-red.log: native scored window must record real cache misses and pool operations",
+      "restoredGreenLog": "/tmp/aerobeat-faint-variant-instrument-restored-green.log: PASS",
+      "restoredSourceSha256": "c2233aea4e7c106078a389d5c33362ff083cf81b5bb4697a7a7f6c6f0eb13df0"
+    },
+    "intermittentOptionalTrackCheck": {
+      "followUpBead": "aerobeat-web-assembly-dft2",
+      "observedFailure": "One first-hit on/off track ROI had 356 changed pixels, all on only 3 horizontal rows 630/636/641; sky had 0 changed and restored/off track 0; two unchanged-script subsequent runs and restored post-negative run passed",
+      "likelihoodAndImpact": "Unlikely QA-only false-negative from transient moving track bands; no evidence of changed corpse rendering; recommendation safe to fix this protected pixel oracle later"
+    }
+  },
+  "privatePhoneRoute": {"status": "old validated v1 recorder remains live on loopback 4185 until final QA/audit and isolated cutover", "funnelEnabled": false},
+  "exactShaderOrGpuCauseKnown": false
+}

@@ -1,0 +1,2180 @@
+{
+  "schema": "aerobeat/faint_hit_diagnostic",
+  "version": 2,
+  "packageVersion": "0.0.105",
+  "served8445SourceParity": false,
+  "cookieRelease0128SourceParity": false,
+  "mixedEraAudio": true,
+  "sourceCommits": {
+    "assembly": "382fbfc6b5c9b9f3852e2bfc2a2be32ceeccd408",
+    "renderer": "0be921cea14933400bd8afdda809ea4453ea772b",
+    "gameplay": "c9c32fc9fcd18964f35e3e283f72f9b146bf22df",
+    "contentAuthoring": "f4ee9b4f466660a10d4300354ffd73ecff527d4c",
+    "audio": "464fdeff45fc109876a1600f22d3007708d1b07d"
+  },
+  "currentMode": "off",
+  "measurements": "variantProfile is nested synchronous main-thread wrapper wall time with observer overhead, not GPU time or proof of shader compilation; pool counters track successful entity growth/reuse, cache misses/hits use constant-time before/after Map size (one insertion or no change in the pinned synchronous method); unexpected shrink or growth greater than one throws a diagnostic error rather than reporting a hit; high-water is observed map size; sceneUpdateMs times forwarded filtered scene input, manualTickMs measures RAF ticks; variantCohorts partitions eligible native RAF frames with observed aftermath into cacheMiss (one or more new returned variants) and aftermathNoNewVariant (visible aftermath, no newly returned variant), excluding pointer renders and frames without observed aftermath; each cohort counts frames and aggregates same-frame full app-frame, scene-update, manualTick and renderer-call times without per-frame export; off frames have empty native cohorts while off scene/tick remain in variantProfile; conditional association is not a causal cache or GPU claim; nested timings overlap and must not be subtracted; main-thread wall time, not GPU time; rendererCallMs times only renderer facade invocation, totalPresentationMs includes projection and pose resolution, displayFrameTotalMs times the entire eligible runDisplayFrame invocation (gameplay, clock/input/pose, projection, rendering, sync and UI), not exact gameplay.advance CPU; do not subtract nested wall times to infer scoring CPU; scored-hit deltas compare gameplay snapshots at app-frame entry/exit; pointerTotalMs measures the outer pointer-triggered presentation; wallElapsedMs includes menu/setup and MUST NOT be used for FPS; eligibleActiveMs sums only consecutive eligible display intervals, eligibleIntervalCount and ineligibleFrameCount expose coverage; 1-ms approximate p50/p95 histogram over every sample in each window; count and exact max cover the entire window; aftermath observed totals sum entries/pieces across render calls, not distinct frames; postHitBurst summarizes scored-hit display frames and eligible display frames starting within 1200 ms after each scored hit, but excludes the first scored frame's preceding interval from burst intervals (it remains in before-first-hit); retains aggregate histograms but no per-note records; display intervals are browser presentation cadence, not GPU time",
+  "coverage": "valid windows require playing Test, Automatic Feedback OFF, visible selected hand, CV confirmed idle and stable reported backing/viewport/DPR; invalidReasons mark violations; compare hit counts/section manually; each window carries its own mode and session generation",
+  "windows": [
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 1,
+      "wallElapsedMs": 1003.2000002861023,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 0,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": false,
+      "invalidReasons": [
+        "no_eligible_samples"
+      ],
+      "displayGeometry": null,
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "manualTickMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 2,
+      "wallElapsedMs": 1549,
+      "eligibleActiveMs": 650.4,
+      "eligibleIntervalCount": 29,
+      "ineligibleFrameCount": 0,
+      "displayCount": 30,
+      "pointerRedrawCount": 0,
+      "projectionCount": 60,
+      "rendererCallCount": 32,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 29,
+        "p50ApproxMs": 21.5,
+        "p95ApproxMs": 24.5,
+        "maxMs": 45.3,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 30,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 4.5,
+        "maxMs": 6.4,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 60,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.8,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 32,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 4.9,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 32,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 5.8,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 30,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 0.5,
+          "maxMs": 1.3,
+          "quantileBinWidthMs": 1,
+          "sumMs": 9
+        },
+        "manualTickMs": {
+          "count": 30,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 1.5,
+          "maxMs": 1.5,
+          "quantileBinWidthMs": 1,
+          "sumMs": 28.2
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "native",
+      "sessionGeneration": 3,
+      "wallElapsedMs": 402.90000009536743,
+      "eligibleActiveMs": 280.6,
+      "eligibleIntervalCount": 2,
+      "ineligibleFrameCount": 0,
+      "displayCount": 2,
+      "pointerRedrawCount": 3,
+      "projectionCount": 4,
+      "rendererCallCount": 6,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 2,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 2,
+        "p50ApproxMs": 30.5,
+        "p95ApproxMs": 250.5,
+        "maxMs": 250.2,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 27.5,
+        "maxMs": 27.8,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 4,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.7,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 6,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 26.5,
+        "maxMs": 26.3,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 6,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 26.5,
+        "maxMs": 26.5,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 3,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 19.5,
+        "maxMs": 19.9,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 2,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 3.5,
+          "maxMs": 3.5,
+          "quantileBinWidthMs": 1,
+          "sumMs": 3.8
+        },
+        "manualTickMs": {
+          "count": 2,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 22.5,
+          "maxMs": 22.3,
+          "quantileBinWidthMs": 1,
+          "sumMs": 23
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    },
+    {
+      "label": "first-hit-burst",
+      "mode": "native",
+      "sessionGeneration": 3,
+      "wallElapsedMs": 942.5,
+      "eligibleActiveMs": 439.6,
+      "eligibleIntervalCount": 5,
+      "ineligibleFrameCount": 0,
+      "displayCount": 6,
+      "pointerRedrawCount": 4,
+      "projectionCount": 12,
+      "rendererCallCount": 13,
+      "hitCount": 3,
+      "hitGroupCount": 0,
+      "maxHitDelta": 1,
+      "aftermathEntriesObserved": 19,
+      "aftermathPiecesObserved": 32,
+      "maxAftermathPieces": 4,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 5,
+        "p50ApproxMs": 38.5,
+        "p95ApproxMs": 343.5,
+        "maxMs": 343.1,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 6,
+        "p50ApproxMs": 6.5,
+        "p95ApproxMs": 38.5,
+        "maxMs": 38.5,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 12,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.5,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 13,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 34.5,
+        "maxMs": 34.6,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 13,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 35.5,
+        "maxMs": 35.3,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 4,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.8,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 4,
+        "poolReused": 12,
+        "sliceCacheMisses": 24,
+        "sliceCacheHits": 24,
+        "sliceCacheHighWater": 24,
+        "poolLookupMs": {
+          "count": 16,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 0.5,
+          "maxMs": 0.7,
+          "quantileBinWidthMs": 1,
+          "sumMs": 2
+        },
+        "sliceVariantLookupMs": {
+          "count": 48,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 0.5,
+          "maxMs": 0.4,
+          "quantileBinWidthMs": 1,
+          "sumMs": 4.6
+        },
+        "clippedAppearanceMs": {
+          "count": 16,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 1.5,
+          "maxMs": 1.1,
+          "quantileBinWidthMs": 1,
+          "sumMs": 5.5
+        },
+        "sceneUpdateMs": {
+          "count": 6,
+          "p50ApproxMs": 1.5,
+          "p95ApproxMs": 4.5,
+          "maxMs": 4.9,
+          "quantileBinWidthMs": 1,
+          "sumMs": 11.3
+        },
+        "manualTickMs": {
+          "count": 6,
+          "p50ApproxMs": 1.5,
+          "p95ApproxMs": 31.5,
+          "maxMs": 31.7,
+          "quantileBinWidthMs": 1,
+          "sumMs": 70.1
+        },
+        "installClipMs": {
+          "count": 24,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 0.5,
+          "maxMs": 0.1,
+          "quantileBinWidthMs": 1,
+          "sumMs": 1
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 4,
+          "displayFrameTotalMs": {
+            "count": 4,
+            "p50ApproxMs": 9.5,
+            "p95ApproxMs": 38.5,
+            "maxMs": 38.5,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 4,
+            "p50ApproxMs": 1.5,
+            "p95ApproxMs": 4.5,
+            "maxMs": 4.9,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 4,
+            "p50ApproxMs": 6.5,
+            "p95ApproxMs": 31.5,
+            "maxMs": 31.7,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 4,
+            "p50ApproxMs": 8.5,
+            "p95ApproxMs": 34.5,
+            "maxMs": 34.6,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 2,
+          "displayFrameTotalMs": {
+            "count": 2,
+            "p50ApproxMs": 2.5,
+            "p95ApproxMs": 5.5,
+            "maxMs": 5.3,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 2,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 0.5,
+            "maxMs": 0.4,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 2,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 1.5,
+            "maxMs": 1.3,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 2,
+            "p50ApproxMs": 1.5,
+            "p95ApproxMs": 2.5,
+            "maxMs": 2.7,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 3,
+        "frameCount": 6,
+        "displayIntervalMs": {
+          "count": 5,
+          "p50ApproxMs": 38.5,
+          "p95ApproxMs": 343.5,
+          "maxMs": 343.1,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 6,
+          "p50ApproxMs": 6.5,
+          "p95ApproxMs": 38.5,
+          "maxMs": 38.5,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 6,
+          "p50ApproxMs": 4.5,
+          "p95ApproxMs": 34.5,
+          "maxMs": 34.6,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 4,
+          "poolReused": 12,
+          "sliceCacheMisses": 24,
+          "sliceCacheHits": 24,
+          "sliceCacheHighWater": 24,
+          "poolLookupMs": {
+            "count": 16,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 0.5,
+            "maxMs": 0.7,
+            "quantileBinWidthMs": 1,
+            "sumMs": 2
+          },
+          "sliceVariantLookupMs": {
+            "count": 48,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 0.5,
+            "maxMs": 0.4,
+            "quantileBinWidthMs": 1,
+            "sumMs": 4.6
+          },
+          "clippedAppearanceMs": {
+            "count": 16,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 1.5,
+            "maxMs": 1.1,
+            "quantileBinWidthMs": 1,
+            "sumMs": 5.5
+          },
+          "sceneUpdateMs": {
+            "count": 6,
+            "p50ApproxMs": 1.5,
+            "p95ApproxMs": 4.5,
+            "maxMs": 4.9,
+            "quantileBinWidthMs": 1,
+            "sumMs": 11.3
+          },
+          "manualTickMs": {
+            "count": 6,
+            "p50ApproxMs": 1.5,
+            "p95ApproxMs": 31.5,
+            "maxMs": 31.7,
+            "quantileBinWidthMs": 1,
+            "sumMs": 70.1
+          },
+          "installClipMs": {
+            "count": 24,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 0.5,
+            "maxMs": 0.1,
+            "quantileBinWidthMs": 1,
+            "sumMs": 1
+          }
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "off",
+      "sessionGeneration": 3,
+      "wallElapsedMs": 43.10000038146973,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 1,
+      "projectionCount": 0,
+      "rendererCallCount": 1,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 1,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 1,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.3,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 1,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.3,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "manualTickMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    },
+    {
+      "label": "before-first-hit",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 186.09999990463257,
+      "eligibleActiveMs": 186,
+      "eligibleIntervalCount": 2,
+      "ineligibleFrameCount": 0,
+      "displayCount": 2,
+      "pointerRedrawCount": 2,
+      "projectionCount": 4,
+      "rendererCallCount": 5,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 2,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 2,
+        "p50ApproxMs": 7.5,
+        "p95ApproxMs": 178.5,
+        "maxMs": 178.4,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 2.5,
+        "p95ApproxMs": 5.5,
+        "maxMs": 5.1,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 4,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.1,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 5,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 3.6,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 5,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 3.5,
+        "maxMs": 3.8,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 2,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.4,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 2,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 0.5,
+          "maxMs": 0.7,
+          "quantileBinWidthMs": 1,
+          "sumMs": 1.1
+        },
+        "manualTickMs": {
+          "count": 2,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 2.5,
+          "maxMs": 2.5,
+          "quantileBinWidthMs": 1,
+          "sumMs": 3.2
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    },
+    {
+      "label": "first-hit-burst",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 733.3000001907349,
+      "eligibleActiveMs": 221.4,
+      "eligibleIntervalCount": 5,
+      "ineligibleFrameCount": 0,
+      "displayCount": 6,
+      "pointerRedrawCount": 4,
+      "projectionCount": 12,
+      "rendererCallCount": 12,
+      "hitCount": 3,
+      "hitGroupCount": 0,
+      "maxHitDelta": 1,
+      "aftermathEntriesObserved": 19,
+      "aftermathPiecesObserved": 32,
+      "maxAftermathPieces": 4,
+      "withheldPiecesObserved": 32,
+      "errors": 0,
+      "valid": true,
+      "invalidReasons": [],
+      "displayGeometry": {
+        "backingWidth": 390,
+        "backingHeight": 844,
+        "devicePixelRatio": 1,
+        "viewportWidth": 390,
+        "viewportHeight": 844
+      },
+      "displayIntervalMs": {
+        "count": 5,
+        "p50ApproxMs": 7.5,
+        "p95ApproxMs": 195.5,
+        "maxMs": 195.7,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 6,
+        "p50ApproxMs": 3.5,
+        "p95ApproxMs": 5.5,
+        "maxMs": 5.5,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 12,
+        "p50ApproxMs": 0.5,
+        "p95ApproxMs": 0.5,
+        "maxMs": 0.3,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 12,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.4,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 12,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 2.5,
+        "maxMs": 2.5,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 4,
+        "p50ApproxMs": 1.5,
+        "p95ApproxMs": 1.5,
+        "maxMs": 1.6,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 6,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 0.5,
+          "maxMs": 0.5,
+          "quantileBinWidthMs": 1,
+          "sumMs": 2.1
+        },
+        "manualTickMs": {
+          "count": 6,
+          "p50ApproxMs": 0.5,
+          "p95ApproxMs": 1.5,
+          "maxMs": 1.6,
+          "quantileBinWidthMs": 1,
+          "sumMs": 6.6
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 3,
+        "frameCount": 6,
+        "displayIntervalMs": {
+          "count": 5,
+          "p50ApproxMs": 7.5,
+          "p95ApproxMs": 195.5,
+          "maxMs": 195.7,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 6,
+          "p50ApproxMs": 3.5,
+          "p95ApproxMs": 5.5,
+          "maxMs": 5.5,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 6,
+          "p50ApproxMs": 2.5,
+          "p95ApproxMs": 2.5,
+          "maxMs": 2.4,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 6,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 0.5,
+            "maxMs": 0.5,
+            "quantileBinWidthMs": 1,
+            "sumMs": 2.1
+          },
+          "manualTickMs": {
+            "count": 6,
+            "p50ApproxMs": 0.5,
+            "p95ApproxMs": 1.5,
+            "maxMs": 1.6,
+            "quantileBinWidthMs": 1,
+            "sumMs": 6.6
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    },
+    {
+      "label": "steady-after-export",
+      "mode": "off",
+      "sessionGeneration": 4,
+      "wallElapsedMs": 355.59999990463257,
+      "eligibleActiveMs": 0,
+      "eligibleIntervalCount": 0,
+      "ineligibleFrameCount": 0,
+      "displayCount": 0,
+      "pointerRedrawCount": 0,
+      "projectionCount": 0,
+      "rendererCallCount": 0,
+      "hitCount": 0,
+      "hitGroupCount": 0,
+      "maxHitDelta": 0,
+      "aftermathEntriesObserved": 0,
+      "aftermathPiecesObserved": 0,
+      "maxAftermathPieces": 0,
+      "withheldPiecesObserved": 0,
+      "errors": 0,
+      "valid": false,
+      "invalidReasons": [
+        "no_eligible_samples"
+      ],
+      "displayGeometry": null,
+      "displayIntervalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "displayFrameTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "frameProjectionMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "rendererCallMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "totalPresentationMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "pointerTotalMs": {
+        "count": 0,
+        "p50ApproxMs": null,
+        "p95ApproxMs": null,
+        "maxMs": null,
+        "quantileBinWidthMs": 1
+      },
+      "variantProfile": {
+        "poolCreated": 0,
+        "poolReused": 0,
+        "sliceCacheMisses": 0,
+        "sliceCacheHits": 0,
+        "sliceCacheHighWater": 0,
+        "poolLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sliceVariantLookupMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "clippedAppearanceMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "sceneUpdateMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "manualTickMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        },
+        "installClipMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1,
+          "sumMs": 0
+        }
+      },
+      "variantCohorts": {
+        "cacheMiss": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        },
+        "aftermathNoNewVariant": {
+          "frameCount": 0,
+          "displayFrameTotalMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          },
+          "rendererCallMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1
+          }
+        }
+      },
+      "postHitBurst": {
+        "triggeredFrameCount": 0,
+        "frameCount": 0,
+        "displayIntervalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "displayFrameTotalMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "rendererCallMs": {
+          "count": 0,
+          "p50ApproxMs": null,
+          "p95ApproxMs": null,
+          "maxMs": null,
+          "quantileBinWidthMs": 1
+        },
+        "variantProfile": {
+          "poolCreated": 0,
+          "poolReused": 0,
+          "sliceCacheMisses": 0,
+          "sliceCacheHits": 0,
+          "sliceCacheHighWater": 0,
+          "poolLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sliceVariantLookupMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "clippedAppearanceMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "sceneUpdateMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "manualTickMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          },
+          "installClipMs": {
+            "count": 0,
+            "p50ApproxMs": null,
+            "p95ApproxMs": null,
+            "maxMs": null,
+            "quantileBinWidthMs": 1,
+            "sumMs": 0
+          }
+        }
+      }
+    }
+  ]
+}
