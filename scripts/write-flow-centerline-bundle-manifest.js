@@ -78,13 +78,18 @@ function run() {
   const files = assetsUnder(out);
   if (!files.includes(htmlPath)) fail("built HTML entry missing");
   const jsPaths = files.filter(name => name.endsWith(".js")).sort();
-  if (!jsPaths.length || jsPaths.some(name => !/^assets\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*-[A-Za-z0-9_-]+\.js$/u.test(name))) fail("built hashed JS asset inventory missing or malformed");
+  // Vite emits hashed entry/worker chunks, but its copied MediaPipe runtime
+  // includes un-hashed JS under assets/mediapipe[/wasm]. Hash and serve-check
+  // ALL of them; only chunks and the HTML-referenced entry require hash names.
+  const viteChunk = /^assets\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*-[A-Za-z0-9_-]+\.js$/u;
+  const mediapipeStatic = /^assets\/mediapipe\/(?:wasm\/)?[A-Za-z0-9_-]+\.js$/u;
+  if (!jsPaths.some(name => viteChunk.test(name)) || jsPaths.some(name => !viteChunk.test(name) && !mediapipeStatic.test(name))) fail("built JS asset inventory missing or malformed");
   const htmlBytes = readFileSync(regularWithin(out, htmlPath));
   const htmlText = htmlBytes.toString("utf8");
   // The built entry must actually reference the JS included below. Vite emits
   // hashed modules/chunks into assets/, including worker bundles when present.
   const entryScripts = [...htmlText.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js)["'][^>]*>/gu)].map(match => match[1]);
-  if (!entryScripts.length || entryScripts.some(src => !src.startsWith("/assets/") || !jsPaths.includes(src.slice(1)))) fail("built HTML does not reference built JS entry");
+  if (!entryScripts.length || entryScripts.some(src => !src.startsWith("/assets/") || !viteChunk.test(src.slice(1)) || !jsPaths.includes(src.slice(1)))) fail("built HTML does not reference hashed JS entry");
   if (entryScripts.some(src => !readFileSync(regularWithin(out, src.slice(1))).includes(Buffer.from(buildStamp)))) fail("built entry JS lacks declared build stamp");
   if (htmlText.includes("/flow-centerline-diagnostic.js")) fail("HTML still references unbuilt source entry");
   // Do not overwrite or digest a preexisting sidecar. A clean Vite build clears

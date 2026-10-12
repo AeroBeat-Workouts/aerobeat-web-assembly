@@ -73,7 +73,13 @@ keys(local,["schema","version","sourceManifest","buildStamp","html","js"],"bundl
 assert.equal(local.schema,"aerobeat/flow_centerline_bundle_manifest");assert.equal(local.version,1);assertSource(local.sourceManifest);
 assert.equal(local.buildStamp,`FLOW-CENTERLINE-EXPERIMENTAL-${local.sourceManifest.packageVersion}-${digest(Buffer.from(JSON.stringify(local.sourceManifest))).slice(0,24)}`);
 const asset = (entry, pattern) => {keys(entry,["path","bytes","sha256"],"asset");assert(pattern.test(entry.path));count(entry.bytes,100000000,"asset.bytes");assert(entry.bytes>0&&hex(entry.sha256));};
-asset(local.html,/^flow-centerline-test\.html$/u);assert(Array.isArray(local.js)&&local.js.length>0&&local.js.length<100);for(const entry of local.js)asset(entry,/^assets\/[A-Za-z0-9_.-]+\.js$/u);
+asset(local.html,/^flow-centerline-test\.html$/u);assert(Array.isArray(local.js)&&local.js.length>0&&local.js.length<100);
+// Hash exact served Vite chunks AND copied static MediaPipe JS; neither a
+// nested script nor an unsafe path may bypass the sidecar parity checks.
+const viteChunk=/^assets\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*-[A-Za-z0-9_-]+\.js$/u;
+const mediapipeStatic=/^assets\/mediapipe\/(?:wasm\/)?[A-Za-z0-9_-]+\.js$/u;
+for(const entry of local.js){asset(entry,/^assets\//u);assert(viteChunk.test(entry.path)||mediapipeStatic.test(entry.path),`${entry.path}: safe built JS asset path`);}
+assert(local.js.some(entry=>viteChunk.test(entry.path)),"manifest must include a hashed Vite entry");
 assert.equal(new Set(local.js.map(x=>x.path)).size,local.js.length);
 for(const entry of [local.html,...local.js]){const bytes=await readFile(resolve(output,entry.path));assert.equal(bytes.length,entry.bytes);assert.equal(digest(bytes),entry.sha256,`${entry.path}: local build changed after manifest`);}
 const fetchAsset = async entry => {const response=await fetch(new URL(`/${entry.path}`,target),{cache:"no-store"});assert.equal(response.status,200,`${entry.path}: served status`);const bytes=Buffer.from(await response.arrayBuffer());assert.equal(bytes.length,entry.bytes,`${entry.path}: served byte count`);assert.equal(digest(bytes),entry.sha256,`${entry.path}: served SHA-256`);return bytes;};
