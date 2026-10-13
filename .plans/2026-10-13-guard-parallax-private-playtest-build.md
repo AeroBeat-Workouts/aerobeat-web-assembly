@@ -1,6 +1,6 @@
 # Private playtest build: same-side Boxing guards and fixed nose parallax
 
-**Status:** private next-source candidate is LIVE on HTTPS8452, with independent QA and auditor **GO WITH FOLLOW-UPS for playtest only**. The current product version string remains `0.0.128`; this source-pinned preview is not a numbered or public release. Bead `aerobeat-web-assembly-crfg`; source work and audit live in `.plans/2026-10-12-boxing-guards-nose-parallax-next-version.md`. Candidate assembly source is clean/pushed `b1f9af7320cecfff2848170cb3e944068a81f2d5`, linked dependencies exact-pinned by `scripts/release-fingerprint.js`. Only this plan and Bead ledger metadata await final commit/push and post-push route verification.
+**Status:** private next-source candidate is LIVE on HTTPS8452, with independent QA and auditor **GO WITH FOLLOW-UPS for playtest only**. The current product version string remains `0.0.128`; this source-pinned preview is not a numbered or public release. Bead `aerobeat-web-assembly-crfg`; source work and audit live in `.plans/2026-10-12-boxing-guards-nose-parallax-next-version.md`. Candidate assembly source is clean/pushed `b1f9af7320cecfff2848170cb3e944068a81f2d5`, linked dependencies exact-pinned by `scripts/release-fingerprint.js`. Metadata commit `a503cf5a7553b0bf30d519ed3578c269e0a42d54` is pushed; post-push served JS/guard hashes, old route mappings, HTTP200 and absent Funnel verified. QA/audit/umbrella Beads are closed; only Derrick's actual phone/song playtest and separately tracked issues remain.
 
 ## Decision and acceptance
 
@@ -11,7 +11,7 @@
 
 **Playtest URL:** [Open the private next-source AeroBeat candidate](https://derrick-legion-go-8apu1.tail613fcb.ts.net:8452/). Tailnet only; no public release or existing-preview cutover. This is a **new origin** (port 8452), so existing 8451 song downloads/settings do not appear automatically. Reimport the song from verified source in this candidate, and grant camera permission separately on the phone. This matches the deliberate signed-legacy guard reimport rule.
 
-**Next acceptance:** QA `bvx3` PASS/closed and auditor `m0cp` precommit GO WITH FOLLOW-UPS. Commit/push this plan and Bead metadata, verify exact upstream/asset hashes/old routes/no Funnel, then close `m0cp` and umbrella `crfg` and sync ledger. Parent retains ownership of live preview job `bash-112` while Derrick tests.
+**Disposition:** QA `bvx3` PASS/closed; auditor `m0cp` GO WITH FOLLOW-UPS/closed; umbrella `crfg` closed. Metadata commit `a503cf5` pushed clean, post-push exact asset hashes and old route isolation reverified. Managed preview job `bash-112` stays live for Derrick's playtest. Next decision belongs to Derrick after reimport and hands-on test; no release/cutover approval is implied.
 
 ## Current evidence
 
