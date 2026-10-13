@@ -1,6 +1,7 @@
 // @ts-check
-// Non-release scored-Play visual oracle. Run against live production modules and
-// exact pinned GLB bytes; never drive synthetic Visual Test feedback.
+// Injected-judgement projection/viewport visual oracle, NOT scored collision or
+// score proof. Run live production projection/renderer against pinned GLB bytes;
+// the separate validate-scored-flow-contact-pixels.js exercises real scored Play.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -57,9 +58,9 @@ try{
         const canvas=element.shadowRoot.querySelector("canvas");
         const sample=()=>{const out=new OffscreenCanvas(canvas.width,canvas.height),ctx=out.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);return ctx.getImageData(0,0,out.width,out.height).data;};
         const summarize=(pixels,baseline)=>{
-          let colored=0,gray=0,yellow=0,red=0,changed=0;
-          for(let i=0;i<pixels.length;i+=4){const r=pixels[i],g=pixels[i+1],b=pixels[i+2],d=Math.abs(r-baseline[i])+Math.abs(g-baseline[i+1])+Math.abs(b-baseline[i+2]);if(d<35)continue;changed++;if(b>r+20&&b>g+6&&b>75)colored++;if(Math.abs(r-g)<13&&Math.abs(g-b)<17&&r>=25&&r<130)gray++;if(r>150&&g>105&&b<g*.65&&r>b*2)yellow++;if(r>115&&r>g*1.55&&r>b*1.35)red++;}
-          return{colored,gray,yellow,red,changed};
+          let colored=0,gray=0,blue=0,red=0,changed=0;
+          for(let i=0;i<pixels.length;i+=4){const r=pixels[i],g=pixels[i+1],b=pixels[i+2],d=Math.abs(r-baseline[i])+Math.abs(g-baseline[i+1])+Math.abs(b-baseline[i+2]);if(d<35)continue;changed++;if(b>r+20&&b>g+6&&b>75)colored++;if(Math.abs(r-g)<13&&Math.abs(g-b)<17&&r>=25&&r<130)gray++;if(b>110&&b>r*1.35&&b>g*1.2)blue++;if(r>115&&r>g*1.55&&r>b*1.35)red++;}
+          return{colored,gray,blue,red,changed};
         };
         const cases=[];
         for(const presentation of ["flow","boxing_collider"]){
@@ -67,8 +68,8 @@ try{
           const event={eventId:`play-feedback-${presentation}`,centerTimestampMs:5000,appearanceColor:"#2693FF",authoredBeat:beat},events=[event],index=createSessionTargetIndex(events,{normalSpawnLeadMs:2500,skyMode:"off",skyPreludeDurationMs:0});
           const empty={session:{purpose:"play",timelinePositionMs:0},judgements:[],selectedVariant:{modifierIds:[]}};
           const camera=renderer.cameraEntity?.camera;
-          // Use the real assembly projection and renderer, not a fabricated
-          // target or DOM text. All judgements below are scored Play records.
+          // Exercise real assembly projection and renderer with explicitly
+          // injected Play-shaped judgements; this does not exercise the judge.
             const draw=(nowMs,judgements,scalePercent)=>{
               renderer.setVisualScales({noteScalePercent:scalePercent});
               const targets=projectSessionTargets(events,{...empty,session:{purpose:"play",timelinePositionMs:nowMs},judgements},nowMs,index,180,false,3);
@@ -86,10 +87,11 @@ try{
             };
             for(const scalePercent of [100,200]){
               const pending540=draw(5540,[],scalePercent),pending999=draw(5999,[],scalePercent);
-              const near=draw(5000,[{eventId:event.eventId,result:"miss",tier:"almost",diagnostics:["near_timing"],shadow:false,committedTimelinePositionMs:5000}],scalePercent);
+              const near=draw(5000,[{eventId:event.eventId,result:"miss",tier:"good",diagnostics:["near_timing"],shadow:false,committedTimelinePositionMs:5000}],scalePercent);
+              const great=draw(5000,[{eventId:event.eventId,result:"hit",tier:"great",shadow:false,committedTimelinePositionMs:5000}],scalePercent);
               const miss=draw(6041,[{eventId:event.eventId,result:"miss",tier:"miss",shadow:false,committedTimelinePositionMs:6001}],scalePercent);
               const clearance={cameraZ:renderer.cameraEntity.getPosition().z,nearClip:camera.nearClip,centerZAtMiss:(6041-5000)*.006};
-              cases.push({presentation,scalePercent,pending540,pending999,near,miss,clearance});
+              cases.push({presentation,scalePercent,pending540,pending999,near,great,miss,clearance});
             }
         }
         return{cases,viewport:{width:innerWidth,height:innerHeight,dpr:devicePixelRatio},assetState:renderer.gameplayAssetLoader.describe().state};
@@ -98,7 +100,7 @@ try{
       for(const row of proof.cases){
         const key=`${view.name} ${row.presentation} ${row.scalePercent}%`;
         for(const [state,frame] of [["pending +540",row.pending540],["pending +999",row.pending999]]){
-          assert.equal(frame.targets[0]?.judgement,"pending",`${key} ${state}: real scored Play remains pending`);
+          assert.equal(frame.targets[0]?.judgement,"pending",`${key} ${state}: injected Play projection remains pending`);
           assert.ok(frame.icon&&frame.icon.state!=="miss",`${key} ${state}: renderer must not cull or resolve pending target: ${JSON.stringify(frame)}`);
           assert.ok(frame.icon&&frame.icon.appearanceColor==="#2693FF",`${key} ${state}: authored blue cannot gray prematurely`);
           assert.equal(frame.feedback,null,`${key} ${state}: no premature Miss label`);
@@ -106,21 +108,28 @@ try{
           assert.ok(frame.meshBounds.length>0&&frame.material.length>0&&frame.material.some(part=>part.b>part.r+.05),`${key} ${state}: real GLB mesh and material remain blue: ${JSON.stringify(frame.material)}`);
           if(state==="pending +540")assert.ok(frame.pixels.colored>20,`${key} ${state}: actual framebuffer contains blue target pixels: ${JSON.stringify(frame.pixels)}`);
         }
-        assert.equal(row.near.targets[0]?.tier,"almost",`${key}: real near_timing tier`);
-        assert.equal(row.near.feedback,"Almost",`${key}: existing near target feedback`);
-        assert.equal(row.near.icon?.appearanceColor,"#2693FF",`${key}: genuine near miss cannot gray its still-visible icon`);
-        assert.ok(row.near.drawnFeedback.some(item=>item.text==="Almost"&&item.texture?.includes("almost")),`${key}: renderer actually submitted Almost texture`);
-        assert.ok(row.near.pixels.yellow>15,`${key}: framebuffer actually contains yellow Almost glyph: ${JSON.stringify(row.near)}`);
-        assert.equal(row.miss.targets[0]?.judgement,"miss",`${key}: genuine canonical-clearance Miss`);
+        assert.equal(row.near.targets[0]?.judgement,"miss",`${key}: near pass is authoritative noncontact`);
+        assert.equal(row.near.targets[0]?.tier,"good",`${key}: injected near_timing Good tier`);
+        assert.equal(row.near.feedback,"Good",`${key}: near pass displays Good, never Almost or Miss`);
+        assert.equal(row.near.icon?.appearanceColor,"#2693FF",`${key}: Good cannot gray its still-visible GLB icon`);
+        assert.ok(row.near.material.length>0&&row.near.material.some(part=>part.b>part.r+.05),`${key}: Good retains blue real GLB material`);
+        assert.ok(row.near.drawnFeedback.some(item=>item.text==="Good"&&item.texture?.toLowerCase().includes("good")),`${key}: renderer actually submitted Good texture`);
+        assert.ok(row.near.pixels.blue>15,`${key}: framebuffer actually contains blue Good pixels: ${JSON.stringify(row.near)}`);
+        assert.equal(row.great.targets[0]?.judgement,"hit",`${key}: injected hit is a hit`);
+        assert.equal(row.great.targets[0]?.tier,"great",`${key}: injected hit Great tier`);
+        assert.equal(row.great.feedback,"Great",`${key}: injected hit displays Great`);
+        assert.ok(row.great.drawnFeedback.some(item=>item.text==="Great"&&item.texture?.toLowerCase().includes("great")),`${key}: renderer actually submitted Great texture`);
+        assert.ok(row.great.pixels.changed>15,`${key}: actual Great feedback changes real framebuffer pixels`);
+        assert.equal(row.miss.targets[0]?.judgement,"miss",`${key}: injected canonical-clearance Miss`);
         assert.equal(row.miss.feedback,"Miss",`${key}: full Miss label after clearance`);
         assert.equal(row.miss.icon?.appearanceColor,"#2a3038",`${key}: actual full Miss gray material authority`);
         assert.ok(row.miss.drawnFeedback.some(item=>item.text==="Miss"&&item.texture?.includes("miss")),`${key}: renderer actually submitted Miss texture`);
         assert.ok(row.clearance.cameraZ>=4.9&&row.clearance.cameraZ<=5.1&&row.miss.meshBounds.length>0&&row.miss.meshBounds.every(bounds=>bounds.nearZ>row.clearance.cameraZ+row.clearance.nearClip),`${key}: every real pinned GLB mesh must clear canonical camera before full Miss: ${JSON.stringify({clearance:row.clearance,bounds:row.miss.meshBounds})}`);
         assert.ok(row.miss.pixels.red>15,`${key}: framebuffer actually contains red Miss glyph: ${JSON.stringify(row.miss.pixels)}`);
-        evidence.push({key,pending540:row.pending540.pixels,pending999:row.pending999.pixels,near:row.near.pixels,miss:row.miss.pixels,clearance:row.clearance});
+        evidence.push({key,pending540:row.pending540.pixels,pending999:row.pending999.pixels,near:row.near.pixels,great:row.great.pixels,miss:row.miss.pixels,clearance:row.clearance});
       }
       assert.deepEqual(noise,[],`${view.name}: unexpected browser warnings/errors`);
     }finally{await context.close();}
   }
-  console.log(`Scored Play renderer framebuffer oracle PASS: ${JSON.stringify(evidence)}`);
+  console.log(`Injected Play projection/renderer framebuffer oracle PASS: ${JSON.stringify(evidence)}`);
 }finally{await browser?.close();await vite.close();}

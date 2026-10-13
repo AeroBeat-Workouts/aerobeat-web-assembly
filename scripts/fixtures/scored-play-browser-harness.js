@@ -13,6 +13,7 @@
 // Export the canonical public-package target projection alongside the real Play
 // fixture so browser evaluations never bypass the linked dependency provenance.
 export { boxingColliderTargetCenter } from '@aerobeat/web-gameplay';
+export { resolveSaberCapsule } from '@aerobeat/web-contracts';
 
 const HASH = 'a'.repeat(64);
 const PACKAGE_ID = 'scored-play-browser-fixture';
@@ -23,12 +24,15 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const required = (condition, message) => { if (!condition) throw new Error(`Scored Play fixture: ${message}`); };
 
 /** Install before selecting the chart; only boundary services are replaced. */
-export async function installScoredPlayHarness(element, { events, songDurationMs = 120000 } = {}) {
+export async function installScoredPlayHarness(element, { events, songDurationMs = 120000, mode = 'boxing' } = {}) {
   required(element?.tagName?.toLowerCase() === 'aero-game' && element.isConnected && element.graph, 'connected <aero-game> required');
-  required(Array.isArray(events) && events.length > 0 && events.every(event => event?.schema === 'aerobeat/resolved_content_event' && event.version === 3 && typeof event.eventId === 'string' && Number.isFinite(event.centerTimestampMs)), 'nonempty resolved Boxing events required');
+  required(mode === 'boxing' || mode === 'flow', 'only scored Boxing or Flow mode supported');
+  required(Array.isArray(events) && events.length > 0 && events.every(event => event?.schema === 'aerobeat/resolved_content_event' && event.version === 3 && typeof event.eventId === 'string' && Number.isFinite(event.centerTimestampMs)), 'nonempty resolved events required');
   required(Number.isFinite(songDurationMs) && songDurationMs > Math.max(...events.map(event => event.centerTimestampMs)) + 1500, 'audio duration must cover every scored event');
-  const variant = Object.freeze({ variantId: VARIANT_ID, chartId: CHART_ID, mode: 'boxing', rulesetId: 'boxing_collider_v1', recipeId: null, modifierIds: [], ranked: true, localOnly: false, mapHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, scoreIdentityHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, provenance: { baseVariantId: VARIANT_ID } });
-  const chart = Object.freeze(events.map(event => Object.freeze({ ...event, variantId: VARIANT_ID, chartId: CHART_ID })));
+  const variantId = mode === 'flow' ? 'scored-play-flow-collider' : VARIANT_ID;
+  const chartId = mode === 'flow' ? 'scored-play-flow-chart' : CHART_ID;
+  const variant = Object.freeze({ variantId, chartId, mode, rulesetId: mode === 'flow' ? 'flow_colliders_v1' : 'boxing_collider_v1', recipeId: null, modifierIds: [], ranked: true, localOnly: false, mapHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, scoreIdentityHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, provenance: { baseVariantId: variantId } });
+  const chart = Object.freeze(events.map(event => Object.freeze({ ...event, variantId, chartId })));
   const originalFactory = element.serviceGraphFactory;
   required(typeof originalFactory === 'function', 'production service graph factory missing');
   element.remove();
@@ -36,14 +40,14 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     const graph = originalFactory(options);
     required(graph?.gameplay && graph?.renderer && graph?.input, 'factory did not provide real gameplay, renderer and calibrated input');
     const state = { pose: null, stream: null, cvRunning: false, cameraRequests: 0, cvStarts: 0, audioState: 'stopped', audioPositionMs: 0, durationMs: songDurationMs, audioSource: null, selectedVariant: null };
-    const snapshot = () => ({ state: state.selectedVariant ? 'ready' : 'idle', packageId: state.selectedVariant ? PACKAGE_ID : null, selectedVariant: state.selectedVariant, variants: state.selectedVariant ? [variant] : [], resolvedEvents: state.selectedVariant ? chart : [], song: state.selectedVariant ? { name: 'Representative downloaded Boxing fixture', audio: { filePath: 'song.ogg' } } : null, background: null, lineage: null });
+    const snapshot = () => ({ state: state.selectedVariant ? 'ready' : 'idle', packageId: state.selectedVariant ? PACKAGE_ID : null, selectedVariant: state.selectedVariant, variants: state.selectedVariant ? [variant] : [], resolvedEvents: state.selectedVariant ? chart : [], song: state.selectedVariant ? { name: 'Representative downloaded scored fixture', audio: { filePath: 'song.ogg' } } : null, background: null, lineage: null });
     const content = {
       getSnapshot: snapshot, subscribe: () => () => {}, setPlaybackState() {}, readAsset(path) { required(path === 'song.ogg', 'unexpected audio asset path'); return new Uint8Array([1, 2, 3]); },
       async loadPersistenceHandle(handle) { required(handle?.packageId === PACKAGE_ID, 'wrong persisted package'); state.selectedVariant = variant; },
-      async selectVariant(id) { required(id === VARIANT_ID, 'wrong selected Boxing variant'); state.selectedVariant = variant; },
+      async selectVariant(id) { required(id === variantId, 'wrong selected scored variant'); state.selectedVariant = variant; },
       async swapFutureVariant(id) { return this.selectVariant(id); }, destroy() {}
     };
-    const summary = Object.freeze({ key: PACKAGE_ID, packageId: PACKAGE_ID, packageHash: `sha256:${HASH}`, songName: 'Representative downloaded Boxing fixture', difficulty: 'Expert', createdAtMs: 1, assetCount: 1, sourceCacheCount: 0 });
+    const summary = Object.freeze({ key: PACKAGE_ID, packageId: PACKAGE_ID, packageHash: `sha256:${HASH}`, songName: 'Representative downloaded scored fixture', difficulty: 'Expert', createdAtMs: 1, assetCount: 1, sourceCacheCount: 0 });
     const authoring = { getSnapshot: () => ({ state: 'idle', progress: 0 }), subscribe: () => () => {}, async listPackages() { return [summary]; }, async estimateStorage() { return { usageBytes: 0, quotaBytes: 1024 }; }, async loadPackage(handle) { required(handle?.packageId === PACKAGE_ID, 'wrong downloaded package handle'); return { handle, package: {} }; }, cancel() {}, destroy() {} };
     const video = {
       getRetainedCameraStream: () => state.stream,
@@ -106,14 +110,14 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     await element.refreshLibrary();
     if (element.pendingLibrarySelection) await element.pendingLibrarySelection;
     await element.lifecycleIntentTail;
-    required(element.libraryView.selectedPackageId === PACKAGE_ID && graph.content.getSnapshot().packageId === PACKAGE_ID && state.audioSource?.id === `${PACKAGE_ID}:audio`, 'downloaded Boxing package/audio was not selected through library');
+    required(element.libraryView.selectedPackageId === PACKAGE_ID && graph.content.getSnapshot().packageId === PACKAGE_ID && state.audioSource?.id === `${PACKAGE_ID}:audio`, 'downloaded scored package/audio was not selected through library');
     element.setMenuOpen(true);
     element.renderPresenters();
     const selector = element.shadowRoot.querySelector("aero-prototype-selector[scope='gameplay']");
-    const radio = selector?.shadowRoot?.querySelector("input[data-intent='gameplay-mode-select'][value='boxing_collider_v1']");
-    required(radio instanceof HTMLInputElement && !radio.disabled, 'Boxing gameplay mode native radio missing');
-    radio.click(); await element.lifecycleIntentTail;
-    required(graph.content.getSnapshot().selectedVariant?.variantId === VARIANT_ID, 'Boxing variant selection did not commit');
+    const radio = selector?.shadowRoot?.querySelector(`input[data-intent='gameplay-mode-select'][value='${variant.rulesetId}']`);
+    if (radio instanceof HTMLInputElement && !radio.disabled) { radio.click(); await element.lifecycleIntentTail; }
+    else required(mode === 'flow' && graph.content.getSnapshot().selectedVariant?.rulesetId === variant.rulesetId, 'scored gameplay mode native radio missing');
+    required(graph.content.getSnapshot().selectedVariant?.variantId === variantId, 'scored variant selection did not commit');
     return graph.content.getSnapshot();
   };
   const setSetup = async changes => {
@@ -161,7 +165,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
   };
   let playStarts = 0;
   const startPlay = async () => {
-    active(); required(graph.content.getSnapshot().selectedVariant?.variantId === VARIANT_ID, 'select the downloaded Boxing chart first');
+    active(); required(graph.content.getSnapshot().selectedVariant?.variantId === variantId, 'select the downloaded scored chart first');
     const previousRequests = state.cameraRequests, previousCvStarts = state.cvStarts, retainedBefore = graph.video.getRetainedCameraStream();
     await element.startSession('play', { requireDownloaded: true });
     element.stopFrameLoop();
@@ -213,14 +217,16 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     if (!(input.calibration.state === 'calibrated' && input.latestEvidence?.provenance === 'measured' && session.purpose === 'play' && session.state === 'playing' && state.audioState === 'playing')) failure('measured Play and audio not ready');
     return { input, session };
   };
-  const seekSong = async songMs => {
+  const seekSong = async (songMs, pose = {}) => {
     active(); required(Number.isFinite(songMs) && songMs >= 0 && songMs < state.durationMs, 'song time outside loaded audio');
     required(graph.gameplay.getSnapshot().session.state === 'playing' && state.audioState === 'playing', 'seek only in active Play');
     const before = graph.gameplay.getSnapshot().session.timelinePositionMs;
     required(songMs > state.audioPositionMs && songMs >= before, 'scored Play clock must advance strictly without rewinding gameplay');
     // Move only the loaded audio device clock, never the gameplay coordinator.
+    // The optional pose is consumed by that SAME time-advancing display frame;
+    // omitting it preserves the original Boxing fixture's default wrists.
     state.audioPositionMs = songMs;
-    const result = feedPose();
+    const result = feedPose(pose);
     const after = result.session.timelinePositionMs;
     required(after >= before && after <= songMs && graph.audio.getClockSnapshot().positionSeconds * 1000 === songMs && result.input.latestEvidence?.provenance === 'measured' && result.input.latestEvidence.measurementTimestampMs === state.pose.timestampMs, 'scored Play did not consume a fresh measured frame on the requested audio clock');
     return result;

@@ -111,18 +111,18 @@ Completion is a between-run state, never an ordinary resumable menu pause. Menu 
 
 ## Portable integrity and exact source pins
 
-Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-web-hash"` link so Vite resolves one audited implementation into both the main Window bundle and the real module Worker bundle. The shared implementation retains native WebCrypto only as an exact fast path and bundles deterministic incremental SHA-1/SHA-256 fallback code; production has no external hash URL, dynamic network acquisition, WASM hashing path, or integrity skip. Exact release fingerprinting binds both recursive source bytes and the following Git commit/tree provenance, rather than trusting lockfile text alone:
+Assembly directly owns the committed `"@aerobeat/web-hash": "file:../aerobeat-web-hash"` link so Vite resolves one audited implementation into both the main Window bundle and the real module Worker bundle. The shared implementation retains native WebCrypto only as an exact fast path and bundles deterministic incremental SHA-1/SHA-256 fallback code; production has no external hash URL, dynamic network acquisition, WASM hashing path, or integrity skip. Current **next-source candidate** reimports Flow charts with simultaneous crossed center notes left-at-2/10 and right-at-1/9 swapped to same-side hands while preserving note cells/directions, in addition to exterior-corner swaps. In scored Flow Play, a swept hilt-to-tip blade contact within the existing window is Great (100 base points), a narrow close noncontact including just behind the hilt is Good (blue, 50 points, combo alive), and everything else is Miss (0, combo broken). Existing hash-bound imported charts require source reimport for new hand mapping; currently served private previews stay unchanged until a separate validated candidate is approved. Exact release fingerprinting binds both recursive source bytes and the following Git commit/tree provenance, rather than trusting lockfile text alone:
 
 | Package | Commit | Tree |
 |---|---|---|
 | `@aerobeat/web-hash` | `be7249b0bdfffcab568b760c1b582bfe2a0c1e92` | `b423c6742c07f56dde196d9f60f2e23c51ad913c` |
 | `@aerobeat/web-vendor-beatsaver` | `5866f8e418e4a0ef11362f9e6c80ebc5a2ad3c3a` | `997e8a476ab9ff04f0197cfa203091c58c865772` |
-| `@aerobeat/web-content-authoring` | `cbf326da364281ab7370e96ea91d67fe643c30d4` | `647b5c9334456adf0f7709fbd9532d7c7f1d8fac` |
+| `@aerobeat/web-content-authoring` | `54db1a1fb4c3dc95d75d69194d8e25a121b729e4` | `3daec05624de32b1dd3cbef545935f112759481d` |
 | `@aerobeat/web-content` | `4963c8609094c7e10dffe65983f69c1c6645e4d3` | `d53b8e592d6c6d8060d59bfd4587f8819a9c24ce` |
 | `@aerobeat/web-audio` | `464fdeff45fc109876a1600f22d3007708d1b07d` | `475fb4134a2d550e62807c93e249bb015d5034be` |
-| `@aerobeat/web-contracts` | `1cb864e9637e97825020bcfaae9f80bfed8a5cee` | `f5a98b55409cc0f171284554660f0b3cdc88d4b6` |
-| `@aerobeat/web-renderer` | `414be6509d42be8e5bcb21ef4a1671cb9e8f0594` | `b76a511cd2690ef21dbe15544c785418ec4e9aa4` |
-| `@aerobeat/web-gameplay` | `553dbcb17f779eac9b1c1eb6dfd0e886a0ff82c1` | `9895da08f89a79c529dbb315c59aaa83b8819b8b` |
+| `@aerobeat/web-contracts` | `5be07a4663eadca836a4278c9e8c1113b2c3b9cb` | `22fc1c772e0639ad2a713d56971281add1bfe2db` |
+| `@aerobeat/web-renderer` | `783931fc0864ba61e2283fe7b0e7f21bb4ea2d60` | `3825415d2eb2e3363d99d3506b414ba4b52264da` |
+| `@aerobeat/web-gameplay` | `bd46ab7e9830afe4ffce4c6bf2fba4dfdf091859` | `771972c0fbe784291dfcb5cd8f3a339142afe58c` |
 | `@aerobeat/web-input` | `b7b6bb901ed58abf0cd9855cb286b02ecc996d18` | `94869a0ace3d483a254ff3b6802c110238ff027c` |
 | `@aerobeat/web-ui` | `dd780cd357670452eca2b719881d93f908d45ee8` | `49f008dcf72ba4cda70bb1e41dd2bcb404ee187c` |
 

@@ -1,0 +1,170 @@
+// @ts-check
+// Representative scored Flow Play, never Visual Test or an exact-song claim.
+// A connected production graph consumes measured CV-seam wrists; only camera,
+// downloaded fixture content and audio device transport are substituted.
+import assert from 'node:assert/strict';
+import { createServer as createHttpServer } from 'node:http';
+import { chromium } from 'playwright';
+import { convertDifficulty, deriveBeatSaberSpawnTiming } from '@aerobeat/web-content-authoring';
+import { createServer as createViteServer } from 'vite';
+
+import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from './readpixels-console-policy.js';
+
+// Source conversion is checked separately from the scored representative Play
+// chart: this fixture does not claim that its notes came from an exact song.
+const sourceNote=(placement,hand,index,direction=8)=>({cell:(2-Math.floor(placement/4))*4+placement%4,hand,start:1,sourceIndex:index,direction});
+const conversionOptions={difficulty:'Easy',songToken:'center-play-fixture',songName:'Center Play Fixture',bpm:120,noteJumpMovementSpeed:10,noteJumpStartBeatOffset:0,spawnTiming:deriveBeatSaberSpawnTiming(120,10,0),sourceProvider:'synthetic',sourceId:'center-play-fixture',sourceVersionHash:'0'.repeat(40),sourceInfoFormat:'v2',sourceInfoVersion:'2.1.0',sourceInfoHash:`sha256:${'0'.repeat(64)}`,sourceDifficultyPath:'Easy.dat',sourceBeatmapFormat:'v3',sourceBeatmapVersion:'3.3.0',sourceDifficultyHash:`sha256:${'0'.repeat(64)}`,notePalette:null};
+for(const [left,right] of [[2,1],[10,9],[10,1],[2,9]]){
+  const converted=await convertDifficulty({colorNotes:[sourceNote(left,'left',0),sourceNote(right,'right',1,2)],bombNotes:[],obstacles:[],sliders:[],burstSliders:[]},conversionOptions);
+  const flow=converted.charts.find(chart=>chart.mode==='flow');
+  assert.deepEqual(flow?.beats.map(beat=>[beat.hand,beat.placement]),[['left',right],['right',left]],`source Flow center L${left}/R${right} maps to player-side hands`);
+  assert.ok(converted.flowTrace&&/^sha256:[0-9a-f]{64}$/.test(String(flow.contentHash))&&/^sha256:[0-9a-f]{64}$/.test(String(converted.packageHash)),`center pair L${left}/R${right} carries converted trace and hash-bound package`);
+}
+const vite=await createViteServer({appType:'spa',configFile:'vite.config.js',logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null}});
+await vite.listen();
+const childUrl=vite.resolvedUrls?.local?.[0];assert(childUrl,'Vite URL unavailable');
+const parent=createHttpServer((_request,response)=>{response.setHeader('content-type','text/html; charset=utf-8');response.end(`<!doctype html><style>html,body{margin:0}iframe{width:844px;height:390px;border:0;display:block}</style><iframe id="game" allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${childUrl}"></iframe>`);});
+await new Promise(resolve=>parent.listen(0,'127.0.0.1',resolve));
+const address=parent.address();assert(address&&typeof address!=='string');
+const parentUrl=`http://localhost:${address.port}/`;
+const browser=await chromium.launch({headless:true});
+try{
+  const matrix=[];
+  for(const embedding of ['direct','genuine_cross_origin_iframe']){
+    const context=await browser.newContext({viewport:embedding==='direct'?{width:844,height:390}:{width:868,height:414},deviceScaleFactor:1});
+    const page=await context.newPage(),noise=[];
+    page.on('console',message=>{const type=message.type(),text=message.text(),location=message.location();if(['warning','error'].includes(type)&&!isExpectedReadPixelsWarning(type,text,location.url,location.lineNumber,location.columnNumber,childUrl)&&!isExpectedPlaycanvasMeshWarning(type,text))noise.push(`${type}:${text}`);});
+    page.on('pageerror',error=>noise.push(`pageerror:${error.message}`));
+    try{
+      await page.goto(embedding==='direct'?childUrl:parentUrl,{waitUntil:'networkidle'});
+      if(embedding!=='direct')assert.notEqual(new URL(parentUrl).origin,new URL(childUrl).origin);
+      const game=embedding==='direct'?page.locator('aero-game'):page.frameLocator('#game').locator('aero-game');await game.waitFor();
+      const result=await game.evaluate(async element=>{
+        const {installScoredPlayHarness,resolveSaberCapsule}=await import('/scripts/fixtures/scored-play-browser-harness.js');
+        // Distinct pre-eligible baseline (center-200), then an eligible measured
+        // pose; late tip also holds a fresh noncontact at center+40 before
+        // crossing at +80. Never sweep through a near/far target.
+        const cases=[
+          {id:'early-hilt',at:6000,path:'hilt',contactAt:-100,expected:'great'},
+          {id:'late-hilt',at:10000,path:'hilt',contactAt:100,expected:'great'},
+          {id:'early-tip',at:14000,path:'tip',contactAt:-80,expected:'great'},
+          {id:'late-tip',at:18000,path:'tip',contactAt:80,expected:'great'},
+          {id:'behind-hilt',at:22000,path:'behind',contactAt:0,expected:'good'},
+          {id:'distant',at:30000,path:'distant',contactAt:0,expected:'miss'},
+          {id:'tail',at:34000,path:'distant',contactAt:0,expected:'pending'}
+        ];
+        const events=cases.map(row=>({schema:'aerobeat/resolved_content_event',version:3,eventId:row.id,centerTimestampMs:row.at,sourceEventIds:[`source-${row.id}`],appearanceColor:'#2693FF',authoredBeat:{type:'note',hand:'left',placement:5,requiresDirection:false}}));
+        const harness=await installScoredPlayHarness(element,{events,mode:'flow',songDurationMs:37000});
+        await harness.waitForAssets();await harness.selectChart();await harness.setSetup({noseMarkerVisible:false});
+        for(const [name,value] of [['spawnDistanceOverrideEnabled',true],['spawnDistanceOverrideWorldUnits',20]]){
+          const input=harness.element.shadowRoot.querySelector(`[data-game-setup-field='${name}']`);
+          if(!(input instanceof HTMLInputElement))throw Error(`Native spawn override ${name} unavailable`);
+          if(input.type==='checkbox'){if(input.checked!==value)input.click();}
+          else{input.focus();input.value=String(value);input.dispatchEvent(new Event('change',{bubbles:true}));input.blur();}
+          await harness.element.lifecycleIntentTail;
+        }
+        await harness.startPlay();await harness.calibrate();
+        const game=harness.element,renderer=harness.graph.renderer;
+        renderer.setEnvironmentVisible(false);renderer.setBackgroundProjection({kind:'solid',colors:['#071426'],angleDeg:180});
+        const wrist=(x,y)=>{const bounds=harness.graph.input.getSnapshot().calibration.bounds;return{x:1-(bounds.left+(x+.5)/4*(bounds.right-bounds.left)),y:bounds.top+(2.5-y)/3*(bounds.bottom-bounds.top)};};
+        const advance=async(time,left,tag)=>{const previous=game.latestPoseTimestampMs;await harness.seekSong(time,{leftWrist:left,rightWrist:wrist(3.4,-.4),nose:{x:.5,y:.2}});const input=harness.graph.input.getSnapshot(),evidence=input.latestEvidence;if(evidence?.provenance!=='measured'||!(evidence.measurementTimestampMs>previous)||evidence.measurementTimestampMs!==game.latestPoseTimestampMs||input.tracking.gameplayPaused||input.tracking.freshCalibrationRequired)throw Error(`${tag}: fresh time-advancing measured Play evidence missing`);};
+        const score=()=>harness.graph.gameplay.getSnapshot().scorePartitions.reduce((sum,part)=>sum+Number(part.score??0),0);
+        const summarize=(pixels,baseline)=>{let changed=0,blue=0,white=0,red=0;for(let i=0;i<pixels.length;i+=4){const r=pixels[i],g=pixels[i+1],b=pixels[i+2],delta=Math.abs(r-baseline[i])+Math.abs(g-baseline[i+1])+Math.abs(b-baseline[i+2]);if(delta<35)continue;changed++;if(b>110&&b>r*1.35&&b>g*1.2)blue++;if(r>155&&g>155&&b>155&&Math.max(r,g,b)-Math.min(r,g,b)<42)white++;if(r>115&&r>g*1.55&&r>b*1.35)red++;}return{changed,blue,white,red};};
+        // This fixed measured scale-two pose keeps the hilt clear while the
+        // distal capsule sphere alone reaches the scaled Flow hit rectangle.
+        const tipPose={x:1.76,y:1};
+        const rows=[];
+        for(const row of cases.slice(0,-1)){
+          const pre=score(),outside=wrist(-.4,-.4),tipOutside=wrist(3.4,1),position=row.path==='hilt'?wrist(1.35,1):row.path==='tip'?wrist(tipPose.x,tipPose.y):row.path==='behind'?wrist(1,1.72):wrist(3.4,0);
+          await advance(row.at-200,row.path==='tip'?tipOutside:row.path==='behind'?position:outside,`${row.id} pre-eligible baseline`);
+          if(row.path==='tip'){
+            const baseline=harness.graph.gameplay.getSnapshot();
+            if(baseline.judgements.some(j=>j.eventId===row.id))throw Error(`${row.id}: noncontact baseline already judged`);
+            const restingBlade=resolveSaberCapsule(game.currentEquipmentPoses[0]);
+            if(!(restingBlade.start.x>2&&restingBlade.end.x>2))throw Error(`${row.id}: baseline blade not safely outside target: ${JSON.stringify(restingBlade)}`);
+          }
+          if(row.id==='late-hilt'){
+            await advance(row.at+40,outside,`${row.id} fresh post-center noncontact`);
+            if(harness.graph.gameplay.getSnapshot().judgements.some(j=>j.eventId===row.id))throw Error(`${row.id}: hilt contacted before the post-center approach`);
+          }
+          if(row.id==='late-tip'){
+            await advance(row.at+40,tipOutside,`${row.id} fresh post-center noncontact`);
+            if(harness.graph.gameplay.getSnapshot().judgements.some(j=>j.eventId===row.id))throw Error(`${row.id}: contact occurred before post-center tip approach`);
+            const restingBlade=resolveSaberCapsule(game.currentEquipmentPoses[0]);
+            if(!(restingBlade.start.x>2&&restingBlade.end.x>2))throw Error(`${row.id}: post-center fresh pose contacted target: ${JSON.stringify(restingBlade)}`);
+          }
+          await advance(row.at+row.contactAt,position,`${row.id} crossing`);
+          const contact=harness.graph.gameplay.getSnapshot(),equipment=game.currentEquipmentPoses;
+          if(equipment.length!==2||renderer.describe().equipment.assetMode!=='glb'||equipment[0].mode!=='flow')throw Error(`${row.id}: measured real saber GLBs absent`);
+          const blade=resolveSaberCapsule(equipment[0]);
+          if(row.path==='hilt'&&!(Math.abs(blade.start.x-1.35)<.01&&Math.abs(blade.start.y-1)<.01))throw Error(`${row.id}: measured hilt differs from named path: ${JSON.stringify(blade)}`);
+          let hiltEvidence=null;
+          if(row.path==='hilt'){
+            const judgement=contact.judgements.find(j=>j.eventId===row.id),offset=judgement?.timingOffsetMs;
+            if(!(judgement?.result==='hit'&&Number.isFinite(offset)&&
+              (row.id==='early-hilt'?offset<0:offset>40&&offset<=100)))throw Error(`${row.id}: actual hilt contact timing differs from named early/late state: ${JSON.stringify(judgement)}`);
+            hiltEvidence={firstContactMs:row.at+offset,hitDepthHalf:offset<0?'front':'back'};
+          }
+          if(row.path==='behind'){
+            // The nearest point of the RAW cell (not its smaller hit collider)
+            // lies behind the hilt along the actual resolved blade axis.
+            const nearest={x:Math.max(.5,Math.min(1.5,blade.start.x)),y:Math.max(.5,Math.min(1.5,blade.start.y))};
+            const behindDot=(nearest.x-blade.start.x)*(blade.end.x-blade.start.x)+(nearest.y-blade.start.y)*(blade.end.y-blade.start.y);
+            if(!(blade.start.y>1.5&&blade.start.y<1.75&&behindDot<-.01))throw Error(`${row.id}: measured Good not geometrically behind the hilt: ${JSON.stringify({blade,nearest,behindDot})}`);
+          }
+          let tipEvidence=null;
+          if(row.path==='tip'){
+            const placement=events.find(event=>event.eventId===row.id)?.authoredBeat.placement;
+            const locked=game.activeSessionSetup,volume=locked?.flowColliderVolume;
+            if(!locked||locked!==game.desiredGameSetup||!volume||!Number.isFinite(volume.colliderScale)||placement!==5)throw Error(`${row.id}: run-locked Flow collider authority or placement missing`);
+            // Canonical 4×3 placement 5 has center (1,1) and raw half-size
+            // (.5,.5). Production colliderScale shrinks both XY half-sizes.
+            const centerX=placement%4,centerY=2-Math.floor(placement/4),half=.5*volume.colliderScale;
+            const bounds={minX:centerX-half,maxX:centerX+half,minY:centerY-half,maxY:centerY+half};
+            const distance=point=>Math.hypot(Math.max(bounds.minX-point.x,0,point.x-bounds.maxX),Math.max(bounds.minY-point.y,0,point.y-bounds.maxY));
+            const startDistance=distance(blade.start),endDistance=distance(blade.end);
+            if(!(startDistance>blade.radius&&endDistance<=blade.radius&&blade.end.x<blade.start.x))throw Error(`${row.id}: distal-only measured saber contact invalid: ${JSON.stringify({blade,bounds,startDistance,endDistance,volume})}`);
+            const judgement=contact.judgements.find(j=>j.eventId===row.id);
+            // Gameplay's recorded timingOffsetMs is the actual earliest swept
+            // contact (recordJudgementAt receives swept.firstContactMs), not
+            // the later display frame's crossing timestamp.
+            const timingOffsetMs=judgement?.timingOffsetMs;
+            if(!(judgement?.result==='hit'&&Number.isFinite(timingOffsetMs)&&
+              (row.id==='early-tip'?timingOffsetMs<0:timingOffsetMs>=0&&timingOffsetMs>40&&timingOffsetMs<=80)))throw Error(`${row.id}: actual first swept contact not in intended temporal half: ${JSON.stringify(judgement)}`);
+            tipEvidence={wrist:{x:tipPose.x,y:tipPose.y},blade,bounds,startDistance,endDistance,radius:blade.radius,firstContactMs:row.at+timingOffsetMs,hitDepthHalf:timingOffsetMs<0?'front':'back'};
+          }
+          if(row.expected==='great'&&contact.judgements.find(j=>j.eventId===row.id)?.result!=='hit')throw Error(`${row.id}: real scored blade contact did not hit: ${JSON.stringify({judgements:contact.judgements,equipment,session:contact.session,input:harness.graph.input.getSnapshot().latestEvidence?.anchors?.filter(a=>a.anchor==='left_wrist'),history:contact.saberWristHistory,frame:game.rendererFrame().targets.filter(t=>t.id===row.id),setup:game.desiredGameSetup.enforceAuthoredDirection})}`);
+          if(row.expected!=='great'&&row.path!=='behind')await advance(row.at+190,position,`${row.id} near deadline`);
+          if(row.expected==='miss')await advance(row.at+1001,position,`${row.id} full deadline`);
+          const current=harness.graph.gameplay.getSnapshot(),judgement=current.judgements.find(j=>j.eventId===row.id),delta=score()-pre;
+          const frame=game.rendererFrame(),full=harness.capture();
+          const feedback=renderer.feedbackPool.filter(entry=>entry.root.enabled).map(entry=>({text:entry.text,texture:entry.quad.findComponents('render')[0]?.meshInstances?.[0]?.material?.diffuseMap?.name??null}));
+          const icon=renderer.lastModel.objects.find(object=>object.kind==='icon'&&object.targetId===row.id);
+          const assetEntities=icon?[...(renderer.assetPools.get(icon.assetId)??[])].filter(entity=>entity.enabled):[];
+          const tinted=assetEntities.flatMap(entity=>(renderer.assetMaterials.get(entity)??[]).map(record=>record.meshInstance.material.diffuse)).some(color=>color.b>color.r+.05);
+          if((row.expected==='good'||row.expected==='miss')&&assetEntities.length===0)throw Error(`${row.id}: real target GLB pool missing at scored feedback: ${JSON.stringify({judgement,nowMs:frame.nowMs,targets:frame.targets.filter(t=>t.id===row.id),icon,feedback,model:renderer.lastModel.objects.filter(o=>o.targetId===row.id),assetState:renderer.describe().gameplayAssets})}`);
+          renderer.renderGameplayFrameWithCursorsAndEquipment({...frame,targets:frame.targets.filter(target=>target.id!==row.id)},[],null,equipment,null);
+          const baseline=harness.capture();const pixels=summarize(full.pixels,baseline.pixels);
+          renderer.renderGameplayFrameWithCursorsAndEquipment(frame,[],null,equipment,null);
+          if(!judgement||judgement.tier!==row.expected||judgement.result!==(row.expected==='great'?'hit':'miss'))throw Error(`${row.id}: wrong actual scored Play judgement ${JSON.stringify(judgement??null)}`);
+          const expectedCombo=row.expected==='miss'?0:rows.length+1;
+          if(current.scorePartitions.at(-1)?.combo!==expectedCombo)throw Error(`${row.id}: Good/Great must keep combo; Miss breaks it: ${JSON.stringify(current.scorePartitions)}`);
+          const multiplier=expectedCombo>=8?8:expectedCombo>=4?4:expectedCombo>=2?2:1;
+          const expectedScore=(row.expected==='great'?100:row.expected==='good'?50:0)*multiplier;
+          if(delta!==expectedScore)throw Error(`${row.id}: wrong base score/multiplier: ${JSON.stringify({delta,expectedScore,expectedCombo,multiplier})}`);
+          const label=row.expected==='great'?'Great':row.expected==='good'?'Good':'Miss';
+          if(!feedback.some(item=>item.text===label&&item.texture?.toLowerCase().includes(label.toLowerCase()))||pixels.changed<15)throw Error(`${row.id}: ${label} texture absent from real scored frame: ${JSON.stringify({feedback,pixels})}`);
+          if(row.expected==='great'&&pixels.white<15)throw Error(`${row.id}: Great white feedback absent from real GLB framebuffer: ${JSON.stringify(pixels)}`);
+          if(row.expected==='good'&&(!judgement.diagnostics.includes('near_timing')||icon?.appearanceColor!=='#2693FF'||!tinted||pixels.blue<15))throw Error(`${row.id}: blue Good feedback/GLB missing: ${JSON.stringify({judgement,feedback,icon,pixels})}`);
+          if(row.expected==='miss'&&(icon?.appearanceColor!=='#2a3038'||pixels.red<15))throw Error(`${row.id}: full Miss must gray icon and draw red feedback: ${JSON.stringify({icon,pixels})}`);
+          rows.push({id:row.id,result:judgement.result,tier:judgement.tier,scoreDelta:delta,combo:current.scorePartitions.at(-1)?.combo??null,feedback,pixels,icon:icon?.assetId??null,...(hiltEvidence?{hiltEvidence}:{}),...(tipEvidence?{tipEvidence}:{})});
+        }
+        harness.dispose();return rows;
+      });
+      assert.deepEqual(noise,[],`${embedding}: browser noise`);
+      matrix.push({embedding,rows:result});
+    }finally{await context.close();}
+  }
+  assert.deepEqual(matrix[0].rows.map(({id,result,tier,scoreDelta})=>({id,result,tier,scoreDelta})),matrix[1].rows.map(({id,result,tier,scoreDelta})=>({id,result,tier,scoreDelta})));
+  console.log(`ORACLE scored-flow-contact-pixels PASS ${JSON.stringify(matrix)}`);
+}finally{await browser.close();await vite.close();await new Promise(resolve=>parent.close(resolve));}
