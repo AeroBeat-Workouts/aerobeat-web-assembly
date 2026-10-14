@@ -38,6 +38,13 @@ src/phone-cv-marker-baseline.js
 src/phone-cv-marker-window.js
 src/phone-cv-marker-service.js
 scripts/write-phone-cv-marker-bundle-manifest.js
+vite.phone-cv-gpu.config.js
+dist-phone-cv-gpu-experiment/
+src/phone-cv-gpu-experiment.js
+src/private-experimental-cv-service.js
+scripts/write-phone-cv-gpu-bundle-manifest.js
+scripts/validate-private-experimental-cv-service.js
+scripts/validate-phone-cv-gpu-browser.js
 scripts/validate-phone-cv-marker-window.js
 scripts/validate-phone-cv-marker-browser.js
 vite.phone-hit.config.js
