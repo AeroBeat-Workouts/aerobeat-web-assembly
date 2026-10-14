@@ -57,7 +57,17 @@ let browser;
 try{browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});{
 const ordinary=await browser.newContext({viewport:{width:390,height:844}});try{const ordinaryPage=await ordinary.newPage();const ordinaryUrl=new URL(target);ordinaryUrl.search='';const response=await ordinaryPage.goto(ordinaryUrl.href,{waitUntil:'domcontentloaded'});assert.equal(response?.status(),200,'INVALID SETUP: normal phone page unavailable');await ordinaryPage.waitForFunction(()=>document.querySelector('#state')?.textContent!=='Camera not ready.',null,{timeout:10000});assert.equal(await ordinaryPage.evaluate(()=>Object.hasOwn(window,'__aerobeatCvMarkerQa')),false,'normal nonpreview page must expose no QA calibration/overlay seam');}finally{await ordinary.close();}}
 for(const embedding of ['direct','genuine_cross_origin_iframe']){const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1,hasTouch:true,acceptDownloads:true});const page=await context.newPage(),errors=[],messages=[],events=[];page.on('pageerror',error=>errors.push(error.message));await page.exposeBinding('__qaPublished',(_source,type,payload)=>(type==='message'?messages:events).push(payload));await page.addInitScript(()=>{window.addEventListener('message',event=>window.__qaPublished('message',JSON.stringify(event.data)));window.addEventListener('aero-game-event',event=>window.__qaPublished('event',JSON.stringify(event.detail)));});try{
-const response=await page.goto(embedding==='direct'?target.href:parentUrl,{waitUntil:'domcontentloaded'});assert.equal(response?.status(),200);const frame=embedding==='direct'?page:await page.frameLocator('iframe').owner().then(async()=>{await page.frameLocator('iframe').locator('#state').waitFor({timeout:30000});return page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url().startsWith(target.origin));});assert(frame,`INVALID SETUP ${embedding}: served child missing`);if(embedding!=='direct')assert.notEqual(new URL(frame.url()).origin,new URL(page.url()).origin);
+const response=await page.goto(embedding==='direct'?target.href:parentUrl,{waitUntil:'domcontentloaded'});assert.equal(response?.status(),200);
+let frame=page;
+if(embedding!=='direct'){
+  const owner=page.frameLocator('iframe').owner();
+  await owner.waitFor({state:'attached',timeout:30000});
+  assert.equal(await owner.getAttribute('src'),target.href,`${embedding}: exact already-served iframe URL`);
+  await page.frameLocator('iframe').locator('#state').waitFor({timeout:30000});
+  frame=page.frames().find(candidate=>candidate!==page.mainFrame()&&candidate.url()===target.href);
+  assert(frame,`INVALID SETUP ${embedding}: exact served child frame missing`);
+  assert.notEqual(new URL(frame.url()).origin,new URL(page.url()).origin,`${embedding}: genuinely cross-origin child`);
+}
 const status=frame.locator('#state'),start=frame.locator('#start'),download=frame.locator('#download');assert.equal(await frame.locator('aero-game').count(),0,'no game component');assert.match(await status.innerText(),/not ready|camera|loading|permission|T-pose/iu,`${embedding}: named not-ready/loading state`);assert(await start.isDisabled()&&await download.isHidden(),`${embedding}: controls gated`);
 await frame.waitForFunction(()=>{const v=document.querySelector('#camera');return v?.srcObject?.getVideoTracks()[0]?.readyState==='live'&&v.readyState>=2&&v.videoWidth>0&&v.videoHeight>0&&typeof v.requestVideoFrameCallback==='function';},null,{timeout:30000}).catch(cause=>{throw new Error(`INVALID SETUP ${embedding}: real fake-device camera not live`,{cause});});
 // Controller must expose a test-owned native-input calibration seam (not a
