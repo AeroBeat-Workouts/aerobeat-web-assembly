@@ -44,6 +44,22 @@ Related files/components: src/private-experimental-cv-service.js, src/phone-cv-g
 Remaining uncertainty: physical phone rVFC behavior/actual 60-second throughput; video presentation identity is not distinct sensor exposure.
 ```
 
+## First signed-build failure diagnosis before retry
+
+**Exact observed failure:** first `npm run build:phone-cv-gpu-result` at committed `e8a351d` transformed zero modules, then Vite `closeBundle` raised `CV GPU experiment build requires clean committed source: @aerobeat/web-assembly`, exit 1. **Expected:** start and close clean-source guards both pass, then sidecar signs all 12 emitted files. **Execution path:** Vite started while the tree was clean, service coder extended the deterministic startup-null unit *during* the build, `closeBundle` re-ran `git status` and refused to bless changed source. **Leading root cause verified:** only `M scripts/validate-private-result-scheduled-cv-service.js` appeared in `git status`; diff narrows initial-null wait from 220 to 150ms and preserves the test's intent; `.gitignore` correctly ignores new output. **Alternatives contradicted:** unignored new dist would show `?? dist-phone-cv-gpu-result-experiment/` (none), linked source/MediaPipe drift would fail a different guard, Vite syntax would fail transformation. **Previous attempts:** first build only, no relaxation of guards or retry before diagnosis. **Unknown:** whether committing this final late unit edit makes a full clean build pass; rebuild and full signed sidecar verification answer. **Minimal reproduction:** while a Vite build is between buildStart and closeBundle, edit its tracked unit file; clean source guard correctly stops release. **Proposed verification:** after coder settles, run direct unit and diff check, commit/push the final test-only delta with this plan, verify `git status` clean, rebuild once and check sidecar/source SHA/12 assets. **Recommended correction:** retain strict guard; never sign while collaborators edit shared worktree. Recheck project normal/unit/browser gates on the final committed source, not the aborted partial output.
+
+```text
+Problem: Source-clean signed build was interrupted by an in-flight coder test edit.
+Observed symptom: Vite closeBundle requires clean committed source, zero-module aborted first build.
+Root cause: one tracked deterministic startup-null unit changed after e8a351d commit during Vite run.
+Evidence: exact sole M script path, narrow timing assertion diff, new output properly gitignored.
+Failed approaches: first build only; no code workaround attempted.
+Corrective action: wait for coder settlement; commit/push latest unit/plan, rebuild on clean tree.
+Verification test: successful guarded clean build and exact complete 12-asset signed sidecar, then served browser QA.
+Related files/components: scripts/validate-private-result-scheduled-cv-service.js, Vite clean guard, Bead kpk9.
+Remaining uncertainty: full signed output/browser startup after the final source commit.
+```
+
 ## Delegation checkpoint
 
 Verified three independently running direct subagents: scheduler coder `d674dfca-7a06-456b-b804-d2c4e2687b6e` owns only private service and deterministic unit under Bead kpk9; page/build coder `435549b3-0f50-4352-852d-d37a4199008f` owns only separate GPU-paced page/config/manifest/package/docs under is1s; independent browser QA `9fa7ecad-3e75-4938-a503-51f53fd140f4` owns only a new named project gate under ozyv. All inspect README/plan, claim Bead and avoid commits until parent integrates clean source. Independent auditor `e5c3a931-5ac9-4932-9969-8636c7ed4ede` verified running for Bead 2wr0 with read-only preflight now; final verdict awaits signed source/QA and ≥65s egress check. Route dc7c remains unclaimed pending GO. Tailnet8455 still points to immutable old GPU4196, Play8454 unchanged, Funnel off. Friend Bead me1h remains deferred.

@@ -102,14 +102,14 @@ try {
   await retry.cv.dispose();
   clock = 0;
   const beforeFirstCallback = setup(); beforeFirstCallback.setPresentedFrameId(null);
-  await beforeFirstCallback.cv.start(beforeFirstCallback.source); await advance(220);
-  assert.equal(beforeFirstCallback.starts.length, 0, 'initial null waits for the first video callback');
+  await beforeFirstCallback.cv.start(beforeFirstCallback.source); await advance(150);
+  assert.equal(beforeFirstCallback.starts.length, 0, 'initial null waits for the first video callback while the clock advances');
   assert.equal(beforeFirstCallback.cv.getStatus().lifecycleState, 'running');
   assert.equal(timers.size, 1, 'initial null uses a single bounded retry');
-  beforeFirstCallback.setPresentedFrameId(1); await advance(290);
+  beforeFirstCallback.setPresentedFrameId(1); await advance(220);
   assert.equal(beforeFirstCallback.starts.length, 1, 'first presented frame resumes admission');
   beforeFirstCallback.finish(); await flush();
-  beforeFirstCallback.setPresentedFrameId(null); await advance(370);
+  beforeFirstCallback.setPresentedFrameId(null); await advance(300);
   assert.equal(beforeFirstCallback.cv.getStatus().lifecycleState, 'error', 'identity loss after admission fails closed');
   assert.equal(beforeFirstCallback.cv.getStatus().submittedFrameCount, 1);
   assert.equal(timers.size, 0);
