@@ -265,7 +265,6 @@ try {
       const liveWorkers = page.workers().filter(worker => new URL(worker.url()).origin === target.origin);
       const cvWorkers = liveWorkers.filter(worker => workerPaths.includes(new URL(worker.url()).pathname.slice(1)) && /mediapipe/iu.test(worker.url()));
       assert.equal(cvWorkers.length,1,`${journey}: one live signed MediaPipe Worker (failed GPU replaced on CPU path)`);
-      assert(setup.poseCount > 0 && setup.submissions >= setup.poseCount,`${journey}: actual Worker produced poses from admitted frames`);
       if (embedding === "direct" && !force) {
         const probeUrl="https://example.invalid/aerobeat-csp-probe";
         assert.equal(await frame.evaluate(url => fetch(url).then(()=>false,()=>true),probeUrl),true,"document CSP actively blocks third-party fetch");
@@ -283,6 +282,7 @@ try {
         while(performance.now()<deadline && !graph.cv.getLatestPoseFrame())await wait(35);
         const initial=graph.cv.getStatus(), initialFrame=graph.cv.getLatestPoseFrame();
         if (!initial.running || !initialFrame?.sourceId || !element.lastCameraIdentity || element.menuOpen) throw Error(`INVALID SETUP: native synthetic stimulus requires live CV frame, camera identity, closed menu: ${JSON.stringify({running:initial.running,frame:Boolean(initialFrame),poseCount:initial.poseFrameCount,camera:Boolean(element.lastCameraIdentity),menu:element.menuOpen})}`);
+        if (!(initial.poseFrameCount > 0 && initial.submittedFrameCount >= initial.poseFrameCount)) throw Error(`INVALID SETUP: actual selected Worker must produce poses from admitted frames after bounded real pose wait: ${JSON.stringify({submitted:initial.submittedFrameCount,poses:initial.poseFrameCount})}`);
         const sourceId=initialFrame.sourceId, cameraIdentity=element.lastCameraIdentity, surface=graph.video.describeSurface(element.videoElement());
         if (!(surface.sourceAspectRatio>0)) throw Error("INVALID SETUP: camera aspect unavailable");
         const graphIdentity=graph;
