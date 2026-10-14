@@ -75,7 +75,18 @@ function cameraKey(){const t=stream?.getVideoTracks()[0],s=t?.getSettings()??{};
 // A synthetic browser fixture may reach unchanged native calibration only in
 // the explicitly invalid QA preview. Normal physical-phone pages expose no seam.
 if(preview)Object.defineProperty(window,'__aerobeatCvMarkerQa',{value:Object.freeze({
-  getNativeInput:()=>input,getCvStatus:()=>cv?.getStatus(),getLatestPose:()=>cv?.getLatestPoseFrame(),getCameraIdentity:()=>cameraIdentity
+  getNativeInput:()=>input,getCvStatus:()=>cv?.getStatus(),getLatestPose:()=>cv?.getLatestPoseFrame(),getCameraIdentity:()=>cameraIdentity,
+  renderFixtureMarkers:()=>{
+    // Synchronous local DOM projection only: no adapter, input or recorder mutation.
+    // The real checkerboard Worker has zero human landmarks; this tests CSS mapping,
+    // not whether it detects a person. Only the invalid ?preview=1 mode has this hook.
+    if(!input||!cameraLive()||!calibrated())return false;
+    return renderMarkers({landmarks:[
+      {name:'left_wrist',x:.35,y:.48,confidence:.99},
+      {name:'right_wrist',x:.65,y:.48,confidence:.99},
+      {name:'nose',x:.50,y:.32,confidence:.99}
+    ]},input.getSnapshot()).valid;
+  }
 }),configurable:false,enumerable:false});
 function refresh(){startButton.disabled=disposed||phase!=='waiting'||!cameraLive()||!cvLive()||!calibrated()||!provenance;
   if(phase==='waiting'&&!lastReport)state.textContent=provenanceFailure?'Bundle manifest failed; physical reports unavailable.':!cameraLive()?'Allow the camera; loading video…':!cvLive()?'Loading CPU-WASM pose Worker…':!calibrated()?snapshot()?.tracking?.anchorsFrozen?'Tracking lost: hold still until wrists and nose recover.':'Hold a T-pose for calibration, then release.':'Ready. Tap Measure to record camera + CV markers.';
@@ -95,7 +106,12 @@ function frame(now){
     const next=input.processPoseSample(pose,{sourceAspectRatio:video.videoWidth/video.videoHeight,sourceChangeId:cameraIdentity});
     const processed=next!==before;
     const evidence=next.latestEvidence;
-    const valid=processed && calibrated() && next.tracking.allRequiredAnchorsVisible && !next.tracking.anchorsFrozen && evidence?.provenance==='measured';
+    const visibleMeasured=Object.values(markerNames).every(name=>{
+      const item=pose.landmarks?.find(landmark=>landmark.name===name);
+      const projected=item?.confidence>=.5 && markerCoverPosition(item,video.videoWidth,video.videoHeight,stage.clientWidth,stage.clientHeight);
+      return projected && projected.x>=0 && projected.x<=stage.clientWidth && projected.y>=0 && projected.y<=stage.clientHeight;
+    });
+    const valid=processed && calibrated() && next.tracking.allRequiredAnchorsVisible && !next.tracking.anchorsFrozen && evidence?.provenance==='measured' && visibleMeasured;
     const held=processed && next.tracking.anchorsFrozen===true;
     const telemetry=cv.getPerformanceSample();
     if(phase==='measuring')observer.pose(status,pose.timestampMs,telemetry.runtimeInferenceDurationMs,telemetry.estimateDurationMs,processed,valid,held);

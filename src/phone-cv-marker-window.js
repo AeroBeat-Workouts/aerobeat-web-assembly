@@ -61,7 +61,7 @@ export function createPhoneCvMarkerWindow() {
     const submitted = base ? delta(status?.submittedFrameCount,base.submitted) : null;
     const poses = base ? delta(status?.poseFrameCount,base.poses) : null;
     const drops = base ? delta(status?.droppedFrameCount,base.dropped) : null;
-    const reason = invalidReason || (base && [submitted,poses,drops].some(v=>v===null) ? 'counter_reset' : null) || (ended !== null && !cameraFrames ? 'no_camera_frames' : null) || (ended !== null && !poses ? 'no_poses' : null);
+    const reason = invalidReason || (base && [submitted,poses,drops].some(v=>v===null) ? 'counter_reset' : null) || (ended !== null && !cameraFrames ? 'no_camera_frames' : null) || (ended !== null && !poses ? 'no_poses' : null) || (ended !== null && !valid ? 'no_valid_markers' : null);
     const rate = n => n !== null && durationMs > 0 ? round(n*1000/durationMs) : null;
     return {schema:'aerobeat/private_phone_cv_marker_window',version:1,purpose:'camera_cv_marker_baseline',valid:!reason,invalidReason:reason,durationMs,
       counts:{cameraUniqueMediaFrames:count(cameraFrames),cvSubmitted:submitted,cvPoses:poses,cvBusyDrops:drops,nativeFreshInput:count(fresh),freshValidMarkers:count(valid),freshHeldMarkers:count(held),markerPresentationFrames:count(presentationFrames)},
