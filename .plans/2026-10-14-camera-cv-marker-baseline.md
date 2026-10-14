@@ -110,6 +110,28 @@ Related files/components: phone-cv-marker-baseline.html, src/phone-cv-marker-bas
 Remaining uncertainty: which geometry component changes and whether native calibration persists through a full fake window.
 ```
 
+## Evidence after geometry fix
+
+Normal `npm test` and clean 15-repo `npm run build:phone-cv-marker` passed on `0458b4d` (12 emitted files, no 3D/game/audio assets). Independent coder repeated the **same** unit in a disposable detached worktree on that exact commit: fixed PASS; mirror-only production mutation produced exit 1, `AssertionError: mirrored cover crop`, X actual 224 versus expected 256; restored fixed PASS. Worktree/log removed; main clean. This confirms the named geometry unit actually protects the mirror. Independent QA's named ready/warmup/measuring stage-stability assertion now runs in `npm run test:phone-cv-marker-browser` (not in normal `npm test` because it needs an already-served real Worker/camera and exact asset parity). Local direct+genuine cross-origin/browser and private HTTPS reruns remain pending; no physical throughput inferred.
+
+## Debug record: genuine iframe QA orchestration error
+
+**Observed:** final local source-clean `0458b4d` direct browser QA **PASS**: 12/12 SHA-256 served assets, real camera/Worker/native-input positives, calibrated test-only T-pose, synthetic-overlay mirrored-cover CSS, stable geometry, 4-second inner `no_valid_markers` and outer invalid phone preview. The same oracle stopped before the iframe journey with `TypeError: page.frameLocator(...).owner(...).then is not a function` at `scripts/validate-phone-cv-marker-browser.js:60`. It is a **test implementation error**, not proof that iframe camera or Worker failed. **Expected:** locate iframe DOM owner via `await page.frameLocator('iframe').owner()` or wait on locator and select `page.frames()` by exact target origin. **Path:** test loop enters `genuine_cross_origin_iframe`, loads a real localhost parent, evaluates ternary frame expression, calls `.owner()` (Playwright Locator), then tries `.then` on Locator instead of on a Promise, throwing before `#state` or camera tests. **Root cause:** incorrect Playwright API chaining, not backend/camera. Alternatives (iframe blocked permissions, cross-origin security) cannot yet be ruled in/out because no iframe test ran; fix orchestration and rerun. No previous change addressed this API use; direct QA is green but not a substitute for iframe.
+
+**Verification first:** inspect `typeof page.frameLocator('iframe').owner().waitFor` in the installed Playwright API or compare the old Play QA oracle, then replace chain with awaited locator `.waitFor({state:'attached'})` followed by `page.frameLocator('iframe').locator('#state').waitFor(...)` and frame lookup; same parent URL/source. Rerun exact 12/12 hash local QA direct+genuine iframe and classify any later iframe-specific error independently. Do not weaken privacy gates.
+
+```text
+Problem: cross-origin QA path throws before iframe state checks.
+Observed symptom: TypeError owner(...).then is not a function at browser oracle line60, direct path PASS.
+Root cause: FrameLocator.owner() returns Locator, not a Promise; test tries Promise .then on it.
+Evidence: exact code and TypeError; direct loop finished before iframe branch.
+Failed approaches: none for this API bug; geometry/layout fix resolved separate direct path.
+Corrective action: await Locator.waitFor then frameLocator child waitFor, select genuine child frame.
+Verification test: source-clean local exact direct and iframe browser gate, HTTP and later HTTPS.
+Related files/components: scripts/validate-phone-cv-marker-browser.js; Playwright iframe locator API.
+Remaining uncertainty: iframe camera permission/worker/fixture through real cross-origin host after selector is fixed.
+```
+
 ## References and boundaries
 
 - Play report and diagnosis: `.plans/2026-10-14-phone-play-cv-throughput-diagnostic.md`, Bead `uexs` still open.
