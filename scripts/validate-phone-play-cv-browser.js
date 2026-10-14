@@ -239,7 +239,8 @@ try {
       assert.equal(report.valid,false, "QA preview is never green physical-performance evidence");
       assert.equal(report.invalidReason,"qa_preview_not_phone_evidence");
       assert(report.window.durationMs > 0 && report.window.durationMs <= 10000, "bounded short observed Play window");
-      assert(report.window.counts.cvSubmitted !== null && report.window.counts.cvPoses !== null && report.window.counts.sceneFrames !== null, "real Play scalar counters sampled, not mock values");
+      assert.equal(report.window.valid, true, `${embedding}: inner Play measurement must be valid even though QA preview is never physical evidence: ${report.window.invalidReason}`);
+      for (const name of ["cameraUniqueMediaFrames", "cvSubmitted", "cvPoses", "sceneFrames", "freshPoseConsumptions", "freshProcessedEquipment"]) assert(report.window.counts[name] > 0, `${embedding}: real Play ${name} must increment in measured window: ${JSON.stringify(report.window.counts)}`);
       assert(!/(?:"(?:landmarks|coordinates|poseX|deviceId|deviceLabel|audioBytes|songName|songId|chartId|sessionId|calibrationId|sourceId|eventId|frameBytes|videoFrame|screenshot|mediaTime|presentedFrames|rawFrames|perFrame|timestampMs)"|QA Deterministic Silence)/iu.test(bytes.toString("utf8")), `${embedding}: aggregate-only JSON privacy`);
       const published=JSON.stringify({publicMessages,publicEvents});
       // The ordinary public game snapshot may contain the existing release
