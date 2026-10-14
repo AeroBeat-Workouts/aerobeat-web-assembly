@@ -16,7 +16,8 @@ const rawUrl = process.env.AEROBEAT_PLAY_CV_QA_URL;
 assert(rawUrl, "INVALID SETUP: AEROBEAT_PLAY_CV_QA_URL must name an already-served distinct private build");
 const target = new URL(rawUrl);
 assert.equal(target.pathname, "/phone-play-cv-test.html", "INVALID SETUP: wrong private diagnostic page");
-assert(["http:", "https:"].includes(target.protocol) && !target.username && !target.password && !target.search && !target.hash, "INVALID SETUP: exact private page URL required");
+assert(["http:", "https:"].includes(target.protocol) && !target.username && !target.password && (target.search === "" || target.search === "?preview=1") && !target.hash, "INVALID SETUP: exact private page URL or ?preview=1 QA route required");
+assert.equal(target.search, "?preview=1", "INVALID SETUP: short browser journey requires ?preview=1; default 60s is physical-only");
 assert(target.protocol === "https:" || ["127.0.0.1", "localhost"].includes(target.hostname), "INVALID SETUP: camera needs HTTPS or loopback");
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 const keys = (object, expected, label) => { assert(object && typeof object === "object" && !Array.isArray(object), `${label}: object`); assert.deepEqual(Object.keys(object).sort(), expected.slice().sort(), `${label}: exact allowlist`); };
@@ -75,15 +76,17 @@ const chart = new TextEncoder().encode(JSON.stringify({ _version:"2.0.0", _event
 const fixtureSha256 = digest(chart);
 const validateStats = (value, label) => { keys(value, ["count", "p50", "p95"], label); count(value.count, 2048, `${label}.count`); scalar(value.p50, 120000, `${label}.p50`); scalar(value.p95, 120000, `${label}.p95`); };
 const validateReport = report => {
-  keys(report, ["schema", "version", "purpose", "packageVersion", "build", "valid", "window"], "download");
+  keys(report, ["schema", "version", "purpose", "packageVersion", "build", "valid", "invalidReason", "window"], "download");
   assert.equal(report.schema, "aerobeat/private_phone_play_cv_report"); assert.equal(report.version, 1); assert.equal(report.purpose, "play");
   assert.equal(report.packageVersion, manifest.sourceManifest.packageVersion);
+  assert.equal(report.valid, false, "QA preview report is never phone evidence");
+  assert.equal(report.invalidReason, "qa_preview_not_phone_evidence");
   keys(report.build, ["stamp", "bundleManifestSha256"], "build");
   assert.equal(report.build.stamp, manifest.buildStamp); assert.equal(report.build.bundleManifestSha256, digest(manifestBytes));
   const w = report.window;
   keys(w, ["schema", "version", "purpose", "valid", "invalidReason", "durationMs", "counts", "ratesFps", "camera", "inferenceMs", "endToEndMs", "poseAgeMs", "sceneIntervalMs"], "window");
   assert.equal(w.schema, "aerobeat/private_phone_play_cv_window"); assert.equal(w.version, 1); assert.equal(w.purpose, "play");
-  assert.equal(report.valid, w.valid); assert.equal(typeof w.valid, "boolean");
+  assert.equal(typeof w.valid, "boolean");
   assert(w.invalidReason === null || ["not_started", "hidden", "session_changed", "not_playing", "cv_lost", "camera_lost", "geometry_changed", "counter_reset", "no_poses", "no_camera_frames", "callback_unavailable", "disposed"].includes(w.invalidReason));
   assert.equal(w.valid, w.invalidReason === null);
   scalar(w.durationMs, 60000, "durationMs");
@@ -129,6 +132,7 @@ try {
       await frame.waitForFunction(() => document.querySelector("aero-game")?.graph?.renderer?.describe?.().gameplayAssets?.state === "ready", null, { timeout:30000 });
       assert.match(await status.innerText(), /Load a chart|Checking private build identity/u, `${embedding}: named not-ready state`);
       assert(await start.isDisabled() && await download.isHidden(), `${embedding}: not-ready buttons gated`);
+      assert.match(await start.innerText(), /QA preview \(not phone evidence\)/u, `${embedding}: explicit preview-only UI`);
       const imported = await game.evaluate(async (element, chartBytes) => {
         const wav = seconds => { const rate=8000,len=rate*seconds*2,buffer=new ArrayBuffer(44+len),view=new DataView(buffer);const text=(offset,value)=>{for(let i=0;i<value.length;i++)view.setUint8(offset+i,value.charCodeAt(i));};text(0,"RIFF");view.setUint32(4,36+len,true);text(8,"WAVEfmt ");view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,1,true);view.setUint32(24,rate,true);view.setUint32(28,rate*2,true);view.setUint16(32,2,true);view.setUint16(34,16,true);text(36,"data");view.setUint32(40,len,true);return new Uint8Array(buffer);};
         const difficulty=Uint8Array.from(chartBytes),audio=wav(120),info=new TextEncoder().encode("{}");
@@ -172,17 +176,15 @@ try {
       const button = await start.boundingBox(); assert(button && button.width >= 40 && button.height >= 40);
       // No simulated click: touch must carry trusted user activation.
       await page.touchscreen.tap(button.x+button.width/2, button.y+button.height/2);
-      await frame.waitForFunction(() => /Play warmup/u.test(document.querySelector("#play-cv-state")?.textContent ?? ""), null, { timeout:5000 });
-      assert.match(await status.innerText(), /Play warmup · 3 seconds/u, `${embedding}: warmup UI`);
-      await frame.waitForFunction(() => /Recording Play/u.test(document.querySelector("#play-cv-state")?.textContent ?? ""), null, { timeout:7000 });
+      await frame.waitForFunction(() => /QA warmup/u.test(document.querySelector("#play-cv-state")?.textContent ?? ""), null, { timeout:5000 });
+      assert.match(await status.innerText(), /QA warmup · not sustained phone evidence/u, `${embedding}: warmup UI`);
+      await frame.waitForFunction(() => /Recording Play/u.test(document.querySelector("#play-cv-state")?.textContent ?? ""), null, { timeout:5000 });
       assert(await start.isDisabled(), `${embedding}: measurement cannot restart`);
       assert.match(await status.innerText(), /Recording Play/u, `${embedding}: measuring UI`);
-      // No sixty-second physical wait: document visibility invalidates the
-      // active window. Do not modify production gameplay, CV, scorer or clock.
-      // Report valid=false is expected synthetic lifecycle proof, not FPS data.
-      await frame.evaluate(() => { Object.defineProperty(document, "hidden", { configurable:true, get:()=>true }); document.dispatchEvent(new Event("visibilitychange")); });
-      await frame.waitForFunction(() => /Window invalid/u.test(document.querySelector("#play-cv-state")?.textContent ?? ""), null, { timeout:5000 });
-      assert.match(await status.innerText(), /Window invalid/u, `${embedding}: invalid state`);
+      // Wait for the controller's real four-second QA timer, not the default
+      // sixty-second phone window. No production clock/CV/scorer manipulation.
+      await frame.waitForFunction(() => /QA preview complete/u.test(document.querySelector("#play-cv-state")?.textContent ?? ""), null, { timeout:7000 });
+      assert.match(await status.innerText(), /QA preview complete\. JSON is not sustained phone evidence/u, `${embedding}: invalid QA preview state`);
       assert(await download.isVisible() && await download.isEnabled(), `${embedding}: invalid JSON downloadable`);
       assert.match(await download.innerText(), /Download tracking JSON/u, `${embedding}: named download control`);
       const box=await download.boundingBox(); assert(box && box.width>=40 && box.height>=40 && box.x>=0 && box.y>=0 && box.x+box.width<=390 && box.y+box.height<=844, `${embedding}: visible touch target`);
@@ -192,13 +194,15 @@ try {
       assert.equal(file.suggestedFilename(), "aerobeat-private-play-tracking-v1.json");
       const bytes=await readFile(await file.path()); assert(bytes.length>100 && bytes.length<=16384);
       const report=JSON.parse(new TextDecoder("utf-8", {fatal:true}).decode(bytes)); validateReport(report);
-      assert.equal(report.valid,false, "short invalid synthetic measurement is never green performance evidence");
-      assert.equal(report.window.invalidReason,"hidden");
+      assert.equal(report.valid,false, "QA preview is never green physical-performance evidence");
+      assert.equal(report.invalidReason,"qa_preview_not_phone_evidence");
+      assert(report.window.durationMs > 0 && report.window.durationMs <= 10000, "bounded short observed Play window");
+      assert(report.window.counts.cvSubmitted !== null && report.window.counts.cvPoses !== null && report.window.counts.sceneFrames !== null, "real Play scalar counters sampled, not mock values");
       assert(!/(?:"(?:landmarks|coordinates|poseX|deviceId|deviceLabel|audioBytes|songName|songId|chartId|sessionId|calibrationId|sourceId|eventId|frameBytes|videoFrame|screenshot|mediaTime|presentedFrames|rawFrames|perFrame|timestampMs)"|QA Deterministic Silence)/iu.test(bytes.toString("utf8")), `${embedding}: aggregate-only JSON privacy`);
       const published=JSON.stringify({publicMessages,publicEvents});
       assert(!published.includes(manifest.buildStamp) && !published.includes(report.build.bundleManifestSha256) && !published.includes("private_phone_play_cv") && !published.includes("cameraUniqueMediaFrames") && !published.includes("freshValidEquipmentPairs"), `${embedding}: diagnostic never leaks through public events/iframe messages`);
       assert.equal(errors.length,0, `${embedding}: browser errors ${JSON.stringify(errors)}`);
-      console.log(`PASS ${embedding}: real Worker chart + real MediaPipe Play, named not-ready/ready/warmup/measuring/invalid/download; short synthetic report INVALID as expected; fixture SHA-256=${fixtureSha256}`);
+      console.log(`PASS ${embedding}: real Worker chart + real MediaPipe Play, named not-ready/ready/warmup/measuring/invalid/download; four-second QA preview report valid=false (not phone evidence); fixture SHA-256=${fixtureSha256}`);
     } finally { await context.close(); }
   }
 } finally { await browser?.close(); await new Promise(done => parent.close(done)); }
