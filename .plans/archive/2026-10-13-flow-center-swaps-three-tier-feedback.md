@@ -10,6 +10,8 @@ Connected scored Play proof is complete: fixed wrist `(1.76,1)` keeps the hilt .
 
 The isolated private build from clean pushed assembly `0a20a82` is served at loopback 4192 and Tailnet HTTPS 8453; it does not replace old previews. Parent and independent QA byte-compared served HTML, JS, Worker and genuine GLBs to the artifact and exercised Worker chart import, enabled Start and visible Test PlayCanvas GLBs in Chromium. HTTPS is a secure context with available camera API, but **actual camera authorization/calibration, served scored Play, the exact song and physical-phone FPS remain unverified**. Independent auditor GO WITH FOLLOW-UPS applies only to this private candidate; full normal browser gate remains non-green at separate `uyf6`.
 
+**2026-10-14 phone feedback (Derrick):** Beat slicing in Test mode on the candidate discussed here had no perceptible performance hiccup on his phone. This is qualitative physical Test feedback, not an FPS measurement or evidence that camera-backed Play mode is performant or playable. It does not resolve the separate headless DPR3 cadence failure `uyf6`; no test threshold or source behavior changed in response.
+
 ## Approved product contract
 
 - Top-left 4×3 cells are `0 1|2 3`, `4 5|6 7`, `8 9|10 11`. At **exactly simultaneous** Flow start times, exchange only hands of the four crossed center pairs: `L2/R1→L1/R2`, `L10/R9→L9/R10`, `L10/R1→L1/R10`, `L2/R9→L9/R2`. Leave cell, arrow/“any” direction, timing, source lineage and hashes coherent. Keep all existing exterior-corner swaps, stable chord pairing, already-correct `L1/R2` and `L9/R10`, and time-offset pairs. Existing signed downloads are not mutated: reimport source charts to get new conversions.
