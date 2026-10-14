@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { mediaPipeDefaultModelSha256,mediaPipeDefaultModelSizeBytes } from '@aerobeat/web-vendor-mediapipe';
 import { createPrivateGameplayCvService } from '../src/private-gameplay-cv.js';
 
 const graphSource = readFileSync(new URL('../src/service-graph.js', import.meta.url), 'utf8');
@@ -43,11 +44,23 @@ for (const [mode,path,query] of [
   assert.equal(result.candidateOptions[0]?.qaGpuInitFailure ?? false,false,'non-QA routes cannot force GPU startup failure');
 }
 
+// The test fails if either delegate silently regresses to vendor CDN defaults.
+const browserOrigin='https://private-candidate.example:8456';
+const previousLocation=globalThis.location;
+globalThis.location={origin:browserOrigin};
+function assertLocalAssets(options) {
+  assert.equal(options.modelUrl,`${browserOrigin}/assets/mediapipe/pose_landmarker_lite.task`);
+  assert.equal(options.modelSha256,mediaPipeDefaultModelSha256);
+  assert.equal(options.modelSizeBytes,mediaPipeDefaultModelSizeBytes);
+  assert.equal(options.wasmRootUrl,`${browserOrigin}/assets/mediapipe/wasm`);
+  assert.equal(options.tasksVisionScriptUrl,`${browserOrigin}/assets/mediapipe/vision_bundle.js`);
+  for (const url of [options.modelUrl,options.wasmRootUrl,options.tasksVisionScriptUrl]) assert.equal(new URL(url).origin,browserOrigin);
+}
 const deferred = () => { let resolve; const promise = new Promise(done => {resolve=done}); return {promise,resolve}; };
 function fixture({gpuFailure = false,gpuDisposeFailure = false,cpuFailure = false, gatedGpu = false} = {}) {
   const calls = [], gate = deferred(), instances = [];
   const cv = createPrivateGameplayCvService({
-    createAdapter(options) { calls.push(`adapter:${options.delegate}`); return {delegate:options.delegate}; },
+    createAdapter(options) { assertLocalAssets(options);calls.push(`adapter:${options.delegate}`); return {delegate:options.delegate}; },
     createService({poseAdapter,selectedDelegate,schedulingMode,submissionCadenceTargetFps}) {
       assert.equal(poseAdapter.delegate,selectedDelegate);
       assert.equal(schedulingMode,'after-result');assert.equal(submissionCadenceTargetFps,15);
@@ -100,7 +113,7 @@ const qa=fixture();
 // GPU never loads or admits a pose; the CPU service is a newly constructed Worker.
 const qaCv=createPrivateGameplayCvService({
   qaGpuInitFailure:true,
-  createAdapter(options){qa.calls.push(`adapter:${options.delegate}`);return {delegate:options.delegate};},
+  createAdapter(options){assertLocalAssets(options);qa.calls.push(`adapter:${options.delegate}`);return {delegate:options.delegate};},
   createService({selectedDelegate}) {const service={running:false,async start(){qa.calls.push(`start:${selectedDelegate}`);this.running=true;},async stop(){this.running=false;},async dispose(){qa.calls.push(`dispose:${selectedDelegate}`);},getStatus(){return {running:this.running,providerId:this.running?selectedDelegate:null,schedulingMode:'after-result'};},getLatestPoseFrame(){},getPerformanceSample(){return {};},submitFrame(){},nextPoseFrame(){throw Error('after-result');}};return service;}
 });
 await qaCv.start(source);
@@ -134,4 +147,5 @@ assert.equal(replaced.cv.getStatus().providerId,'gpu-webgl','camera replacement 
 assert.equal(replaced.calls.filter(call=>call==='start:gpu-webgl').length,2,'the new source starts the same selected GPU Worker');
 assert.equal(replaced.calls.includes('adapter:cpu-wasm'),false,'source replacement cannot select a fresh CPU');
 await replaced.cv.dispose();
+globalThis.location=previousLocation;
 console.log('actual graph define/default identity, candidate GPU-first startup-only fresh CPU fallback and source-A/B replacement passed');

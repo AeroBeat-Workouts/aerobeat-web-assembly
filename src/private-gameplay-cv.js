@@ -1,6 +1,6 @@
 // @ts-check
 
-import { createMediaPipeWorkerPoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId } from "@aerobeat/web-vendor-mediapipe";
+import { createMediaPipeWorkerPoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId, mediaPipeDefaultModelSha256, mediaPipeDefaultModelSizeBytes } from "@aerobeat/web-vendor-mediapipe";
 import { createPrivateExperimentalCvService } from "./private-experimental-cv-service.js";
 import { lockedProductionCvProfile } from "./production-cv-profile.js";
 
@@ -25,8 +25,17 @@ export function createPrivateGameplayCvService(options = {}) {
   /** @type {Promise<void>|null} */ let disposal = null;
 
   function makeService(delegate) {
+    // The candidate's signed assets are served from the origin root, not relative
+    // to the document path (or the Worker script). No CDN fallback under self CSP.
+    const origin = globalThis.location?.origin;
+    if (typeof origin !== "string" || !/^https?:\/\//u.test(origin) || new URL(origin).origin !== origin)
+      throw new Error("Private gameplay CV requires a browser origin for local MediaPipe assets");
     const poseAdapter = createAdapter({
       sourceId: mediaPipeLiveSourceId, mirrored: true, delegate,
+      modelUrl: new URL("/assets/mediapipe/pose_landmarker_lite.task", origin).href,
+      modelSha256: mediaPipeDefaultModelSha256, modelSizeBytes: mediaPipeDefaultModelSizeBytes,
+      wasmRootUrl: new URL("/assets/mediapipe/wasm", origin).href,
+      tasksVisionScriptUrl: new URL("/assets/mediapipe/vision_bundle.js", origin).href,
       minPoseDetectionConfidence: lockedProductionCvProfile.minPoseDetectionConfidence,
       minPosePresenceConfidence: lockedProductionCvProfile.minPosePresenceConfidence,
       minTrackingConfidence: lockedProductionCvProfile.minTrackingConfidence
