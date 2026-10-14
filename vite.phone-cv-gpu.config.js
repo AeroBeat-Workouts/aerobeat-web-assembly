@@ -108,6 +108,13 @@ export default {
     closeBundle() { assertCleanBuild(); }
   }],
   server: { host: "127.0.0.1", port: 5196, strictPort: true, allowedHosts: ["derrick-legion-go-8apu1.tail613fcb.ts.net"], fs: { strict: true, allow: [rootPath, ...packages.map(({ path }) => path)] } },
-  preview: { host: "127.0.0.1", port: 4196, strictPort: true, allowedHosts: ["derrick-legion-go-8apu1.tail613fcb.ts.net"] },
+  // The pinned vendor graph contains a logger capable of third-party POSTs.
+  // Apply connect-src on EVERY static response: a dedicated Worker uses the
+  // policy on its own script, not the HTML document's policy.
+  preview: { host: "127.0.0.1", port: 4196, strictPort: true, allowedHosts: ["derrick-legion-go-8apu1.tail613fcb.ts.net"], headers: {
+    "Content-Security-Policy": "connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff"
+  } },
   build: { outDir: "dist-phone-cv-gpu-experiment", assetsInlineLimit: 0, rollupOptions: { input: fileURLToPath(new URL("phone-cv-marker-baseline.html", root)) } }
 };

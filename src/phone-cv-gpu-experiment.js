@@ -61,7 +61,10 @@ function stopWindow(reason){
     if(!observer){phase='waiting';state.textContent=`${delegateLabel()} · recorder unavailable. Retry when ready.`;refresh();return;}
     if(reason)observer.invalidate(reason);
     let cvStatus=null;try{cvStatus=cv?.getStatus();}catch{/* CV has failed; preserve invalid reason */}
-    const window=observer.stop(performance.now(),cvStatus);
+    const measuredWindow=observer.stop(performance.now(),cvStatus);
+    // Keep the exact scalar recorder, but do not mislabel a GPU window as the
+    // original CPU camera baseline when a consumer inspects it on its own.
+    const window=Object.freeze({...measuredWindow,schema:'aerobeat/private_phone_cv_gpu_window',purpose:'camera_cv_gpu_first_experiment'});
     const verified=typeof provenance?.sha256==='string' && /^[0-9a-f]{64}$/.test(provenance.sha256);
     const invalidReason=preview?'qa_preview_not_phone_evidence':fallback?'gpu_fallback':!verified?'unverified_build':window.invalidReason;
     lastReport=Object.freeze({schema:'aerobeat/private_phone_cv_gpu_experiment_report',version:1,purpose:'camera_cv_gpu_first_experiment',packageVersion:PACKAGE_VERSION,

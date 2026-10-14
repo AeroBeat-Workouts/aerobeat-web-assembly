@@ -25,6 +25,8 @@ const keys=(value,names,label)=>{assert(value&&typeof value==='object'&&!Array.i
 const bounded=(value,max,label)=>assert(Number.isSafeInteger(value)&&value>=0&&value<=max,`${label}: bounded integer`);
 const scalar=(value,max,label)=>assert(value===null||typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=max,`${label}: finite bounded number or null`);
 const sha=value=>typeof value==='string'&&/^[a-f0-9]{64}$/u.test(value);
+const csp=response=>{const policy=response.headers.get('content-security-policy');assert(policy&&/(?:^|;)\s*connect-src\s+'self'\s*(?:;|$)/u.test(policy),`${response.url}: exact connect-src 'self' CSP required`);assert.equal(response.headers.get('referrer-policy'),'no-referrer',`${response.url}: no-referrer required`);return policy;};
+const externalCspProbeUrl='https://example.invalid/aerobeat-csp-probe';
 const manifestBytes=await readFile(resolve(build,'phone-cv-gpu-bundle-manifest.json')).catch(cause=>{throw new Error('INVALID SETUP: local clean GPU bundle sidecar unavailable',{cause});});
 assert(manifestBytes.length>128&&manifestBytes.length<=128000,'INVALID SETUP: bounded local sidecar');
 const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(manifestBytes));
@@ -38,13 +40,15 @@ for(const [name,pin] of Object.entries(source.sources)){assert(/^@aerobeat\/web-
 assert.equal(manifest.buildStamp,`PHONE-CV-GPU-FIRST-${source.packageVersion}-${hash(Buffer.from(JSON.stringify(source))).slice(0,24)}`);
 assert(Array.isArray(manifest.assets)&&manifest.assets.length===12,'exact full GPU asset inventory');
 const paths=manifest.assets.map(item=>item.path);assert.equal(new Set(paths).size,paths.length);
-assert(paths.includes('phone-cv-marker-baseline.html')&&paths.some(path=>/^assets\/.*worker.*\.js$/iu.test(path))&&paths.some(path=>/^assets\/mediapipe\/.*\.task$/u.test(path))&&paths.some(path=>/^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(path))&&paths.some(path=>/^assets\/.*\.js$/u.test(path)),'HTML/JS/Worker/WASM/model inventory');
+const workerPaths=paths.filter(path=>/^assets\/.*worker.*\.js$/iu.test(path));
+assert(paths.includes('phone-cv-marker-baseline.html')&&workerPaths.length===1&&paths.some(path=>/^assets\/mediapipe\/.*\.task$/u.test(path))&&paths.some(path=>/^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(path))&&paths.some(path=>/^assets\/.*\.js$/u.test(path)),'HTML/JS/exact dedicated Worker/WASM/model inventory');
 assert(!paths.some(path=>/\.glb$|^assets\/(?:gameplay|environments|audio)\//iu.test(path)),'no scene models, game or audio assets');
 async function inventory(directory,prefix=''){const entries=await readdir(directory,{withFileTypes:true});return (await Promise.all(entries.map(async entry=>{const path=prefix?`${prefix}/${entry.name}`:entry.name;assert(entry.isFile()||entry.isDirectory(),`INVALID SETUP: nonregular output ${path}`);return entry.isDirectory()?inventory(resolve(directory,entry.name),path):[path];}))).flat();}
 assert.deepEqual((await inventory(build)).filter(path=>path!=='phone-cv-gpu-bundle-manifest.json').sort(),paths.slice().sort(),'INVALID SETUP: sidecar includes every emitted file');
-const verified=new Map();
-for(const item of manifest.assets){keys(item,['path','bytes','sha256'],'asset');assert(typeof item.path==='string'&&/^(?:phone-cv-marker-baseline\.html|favicon\.ico|assets\/[A-Za-z0-9._/-]+)$/u.test(item.path)&&!item.path.split('/').some(part=>!part||part==='.'||part==='..'),`safe path ${item.path}`);bounded(item.bytes,100_000_000,item.path);assert(item.bytes>0&&sha(item.sha256));const local=await readFile(resolve(build,item.path));assert.equal(local.length,item.bytes,`${item.path} local size`);assert.equal(hash(local),item.sha256,`${item.path} local hash`);const response=await fetch(new URL(`/${item.path}`,target),{cache:'no-store'});assert.equal(response.status,200,`${item.path} served response`);const remote=Buffer.from(await response.arrayBuffer());assert.equal(remote.length,item.bytes,`${item.path} served size`);assert.equal(hash(remote),item.sha256,`${item.path} served SHA-256`);verified.set(item.path,remote);}
-const servedSidecar=await fetch(new URL('/phone-cv-gpu-bundle-manifest.json',target),{cache:'no-store'});assert.equal(servedSidecar.status,200,'served GPU sidecar');assert.equal(hash(Buffer.from(await servedSidecar.arrayBuffer())),hash(manifestBytes),'served complete sidecar SHA-256');
+const verified=new Map(),policies=new Map();
+for(const item of manifest.assets){keys(item,['path','bytes','sha256'],'asset');assert(typeof item.path==='string'&&/^(?:phone-cv-marker-baseline\.html|favicon\.ico|assets\/[A-Za-z0-9._/-]+)$/u.test(item.path)&&!item.path.split('/').some(part=>!part||part==='.'||part==='..'),`safe path ${item.path}`);bounded(item.bytes,100_000_000,item.path);assert(item.bytes>0&&sha(item.sha256));const local=await readFile(resolve(build,item.path));assert.equal(local.length,item.bytes,`${item.path} local size`);assert.equal(hash(local),item.sha256,`${item.path} local hash`);const response=await fetch(new URL(`/${item.path}`,target),{cache:'no-store'});assert.equal(response.status,200,`${item.path} served response`);policies.set(item.path,csp(response));const remote=Buffer.from(await response.arrayBuffer());assert.equal(remote.length,item.bytes,`${item.path} served size`);assert.equal(hash(remote),item.sha256,`${item.path} served SHA-256`);verified.set(item.path,remote);}
+const servedSidecar=await fetch(new URL('/phone-cv-gpu-bundle-manifest.json',target),{cache:'no-store'});assert.equal(servedSidecar.status,200,'served GPU sidecar');csp(servedSidecar);assert.equal(hash(Buffer.from(await servedSidecar.arrayBuffer())),hash(manifestBytes),'served complete sidecar SHA-256');
+assert.equal(policies.get(workerPaths[0]),policies.get('phone-cv-marker-baseline.html'),'actual dedicated Worker and document must carry the same connect-src self CSP');
 const html=verified.get('phone-cv-marker-baseline.html').toString('utf8');assert(/GPU-first \/ CPU fallback CV marker experiment/u.test(html),'experiment visibly labeled in built HTML');assert(!/<aero-game\b|playcanvas/iu.test(html),'no game or PlayCanvas in HTML');assert(!html.includes('/src/phone-cv-marker-baseline.js')&&!html.includes('/src/phone-cv-gpu-experiment.js'),'built entry, not source');assert(paths.some(path=>path.endsWith('.js')&&html.includes(`/${path}`)),'hashed entry loaded');
 for(const [path,bytes] of verified)if(path.endsWith('.js'))assert(!/<aero-game\b|playcanvas|@aerobeat\/web-gameplay|@aerobeat\/web-audio/iu.test(bytes.toString('utf8')),`${path}: no game/PlayCanvas/audio chunk`);
 assert([...verified].some(([path,bytes])=>path.endsWith('.js')&&bytes.includes(Buffer.from(manifest.buildStamp))),'source stamp in built entry');
@@ -58,12 +62,14 @@ function validateReport(report,selected){
   keys(report.build,['stamp','bundleManifestSha256'],'build');assert.equal(report.build.stamp,manifest.buildStamp);assert.equal(report.build.bundleManifestSha256,hash(manifestBytes));
   keys(report.delegate,['requested','selected','fallback','fallbackReason'],'delegate');assert.equal(report.delegate.requested,'gpu-webgl');assert.equal(report.delegate.selected,selected);assert.equal(report.delegate.fallback,selected==='cpu-wasm');assert.equal(report.delegate.fallbackReason,selected==='cpu-wasm'?'gpu_init_failed':null);
   const w=report.window;keys(w,['schema','version','purpose','valid','invalidReason','durationMs','counts','ratesFps','camera','inferenceMs','roundtripMs','displayWeightedPoseAgeMs'],'window');
-  assert.equal(w.schema,'aerobeat/private_phone_cv_marker_window');assert.equal(w.version,1);assert.equal(w.purpose,'camera_cv_marker_baseline');assert.equal(w.valid,false,'checkerboard has no human landmarks; inner marker window must not pass');assert.equal(w.invalidReason,'no_valid_markers');
+  assert.equal(w.schema,'aerobeat/private_phone_cv_gpu_window');assert.equal(w.version,1);assert.equal(w.purpose,'camera_cv_gpu_first_experiment');assert.equal(w.valid,false,'checkerboard has no human landmarks; inner marker window must not pass');assert.equal(w.invalidReason,'no_valid_markers');
   scalar(w.durationMs,10000,'durationMs');assert(w.durationMs>=3500,'actual measured 4-second preview window');
   keys(w.counts,['cameraUniqueMediaFrames','cvSubmitted','cvPoses','cvBusyDrops','nativeFreshInput','freshValidMarkers','freshHeldMarkers','markerPresentationFrames'],'counts');
   for(const [name,value] of Object.entries(w.counts))bounded(value,10_000_000,`counts.${name}`);
   for(const name of ['cameraUniqueMediaFrames','cvSubmitted','cvPoses','nativeFreshInput','markerPresentationFrames'])assert(w.counts[name]>0,`INVALID SETUP: real measured ${name} missing`);
-  assert.equal(w.counts.freshValidMarkers,0,'checkerboard has zero valid measured wrists/nose');assert.equal(w.counts.freshHeldMarkers,0,'checkerboard has zero held measured wrists/nose');
+  assert.equal(w.counts.freshValidMarkers,0,'checkerboard has zero valid measured wrists/nose');
+  // Native frozen-anchor held counts can arise from the synthetic calibration fixture; they are NOT real human landmarks or visible dots.
+  assert(w.counts.freshHeldMarkers<=w.counts.nativeFreshInput,'fixture-held native samples bounded by fresh input; not real human markers');
   keys(w.ratesFps,['denominatorMs','cameraUnique','cvSubmitted','cvPoses','nativeFreshInput','markerPresentation'],'rates');assert.equal(w.ratesFps.denominatorMs,w.durationMs);
   for(const [name,value] of Object.entries(w.ratesFps))scalar(value,name==='denominatorMs'?10000:100000,`rates.${name}`);
   keys(w.camera,['width','height','configuredFrameRateFps'],'camera');scalar(w.camera.width,16384,'camera.width');scalar(w.camera.height,16384,'camera.height');scalar(w.camera.configuredFrameRateFps,240,'configured FPS');
@@ -75,13 +81,31 @@ await new Promise(done=>parent.listen(0,'localhost',done));const address=parent.
 let browser;
 try{
   browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']});
+  // Assert CSP on every actual served response (including Worker), and prove
+  // document fetch rejection without contacting an external host. The real
+  // vendor Worker exposes no QA fetch message; Playwright evaluates directly
+  // inside the actual live dedicated Worker after GPU initialization.
+  const probe=await browser.newContext({viewport:{width:390,height:844}}),blocked=[];
+  const external=externalCspProbeUrl;
+  try{
+    await probe.route('**/aerobeat-csp-probe',route=>{blocked.push(route.request().url());return route.fulfill({status:204});});
+    const page=await probe.newPage(),response=await page.goto(target.href,{waitUntil:'domcontentloaded'});
+    assert.equal(response?.status(),200,'probe document response');
+    assert(/(?:^|;)\s*connect-src\s+'self'\s*(?:;|$)/u.test(response.headers()['content-security-policy']??''),'document CSP connect-src self');
+    const result=await page.evaluate(external=>fetch(external,{mode:'cors'}).then(()=>false,()=>true),external);
+    assert.equal(result,true,'document third-party fetch blocked by CSP');
+    assert.deepEqual(blocked,[],'CSP-blocked request never reaches network interceptor');
+  }finally{await probe.close();}
   const ordinary=await browser.newContext({viewport:{width:390,height:844}});
   try{const normal=await ordinary.newPage();const normalUrl=new URL(target);normalUrl.search='';const response=await normal.goto(normalUrl.href,{waitUntil:'domcontentloaded'});assert.equal(response?.status(),200,'INVALID SETUP: normal phone experiment unavailable');assert.equal(await normal.evaluate(()=>Object.hasOwn(window,'__aerobeatCvMarkerQa')),false,'normal nonpreview page exposes no QA calibration/overlay/delegate seam');assert.match(await normal.title(),/GPU-first/iu);}finally{await ordinary.close();}
   for(const embedding of ['direct','genuine_cross_origin_iframe'])for(const force of [false,true]){
     const label=`${embedding} ${force?'forced_init_failure':'GPU_first'}`,url=force?forced:target;
     const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:1,hasTouch:true,acceptDownloads:true});
-    const page=await context.newPage(),errors=[],messages=[],events=[];
+    const page=await context.newPage(),errors=[],messages=[],events=[],networkEscapes=[];
+    // Observe browser requests without modifying the product's network or Worker.
+    context.on('request',request=>{const url=request.url();if(/^https?:/u.test(url)&&new URL(url).origin!==target.origin&&new URL(url).origin!==new URL(parentUrl).origin)networkEscapes.push(url);});
     page.on('pageerror',error=>errors.push(error.message));
+    if(embedding==='direct'&&!force){await context.route('**/aerobeat-csp-probe',route=>{networkEscapes.push(route.request().url());return route.fulfill({status:204});});}
     await page.exposeBinding('__qaPublished',(_source,type,payload)=>(type==='message'?messages:events).push(payload));
     await page.addInitScript(()=>{window.addEventListener('message',event=>window.__qaPublished('message',JSON.stringify(event.data)));window.addEventListener('aero-game-event',event=>window.__qaPublished('event',JSON.stringify(event.detail)));});
     try{
@@ -129,6 +153,15 @@ try{
       else if(selected==='gpu-webgl'){assert(capability.webgl2,`${label}: GPU selected without browser WebGL2 capability`);assert.equal(calibration.delegate.fallback,false);assert.equal(calibration.delegate.fallbackReason,null);}
       else{assert.equal(calibration.delegate.fallback,true,`${label}: genuine unsupported/failed GPU initialization must label CPU fallback`);assert.equal(calibration.delegate.fallbackReason,'gpu_init_failed');}
       console.log(`${label}: WebGL2=${capability.webgl2}, selected=${selected}, adapterActual=${calibration.delegate.actualDelegate}, executionProvider=${calibration.delegate.provider}; Worker poses ${calibration.before}→${calibration.after}; synthetic native T-pose ONLY`);
+      if(embedding==='direct'&&!force&&selected==='gpu-webgl'){
+        assert.equal(context.serviceWorkers().length,0,`${label}: no service worker may intercept the probe`);
+        const liveWorkers=page.workers();assert.equal(liveWorkers.length,1,`${label}: exactly one active dedicated Worker`);
+        assert.equal(new URL(liveWorkers[0].url()).origin,target.origin,`${label}: Worker served by experiment origin`);
+        assert.equal(new URL(liveWorkers[0].url()).pathname,`/${workerPaths[0]}`,`${label}: Worker URL matches signed asset`);
+        const blocked=await liveWorkers[0].evaluate(url=>fetch(url,{mode:'cors'}).then(()=>false,()=>true),externalCspProbeUrl);
+        assert.equal(blocked,true,`${label}: actual GPU Worker third-party fetch blocked under Worker CSP`);
+        assert.deepEqual(networkEscapes,[],`${label}: probe did not reach network interception`);
+      }
       await frame.waitForFunction(()=>document.querySelector('#start')?.disabled===false,null,{timeout:5000});assert.match(await status.innerText(),/ready/iu,`${label}: ready state`);
       const overlay=await frame.evaluate(()=>{const qa=window.__aerobeatCvMarkerQa,before=qa.getCvStatus(),returned=qa.renderFixtureMarkers(),after=qa.getCvStatus(),video=document.querySelector('#camera'),stage=document.querySelector('#stage');return {returned,before:{submitted:before.submittedFrameCount,poses:before.poseFrameCount},after:{submitted:after.submittedFrameCount,poses:after.poseFrameCount},dots:[...document.querySelectorAll('.marker')].map(dot=>({role:dot.dataset.role,hidden:dot.hidden,left:dot.style.left,top:dot.style.top,display:getComputedStyle(dot).display})),stage:{width:stage.clientWidth,height:stage.clientHeight},video:{width:video.videoWidth,height:video.videoHeight,transform:getComputedStyle(video).transform,objectFit:getComputedStyle(video).objectFit}};});
       assert.equal(overlay.returned,true,`${label}: CSS fixture projection only`);assert.deepEqual(overlay.after,overlay.before,`${label}: CSS fixture cannot alter real Worker counts`);assert.equal(overlay.video.objectFit,'cover');assert.notEqual(overlay.video.transform,'none');assert.deepEqual(overlay.dots.map(dot=>dot.role).sort(),['left','nose','right']);const scale=Math.max(overlay.stage.width/overlay.video.width,overlay.stage.height/overlay.video.height);for(const dot of overlay.dots){assert.equal(dot.hidden,false,`${label} ${dot.role}: fixture dot visible`);assert.notEqual(dot.display,'none');const point={left:{x:.35,y:.48},right:{x:.65,y:.48},nose:{x:.5,y:.32}}[dot.role];const x=overlay.stage.width/2+(.5-point.x)*overlay.video.width*scale,y=overlay.stage.height/2+(point.y-.5)*overlay.video.height*scale;assert(Math.abs(Number.parseFloat(dot.left)-x)<.06&&Math.abs(Number.parseFloat(dot.top)-y)<.06,`${label} ${dot.role}: mirrored cover position`);}
@@ -143,7 +176,7 @@ try{
       const transfer=page.waitForEvent('download',{timeout:15000});await page.touchscreen.tap(downloadBox.x+downloadBox.width/2,downloadBox.y+downloadBox.height/2);const file=await transfer;assert.equal(file.suggestedFilename(),'aerobeat-camera-cv-gpu-experiment-v1.json');
       const bytes=await readFile(await file.path());assert(bytes.length>100&&bytes.length<=16384);const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes),report=JSON.parse(text);validateReport(report,selected);
       assert(!/(?:(?:"(?:landmarks|coordinates|poseX|deviceId|deviceLabel|audioBytes|songName|songId|chartId|sessionId|calibrationId|sourceId|eventId|frameBytes|videoFrame|screenshot|mediaTime|presentedFrames|rawFrames|perFrame|timestampMs)"))/iu.test(text),`${label}: aggregate-only report`);
-      assert.deepEqual(messages,[],`${label}: no public/cross-origin messages`);assert.deepEqual(events,[],`${label}: no public game events`);assert.equal(errors.length,0,`${label}: browser errors ${JSON.stringify(errors)}`);
+      assert.deepEqual(messages,[],`${label}: no public/cross-origin messages`);assert.deepEqual(events,[],`${label}: no public game events`);assert.deepEqual(networkEscapes,[],`${label}: no document/Worker third-party network request`);assert.equal(errors.length,0,`${label}: browser errors ${JSON.stringify(errors)}`);
       console.log(`PASS ${label}: selected real ${selected} Worker; inner no_valid_markers; outer preview invalid; no public messages`);
     }finally{await context.close();}
   }
