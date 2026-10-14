@@ -72,6 +72,11 @@ function checkWindow(){
   return null;
 }
 function cameraKey(){const t=stream?.getVideoTracks()[0],s=t?.getSettings()??{};return [video.videoWidth,video.videoHeight,s.width,s.height,s.frameRate,s.facingMode].join('|');}
+// A synthetic browser fixture may reach unchanged native calibration only in
+// the explicitly invalid QA preview. Normal physical-phone pages expose no seam.
+if(preview)Object.defineProperty(window,'__aerobeatCvMarkerQa',{value:Object.freeze({
+  getNativeInput:()=>input,getCvStatus:()=>cv?.getStatus(),getLatestPose:()=>cv?.getLatestPoseFrame(),getCameraIdentity:()=>cameraIdentity
+}),configurable:false,enumerable:false});
 function refresh(){startButton.disabled=disposed||phase!=='waiting'||!cameraLive()||!cvLive()||!calibrated()||!provenance;
   if(phase==='waiting'&&!lastReport)state.textContent=provenanceFailure?'Bundle manifest failed; physical reports unavailable.':!cameraLive()?'Allow the camera; loading video…':!cvLive()?'Loading CPU-WASM pose Worker…':!calibrated()?snapshot()?.tracking?.anchorsFrozen?'Tracking lost: hold still until wrists and nose recover.':'Hold a T-pose for calibration, then release.':'Ready. Tap Measure to record camera + CV markers.';
 }

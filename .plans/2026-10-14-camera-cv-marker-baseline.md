@@ -34,6 +34,28 @@ Related files/components: scripts/validate-phone-cv-marker-window.js, scripts/va
 Remaining uncertainty: downstream tests have not run yet.
 ```
 
+## Debug record: browser fixture cannot reach native calibration
+
+**Exact observed failure:** first source-clean build **PASS** (12 emitted files: HTML, favicon, one real Worker, one tiny app JS, pinned model/WASM; zero game/renderer/GLB assets). Local preview4194 is live; browser gate confirmed **12/12 local/served SHA-256 assets** and sidecar SHA `531cd0e918b22d144133aa880108549885e6ce4ba9fad16fa53b31e16ce56027`, then exited 1: `INVALID SETUP direct: final controller lacks a read-only test-owned native input/CV seam; checkerboard cannot calibrate naturally` at `scripts/validate-phone-cv-marker-browser.js:64`. This is a **test fixture setup failure**, not a physical phone tracking result or a Worker failure.
+
+**Expected behavior:** QA should use the real fake-camera stream and real CPU-WASM MediaPipe Worker while driving the unchanged native body-grid T-pose calibration gate with explicitly synthetic *test-only* measured samples, then exercise visible marker/UI/report states without declaring synthetic marker samples physical. **Execution path:** page `boot()` requests camera, creates locked CV Worker and private native `input` inside a module closure (`src/phone-cv-marker-baseline.js:122-142`); QA's direct/iframe browser realm checks for a preview-owned `window.__aerobeatCvMarkerQa` read seam after live camera. The controller exposes none. Chromium fake video is a checkerboard with no human T-pose, so native input cannot pass calibration unaided. **Leading cause:** only the browser fixture lacks a narrow preview-only calibration access path; the production page's lack of public state is intentional. **Alternatives:** permission/Worker load not yet reached as a failure because the current test stops earlier; fake camera may also lack wrists/nose for *marker visibility* after calibration, so a seam alone might expose an independent INVALID SETUP next. A sourced human-shaped camera fixture could prove real Worker marker output but is not currently available/licensed and should not be silently fabricated.
+
+**Prior attempts:** the first private Play browser QA had this same checkerboard limitation and used test-only measured T-pose stimulus; it did not replace the Worker and its short report remained invalid as phone evidence. No baseline browser fix has yet been attempted. **Unknowns:** whether this checkerboard produces any positive real Worker landmarks; inspect actual CV status/marker DOM after safe calibration fixture. **Minimal reproduction:** build from clean `7bc5b86`, serve localhost4194, run `AEROBEAT_CV_MARKER_QA_URL=http://127.0.0.1:4194/phone-cv-marker-baseline.html?preview=1 npm run test:phone-cv-marker-browser`; served bytes pass and direct stops at missing seam. It does not occur for a real phone human who calibrates naturally.
+
+**Proposed verification before change:** add one **preview-query-only** read seam exposing *only* native input, CV status/latest real pose and stable camera identity to the child page's own QA realm; do not expose on normal phone URL, replace adapter, alter production CV or export those objects through report/iframe/events. Rerun local gate. If it moves past calibration and then fails visible markers because checkerboard has no detected human, record that second failure, distinguish a test-only overlay stimulus from real Worker detections, and adjust QA honestly (never call synthetic marker visibility physical). **Smallest fix:** preview-only realm access for native calibration fixture; no product camera, 15/s, scoring or phone report change. Regressions to test: default route has no seam, preview always exports `valid:false`, both direct/iframe provenance and privacy assertions remain strict.
+
+```text
+Problem: Source-pinned browser QA cannot enter native calibration on Chromium fake checkerboard.
+Observed symptom: after 12/12 served hashes, INVALID SETUP direct at QA line64: missing read-only test-owned native input/CV seam.
+Root cause: controller keeps input/CV private as intended; fixture has no human T-pose and cannot inspect/inject native test calibration.
+Evidence: controller closure, QA exact setup assertion, real served bytes and matching sidecar.
+Failed approaches: none on new baseline; prior Play tester separately used honest synthetic native calibration.
+Corrective action: preview-only narrow read seam for real native service and real Worker status; never expose in normal phone page or replace Worker.
+Verification test: local then HTTPS direct/iframe gate, synthetic calibration explicitly invalid physical evidence; independently classify marker-positive fixture if checkerboard lacks body.
+Related files/components: src/phone-cv-marker-baseline.js, scripts/validate-phone-cv-marker-browser.js, native body-grid and real MediaPipe Worker.
+Remaining uncertainty: checkerboard real Worker landmark/marker presence after calibration; safe fixture may need split checks.
+```
+
 ## References and boundaries
 
 - Play report and diagnosis: `.plans/2026-10-14-phone-play-cv-throughput-diagnostic.md`, Bead `uexs` still open.
