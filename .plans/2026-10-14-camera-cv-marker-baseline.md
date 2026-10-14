@@ -92,6 +92,24 @@ Related files/components: scripts/validate-phone-cv-marker-window.js, src/phone-
 Remaining uncertainty: none for pure projection once counterfactual rerun; physical overlay still requires phone.
 ```
 
+## Debug record: report invalidated by viewport geometry during browser window
+
+**Observed:** at source-clean served revision `571f4a5`, 12/12 served hashes, 32 synthetic native calibration samples, 14 real additional Worker poses, preview-only synchronous three-dot mirrored cover projection and tap recording all passed. The downloaded 4-second window failed the strict report assertion: actual `window.invalidReason:'geometry_changed'`, expected `'no_valid_markers'` (`scripts/validate-phone-cv-marker-browser.js:53`). This is an app/geometry lifecycle failure, not zero Worker throughput; the browser gate correctly stayed red. **Expected:** camera/stage CSS geometry stays stable across the app's own status and summary text while a window records. Actual resize/orientation/camera source changes must still invalidate the window. **Path:** `begin()` records `stageGeometry()` (stage.clientWidth/Height, DPR, viewport, orientation, video dimensions), changes state text to warmup; each rAF `checkWindow()` compares it against live geometry; either warmup, measuring or record status update may alter the flex stage height when `aside` text wraps or changes height, or another listed dimension changes. `stopWindow('geometry_changed')` propagates into the downloadable window invalid reason. **Confirmed root cause:** two bounded fake-camera probes (parent and independent QA) showed stable 390×844 viewport, DPR1, orientation0 and 640×480 video; `aside` shrank 147→134px when summary changed from two lines to one at measurement start, so flex stage grew 696→709px and the next rAF rightly emitted `geometry_changed`. Parent applied a stable clamped bottom panel `height:min(190px,40dvh);flex:none;overflow-y:auto`, keeping actual geometry-change rejection intact; independent QA owns a named stage-stability assertion for ready/warmup/measuring. This would also affect a real phone window, so it is an in-scope bug, not a false QA assertion. **Alternatives:** `videoWidth/Height` changed when fake camera settled, orientation/DPR/viewport changed (less likely; no rotation, script sets stable 390×844). **Previous fix:** preview fixture/real-marker split cured the checkerboard marker absence and proved projection, not this independent layout issue. No geometry fix attempted.
+
+**Verification first:** inspect bounded `stageGeometry` components and aside bounding height immediately before tapping Measure and through warmup/measurement, plus camera video dimensions and viewport orientation. If stage height alone changes while viewport/video do not, fix the layout by reserving a stable bottom panel height rather than suppressing genuine geometry invalidation; then repeat browser QA and confirm physical normal recorder still rejects actual geometry change. **Smallest expected fix:** fixed/clamped bottom panel block size with interior overflow so status text never changes the stage bounds; keep video cover, DPI/orientation/source invalidation. **Unknown:** precise first transition and whether a separate `calibration_changed` follows after this is fixed; classify any subsequent red gate independently.
+
+```text
+Problem: Browser QA report carries geometry_changed despite stable test viewport.
+Observed symptom: served hash/Worker/calibration/synthetic overlay pass; downloaded window invalidReason geometry_changed, not expected no_valid_markers.
+Root cause: likely flex stage shrinks/grows with status/summary bottom-panel text during capture, not yet directly measured.
+Evidence: stageGeometry compared every rAF; aside CSS has auto height; status text changes at begin/warmup.
+Failed approaches: fixture marker correction addressed a separate prior setup failure, not this.
+Corrective action: inspect bounded geometry transition; reserve fixed bottom UI panel size if panel-only layout proves cause.
+Verification test: direct + iframe 4s QA reaches real camera/CV/invalid no_valid_markers, genuine viewport/source change still invalidates.
+Related files/components: phone-cv-marker-baseline.html, src/phone-cv-marker-baseline.js stageGeometry/checkWindow, browser QA.
+Remaining uncertainty: which geometry component changes and whether native calibration persists through a full fake window.
+```
+
 ## References and boundaries
 
 - Play report and diagnosis: `.plans/2026-10-14-phone-play-cv-throughput-diagnostic.md`, Bead `uexs` still open.
