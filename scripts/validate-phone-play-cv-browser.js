@@ -124,6 +124,8 @@ try {
     });
     try {
       const response = await page.goto(embedding === "direct" ? target.href : parentUrl, { waitUntil:"domcontentloaded" }); assert.equal(response?.status(), 200);
+      if(embedding!=="direct") await page.waitForFunction(origin=>[...document.querySelectorAll("iframe")].some(node=>{try{return new URL(node.src).origin===origin&&node.contentWindow!==null}catch{return false}}),target.origin,{timeout:15000}).catch(cause=>{throw new Error(`INVALID SETUP ${embedding}: private iframe missing`,{cause});});
+      if(embedding!=="direct") await page.frameLocator("iframe").locator("aero-game").waitFor({timeout:30000});
       const frame = embedding === "direct" ? page : page.frames().find(candidate => candidate !== page.mainFrame() && candidate.url().startsWith(target.origin));
       assert(frame, `${embedding}: child loaded`);
       if (embedding !== "direct") assert.notEqual(new URL(frame.url()).origin, new URL(page.url()).origin);
@@ -150,7 +152,18 @@ try {
       // Real browser camera and real MediaPipe Worker; fake-device's synthetic
       // checkerboard may contain no body. Do NOT set calibrationId or replace CV.
       await game.locator("aero-session-actions").getByRole("button", { name:"Start", exact:true }).click();
-      await frame.waitForFunction(() => document.querySelector("aero-game")?.graph?.gameplay?.getSnapshot?.()?.session?.purpose === "play", null, { timeout:30000 });
+      // configureContent sets purpose=play before camera acquisition and CV load;
+      // purpose alone is not a media-readiness boundary.
+      await frame.waitForFunction(() => {
+        const element=document.querySelector("aero-game"),graph=element?.graph;
+        return graph?.gameplay?.getSnapshot?.()?.session?.purpose === "play" &&
+          graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState === "live" &&
+          graph.cv.getStatus().lifecycleState === "running" &&
+          graph.authoring.getCapabilities().conversionWorker === true;
+      }, null, { timeout:30000 }).catch(async cause => {
+        const detail=await game.evaluate(element=>({session:element.graph.gameplay.getSnapshot().session.state,cv:element.graph.cv.getStatus().lifecycleState,track:element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? null,error:element.lastError?.message ?? null}));
+        throw new Error(`INVALID SETUP ${embedding}: camera/CV/Worker never became ready: ${JSON.stringify(detail)}`, {cause});
+      });
       const setup = await game.evaluate(element => ({
         session:element.graph.gameplay.getSnapshot().session.state,
         purpose:element.graph.gameplay.getSnapshot().session.purpose,
@@ -162,15 +175,43 @@ try {
         error:element.lastError?.message ?? null
       }));
       if (setup.purpose !== "play" || setup.track !== "live" || setup.cv !== "running" || setup.worker !== true) throw new Error(`INVALID SETUP ${embedding}: actual Play camera/CV/Worker boundary unavailable: ${JSON.stringify(setup)}`);
-      // A genuine calibrated session may require a live body-shaped camera
-      // fixture. Normal Chromium fake camera is not a T-pose oracle.
-      await frame.waitForFunction(() => {
-        const element=document.querySelector("aero-game");
-        return element?.graph?.gameplay?.getSnapshot?.()?.session?.state === "playing" && !!element.graph.input.getSnapshot().calibration.calibrationId && element.graph.cv.getStatus().running === true;
-      }, null, { timeout:18000 }).catch(async cause => {
-        const detail=await game.evaluate(element=>({ session:element.graph.gameplay.getSnapshot().session.state, calibration:element.graph.input.getSnapshot().calibration.state, cv:element.graph.cv.getStatus().lifecycleState, poseCount:element.graph.cv.getStatus().poseFrameCount, error:element.lastError?.message ?? null }));
-        throw new Error(`INVALID SETUP ${embedding}: fake camera + real MediaPipe did not reach calibrated Play: ${JSON.stringify(detail)}`, { cause });
-      });
+      // SYNTHETIC CALIBRATION STIMULUS ONLY: Chromium's checkerboard camera
+      // cannot provide T-pose landmarks. Feed native input measured-form samples
+      // with the REAL Worker frame sourceId and the current camera/aspect identity.
+      // Camera, MediaPipe Worker, scorer and game implementation stay untouched.
+      // This proves the native hold/release/countdown path, NOT camera pose quality.
+      const calibration = await game.evaluate(async element => {
+        const graph=element.graph, wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+        const deadline=performance.now()+14000;
+        while(performance.now()<deadline && !graph.cv.getLatestPoseFrame())await wait(35);
+        const initial=graph.cv.getStatus(), initialFrame=graph.cv.getLatestPoseFrame();
+        if (!initial.running || !initialFrame?.sourceId || !element.lastCameraIdentity || element.menuOpen) throw Error(`INVALID SETUP: native synthetic stimulus requires live CV frame, camera identity, closed menu: ${JSON.stringify({running:initial.running,frame:Boolean(initialFrame),poseCount:initial.poseFrameCount,camera:Boolean(element.lastCameraIdentity),menu:element.menuOpen})}`);
+        const sourceId=initialFrame.sourceId, cameraIdentity=element.lastCameraIdentity, surface=graph.video.describeSurface(element.videoElement());
+        if (!(surface.sourceAspectRatio>0)) throw Error("INVALID SETUP: camera aspect unavailable");
+        const graphIdentity=graph;
+        let clock=Math.max(performance.now(),Number(graph.input.getSnapshot().tracking.timestampMs??0)+1), samples=0;
+        const feed=tPose=>{
+          if(element.graph!==graphIdentity || graph.cv.getStatus().running!==true || element.lastCameraIdentity!==cameraIdentity || graph.cv.getLatestPoseFrame()?.sourceId!==sourceId)throw Error("INVALID SETUP: CV source/camera identity changed during native calibration");
+          clock=Math.max(performance.now(),clock+1000/15,Number(graph.input.getSnapshot().tracking.timestampMs??0)+1);
+          const y=tPose?.4:.58;
+          const points={nose:{x:.5,y:.2},left_shoulder:{x:.35,y:.4},right_shoulder:{x:.65,y:.4},left_elbow:{x:.2,y},right_elbow:{x:.8,y},left_wrist:{x:tPose?.05:.05,y},right_wrist:{x:tPose?.95:.95,y},left_hip:{x:.43,y:.68},right_hip:{x:.57,y:.68}};
+          graph.input.processPoseSample({sourceId,timestampMs:clock,mirrored:initialFrame.mirrored,landmarks:Object.entries(points).map(([name,position])=>({name,...position,confidence:.99}))},{sourceAspectRatio:surface.sourceAspectRatio,sourceChangeId:cameraIdentity});
+          samples++;
+          const snapshot=graph.input.getSnapshot();
+          if(snapshot.tracking.timestampMs!==clock)throw Error(`INVALID SETUP: synthetic sample not accepted by native input (${samples})`);
+          return snapshot;
+        };
+        // Real native measured-time 2s T-pose hold, then arm the real display
+        // and audio countdown. Leave Worker running; interleaving is observable.
+        while(performance.now()<deadline && !graph.input.getSnapshot().calibration.calibrationId){feed(true);await wait(30);}
+        if(!graph.input.getSnapshot().calibration.calibrationId)throw Error(`INVALID SETUP: alternating Worker frames blocked native T-pose hold: ${JSON.stringify({samples,poseCount:graph.cv.getStatus().poseFrameCount,state:graph.input.getSnapshot().calibration.state,session:graph.gameplay.getSnapshot().session.state})}`);
+        while(performance.now()<deadline && graph.gameplay.getSnapshot().session.state!=="playing"){feed(false);await wait(35);}
+        const input=graph.input.getSnapshot(),session=graph.gameplay.getSnapshot().session,cv=graph.cv.getStatus();
+        if(!(input.calibration.state==="calibrated" && session.purpose==="play" && session.state==="playing" && cv.running && cv.poseFrameCount>initial.poseFrameCount))throw Error(`INVALID SETUP: native release/countdown did not reach scored Play: ${JSON.stringify({samples,poseBefore:initial.poseFrameCount,poseAfter:cv.poseFrameCount,calibration:input.calibration.state,session:session.state,purpose:session.purpose,error:element.lastError?.message??null})}`);
+        return {syntheticNativeSamples:samples,workerPosesBefore:initial.poseFrameCount,workerPosesAfter:cv.poseFrameCount,nativeCalibrated:!!input.calibration.calibrationId,play:session.state==="playing",cvRunning:cv.running};
+      }).catch(cause=>{throw new Error(`INVALID SETUP ${embedding}: test-owned measured T-pose could not reach native calibrated Play: ${cause.message}`,{cause});});
+      assert(calibration.nativeCalibrated && calibration.play && calibration.cvRunning && calibration.workerPosesAfter>calibration.workerPosesBefore,`${embedding}: synthetic input fixture plus real CV coexisted`);
+      console.log(`[synthetic-calibration] ${embedding} nativeSamples=${calibration.syntheticNativeSamples} realWorkerPoseDelta=${calibration.workerPosesAfter-calibration.workerPosesBefore}; NOT physical CV or FPS evidence`);
       await game.evaluate(element => element.setMenuOpen(false));
       await frame.waitForFunction(() => document.querySelector("#play-cv-start")?.disabled === false, null, { timeout:5000 }).catch(async cause => { throw new Error(`INVALID SETUP ${embedding}: calibrated Play never reached recorder-ready state; UI=${JSON.stringify(await status.innerText())}`, {cause}); });
       assert.match(await status.innerText(), /Ready: keep moving in Play/u, `${embedding}: ready UI state`);
@@ -201,7 +242,10 @@ try {
       assert(report.window.counts.cvSubmitted !== null && report.window.counts.cvPoses !== null && report.window.counts.sceneFrames !== null, "real Play scalar counters sampled, not mock values");
       assert(!/(?:"(?:landmarks|coordinates|poseX|deviceId|deviceLabel|audioBytes|songName|songId|chartId|sessionId|calibrationId|sourceId|eventId|frameBytes|videoFrame|screenshot|mediaTime|presentedFrames|rawFrames|perFrame|timestampMs)"|QA Deterministic Silence)/iu.test(bytes.toString("utf8")), `${embedding}: aggregate-only JSON privacy`);
       const published=JSON.stringify({publicMessages,publicEvents});
-      assert(!published.includes(manifest.buildStamp) && !published.includes(report.build.bundleManifestSha256) && !published.includes("private_phone_play_cv") && !published.includes("cameraUniqueMediaFrames") && !published.includes("freshValidEquipmentPairs"), `${embedding}: diagnostic never leaks through public events/iframe messages`);
+      // The ordinary public game snapshot may contain the existing release
+      // build stamp. This diagnostic must not add its private scalar report,
+      // bundle sidecar digest or QA-preview reason to any public channel.
+      assert(!published.includes(report.build.bundleManifestSha256) && !published.includes("private_phone_play_cv") && !published.includes("qa_preview_not_phone_evidence") && !published.includes("cameraUniqueMediaFrames") && !published.includes("freshValidEquipmentPairs"), `${embedding}: diagnostic never leaks through public events/iframe messages`);
       assert.equal(errors.length,0, `${embedding}: browser errors ${JSON.stringify(errors)}`);
       console.log(`PASS ${embedding}: real Worker chart + real MediaPipe Play, named not-ready/ready/warmup/measuring/invalid/download; four-second QA preview report valid=false (not phone evidence); fixture SHA-256=${fixtureSha256}`);
     } finally { await context.close(); }
