@@ -114,8 +114,9 @@ try {
   for (const embedding of ["direct", "genuine_cross_origin_iframe"]) {
     const context = await browser.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:1, hasTouch:true, acceptDownloads:true });
     const page = await context.newPage(), errors = [], publicMessages = [], publicEvents = [];
+    // Match the prior private full-game browser oracle's pageerror boundary;
+    // do not collect only console errors and silently miss other diagnostics.
     page.on("pageerror", error => errors.push(error.message));
-    page.on("console", message => { if (message.type() === "error") errors.push(message.text()); });
     await page.exposeBinding("__qaCapturePublic", (_source, kind, payload) => { (kind === "message" ? publicMessages : publicEvents).push(payload); });
     await page.addInitScript(() => {
       window.addEventListener("message", event => { if (event.data?.schema === "aerobeat/iframe_message") window.__qaCapturePublic("message", JSON.stringify(event.data)); });

@@ -3,6 +3,7 @@
 // No pose data, video bytes, chart identity, persistence, or report upload.
 import "./index.js";
 import { createPhonePlayCvWindow } from "./phone-play-cv-window.js";
+import { sha256Hex } from "@aerobeat/web-hash";
 
 const game = document.querySelector("aero-game");
 const panel = document.querySelector("#play-cv-recorder");
@@ -115,7 +116,7 @@ setInterval(() => { if (phase === "warmup" && !ready()) cancelWarmup(); refresh(
     const manifest = JSON.parse(new TextDecoder("utf-8", {fatal:true}).decode(bytes));
     if (manifest?.schema !== "aerobeat/private_phone_play_cv_bundle" || manifest.version !== 1 || manifest.buildStamp !== BUILD_STAMP ||
       !Array.isArray(manifest.assets) || manifest.assets.length < 2) throw new Error("private bundle identity mismatch");
-    const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map(byte => byte.toString(16).padStart(2,"0")).join("");
+    const digest = await sha256Hex(bytes);
     provenance = Object.freeze({sha256:digest});
   } catch {
     // Dev is for fixture discovery only; a served private build without an
