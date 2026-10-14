@@ -56,11 +56,14 @@ function finish() {
   const window = observer.stop();
   phase = "waiting";
   // Explicit report allowlist: nothing from the live graph or private samples is spread.
+  // Development without a verified bundle can never masquerade as phone evidence.
+  const verifiedBundle = typeof provenance?.sha256 === "string" && /^[0-9a-f]{64}$/u.test(provenance.sha256);
+  const valid = window.valid && !QA_PREVIEW && verifiedBundle;
+  const invalidReason = QA_PREVIEW ? "qa_preview_not_phone_evidence" : !verifiedBundle ? "unverified_build" : window.invalidReason;
   lastReport = Object.freeze({schema:"aerobeat/private_phone_play_cv_report",version:1,purpose:"play",packageVersion:PACKAGE_VERSION,
-    build:{stamp:BUILD_STAMP,bundleManifestSha256:provenance?.sha256 ?? null},valid:window.valid && !QA_PREVIEW,
-    invalidReason:QA_PREVIEW ? "qa_preview_not_phone_evidence" : window.invalidReason,window});
+    build:{stamp:BUILD_STAMP,bundleManifestSha256:provenance?.sha256 ?? null},valid,invalidReason,window});
   noticeUntil = performance.now() + 5000;
-  setState(QA_PREVIEW ? "QA preview complete. JSON is not sustained phone evidence." : window.valid ? "Play window complete. Download your JSON." : `Window invalid (${window.invalidReason}). Download the JSON or repeat Play.`);
+  setState(QA_PREVIEW ? "QA preview complete. JSON is not sustained phone evidence." : valid ? "Play window complete. Download your JSON." : `Window invalid (${invalidReason}). Download the JSON or repeat Play.`);
   summary.textContent = `Scene ${window.ratesFps.scene ?? "—"}/s · camera ${window.ratesFps.cameraUnique ?? "—"}/s · poses ${window.ratesFps.cvPoses ?? "—"}/s · fresh input ${window.ratesFps.freshPoseConsumption ?? "—"}/s`;
   observer.dispose(); observer = createPhonePlayCvWindow();
   refresh();
