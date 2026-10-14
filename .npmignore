@@ -30,6 +30,15 @@ src/phone-play-cv-window.js
 scripts/write-phone-play-cv-bundle-manifest.js
 scripts/validate-phone-play-cv-window.js
 scripts/validate-phone-play-cv-browser.js
+phone-cv-marker-baseline.html
+vite.phone-cv-marker.config.js
+dist-phone-cv-marker-baseline/
+src/phone-cv-marker-baseline.js
+src/phone-cv-marker-window.js
+src/phone-cv-marker-service.js
+scripts/write-phone-cv-marker-bundle-manifest.js
+scripts/validate-phone-cv-marker-window.js
+scripts/validate-phone-cv-marker-browser.js
 vite.phone-hit.config.js
 assets/.gitkeep
 

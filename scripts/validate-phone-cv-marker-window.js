@@ -1,3 +1,4 @@
+// @ts-check
 import assert from 'node:assert/strict';
 import { createPhoneCvMarkerWindow,markerCoverPosition } from '../src/phone-cv-marker-window.js';
 const point=markerCoverPosition({x:.25,y:.5},640,480,320,180);

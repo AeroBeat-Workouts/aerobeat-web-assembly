@@ -3,6 +3,7 @@ dist/
 dist-phone/
 dist-flow-centerline-phone/
 dist-phone-play-cv/
+dist-phone-cv-marker-baseline/
 build/
 coverage/
 .nyc_output/
