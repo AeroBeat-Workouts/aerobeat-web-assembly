@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-phone/
 dist-flow-centerline-phone/
+dist-phone-play-cv/
 build/
 coverage/
 .nyc_output/
