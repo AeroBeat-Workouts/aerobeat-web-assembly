@@ -141,7 +141,7 @@ const assembly = {
   graph, desiredGameSetup: {}, activeSessionSetup: null, sessionStartRequested: false, activeSessionAction: "", sessionGeneration: 0, menuTransitionGeneration: 0, menuOpen: true, menuDisposition: "none", lifecycle: "connected", lastError: null,
   gameplayContentPurpose() { return this.sessionStartRequested && this.activeSessionAction === "test" ? "visual_test" : "play"; },
   selectedScoringClockMinimum() { return 2; }, // Positive minimum exercises the real extension's no-source guard.
-  stopFrameLoop() {}, applyGameSetup() {}, isLifecycleIntentOwner() { return true; },
+  stopFrameLoop() {}, detachPrivateCameraPresentation() {}, applyGameSetup() {}, isLifecycleIntentOwner() { return true; },
   syncContentPlayback() {
     const session = this.graph.gameplay.getSnapshot().session;
     const samePackage = Boolean(session?.packageId) && session.packageId === this.graph.content.getSnapshot().packageId;

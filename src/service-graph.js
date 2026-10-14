@@ -10,6 +10,7 @@ import { createAeroBeatSaverVendorService } from "@aerobeat/web-vendor-beatsaver
 import { createMediaPipeWorkerPoseAdapter, mediaPipeDelegates, mediaPipeLiveSourceId } from "@aerobeat/web-vendor-mediapipe";
 import { createBrowserVideoMediaFacade } from "@aerobeat/web-video";
 import { createLockedProductionCvService } from "./production-cv-service.js";
+import { createPrivateGameplayCvService } from "./private-gameplay-cv.js";
 import { lockedProductionCvProfile } from "./production-cv-profile.js";
 export { lockedProductionCvProfile };
 
@@ -41,10 +42,18 @@ export function createAeroGameServiceGraph(options = {}) {
     readAsset: (handle, path) => authoring.readAsset(handle, path),
     exportPackage: (handle) => authoring.exportPackage(handle)
   }});
-  const poseAdapter = createLockedProductionPoseAdapter();
+  const candidate = typeof __AEROBEAT_PRIVATE_GAMEPLAY_CV_MODE__ !== "undefined" && __AEROBEAT_PRIVATE_GAMEPLAY_CV_MODE__ === "gpu-after-result";
   const video = createBrowserVideoMediaFacade();
   const audio = createAeroWebAudioService({ initialLeaseActive: false });
-  const cv = createLockedProductionCvService({ poseAdapter, submissionCadenceTargetFps: 15 });
+  // Only the separately built candidate diagnostic page can force a real fresh
+  // CPU Worker for browser QA. The ordinary game page and phone run cannot.
+  const qaGpuInitFailure = candidate && typeof globalThis.location?.pathname === "string" &&
+    globalThis.location.pathname.endsWith("/phone-play-cv-test.html") &&
+    new URLSearchParams(globalThis.location.search).get("preview") === "1" &&
+    new URLSearchParams(globalThis.location.search).get("forceGpuInitFail") === "1";
+  const cv = candidate
+    ? createPrivateGameplayCvService({ qaGpuInitFailure })
+    : createLockedProductionCvService({ poseAdapter: createLockedProductionPoseAdapter(), submissionCadenceTargetFps: 15 });
   return Object.freeze({
     instanceId,
     vendor: createAeroBeatSaverVendorService(),

@@ -28,6 +28,12 @@ dist-phone-play-cv/
 src/phone-play-cv-diagnostic.js
 src/phone-play-cv-window.js
 scripts/write-phone-play-cv-bundle-manifest.js
+vite.phone-play-cv-gpu-result.config.js
+dist-phone-play-cv-gpu-result/
+scripts/write-phone-play-cv-gpu-result-bundle-manifest.js
+scripts/validate-phone-play-cv-gpu-result-browser.js
+scripts/validate-private-gameplay-cv-graph.js
+scripts/validate-private-gameplay-camera-presentation.js
 scripts/validate-phone-play-cv-window.js
 scripts/validate-phone-play-cv-browser.js
 phone-cv-marker-baseline.html

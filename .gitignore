@@ -3,6 +3,7 @@ dist/
 dist-phone/
 dist-flow-centerline-phone/
 dist-phone-play-cv/
+dist-phone-play-cv-gpu-result/
 dist-phone-cv-marker-baseline/
 dist-phone-cv-gpu-experiment/
 dist-phone-cv-gpu-result-experiment/
