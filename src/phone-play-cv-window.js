@@ -50,11 +50,12 @@ export function createPhonePlayCvWindow() {
   let startedAt = 0, ended = null, invalid = "not_started", disposed = false;
   function cancel() {
     if (callback !== null) { try { baseline?.video?.cancelVideoFrameCallback?.(callback); } catch { /* detached video */ } callback = null; }
+    try { game?.stopPrivatePlayEquipmentCounts?.(); } catch { /* detached graph */ }
   }
   function check() {
     if (!baseline || invalid) return;
     try { invalid = reason(baseline, state(game)) ?? ""; } catch { invalid = "session_changed"; }
-    if (invalid) { ended ??= performance.now(); cancel(); }
+    if (invalid) { ended ??= performance.now(); if (callback !== null) { try { baseline.video.cancelVideoFrameCallback(callback); } catch { /* detached */ } callback = null; } }
   }
   function tick(_now, metadata) {
     callback = null;
@@ -71,9 +72,9 @@ export function createPhonePlayCvWindow() {
   function snapshot() {
     check();
     const durationMs = baseline ? decimal(Math.min(MAX_WINDOW_MS, Math.max(0, (ended ?? performance.now()) - startedAt)), MAX_WINDOW_MS) : 0;
-    let perf = null, cadence = null, cv = null;
+    let perf = null, cadence = null, cv = null, equipment = null;
     if (baseline) {
-      try { perf = game.privatePerformanceSnapshot(); cadence = game.cadenceSnapshot(); cv = game.graph.cv.getStatus(); } catch { invalid ||= "session_changed"; }
+      try { perf = game.privatePerformanceSnapshot(); cadence = game.cadenceSnapshot(); cv = game.graph.cv.getStatus(); equipment = game.privatePlayEquipmentSnapshot?.(); } catch { invalid ||= "session_changed"; }
     }
     const counterDelta = (current, initial) => Number.isSafeInteger(current) && Number.isSafeInteger(initial) && current >= 0 && initial >= 0 ? delta(current, initial) : null;
     const submitted = baseline && cv ? counterDelta(cv.submittedFrameCount, baseline.cv.submittedFrameCount) : null;
@@ -82,19 +83,23 @@ export function createPhonePlayCvWindow() {
     const sceneFrames = baseline && cadence ? counterDelta(cadence.displayFrameCount, baseline.cadence.displayFrameCount) : null;
     const fresh = baseline && cadence ? counterDelta(cadence.freshPoseConsumptionCount, baseline.cadence.freshPoseConsumptionCount) : null;
     const advanced = baseline && cadence ? counterDelta(cadence.inputAdvanceCount, baseline.cadence.inputAdvanceCount) : null;
-    if ([submitted, poses, busyDrops, sceneFrames, fresh, advanced].some(value => value === null) && baseline) invalid ||= "counter_reset";
+    const processed = clamp(equipment?.freshProcessed);
+    const validPair = clamp(equipment?.freshValidPair);
+    const heldPair = clamp(equipment?.freshHeldPair);
+    if ([submitted, poses, busyDrops, sceneFrames, fresh, advanced, processed, validPair, heldPair].some(value => value === null) && baseline) invalid ||= "counter_reset";
+    if (processed !== null && validPair !== null && heldPair !== null && (validPair > processed || heldPair > validPair || processed > fresh)) invalid ||= "counter_reset";
     if (!invalid && ended !== null && poses === 0) invalid = "no_poses";
     if (!invalid && ended !== null && frameCount === 0) invalid = "no_camera_frames";
-    if (invalid && ended === null && baseline) { ended = performance.now(); cancel(); }
+    if (invalid && ended === null && baseline) { ended = performance.now(); }
     const rate = value => durationMs > 0 && value !== null ? decimal(value * 1000 / durationMs, 100_000) : null;
     // Construct every output property explicitly; private objects are never spread.
     return { schema:"aerobeat/private_phone_play_cv_window", version:1, purpose:"play", valid:!invalid,
       invalidReason:invalid || null, durationMs,
-      counts:{ cameraUniqueMediaFrames:clamp(frameCount), cvSubmitted:clamp(submitted), cvPoses:clamp(poses), cvBusyDrops:clamp(busyDrops), freshPoseConsumptions:clamp(fresh), inputAdvances:clamp(advanced), sceneFrames:clamp(sceneFrames) },
+      counts:{ cameraUniqueMediaFrames:clamp(frameCount), cvSubmitted:clamp(submitted), cvPoses:clamp(poses), cvBusyDrops:clamp(busyDrops), freshPoseConsumptions:clamp(fresh), inputAdvances:clamp(advanced), sceneFrames:clamp(sceneFrames), freshProcessedEquipment:processed, freshValidEquipmentPairs:validPair, freshHeldEquipmentPairs:heldPair },
       ratesFps:{ denominatorMs:durationMs, cameraUnique:rate(frameCount), cvSubmitted:rate(submitted), cvPoses:rate(poses), freshPoseConsumption:rate(fresh), scene:rate(sceneFrames) },
       camera:camera(perf?.camera), inferenceMs:stats(perf?.mediaPipeRuntimeMs), endToEndMs:stats(perf?.mediaPipeEndToEndMs), poseAgeMs:stats(perf?.poseAgeMs), sceneIntervalMs:stats(perf?.displayIntervals) };
   }
-  function stop() { if (baseline && ended === null) { check(); ended ??= performance.now(); cancel(); } return snapshot(); }
+  function stop() { if (baseline && ended === null) { check(); ended ??= performance.now(); } const result = snapshot(); cancel(); return result; }
   function start(nextGame) {
     if (disposed) return false;
     cancel(); game = nextGame; baseline = null; ended = null; frameCount = 0; lastMediaTime = -Infinity; lastPresented = -Infinity;
@@ -105,12 +110,13 @@ export function createPhonePlayCvWindow() {
       if (!candidate.calibration || reason(candidate, candidate)) { invalid = reason(candidate, candidate) ?? "not_playing"; return false; }
       if (!candidate.geometryReady) { invalid = "geometry_changed"; return false; }
       if (![candidate.cv.submittedFrameCount,candidate.cv.poseFrameCount,candidate.cv.droppedFrameCount,candidate.cadence.displayFrameCount,candidate.cadence.freshPoseConsumptionCount,candidate.cadence.inputAdvanceCount].every(value => Number.isSafeInteger(value) && value >= 0)) { invalid = "counter_reset"; return false; }
-      if (typeof game.resetPrivatePerformanceWindow !== "function" || typeof game.privatePerformanceSnapshot !== "function") return false;
+      if (typeof game.resetPrivatePerformanceWindow !== "function" || typeof game.privatePerformanceSnapshot !== "function" || typeof game.startPrivatePlayEquipmentCounts !== "function" || typeof game.privatePlayEquipmentSnapshot !== "function" || typeof game.stopPrivatePlayEquipmentCounts !== "function") return false;
+      if (!game.startPrivatePlayEquipmentCounts()) return false;
       game.resetPrivatePerformanceWindow("phone-play-cv");
       baseline = { ...candidate, cv:{ submittedFrameCount:candidate.cv.submittedFrameCount, poseFrameCount:candidate.cv.poseFrameCount, droppedFrameCount:candidate.cv.droppedFrameCount }, cadence:{ displayFrameCount:candidate.cadence.displayFrameCount, freshPoseConsumptionCount:candidate.cadence.freshPoseConsumptionCount, inputAdvanceCount:candidate.cadence.inputAdvanceCount } }; startedAt = performance.now(); invalid = "";
       callback = candidate.video.requestVideoFrameCallback(tick);
       return true;
-    } catch { invalid = "session_changed"; return false; }
+    } catch { cancel(); invalid = "session_changed"; return false; }
   }
   function dispose() { cancel(); disposed = true; invalid = "disposed"; baseline = null; game = null; }
   return Object.freeze({ start, stop, snapshot, dispose });

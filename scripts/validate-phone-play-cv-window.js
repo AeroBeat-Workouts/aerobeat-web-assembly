@@ -1,5 +1,7 @@
 // @ts-check
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { createPhonePlayCvWindow, phonePlayCvWindowReasons } from '../src/phone-play-cv-window.js';
 
 const previousDocument = globalThis.document;
@@ -16,14 +18,18 @@ function fixture() {
   const session = { purpose:'play', state:'playing', sessionId:'sensitive-session' };
   const stream = {getVideoTracks:()=>[track]};
   const graph = { cv:{getStatus:()=>cv}, gameplay:{getSnapshot:()=>({session})}, input:{getSnapshot:()=>({calibration:{calibrationId:'sensitive-calibration'}})}, video:{getRetainedCameraStream:()=>stream} };
-  let resets=0;
+  let resets=0, active=false;
+  const equipment = {freshProcessed:0,freshValidPair:0,freshHeldPair:0};
   const game = { graph, connectedGeneration:1, sessionGeneration:2, lastCameraIdentity:'sensitive-camera',
     videoElement:()=>video, getBoundingClientRect:()=>({width:320,height:240}), cadenceSnapshot:()=>({...cadence}),
+    startPrivatePlayEquipmentCounts:()=>{active=true;equipment.freshProcessed=0;equipment.freshValidPair=0;equipment.freshHeldPair=0;return true;},
+    privatePlayEquipmentSnapshot:()=>active?{...equipment,secretCoordinates:[1,2]}:{...equipment},
+    stopPrivatePlayEquipmentCounts:()=>{active=false;},
     resetPrivatePerformanceWindow:()=>{resets++;}, privatePerformanceSnapshot:()=>({
       camera:{width:640,height:480,frameRate:30,deviceId:'secret'},mediaPipeRuntimeMs:{count:3,p50:9,p95:13,max:20,poseX:44},
       mediaPipeEndToEndMs:{count:3,p50:12,p95:19},poseAgeMs:{count:4,p50:20,p95:30},displayIntervals:{count:5,p50:16,p95:34},
       poseCoordinates:[1,2],latestPoseTimestampMs:123,sourceId:'secret' }) };
-  return {game,cv,cadence,session,video,track,get callback(){return callback;},get cancelled(){return cancelled;},get resets(){return resets;}};
+  return {game,cv,cadence,equipment,session,video,track,get callback(){return callback;},get cancelled(){return cancelled;},get resets(){return resets;},get active(){return active;}};
 }
 try {
   const f=fixture(), observer=createPhonePlayCvWindow();
@@ -33,9 +39,11 @@ try {
   f.callback(3,{mediaTime:2,presentedFrames:3});
   f.cv.submittedFrameCount+=6; f.cv.poseFrameCount+=3; f.cv.droppedFrameCount+=2;
   f.cadence.displayFrameCount+=10; f.cadence.freshPoseConsumptionCount+=2; f.cadence.inputAdvanceCount+=1;
+  f.equipment.freshProcessed=2; f.equipment.freshValidPair=1; f.equipment.freshHeldPair=1;
   const result=observer.stop();
   assert.equal(result.valid,true,JSON.stringify(result)); assert.equal(result.counts.cameraUniqueMediaFrames,2);
-  assert.deepEqual(result.counts,{cameraUniqueMediaFrames:2,cvSubmitted:6,cvPoses:3,cvBusyDrops:2,freshPoseConsumptions:2,inputAdvances:1,sceneFrames:10});
+  assert.deepEqual(result.counts,{cameraUniqueMediaFrames:2,cvSubmitted:6,cvPoses:3,cvBusyDrops:2,freshPoseConsumptions:2,inputAdvances:1,sceneFrames:10,freshProcessedEquipment:2,freshValidEquipmentPairs:1,freshHeldEquipmentPairs:1});
+  assert.equal(f.active,false);
   assert.equal(result.ratesFps.denominatorMs,result.durationMs);
   assert.equal(result.inferenceMs.p95,13);
   assert.equal(result.camera.configuredFrameRateFps,30);
@@ -65,6 +73,27 @@ try {
   assert.equal(absentObserver.start(absent.game),false);
   assert.equal(absentObserver.snapshot().valid,false);
   assert.ok(phonePlayCvWindowReasons.includes('no_poses'));
+  // Execute the actual private game methods extracted from index.js (not a surrogate
+  // implementation), and assert public cadence remains unchanged.
+  const source=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
+  const begin=source.indexOf('  startPrivatePlayEquipmentCounts() {');
+  const end=source.indexOf('  /** Test/profile-only local seam;',begin);
+  assert.ok(begin>0&&end>begin);
+  const methods=source.slice(begin,end);
+  const CadenceSeam=vm.runInNewContext(`class CadenceSeam { ${methods} }; CadenceSeam`,{document:globalThis.document});
+  const seam=new CadenceSeam(), mock=fixture();
+  seam.graph=mock.game.graph; seam.lifecycle='connected'; seam.frameTimer=1; seam.sessionGeneration=7;
+  assert.equal(seam.startPrivatePlayEquipmentCounts(),true);
+  assert.equal(JSON.stringify(seam.privatePlayEquipmentSnapshot()),JSON.stringify({freshProcessed:0,freshValidPair:0,freshHeldPair:0}));
+  const sample=seam.privatePlayEquipmentCounters;
+  sample.freshProcessed+=1;sample.freshValidPair+=1;sample.freshHeldPair+=1;
+  assert.equal(seam.privatePlayEquipmentSnapshot().freshHeldPair,1);
+  seam.sessionGeneration++;
+  assert.equal(seam.privatePlayEquipmentSnapshot(),null);
+  seam.stopPrivatePlayEquipmentCounts();
+  assert.equal(seam.privatePlayEquipmentCounters,null);
+  assert.match(source,/const equipmentCounts = this\.privatePlayEquipmentCounters;[\s\S]*?freshPlayPose\)[\s\S]*?frameEquipmentPoses\.length === 2[\s\S]*?anchorsFrozen === true[\s\S]*?freshHeldPair \+= 1/);
+  assert.ok(!source.slice(source.indexOf('  getSnapshot() {'),source.indexOf('  /**\n   * Read-only accessor',source.indexOf('  getSnapshot() {'))).includes('privatePlayEquipment'));
   console.log('phone Play CV scalar window: PASS');
 } finally {
   globalThis.document=previousDocument;

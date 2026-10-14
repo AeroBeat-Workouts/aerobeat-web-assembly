@@ -176,6 +176,8 @@ export class AeroGame extends HTMLElement {
     this.displayFrameCount = 0;
     this.freshPoseConsumptionCount = 0;
     this.inputAdvanceCount = 0;
+    // Child-local opt-in Play diagnostics; never included in public cadence or snapshots.
+    this.privatePlayEquipmentCounters = null;
     this.presenterCommitCount = 0;
     this.runtimeUiCommitCount = 0;
     this.runtimeUiSignature = "";
@@ -1819,7 +1821,7 @@ export class AeroGame extends HTMLElement {
   startFrameLoop() {
     this.stopFrameLoop();
     const generation = this.connectedGeneration; const graph = this.graph;
-    this.cadenceStartedAtMs = performance.now(); this.cadenceLatestFrameAtMs = 0; this.displayFrameCount = 0; this.freshPoseConsumptionCount = 0; this.inputAdvanceCount = 0;
+    this.cadenceStartedAtMs = performance.now(); this.cadenceLatestFrameAtMs = 0; this.displayFrameCount = 0; this.freshPoseConsumptionCount = 0; this.inputAdvanceCount = 0; this.privatePlayEquipmentCounters = null;
     const loop = createAeroDisplayLoop({ callback: () => { if (!this.isCurrent(generation, graph) || document.hidden) { if (this.frameLoop === loop) this.stopFrameLoop(); else loop.stop(); return; } this.runDisplayFrame(graph); } });
     this.frameLoop = loop; this.frameTimer = 1; loop.start();
     this.startFpsCounter();
@@ -1830,12 +1832,13 @@ export class AeroGame extends HTMLElement {
     try {
       const frameNow = performance.now();
       const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
+      let freshPlayPose = false;
       if (!visualTest) {
         const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface);
         const frame = graph.cv.getLatestPoseFrame();
         if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
           this.latestPoseTimestampMs = frame.timestampMs; this.lastFreshPoseAtMs = frameNow; this.lastInputAdvanceAtMs = frameNow; this.freshPoseConsumptionCount += 1;
-          if (!this.menuOpen) graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity });
+          if (!this.menuOpen) { graph.input.processPoseSample(frame, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: this.lastCameraIdentity }); freshPlayPose = true; }
         } else if (!this.menuOpen && frameNow - this.lastFreshPoseAtMs >= 100 && frameNow - this.lastInputAdvanceAtMs >= 1000 / 15) {
           this.lastInputAdvanceAtMs = frameNow; this.inputAdvanceCount += 1; graph.input.advanceTime(frameNow);
         }
@@ -1872,6 +1875,14 @@ export class AeroGame extends HTMLElement {
           const equipmentMode = this.equipmentModeForSession(beforeAdvance);
           const advanceEquipmentPoses = frameEquipmentPoses.length === 2 ? frameEquipmentPoses : (beforeAdvance.state === "playing" && this.lastValidEquipmentPoses.length === 2 ? this.lastValidEquipmentPoses : null);
           graph.gameplay.advance({ timestampMs:advanceTimestampMs, clock:audioClock, ...(visualTest ? (productionTestFrame === null ? {} : {input:productionTestFrame.input,interaction:productionTestFrame.interaction}) : {input}), ...(equipmentMode === null || advanceEquipmentPoses === null ? {} : {equipmentPoses:advanceEquipmentPoses}), lease:this.leaseSnapshotForGameplay() });
+          const equipmentCounts = this.privatePlayEquipmentCounters;
+          if (equipmentCounts && equipmentCounts.graph === graph && equipmentCounts.sessionGeneration === this.sessionGeneration && !visualTest && beforeAdvance.purpose === "play" && beforeAdvance.state === "playing" && freshPlayPose) {
+            equipmentCounts.freshProcessed += 1;
+            if (frameEquipmentPoses.length === 2) {
+              equipmentCounts.freshValidPair += 1;
+              if (poseInput?.tracking?.anchorsFrozen === true || poseInput?.latestEvidence?.provenance === "frozen") equipmentCounts.freshHeldPair += 1;
+            }
+          }
           if (!visualTest && this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(advanceTimestampMs);
         }
         this.syncAudioForGameplay();
@@ -1894,7 +1905,7 @@ export class AeroGame extends HTMLElement {
     } catch (error) { this.handleError(error); }
   }
 
-  stopFrameLoop() { this.stopFpsCounter(); const loop = this.frameLoop; this.frameLoop = null; this.frameTimer = 0; loop?.stop();if(typeof this.graph?.renderer?.resetProductionCameraParallax==="function")this.graph.renderer.resetProductionCameraParallax(); }
+  stopFrameLoop() { this.stopPrivatePlayEquipmentCounts(); this.stopFpsCounter(); const loop = this.frameLoop; this.frameLoop = null; this.frameTimer = 0; loop?.stop();if(typeof this.graph?.renderer?.resetProductionCameraParallax==="function")this.graph.renderer.resetProductionCameraParallax(); }
 
   /** Quiesce a completed run exactly once without mutating terminal gameplay truth. */
   reconcileTerminalServices(graph = this.graph) {
@@ -3261,6 +3272,23 @@ export class AeroGame extends HTMLElement {
   }
 
   leaseSnapshotForGameplay() { return aeroGameMediaLeaseCoordinator.snapshot(); }
+
+  /** Opt-in child-local Play aggregate; only fresh processed input and resolved equipment shape count. */
+  startPrivatePlayEquipmentCounts() {
+    const session = this.graph?.gameplay.getSnapshot().session;
+    if (this.lifecycle !== "connected" || document.hidden || this.frameTimer === 0 || session?.purpose !== "play" || session.state !== "playing") return false;
+    this.privatePlayEquipmentCounters = { graph:this.graph, sessionGeneration:this.sessionGeneration, freshProcessed:0, freshValidPair:0, freshHeldPair:0 };
+    return true;
+  }
+
+  /** Scalar read only: no input, pose, frame, calibration or session identity escapes. */
+  privatePlayEquipmentSnapshot() {
+    const counts = this.privatePlayEquipmentCounters;
+    if (!counts || counts.graph !== this.graph || counts.sessionGeneration !== this.sessionGeneration) return null;
+    return Object.freeze({ freshProcessed:counts.freshProcessed, freshValidPair:counts.freshValidPair, freshHeldPair:counts.freshHeldPair });
+  }
+
+  stopPrivatePlayEquipmentCounts() { this.privatePlayEquipmentCounters = null; }
 
   /** Test/profile-only local seam; never included in public snapshots, events, or iframe messages. */
   resetPrivatePerformanceWindow(label) { this.privatePerformance.reset(label, performance.now()); }
