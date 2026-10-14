@@ -32,6 +32,7 @@ scripts/validate-phone-play-cv-window.js
 scripts/validate-phone-play-cv-browser.js
 phone-cv-marker-baseline.html
 vite.phone-cv-marker.config.js
+vite.friend-cv-preview.config.js
 dist-phone-cv-marker-baseline/
 src/phone-cv-marker-baseline.js
 src/phone-cv-marker-window.js
