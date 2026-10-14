@@ -1,8 +1,8 @@
 // @ts-check
 import assert from 'node:assert/strict';
 import { createPhoneCvMarkerWindow,markerCoverPosition } from '../src/phone-cv-marker-window.js';
-const point=markerCoverPosition({x:.25,y:.5},640,480,320,180);
-assert.deepEqual(point,{x:240,y:90},'mirrored cover crop');
+const point=markerCoverPosition({x:.20,y:.5},640,480,320,180);
+assert.deepEqual(point,{x:256,y:90},'mirrored cover crop');
 assert.equal(markerCoverPosition({x:1.2,y:.5},640,480,320,180),null);
 const status={submittedFrameCount:10,poseFrameCount:3,droppedFrameCount:1};
 const window=createPhoneCvMarkerWindow();

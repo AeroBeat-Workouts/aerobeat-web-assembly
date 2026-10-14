@@ -76,6 +76,22 @@ Related files/components: src/phone-cv-marker-baseline.js renderMarkers, scripts
 Remaining uncertainty: real frame landmark presence, confidence/native loss after synthetic hold and phone marker visibility under actual person.
 ```
 
+## Counterfactual diagnostic: unit marker-mirror assertion did not bite
+
+**Exact failure:** in an isolated detached worktree at `571f4a5`, `node scripts/validate-phone-cv-marker-window.js` passed both before and after replacing only the production mirror term `(.5 - point.x)` with `point.x`. This is a test-coverage failure, not an observed app regression. **Expected:** keeping test/fixture unchanged while deleting the mirror must fail a named `mirrored cover crop` assertion. **Execution path:** the new unit calls `markerCoverPosition({x:.25,y:.5},640,480,320,180)`; cover scale is `.5` and expected X 240. Both the correct `160 + (.5-.25)*320` and bad `160 + .25*320` equal 240. **Root cause:** accidentally symmetric `.25` fixture makes wrong and right projections observationally identical. Alternatives (missing test runner, stale source, mutation ignored) are contradicted by the clean disposable worktree, direct script PASS before/after and named mutation. Prior clean unit/bundle/browser runs were green; they never tested removal of the mirror. **Unknown:** after an asymmetric fixture changes, whether the test fails specifically on mirrored X; verify in a new disposable worktree. **Minimal reproduction:** mutate only `markerCoverPosition` x term in fresh worktree and run current unit; both pass. **Smallest fix:** change fixture x to `.20` and expected mirrored x from `240` to `256`, leaving renderer/adapter unchanged. Then establish green → mutant fails with the expected deep-equality X `224` versus `256` → restored green. The browser oracle already uses asymmetric `.35/.65` fixture and a separate live DOM projection check; normal `npm test` includes the focused unit but not the costly named browser test. **Risk:** only one pure-geometry fixture adjusted; no phone runtime changed.
+
+```text
+Problem: visual projection unit test did not detect deleted horizontal mirror.
+Observed symptom: fixed PASS and mirror-mutant PASS at commit 571f4a5.
+Root cause: x=.25 yields equal mirrored/unmirrored X for the candidate mutation.
+Evidence: 160+(.5-.25)*320 = 160+.25*320 = 240; isolated-worktree result.
+Failed approaches: original symmetric fixture and ordinary green suite.
+Corrective action: x=.20 with expected mirrored X=256; rerun same mutant in isolated worktree.
+Verification test: fixed PASS, mirror-only mutant fails at named deep equality, restored PASS.
+Related files/components: scripts/validate-phone-cv-marker-window.js, src/phone-cv-marker-window.js.
+Remaining uncertainty: none for pure projection once counterfactual rerun; physical overlay still requires phone.
+```
+
 ## References and boundaries
 
 - Play report and diagnosis: `.plans/2026-10-14-phone-play-cv-throughput-diagnostic.md`, Bead `uexs` still open.
