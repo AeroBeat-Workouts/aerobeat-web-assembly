@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="aerobeat-release-proof" content="0.0.128">
+  <title>AeroBeat · Private Play tracking test</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#06141f;color:#fff;font:600 12px/1.35 system-ui,sans-serif}
+    main{width:100%;height:100dvh}aero-game{display:block;width:100%;height:100%}
+    .recorder{position:fixed;z-index:2147483646;top:max(62px,env(safe-area-inset-top));right:8px;width:min(210px,calc(100vw - 16px));padding:6px;background:#071820f5;border:1px solid #8ae8ed;border-radius:8px;box-shadow:0 2px 8px #0008;pointer-events:none}
+    .recorder button,.recorder summary{pointer-events:auto;touch-action:manipulation}
+    .recorder button{min-height:44px;width:100%;margin:3px 0;border:1px solid #9becfa;border-radius:6px;background:#124050;color:white;font:700 12px system-ui;cursor:pointer}
+    .recorder button:disabled{opacity:.55;cursor:not-allowed}
+    .recorder strong{display:block;color:#96eefa}
+    .recorder[data-game-menu="true"]{padding:0;border:0;background:transparent;box-shadow:none}
+    .recorder[data-game-menu="true"] .details,.recorder[data-game-menu="true"] #play-cv-start{display:none}
+    .recorder[data-game-menu="true"] strong{position:fixed;top:max(4px,env(safe-area-inset-top));left:8px;padding:3px 5px;border-radius:4px;background:#071820f5}
+    .recorder[data-game-menu="true"] #play-cv-download:not([hidden]){position:fixed;top:max(62px,env(safe-area-inset-top));right:8px;width:min(210px,calc(100vw - 16px))}
+    .recorder [hidden]{display:none!important}
+    .details{max-height:25vh;overflow:auto}#play-cv-state{display:block;color:#ffde83}#play-cv-state[data-measuring="true"]{color:#9ef6bb}
+    #play-cv-summary{white-space:pre-wrap;overflow-wrap:anywhere;font:500 10px/1.4 ui-monospace,monospace}
+  </style>
+</head>
+<body>
+  <main><aero-game></aero-game></main>
+  <aside id="play-cv-recorder" class="recorder" data-game-menu="true" aria-label="Private Play tracking recorder">
+    <strong>Private Play tracking test</strong>
+    <div class="details">
+      <output id="play-cv-state" role="status" data-measuring="false">Load a chart, choose Start, and calibrate.</output>
+      <button id="play-cv-start" type="button" disabled>Measure Play (60 seconds)</button>
+      <div id="play-cv-summary" aria-live="off">No video or landmarks are recorded.</div>
+    </div>
+    <button id="play-cv-download" type="button" disabled hidden>Download tracking JSON</button>
+  </aside>
+  <script type="module" src="/src/phone-play-cv-diagnostic.js"></script>
+</body>
+</html>
