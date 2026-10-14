@@ -15,11 +15,15 @@ if (!game || !panel || !state || !startButton || !downloadButton || !summary) th
 const BUILD_STAMP = __AEROBEAT_BUILD_STAMP__;
 const PACKAGE_VERSION = __AEROBEAT_PACKAGE_VERSION__;
 const BUNDLE_PATH = "/phone-play-cv-bundle-manifest.json";
-const MEASURE_MS = 60_000;
-const WARMUP_MS = 3_000;
+// A short QA-only journey can exercise the real graph without pretending to be
+// sustained physical evidence; its exported report always says invalid.
+const QA_PREVIEW = new URLSearchParams(globalThis.location.search).get("preview") === "1";
+const MEASURE_MS = QA_PREVIEW ? 4_000 : 60_000;
+const WARMUP_MS = QA_PREVIEW ? 500 : 3_000;
+if (QA_PREVIEW) startButton.textContent = "QA preview (not phone evidence)";
 let observer = createPhonePlayCvWindow();
 let phase = "waiting", warmupTimer = null, measureTimer = null, lastReport = null;
-let provenance = null, provenanceFailure = false;
+let provenance = null, provenanceFailure = false, noticeUntil = 0;
 function setState(message, measuring = false) { state.textContent = message; state.dataset.measuring = String(measuring); }
 function ready() {
   try {
@@ -36,7 +40,7 @@ function refresh() {
   startButton.disabled = phase !== "waiting" || !provenance || !ready();
   downloadButton.disabled = lastReport === null;
   downloadButton.hidden = lastReport === null;
-  if (phase === "waiting" && !provenanceFailure) setState(provenance ? (ready() ? "Ready: keep moving in Play, then tap Measure." : "Load a chart, choose Start, finish calibration, then close the menu.") : "Checking private build identity…");
+  if (phase === "waiting" && !provenanceFailure && performance.now() >= noticeUntil) setState(provenance ? (ready() ? "Ready: keep moving in Play, then tap Measure." : "Load a chart, choose Start, finish calibration, then close the menu.") : "Checking private build identity…");
   if (phase === "measuring") {
     const window = observer.snapshot();
     if (!window.valid) { finish(); return; }
@@ -52,8 +56,10 @@ function finish() {
   phase = "waiting";
   // Explicit report allowlist: nothing from the live graph or private samples is spread.
   lastReport = Object.freeze({schema:"aerobeat/private_phone_play_cv_report",version:1,purpose:"play",packageVersion:PACKAGE_VERSION,
-    build:{stamp:BUILD_STAMP,bundleManifestSha256:provenance?.sha256 ?? null},valid:window.valid,window});
-  setState(window.valid ? "Play window complete. Download your JSON." : `Window invalid (${window.invalidReason}). Download the JSON or repeat Play.`);
+    build:{stamp:BUILD_STAMP,bundleManifestSha256:provenance?.sha256 ?? null},valid:window.valid && !QA_PREVIEW,
+    invalidReason:QA_PREVIEW ? "qa_preview_not_phone_evidence" : window.invalidReason,window});
+  noticeUntil = performance.now() + 5000;
+  setState(QA_PREVIEW ? "QA preview complete. JSON is not sustained phone evidence." : window.valid ? "Play window complete. Download your JSON." : `Window invalid (${window.invalidReason}). Download the JSON or repeat Play.`);
   summary.textContent = `Scene ${window.ratesFps.scene ?? "—"}/s · camera ${window.ratesFps.cameraUnique ?? "—"}/s · poses ${window.ratesFps.cvPoses ?? "—"}/s · fresh input ${window.ratesFps.freshPoseConsumption ?? "—"}/s`;
   observer.dispose(); observer = createPhonePlayCvWindow();
   refresh();
@@ -61,13 +67,13 @@ function finish() {
 function startWarmup() {
   if (phase !== "waiting" || !provenance || !ready()) return;
   phase = "warmup"; lastReport = null; downloadButton.hidden = true;
-  setState("Play warmup · 3 seconds"); refresh();
+  setState(QA_PREVIEW ? "QA warmup · not sustained phone evidence" : "Play warmup · 3 seconds"); refresh();
   warmupTimer = setTimeout(() => {
     warmupTimer = null;
     if (phase !== "warmup") return;
     if (!ready() || !observer.start(game)) {
       const reason = observer.snapshot().invalidReason;
-      phase = "waiting";
+      phase = "waiting"; noticeUntil = performance.now() + 5000;
       setState(`Not recording (${reason || "Play not ready"}). Keep playing and retry.`);
       refresh(); return;
     }
@@ -79,7 +85,8 @@ function startWarmup() {
 function cancelWarmup() {
   if (phase !== "warmup") return;
   if (warmupTimer !== null) { clearTimeout(warmupTimer); warmupTimer = null; }
-  phase = "waiting"; setState("Warmup interrupted. Resume Play and retry."); refresh();
+  phase = "waiting"; noticeUntil = performance.now() + 5000;
+  setState("Warmup interrupted. Resume Play and retry."); refresh();
 }
 function onVisibility() {
   if (!document.hidden) return;

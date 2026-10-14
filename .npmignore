@@ -22,6 +22,14 @@ vite.flow-centerline.config.js
 scripts/write-flow-centerline-bundle-manifest.js
 scripts/validate-flow-centerline-phone-browser.js
 scripts/validate-flow-centerline-diagnostic-window.js
+phone-play-cv-test.html
+vite.phone-play-cv.config.js
+dist-phone-play-cv/
+src/phone-play-cv-diagnostic.js
+src/phone-play-cv-window.js
+scripts/write-phone-play-cv-bundle-manifest.js
+scripts/validate-phone-play-cv-window.js
+scripts/validate-phone-play-cv-browser.js
 vite.phone-hit.config.js
 assets/.gitkeep
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // The sidecar binds all emitted bytes to the same clean 15-repository source as Vite.
 // Serving HTML/JS/Worker/model/GLB bytes still requires independent response parity.
 import { execFileSync } from "node:child_process";
