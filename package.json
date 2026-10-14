@@ -54,6 +54,8 @@
     "build": "vite build",
     "build:flow-centerline-phone": "vite build --config vite.flow-centerline.config.js && node scripts/write-flow-centerline-bundle-manifest.js",
     "test:flow-centerline-phone-browser": "node scripts/validate-flow-centerline-phone-browser.js",
+    "build:phone-play-cv": "vite build --config vite.phone-play-cv.config.js && node scripts/write-phone-play-cv-bundle-manifest.js",
+    "test:phone-play-cv-browser": "node scripts/validate-phone-play-cv-browser.js",
     "build-release": "node scripts/build-release.js",
     "build:release": "npm run build-release",
     "test:release-target-policy": "node scripts/validate-release-target-policy.js",
