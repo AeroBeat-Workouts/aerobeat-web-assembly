@@ -15,16 +15,25 @@ const preview=new URLSearchParams(location.search).get('preview')==='1';
 const WARMUP=preview?500:3000,MEASURE=preview?4000:60000;
 const BUILD_STAMP=typeof __AEROBEAT_CV_MARKER_BUILD_STAMP__==='undefined'?'development':__AEROBEAT_CV_MARKER_BUILD_STAMP__;
 const PACKAGE_VERSION=typeof __AEROBEAT_PACKAGE_VERSION__==='undefined'?'development':__AEROBEAT_PACKAGE_VERSION__;
+const AFTER_RESULT=typeof __AEROBEAT_CV_SCHEDULING_MODE__!=='undefined' && __AEROBEAT_CV_SCHEDULING_MODE__==='after-result';
+const SCHEDULER=Object.freeze({mode:'after-result',targetFps:lockedProductionCvProfile.submissionCadenceTargetFps});
+const REPORT_PURPOSE=AFTER_RESULT?'camera_cv_gpu_after_result_experiment':'camera_cv_gpu_first_experiment';
+const WINDOW_SCHEMA=AFTER_RESULT?'aerobeat/private_phone_cv_gpu_result_window':'aerobeat/private_phone_cv_gpu_window';
+const REPORT_SCHEMA=AFTER_RESULT?'aerobeat/private_phone_cv_gpu_result_experiment_report':'aerobeat/private_phone_cv_gpu_experiment_report';
+const MANIFEST_SCHEMA=AFTER_RESULT?'aerobeat/private_phone_cv_gpu_result_bundle':'aerobeat/private_phone_cv_gpu_bundle';
+const MANIFEST_FILE=AFTER_RESULT?'/phone-cv-gpu-result-bundle-manifest.json':'/phone-cv-gpu-bundle-manifest.json';
 let provenance=null,provenanceFailure=false,stream=null,cv=null,adapter=null,input=null,observer=null,lastReport=null,phase='loading',disposed=false;
 let selectedDelegate=null,fallback=false,fallbackReason=null;
 let lastPoseCount=0,lastPoseAt=0,lastSourceId=null,lastMirror=null,calibrationId=null,lastCameraTime=0,lastMediaTime=-Infinity,lastPresented=-Infinity;
 let videoCallback=null,raf=null,measureTimer=null,warmupTimer=null,requestCancelled=false,geometry='',cameraIdentity='',cameraTrack=null,lastCvCounters=null;
+// Only the after-result source uses this callback-derived, never fabricated frame identity.
+let presentedFrameId=null,videoPresentationFailed=false;
 const markerNames={left:'left_wrist',right:'right_wrist',nose:'nose'};
 const forceGpuInitFail=preview && new URLSearchParams(location.search).get('forceGpuInitFail')==='1';
 // The original HTML stays byte-identical; only this private entry relabels its controls.
-document.title='AeroBeat · GPU-first camera CV experiment';
-document.querySelector('aside').setAttribute('aria-label','Private GPU-first camera and CV marker experiment');
-document.querySelector('aside strong').textContent='GPU-first CV experiment · no game';
+document.title=AFTER_RESULT?'AeroBeat · GPU-first after-result camera CV experiment':'AeroBeat · GPU-first camera CV experiment';
+document.querySelector('aside').setAttribute('aria-label',AFTER_RESULT?'Private GPU-first after-result camera and CV marker experiment':'Private GPU-first camera and CV marker experiment');
+document.querySelector('aside strong').textContent=AFTER_RESULT?'GPU-first after-result CV experiment · no game':'GPU-first CV experiment · no game';
 function delegateLabel(){return selectedDelegate==='gpu-webgl'?'GPU/WebGL Worker':selectedDelegate==='cpu-wasm'?'CPU/WASM fallback Worker':'GPU/WebGL Worker';}
 function checkedExecution(requested,instance){
   const telemetry=instance.getTelemetryStatus(),execution=instance.getExecutionTelemetry();
@@ -35,7 +44,7 @@ function hideDots(){for(const dot of Object.values(dots))dot.hidden=true;}
 function stageGeometry(){return [stage.clientWidth,stage.clientHeight,devicePixelRatio,innerWidth,innerHeight,screen.orientation?.angle ?? 0,video.videoWidth,video.videoHeight].join(':');}
 function cameraSettings(){const settings=stream?.getVideoTracks()[0]?.getSettings()??{};return {width:settings.width??video.videoWidth,height:settings.height??video.videoHeight,frameRate:settings.frameRate??null};}
 function cameraLive(){const track=stream?.getVideoTracks()[0];return track?.readyState==='live' && video.srcObject===stream && !video.paused && video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0;}
-function cvLive(){try {const status=cv?.getStatus();return selectedDelegate!==null && status?.running===true && status.lifecycleState==='running' && !status.error && checkedExecution(selectedDelegate,adapter).delegate===selectedDelegate;}catch{return false;}}
+function cvLive(){try {const status=cv?.getStatus();return selectedDelegate!==null && status?.running===true && status.lifecycleState==='running' && (!AFTER_RESULT||(status.schedulingMode==='after-result'&&!videoPresentationFailed)) && !status.error && checkedExecution(selectedDelegate,adapter).delegate===selectedDelegate;}catch{return false;}}
 function snapshot(){return input?.getSnapshot();}
 function calibrated(){const snap=snapshot();return snap?.calibration?.calibrationId != null && snap.calibration.readiness==='countdown' && snap.tracking.freshCalibrationRequired!==true && snap.tracking.gameplayPaused!==true;}
 function renderMarkers(pose,snap){
@@ -64,11 +73,12 @@ function stopWindow(reason){
     const measuredWindow=observer.stop(performance.now(),cvStatus);
     // Keep the exact scalar recorder, but do not mislabel a GPU window as the
     // original CPU camera baseline when a consumer inspects it on its own.
-    const window=Object.freeze({...measuredWindow,schema:'aerobeat/private_phone_cv_gpu_window',purpose:'camera_cv_gpu_first_experiment'});
+    const window=Object.freeze({...measuredWindow,schema:WINDOW_SCHEMA,purpose:REPORT_PURPOSE,...(AFTER_RESULT?{scheduler:SCHEDULER}:{})});
     const verified=typeof provenance?.sha256==='string' && /^[0-9a-f]{64}$/.test(provenance.sha256);
     const invalidReason=preview?'qa_preview_not_phone_evidence':fallback?'gpu_fallback':!verified?'unverified_build':window.invalidReason;
-    lastReport=Object.freeze({schema:'aerobeat/private_phone_cv_gpu_experiment_report',version:1,purpose:'camera_cv_gpu_first_experiment',packageVersion:PACKAGE_VERSION,
+    lastReport=Object.freeze({schema:REPORT_SCHEMA,version:1,purpose:REPORT_PURPOSE,packageVersion:PACKAGE_VERSION,
       build:{stamp:BUILD_STAMP,bundleManifestSha256:provenance?.sha256??null},
+      ...(AFTER_RESULT?{scheduler:SCHEDULER}:{}),
       delegate:{requested:'gpu-webgl',selected:selectedDelegate,fallback,fallbackReason},
       valid:window.valid&&!preview&&!fallback&&verified,invalidReason,window});
     downloadButton.hidden=false;downloadButton.disabled=false;
@@ -81,6 +91,7 @@ function checkWindow(){
   if(phase!=='warmup'&&phase!=='measuring')return null;
   if(document.hidden)return 'hidden';
   if(!cameraLive()||performance.now()-lastCameraTime>2000)return 'camera_lost';
+  if(AFTER_RESULT&&videoPresentationFailed)return 'camera_presentation_identity_lost';
   if(!cvLive())return 'cv_lost';
   if(stageGeometry()!==geometry)return 'geometry_changed';
   if(cameraTrack!==stream?.getVideoTracks()[0] || cameraIdentity!==cameraKey())return 'camera_changed';
@@ -97,6 +108,7 @@ function cameraKey(){const t=stream?.getVideoTracks()[0],s=t?.getSettings()??{};
 if(preview)Object.defineProperty(window,'__aerobeatCvMarkerQa',{value:Object.freeze({
   getNativeInput:()=>input,getCvStatus:()=>cv?.getStatus(),getLatestPose:()=>cv?.getLatestPoseFrame(),getCameraIdentity:()=>cameraIdentity,
   getDelegate:()=>({selectedDelegate,fallback,fallbackReason,actualDelegate:adapter?.getTelemetryStatus()?.actualDelegate,provider:adapter?.getExecutionTelemetry()?.provider}),
+  getPresentedFrameId:()=>AFTER_RESULT?presentedFrameId:null,
   renderFixtureMarkers:()=>{
     // Synchronous local DOM projection only: no adapter, input or recorder mutation.
     // The real checkerboard Worker has zero human landmarks; this tests CSS mapping,
@@ -153,23 +165,29 @@ function frame(now){
   refresh();
 }
 let windowStartedAt=0;
-function cameraTick(_now,metadata){videoCallback=null;if(disposed)return;
+function cancelCameraTick(){if(videoCallback!==null){video.cancelVideoFrameCallback(videoCallback);videoCallback=null;}presentedFrameId=null;}
+function cameraTick(_now,metadata){videoCallback=null;if(disposed||videoPresentationFailed)return;
   const time=metadata?.mediaTime,presented=metadata?.presentedFrames;
+  if(AFTER_RESULT && (!Number.isSafeInteger(presented)||presented<0||!Number.isFinite(time))){
+    videoPresentationFailed=true;stopWindow('camera_presentation_identity_lost');hideDots();refresh();return;
+  }
+  if(AFTER_RESULT&&presented<lastPresented){videoPresentationFailed=true;stopWindow('camera_presentation_identity_lost');hideDots();refresh();return;}
   if(Number.isFinite(time)&&time>lastMediaTime&&(!Number.isFinite(presented)||presented>lastPresented)){
     lastMediaTime=time;if(Number.isFinite(presented))lastPresented=presented;lastCameraTime=performance.now();
+    if(AFTER_RESULT)presentedFrameId=presented;
     if(phase==='measuring')observer.videoFrame(metadata);
   }
   videoCallback=video.requestVideoFrameCallback(cameraTick);
 }
 async function boot(){
   try{
-    if(!navigator.mediaDevices?.getUserMedia||!video.requestVideoFrameCallback)throw new Error('Secure camera and video-frame callbacks required');
+    if(!navigator.mediaDevices?.getUserMedia||!video.requestVideoFrameCallback||(AFTER_RESULT&&!video.cancelVideoFrameCallback))throw new Error('Secure camera and video-frame callbacks required');
     state.textContent='Requesting camera permission…';
     const acquired=await navigator.mediaDevices.getUserMedia(defaultLiveCameraConstraints());
     if(disposed||requestCancelled){acquired.getTracks().forEach(track=>track.stop());return;}
     stream=acquired;video.srcObject=stream;await video.play();
     if(disposed){stream.getTracks().forEach(track=>track.stop());return;}
-    cameraTrack=stream.getVideoTracks()[0];cameraIdentity=cameraKey();lastCameraTime=performance.now();
+    cameraTrack=stream.getVideoTracks()[0];cameraIdentity=cameraKey();lastCameraTime=performance.now();presentedFrameId=null;videoPresentationFailed=false;
     stream.getVideoTracks()[0].addEventListener('ended',()=>{stopWindow('camera_lost');hideDots();refresh();});
     videoCallback=video.requestVideoFrameCallback(cameraTick);
     input=createAeroBodyGridService();
@@ -186,7 +204,7 @@ async function boot(){
       await startDelegate(mediaPipeDelegates.cpuWasm);
     }
     if(disposed){await cv?.dispose();return;}phase='waiting';raf=requestAnimationFrame(frame);refresh();
-  }catch{stopWindow('cv_lost');state.textContent='Camera/CV unavailable. Retry after reloading this private experiment.';hideDots();if(cv)void cv.dispose().catch(()=>{});else if(adapter)void adapter.dispose().catch(()=>{});}
+  }catch{cancelCameraTick();stopWindow('cv_lost');state.textContent='Camera/CV unavailable. Retry after reloading this private experiment.';hideDots();if(cv)void cv.dispose().catch(()=>{});else if(adapter)void adapter.dispose().catch(()=>{});}
 }
 async function startDelegate(requested){
   state.textContent=`Loading ${requested==='gpu-webgl'?'GPU/WebGL':'CPU/WASM fallback'} Pose Landmarker Lite Worker…`;
@@ -195,10 +213,14 @@ async function startDelegate(requested){
     wasmRootUrl:new URL('assets/mediapipe/wasm',location.href).href,tasksVisionScriptUrl:new URL('assets/mediapipe/vision_bundle.js',location.href).href,
     minPoseDetectionConfidence:lockedProductionCvProfile.minPoseDetectionConfidence,minPosePresenceConfidence:lockedProductionCvProfile.minPosePresenceConfidence,minTrackingConfidence:lockedProductionCvProfile.minTrackingConfidence});
   adapter=candidate;
-  cv=createPrivateExperimentalCvService({poseAdapter:candidate,selectedDelegate:requested,submissionCadenceTargetFps:lockedProductionCvProfile.submissionCadenceTargetFps});
+  cv=createPrivateExperimentalCvService({poseAdapter:candidate,selectedDelegate:requested,submissionCadenceTargetFps:lockedProductionCvProfile.submissionCadenceTargetFps,...(AFTER_RESULT?{schedulingMode:'after-result'}:{})});
   // Preview-only seam does not generate synthetic poses; CPU still loads a real Worker.
   if(requested==='gpu-webgl'&&forceGpuInitFail)throw new Error('Preview-only GPU initialization failure');
-  await cv.start(createLockedVideoFrameSource(video,{sourceId:mediaPipeLiveSourceId,mirrored:true}));
+  const cameraSource=createLockedVideoFrameSource(video,{sourceId:mediaPipeLiveSourceId,mirrored:true});
+  // The sole callback above observes real presentations for both recorder and scheduler.
+  // Do not derive identity from performance.now() or increment on a scheduler retry.
+  const source=AFTER_RESULT?Object.freeze({...cameraSource,getPresentedFrameId:()=>videoPresentationFailed?null:presentedFrameId}):cameraSource;
+  await cv.start(source);
   checkedExecution(requested,candidate);
   if(disposed)throw new Error('Page disposed during CV startup');
   selectedDelegate=requested;
@@ -216,15 +238,15 @@ function begin(){if(phase!=='waiting'||!calibrated()||!cvLive()||!cameraLive()||
 startButton.addEventListener('click',event=>{if(event.isTrusted)begin();});
 downloadButton.addEventListener('click',event=>{if(!event.isTrusted||!lastReport)return;
   const json=JSON.stringify(lastReport,null,2);if(json.length>16384){state.textContent='Report exceeded private size bound';return;}
-  const url=URL.createObjectURL(new Blob([json],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download='aerobeat-camera-cv-gpu-experiment-v1.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  const url=URL.createObjectURL(new Blob([json],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=AFTER_RESULT?'aerobeat-camera-cv-gpu-after-result-v1.json':'aerobeat-camera-cv-gpu-experiment-v1.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden){stopWindow('hidden');hideDots();}});
-window.addEventListener('pagehide',()=>{disposed=true;requestCancelled=true;stopWindow('disposed');if(raf!==null)cancelAnimationFrame(raf);if(videoCallback!==null)video.cancelVideoFrameCallback(videoCallback);void cv?.dispose();input?.destroy();video.pause();video.srcObject=null;stream?.getTracks().forEach(track=>track.stop());});
-(async()=>{try{const response=await fetch('/phone-cv-gpu-bundle-manifest.json',{cache:'no-store'});if(!response.ok)throw new Error('missing manifest');const bytes=await response.arrayBuffer();if(bytes.byteLength<16||bytes.byteLength>128000)throw new Error('manifest size');
+window.addEventListener('pagehide',()=>{disposed=true;requestCancelled=true;stopWindow('disposed');if(raf!==null)cancelAnimationFrame(raf);cancelCameraTick();void cv?.dispose();input?.destroy();video.pause();video.srcObject=null;stream?.getTracks().forEach(track=>track.stop());});
+(async()=>{try{const response=await fetch(MANIFEST_FILE,{cache:'no-store'});if(!response.ok)throw new Error('missing manifest');const bytes=await response.arrayBuffer();if(bytes.byteLength<16||bytes.byteLength>128000)throw new Error('manifest size');
   const manifest=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
-  if(manifest?.schema!=='aerobeat/private_phone_cv_gpu_bundle'||manifest.version!==1||manifest.buildStamp!==BUILD_STAMP||!Array.isArray(manifest.assets)||manifest.assets.length<2)throw new Error('manifest identity');
+  if(manifest?.schema!==MANIFEST_SCHEMA||manifest.version!==1||manifest.buildStamp!==BUILD_STAMP||(AFTER_RESULT&&(manifest.scheduler?.mode!==SCHEDULER.mode||manifest.scheduler?.targetFps!==SCHEDULER.targetFps||manifest.purpose!==REPORT_PURPOSE))||!Array.isArray(manifest.assets)||manifest.assets.length<2)throw new Error('manifest identity');
   provenance=Object.freeze({sha256:await sha256Hex(bytes)});
   }catch{if(import.meta.env.DEV)provenance=Object.freeze({sha256:null});else{provenanceFailure=true;state.textContent='Bundle identity failed; no physical report allowed.';}}
   refresh();})();
-if(preview)summary.textContent='GPU-first QA preview: 0.5s warmup + 4s window; JSON always invalid as sustained physical evidence.';
+if(preview)summary.textContent=`GPU-first ${AFTER_RESULT?'after-result ':''}QA preview: 0.5s warmup + 4s window; JSON always invalid as sustained physical evidence.`;
 void boot();

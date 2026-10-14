@@ -45,6 +45,11 @@ src/private-experimental-cv-service.js
 scripts/write-phone-cv-gpu-bundle-manifest.js
 scripts/validate-private-experimental-cv-service.js
 scripts/validate-phone-cv-gpu-browser.js
+vite.phone-cv-gpu-result.config.js
+dist-phone-cv-gpu-result-experiment/
+scripts/write-phone-cv-gpu-result-bundle-manifest.js
+scripts/validate-phone-cv-gpu-result-browser.js
+scripts/validate-private-result-scheduled-cv-service.js
 scripts/validate-phone-cv-marker-window.js
 scripts/validate-phone-cv-marker-browser.js
 vite.phone-hit.config.js

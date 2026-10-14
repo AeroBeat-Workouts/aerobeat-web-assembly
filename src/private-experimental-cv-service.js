@@ -6,7 +6,7 @@
  * Private marker experiment only. No production route or automatic fallback lives here:
  * the caller must construct a fresh adapter/service when GPU initialization fails.
  *
- * @param {{poseAdapter:AeroPoseAdapter,selectedDelegate:"gpu-webgl"|"cpu-wasm",submissionCadenceTargetFps?:number,now?:()=>number}} options
+ * @param {{poseAdapter:AeroPoseAdapter,selectedDelegate:"gpu-webgl"|"cpu-wasm",submissionCadenceTargetFps?:number,schedulingMode?:"fixed-tick"|"after-result",now?:()=>number}} options
  */
 export function createPrivateExperimentalCvService(options) {
   if (options.selectedDelegate !== "gpu-webgl" && options.selectedDelegate !== "cpu-wasm") throw new TypeError("Experimental CV selectedDelegate must be gpu-webgl or cpu-wasm");
@@ -15,7 +15,13 @@ export function createPrivateExperimentalCvService(options) {
   const adapter = options.poseAdapter;
   const targetFps = options.submissionCadenceTargetFps ?? 15;
   if (!Number.isFinite(targetFps) || targetFps <= 0 || targetFps > 15) throw new TypeError("Experimental CV cadence must be within the 15fps ceiling");
+  const schedulingMode = options.schedulingMode ?? "fixed-tick";
+  if (schedulingMode !== "fixed-tick" && schedulingMode !== "after-result") throw new TypeError("Experimental CV schedulingMode is invalid");
   const now = options.now ?? (() => performance.now());
+  const admissionIntervalMs = Math.max(67, 1000 / targetFps);
+  const noFrameRetryMs = Math.max(16, Math.min(67, admissionIntervalMs));
+  let lastAcceptedAt = -Infinity;
+  let lastAcceptedPresentedFrameId = -1;
   let lifecycleState = "idle";
   let generation = 0;
   let timer = 0;
@@ -42,15 +48,17 @@ export function createPrivateExperimentalCvService(options) {
     async start(source) {
       if (lifecycleState === "disposed") throw new Error("Experimental CV service is disposed");
       const normalized = normalizeSource(source);
+      if (schedulingMode === "after-result" && !Object.hasOwn(normalized, "getPresentedFrameId")) throw new TypeError("Experimental CV after-result requires getPresentedFrameId from requestVideoFrameCallback");
       const token = ++generation;
-      stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "loading"; lastError = null; actualProvider = null;
+      stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "loading"; lastError = null; actualProvider = null; lastAcceptedAt = -Infinity; lastAcceptedPresentedFrameId = -1;
       const operation = enqueueAdapter(async () => { await adapter.load(); actualProvider = validateExecution(); }); loading = operation;
       try { await operation; }
       catch (error) { if (token !== generation || lifecycleState === "disposed") return; lastError = errorMessage(error); lifecycleState = "error"; throw new Error(lastError); }
       finally { if (loading === operation) loading = null; }
       if (token !== generation || lifecycleState === "disposed") return;
       activeSource = normalized; lifecycleState = "running";
-      timer = globalThis.setInterval(() => { void estimate(token); }, Math.ceil(1000 / targetFps));
+      if (schedulingMode === "after-result") scheduleAfterResult(token, 0);
+      else timer = globalThis.setInterval(() => { void estimate(token); }, Math.ceil(1000 / targetFps));
     },
     async stop() { if (disposeOperation) { await disposeOperation; return; } if (lifecycleState === "disposed") return; ++generation; stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "stopped"; },
     async dispose() {
@@ -60,6 +68,8 @@ export function createPrivateExperimentalCvService(options) {
       const operation = (async () => { await loading?.catch(() => {}); await inFlight?.catch(() => {}); await enqueueAdapter(() => adapter.dispose?.()); })(); disposeOperation = operation; await operation;
     },
     async nextPoseFrame() {
+      // The after-result experiment is push-only; bypassing its timer would evade both admission guards.
+      if (schedulingMode === "after-result") throw new Error("Experimental CV after-result nextPoseFrame is not supported; use getLatestPoseFrame");
       if (!activeSource || lifecycleState !== "running") throw new Error("Experimental CV source is not running");
       if (nextFrameOperation) return nextFrameOperation;
       const token = generation;
@@ -74,7 +84,7 @@ export function createPrivateExperimentalCvService(options) {
       nextFrameOperation = operation;
       try { return await operation; } finally { if (nextFrameOperation === operation) nextFrameOperation = null; }
     },
-    submitFrame() { void estimate(generation); },
+    submitFrame() { if (schedulingMode === "after-result") scheduleAfterResult(generation, Math.max(0, lastAcceptedAt + admissionIntervalMs - now())); else void estimate(generation); },
     getLatestPoseFrame() { return latestPoseFrame; },
     getPerformanceSample() {
       const execution = actualProvider === null ? undefined : validateExecutionTelemetry(adapter.getExecutionTelemetry?.());
@@ -85,7 +95,7 @@ export function createPrivateExperimentalCvService(options) {
       // Never promote the requested delegate into purported actual execution identity.
       if (actualProvider !== null) validateExecutionTelemetry(adapter.getExecutionTelemetry?.());
       return Object.freeze({
-        serviceId: "aero.cv.pose", lifecycleState, running: lifecycleState === "running", sourceKind: "live-camera",
+        serviceId: "aero.cv.pose", lifecycleState, running: lifecycleState === "running", sourceKind: "live-camera", schedulingMode,
         sourceId: activeSource?.sourceId ?? "aero.mediapipe.live", mirrored: activeSource?.mirrored ?? true,
         selectedVendorId: adapter.vendorId, selectedBackendId: "mediapipe", requestedBackendId: "mediapipe",
         providerId: actualProvider === "webgl" ? "gpu-webgl" : actualProvider === "wasm" ? "cpu-wasm" : null, executionLocation: "worker", gameplaySource: "measured", resizePath: "none",
@@ -109,6 +119,38 @@ export function createPrivateExperimentalCvService(options) {
     if (execution.provider !== expectedProvider) throw new Error("Experimental CV actual execution provider contradicted selected delegate");
     if (execution.fallback !== false) throw new Error("Experimental CV execution fallback contradicted selected route");
     return execution;
+  }
+
+  /** @param {number} token @param {number} delayMs */
+  function scheduleAfterResult(token, delayMs) {
+    if (schedulingMode !== "after-result" || token !== generation || lifecycleState !== "running" || timer || inFlight) return;
+    timer = globalThis.setTimeout(() => { timer = 0; void estimateAfterResult(token); }, delayMs);
+  }
+
+  /** @param {number} token */
+  async function estimateAfterResult(token) {
+    if (token !== generation || lifecycleState !== "running" || inFlight || !activeSource) return;
+    const delay = lastAcceptedAt + admissionIntervalMs - now();
+    if (delay > 0) { scheduleAfterResult(token, delay); return; }
+    const source = activeSource;
+    try {
+      if (!source.isFrameAvailable()) { scheduleAfterResult(token, noFrameRetryMs); return; }
+      // Clock timestamps cannot prove freshness: require requestVideoFrameCallback metadata.presentedFrames.
+      const presentedFrameId = source.getPresentedFrameId();
+      if (presentedFrameId === null && lastAcceptedPresentedFrameId === -1) { scheduleAfterResult(token, noFrameRetryMs); return; }
+      if (!Number.isSafeInteger(presentedFrameId) || presentedFrameId < 0 || presentedFrameId < lastAcceptedPresentedFrameId) throw new Error("Experimental CV presented frame ID is missing, invalid or regressed");
+      if (presentedFrameId === lastAcceptedPresentedFrameId) { scheduleAfterResult(token, noFrameRetryMs); return; }
+      lastAcceptedPresentedFrameId = presentedFrameId;
+      lastAcceptedAt = now();
+      submittedFrameCount += 1;
+      const operation = runEstimate(token, source); inFlight = operation;
+      try { await operation; } finally {
+        if (inFlight === operation) inFlight = null;
+        if (token === generation && lifecycleState === "running") scheduleAfterResult(token, Math.max(0, lastAcceptedAt + admissionIntervalMs - now()));
+      }
+    } catch (error) {
+      if (token === generation) { lastError = errorMessage(error); lifecycleState = "error"; stopTimer(); }
+    }
   }
 
   /** @param {number} token */
@@ -140,7 +182,7 @@ export function createPrivateExperimentalCvService(options) {
 
   /** @template T @param {()=>T|Promise<T>} operation @returns {Promise<T>} */
   function enqueueAdapter(operation) { const queued = adapterQueue.then(operation, operation); adapterQueue = queued.catch(() => {}); return queued; }
-  function stopTimer() { if (timer) globalThis.clearInterval(timer); timer = 0; }
+  function stopTimer() { if (timer) { if (schedulingMode === "after-result") globalThis.clearTimeout(timer); else globalThis.clearInterval(timer); } timer = 0; }
 }
 
 /** @param {unknown} source */
@@ -151,7 +193,10 @@ function normalizeSource(source) {
     if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) throw new TypeError(`Experimental CV source ${key} is invalid`);
   }
   if (typeof source.sourceId !== "string" || !source.sourceId || source.sourceId.length > 512 || typeof source.mirrored !== "boolean" || !(source.frameSource instanceof HTMLVideoElement) || typeof source.getTimestampMs !== "function" || typeof source.isFrameAvailable !== "function" || typeof source.frameWidth !== "function" || typeof source.frameHeight !== "function") throw new TypeError("Experimental CV source fields are invalid");
-  return source;
+  const presentedFrameId = Object.getOwnPropertyDescriptor(source, "getPresentedFrameId");
+  if (presentedFrameId && (!presentedFrameId.enumerable || !("value" in presentedFrameId) || typeof presentedFrameId.value !== "function")) throw new TypeError("Experimental CV source getPresentedFrameId is invalid");
+  // Before the first callback, null waits without admission; losing identity after admission fails closed.
+  return /** @type {typeof source & {getPresentedFrameId?:()=>number|null}} */ (source);
 }
 
 /** @param {HTMLVideoElement} video @param {number} timestampMs */

@@ -5,6 +5,7 @@ dist-flow-centerline-phone/
 dist-phone-play-cv/
 dist-phone-cv-marker-baseline/
 dist-phone-cv-gpu-experiment/
+dist-phone-cv-gpu-result-experiment/
 build/
 coverage/
 .nyc_output/
