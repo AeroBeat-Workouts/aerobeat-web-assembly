@@ -1,5 +1,5 @@
 // @ts-check
-// Signed, isolated DIRECT browser oracle. Fake camera and chart are test-owned;
+// Signed, isolated direct/cross-origin iframe browser oracle. Fake camera and chart are test-owned;
 // this is not physical calibration, scored contact, or a public service.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -16,6 +16,8 @@ import { createSyntheticBeatSaverZip } from '../../aerobeat-web-vendor-beatsaver
 const root = fileURLToPath(new URL('../', import.meta.url));
 const selected = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_DIR;
 const directory = selected === undefined ? resolve(root, 'dist-friend-game') : resolve(root, selected);
+const embedding = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING ?? 'direct';
+assert(['direct', 'iframe'].includes(embedding), 'only direct or cross-origin iframe embedding');
 if (selected !== undefined) {
   assert(!isAbsolute(selected) && !selected.includes('\\') && selected.split('/').every(part => part && part !== '.' && part !== '..'), 'candidate selector must be a safe relative path');
   const inside = relative(resolve(root, '.tmp'), directory);
@@ -86,6 +88,14 @@ server.listen(0, '127.0.0.1');
 await new Promise(done => server.once('listening', done));
 const address = server.address(); assert(address && typeof address !== 'string');
 const origin = `http://127.0.0.1:${address.port}`;
+const parent = embedding === 'iframe' ? createServer((_request, response) => {
+  response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'referrer-policy': 'no-referrer' });
+  response.end(`<!doctype html><meta name="viewport" content="width=device-width"><iframe id="game" allow="camera; fullscreen; autoplay; xr-spatial-tracking" style="border:0;width:390px;height:844px" src="${origin}/"></iframe>`);
+}) : null;
+if (parent) { parent.listen(0, 'localhost'); await new Promise(done => parent.once('listening', done)); }
+const parentAddress = parent?.address();
+if (parent) assert(parentAddress && typeof parentAddress !== 'string', 'cross-origin iframe parent listening');
+const parentUrl = parent ? `http://localhost:${parentAddress.port}/` : null;
 let browser, context;
 try {
   browser = await chromium.launch({ headless: true, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
@@ -93,18 +103,24 @@ try {
   const page = await context.newPage();
   const external = [], errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  page.on('request', request => { if (/^https?:/u.test(request.url()) && new URL(request.url()).origin !== origin) external.push(request.url()); });
-  await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
-  assert.equal((await page.goto(`${origin}/`, { waitUntil: 'domcontentloaded' }))?.status(), 200);
-  const game = page.locator('aero-game'); await game.waitFor();
-  await page.waitForFunction(() => document.querySelector('aero-game')?.graph?.authoring?.getCapabilities?.().conversionWorker === true && document.querySelector('aero-game')?.graph?.renderer?.describe?.().gameplayAssets?.state === 'ready', null, { timeout: 45000 });
+  const approvedOrigins = new Set([origin, ...(parentUrl ? [new URL(parentUrl).origin] : [])]);
+  page.on('request', request => { if (/^https?:/u.test(request.url()) && !approvedOrigins.has(new URL(request.url()).origin)) external.push(request.url()); });
+  await page.route('**/*', route => approvedOrigins.has(new URL(route.request().url()).origin) ? route.continue() : route.abort());
+  assert.equal((await page.goto(parentUrl ?? `${origin}/`, { waitUntil: 'domcontentloaded' }))?.status(), 200);
+  if (parent) await page.frameLocator('#game').locator('aero-game').waitFor();
+  const frame = parent ? page.frames().find(candidate => candidate !== page.mainFrame() && candidate.url() === `${origin}/`) : page.mainFrame();
+  assert(frame && frame.url() === `${origin}/`, 'actual signed game child frame');
+  if (parent) assert.notEqual(new URL(page.url()).origin, new URL(frame.url()).origin, 'genuine cross-origin iframe');
+  const game = frame.locator('aero-game'); await game.waitFor();
+  await frame.waitForFunction(() => document.querySelector('aero-game')?.graph?.authoring?.getCapabilities?.().conversionWorker === true && document.querySelector('aero-game')?.graph?.renderer?.describe?.().gameplayAssets?.state === 'ready', null, { timeout: 45000 });
   const music = game.locator('aero-beatsaver-browser');
   const chooserPromise = page.waitForEvent('filechooser');
   await music.getByRole('button', { name: 'Choose local ZIP' }).click();
   await (await chooserPromise).setFiles({ name: 'qa-model-progress.zip', mimeType: 'application/zip', buffer: archive });
-  await page.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.selectedPackageId && game.graph?.content?.getSnapshot?.().state === 'ready' && game.graph.audio.getStatus().state === 'ready'; }, null, { timeout: 60000 });
+  await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.selectedPackageId && game.graph?.content?.getSnapshot?.().state === 'ready' && game.graph.audio.getStatus().state === 'ready'; }, null, { timeout: 60000 });
   const inspect = () => game.evaluate(element => {
     const drawer = element.shadowRoot.querySelector('[data-role="drawer"]');
+    const viewport = { width: Math.min(innerWidth, document.documentElement.clientWidth), height: Math.min(innerHeight, document.documentElement.clientHeight) };
     const actions = drawer?.querySelector('aero-session-actions');
     const root = actions?.shadowRoot;
     const bar = root?.querySelector('progress[part="model-download-progress"]');
@@ -122,10 +138,10 @@ try {
     const queueForeground = queueBox ? element.shadowRoot.elementFromPoint(queueX, queueY) : null;
     return { bar: Boolean(bar), value: bar?.value ?? null, max: bar?.max ?? null, text: label?.textContent?.trim() ?? '', aria: bar?.getAttribute('aria-label') ?? '', pending: element.pendingSessionAction,
       queuedText: queuedLabel?.textContent?.trim() ?? '', queuedRole: queuedLabel?.getAttribute('role') ?? '',
-      queuedVisible: Boolean(queuedLabel && queueBox.width >= 80 && queueBox.height >= 16 && queueBox.left >= 0 && queueBox.top >= 0 && queueBox.right <= innerWidth && queueBox.bottom <= innerHeight && buttonBox.width >= 40 && Math.abs(queueBox.top - buttonBox.top) <= 200 && getComputedStyle(queuedLabel).visibility === 'visible' && getComputedStyle(queuedLabel).display !== 'none' && Number(getComputedStyle(queuedLabel).opacity) > 0 && !queuedLabel.closest('[hidden], [aria-hidden="true"]') && (queueHit === queuedLabel || queuedLabel.contains(queueHit)) && (queueForeground === actions || queueForeground === drawer)),
+      queuedVisible: Boolean(queuedLabel && queueBox.width >= 80 && queueBox.height >= 16 && queueBox.left >= 0 && queueBox.top >= 0 && queueBox.right <= viewport.width && queueBox.bottom <= viewport.height && buttonBox.width >= 40 && Math.abs(queueBox.top - buttonBox.top) <= 200 && getComputedStyle(queuedLabel).visibility === 'visible' && getComputedStyle(queuedLabel).display !== 'none' && Number(getComputedStyle(queuedLabel).opacity) > 0 && !queuedLabel.closest('[hidden], [aria-hidden="true"]') && (queueHit === queuedLabel || queuedLabel.contains(queueHit)) && (queueForeground === actions || queueForeground === drawer)),
       testEnabled: Boolean(testButton && !testButton.disabled), testBusy: testButton?.getAttribute('aria-busy') ?? '',
       cv: element.graph.cv.getStatus().lifecycleState, camera: element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none',
-      visible: Boolean(bar && drawer && !drawer.hidden && drawer.getAttribute('aria-hidden') !== 'true' && box.width >= 80 && box.height >= 4 && box.x >= 0 && box.y >= 0 && box.right <= innerWidth && box.bottom <= innerHeight && buttonBox.width >= 40 && Math.abs(box.top - buttonBox.top) <= 200 && getComputedStyle(bar).visibility === 'visible' && getComputedStyle(bar).display !== 'none' && (hit === bar || bar.contains(hit)) && (foreground === actions || foreground === drawer)),
+      visible: Boolean(bar && drawer && !drawer.hidden && drawer.getAttribute('aria-hidden') !== 'true' && box.width >= 80 && box.height >= 4 && box.x >= 0 && box.y >= 0 && box.right <= viewport.width && box.bottom <= viewport.height && buttonBox.width >= 40 && Math.abs(box.top - buttonBox.top) <= 200 && getComputedStyle(bar).visibility === 'visible' && getComputedStyle(bar).display !== 'none' && (hit === bar || bar.contains(hit)) && (foreground === actions || foreground === drawer)),
       labelVisible: Boolean(label && label.getBoundingClientRect().width >= 80 && getComputedStyle(label).visibility === 'visible') };
   });
   const checkIndeterminate = async stage => {
@@ -134,13 +150,13 @@ try {
     assert(state.labelVisible && /prepar|load|camera|queu/iu.test(state.text), `${stage}: visible indeterminate preparation: ${JSON.stringify(state)}`);
   };
   await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
-  await page.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'start' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'loading', null, { timeout: 15000 });
+  await frame.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'start' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'loading', null, { timeout: 15000 });
   await checkIndeterminate('camera/Worker before measured model');
   const seen = [];
   let testQueued = false;
   for (let index = 0; index < holds.length; index++) {
     await withTimeout(reached[index], 20000, `signed model reaches ${index}`);
-    await page.waitForFunction(floor => {
+    await frame.waitForFunction(floor => {
       const a = document.querySelector('aero-game')?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
       const bar = a?.querySelector('progress[part="model-download-progress"]');
       return bar && bar.value >= floor;
@@ -160,7 +176,7 @@ try {
         console.log(`OBSERVED: Test is not clickable during pending Play at model 75%; queued-Test visual state cannot be asserted: ${JSON.stringify(state)}`);
       } else {
         await game.locator('aero-session-actions').getByRole('button', { name: 'Test', exact: true }).click();
-        await page.waitForFunction(() => {
+        await frame.waitForFunction(() => {
           const game = document.querySelector('aero-game');
           const actions = game?.shadowRoot?.querySelector('aero-session-actions');
           const queued = actions?.shadowRoot?.querySelector('[part="queued-status"]');
@@ -194,14 +210,14 @@ try {
     }
     release[index]();
   }
-  if (testQueued) await page.waitForFunction(() => {
+  if (testQueued) await frame.waitForFunction(() => {
     const game = document.querySelector('aero-game');
     const session = game?.graph?.gameplay?.getSnapshot?.().session;
     return session?.purpose === 'visual_test' && session.state === 'playing' && game.menuOpen === false &&
       game.pendingSessionAction === '' && game.graph.audio.getStatus().state === 'playing' &&
       game.graph.cv.getStatus().lifecycleState !== 'running';
   }, null, { timeout: 40000 });
-  else await page.waitForFunction(() => document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'running' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().poseFrameCount > 0 && document.querySelector('aero-game')?.graph?.gameplay?.getSnapshot?.().session.state === 'calibrating', null, { timeout: 40000 });
+  else await frame.waitForFunction(() => document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'running' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().poseFrameCount > 0 && document.querySelector('aero-game')?.graph?.gameplay?.getSnapshot?.().session.state === 'calibrating', null, { timeout: 40000 });
   const worker = page.workers().filter(item => /mediapipe/u.test(item.url()));
   assert.equal(worker.length, 1, 'one genuine MediaPipe Worker');
   const state = await inspect();
@@ -220,9 +236,10 @@ try {
   assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET');
   assert.deepEqual(external, [], 'no off-origin request (including blocked dispatch)');
   assert.deepEqual(errors, [], 'no browser page errors');
-  console.log(`PASS signed direct 390x844 model progress; phases=${JSON.stringify(seen)}; Test queued=${testQueued}; one model/WASM GET; real camera/Worker${testQueued ? '' : '/pose'}; ${directory}`);
+  console.log(`PASS signed ${embedding} 390x844 model progress; phases=${JSON.stringify(seen)}; Test queued=${testQueued}; one model/WASM GET; real camera/Worker${testQueued ? '' : '/pose'}; ${directory}`);
 } finally {
   for (const unblock of release) unblock();
   await context?.close(); await browser?.close();
+  if (parent) await new Promise(done => parent.close(done));
   await new Promise(done => server.close(done));
 }
