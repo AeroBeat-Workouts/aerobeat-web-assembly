@@ -3,12 +3,13 @@
 // Sign every emitted byte from a clean assembly and fourteen clean linked packages.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(fileURLToPath(new URL("../", import.meta.url)));
-const out = path.join(root, "dist-friend-game");
+const defaultOut = path.join(root, "dist-friend-game");
+let out = defaultOut;
 const sidecar = "friend-game-bundle-manifest.json";
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8" }).trim();
@@ -50,8 +51,21 @@ function snapshot(packages) {
     }];
   }));
 }
+function outputDirectory(args) {
+  if (args.length === 0) return defaultOut;
+  if (args.length !== 2 || args[0] !== "--candidate-dir") fail("only test-only --candidate-dir .tmp/<candidate> is supported");
+  const relative = args[1];
+  // Require a single named child of .tmp, not a path alias, traversal or a public dist.
+  if (!/^\.tmp\/[a-zA-Z0-9][a-zA-Z0-9_-]*$/u.test(relative)) fail("candidate must be a relative .tmp/<candidate> directory");
+  const temp = path.join(root, ".tmp");
+  if (!existsSync(temp) || !lstatSync(temp).isDirectory() || realpathSync(temp) !== temp) fail(".tmp must be a real directory");
+  const candidate = path.join(root, relative);
+  if (!existsSync(candidate) || !lstatSync(candidate).isDirectory() || realpathSync(candidate) !== candidate) fail("candidate must be a real directory beneath .tmp");
+  return candidate;
+}
 function main() {
-  if (process.argv.length !== 2 || realpathSync(root) !== root) fail("no arguments and canonical assembly root required");
+  if (realpathSync(root) !== root) fail("canonical assembly root required");
+  out = outputDirectory(process.argv.slice(2));
   const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
   if (pkg.name !== "@aerobeat/web-assembly" || typeof pkg.version !== "string") fail("unexpected assembly package");
   const linked = Object.entries(pkg.dependencies ?? {});
@@ -102,6 +116,6 @@ function main() {
   for (const [name, location] of packages.slice(1)) if (realpathSync(path.join(root, "node_modules", name)) !== location) fail(`linked symlink changed: ${name}`);
   for (const entry of result.assets) if (JSON.stringify(record(entry.path)) !== JSON.stringify(entry)) fail(`output changed during signing: ${entry.path}`);
   writeFileSync(path.join(out, sidecar), `${JSON.stringify(result, null, 2)}\n`, { flag: "wx" });
-  console.log(`Signed ${result.assets.length} files in dist-friend-game; serve only this frozen snapshot.`);
+  console.log(`Signed ${result.assets.length} files in ${path.relative(root, out)}; serve only this frozen snapshot.`);
 }
 try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
