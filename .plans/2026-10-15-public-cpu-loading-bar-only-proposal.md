@@ -10,7 +10,7 @@
 
 Recommendation: do not release until the signed model download and full normal browser gate are accounted for and independently audited. Phone feedback is also required. A progress-only label must not disguise the current intermittent model-request cancellation.
 
-**Owner / records:** assembly owns `aerobeat-web-assembly-zubu` (planning, in progress), `aerobeat-web-assembly-c2qo` (visible progress), `aerobeat-web-assembly-n03i` (QA), and `aerobeat-web-assembly-qco2` (independent audit). Keep `aerobeat-web-assembly-y5d2` (speed experiment) parked for Derrick's explicit disposition, not silently closed or shipped. Linked UI and MediaPipe vendor changes require their owning Beads and clean source pins. Follow-up `aerobeat-web-assembly-tstv` concerns a separate browser-test ResourceTiming overflow; `aerobeat-web-assembly-uyf6` tracks the unresolved renderer cadence gate.
+**Owner / records:** assembly owns `aerobeat-web-assembly-zubu` (planning complete; closed after independent audit; proposal awaits Derrick's approval), `aerobeat-web-assembly-c2qo` (visible progress), `aerobeat-web-assembly-n03i` (QA), and `aerobeat-web-assembly-qco2` (independent audit). Keep `aerobeat-web-assembly-y5d2` (speed experiment) parked for Derrick's explicit disposition, not silently closed or shipped. Linked UI and MediaPipe vendor changes require their owning Beads and clean source pins. Follow-up `aerobeat-web-assembly-tstv` concerns a separate browser-test ResourceTiming overflow; `aerobeat-web-assembly-uyf6` tracks the unresolved renderer cadence gate.
 
 ## Goal and reference points
 
