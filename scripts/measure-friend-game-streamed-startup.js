@@ -45,11 +45,12 @@ const schedule = Object.freeze({ modelChunks: 8, modelIntervalMs: 500, wasmDelay
 const counts = { [model]: 0, [wasm]: 0 };
 const workerTrace = process.env.AEROBEAT_STARTUP_TRACE_WORKER === '1';
 assert(!process.env.AEROBEAT_STARTUP_TRACE_WORKER || workerTrace, 'Worker trace must be 1 or unset');
-const debugEof = process.env.AEROBEAT_STARTUP_DEBUG_EOF === '1';
-assert(!process.env.AEROBEAT_STARTUP_DEBUG_EOF || debugEof, 'EOF debugger must be 1 or unset');
+const debugMode = process.env.AEROBEAT_STARTUP_DEBUG_EOF;
+const debugEof = debugMode === '1' || debugMode === '2';
+assert(!debugMode || debugEof, 'EOF debugger must be 1, 2 or unset');
 assert(!debugEof || workerTrace, 'EOF debugger requires Worker CDP trace');
 // Zero-based signed source lines; these are cause-only breakpoints, not timings.
-const eofBreakpoints = new Map([
+const fullEofBreakpoints = new Map([
   [69, ['loaded', 'self.postMessage({ type: "loaded", actualDelegate: options.delegate });']],
   [203, ['upstreamEofBranch', 'if (result.done) {']],
   [211, ['shaCompare', 'if (hash !== options.modelSha256.toLowerCase())']],
@@ -59,6 +60,9 @@ const eofBreakpoints = new Map([
   [216, ['integrityResolve', 'resolveIntegrity();']],
   [236, ['observedCancel', 'fail(reason ?? new Error("Model reader canceled"));']]
 ]);
+const eofBreakpoints = debugMode === '2'
+  ? new Map([...fullEofBreakpoints].filter(([line]) => [69, 203, 236].includes(line)))
+  : fullEofBreakpoints;
 const workerPath = debugEof ? snapshot.manifest.assets.filter(item => /^assets\/mediapipe-worker-[\w-]+\.js$/u.test(item.path)) : [];
 let signedWorkerUrl;
 if (debugEof) {
@@ -68,7 +72,7 @@ if (debugEof) {
   assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256, 'signed Worker digest required');
   const lines = bytes.toString('utf8').split('\n');
   assert.equal(lines.length, 403, 'exact unminified Worker source lines required (402 plus final newline)');
-  for (const [line, [, anchor]] of eofBreakpoints) assert(lines[line].includes(anchor), `signed Worker line ${line + 1} changed`);
+  for (const [line, [, anchor]] of fullEofBreakpoints) assert(lines[line].includes(anchor), `signed Worker line ${line + 1} changed`);
   signedWorkerUrl = `http://127.0.0.1:4201/${asset.path}`;
 }
 let chrome = null, rawWs = null, profile = null, cdpOrigin = null;
@@ -170,7 +174,10 @@ try {
         if (payload.error) debugFailures.push({ method: pending.method, error: payload.error.message });
         if (pending.method === 'Debugger.enable' && !payload.error) {
           for (const [line, [boundary]] of eofBreakpoints) {
-            sendDebug(send, 'Debugger.setBreakpointByUrl', { lineNumber: line, url: signedWorkerUrl, columnNumber: 0 }, pending.sessionId, { line, boundary });
+            sendDebug(send, 'Debugger.setBreakpointByUrl', {
+              lineNumber: line, url: signedWorkerUrl, columnNumber: 0,
+              ...(debugMode === '2' && boundary === 'upstreamEofBranch' ? { condition: 'result.done === true' } : {})
+            }, pending.sessionId, { line, boundary });
           }
         }
         if (pending.method === 'Debugger.setBreakpointByUrl' && !payload.error) {
@@ -323,10 +330,13 @@ try {
       for (const [line, [boundary]] of eofBreakpoints) {
         assert(eventsForSession.some(item => item.event === 'breakpointBound' && item.line === line), `signed ${boundary} breakpoint not bound`);
       }
-      for (const boundary of ['upstreamEofBranch', 'shaCompare', 'verifiedPost', 'observedClose', 'integritySettled', 'integrityResolve', 'loaded']) {
+      const requiredBoundaries = debugMode === '2' ? ['upstreamEofBranch', 'loaded']
+        : ['upstreamEofBranch', 'shaCompare', 'verifiedPost', 'observedClose', 'integritySettled', 'integrityResolve', 'loaded'];
+      for (const boundary of requiredBoundaries) {
         assert(eventsForSession.some(item => item.event === 'paused' && item.boundary === boundary &&
           (boundary !== 'upstreamEofBranch' || item.scalars?.done === true)), `signed ${boundary} boundary not captured`);
       }
+      if (debugMode === '2') assert(eventsForSession.every(item => item.boundary !== 'upstreamEofBranch' || item.scalars?.done === true), 'conditional EOF breakpoint paused before EOF');
     }
   }
   assert.equal(browser.signed.manifestSha256, manifestSha256, 'browser used this exact signed snapshot');
@@ -336,7 +346,7 @@ try {
   assert(events.every(item => item.finishMs !== null && item.abortedMs === undefined), 'all signed responses finished');
   assert(events.filter(item => item.path === model).every(item => item.chunks.length === schedule.modelChunks && item.chunks.reduce((total, chunk) => total + chunk.bytes, 0) === snapshot.bytes.get(model).length), 'eight model chunks preserve signed bytes');
   console.log(JSON.stringify({ selection, signedManifestSha256: manifestSha256, schedule, counts, serverEvents: events, ...(workerTrace ? { workerEvents } : {}),
-    ...(debugEof ? { debuggerCaveat: 'Cause-only pause/resume instrumentation changes Worker timing; no speed conclusion from this run.' } : {}),
+    ...(debugEof ? { debuggerMode: debugMode, debuggerCaveat: 'Cause-only pause/resume instrumentation changes Worker timing; no speed conclusion from this run.' } : {}),
     browser: { signed: browser.signed, results: browser.results.map(result => ({ mode: result.mode,
       nodeClockFromClickObservationMs: result.nodeClockFromClickObservationMs,
       browserClockFromTrustedClickMs: result.browserClockFromTrustedClickMs,
