@@ -36,9 +36,11 @@ const server = createServer(async (req, res) => {
   const item = raw.get(path);
   if (req.method !== 'GET' || (!item && path !== '/fixture-worker.js' && path !== '/')) { res.writeHead(404); res.end(); return; }
   counts.set(path, (counts.get(path) ?? 0) + 1);
+  let window = null;
   if (path.endsWith('.wasm') || path.endsWith('.task')) {
     const windows = transferWindows.get(path) ?? [];
-    windows.push({ startedMs: performance.now(), method: req.method, range: req.headers.range ?? null, finishedMs: null });
+    window = { startedMs: performance.now(), method: req.method, range: req.headers.range ?? null, finishedMs: null };
+    windows.push(window);
     transferWindows.set(path, windows);
   }
   if (path === '/') {
@@ -50,8 +52,8 @@ const server = createServer(async (req, res) => {
   if (path.endsWith('.wasm') || path.endsWith('.task')) await sleep(delayMs);
   const compressed = encoding === 'br' && req.headers['accept-encoding']?.includes('br') && path !== '/fixture-worker.js';
   const body = compressed ? compressedAssets.get(path) : bytes;
-  res.writeHead(200, { 'Content-Type': path.endsWith('.js') ? 'text/javascript' : 'application/octet-stream', 'Content-Length': body.length, ...(compressed ? { 'Content-Encoding': 'br' } : {}), 'Cache-Control': 'no-store', 'Cross-Origin-Resource-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'" });
-  res.end(body, () => { if (transferWindows.has(path)) transferWindows.get(path).at(-1).finishedMs = performance.now(); });
+  res.writeHead(200, { 'Content-Type': path.endsWith('.js') ? 'text/javascript' : path.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream', 'Content-Length': body.length, ...(compressed ? { 'Content-Encoding': 'br' } : {}), 'Cache-Control': 'no-store', 'Cross-Origin-Resource-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'" });
+  res.end(body, () => { if (window) window.finishedMs = performance.now(); });
 });
 server.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
@@ -64,8 +66,8 @@ try {
       counts.clear(); transferWindows.clear();
       const context = await browser.newContext({ serviceWorkers: 'block' });
       const page = await context.newPage();
-      const network = [], failures = [];
-      page.on('request', r => { if (r.url().startsWith(origin)) network.push({ path: new URL(r.url()).pathname, started: performance.now() }); else failures.push(`off-origin ${r.url()}`); });
+      const failures = [];
+      page.on('request', r => { if (!r.url().startsWith(origin)) failures.push(`off-origin ${r.url()}`); });
       page.on('requestfailed', r => failures.push(`${r.url()} ${r.failure()?.errorText}`));
       await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
       try {
@@ -85,13 +87,20 @@ try {
         const wasmCounts = [...counts].filter(([p]) => p.endsWith('.wasm'));
         assert.equal(modelCount, 1, `exactly one task GET (${encoding}/${mode}): ${JSON.stringify({ counts: [...counts], outcome })}`);
         assert(wasmCounts.length >= 1, 'WASM resolver must request actual signed WASM bytes');
-        assert.equal(wasmCounts.reduce((sum, [, n]) => sum + n, 0), 2, 'pinned resolver makes two WASM GETs in this fixture');
+        assert.equal(wasmCounts.reduce((sum, [, n]) => sum + n, 0), 1, 'signed WASM MIME must allow one WASM GET');
+        assert(wasmCounts.every(([p]) => transferWindows.get(p)?.every(w => w.finishedMs !== null)), 'WASM transfer completes');
         assert(transferWindows.get('/assets/mediapipe/pose_landmarker_lite.task')?.every(w => w.finishedMs !== null), 'model transfer completes');
+        const wasmWindow = transferWindows.get(wasmCounts[0][0])[0];
+        const modelWindow = transferWindows.get('/assets/mediapipe/pose_landmarker_lite.task')[0];
+        assert(mode === 'path'
+          ? modelWindow.startedMs >= wasmWindow.finishedMs
+          : wasmWindow.startedMs >= modelWindow.finishedMs,
+        `${mode}: fixture must report actual sequential transfer order`);
         assert(failures.every(message => message.includes('odml.pa.googleapis.com/v1/log') || (message.includes('/pose_landmarker_lite.task') && message.includes('ERR_ABORTED'))), `unexpected network: ${failures.join(', ')}`);
         assert.equal(outcome.type, 'done', outcome.error ?? 'unknown Worker failure');
         if (mode === 'buffer') assert.equal(outcome.progress.at(-1)?.received, model.bytes);
         const m = outcome.marks;
-        rows.push({ mode, modelGETs: modelCount, wasmGETs: wasmCounts, elapsedMs: Math.round(m.createDone - m.start), resolverMs: Math.round(m.resolverDone - m.resolverStart), creationMs: Math.round(m.createDone - m.createStart), modelStartedAfterResolver: network.find(r => r.path.endsWith('.task'))?.started >= network.find(r => r.path.endsWith('.wasm'))?.started, assetGetWindowsSameNodeClock: Object.fromEntries([...transferWindows].map(([p, windows]) => [p, windows.map(w => ({ ...w, startedMs: Math.round(w.startedMs - runZero), finishedMs: w.finishedMs === null ? null : Math.round(w.finishedMs - runZero) }))])), workerMarksMs: Object.fromEntries(Object.entries(m).map(([key, value]) => [key, Math.round(value - m.start)])), clock: 'server GET timestamps relative to the Node run start; Worker marks relative to Worker load; clocks are not interchangeable', progressEvents: outcome.progress.length, decodedBytes: outcome.progress.at(-1)?.received ?? null, error: null });
+        rows.push({ mode, modelGETs: modelCount, wasmGETs: wasmCounts, elapsedMs: Math.round(m.createDone - m.start), resolverMs: Math.round(m.resolverDone - m.resolverStart), creationMs: Math.round(m.createDone - m.createStart), modelStartedAfterWasm: modelWindow.startedMs >= wasmWindow.finishedMs, wasmStartedAfterModel: wasmWindow.startedMs >= modelWindow.finishedMs, assetGetWindowsSameNodeClock: Object.fromEntries([...transferWindows].map(([p, windows]) => [p, windows.map(w => ({ ...w, startedMs: Math.round(w.startedMs - runZero), finishedMs: w.finishedMs === null ? null : Math.round(w.finishedMs - runZero) }))])), workerMarksMs: Object.fromEntries(Object.entries(m).map(([key, value]) => [key, Math.round(value - m.start)])), clock: 'server GET timestamps relative to the Node run start; Worker marks relative to Worker load; clocks are not interchangeable', progressEvents: outcome.progress.length, decodedBytes: outcome.progress.at(-1)?.received ?? null, error: null });
       } finally { await context.close(); }
     }
     console.log(JSON.stringify({ fixture: 'LOCAL TEST ONLY; signed assets, separate unsigned Worker; NOT phone speed', encoding, artificialAssetDelayMs: delayMs, rows }));
