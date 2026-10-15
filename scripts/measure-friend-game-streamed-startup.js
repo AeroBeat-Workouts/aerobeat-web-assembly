@@ -336,7 +336,11 @@ try {
         assert(eventsForSession.some(item => item.event === 'paused' && item.boundary === boundary &&
           (boundary !== 'upstreamEofBranch' || item.scalars?.done === true)), `signed ${boundary} boundary not captured`);
       }
-      if (debugMode === '2') assert(eventsForSession.every(item => item.boundary !== 'upstreamEofBranch' || item.scalars?.done === true), 'conditional EOF breakpoint paused before EOF');
+      if (debugMode === '2') {
+        const eofPauses = eventsForSession.filter(item => item.event === 'paused' && item.boundary === 'upstreamEofBranch');
+        assert(eofPauses.every(item => item.scalars?.done === true),
+          `conditional EOF breakpoint paused before EOF: ${JSON.stringify(eofPauses.slice(0, 8))}`);
+      }
     }
   }
   assert.equal(browser.signed.manifestSha256, manifestSha256, 'browser used this exact signed snapshot');
