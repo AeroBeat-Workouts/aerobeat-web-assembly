@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";

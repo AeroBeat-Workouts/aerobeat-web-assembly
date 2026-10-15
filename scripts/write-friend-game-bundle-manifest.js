@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Sign every emitted byte from a clean assembly and fourteen clean linked packages.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Fail-closed server: pin every served byte and reject everything outside the signed inventory.
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
