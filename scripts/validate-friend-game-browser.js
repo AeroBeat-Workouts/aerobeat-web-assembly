@@ -17,8 +17,10 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const build = resolve(root, 'dist-friend-game');
 const sidecar = 'friend-game-bundle-manifest.json';
 const rawUrl = process.env.AEROBEAT_FRIEND_GAME_QA_URL;
-assert.equal(rawUrl, 'http://127.0.0.1:4200/', 'INVALID SETUP: exact isolated signed loopback URL required');
+assert(['http://127.0.0.1:4200/', 'http://127.0.0.1:4201/'].includes(rawUrl),
+  'INVALID SETUP: exact signed loopback 4200 rollback or 4201 candidate URL required');
 const origin = new URL(rawUrl).origin;
+const signedPort = new URL(rawUrl).port;
 // Normal release gate stays short; the historical 35-second Pixel stall is opt-in.
 const slowWasmMs = process.env.AEROBEAT_FRIEND_GAME_EXTENDED_SLOW_START === '1' ? 35_000 : 6_000;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -119,7 +121,7 @@ for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', 
   assert.equal(response.status, 404, `unknown/forbidden path ${path}`);
   policy(response, assetCsp, path);
 }
-const traversal = await new Promise((resolvePromise, reject) => httpRequest({ hostname: '127.0.0.1', port: 4200, path: '/%2e%2e/index.html' }, response => { response.resume(); response.on('end', () => resolvePromise(response.statusCode)); }).on('error', reject).end());
+const traversal = await new Promise((resolvePromise, reject) => httpRequest({ hostname: '127.0.0.1', port: Number(signedPort), path: '/%2e%2e/index.html' }, response => { response.resume(); response.on('end', () => resolvePromise(response.statusCode)); }).on('error', reject).end());
 assert.equal(traversal, 404, 'encoded raw traversal denied');
 assert.equal((await fetch(rawUrl, { method: 'POST' })).status, 405, 'no POST');
 console.log(`PASS signed served bytes/CSP/static negatives: ${names.length} assets; counterfactual hash fails`);
