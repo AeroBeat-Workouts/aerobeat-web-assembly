@@ -2,6 +2,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { brotliDecompressSync } from "node:zlib";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
@@ -18,11 +19,11 @@ const sourceManifest = {
 const buildStamp = `FRIEND-GAME-CPU-${sourceManifest.packageVersion}-${hash(Buffer.from(JSON.stringify(sourceManifest))).slice(0, 24)}`;
 const files = new Map([
   ["index.html", Buffer.from(`<aero-game></aero-game><script src="/assets/index-ABC.js"></script>`) ],
-  ["assets/index-ABC.js", Buffer.from(buildStamp)],
+  ["assets/index-ABC.js", Buffer.from(`${buildStamp};${"const game = 42;".repeat(300)}`)],
   ["favicon.ico", Buffer.from("icon")],
-  ["assets/mediapipe/pose_landmarker_lite.task", Buffer.from("model")],
-  ["assets/mediapipe/vision_bundle.js", Buffer.from("vision")],
-  ["assets/mediapipe/wasm/vision_wasm_internal.wasm", Buffer.from("wasm")],
+  ["assets/mediapipe/pose_landmarker_lite.task", Buffer.from("model".repeat(1000))],
+  ["assets/mediapipe/vision_bundle.js", Buffer.from("vision".repeat(1000))],
+  ["assets/mediapipe/wasm/vision_wasm_internal.wasm", Buffer.from("wasm".repeat(1000))],
   ["assets/environments/test.jpg", Buffer.from("environment")],
   ["assets/environments/alpine-river-valley-photosphere/1.0.0/alpine-river-valley-photosphere.config.json", Buffer.from("{\"id\":\"alpine\"}")],
   ["assets/environments/alpine-river-valley-photosphere/1.0.0/manifest.json", Buffer.from("{\"rights\":true}")],
@@ -56,6 +57,61 @@ try {
   const address = server.address();
   const base = `http://127.0.0.1:${address.port}`;
   async function request(name, init) { return fetch(`${base}${name}`, init); }
+  // Fetch transparently decompresses Brotli; inspect wire bytes with node:http.
+  async function wire(name, method = "GET", encoding) {
+    return new Promise((resolve, reject) => {
+      const headers = encoding === undefined ? {} : { "Accept-Encoding": encoding };
+      httpRequest({ hostname: "127.0.0.1", port: address.port, path: name, method, headers }, response => {
+        const chunks = [];
+        response.on("data", chunk => chunks.push(chunk));
+        response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks) }));
+        response.on("error", reject);
+      }).on("error", reject).end();
+    });
+  }
+  for (const name of [...files.keys()].filter(name => /\.(?:wasm|task|js)$/u.test(name))) {
+    const original = files.get(name);
+    const target = `/${name}`;
+    const compressed = await wire(target, "GET", "gzip, br;q=0.7");
+    assert.equal(compressed.status, 200, target);
+    assert.equal(compressed.headers["content-encoding"], "br", target);
+    assert.equal(compressed.headers.vary, "Accept-Encoding", target);
+    assert.equal(compressed.headers["content-length"], String(compressed.body.length), target);
+    assert.deepEqual(brotliDecompressSync(compressed.body), original, `signed decoded bytes: ${target}`);
+    assert.equal(hash(brotliDecompressSync(compressed.body)), manifest.assets.find(entry => entry.path === name).sha256, target);
+    const head = await wire(target, "HEAD", "gzip, br;q=0.7");
+    assert.equal(head.status, 200);
+    assert.equal(head.headers["content-encoding"], "br");
+    assert.equal(head.headers.vary, "Accept-Encoding");
+    assert.equal(head.headers["content-length"], compressed.headers["content-length"]);
+    assert.equal(head.body.length, 0);
+    for (const encoding of [undefined, "gzip", "br;q=0", "gzip, br;q=0, *;q=1", "br;q=bogus", "br;q=0, br;q=1", "br;q=1, br;q=0"]) {
+      const identity = await wire(target, "GET", encoding);
+      assert.equal(identity.status, 200);
+      assert.equal(identity.headers["content-encoding"], undefined);
+      assert.equal(identity.headers.vary, "Accept-Encoding");
+      assert.equal(identity.headers["content-length"], String(original.length));
+      assert.deepEqual(identity.body, original);
+      const identityHead = await wire(target, "HEAD", encoding);
+      assert.equal(identityHead.headers["content-encoding"], undefined);
+      assert.equal(identityHead.headers.vary, "Accept-Encoding");
+      assert.equal(identityHead.headers["content-length"], String(original.length));
+      assert.equal(identityHead.body.length, 0);
+    }
+    assert.equal((await wire(target, "GET", "*;q=1")).headers["content-encoding"], "br");
+  }
+  for (const name of ["/favicon.ico", "/assets/environments/test.jpg", "/assets/gameplay/0.0.11/model0.glb", "/assets/gameplay/0.0.11/sets/default-v1.json"]) {
+    const response = await wire(name, "GET", "br");
+    assert.equal(response.status, 200);
+    assert.equal(response.headers["content-encoding"], undefined, name);
+    assert.equal(response.headers.vary, undefined, name);
+    assert.deepEqual(response.body, files.get(name.slice(1)));
+  }
+  for (const name of ["/friend-game-bundle-manifest.json", "/assets/mediapipe/vision_bundle.js.br", "/nope.wasm"]) {
+    const response = await wire(name, "GET", "br");
+    assert.equal(response.status, 404, name);
+    assert.equal(response.headers["content-encoding"], undefined, name);
+  }
   for (const name of ["/", "/index.html", "/assets/index-ABC.js"]) {
     const response = await request(name);
     assert.equal(response.status, 200, name);
@@ -93,9 +149,13 @@ try {
   assert.equal(rawTraversal, 404, "encoded traversal must fail");
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   server = null;
-  writeFileSync(path.join(root, "assets/index-ABC.js"), "tampered");
-  assert.throws(() => loadSignedSnapshot(root), /signature mismatch/u, "tampered signed JS must fail startup");
-  writeFileSync(path.join(root, "assets/index-ABC.js"), files.get("assets/index-ABC.js"));
+  for (const name of ["assets/index-ABC.js", "assets/mediapipe/pose_landmarker_lite.task", "assets/mediapipe/wasm/vision_wasm_internal.wasm"]) {
+    const altered = Buffer.from(files.get(name));
+    altered[altered.length - 1] ^= 1;
+    writeFileSync(path.join(root, name), altered);
+    assert.throws(() => loadSignedSnapshot(root), /signature mismatch/u, `changed signed ${name} must fail before compression`);
+    writeFileSync(path.join(root, name), files.get(name));
+  }
   manifest.assets[1].sha256 = "f".repeat(64);
   sign();
   assert.throws(() => loadSignedSnapshot(root), /signature mismatch/u, "false SHA must fail startup");

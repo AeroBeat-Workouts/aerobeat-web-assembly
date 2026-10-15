@@ -3,6 +3,7 @@
 // Fail-closed server: pin every served byte and reject everything outside the signed inventory.
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
+import { brotliCompressSync, constants as zlibConstants } from "node:zlib";
 import { lstatSync, readFileSync, readdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,27 @@ const assetCsp = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; conn
 const mime = Object.freeze({ ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".wasm": "application/wasm", ".task": "application/octet-stream", ".glb": "model/gltf-binary", ".jpeg": "image/jpeg", ".jpg": "image/jpeg", ".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml", ".json": "application/json; charset=utf-8" });
 // JSON is permitted only as an owned environment config/rights manifest or gameplay manifest/set.
 const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.11\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
+const compressedTypes = new Set([".wasm", ".task", ".js"]);
+function acceptsBrotli(header) {
+  if (typeof header !== "string") return false;
+  // An explicit br veto wins over wildcard; malformed quality is not permission.
+  let explicit;
+  let wildcard;
+  for (const item of header.split(",")) {
+    const parts = item.trim().split(";");
+    const coding = parts.shift().trim().toLowerCase();
+    if (coding !== "br" && coding !== "*") continue;
+    let quality = 1;
+    if (parts.length) {
+      const match = parts.length === 1 && /^q\s*=\s*(0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/iu.exec(parts[0].trim());
+      quality = match ? Number(match[1]) : 0;
+    }
+    // Ambiguous duplicate codings must not silently override a veto.
+    if (coding === "br") explicit = Math.min(explicit ?? 1, quality);
+    else wildcard = Math.min(wildcard ?? 1, quality);
+  }
+  return (explicit ?? wildcard ?? 0) > 0;
+}
 export function loadSignedSnapshot(directory = defaultDirectory) {
   const root = path.resolve(directory);
   if (!lstatSync(root).isDirectory() || realpathSync(root) !== root) fail("snapshot root must be a real directory");
@@ -62,11 +84,18 @@ export function loadSignedSnapshot(directory = defaultDirectory) {
       named.some(name => !safeRelative(name) || /phone-|diagnostic|\.map$|gpu/iu.test(name) ||
         (name.endsWith(".json") && !gameJson.test(name)) || !mime[path.extname(name)])) fail("output differs from allowed signed inventory");
   const bytes = new Map();
+  const brotli = new Map();
   for (const entry of manifest.assets) {
     if (!Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || !/^[0-9a-f]{64}$/u.test(entry.sha256)) fail(`invalid asset signature: ${entry.path}`);
     const data = checkedFile(root, entry.path);
     if (data.length !== entry.bytes || sha256(data) !== entry.sha256) fail(`asset signature mismatch: ${entry.path}`);
     bytes.set(`/${entry.path}`, data);
+    // Derive in-memory wire variants only after exact signed identity verification.
+    if (compressedTypes.has(path.extname(entry.path))) {
+      brotli.set(`/${entry.path}`, brotliCompressSync(data, {
+        params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 }
+      }));
+    }
   }
   const html = bytes.get("/index.html")?.toString("utf8");
   const entryScripts = [...(html?.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js)["'][^>]*>/gu) ?? [])].map(match => match[1]);
@@ -77,7 +106,7 @@ export function loadSignedSnapshot(directory = defaultDirectory) {
       !named.includes("assets/mediapipe/pose_landmarker_lite.task") || !named.includes("assets/mediapipe/vision_bundle.js") ||
       !named.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) || !named.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) ||
       !named.includes("favicon.ico")) fail("required local game assets missing");
-  return Object.freeze({ bytes, manifest });
+  return Object.freeze({ bytes, brotli, manifest });
 }
 function exactPath(raw) {
   if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//") || raw.includes("\\") || raw.includes("#")) return null;
@@ -103,8 +132,12 @@ export function handlerForSnapshot(snapshot) {
     if (!data) { response.statusCode = 404; response.end(); return; }
     response.statusCode = 200;
     response.setHeader("Content-Type", mime[path.extname(resource)]);
-    response.setHeader("Content-Length", data.length);
-    response.end(request.method === "HEAD" ? undefined : data);
+    const compressed = snapshot.brotli?.get(resource);
+    if (compressed) response.setHeader("Vary", "Accept-Encoding");
+    const body = compressed && acceptsBrotli(request.headers["accept-encoding"]) ? compressed : data;
+    if (body === compressed) response.setHeader("Content-Encoding", "br");
+    response.setHeader("Content-Length", body.length);
+    response.end(request.method === "HEAD" ? undefined : body);
   };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
