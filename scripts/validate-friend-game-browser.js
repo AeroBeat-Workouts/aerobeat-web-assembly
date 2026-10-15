@@ -23,6 +23,34 @@ const origin = new URL(rawUrl).origin;
 const signedPort = new URL(rawUrl).port;
 // Normal release gate stays short; the historical 35-second Pixel stall is opt-in.
 const slowWasmMs = process.env.AEROBEAT_FRIEND_GAME_EXTENDED_SLOW_START === '1' ? 35_000 : 6_000;
+// Require the actual menu action's foreground label, not an aria-only node or
+// the tiny runtime status chip hidden behind the mobile drawer.
+const visiblePendingAction = game => game.evaluate(element => {
+  const drawer = element.shadowRoot.querySelector('[data-role="drawer"]');
+  const actions = drawer?.querySelector('aero-session-actions');
+  const label = actions?.shadowRoot?.querySelector('[part="pending-status"]') ?? actions?.querySelector('[part="pending-status"]');
+  const buttons = actions?.shadowRoot?.querySelectorAll('button') ?? actions?.querySelectorAll('button') ?? [];
+  const button = [...buttons].find(node => /^(?:start|test)$/iu.test(node.textContent?.trim() ?? ''));
+  if (!label || !button || !drawer || drawer.hidden || drawer.getAttribute('aria-hidden') === 'true')
+    return { text: label?.textContent?.trim() ?? '', visible: false, reason: 'drawer action label/button absent' };
+  const rect = label.getBoundingClientRect(), action = button.getBoundingClientRect();
+  const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+  const styles = getComputedStyle(label);
+  const hit = label.getRootNode().elementFromPoint(x, y);
+  const foreground = element.shadowRoot.elementFromPoint(x, y);
+  return {
+    text: label.textContent?.trim() ?? '',
+    visible: rect.width >= 80 && rect.height >= 16 && rect.left >= 0 && rect.top >= 0 &&
+      rect.right <= innerWidth && rect.bottom <= innerHeight &&
+      Math.abs(rect.top - action.top) <= 180 && action.width >= 40 && action.height >= 25 &&
+      styles.visibility === 'visible' && styles.display !== 'none' && Number(styles.opacity) > 0 &&
+      !label.closest('[hidden], [aria-hidden="true"]') &&
+      (hit === label || label.contains(hit)) &&
+      (foreground === actions || foreground === drawer),
+    box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    button: { x: action.x, y: action.y, width: action.width, height: action.height }
+  };
+});
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const exactKeys = (object, expected, label) => {
   assert(object && typeof object === 'object' && !Array.isArray(object), `${label}: object required`);
@@ -257,29 +285,22 @@ try {
         const pendingPlay = await game.evaluate(element => ({
           live: element.graph.video.getRetainedCameraStream().getVideoTracks()[0].readyState,
           cv: element.graph.cv.getStatus().lifecycleState,
-          status: element.shadowRoot.querySelector('[data-role="status"]')?.textContent,
-          visible: [...element.shadowRoot.querySelectorAll('*')].filter(node => node instanceof HTMLElement &&
-            node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
-            getComputedStyle(node).display !== 'none' && !node.closest('[hidden], [aria-hidden="true"]') &&
-            node.children.length === 0).map(node => node.textContent?.trim()).filter(Boolean)
+          status: element.shadowRoot.querySelector('[data-role="status"]')?.textContent
         }));
         assert.equal(pendingPlay.live, 'live'); assert.equal(pendingPlay.cv, 'loading');
-        assert(pendingPlay.visible.some(text => /play/iu.test(text) && /(?:camera|pose|prepar|load)/iu.test(text)),
-          `SLOW START RED: visible Play camera/pose preparation missing (status=${JSON.stringify(pendingPlay.status)})`);
+        const playLabel = await visiblePendingAction(game);
+        assert(playLabel.visible && /play/iu.test(playLabel.text) && /(?:camera|pose|prepar|load)/iu.test(playLabel.text),
+          `SLOW START RED: foreground drawer Play preparation absent (label=${JSON.stringify(playLabel)}, status=${JSON.stringify(pendingPlay.status)})`);
         await game.locator('aero-session-actions').getByRole('button', { name: 'Test', exact: true }).click();
         await frame.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'test', null, { timeout: 5_000 });
         const pendingTest = await game.evaluate(element => ({
-          cv: element.graph.cv.getStatus().lifecycleState,
-          menuOpen: element.menuOpen,
-          visible: [...element.shadowRoot.querySelectorAll('*')].filter(node => node instanceof HTMLElement &&
-            node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
-            getComputedStyle(node).display !== 'none' && !node.closest('[hidden], [aria-hidden="true"]') &&
-            node.children.length === 0).map(node => node.textContent?.trim()).filter(Boolean)
+          cv: element.graph.cv.getStatus().lifecycleState, menuOpen: element.menuOpen
         }));
         assert.equal(pendingTest.cv, 'loading', 'queued Test observed while CPU Worker still loading');
         assert.equal(pendingTest.menuOpen, true, 'menu stays open while Test queues');
-        assert(pendingTest.visible.some(text => /test/iu.test(text) && /queu/iu.test(text) && !/error|fail/iu.test(text)),
-          `SLOW START RED: visible queued Test missing (visible=${JSON.stringify(pendingTest.visible)})`);
+        const testLabel = await visiblePendingAction(game);
+        assert(testLabel.visible && /test/iu.test(testLabel.text) && /queu/iu.test(testLabel.text) && !/error|fail/iu.test(testLabel.text),
+          `SLOW START RED: foreground drawer queued Test absent (label=${JSON.stringify(testLabel)})`);
         await frame.waitForFunction(() => {
           const game = document.querySelector('aero-game'), session = game?.graph?.gameplay?.getSnapshot?.().session;
           return session?.purpose === 'visual_test' && session.state === 'playing' && game.menuOpen === false &&
