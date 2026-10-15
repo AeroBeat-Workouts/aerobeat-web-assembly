@@ -18,6 +18,9 @@ export function createLockedProductionCvService(options) {
   let timer = 0;
   let activeSource = null;
   /** @type {Promise<void>|null} */ let loading = null;
+  let loadingGeneration = -1;
+  let adapterLoadGeneration = -1;
+  let adapterProgressBaseline = null;
   /** @type {Promise<unknown>} */ let adapterQueue = Promise.resolve();
   let latestPoseFrame;
   let latestPoseGeneration = -1;
@@ -40,7 +43,11 @@ export function createLockedProductionCvService(options) {
       const normalized = normalizeSource(source);
       const token = ++generation;
       stopTimer(); activeSource = null; latestPoseFrame = undefined; latestPoseGeneration = -1; nextFrameOperation = null; lifecycleState = "loading"; lastError = null;
-      const operation = enqueueAdapter(async () => { await adapter.load(); validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.()); }); loading = operation;
+      const operation = enqueueAdapter(async () => {
+        adapterLoadGeneration = token;
+        adapterProgressBaseline = adapter.getModelDownloadProgress?.() ?? null;
+        await adapter.load(); validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.());
+      }); loading = operation; loadingGeneration = token;
       try { await operation; }
       catch (error) { if (token !== generation || lifecycleState === "disposed") return; lastError = errorMessage(error); lifecycleState = "error"; throw new Error(lastError); }
       finally { if (loading === operation) loading = null; }
@@ -71,6 +78,19 @@ export function createLockedProductionCvService(options) {
       try { return await operation; } finally { if (nextFrameOperation === operation) nextFrameOperation = null; }
     },
     submitFrame() { void estimate(generation); },
+    getModelDownloadProgress() {
+      if (lifecycleState !== "loading" || !loading || !adapter.getModelDownloadProgress) return null;
+      const token = generation;
+      const currentLoading = loading;
+      // The queued next load has not entered the adapter; its bytes still belong to the previous one.
+      if (loadingGeneration !== token || adapterLoadGeneration !== token) return null;
+      const progress = adapter.getModelDownloadProgress();
+      return token === generation && lifecycleState === "loading" && loading === currentLoading && progress != null &&
+        (adapterProgressBaseline === null || progress.receivedBytes !== adapterProgressBaseline.receivedBytes || progress.totalBytes !== adapterProgressBaseline.totalBytes || progress.verified !== adapterProgressBaseline.verified) &&
+        Number.isSafeInteger(progress.receivedBytes) && progress.receivedBytes >= 0 &&
+        Number.isSafeInteger(progress.totalBytes) && progress.totalBytes > 0 && progress.receivedBytes <= progress.totalBytes
+        ? Object.freeze({ receivedBytes: progress.receivedBytes, totalBytes: progress.totalBytes, verified: true }) : null;
+    },
     getLatestPoseFrame() { return latestPoseFrame; },
     getPerformanceSample() {
       const execution = validateLockedExecutionTelemetry(adapter.getExecutionTelemetry?.());

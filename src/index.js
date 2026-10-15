@@ -2686,11 +2686,13 @@ export class AeroGame extends HTMLElement {
     const lockedVolume = this.activeSessionSetup?.boxingColliderVolume;
     const colliderPreview = !this.menuOpen && session.purpose === "play" && session.state === "playing" && rendererPresentationForVariant(content.selectedVariant) === "boxing_collider" && lockedVolume?.colliderVisible === true
       ? `Wrist preview (not hitbox) · scale ×${lockedVolume.colliderScale} · front ×${lockedVolume.colliderDepthForward} · rear ×${lockedVolume.colliderDepthBackward}` : "";
-    const signature = JSON.stringify([runtimeMessage, pendingMessage, cueMessage, action, this.musicPrerequisite, hudScore, hudCombo, hudMult, colliderPreview]);
+    const modelDownloadProgress = publicFriendGame ? this.foregroundModelDownloadProgress() : null;
+    const modelDownloadPercent = modelDownloadProgress ? Math.floor(100 * modelDownloadProgress.receivedBytes / modelDownloadProgress.totalBytes) : null;
+    const signature = JSON.stringify([runtimeMessage, pendingMessage, modelDownloadPercent, cueMessage, action, this.musicPrerequisite, hudScore, hudCombo, hudMult, colliderPreview]);
     if (signature === this.runtimeUiSignature) return;
     this.runtimeUiSignature = signature; this.runtimeUiCommitCount += 1;
     setPresenter(this,"aero-flow-hud",{score:hudScore,combo:hudCombo,multiplier:hudMult});
-    if (publicFriendGame) setPresenter(this, "aero-session-actions", this.sessionActionsSnapshot());
+    if (publicFriendGame) setPresenter(this, "aero-session-actions", this.sessionActionsSnapshot(modelDownloadProgress));
     const status = this.shadowRoot?.querySelector("[data-role='status']");
     if (status && status.textContent !== runtimeMessage) status.textContent = runtimeMessage;
     const cue = this.shadowRoot?.querySelector("[data-role='transient-cue']");
@@ -3133,10 +3135,22 @@ export class AeroGame extends HTMLElement {
       ? publicFriendPendingStatus(this.pendingSessionAction, this.pendingSessionActionOrdinal, this.sessionActionIntentOrdinal, this.lifecycleIntentActiveGeneration, this.lifecycleIntentGeneration)
       : "";
   }
-  sessionActionsSnapshot() {
+  foregroundModelDownloadProgress() {
+    if (typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ === "undefined" || __AEROBEAT_PUBLIC_FRIEND_GAME__ !== true ||
+        !this.menuOpen || !this.menuStarting || this.lastError || !this.graph ||
+        this.pendingSessionActionOrdinal === 0 || this.pendingSessionActionOrdinal !== this.sessionActionIntentOrdinal ||
+        (this.pendingSessionAction !== "start" && this.pendingSessionAction !== "test") ||
+        this.lifecycleIntentActiveGeneration === 0 || this.lifecycleIntentActiveGeneration > this.lifecycleIntentGeneration ||
+        this.graph.cv.getStatus().lifecycleState !== "loading") return null;
+    const progress = this.graph.cv.getModelDownloadProgress?.();
+    return progress?.verified === true && Number.isSafeInteger(progress.receivedBytes) && progress.receivedBytes >= 0 &&
+      Number.isSafeInteger(progress.totalBytes) && progress.totalBytes > 0 && progress.receivedBytes <= progress.totalBytes
+      ? Object.freeze({ receivedBytes: progress.receivedBytes, totalBytes: progress.totalBytes }) : null;
+  }
+  sessionActionsSnapshot(modelDownloadProgress = this.foregroundModelDownloadProgress()) {
     const actions = { downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction };
     return Object.freeze(typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true
-      ? { ...actions, pendingStatus: this.publicFriendPendingMessage() } : actions);
+      ? { ...actions, pendingStatus: this.publicFriendPendingMessage(), ...(modelDownloadProgress ? { modelDownloadProgress } : {}) } : actions);
   }
   invalidatePendingSessionStart() { if (!this.pendingSessionAction && !this.menuStarting) return false; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.menuStarting = false; this.stopFrameLoop(); this.renderPresenters(); return true; }
   isSessionCurrent(sessionGeneration, connectionGeneration, graph) { return this.sessionGeneration === sessionGeneration && this.isCurrent(connectionGeneration, graph); }
