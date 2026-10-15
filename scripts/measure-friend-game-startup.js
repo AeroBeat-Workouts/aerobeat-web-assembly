@@ -19,6 +19,8 @@ import { createRequire } from 'node:module';
 const url = process.env.AEROBEAT_FRIEND_GAME_QA_URL;
 assert(['http://127.0.0.1:4200/', 'http://127.0.0.1:4201/'].includes(url), 'exact signed loopback URL required');
 const origin = new URL(url).origin;
+const trace = process.env.AEROBEAT_STARTUP_TRACE === '1';
+assert(!process.env.AEROBEAT_STARTUP_TRACE || trace, 'AEROBEAT_STARTUP_TRACE must be 1 or unset');
 // Opt-in fixed decoded-byte response-delay fixture. This is NOT network bandwidth shaping.
 // The same constants apply to each of the two exact signed Worker assets on every run.
 // Usage: AEROBEAT_STARTUP_SHAPE=1 AEROBEAT_FRIEND_GAME_QA_URL=http://127.0.0.1:4200/ node scripts/measure-friend-game-startup.js
@@ -77,6 +79,9 @@ try {
     // in that same context, NOT a second Play on the same connected game.
     // The signed server's no-store policy can still force full transfers on both visits.
     const requests = new Map(), denied = [], errors = [], workerMessages = [];
+    const modelTrace = [], traceSessions = [], progressObservations = [];
+    let lastProgressKey = '';
+    const modelUrl = `${origin}/assets/mediapipe/pose_landmarker_lite.task`;
     const zero = now();
     let tapOffsetMs = null;
     const paced = [];
@@ -98,6 +103,36 @@ try {
     const failed = request => { if (/^https?:/u.test(request.url()) && new URL(request.url()).origin === origin) record(request, 'failure'); };
     context.on('request', started); context.on('requestfinished', finished); context.on('requestfailed', failed);
     const page = await context.newPage();
+    if (trace) {
+      const attachTrace = async (target, label) => {
+        const cdp = await context.newCDPSession(target);
+        traceSessions.push(cdp);
+        const ids = new Set();
+        cdp.on('Network.requestWillBeSent', event => {
+          if (event.request.url.split('?', 1)[0] !== modelUrl) return;
+          ids.add(event.requestId);
+          modelTrace.push({ target: label, event: 'requestWillBeSent', requestId: event.requestId, timestamp: event.timestamp, url: event.request.url });
+        });
+        cdp.on('Network.responseReceived', event => {
+          if (!ids.has(event.requestId)) return;
+          modelTrace.push({ target: label, event: 'responseReceived', requestId: event.requestId, timestamp: event.timestamp, url: event.response.url, status: event.response.status });
+        });
+        cdp.on('Network.loadingFinished', event => {
+          if (!ids.has(event.requestId)) return;
+          modelTrace.push({ target: label, event: 'loadingFinished', requestId: event.requestId, timestamp: event.timestamp, encodedDataLength: event.encodedDataLength });
+        });
+        cdp.on('Network.loadingFailed', event => {
+          if (!ids.has(event.requestId)) return;
+          modelTrace.push({ target: label, event: 'loadingFailed', requestId: event.requestId, timestamp: event.timestamp, errorText: event.errorText, canceled: event.canceled });
+        });
+        await cdp.send('Network.enable');
+      };
+      await attachTrace(page, 'page');
+      // Chromium requires flattened browser-level auto-attach; Playwright's
+      // public CDPSession cannot expose child session protocol events. The page
+      // trace is retained with target label; empty means Worker target not seen,
+      // not that its model request never occurred.
+    }
     page.on('pageerror', error => errors.push(error.message));
     page.on('worker', worker => {
       if (new URL(worker.url()).origin === origin && /mediapipe-worker/iu.test(worker.url())) workerMessages.push({ event: 'workerCreated', ms: Math.round(now() - zero) });
@@ -152,11 +187,19 @@ try {
       mark('playTapObservedNode'); tapOffsetMs = Math.round(marks.playTapObservedNode - zero);
       timer = setInterval(async () => {
         try {
-          const state = await game.evaluate(element => ({
+          const state = await game.evaluate((element, traceEnabled) => ({
             camera: element.graph?.video?.getRetainedCameraStream?.()?.getVideoTracks?.()[0]?.readyState,
             cv: element.graph?.cv?.getStatus?.(), session: element.graph?.gameplay?.getSnapshot?.().session,
-            calibration: element.graph?.input?.getSnapshot?.().calibration, audio: element.graph?.audio?.getStatus?.()
-          }));
+            calibration: element.graph?.input?.getSnapshot?.().calibration, audio: element.graph?.audio?.getStatus?.(),
+            progress: traceEnabled ? element.graph?.cv?.getModelDownloadProgress?.() ?? null : null
+          }), trace);
+          if (trace && state.progress) {
+            const key = `${state.progress.receivedBytes}/${state.progress.totalBytes}/${state.progress.verified}`;
+            if (key !== lastProgressKey && progressObservations.length < 32) {
+              lastProgressKey = key;
+              progressObservations.push({ atNodeMs: Math.round(now() - zero), ...state.progress });
+            }
+          }
           if (state.camera === 'live') mark('cameraLive');
           if (state.cv?.lifecycleState === 'running' && state.cv?.providerId === 'cpu-wasm') mark('cvRunning');
           if (state.cv?.poseFrameCount > 0) mark('firstWorkerPose');
@@ -211,13 +254,16 @@ try {
         calibration: element.graph.input.getSnapshot().calibration.state, audio: element.graph.audio.getStatus().state
       }));
       const assets = Object.fromEntries([...requests].filter(([path]) => /mediapipe|\.task$|\.wasm$/iu.test(path)).map(([path, item]) => [path, { ...item, startsFromNodeClickObservationMs: item.startsMs.map(ms => ms - tapOffsetMs), finishesFromNodeClickObservationMs: item.finishesMs.map(ms => ms - tapOffsetMs) }]));
+      const progressAtCvReady = trace ? progressObservations.at(-1) ?? null : undefined;
+      const traceRecord = trace ? { mode, signedModelUrl: modelUrl, cdpTarget: 'page-only; Worker target inaccessible through Playwright CDPSession', cdp: modelTrace, progressObservations, progressAtCvReady, request: requests.get('GET /assets/mediapipe/pose_landmarker_lite.task') } : null;
+      if (trace) console.error(`AEROBEAT_STARTUP_TRACE ${JSON.stringify(traceRecord)}`);
       assert.equal(state.provider, 'cpu-wasm'); assert(state.poses > 0);
       for (const [path, item] of Object.entries(assets)) assert.equal(item.count, 1, `${path}: exactly one request`);
       assert.equal(workerMessages.length, 1, 'one real CPU MediaPipe Worker created');
       assert.equal(denied.length, 0, 'no off-origin request, including uploads');
       assert.deepEqual(pacingFailures, [], 'signed shaping fixture must not abort');
       if (shaping) assert.deepEqual(paced.map(item => item.path).sort(), [...shapedAssets.keys()].sort(), 'each exact signed asset was paced exactly once');
-      assert.equal(errors.length, 0, 'no page errors');
+      assert.equal(errors.length, 0, `no page errors: ${JSON.stringify(errors.slice(0, 3))}`);
       assert([...requests.values()].every(item => item.failures.length === 0), `local request failures: ${JSON.stringify([...requests].filter(([, item]) => item.failures.length > 0))}`);
       assert.equal(state.session, 'playing', 'signed Play session reached song');
       assert.equal(state.audio, 'playing', 'signed Play audio reached playback');
@@ -234,7 +280,9 @@ try {
         requestsByOrigin: { [origin]: Object.fromEntries(requests) }, totalRequests: [...requests.values()].reduce((count, item) => count + item.count, 0), endState: state,
         caveat: 'TEST-ONLY synthetic native input is NOT physical pose tracking. Worker/camera/game are real. Play→CV running uses a Node observation after the click (25ms polling), not cross-clock subtraction. Play→audio uses the browser click clock and artificial T-pose/countdown. Whole-response decoded-byte delay is NOT bandwidth or public relay emulation. First and second runs are distinct new page/game instances in one browser context; no-store may refetch.' });
     } finally {
-      clearInterval(timer); await page.close();
+      clearInterval(timer);
+      for (const session of traceSessions) await session.detach().catch(() => {});
+      await page.close();
       context.off('request', started); context.off('requestfinished', finished); context.off('requestfailed', failed);
     }
   }

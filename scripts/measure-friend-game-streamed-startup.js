@@ -101,10 +101,13 @@ try {
     assert.equal((await head.arrayBuffer()).byteLength, 0);
   }
   for (const path of ['/friend-game-bundle-manifest.json', '/src/index.js', '/phone-play-cv-test.html']) assert.equal((await fetch(new URL(path, url))).status, 404);
+  assert(!process.env.AEROBEAT_STARTUP_TRACE || process.env.AEROBEAT_STARTUP_TRACE === '1', 'trace must be 1 or unset');
   const childEnv = { ...process.env, AEROBEAT_FRIEND_GAME_QA_URL: url };
   delete childEnv.AEROBEAT_STARTUP_SHAPE;
   delete childEnv.AEROBEAT_FRIEND_GAME_QA_SNAPSHOT_DIR;
   if (selection !== 'control') childEnv.AEROBEAT_FRIEND_GAME_QA_SNAPSHOT_DIR = selection;
+  if (process.env.AEROBEAT_STARTUP_TRACE === '1') childEnv.AEROBEAT_STARTUP_TRACE = '1';
+  else delete childEnv.AEROBEAT_STARTUP_TRACE;
   const child = spawn(process.execPath, [fileURLToPath(new URL('./measure-friend-game-startup.js', import.meta.url))], {
     cwd: root, env: childEnv, stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -113,6 +116,7 @@ try {
   child.stdout.on('data', text => { output += text; if (output.length > 512_000) child.kill(); });
   child.stderr.on('data', text => { errors += text; if (errors.length > 32_000) child.kill(); });
   const exit = await new Promise((done, reject) => { child.once('error', reject); child.once('close', (code, signal) => done({ code, signal })); });
+  if (process.env.AEROBEAT_STARTUP_TRACE === '1' && errors) console.error(errors.slice(-24_000));
   if (exit.code !== 0) {
     const diagnosis = { selection, signedManifestSha256: manifestSha256, serverEvents: events,
       child: { exitCode: exit.code, signal: exit.signal, stderr: errors.slice(-4000), stdoutTail: output.slice(-1000) } };
