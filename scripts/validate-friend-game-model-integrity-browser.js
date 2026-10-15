@@ -1,0 +1,176 @@
+// @ts-check
+// Test-owned signed-byte adversarial browser oracle; never a phone-speed or scoring test.
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
+import { createRequire } from 'node:module';
+import { chromium } from 'playwright';
+import { loadSignedSnapshot, handlerForSnapshot } from './serve-friend-game.js';
+import { createSyntheticBeatSaverZip } from '../../aerobeat-web-vendor-beatsaver/scripts/fixture-helpers.js';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const directory = resolve(root, '.tmp/friend-game-cpu-stream-candidate-3bdb5e5');
+const modelPath = '/assets/mediapipe/pose_landmarker_lite.task';
+const snapshot = loadSignedSnapshot(directory);
+const model = snapshot.bytes.get(modelPath);
+assert.equal(model?.length, 5_777_746, 'signed model decoded size');
+assert.equal(createHash('sha256').update(model).digest('hex'), snapshot.manifest.assets.find(asset => asset.path === modelPath.slice(1))?.sha256);
+const wasmPaths = [...snapshot.bytes.keys()].filter(path => /^\/assets\/mediapipe\/wasm\/[^/]+\.wasm$/u.test(path));
+assert(wasmPaths.length > 0, 'signed WASM present');
+const signedHandler = handlerForSnapshot(snapshot);
+const { unzipSync, zipSync } = createRequire(new URL('../../aerobeat-web-vendor-beatsaver/package.json', import.meta.url))('fflate');
+const entries = unzipSync(createSyntheticBeatSaverZip(2));
+const info = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(entries['Info.dat']));
+const rate = 8000, wav = new Uint8Array(44 + rate * 35 * 2), view = new DataView(wav.buffer);
+for (const [offset, text] of [[0, 'RIFF'], [8, 'WAVEfmt '], [36, 'data']]) for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
+view.setUint32(4, wav.length - 8, true); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+view.setUint16(22, 1, true); view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+view.setUint16(32, 2, true); view.setUint16(34, 16, true); view.setUint32(40, wav.length - 44, true);
+info._songFilename = 'Audio/Song.wav'; entries['Info.dat'] = new TextEncoder().encode(JSON.stringify(info));
+delete entries['Audio/Song.egg']; entries['Audio/Song.wav'] = wav;
+const archive = Buffer.from(zipSync(entries, { level: 0 }));
+assert(archive.length < 1_000_000, 'test-owned chart size');
+const timeout = (promise, ms, label) => Promise.race([promise, delay(ms).then(() => { throw Error(`timeout ${label}`); })]);
+
+async function runCase(kind) {
+  const tamper = kind === 'tamper';
+  const sent = tamper ? Buffer.from(model) : model.subarray(0, model.length - 1);
+  if (tamper) sent[sent.length - 1] ^= 1;
+  assert(tamper ? sent.length === model.length && !sent.equals(model) : sent.length === model.length - 1);
+  const counts = new Map(), reached = [];
+  const checkpoints = [1, 2, 3].map(index => Math.floor(model.length * index / 4));
+  const held = checkpoints.map((_, index) => new Promise(done => { reached[index] = done; }));
+  const resume = []; const released = checkpoints.map((_, index) => new Promise(done => { resume[index] = done; }));
+  const streaming = new Set();
+  const server = createServer(async (request, response) => {
+    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    if (request.method === 'GET') counts.set(path, (counts.get(path) ?? 0) + 1);
+    if (request.method !== 'GET' || path !== modelPath) return signedHandler(request, response);
+    // Delegate all response headers to the signed server, changing only the body
+    // of this one test-owned model response. Immediate identity headers give an
+    // original-size denominator independent of compressed wire Content-Length.
+    const chunks = [];
+    const sink = {
+      setHeader: (...args) => response.setHeader(...args),
+      end: body => { if (body) chunks.push(body); },
+      set statusCode(code) { response.statusCode = code; }
+    };
+    signedHandler({ ...request, headers: { ...request.headers, 'accept-encoding': 'identity' } }, sink);
+    if (response.statusCode !== 200 || chunks.length !== 1) { response.end(); return; }
+    assert.deepEqual(chunks[0], model, 'unmodified signed handler model response');
+    response.removeHeader('Content-Encoding');
+    response.setHeader('Content-Length', model.length);
+    response.flushHeaders();
+    streaming.add(response);
+    try {
+      let offset = 0;
+      for (let index = 0; index < checkpoints.length; index++) {
+        const end = checkpoints[index];
+        while (offset < end) {
+          const next = Math.min(end, offset + 65_536);
+          response.write(sent.subarray(offset, next)); offset = next;
+          await delay(10);
+        }
+        reached[index]();
+        await released[index];
+      }
+      while (offset < sent.length) {
+        const next = Math.min(sent.length, offset + 65_536);
+        response.write(sent.subarray(offset, next)); offset = next;
+        await delay(10);
+      }
+      response.end();
+    } catch (error) { response.destroy(error); }
+    finally { streaming.delete(response); }
+  });
+  let browser, context, page;
+  try {
+    server.listen(0, '127.0.0.1');
+    await new Promise(done => server.once('listening', done));
+    const address = server.address(); assert(address && typeof address !== 'string');
+    const origin = `http://127.0.0.1:${address.port}`;
+    browser = await chromium.launch({ headless: true, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
+    context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, serviceWorkers: 'block' });
+    page = await context.newPage();
+    const external = [], errors = [], workerUrls = [];
+    page.on('worker', worker => workerUrls.push(worker.url()));
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('request', request => { if (/^https?:/u.test(request.url()) && new URL(request.url()).origin !== origin) external.push(request.url()); });
+    await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+    assert.equal((await page.goto(`${origin}/`, { waitUntil: 'domcontentloaded' }))?.status(), 200);
+    const game = page.locator('aero-game'); await game.waitFor();
+    await page.waitForFunction(() => document.querySelector('aero-game')?.graph?.authoring?.getCapabilities?.().conversionWorker === true && document.querySelector('aero-game')?.graph?.renderer?.describe?.().gameplayAssets?.state === 'ready', null, { timeout: 45000 });
+    const chooser = page.waitForEvent('filechooser');
+    await game.locator('aero-beatsaver-browser').getByRole('button', { name: 'Choose local ZIP' }).click();
+    await (await chooser).setFiles({ name: 'integrity-qa.zip', mimeType: 'application/zip', buffer: archive });
+    await page.waitForFunction(() => { const g = document.querySelector('aero-game'); return g?.libraryView?.selectedPackageId && g.graph?.content?.getSnapshot?.().state === 'ready' && g.graph.audio.getStatus().state === 'ready'; }, null, { timeout: 60000 });
+    const initial = await game.evaluate(g => ({ playable: g.selectedDownloadedContentPlayable(), cv: g.graph.cv.getStatus().lifecycleState, audio: g.graph.audio.getStatus().state }));
+    assert(initial.playable && initial.audio === 'ready' && initial.cv !== 'running', `valid chart setup ${JSON.stringify(initial)}`);
+    await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'loading', null, { timeout: 15000 });
+    const state = () => game.evaluate(g => {
+      const actions = g.shadowRoot.querySelector('aero-session-actions')?.shadowRoot;
+      const bar = actions?.querySelector('progress[part="model-download-progress"]');
+      const status = actions?.querySelector('[part="pending-status"]');
+      const error = g.shadowRoot.querySelector('[data-role="info-action"]');
+      return { cv: g.graph.cv.getStatus(), session: g.graph.gameplay.getSnapshot().session,
+        audio: g.graph.audio.getStatus().state, pending: g.pendingSessionAction,
+        active: g.activeSessionAction, error: g.lastError,
+        errorText: error?.textContent?.trim() ?? '', errorVisible: Boolean(error && !error.hidden && error.getBoundingClientRect().width > 0 && error.getBoundingClientRect().height > 0),
+        text: status?.textContent?.trim() ?? '', bar: Boolean(bar), bytes: bar?.value ?? null,
+        total: bar?.max ?? null, progress: g.graph.cv.getModelDownloadProgress?.() ?? null,
+        camera: g.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none' };
+    });
+    const observed = [];
+    for (let index = 0; index < checkpoints.length; index++) {
+      await timeout(held[index], 25000, `${kind} chunk ${index}`);
+      await page.waitForFunction(floor => {
+        const root = document.querySelector('aero-game')?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
+        return root?.querySelector('progress[part="model-download-progress"]')?.value >= floor;
+      }, checkpoints[index], { timeout: 12000 });
+      const now = await state();
+      assert.equal(now.cv.lifecycleState, 'loading');
+      assert.equal(now.total, model.length);
+      assert(now.bytes >= checkpoints[index] && now.bytes < (checkpoints[index + 1] ?? model.length), JSON.stringify(now));
+      assert.match(now.text, /^Loading pose model: (?:[0-9]|[1-9][0-9])%$/u);
+      assert.equal(Number(now.text.match(/(\d+)%$/u)[1]), Math.floor(100 * now.bytes / model.length), 'only measured model bytes');
+      assert(now.camera === 'live' && !now.error && now.active === '' && now.pending === 'start', 'real pending Play and camera during model streaming');
+      assert.equal(now.audio === 'playing', false);
+      assert.notEqual(now.session.state, 'playing');
+      assert.equal(counts.get(modelPath), 1);
+      observed.push(now.bytes);
+      resume[index]();
+    }
+    await page.waitForFunction(() => {
+      const g = document.querySelector('aero-game');
+      return g?.lastError && g.pendingSessionAction === '' && g.graph.cv.getStatus().lifecycleState !== 'running';
+    }, null, { timeout: 40000 });
+    const failed = await state();
+    assert.equal(counts.get(modelPath), 1, 'exactly one tampered/truncated model GET');
+    assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one genuine CPU WASM GET');
+    assert.equal(workerUrls.filter(url => /mediapipe/u.test(url)).length, 1, `genuine MediaPipe Worker created: ${JSON.stringify(workerUrls)}`);
+    assert(failed.error && /model|integrity|hash|length|fetch|load|network/iu.test(failed.error.message), `actionable model failure ${JSON.stringify(failed)}`);
+    assert(!failed.bar && !/%/u.test(failed.text), `no false foreground percentage after failure: ${JSON.stringify(failed)}`);
+    assert(failed.errorVisible && failed.errorText.includes(failed.error.message), `visible actionable error: ${JSON.stringify(failed)}`);
+    assert.notEqual(failed.cv.lifecycleState, 'running');
+    assert.notEqual(failed.session.state, 'playing');
+    assert.notEqual(failed.audio, 'playing');
+    assert.equal(failed.pending, ''); assert.equal(failed.active, '');
+    assert.equal(failed.camera, 'none', 'failed Play releases the test camera lease');
+    assert.deepEqual(observed, checkpoints, 'deterministic original-size quarter-chunk progress');
+    assert.deepEqual(external, [], 'no off-origin request attempts');
+    assert.deepEqual(errors, [], 'no uncaught page errors');
+    console.log(`PASS ${kind}: ${JSON.stringify({ chunks: checkpoints, error: failed.error, cv: failed.cv.lifecycleState, session: failed.session.state, audio: failed.audio, modelGets: counts.get(modelPath), wasmGets: wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), external: external.length })}`);
+  } finally {
+    for (const unblock of resume) unblock();
+    for (const response of streaming) response.destroy();
+    await context?.close(); await browser?.close();
+    if (server.listening) await new Promise(done => server.close(done));
+  }
+}
+
+await runCase('tamper');
+await runCase('truncate');
