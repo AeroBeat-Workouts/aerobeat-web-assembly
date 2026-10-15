@@ -2678,16 +2678,17 @@ export class AeroGame extends HTMLElement {
     const pendingMessage = publicFriendGame && this.menuOpen && this.menuStarting && !this.lastError
       ? publicFriendPendingStatus(this.pendingSessionAction, this.pendingSessionActionOrdinal, this.sessionActionIntentOrdinal, this.lifecycleIntentActiveGeneration, this.lifecycleIntentGeneration)
       : "";
-    const runtimeMessage = pendingMessage || runtimeStatus(content, session, input);
+    const runtimeMessage = runtimeStatus(content, session, input);
     const cueMessage = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input);
     const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
     const lockedVolume = this.activeSessionSetup?.boxingColliderVolume;
     const colliderPreview = !this.menuOpen && session.purpose === "play" && session.state === "playing" && rendererPresentationForVariant(content.selectedVariant) === "boxing_collider" && lockedVolume?.colliderVisible === true
       ? `Wrist preview (not hitbox) · scale ×${lockedVolume.colliderScale} · front ×${lockedVolume.colliderDepthForward} · rear ×${lockedVolume.colliderDepthBackward}` : "";
-    const signature = JSON.stringify([runtimeMessage, cueMessage, action, this.musicPrerequisite, hudScore, hudCombo, hudMult, colliderPreview]);
+    const signature = JSON.stringify([runtimeMessage, pendingMessage, cueMessage, action, this.musicPrerequisite, hudScore, hudCombo, hudMult, colliderPreview]);
     if (signature === this.runtimeUiSignature) return;
     this.runtimeUiSignature = signature; this.runtimeUiCommitCount += 1;
     setPresenter(this,"aero-flow-hud",{score:hudScore,combo:hudCombo,multiplier:hudMult});
+    if (publicFriendGame) setPresenter(this, "aero-session-actions", { ...this.sessionActionsSnapshot(), pendingStatus: pendingMessage });
     const status = this.shadowRoot?.querySelector("[data-role='status']");
     if (status && status.textContent !== runtimeMessage) status.textContent = runtimeMessage;
     const cue = this.shadowRoot?.querySelector("[data-role='transient-cue']");
