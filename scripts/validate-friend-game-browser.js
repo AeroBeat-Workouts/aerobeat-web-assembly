@@ -207,16 +207,20 @@ try {
       await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.collections?.length > 0 && game.graph?.content.getSnapshot().state === 'ready' && game.libraryView.selectedPackageId === game.graph.content.getSnapshot().packageId; }, null, { timeout: 60000 });
       assert(fixtureHits.includes('zip'), 'real selected exact-hash ZIP requested');
       assert(await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).isEnabled(), 'downloaded chart Start');
-      const download = await game.evaluate(element => ({ worker: element.graph.authoring.getCapabilities().conversionWorker, variant: element.graph.content.getSnapshot().selectedVariant?.mode, audio: element.graph.audio.getStatus().state }));
-      assert.equal(download.worker, true); assert.equal(download.variant, 'flow'); assert.equal(download.audio, 'ready');
+      await frame.waitForFunction(() => ['ready', 'error'].includes(document.querySelector('aero-game')?.graph?.audio?.getStatus?.().state), null, { timeout: 12000 });
+      const download = await game.evaluate(element => ({ worker: element.graph.authoring.getCapabilities().conversionWorker, variant: element.graph.content.getSnapshot().selectedVariant?.mode, audio: element.graph.audio.getStatus() }));
+      assert.equal(download.worker, true); assert.equal(download.variant, 'flow');
+      assert.equal(download.audio.state, 'ready', `${embedding}: BeatSaver ZIP audio decoding failed: ${download.audio.errorCode ?? 'no error code'}`);
       // New isolated browser origin: verify the genuine child-local file picker too.
       const chooserPending = page.waitForEvent('filechooser');
       await music.getByRole('button', { name: 'Choose local ZIP' }).click();
       const chooser = await chooserPending;
       await chooser.setFiles({ name: 'friend-qa-stored-wav.zip', mimeType: 'application/zip', buffer: Buffer.from(archive) });
       await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.collections?.length >= 2 && game.graph?.content.getSnapshot().state === 'ready' && game.libraryView.selectedPackageId === game.graph.content.getSnapshot().packageId; }, null, { timeout: 60000 });
-      const local = await game.evaluate(element => ({ audio: element.graph.audio.getStatus().state, worker: element.graph.authoring.getCapabilities().conversionWorker, mode: element.graph.content.getSnapshot().selectedVariant?.mode }));
-      assert.deepEqual(local, { audio: 'ready', worker: true, mode: 'flow' });
+      await frame.waitForFunction(() => ['ready', 'error'].includes(document.querySelector('aero-game')?.graph?.audio?.getStatus?.().state), null, { timeout: 12000 });
+      const local = await game.evaluate(element => ({ audio: element.graph.audio.getStatus(), worker: element.graph.authoring.getCapabilities().conversionWorker, mode: element.graph.content.getSnapshot().selectedVariant?.mode }));
+      assert.equal(local.audio.state, 'ready', `${embedding}: local ZIP audio decoding failed: ${local.audio.errorCode ?? 'no error code'}`);
+      assert.equal(local.worker, true); assert.equal(local.mode, 'flow');
       await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
       await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.graph?.gameplay.getSnapshot().session.purpose === 'play' && game.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState === 'live' && game.graph.cv.getStatus().lifecycleState === 'running' && game.graph.cv.getStatus().poseFrameCount > 0; }, null, { timeout: 45000 });
       const state = await game.evaluate(element => ({ profile: element.getSnapshot().cvProfile, provider: element.graph.cv.getStatus().providerId, session: element.graph.gameplay.getSnapshot().session.state, poses: element.graph.cv.getStatus().poseFrameCount, worker: element.graph.authoring.getCapabilities().conversionWorker }));
