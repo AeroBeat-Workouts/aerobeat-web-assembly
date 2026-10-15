@@ -521,7 +521,9 @@ export class AeroGame extends HTMLElement {
           this.attachRetainedCamera();
           videoPlayAttempted = true; await graph.video.play(this.videoElement());
           if (ownershipBailed || checkOwnership()) return this.getSnapshot();
-          cvStartAttempted = true; await this.startCv();
+          cvStartAttempted = true;
+          const stopModelDownloadRepaint = this.watchPublicModelDownload(owner, sessionGeneration, actionGeneration, actionIntentOrdinal);
+          try { await this.startCv(); } finally { stopModelDownloadRepaint(); }
         } else {
           graph.video.pause(this.videoElement());
           this.detachPrivateCameraPresentation();
@@ -3134,6 +3136,24 @@ export class AeroGame extends HTMLElement {
     return this.menuOpen && this.menuStarting && !this.lastError
       ? publicFriendPendingStatus(this.pendingSessionAction, this.pendingSessionActionOrdinal, this.sessionActionIntentOrdinal, this.lifecycleIntentActiveGeneration, this.lifecycleIntentGeneration)
       : "";
+  }
+  /** Poll only the current public foreground CV load; never restart gameplay's stopped display loop. */
+  watchPublicModelDownload(owner, sessionGeneration, actionGeneration, ordinal) {
+    if (typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ === "undefined" || __AEROBEAT_PUBLIC_FRIEND_GAME__ !== true) return () => {};
+    const current = () => this.isActionIntentOwner(owner, sessionGeneration, actionGeneration) &&
+      this.pendingSessionActionOrdinal === ordinal && this.sessionActionIntentOrdinal === ordinal &&
+      this.pendingSessionAction === "start" &&
+      this.menuOpen && this.menuStarting && !this.lastError &&
+      this.graph?.cv.getStatus().lifecycleState === "loading";
+    if (!current()) return () => {};
+    let lastPercent = null;
+    const timer = globalThis.setInterval(() => {
+      if (!current()) { globalThis.clearInterval(timer); return; }
+      const progress = this.foregroundModelDownloadProgress();
+      const percent = progress ? Math.floor(100 * progress.receivedBytes / progress.totalBytes) : null;
+      if (percent !== lastPercent) { lastPercent = percent; this.renderRuntimePresentation(); }
+    }, 100);
+    return () => globalThis.clearInterval(timer);
   }
   foregroundModelDownloadProgress() {
     if (typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ === "undefined" || __AEROBEAT_PUBLIC_FRIEND_GAME__ !== true ||
