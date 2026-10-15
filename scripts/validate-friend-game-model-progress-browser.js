@@ -110,11 +110,13 @@ try {
     const bar = root?.querySelector('progress[part="model-download-progress"]');
     const label = root?.querySelector('[part="pending-status"]');
     const button = root?.querySelector('button[part="start-button"]');
+    const testButton = root?.querySelector('button[part="test-button"]');
     const box = bar?.getBoundingClientRect(), buttonBox = button?.getBoundingClientRect();
     const x = box ? box.x + box.width / 2 : 0, y = box ? box.y + box.height / 2 : 0;
     const hit = box ? root.elementFromPoint(x, y) : null;
     const foreground = box ? element.shadowRoot.elementFromPoint(x, y) : null;
     return { bar: Boolean(bar), value: bar?.value ?? null, max: bar?.max ?? null, text: label?.textContent?.trim() ?? '', aria: bar?.getAttribute('aria-label') ?? '', pending: element.pendingSessionAction,
+      testEnabled: Boolean(testButton && !testButton.disabled), testBusy: testButton?.getAttribute('aria-busy') ?? '',
       cv: element.graph.cv.getStatus().lifecycleState, camera: element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none',
       visible: Boolean(bar && drawer && !drawer.hidden && drawer.getAttribute('aria-hidden') !== 'true' && box.width >= 80 && box.height >= 4 && box.x >= 0 && box.y >= 0 && box.right <= innerWidth && box.bottom <= innerHeight && buttonBox.width >= 40 && Math.abs(box.top - buttonBox.top) <= 200 && getComputedStyle(bar).visibility === 'visible' && getComputedStyle(bar).display !== 'none' && (hit === bar || bar.contains(hit)) && (foreground === actions || foreground === drawer)),
       labelVisible: Boolean(label && label.getBoundingClientRect().width >= 80 && getComputedStyle(label).visibility === 'visible') };
@@ -128,6 +130,7 @@ try {
   await page.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'start' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'loading', null, { timeout: 15000 });
   await checkIndeterminate('camera/Worker before measured model');
   const seen = [];
+  let testQueued = false;
   for (let index = 0; index < holds.length; index++) {
     await withTimeout(reached[index], 20000, `signed model reaches ${index}`);
     await page.waitForFunction(floor => {
@@ -145,18 +148,58 @@ try {
     assert(state.camera === 'live' && state.cv === 'loading', `real camera and loading Worker at phase ${index}: ${JSON.stringify(state)}`);
     assert(seen.length === 0 || state.value > seen.at(-1), 'measured bytes monotone');
     seen.push(state.value);
+    if (index === 2) {
+      if (!state.testEnabled) {
+        console.log(`OBSERVED: Test is not clickable during pending Play at model 75%; queued-Test visual state cannot be asserted: ${JSON.stringify(state)}`);
+      } else {
+        await game.locator('aero-session-actions').getByRole('button', { name: 'Test', exact: true }).click();
+        await page.waitForFunction(() => {
+          const game = document.querySelector('aero-game');
+          const actions = game?.shadowRoot?.querySelector('aero-session-actions');
+          const label = actions?.shadowRoot?.querySelector('[part="pending-status"]');
+          return game?.pendingSessionAction === 'test' && /test/iu.test(label?.textContent ?? '') && /queu/iu.test(label?.textContent ?? '');
+        }, null, { timeout: 5000 }).catch(async error => { throw new Error(`queued Test never replaced Play's numeric foreground: ${JSON.stringify(await inspect())}`, { cause: error }); });
+        const queued = await inspect();
+        assert.equal(queued.pending, 'test', 'last intent is Test during held Play model');
+        testQueued = true;
+        assert.equal(queued.testBusy, 'true', 'Test action remains pending while Play owns Worker load');
+        assert(queued.labelVisible && /test/iu.test(queued.text) && /queu/iu.test(queued.text) && !/%|error|fail/iu.test(queued.text), `foreground Test queued, not a model/global percentage: ${JSON.stringify(queued)}`);
+        assert(!queued.bar, `queued Test does not present earlier Play's model percent: ${JSON.stringify(queued)}`);
+        assert.equal(queued.cv, 'loading', 'Test has not bypassed Play Worker initialization');
+        assert.equal(counts.get(modelPath), 1, 'queued Test cannot duplicate model GET');
+        assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'queued Test cannot duplicate WASM GET');
+        console.log(`PASS signed direct queued Test foreground and ordered pending intent: ${JSON.stringify({ text: queued.text, modelGets: counts.get(modelPath) })}`);
+      }
+    }
     release[index]();
   }
-  await page.waitForFunction(() => document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'running' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().poseFrameCount > 0 && document.querySelector('aero-game')?.graph?.gameplay?.getSnapshot?.().session.state === 'calibrating', null, { timeout: 40000 });
+  if (testQueued) await page.waitForFunction(() => {
+    const game = document.querySelector('aero-game');
+    const session = game?.graph?.gameplay?.getSnapshot?.().session;
+    return session?.purpose === 'visual_test' && session.state === 'playing' && game.menuOpen === false &&
+      game.pendingSessionAction === '' && game.graph.audio.getStatus().state === 'playing' &&
+      game.graph.cv.getStatus().lifecycleState !== 'running';
+  }, null, { timeout: 40000 });
+  else await page.waitForFunction(() => document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'running' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().poseFrameCount > 0 && document.querySelector('aero-game')?.graph?.gameplay?.getSnapshot?.().session.state === 'calibrating', null, { timeout: 40000 });
   const worker = page.workers().filter(item => /mediapipe/u.test(item.url()));
   assert.equal(worker.length, 1, 'one genuine MediaPipe Worker');
   const state = await inspect();
-  assert(!state.bar && !/%/u.test(state.text), `T-pose/initialization has no invented percent: ${JSON.stringify(state)}`);
+  assert(!state.bar && !/%/u.test(state.text), `post-download state has no invented percent: ${JSON.stringify(state)}`);
+  if (testQueued) {
+    const final = await game.evaluate(element => ({ purpose: element.graph.gameplay.getSnapshot().session.purpose,
+      session: element.graph.gameplay.getSnapshot().session.state, audio: element.graph.audio.getStatus().state,
+      cv: element.graph.cv.getStatus(), active: element.activeSessionAction, pending: element.pendingSessionAction,
+      camera: element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none' }));
+    assert.equal(final.purpose, 'visual_test'); assert.equal(final.session, 'playing');
+    assert.equal(final.audio, 'playing'); assert.equal(final.active, 'test'); assert.equal(final.pending, '');
+    assert.notEqual(final.cv.lifecycleState, 'running', 'queued Test owns audio without active Play CV');
+    assert.equal(final.cv.providerId, 'cpu-wasm', 'Play initialized genuine CPU Worker before ordered Test');
+  }
   assert.equal(counts.get(modelPath), 1, 'one signed model GET');
   assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET');
   assert.deepEqual(external, [], 'no off-origin request (including blocked dispatch)');
   assert.deepEqual(errors, [], 'no browser page errors');
-  console.log(`PASS signed direct 390x844 model progress; phases=${JSON.stringify(seen)}; one model/WASM GET; real camera/Worker/pose; ${directory}`);
+  console.log(`PASS signed direct 390x844 model progress; phases=${JSON.stringify(seen)}; Test queued=${testQueued}; one model/WASM GET; real camera/Worker${testQueued ? '' : '/pose'}; ${directory}`);
 } finally {
   for (const unblock of release) unblock();
   await context?.close(); await browser?.close();
