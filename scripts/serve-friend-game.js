@@ -35,7 +35,9 @@ function checkedFile(root, relative) {
   return readFileSync(cursor);
 }
 const documentCsp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.beatsaver.com https://r2cdn.beatsaver.com; media-src 'self' blob: https://cfcdn.beatsaver.com; worker-src 'self' blob:; frame-ancestors *; base-uri 'none'; form-action 'none'; object-src 'none'";
-const assetCsp = "default-src 'none'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'";
+// Worker policy: importScripts loads only signed same-origin scripts; MediaPipe compiles local WASM.
+// Never permit BeatSaver (or any other external connect target) inside a Worker.
+const assetCsp = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'";
 const mime = Object.freeze({ ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".wasm": "application/wasm", ".task": "application/octet-stream", ".glb": "model/gltf-binary", ".jpeg": "image/jpeg", ".jpg": "image/jpeg", ".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml" });
 export function loadSignedSnapshot(directory = defaultDirectory) {
   const root = path.resolve(directory);

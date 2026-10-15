@@ -89,7 +89,7 @@ function main() {
     sourceManifest, buildStamp,
     responsePolicy: {
       documentCsp: "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.beatsaver.com https://r2cdn.beatsaver.com; media-src 'self' blob: https://cfcdn.beatsaver.com; worker-src 'self' blob:; frame-ancestors *; base-uri 'none'; form-action 'none'; object-src 'none'",
-      assetCsp: "default-src 'none'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'",
+      assetCsp: "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'",
       referrerPolicy: "no-referrer", contentTypeOptions: "nosniff"
     },
     assets: files.map(record)
