@@ -4,6 +4,13 @@
 .plans/
 .tmp/
 dist/
+dist-friend-game/
+vite.friend-game.config.js
+scripts/serve-friend-game.js
+scripts/write-friend-game-bundle-manifest.js
+scripts/validate-friend-game-static.js
+scripts/validate-friend-game-browser.js
+scripts/validate-public-friend-game-runtime.js
 release/
 phone-performance.html
 vite.phone.config.js
