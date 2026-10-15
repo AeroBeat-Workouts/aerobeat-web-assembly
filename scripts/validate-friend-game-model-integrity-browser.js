@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { resolve } from 'node:path';
+import { resolve, relative, isAbsolute, sep } from 'node:path';
+import { lstatSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
@@ -12,9 +13,18 @@ import { loadSignedSnapshot, handlerForSnapshot } from './serve-friend-game.js';
 import { createSyntheticBeatSaverZip } from '../../aerobeat-web-vendor-beatsaver/scripts/fixture-helpers.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const directory = resolve(root, '.tmp/friend-game-cpu-stream-candidate-3bdb5e5');
+const selected = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_DIR;
+const directory = selected === undefined ? resolve(root, 'dist-friend-game') : resolve(root, selected);
+if (selected !== undefined) {
+  assert(!isAbsolute(selected) && !selected.includes('\\') && selected.split('/').every(part => part && part !== '.' && part !== '..'), 'candidate selector must be a safe relative path');
+  const inside = relative(resolve(root, '.tmp'), directory);
+  assert(inside && inside !== '..' && !inside.startsWith(`..${sep}`) && !isAbsolute(inside) && !inside.includes(sep), 'candidate must be a direct child of .tmp');
+  assert.equal(realpathSync(resolve(root, '.tmp')), resolve(root, '.tmp'), 'candidate parent must be canonical');
+  assert(lstatSync(directory).isDirectory() && !lstatSync(directory).isSymbolicLink(), 'candidate must be a real directory');
+  assert.equal(realpathSync(directory), directory, 'candidate directory must be canonical and not a symlink');
+}
 const modelPath = '/assets/mediapipe/pose_landmarker_lite.task';
-const snapshot = loadSignedSnapshot(directory);
+const snapshot = loadSignedSnapshot(directory); // Verify full inventory, bytes, provenance and policy before listening.
 const model = snapshot.bytes.get(modelPath);
 assert.equal(model?.length, 5_777_746, 'signed model decoded size');
 assert.equal(createHash('sha256').update(model).digest('hex'), snapshot.manifest.assets.find(asset => asset.path === modelPath.slice(1))?.sha256);
