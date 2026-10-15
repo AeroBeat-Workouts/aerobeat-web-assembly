@@ -472,7 +472,7 @@ export class AeroGame extends HTMLElement {
     if (purpose !== "play" && purpose !== "visual_test") throw new TypeError("Session purpose is invalid");
     const graph = this.graph; const connectionGeneration = this.connectedGeneration; const action = purpose === "visual_test" ? "test" : "start"; const actionGeneration = this.sessionActionGeneration; const actionIntentOrdinal = ++this.sessionActionIntentOrdinal;
     this.pendingSessionActionOrdinal = actionIntentOrdinal; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
-    return this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
+    const intent = this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
       const participant = this.leaseParticipant; const sessionGeneration = ++this.sessionGeneration;
       const previousTransportTail = this.transportIntentTail; const previousTerminalTail = this.terminalServiceTail; const previousMenuPauseTail = this.menuPauseTail; const previousAudioSyncTail = this.audioSyncTail;
       // Atomic mode swap: the outgoing mode's transport truth (sessionStartRequested/activeSessionAction) is NOT cleared here — it flips only at the commit point below, so the old transport stays visible until the new session commits.
@@ -554,6 +554,10 @@ export class AeroGame extends HTMLElement {
         if (!operationError && rollbackError) throw rollbackError;
       }
     });
+    // The first click render precedes enqueueLifecycleIntent's generation increment.
+    // Repaint queued Test after enqueuing, while the preceding Play still owns the drain.
+    if (action === "test" && typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true) this.renderRuntimePresentation();
+    return intent;
   }
 
   /** Await the initial action-owned audio state so stale playback cannot outlive or mutate a later restart. */
