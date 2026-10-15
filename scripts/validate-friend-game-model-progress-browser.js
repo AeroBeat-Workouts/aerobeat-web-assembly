@@ -18,6 +18,9 @@ const selected = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_DIR;
 const directory = selected === undefined ? resolve(root, 'dist-friend-game') : resolve(root, selected);
 const embedding = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING ?? 'direct';
 assert(['direct', 'iframe'].includes(embedding), 'only direct or cross-origin iframe embedding');
+const extendedSlowStart = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_EXTENDED_SLOW_START;
+assert(extendedSlowStart === undefined || extendedSlowStart === '1', 'extended slow start must be exactly 1 when supplied');
+const wasmHoldMs = extendedSlowStart === '1' ? 35_000 : 6_000;
 if (selected !== undefined) {
   assert(!isAbsolute(selected) && !selected.includes('\\') && selected.split('/').every(part => part && part !== '.' && part !== '..'), 'candidate selector must be a safe relative path');
   const inside = relative(resolve(root, '.tmp'), directory);
@@ -36,6 +39,9 @@ const release = []; const reach = [];
 const gates = holds.map((_, index) => new Promise(done => { release[index] = done; }));
 const reached = holds.map((_, index) => new Promise(done => { reach[index] = done; }));
 const counts = new Map();
+let wasmHoldStartedAt = null, wasmBodySentAt = null, modelBodySentAt = null;
+let markWasmSent;
+const wasmSent = new Promise(done => { markWasmSent = done; });
 const server = createServer(async (request, response) => {
   const path = new URL(request.url, 'http://127.0.0.1').pathname;
   if (request.method === 'GET') counts.set(path, (counts.get(path) ?? 0) + 1);
@@ -56,7 +62,13 @@ const server = createServer(async (request, response) => {
   response.removeHeader('Content-Encoding');
   response.setHeader('Content-Length', bytes.length);
   response.flushHeaders();
-  if (path !== modelPath) { await delay(1600); response.end(bytes); return; }
+  if (path !== modelPath) {
+    assert(wasmHoldStartedAt === null, 'one real signed WASM response held');
+    wasmHoldStartedAt = performance.now();
+    await delay(wasmHoldMs + 50);
+    wasmBodySentAt = performance.now();
+    response.end(bytes); markWasmSent(); return;
+  }
   let offset = 0;
   for (let index = 0; index < holds.length; index++) {
     const end = holds[index];
@@ -65,6 +77,7 @@ const server = createServer(async (request, response) => {
     await gates[index];
   }
   while (offset < bytes.length) { const next = Math.min(bytes.length, offset + 65536); response.write(bytes.subarray(offset, next)); offset = next; await delay(15); }
+  modelBodySentAt = performance.now();
   response.end();
 });
 const withTimeout = (promise, milliseconds, label) => Promise.race([promise, delay(milliseconds).then(() => { throw Error(`timeout: ${label}`); })]);
@@ -152,6 +165,14 @@ try {
   await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
   await frame.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'start' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'loading', null, { timeout: 15000 });
   await checkIndeterminate('camera/Worker before measured model');
+  await frame.waitForFunction(() => document.querySelector('aero-game')?.graph?.video?.getRetainedCameraStream?.()?.getVideoTracks?.()[0]?.readyState === 'live', null, { timeout: 10000 });
+  if (wasmHoldStartedAt !== null) {
+    const until = wasmHoldStartedAt + Math.min(1000, wasmHoldMs / 2);
+    const remaining = Math.max(0, until - performance.now());
+    if (remaining) await delay(remaining);
+    assert.equal(wasmBodySentAt, null, 'WASM remains held before first measurable model bytes');
+    await checkIndeterminate('signed WASM held before worker consumes model');
+  }
   const seen = [];
   let testQueued = false;
   for (let index = 0; index < holds.length; index++) {
@@ -160,7 +181,7 @@ try {
       const a = document.querySelector('aero-game')?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
       const bar = a?.querySelector('progress[part="model-download-progress"]');
       return bar && bar.value >= floor;
-    }, holds[index], { timeout: 12000 }).catch(async error => { const state = await inspect(); throw new Error(`SLOW MODEL RED: foreground percentage absent at held signed ${index + 1}/4 (label=${JSON.stringify(state.text)}, bar=${state.bar}, camera=${state.camera}, CV=${state.cv})`, { cause: error }); });
+    }, holds[index], { timeout: wasmHoldMs + 12000 }).catch(async error => { const state = await inspect(); throw new Error(`SLOW MODEL RED: foreground percentage absent at held signed ${index + 1}/4 (label=${JSON.stringify(state.text)}, bar=${state.bar}, camera=${state.camera}, CV=${state.cv})`, { cause: error }); });
     const state = await inspect();
     assert(state.bar && state.visible && state.labelVisible, `SLOW MODEL RED: foreground accessible progress missing at ${index + 1}/4: ${JSON.stringify(state)}`);
     assert.equal(state.max, model.length, 'decoded signed denominator');
@@ -205,11 +226,17 @@ try {
         assert.equal(queued.cv, 'loading', 'Test has not bypassed Play Worker initialization');
         assert.equal(counts.get(modelPath), 1, 'queued Test cannot duplicate model GET');
         assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'queued Test cannot duplicate WASM GET');
-        console.log(`PASS signed direct queued Test plus measured Play model: ${JSON.stringify({ queuedText: queued.queuedText, modelText: queued.text, modelBytes: queued.value, modelGets: counts.get(modelPath) })}`);
+        console.log(`PASS signed ${embedding} queued Test plus measured Play model: ${JSON.stringify({ queuedText: queued.queuedText, modelText: queued.text, modelBytes: queued.value, modelGets: counts.get(modelPath) })}`);
       }
     }
     release[index]();
   }
+  assert(testQueued, 'Test must remain clickable so queued visual state runs in the gate');
+  await withTimeout(wasmSent, wasmHoldMs + 15000, 'delayed signed WASM body release');
+  assert(wasmHoldStartedAt !== null && wasmBodySentAt - wasmHoldStartedAt >= wasmHoldMs,
+    `WASM hold must meet ${wasmHoldMs}ms, observed ${wasmBodySentAt - wasmHoldStartedAt}ms`);
+  assert.equal(counts.get(modelPath), 1, 'one model GET after held WASM release');
+  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET after held release');
   if (testQueued) await frame.waitForFunction(() => {
     const game = document.querySelector('aero-game');
     const session = game?.graph?.gameplay?.getSnapshot?.().session;
@@ -234,9 +261,10 @@ try {
   }
   assert.equal(counts.get(modelPath), 1, 'one signed model GET');
   assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET');
+  assert(modelBodySentAt !== null, 'complete signed model response delivered before ordered Test audio');
   assert.deepEqual(external, [], 'no off-origin request (including blocked dispatch)');
   assert.deepEqual(errors, [], 'no browser page errors');
-  console.log(`PASS signed ${embedding} 390x844 model progress; phases=${JSON.stringify(seen)}; Test queued=${testQueued}; one model/WASM GET; real camera/Worker${testQueued ? '' : '/pose'}; ${directory}`);
+  console.log(`PASS signed ${embedding} 390x844 model progress; phases=${JSON.stringify(seen)}; full=${model.length}; WASM hold=${Math.round(wasmBodySentAt - wasmHoldStartedAt)}ms (required ${wasmHoldMs}ms); queued Test/audio-only; one model/WASM GET; real camera/Worker; ${directory}`);
 } finally {
   for (const unblock of release) unblock();
   await context?.close(); await browser?.close();
