@@ -2675,9 +2675,7 @@ export class AeroGame extends HTMLElement {
     const hudPartition=Array.isArray(gameplay.scorePartitions)?gameplay.scorePartitions[0]:null;
     const hudScore=hudPartition?.score??0,hudCombo=hudPartition?.combo??0,hudMult=comboMultiplierLabel(hudCombo);
     const publicFriendGame = typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true;
-    const pendingMessage = publicFriendGame && this.menuOpen && this.menuStarting && !this.lastError
-      ? publicFriendPendingStatus(this.pendingSessionAction, this.pendingSessionActionOrdinal, this.sessionActionIntentOrdinal, this.lifecycleIntentActiveGeneration, this.lifecycleIntentGeneration)
-      : "";
+    const pendingMessage = publicFriendGame ? this.publicFriendPendingMessage() : "";
     const runtimeMessage = runtimeStatus(content, session, input);
     const cueMessage = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input);
     const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
@@ -2688,7 +2686,7 @@ export class AeroGame extends HTMLElement {
     if (signature === this.runtimeUiSignature) return;
     this.runtimeUiSignature = signature; this.runtimeUiCommitCount += 1;
     setPresenter(this,"aero-flow-hud",{score:hudScore,combo:hudCombo,multiplier:hudMult});
-    if (publicFriendGame) setPresenter(this, "aero-session-actions", { ...this.sessionActionsSnapshot(), pendingStatus: pendingMessage });
+    if (publicFriendGame) setPresenter(this, "aero-session-actions", this.sessionActionsSnapshot());
     const status = this.shadowRoot?.querySelector("[data-role='status']");
     if (status && status.textContent !== runtimeMessage) status.textContent = runtimeMessage;
     const cue = this.shadowRoot?.querySelector("[data-role='transient-cue']");
@@ -3126,7 +3124,16 @@ export class AeroGame extends HTMLElement {
 
   downloadedPlayable() { return !this.pendingLibrarySelection && this.selectedDownloadedContentPlayable(); }
 
-  sessionActionsSnapshot() { return Object.freeze({ downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction }); }
+  publicFriendPendingMessage() {
+    return this.menuOpen && this.menuStarting && !this.lastError
+      ? publicFriendPendingStatus(this.pendingSessionAction, this.pendingSessionActionOrdinal, this.sessionActionIntentOrdinal, this.lifecycleIntentActiveGeneration, this.lifecycleIntentGeneration)
+      : "";
+  }
+  sessionActionsSnapshot() {
+    const actions = { downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction };
+    return Object.freeze(typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true
+      ? { ...actions, pendingStatus: this.publicFriendPendingMessage() } : actions);
+  }
   invalidatePendingSessionStart() { if (!this.pendingSessionAction && !this.menuStarting) return false; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.menuStarting = false; this.stopFrameLoop(); this.renderPresenters(); return true; }
   isSessionCurrent(sessionGeneration, connectionGeneration, graph) { return this.sessionGeneration === sessionGeneration && this.isCurrent(connectionGeneration, graph); }
 
