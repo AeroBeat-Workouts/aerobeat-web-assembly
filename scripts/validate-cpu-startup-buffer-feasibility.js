@@ -1,3 +1,4 @@
+// @ts-check
 // Isolated LOCAL-only test fixture. Never a product build, public route or phone benchmark.
 // Run: node scripts/validate-cpu-startup-buffer-feasibility.js
 import assert from 'node:assert/strict';

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 // Candidate-path tests are deliberately invalid invocations: never sign dirty source.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

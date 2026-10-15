@@ -1,3 +1,4 @@
+// @ts-check
 // LOCAL browser-only cache feasibility; does not build, serve, or change the public game.
 // Run: node scripts/validate-cpu-repeat-cache-feasibility.js
 import assert from 'node:assert/strict';

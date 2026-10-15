@@ -1,3 +1,4 @@
+// @ts-check
 // TEST-ONLY classic Worker; never used by any signed/product build.
 self.onmessage = async ({ data }) => {
   const { mode, origin, expectedModelHash, expectedModelBytes } = data;
