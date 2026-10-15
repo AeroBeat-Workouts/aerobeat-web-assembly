@@ -46,15 +46,18 @@ assert(archive.length < 1_000_000, 'test-owned chart size');
 const timeout = (promise, ms, label) => Promise.race([promise, delay(ms).then(() => { throw Error(`timeout ${label}`); })]);
 
 async function runCase(kind) {
-  const tamper = kind === 'tamper';
-  const sent = tamper ? Buffer.from(model) : model.subarray(0, model.length - 1);
+  assert(['tamper', 'truncate', 'cancel'].includes(kind), 'known signed model failure case');
+  const tamper = kind === 'tamper', cancel = kind === 'cancel';
+  const sent = tamper ? Buffer.from(model) : kind === 'truncate' ? model.subarray(0, model.length - 1) : model;
   if (tamper) sent[sent.length - 1] ^= 1;
-  assert(tamper ? sent.length === model.length && !sent.equals(model) : sent.length === model.length - 1);
+  assert(cancel ? sent === model : tamper ? sent.length === model.length && !sent.equals(model) : sent.length === model.length - 1);
   const counts = new Map(), reached = [];
   const checkpoints = [1, 2, 3].map(index => Math.floor(model.length * index / 4));
   const held = checkpoints.map((_, index) => new Promise(done => { reached[index] = done; }));
   const resume = []; const released = checkpoints.map((_, index) => new Promise(done => { resume[index] = done; }));
   const streaming = new Set();
+  let modelResponseCompleted = false;
+  let modelBytesSent = 0;
   const server = createServer(async (request, response) => {
     const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
     if (request.method === 'GET') counts.set(path, (counts.get(path) ?? 0) + 1);
@@ -74,6 +77,7 @@ async function runCase(kind) {
     response.removeHeader('Content-Encoding');
     response.setHeader('Content-Length', model.length);
     response.flushHeaders();
+    response.once('finish', () => { modelResponseCompleted = true; });
     streaming.add(response);
     try {
       let offset = 0;
@@ -81,7 +85,7 @@ async function runCase(kind) {
         const end = checkpoints[index];
         while (offset < end) {
           const next = Math.min(end, offset + 65_536);
-          response.write(sent.subarray(offset, next)); offset = next;
+          response.write(sent.subarray(offset, next)); offset = next; modelBytesSent = offset;
           await delay(10);
         }
         reached[index]();
@@ -89,7 +93,7 @@ async function runCase(kind) {
       }
       while (offset < sent.length) {
         const next = Math.min(sent.length, offset + 65_536);
-        response.write(sent.subarray(offset, next)); offset = next;
+        response.write(sent.subarray(offset, next)); offset = next; modelBytesSent = offset;
         await delay(10);
       }
       response.end();
@@ -105,8 +109,9 @@ async function runCase(kind) {
     browser = await chromium.launch({ headless: true, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
     context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, serviceWorkers: 'block' });
     page = await context.newPage();
-    const external = [], errors = [], workerUrls = [];
+    const external = [], errors = [], workerUrls = [], requestFailures = [];
     page.on('worker', worker => workerUrls.push(worker.url()));
+    page.on('requestfailed', request => { if (new URL(request.url()).pathname === modelPath) requestFailures.push(request.failure()?.errorText ?? 'unknown'); });
     page.on('pageerror', error => errors.push(error.message));
     page.on('request', request => { if (/^https?:/u.test(request.url()) && new URL(request.url()).origin !== origin) external.push(request.url()); });
     await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
@@ -135,6 +140,7 @@ async function runCase(kind) {
         camera: g.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none' };
     });
     const observed = [];
+    let cameraBeforeRemoval = null;
     for (let index = 0; index < checkpoints.length; index++) {
       await timeout(held[index], 25000, `${kind} chunk ${index}`);
       await page.waitForFunction(floor => {
@@ -152,7 +158,61 @@ async function runCase(kind) {
       assert.notEqual(now.session.state, 'playing');
       assert.equal(counts.get(modelPath), 1);
       observed.push(now.bytes);
+      if (cancel) { cameraBeforeRemoval = now.camera; break; } // Hold at 25%; never send the other 75%.
       resume[index]();
+    }
+    if (cancel) {
+      const cancellation = await game.evaluate(g => {
+        const track = g.graph.video.getRetainedCameraStream()?.getVideoTracks()[0];
+        globalThis.__modelCancel = { videoTrack: track, graph: g.graph, element: g };
+        g.remove(); // Real custom-element disconnect, not a vendor or adapter mock.
+        return { disconnected: !g.isConnected, trackBeforeRemoval: track?.readyState ?? 'none' };
+      });
+      assert(cancellation.disconnected && cameraBeforeRemoval === 'live', `real game disconnects after verified live camera at held 25%: ${JSON.stringify({ cancellation, cameraBeforeRemoval })}`);
+      await page.waitForFunction(() => document.querySelector('aero-game') === null, null, { timeout: 10000 });
+      const cancelled = await page.evaluate(() => {
+        const { videoTrack, graph, element } = globalThis.__modelCancel;
+        return { track: videoTrack?.readyState ?? 'none', cv: graph.cv.getStatus(),
+          audio: graph.audio.getStatus().state, session: graph.gameplay.getSnapshot().session.state,
+          workerRunning: graph.cv.running, elementLifecycle: element.lifecycle, pending: element.pendingSessionAction,
+          active: element.activeSessionAction, oldBar: Boolean(element.shadowRoot.querySelector('progress[part="model-download-progress"]')) };
+      });
+      assert.equal(cancelled.track, 'ended', 'disconnected game stops its owned fake-camera track');
+      assert.equal(cancelled.cv.lifecycleState, 'disposed', 'old CV service invalidated before load can finish');
+      assert.equal(cancelled.cv.poseFrameCount, 0, 'no stale Worker pose accepted');
+      assert.equal(cancelled.cv.error, null, 'deliberate cancellation is not a model-integrity failure');
+      assert.equal(cancelled.audio, 'destroyed', 'old audio service destroyed');
+      assert.equal(cancelled.session, 'destroyed', 'old gameplay service destroyed');
+      assert.equal(cancelled.workerRunning, false);
+      assert.equal(cancelled.elementLifecycle, 'disconnected');
+      assert.equal(cancelled.pending, ''); assert.equal(cancelled.active, '');
+      assert.equal(cancelled.oldBar, false, 'disconnected element has no stale model bar or 100%');
+      // Old Worker termination may wait for its intentionally blocked fetch; the
+      // disposed CV generation must reject all late loaded/pose continuations.
+      assert.deepEqual(observed, [checkpoints[0]], 'model progress stopped at exact 25% checkpoint');
+      assert.equal(modelBytesSent, checkpoints[0], 'fixture delivered only 25% signed model bytes');
+      assert.equal(modelResponseCompleted, false, 'cancelled transfer did not complete signed model bytes');
+      assert.equal(counts.get(modelPath), 1, 'one model GET before user cancellation');
+      assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one WASM GET before user cancellation');
+      assert.equal(workerUrls.filter(url => /mediapipe/u.test(url)).length, 1, 'real MediaPipe Worker created');
+      assert.deepEqual(external, [], 'no off-origin request attempts');
+      assert.deepEqual(errors, [], 'no uncaught page errors');
+      await page.waitForTimeout(300);
+      const late = await page.evaluate(() => {
+        const { graph, element, videoTrack } = globalThis.__modelCancel;
+        return { cv: graph.cv.getStatus(), audio: graph.audio.getStatus().state,
+          session: graph.gameplay.getSnapshot().session.state, track: videoTrack?.readyState ?? 'none',
+          pending: element.pendingSessionAction, active: element.activeSessionAction,
+          progress: element.foregroundModelDownloadProgress?.() ?? null,
+          bar: Boolean(element.shadowRoot.querySelector('progress[part="model-download-progress"]')) };
+      });
+      assert.equal(late.cv.lifecycleState, 'disposed', 'late Worker messages cannot restore CV');
+      assert.equal(late.cv.poseFrameCount, 0, 'late Worker messages cannot create accepted poses');
+      assert.equal(late.audio, 'destroyed'); assert.equal(late.session, 'destroyed');
+      assert.equal(late.track, 'ended'); assert.equal(late.pending, ''); assert.equal(late.active, '');
+      assert.equal(late.progress, null); assert.equal(late.bar, false);
+      console.log(`PASS cancel: ${JSON.stringify({ bytes: observed[0], modelGets: counts.get(modelPath), wasmGets: wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), track: cancelled.track, cv: cancelled.cv.lifecycleState, session: cancelled.session, audio: cancelled.audio, responseCompleted: modelResponseCompleted, liveWorkersAfterRemoval: page.workers().filter(worker => /mediapipe/u.test(worker.url())).length, browserRequestFailures: requestFailures })}`);
+      return;
     }
     await page.waitForFunction(() => {
       const g = document.querySelector('aero-game');
@@ -184,3 +244,4 @@ async function runCase(kind) {
 
 await runCase('tamper');
 await runCase('truncate');
+await runCase('cancel');
