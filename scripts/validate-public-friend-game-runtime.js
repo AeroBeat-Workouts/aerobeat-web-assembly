@@ -85,4 +85,5 @@ assert.equal(pendingStatus('test',1,2,1,2),'','superseded action must not retain
 assert.match(index,/publicFriendGame && this\.menuOpen && this\.menuStarting && !this\.lastError\s*\? publicFriendPendingStatus\(/u,'only the public, visible menu uses pending copy while errors win');
 assert.match(index,/const runtimeMessage = pendingMessage \|\| runtimeStatus\(content, session, input\);[\s\S]*?const signature = JSON\.stringify\(\[runtimeMessage,[\s\S]*?\[data-role='status'\]/u,'pending copy must enter the runtime signature and visible status output');
 assert.match(index,/this\.pendingSessionAction = action; this\.menuStarting = true;[^\n]*this\.renderPresenters\(\)/u,'each pending click synchronously renders without a CV subscription');
+assert.match(index,/this\.lifecycleIntentActiveGeneration = generation;[\s\S]*?kind === "session-test"[^\n]*this\.pendingSessionAction === "test"\) this\.renderRuntimePresentation\(\)/u,'queued Test owner activation visibly changes status without a CV subscription');
 console.log('public friend flag: local CPU graph, strict access and visible pending Play/queued Test status passed');

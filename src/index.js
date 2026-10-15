@@ -428,6 +428,8 @@ export class AeroGame extends HTMLElement {
     const result = previous.catch(() => null).then(async () => {
       if (!this.isCurrent(connectionGeneration, graph)) return this.getSnapshot();
       this.lifecycleIntentActiveGeneration = generation;
+      // A queued Test is now preparing; the owner transition need not emit a CV update.
+      if (kind === "session-test" && typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true && this.pendingSessionAction === "test") this.renderRuntimePresentation();
       try { return await operation(owner); }
       finally { if (this.lifecycleIntentActiveGeneration === generation) this.lifecycleIntentActiveGeneration = 0; }
     });
