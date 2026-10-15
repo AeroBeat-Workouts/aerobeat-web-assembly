@@ -38,7 +38,9 @@ const documentCsp = "default-src 'none'; script-src 'self'; style-src 'self' 'un
 // Worker policy: importScripts loads only signed same-origin scripts; MediaPipe compiles local WASM.
 // Never permit BeatSaver (or any other external connect target) inside a Worker.
 const assetCsp = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'";
-const mime = Object.freeze({ ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".wasm": "application/wasm", ".task": "application/octet-stream", ".glb": "model/gltf-binary", ".jpeg": "image/jpeg", ".jpg": "image/jpeg", ".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml" });
+const mime = Object.freeze({ ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".wasm": "application/wasm", ".task": "application/octet-stream", ".glb": "model/gltf-binary", ".jpeg": "image/jpeg", ".jpg": "image/jpeg", ".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml", ".json": "application/json; charset=utf-8" });
+// JSON is permitted only as an owned environment config/rights manifest or gameplay manifest/set.
+const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.11\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
 export function loadSignedSnapshot(directory = defaultDirectory) {
   const root = path.resolve(directory);
   if (!lstatSync(root).isDirectory() || realpathSync(root) !== root) fail("snapshot root must be a real directory");
@@ -57,7 +59,8 @@ export function loadSignedSnapshot(directory = defaultDirectory) {
   const named = manifest.assets.map(entry => entry?.path);
   if (named.length !== new Set(named).size || found.join("\n") !== [...named, sidecar].sort().join("\n") ||
       named.filter(name => name.endsWith(".html")).join() !== "index.html" || named.includes(sidecar) ||
-      named.some(name => !safeRelative(name) || /phone-|diagnostic|\.map$|\.json$|gpu/iu.test(name) || !mime[path.extname(name)])) fail("output differs from allowed signed inventory");
+      named.some(name => !safeRelative(name) || /phone-|diagnostic|\.map$|gpu/iu.test(name) ||
+        (name.endsWith(".json") && !gameJson.test(name)) || !mime[path.extname(name)])) fail("output differs from allowed signed inventory");
   const bytes = new Map();
   for (const entry of manifest.assets) {
     if (!Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || !/^[0-9a-f]{64}$/u.test(entry.sha256)) fail(`invalid asset signature: ${entry.path}`);

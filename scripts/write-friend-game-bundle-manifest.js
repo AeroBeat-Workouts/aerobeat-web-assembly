@@ -16,6 +16,8 @@ const fail = message => { throw new Error(`Friend game signing: ${message}`); };
 function safeName(name) {
   if (!name || name.startsWith("/") || name.includes("\\") || name.split("/").some(part => !part || part === "." || part === ".." || part.startsWith("."))) fail(`unsafe output path: ${name}`);
 }
+// JSON is permitted only as an owned environment config/rights manifest or gameplay manifest/set.
+const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.11\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
 function regularFile(relative) {
   safeName(relative);
   let cursor = out;
@@ -83,7 +85,7 @@ function main() {
       !files.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) || !files.includes("favicon.ico") ||
       !files.includes("assets/mediapipe/pose_landmarker_lite.task") || !files.includes("assets/mediapipe/vision_bundle.js") ||
       !files.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name))) fail("pinned game or MediaPipe assets missing");
-  if (files.some(name => /phone-|diagnostic|\.map$|\.json$|gpu/iu.test(name))) fail("diagnostic, source map, JSON or GPU output forbidden");
+  if (files.some(name => /phone-|diagnostic|\.map$|gpu/iu.test(name) || (name.endsWith(".json") && !gameJson.test(name)))) fail("diagnostic, source map, unowned JSON or GPU output forbidden");
   const result = {
     schema: "aerobeat/public_friend_game_bundle", version: 1, purpose: "normal_cpu_friend_game",
     sourceManifest, buildStamp,

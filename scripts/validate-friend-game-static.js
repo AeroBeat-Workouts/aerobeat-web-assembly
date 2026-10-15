@@ -24,6 +24,10 @@ const files = new Map([
   ["assets/mediapipe/vision_bundle.js", Buffer.from("vision")],
   ["assets/mediapipe/wasm/vision_wasm_internal.wasm", Buffer.from("wasm")],
   ["assets/environments/test.jpg", Buffer.from("environment")],
+  ["assets/environments/alpine-river-valley-photosphere/1.0.0/alpine-river-valley-photosphere.config.json", Buffer.from("{\"id\":\"alpine\"}")],
+  ["assets/environments/alpine-river-valley-photosphere/1.0.0/manifest.json", Buffer.from("{\"rights\":true}")],
+  ["assets/gameplay/0.0.11/manifests/guard/outlined-shield-v1.v1.json", Buffer.from("{\"asset\":\"guard\"}")],
+  ["assets/gameplay/0.0.11/sets/default-v1.json", Buffer.from("{\"set\":\"default\"}")],
   ...Array.from({ length: 9 }, (_, n) => [`assets/gameplay/0.0.11/model${n}.glb`, Buffer.from(`glb${n}`)])
 ]);
 for (const [name, bytes] of files) {
@@ -68,6 +72,14 @@ try {
   }
   assert.equal((await request("/assets/index-ABC.js")).headers.get("content-security-policy"), policy.assetCsp);
   assert.equal((await request("/assets/index-ABC.js", { method: "HEAD" })).status, 200);
+  for (const [name, bytes] of [...files].filter(([name]) => name.endsWith(".json"))) {
+    const response = await request(`/${name}`);
+    assert.equal(response.status, 200, name);
+    assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+    assert.equal(response.headers.get("content-security-policy"), policy.assetCsp);
+    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+    assert.equal((await request(`/${name}`, { method: "HEAD" })).status, 200);
+  }
   for (const name of ["/nope", "/src/index.js", "/.env", "/assets/", "/index.html/", "/INDEX.html", "/friend-game-bundle-manifest.json", "/assets/%2findex-ABC.js", "//index.html", "/phone-play-cv-test.html"]) {
     assert.equal((await request(name)).status, 404, name);
   }
@@ -108,6 +120,16 @@ try {
   writeFileSync(path.join(root, "private.html"), "unexpected");
   assert.throws(() => loadSignedSnapshot(root), /inventory/u, "unsigned output must fail startup");
   rmSync(path.join(root, "private.html"));
+  for (const bad of ["assets/environments/unknown.json", "assets/environments/alpine-river-valley-photosphere/1.0.0/debug.json", "assets/gameplay/0.0.11/manifests/guard/debug.json"]) {
+    mkdirSync(path.dirname(path.join(root, bad)), { recursive: true });
+    writeFileSync(path.join(root, bad), "{}");
+    manifest.assets.push({ path: bad, bytes: 2, sha256: hash(Buffer.from("{}")) });
+    sign();
+    assert.throws(() => loadSignedSnapshot(root), /inventory/u, `signed but unowned JSON must fail: ${bad}`);
+    manifest.assets.pop();
+    rmSync(path.join(root, bad));
+  }
+  sign();
   rmSync(path.join(root, "favicon.ico"));
   symlinkSync(path.join(root, "index.html"), path.join(root, "favicon.ico"));
   assert.throws(() => loadSignedSnapshot(root), /unsupported output|symlink/u, "symlink must fail startup");
