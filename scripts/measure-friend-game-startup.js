@@ -19,8 +19,12 @@ import { createRequire } from 'node:module';
 const url = process.env.AEROBEAT_FRIEND_GAME_QA_URL;
 assert(['http://127.0.0.1:4200/', 'http://127.0.0.1:4201/'].includes(url), 'exact signed loopback URL required');
 const origin = new URL(url).origin;
-const trace = process.env.AEROBEAT_STARTUP_TRACE === '1';
-assert(!process.env.AEROBEAT_STARTUP_TRACE || trace, 'AEROBEAT_STARTUP_TRACE must be 1 or unset');
+const workerTrace = process.env.AEROBEAT_STARTUP_TRACE_WORKER === '1';
+assert(!process.env.AEROBEAT_STARTUP_TRACE_WORKER || workerTrace, 'AEROBEAT_STARTUP_TRACE_WORKER must be 1 or unset');
+const trace = workerTrace || process.env.AEROBEAT_STARTUP_TRACE === '1';
+assert(!process.env.AEROBEAT_STARTUP_TRACE || process.env.AEROBEAT_STARTUP_TRACE === '1', 'AEROBEAT_STARTUP_TRACE must be 1 or unset');
+const cdpUrl = process.env.AEROBEAT_STARTUP_CDP_URL;
+assert(!cdpUrl || workerTrace && /^http:\/\/127\.0\.0\.1:\d{2,5}$/u.test(cdpUrl), 'CDP connection requires trace Worker and exact loopback HTTP endpoint');
 // Opt-in fixed decoded-byte response-delay fixture. This is NOT network bandwidth shaping.
 // The same constants apply to each of the two exact signed Worker assets on every run.
 // Usage: AEROBEAT_STARTUP_SHAPE=1 AEROBEAT_FRIEND_GAME_QA_URL=http://127.0.0.1:4200/ node scripts/measure-friend-game-startup.js
@@ -70,7 +74,7 @@ delete entries['Audio/Song.egg']; entries['Audio/Song.wav'] = wav;
 const archive = Buffer.from(zipSync(entries, { level: 0 }));
 assert(archive.length < 1_000_000, 'bounded local playable fixture');
 const now = () => performance.now();
-const browser = await chromium.launch({ headless: true, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
+const browser = cdpUrl ? await chromium.connectOverCDP(cdpUrl) : await chromium.launch({ headless: true, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, serviceWorkers: 'block' });
 const results = [];
 try {
