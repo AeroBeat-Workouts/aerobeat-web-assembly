@@ -57,12 +57,17 @@ assert.equal(manifest.responsePolicy.referrerPolicy, 'no-referrer');
 assert.equal(manifest.responsePolicy.contentTypeOptions, 'nosniff');
 assert(Array.isArray(manifest.assets) && manifest.assets.length > 25 && manifest.assets.length < 150, 'complete bounded signed inventory');
 const names = manifest.assets.map(entry => entry.path);
+// JSON is data only inside the two pinned runtime asset catalogs, never an
+// arbitrary upload, diagnostic, build sidecar, or top-level file.
+const ownedJson = name => /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.11\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u.test(name);
 assert.deepEqual(names, names.slice().sort(), 'sorted inventory');
 assert.equal(new Set(names).size, names.length, 'unique inventory');
 assert.deepEqual(names.filter(name => name.endsWith('.html')), ['index.html'], 'normal game HTML only');
 assert(names.includes('favicon.ico') && names.includes('assets/mediapipe/pose_landmarker_lite.task') && names.includes('assets/mediapipe/vision_bundle.js') && names.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) && names.filter(name => /^assets\/gameplay\/0\.0\.11\/.*\.glb$/u.test(name)).length === 9, 'signed local model, WASM, GLBs and favicon');
 assert(names.some(name => /^assets\/.*worker.*\.js$/iu.test(name)), 'signed authoring/CV Worker');
 assert(names.some(name => /^assets\/mediapipe\/wasm\/.*\.js$/u.test(name)), 'signed local MediaPipe WASM loader');
+assert.equal(names.filter(name => name.endsWith('.json')).length, 24, 'exactly 24 pinned environment/gameplay JSON files');
+assert(names.some(name => /^assets\/environments\/.*\.json$/u.test(name)) && names.some(name => /^assets\/gameplay\/0\.0\.11\/.*\.json$/u.test(name)), 'signed pinned environment and gameplay JSON catalogs');
 async function inventory(directory, prefix = '') {
   const entries = await readdir(directory, { withFileTypes: true });
   return (await Promise.all(entries.map(async entry => {
@@ -80,13 +85,18 @@ const policy = (response, expected, label) => {
 const served = new Map();
 for (const entry of manifest.assets) {
   exactKeys(entry, ['path', 'bytes', 'sha256'], 'asset signature');
-  assert(/^(?:index\.html|favicon\.ico|assets\/[a-zA-Z0-9._/-]+)$/u.test(entry.path) && !entry.path.split('/').some(part => !part || part.startsWith('.') || part === '..') && !/phone-|diagnostic|\.map$|\.json$|gpu/iu.test(entry.path), `approved asset ${entry.path}`);
+  assert(/^(?:index\.html|favicon\.ico|assets\/[a-zA-Z0-9._/-]+)$/u.test(entry.path) && !entry.path.split('/').some(part => !part || part.startsWith('.') || part === '..') && !/phone-|diagnostic|\.map$|gpu/iu.test(entry.path) && (!entry.path.endsWith('.json') || ownedJson(entry.path)), `approved asset ${entry.path}`);
   assert(Number.isSafeInteger(entry.bytes) && entry.bytes > 0 && entry.bytes <= 100_000_000 && hex(entry.sha256, 64), `bounded signature ${entry.path}`);
   failHash(await readFile(resolve(build, entry.path)), entry);
   const response = await fetch(new URL(`/${entry.path}`, rawUrl), { cache: 'no-store' });
   assert.equal(response.status, 200, `signed static route ${entry.path}`);
   policy(response, entry.path === 'index.html' ? documentCsp : assetCsp, entry.path);
+  if (entry.path.endsWith('.json')) assert.equal(response.headers.get('content-type'), 'application/json; charset=utf-8', `${entry.path}: exact JSON MIME`);
   const bytes = Buffer.from(await response.arrayBuffer()); failHash(bytes, entry); served.set(entry.path, bytes);
+  if (entry.path.endsWith('.json')) {
+    const record = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    assert(record && typeof record === 'object' && !Array.isArray(record), `${entry.path}: pinned JSON object`);
+  }
 }
 const rootResponse = await fetch(rawUrl, { cache: 'no-store' });
 assert.equal(rootResponse.status, 200, '/ serves normal HTML');
@@ -101,7 +111,7 @@ assert(names.some(name => name.endsWith('.js') && html.includes(`/${name}`) && s
 // Counterfactual: same signed bytes and unchanged expected hash, one mutated in-memory byte.
 const badBytes = Buffer.from(rootBytes); badBytes[0] ^= 1;
 assert.throws(() => failHash(badBytes, manifest.assets.find(entry => entry.path === 'index.html')), /signed SHA-256/u, 'mutated response must fail the exact production hash assertion');
-for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', '/index.html/', '/phone-play-cv-test.html', '/friend-game-bundle-manifest.json', '/assets/%2findex.js', '//index.html']) {
+for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', '/index.html/', '/phone-play-cv-test.html', '/friend-game-bundle-manifest.json', '/assets/debug.json', '/assets/environments/diagnostic.json', '/assets/gameplay/0.0.11/unowned.json', '/assets/%2findex.js', '//index.html']) {
   const response = await fetch(`${origin}${path}`, { cache: 'no-store' });
   assert.equal(response.status, 404, `unknown/forbidden path ${path}`);
   policy(response, assetCsp, path);
