@@ -2866,7 +2866,8 @@ export class AeroGame extends HTMLElement {
     let url; try { url = new URL(rawUrl); } catch { throw new Error("Preview is unavailable for this song"); }
     if (url.protocol !== "https:") throw new Error("Preview is unavailable for this song");
     const privateBeatSaverAccess = typeof __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ !== "undefined" && __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ === true;
-    if (privateBeatSaverAccess) url = requirePrivateBeatSaverUrl(url, "preview");
+    const publicFriendGame = typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true;
+    if (privateBeatSaverAccess || publicFriendGame) url = requirePrivateBeatSaverUrl(url, "preview");
     await this.startPreview(url.href, target, 0);
   }
 

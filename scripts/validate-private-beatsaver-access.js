@@ -76,5 +76,5 @@ assert.equal(typeof graph(true).fetch,'function','only new candidate constructs 
 // Remote HTMLAudioElement has no fetch redirect:error switch; its source URL
 // is checked before audio.src assignment, while CSP media-src constrains hops.
 const indexSource=readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
-assert.match(indexSource,/if \(privateBeatSaverAccess\) url = requirePrivateBeatSaverUrl\(url, "preview"\);\s*await this\.startPreview\(url\.href/u);
+assert.match(indexSource,/if \(privateBeatSaverAccess \|\| publicFriendGame\) url = requirePrivateBeatSaverUrl\(url, "preview"\);\s*await this\.startPreview\(url\.href/u);
 console.log('private BeatSaver search/ZIP/preview allowlist, off-host and redirect guards, old default graph passed');
