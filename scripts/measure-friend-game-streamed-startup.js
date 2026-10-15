@@ -45,8 +45,44 @@ const schedule = Object.freeze({ modelChunks: 8, modelIntervalMs: 500, wasmDelay
 const counts = { [model]: 0, [wasm]: 0 };
 const workerTrace = process.env.AEROBEAT_STARTUP_TRACE_WORKER === '1';
 assert(!process.env.AEROBEAT_STARTUP_TRACE_WORKER || workerTrace, 'Worker trace must be 1 or unset');
+const debugEof = process.env.AEROBEAT_STARTUP_DEBUG_EOF === '1';
+assert(!process.env.AEROBEAT_STARTUP_DEBUG_EOF || debugEof, 'EOF debugger must be 1 or unset');
+assert(!debugEof || workerTrace, 'EOF debugger requires Worker CDP trace');
+// Zero-based signed source lines; these are cause-only breakpoints, not timings.
+const eofBreakpoints = new Map([
+  [69, ['loaded', 'self.postMessage({ type: "loaded", actualDelegate: options.delegate });']],
+  [203, ['upstreamEofBranch', 'if (result.done) {']],
+  [211, ['shaCompare', 'if (hash !== options.modelSha256.toLowerCase())']],
+  [213, ['verifiedPost', 'verified: true']],
+  [214, ['observedClose', 'controller.close();']],
+  [215, ['integritySettled', 'settled = true;']],
+  [216, ['integrityResolve', 'resolveIntegrity();']],
+  [236, ['observedCancel', 'fail(reason ?? new Error("Model reader canceled"));']]
+]);
+const workerPath = debugEof ? snapshot.manifest.assets.filter(item => /^assets\/mediapipe-worker-[\w-]+\.js$/u.test(item.path)) : [];
+let signedWorkerUrl;
+if (debugEof) {
+  assert.equal(workerPath.length, 1, 'exactly one signed MediaPipe Worker required');
+  const asset = workerPath[0], bytes = snapshot.bytes.get(`/${asset.path}`);
+  assert(bytes && bytes.length === asset.bytes, 'signed Worker byte length required');
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), asset.sha256, 'signed Worker digest required');
+  const lines = bytes.toString('utf8').split('\n');
+  assert.equal(lines.length, 403, 'exact unminified Worker source lines required (402 plus final newline)');
+  for (const [line, [, anchor]] of eofBreakpoints) assert(lines[line].includes(anchor), `signed Worker line ${line + 1} changed`);
+  signedWorkerUrl = `http://127.0.0.1:4201/${asset.path}`;
+}
 let chrome = null, rawWs = null, profile = null, cdpOrigin = null;
 const workerEvents = [], targetSessions = new Map(), ids = new Map(), attaching = new Set();
+const debugScripts = new Map(), breakpointIds = new Map(), pendingDebug = new Map(), earlyResolved = new Map();
+const debugFailures = [];
+const pauseTimers = new Set();
+let debugMessageId = 1000, pauseCount = 0;
+const maxDebugPauses = 96;
+const sendDebug = (send, method, params, sessionId, meta) => {
+  const id = ++debugMessageId;
+  pendingDebug.set(id, { sessionId, method, meta });
+  send(id, method, params, sessionId);
+};
 let active = 0;
 const server = createServer((request, response) => {
   const path = request.url?.split('?', 1)[0];
@@ -128,6 +164,38 @@ try {
     rawWs.addEventListener('message', event => {
       let payload;
       try { payload = JSON.parse(event.data); } catch { return; }
+      const pending = pendingDebug.get(payload.id);
+      if (pending) {
+        pendingDebug.delete(payload.id);
+        if (payload.error) debugFailures.push({ method: pending.method, error: payload.error.message });
+        if (pending.method === 'Debugger.enable' && !payload.error) {
+          for (const [line, [boundary]] of eofBreakpoints) {
+            sendDebug(send, 'Debugger.setBreakpointByUrl', { lineNumber: line, url: signedWorkerUrl, columnNumber: 0 }, pending.sessionId, { line, boundary });
+          }
+        }
+        if (pending.method === 'Debugger.setBreakpointByUrl' && !payload.error) {
+          const locations = [...(payload.result?.locations ?? [])];
+          // An unresolved URL breakpoint may bind later; confirm the resolved script
+          // and exact location with Debugger.breakpointResolved before trusting it.
+          const key = `${pending.sessionId}:${payload.result.breakpointId}`;
+          breakpointIds.set(key, { ...pending.meta, sessionId: pending.sessionId });
+          for (const location of earlyResolved.get(key) ?? []) locations.push(location);
+          earlyResolved.delete(key);
+          for (const location of locations) {
+            const script = debugScripts.get(`${pending.sessionId}:${location.scriptId}`);
+            if (script !== signedWorkerUrl || location?.lineNumber !== pending.meta.line) debugFailures.push({ method: pending.method, error: 'breakpoint resolved outside signed Worker/expected line' });
+            else workerEvents.push({ event: 'breakpointBound', nodeMs: clock(), sessionId: pending.sessionId, boundary: pending.meta.boundary, line: pending.meta.line });
+          }
+        }
+        if (pending.method === 'Debugger.evaluateOnCallFrame') {
+          if (pending.meta?.timer) { clearTimeout(pending.meta.timer); pauseTimers.delete(pending.meta.timer); }
+          if (pending.meta?.timedOut) return;
+          const value = payload.result?.result?.value;
+          if (payload.error || payload.result?.exceptionDetails || !value || typeof value !== 'object') debugFailures.push({ method: pending.method, error: 'scalar frame evaluation failed' });
+          else if (pending.meta.event) pending.meta.event.scalars = value;
+          sendDebug(send, 'Debugger.resume', {}, pending.sessionId);
+        }
+      }
       if ((payload.id === 1 || payload.id === 2 || payload.id >= 11 && payload.id < 100) && payload.error) workerEvents.push({ event: 'protocolError', id: payload.id, error: payload.error.message });
       if (payload.method === 'Target.targetInfoChanged') {
         const info = payload.params?.targetInfo;
@@ -142,14 +210,62 @@ try {
         const info = payload.params?.targetInfo;
         if (info?.type !== 'worker' || !info.url.startsWith(url) || !/mediapipe-worker/iu.test(info.url)) return;
         const sessionId = payload.params.sessionId;
+        if (debugEof && info.url !== signedWorkerUrl) { debugFailures.push({ method: 'Target.attachedToTarget', error: 'CDP target is not the exact signed Worker' }); return; }
         targetSessions.set(sessionId, info.url); ids.set(sessionId, new Set());
         workerEvents.push({ event: 'targetAttached', nodeMs: clock(), sessionId, url: info.url });
         send(100 + targetSessions.size, 'Network.enable', {}, sessionId);
+        if (debugEof) sendDebug(send, 'Debugger.enable', {}, sessionId);
       } else if (payload.method === 'Target.detachedFromTarget') {
         const sessionId = payload.params?.sessionId;
         if (targetSessions.has(sessionId)) workerEvents.push({ event: 'targetDetached', nodeMs: clock(), sessionId });
       } else if (targetSessions.has(payload.sessionId)) {
         const data = payload.params, sessionId = payload.sessionId, tracked = ids.get(sessionId);
+        if (debugEof && payload.method === 'Debugger.scriptParsed') {
+          debugScripts.set(`${sessionId}:${data.scriptId}`, data.url);
+          if (data.url === signedWorkerUrl) workerEvents.push({ event: 'signedScriptParsed', nodeMs: clock(), sessionId });
+          return;
+        }
+        if (debugEof && payload.method === 'Debugger.breakpointResolved') {
+          const key = `${sessionId}:${data.breakpointId}`, expected = breakpointIds.get(key), location = data.location;
+          if (!expected) {
+            const pending = earlyResolved.get(key) ?? [];
+            if (pending.length >= 1) debugFailures.push({ method: 'Debugger.breakpointResolved', error: 'duplicate unresolved breakpoint event' });
+            else { pending.push(location); earlyResolved.set(key, pending); }
+          } else if (expected.sessionId !== sessionId || debugScripts.get(`${sessionId}:${location?.scriptId}`) !== signedWorkerUrl || location?.lineNumber !== expected.line) {
+            debugFailures.push({ method: 'Debugger.breakpointResolved', error: 'unexpected script or line' });
+          } else workerEvents.push({ event: 'breakpointBound', nodeMs: clock(), sessionId, boundary: expected.boundary, line: expected.line });
+          return;
+        }
+        if (debugEof && payload.method === 'Debugger.paused') {
+          const top = data.callFrames?.[0], location = top?.location;
+          const matches = (data.hitBreakpoints ?? []).map(id => breakpointIds.get(`${sessionId}:${id}`));
+          const expected = matches.find(item => item?.sessionId === sessionId && item.line === location?.lineNumber);
+          const valid = expected && debugScripts.get(`${sessionId}:${location?.scriptId}`) === signedWorkerUrl;
+          pauseCount++;
+          if (!valid || pauseCount > maxDebugPauses) debugFailures.push({ method: 'Debugger.paused', error: valid ? 'bounded pause limit exceeded' : 'unexpected script, line or breakpoint' });
+          if (valid && pauseCount <= maxDebugPauses && workerEvents.length < 256) {
+            const item = { event: 'paused', nodeMs: clock(), sessionId, boundary: expected.boundary, line: expected.line, modelRequestIds: [...tracked] };
+            workerEvents.push(item);
+            // Pure scalar lexical reads only: no stream operations, JSON serialization
+            // or object capture. EOF entry may be a non-EOF chunk; report result.done.
+            const expression = expected.boundary === 'upstreamEofBranch'
+              ? '({done: result.done === true, receivedBytes})'
+              : expected.boundary === 'observedCancel'
+                ? '({reasonType: typeof reason})'
+                : ['shaCompare', 'verifiedPost', 'observedClose', 'integritySettled', 'integrityResolve'].includes(expected.boundary)
+                  ? '({receivedBytes, settled})' : '({loaded: true})';
+            const meta = { event: item, timer: undefined, timedOut: false };
+            meta.timer = setTimeout(() => {
+              pauseTimers.delete(meta.timer);
+              meta.timedOut = true;
+              debugFailures.push({ method: 'Debugger.evaluateOnCallFrame', error: 'paused Worker exceeded 2s; forced resume' });
+              sendDebug(send, 'Debugger.resume', {}, sessionId);
+            }, 2000);
+            pauseTimers.add(meta.timer);
+            sendDebug(send, 'Debugger.evaluateOnCallFrame', { callFrameId: top.callFrameId, expression, returnByValue: true, silent: true, throwOnSideEffect: true }, sessionId, meta);
+          } else sendDebug(send, 'Debugger.resume', {}, sessionId);
+          return;
+        }
         if (payload.method === 'Network.requestWillBeSent' && data?.request?.url === `${url}${model.slice(1)}`) tracked.add(data.requestId);
         if (!tracked.has(data?.requestId)) return;
         const eventName = payload.method.split('.')[1];
@@ -172,6 +288,7 @@ try {
   else delete childEnv.AEROBEAT_STARTUP_TRACE;
   if (workerTrace) { childEnv.AEROBEAT_STARTUP_TRACE_WORKER = '1'; childEnv.AEROBEAT_STARTUP_CDP_URL = cdpOrigin; }
   else { delete childEnv.AEROBEAT_STARTUP_TRACE_WORKER; delete childEnv.AEROBEAT_STARTUP_CDP_URL; }
+  delete childEnv.AEROBEAT_STARTUP_DEBUG_EOF;
   const child = spawn(process.execPath, [fileURLToPath(new URL('./measure-friend-game-startup.js', import.meta.url))], {
     cwd: root, env: childEnv, stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -179,16 +296,39 @@ try {
   child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
   child.stdout.on('data', text => { output += text; if (output.length > 512_000) child.kill(); });
   child.stderr.on('data', text => { errors += text; if (errors.length > 32_000) child.kill(); });
-  const exit = await new Promise((done, reject) => { child.once('error', reject); child.once('close', (code, signal) => done({ code, signal })); });
+  let childTimeout;
+  const exit = await Promise.race([
+    new Promise((done, reject) => { child.once('error', reject); child.once('close', (code, signal) => done({ code, signal })); }),
+    ...(debugEof ? [new Promise((_, reject) => { childTimeout = setTimeout(() => {
+      child.kill('SIGKILL'); reject(Error('EOF debugger child exceeded 120s'));
+    }, 120_000); })] : [])
+  ]).finally(() => { if (childTimeout) clearTimeout(childTimeout); });
   if (process.env.AEROBEAT_STARTUP_TRACE === '1' && errors) console.error(errors.slice(-24_000));
   if (exit.code !== 0) {
-    const diagnosis = { selection, signedManifestSha256: manifestSha256, serverEvents: events, workerEvents,
+    const diagnosis = { selection, signedManifestSha256: manifestSha256, serverEvents: events, workerEvents, ...(debugEof ? { debugFailures } : {}),
       child: { exitCode: exit.code, signal: exit.signal, stderr: errors.slice(-4000), stdoutTail: output.slice(-1000) } };
     console.error(JSON.stringify(diagnosis, null, 2));
   }
   assert.equal(exit.code, 0, 'signed browser runner failed; diagnostics printed without relaxing its assertions');
   const browser = JSON.parse(output);
   if (workerTrace) assert(workerEvents.some(item => item.event === 'requestWillBeSent'), `Worker CDP model request was not captured; trace inconclusive: ${JSON.stringify(workerEvents)}`);
+  if (debugEof) {
+    assert.deepEqual(debugFailures, [], 'signed Worker debugger events must bind cleanly');
+    assert.equal(pendingDebug.size, 0, 'all signed Worker debugger protocol replies required');
+    assert.equal(earlyResolved.size, 0, 'all early breakpoint resolutions must match signed Worker');
+    assert.equal(targetSessions.size, 2, 'exactly two signed Worker debugger sessions required');
+    assert.equal(workerEvents.filter(item => item.event === 'signedScriptParsed').length, 2, 'signed Worker script parsed in both pages');
+    for (const sessionId of targetSessions.keys()) {
+      const eventsForSession = workerEvents.filter(item => item.sessionId === sessionId);
+      for (const [line, [boundary]] of eofBreakpoints) {
+        assert(eventsForSession.some(item => item.event === 'breakpointBound' && item.line === line), `signed ${boundary} breakpoint not bound`);
+      }
+      for (const boundary of ['upstreamEofBranch', 'shaCompare', 'verifiedPost', 'observedClose', 'integritySettled', 'integrityResolve', 'loaded']) {
+        assert(eventsForSession.some(item => item.event === 'paused' && item.boundary === boundary &&
+          (boundary !== 'upstreamEofBranch' || item.scalars?.done === true)), `signed ${boundary} boundary not captured`);
+      }
+    }
+  }
   assert.equal(browser.signed.manifestSha256, manifestSha256, 'browser used this exact signed snapshot');
   assert.equal(browser.signed.origin, 'http://127.0.0.1:4201');
   assert.equal(browser.results.length, 2, 'first page and second new page in same context');
@@ -196,6 +336,7 @@ try {
   assert(events.every(item => item.finishMs !== null && item.abortedMs === undefined), 'all signed responses finished');
   assert(events.filter(item => item.path === model).every(item => item.chunks.length === schedule.modelChunks && item.chunks.reduce((total, chunk) => total + chunk.bytes, 0) === snapshot.bytes.get(model).length), 'eight model chunks preserve signed bytes');
   console.log(JSON.stringify({ selection, signedManifestSha256: manifestSha256, schedule, counts, serverEvents: events, ...(workerTrace ? { workerEvents } : {}),
+    ...(debugEof ? { debuggerCaveat: 'Cause-only pause/resume instrumentation changes Worker timing; no speed conclusion from this run.' } : {}),
     browser: { signed: browser.signed, results: browser.results.map(result => ({ mode: result.mode,
       nodeClockFromClickObservationMs: result.nodeClockFromClickObservationMs,
       browserClockFromTrustedClickMs: result.browserClockFromTrustedClickMs,
@@ -203,6 +344,7 @@ try {
       endState: result.endState, caveat: result.caveat })) },
     caveat: 'One Node clock measures signed HTTP request/header/finish windows; browser runner uses its own Node observations and separate browser click clock. Synthetic T-pose is not physical tracking. Uncompressed decoded-byte local schedule is not public relay/Brotli or phone throughput.' }, null, 2));
 } finally {
+  for (const timer of pauseTimers) clearTimeout(timer);
   rawWs?.close();
   if (chrome && chrome.exitCode === null) {
     chrome.kill('SIGTERM');
