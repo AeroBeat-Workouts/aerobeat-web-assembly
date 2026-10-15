@@ -109,13 +109,20 @@ try {
     const root = actions?.shadowRoot;
     const bar = root?.querySelector('progress[part="model-download-progress"]');
     const label = root?.querySelector('[part="pending-status"]');
+    const queuedLabel = root?.querySelector('[part="queued-status"]');
     const button = root?.querySelector('button[part="start-button"]');
     const testButton = root?.querySelector('button[part="test-button"]');
     const box = bar?.getBoundingClientRect(), buttonBox = button?.getBoundingClientRect();
     const x = box ? box.x + box.width / 2 : 0, y = box ? box.y + box.height / 2 : 0;
     const hit = box ? root.elementFromPoint(x, y) : null;
     const foreground = box ? element.shadowRoot.elementFromPoint(x, y) : null;
+    const queueBox = queuedLabel?.getBoundingClientRect();
+    const queueX = queueBox ? queueBox.x + queueBox.width / 2 : 0, queueY = queueBox ? queueBox.y + queueBox.height / 2 : 0;
+    const queueHit = queueBox ? root.elementFromPoint(queueX, queueY) : null;
+    const queueForeground = queueBox ? element.shadowRoot.elementFromPoint(queueX, queueY) : null;
     return { bar: Boolean(bar), value: bar?.value ?? null, max: bar?.max ?? null, text: label?.textContent?.trim() ?? '', aria: bar?.getAttribute('aria-label') ?? '', pending: element.pendingSessionAction,
+      queuedText: queuedLabel?.textContent?.trim() ?? '', queuedRole: queuedLabel?.getAttribute('role') ?? '',
+      queuedVisible: Boolean(queuedLabel && queueBox.width >= 80 && queueBox.height >= 16 && queueBox.left >= 0 && queueBox.top >= 0 && queueBox.right <= innerWidth && queueBox.bottom <= innerHeight && buttonBox.width >= 40 && Math.abs(queueBox.top - buttonBox.top) <= 200 && getComputedStyle(queuedLabel).visibility === 'visible' && getComputedStyle(queuedLabel).display !== 'none' && Number(getComputedStyle(queuedLabel).opacity) > 0 && !queuedLabel.closest('[hidden], [aria-hidden="true"]') && (queueHit === queuedLabel || queuedLabel.contains(queueHit)) && (queueForeground === actions || queueForeground === drawer)),
       testEnabled: Boolean(testButton && !testButton.disabled), testBusy: testButton?.getAttribute('aria-busy') ?? '',
       cv: element.graph.cv.getStatus().lifecycleState, camera: element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none',
       visible: Boolean(bar && drawer && !drawer.hidden && drawer.getAttribute('aria-hidden') !== 'true' && box.width >= 80 && box.height >= 4 && box.x >= 0 && box.y >= 0 && box.right <= innerWidth && box.bottom <= innerHeight && buttonBox.width >= 40 && Math.abs(box.top - buttonBox.top) <= 200 && getComputedStyle(bar).visibility === 'visible' && getComputedStyle(bar).display !== 'none' && (hit === bar || bar.contains(hit)) && (foreground === actions || foreground === drawer)),
@@ -156,8 +163,8 @@ try {
         await page.waitForFunction(() => {
           const game = document.querySelector('aero-game');
           const actions = game?.shadowRoot?.querySelector('aero-session-actions');
-          const label = actions?.shadowRoot?.querySelector('[part="pending-status"]');
-          return game?.pendingSessionAction === 'test' && /test/iu.test(label?.textContent ?? '') && /queu/iu.test(label?.textContent ?? '');
+          const queued = actions?.shadowRoot?.querySelector('[part="queued-status"]');
+          return game?.pendingSessionAction === 'test' && /test/iu.test(queued?.textContent ?? '') && /queu/iu.test(queued?.textContent ?? '');
         }, null, { timeout: 5000 }).catch(async error => {
           const presentation = await game.evaluate(element => ({
             pendingMessage: element.publicFriendPendingMessage?.(),
@@ -167,18 +174,22 @@ try {
             runtimeStatus: element.shadowRoot?.querySelector('[data-role="status"]')?.textContent?.trim() ?? ''
           }));
           const requests = { model: counts.get(modelPath) ?? 0, wasm: wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0) };
-          throw new Error(`queued Test never replaced Play's numeric foreground: visible=${JSON.stringify(await inspect())}; production=${JSON.stringify(presentation)}; requests=${JSON.stringify(requests)}`, { cause: error });
+          throw new Error(`queued Test text absent beside honest model progress: visible=${JSON.stringify(await inspect())}; production=${JSON.stringify(presentation)}; requests=${JSON.stringify(requests)}`, { cause: error });
         });
         const queued = await inspect();
         assert.equal(queued.pending, 'test', 'last intent is Test during held Play model');
         testQueued = true;
         assert.equal(queued.testBusy, 'true', 'Test action remains pending while Play owns Worker load');
-        assert(queued.labelVisible && /test/iu.test(queued.text) && /queu/iu.test(queued.text) && !/%|error|fail/iu.test(queued.text), `foreground Test queued, not a model/global percentage: ${JSON.stringify(queued)}`);
-        assert(!queued.bar, `queued Test does not present earlier Play's model percent: ${JSON.stringify(queued)}`);
+        assert(queued.queuedVisible && queued.queuedRole === 'status' && queued.queuedText === 'Test queued after Play initialization…', `foreground queued Test status visible and hit-testable: ${JSON.stringify(queued)}`);
+        assert(!/%|error|fail|running/iu.test(queued.queuedText), 'queue text is not a global/Test-running percentage');
+        assert(queued.bar && queued.visible && queued.labelVisible && queued.value === holds[2] && queued.max === model.length,
+          `active Play model bar retains exact signed decoded bytes while Test queues: ${JSON.stringify(queued)}`);
+        assert.equal(queued.text, `Loading pose model: ${Math.floor(100 * queued.value / model.length)}%`, 'model-only numeric label remains truthful');
+        assert.equal(queued.aria, queued.text, 'accessible bar remains model-only');
         assert.equal(queued.cv, 'loading', 'Test has not bypassed Play Worker initialization');
         assert.equal(counts.get(modelPath), 1, 'queued Test cannot duplicate model GET');
         assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'queued Test cannot duplicate WASM GET');
-        console.log(`PASS signed direct queued Test foreground and ordered pending intent: ${JSON.stringify({ text: queued.text, modelGets: counts.get(modelPath) })}`);
+        console.log(`PASS signed direct queued Test plus measured Play model: ${JSON.stringify({ queuedText: queued.queuedText, modelText: queued.text, modelBytes: queued.value, modelGets: counts.get(modelPath) })}`);
       }
     }
     release[index]();
