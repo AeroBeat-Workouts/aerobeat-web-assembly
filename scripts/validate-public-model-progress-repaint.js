@@ -6,19 +6,30 @@ import vm from 'node:vm';
 const source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
 const watcher = source.match(/  watchPublicModelDownload\(owner, sessionGeneration, actionGeneration, ordinal\) \{[\s\S]*?\n  \}/u)?.[0];
 assert.ok(watcher, 'test actual public foreground repaint method');
-assert.match(source, /const stopModelDownloadRepaint = this\.watchPublicModelDownload\(owner, sessionGeneration, actionGeneration, actionIntentOrdinal\);\s*try \{ await this\.startCv\(\); \} finally \{ stopModelDownloadRepaint\(\); \}/u,
-  'real Play CV await owns timer teardown even on errors');
-function fixture(flag) {
-  const timers = new Map(); let nextId = 1; let renders = 0;
+const startSequence = source.match(/          cvStartAttempted = true;[\s\S]*?\n        \} else \{/u)?.[0]?.replace(/\n        \} else \{$/u, '');
+assert.ok(startSequence, 'extract actual Play CV start and watcher order');
+async function runStartSequence(instance, owner, fail = false) {
+  const operation = new Function('owner', 'sessionGeneration', 'actionGeneration', 'actionIntentOrdinal',
+    `return async function() { ${startSequence.replace('cvStartAttempted = true;', 'this.cvStartAttempted = true;')} }`)(owner, 9, 3, 7);
+  instance.cvStartAttempted = false;
+  const pending = operation.call(instance);
+  if (fail) { await assert.rejects(pending, /load failed/u); return; }
+  await pending;
+}
+function fixture(flag, initialState = 'loading') {
+  const timers = new Map(); let nextId = 1; let renders = 0; let lifecycleState = initialState;
+  let resolveCv = () => {}; let rejectCv = () => {};
+  const cvPending = new Promise((resolve, reject) => { resolveCv = resolve; rejectCv = reject; });
   const context = { __AEROBEAT_PUBLIC_FRIEND_GAME__: flag,
     globalThis: { setInterval(fn, ms) { assert.equal(ms, 100); const id = nextId++; timers.set(id, fn); return id; }, clearInterval(id) { timers.delete(id); } } };
   const watch = vm.runInNewContext(`({${watcher}}).watchPublicModelDownload`, context);
   const owner = { generation: 4, connectionGeneration: 2, graph: {} };
-  const game = { graph: { cv: { getStatus: () => ({ lifecycleState: 'loading' }) } },
+  const game = { graph: { cv: { getStatus: () => ({ lifecycleState }) } },
     menuOpen: true, menuStarting: true, lastError: null, pendingSessionAction: 'start',
     pendingSessionActionOrdinal: 7, sessionActionIntentOrdinal: 7, lifecycleIntentActiveGeneration: 4,
     lifecycleIntentGeneration: 4, connectedGeneration: 2, sessionGeneration: 9, sessionActionGeneration: 3,
     lifecycle: 'connected', receivedBytes: 0, renderRuntimePresentation() { renders++; },
+    async startCv() { lifecycleState = 'loading'; return cvPending; },
     foregroundModelDownloadProgress() { return this.receivedBytes ? { receivedBytes: this.receivedBytes, totalBytes: 100 } : null; },
     isActionIntentOwner(value, session, action) { return this.lifecycle === 'connected' && value === owner &&
       value.connectionGeneration === this.connectedGeneration && value.graph === this.graph &&
@@ -27,7 +38,8 @@ function fixture(flag) {
   owner.graph = game.graph;
   const stop = watch.call(game, owner, 9, 3, 7);
   const tick = () => { for (const fn of [...timers.values()]) fn(); };
-  return { game, stop, tick, active: () => timers.size, renders: () => renders };
+  return { game, owner, watch, stop, tick, active: () => timers.size, renders: () => renders,
+    completeCv() { lifecycleState = 'running'; resolveCv(); }, failCv() { lifecycleState = 'error'; rejectCv(Error('load failed')); } };
 }
 const publicGame = fixture(true);
 assert.equal(publicGame.active(), 1, 'only foreground public Play installs one bounded timer');
@@ -53,4 +65,26 @@ for (const mutate of [g => { g.menuOpen = false; }, g => { g.lastError = 'load f
 }
 const privateGame = fixture(false);
 assert.equal(privateGame.active(), 0, 'private game never schedules loading UI');
-console.log('public model progress repaint: partial bytes, integer throttle, stale/error/teardown cleanup passed');
+// The real start path stopped CV before the camera plays. Execute the production
+// CV/watch sequence from that state, rather than a VM that starts in loading.
+const stoppedGame = fixture(true, 'stopped');
+stoppedGame.game.watchPublicModelDownload = (...args) => stoppedGame.watch.call(stoppedGame.game, ...args);
+const loading = runStartSequence(stoppedGame.game, stoppedGame.owner);
+assert.equal(stoppedGame.game.cvStartAttempted, true);
+assert.equal(stoppedGame.active(), 1, 'production ordering must install watcher after CV enters loading');
+stoppedGame.game.receivedBytes = 25; stoppedGame.tick();
+assert.equal(stoppedGame.renders(), 1, '25% delivered during real CV await must repaint');
+stoppedGame.completeCv(); await loading;
+assert.equal(stoppedGame.active(), 0, 'CV completion clears bounded timer');
+const failedGame = fixture(true, 'stopped');
+failedGame.game.watchPublicModelDownload = (...args) => failedGame.watch.call(failedGame.game, ...args);
+const failure = runStartSequence(failedGame.game, failedGame.owner, true);
+assert.equal(failedGame.active(), 1);
+failedGame.failCv(); await failure;
+assert.equal(failedGame.active(), 0, 'CV rejection clears bounded timer');
+const privateStopped = fixture(false, 'stopped');
+privateStopped.game.watchPublicModelDownload = (...args) => privateStopped.watch.call(privateStopped.game, ...args);
+const privateLoading = runStartSequence(privateStopped.game, privateStopped.owner);
+assert.equal(privateStopped.active(), 0, 'private CV startup never installs watcher');
+privateStopped.completeCv(); await privateLoading;
+console.log('public model progress repaint: stopped-to-loading partial bytes, integer throttle, stale/error/teardown cleanup passed');

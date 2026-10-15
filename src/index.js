@@ -522,8 +522,9 @@ export class AeroGame extends HTMLElement {
           videoPlayAttempted = true; await graph.video.play(this.videoElement());
           if (ownershipBailed || checkOwnership()) return this.getSnapshot();
           cvStartAttempted = true;
+          const cvOperation = this.startCv();
           const stopModelDownloadRepaint = this.watchPublicModelDownload(owner, sessionGeneration, actionGeneration, actionIntentOrdinal);
-          try { await this.startCv(); } finally { stopModelDownloadRepaint(); }
+          try { await cvOperation; } finally { stopModelDownloadRepaint(); }
         } else {
           graph.video.pause(this.videoElement());
           this.detachPrivateCameraPresentation();
