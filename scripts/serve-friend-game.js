@@ -64,8 +64,10 @@ export function loadSignedSnapshot(directory = defaultDirectory) {
     bytes.set(`/${entry.path}`, data);
   }
   const html = bytes.get("/index.html")?.toString("utf8");
-  if (!html?.includes("<aero-game>") || html.includes("/src/index.js") ||
-      ![...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js)["'][^>]*>/gu)].some(match => bytes.get(match[1])?.includes(Buffer.from(manifest.buildStamp)))) fail("normal stamped game entry missing");
+  const entryScripts = [...(html?.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js)["'][^>]*>/gu) ?? [])].map(match => match[1]);
+  if (!html?.includes("<aero-game>") || html.includes("/src/index.js") || !entryScripts.length ||
+      entryScripts.some(name => !/^\/assets\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*-[A-Za-z0-9_-]+\.js$/u.test(name) ||
+        !bytes.get(name)?.includes(Buffer.from(manifest.buildStamp)))) fail("normal stamped game entry missing");
   if (named.filter(name => /^assets\/gameplay\/0\.0\.11\/.*\.glb$/u.test(name)).length !== 9 ||
       !named.includes("assets/mediapipe/pose_landmarker_lite.task") || !named.includes("assets/mediapipe/vision_bundle.js") ||
       !named.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) || !named.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) ||
@@ -85,8 +87,8 @@ export function handlerForSnapshot(snapshot) {
     response.setHeader("Cache-Control", "no-store");
     const pathname = exactPath(request.url);
     const resource = pathname === "/" ? "/index.html" : pathname;
-    const data = pathname === "/index.html" || pathname === `/${sidecar}` ? null : resource && snapshot.bytes.get(resource);
-    response.setHeader("Content-Security-Policy", pathname === "/" && data ? documentCsp : assetCsp);
+    const data = pathname === `/${sidecar}` ? null : resource && snapshot.bytes.get(resource);
+    response.setHeader("Content-Security-Policy", resource === "/index.html" && data ? documentCsp : assetCsp);
     if (request.method !== "GET" && request.method !== "HEAD") {
       response.statusCode = 405;
       response.setHeader("Allow", "GET, HEAD");

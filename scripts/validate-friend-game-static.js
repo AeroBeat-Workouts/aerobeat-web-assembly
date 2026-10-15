@@ -52,17 +52,23 @@ try {
   const address = server.address();
   const base = `http://127.0.0.1:${address.port}`;
   async function request(name, init) { return fetch(`${base}${name}`, init); }
-  for (const name of ["/", "/assets/index-ABC.js"]) {
+  for (const name of ["/", "/index.html", "/assets/index-ABC.js"]) {
     const response = await request(name);
     assert.equal(response.status, 200, name);
     assert.equal(response.headers.get("referrer-policy"), "no-referrer");
     assert.equal(response.headers.get("x-content-type-options"), "nosniff");
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), files.get(name === "/" ? "index.html" : name.slice(1)));
   }
-  assert.equal((await request("/")).headers.get("content-security-policy"), policy.documentCsp);
+  for (const name of ["/", "/index.html"]) {
+    assert.equal((await request(name)).headers.get("content-security-policy"), policy.documentCsp);
+    const head = await request(name, { method: "HEAD" });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get("content-security-policy"), policy.documentCsp);
+    assert.equal(head.headers.get("content-length"), String(files.get("index.html").length));
+  }
   assert.equal((await request("/assets/index-ABC.js")).headers.get("content-security-policy"), policy.assetCsp);
   assert.equal((await request("/assets/index-ABC.js", { method: "HEAD" })).status, 200);
-  for (const name of ["/nope", "/src/index.js", "/.env", "/assets/", "/index.html", "/index.html/",  "/INDEX.html", "/friend-game-bundle-manifest.json", "/assets/%2findex-ABC.js", "//index.html", "/phone-play-cv-test.html"]) {
+  for (const name of ["/nope", "/src/index.js", "/.env", "/assets/", "/index.html/", "/INDEX.html", "/friend-game-bundle-manifest.json", "/assets/%2findex-ABC.js", "//index.html", "/phone-play-cv-test.html"]) {
     assert.equal((await request(name)).status, 404, name);
   }
   assert.equal((await request("/", { method: "POST" })).status, 405);
@@ -82,6 +88,22 @@ try {
   sign();
   assert.throws(() => loadSignedSnapshot(root), /signature mismatch/u, "false SHA must fail startup");
   manifest.assets[1].sha256 = hash(files.get("assets/index-ABC.js"));
+  sign();
+  // Re-sign a stamped second script and reference an unstamped script from the index.
+  const unstamped = Buffer.from("console.log('not stamped')");
+  const extraName = "assets/extra-ABC.js";
+  writeFileSync(path.join(root, extraName), unstamped);
+  manifest.assets.push({ path: extraName, bytes: unstamped.length, sha256: hash(unstamped) });
+  const originalHtml = files.get("index.html");
+  const alteredHtml = Buffer.from(`${originalHtml}<script src="/${extraName}"></script>`);
+  writeFileSync(path.join(root, "index.html"), alteredHtml);
+  manifest.assets[0] = { path: "index.html", bytes: alteredHtml.length, sha256: hash(alteredHtml) };
+  sign();
+  assert.throws(() => loadSignedSnapshot(root), /stamped game entry/u, "every signed HTML script must carry the source stamp");
+  writeFileSync(path.join(root, "index.html"), originalHtml);
+  manifest.assets[0] = { path: "index.html", bytes: originalHtml.length, sha256: hash(originalHtml) };
+  manifest.assets.pop();
+  rmSync(path.join(root, extraName));
   sign();
   writeFileSync(path.join(root, "private.html"), "unexpected");
   assert.throws(() => loadSignedSnapshot(root), /inventory/u, "unsigned output must fail startup");
