@@ -41,7 +41,14 @@ const baseHandler = handlerForSnapshot(snapshot);
 const events = [];
 const zero = performance.now();
 const clock = () => Math.round(performance.now() - zero);
-const schedule = Object.freeze({ modelChunks: 8, modelIntervalMs: 500, wasmDelayMs: 3000 });
+const transport = process.env.AEROBEAT_STARTUP_MODEL_TRANSPORT;
+assert(!transport || transport === 'chunked64k', 'model transport must be chunked64k or unset');
+const modelChunkBytes = 64 * 1024;
+const modelCount = Math.ceil(snapshot.bytes.get(model).length / modelChunkBytes);
+const schedule = Object.freeze(transport === 'chunked64k'
+  ? { modelTransport: 'chunked64k', modelFraming: 'Transfer-Encoding: chunked; no Content-Length', modelChunks: modelCount,
+      modelChunkBytes, modelIntervalMs: 4000 / modelCount, wasmDelayMs: 3000 }
+  : { modelTransport: 'content-length8', modelFraming: 'Content-Length', modelChunks: 8, modelIntervalMs: 500, wasmDelayMs: 3000 });
 const counts = { [model]: 0, [wasm]: 0 };
 const workerTrace = process.env.AEROBEAT_STARTUP_TRACE_WORKER === '1';
 assert(!process.env.AEROBEAT_STARTUP_TRACE_WORKER || workerTrace, 'Worker trace must be 1 or unset');
@@ -106,7 +113,12 @@ const server = createServer((request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('Content-Security-Policy', snapshot.manifest.responsePolicy.assetCsp);
   response.setHeader('Content-Type', mime);
-  response.setHeader('Content-Length', data.length);
+  if (path === model && transport === 'chunked64k') response.setHeader('Transfer-Encoding', 'chunked');
+  else response.setHeader('Content-Length', data.length);
+  if (path === model && transport === 'chunked64k') {
+    assert.equal(response.getHeader('content-length'), undefined, 'chunked model GET omits Content-Length');
+    assert.equal(response.getHeader('transfer-encoding'), 'chunked', 'chunked model GET declares transfer framing');
+  }
   const finish = () => { item.finishMs = clock(); active--; };
   response.once('finish', finish);
   response.once('close', () => { if (item.finishMs === null) { item.abortedMs = clock(); active--; } });
@@ -114,14 +126,40 @@ const server = createServer((request, response) => {
     // flushHeaders makes the supported stream reader observable while WASM loads.
     item.headersMs = clock(); response.flushHeaders();
     void (async () => {
-      const chunkSize = Math.ceil(data.length / schedule.modelChunks);
+      const chunkSize = transport === 'chunked64k' ? modelChunkBytes : Math.ceil(data.length / schedule.modelChunks);
+      const startedAt = performance.now();
       for (let i = 0; i < schedule.modelChunks; i++) {
-        await delay(schedule.modelIntervalMs);
+        if (transport === 'chunked64k') await delay(Math.max(0, startedAt + (i + 1) * schedule.modelIntervalMs - performance.now()));
+        else await delay(schedule.modelIntervalMs);
         if (response.destroyed) break;
         const start = i * chunkSize, end = Math.min(data.length, start + chunkSize);
         if (start >= end) break;
-        response.write(data.subarray(start, end));
-        item.chunks.push({ atMs: clock(), bytes: end - start });
+        // On localhost the 64KiB write may report backpressure; arm drain/close
+        // before the write, then bound the wait. Default eight-chunk path stays identical.
+        if (transport === 'chunked64k') {
+          let settled = false, finishWait;
+          const drained = new Promise(resolve => {
+            finishWait = value => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              response.off('drain', onDrain); response.off('close', onClose);
+              resolve(value);
+            };
+            const onDrain = () => finishWait('drain'), onClose = () => finishWait('close');
+            const timer = setTimeout(() => finishWait('timeout'), 5000);
+            response.once('drain', onDrain); response.once('close', onClose);
+          });
+          const writable = response.write(data.subarray(start, end));
+          item.chunks.push({ atMs: clock(), bytes: end - start });
+          if (writable) finishWait('ready');
+          const outcome = await drained;
+          if (outcome === 'timeout') { response.destroy(Error('chunked model backpressure timeout')); break; }
+          if (outcome === 'close') break;
+        } else {
+          response.write(data.subarray(start, end));
+          item.chunks.push({ atMs: clock(), bytes: end - start });
+        }
       }
       if (!response.destroyed) response.end();
     })().catch(error => response.destroy(error));
@@ -348,7 +386,9 @@ try {
   assert.equal(browser.results.length, 2, 'first page and second new page in same context');
   for (const path of assets) assert.equal(counts[path], 2, `${path}: one logical GET per browser page`);
   assert(events.every(item => item.finishMs !== null && item.abortedMs === undefined), 'all signed responses finished');
-  assert(events.filter(item => item.path === model).every(item => item.chunks.length === schedule.modelChunks && item.chunks.reduce((total, chunk) => total + chunk.bytes, 0) === snapshot.bytes.get(model).length), 'eight model chunks preserve signed bytes');
+  assert(events.filter(item => item.path === model).every(item => item.chunks.length === schedule.modelChunks &&
+    item.chunks.reduce((total, chunk) => total + chunk.bytes, 0) === snapshot.bytes.get(model).length &&
+    (transport !== 'chunked64k' || item.chunks.every(chunk => chunk.bytes <= modelChunkBytes))), 'scheduled model chunks preserve all signed bytes');
   console.log(JSON.stringify({ selection, signedManifestSha256: manifestSha256, schedule, counts, serverEvents: events, ...(workerTrace ? { workerEvents } : {}),
     ...(debugEof ? { debuggerMode: debugMode, debuggerCaveat: 'Cause-only pause/resume instrumentation changes Worker timing; no speed conclusion from this run.' } : {}),
     browser: { signed: browser.signed, results: browser.results.map(result => ({ mode: result.mode,
