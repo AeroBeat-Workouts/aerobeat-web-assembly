@@ -1,5 +1,7 @@
 // @ts-check
-// Read-only signed CPU game timing evidence. Fake camera is NOT physical pose calibration.
+// Signed CPU game timing evidence. TEST-ONLY synthetic input is NOT physical pose tracking.
+// Real camera/MediaPipe Worker/game remain intact; only input service receives measured-form
+// T-pose samples after a genuine Worker pose to exercise native hold/release/countdown.
 // Run: AEROBEAT_FRIEND_GAME_QA_URL=http://127.0.0.1:4200/ node scripts/measure-friend-game-startup.js
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -85,6 +87,7 @@ try {
       await (await chooserPromise).setFiles({ name: 'startup-timing-fixture.zip', mimeType: 'application/zip', buffer: archive });
       await page.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.selectedPackageId && game.graph?.content?.getSnapshot?.().state === 'ready' && game.graph.audio.getStatus().state === 'ready'; }, null, { timeout: 60000 });
       mark('playTap'); tapOffsetMs = Math.round(marks.playTap - zero);
+      const browserTapTime = await page.evaluate(() => performance.now());
       await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
       timer = setInterval(async () => {
         try {
@@ -97,11 +100,50 @@ try {
           if (state.cv?.lifecycleState === 'running' && state.cv?.providerId === 'cpu-wasm') mark('cvRunning');
           if (state.cv?.poseFrameCount > 0) mark('firstWorkerPose');
           if (state.session?.purpose === 'play' && state.session?.state === 'calibrating') mark('tPoseCalibrating');
+          if (state.calibration?.state === 'holding') mark('syntheticTPoseHolding');
+          if (state.calibration?.calibrationId) mark('syntheticCalibrationAccepted');
+          if (state.session?.purpose === 'play' && state.session?.state === 'countdown') mark('countdown');
+          if (state.session?.purpose === 'play' && state.session?.state === 'playing') mark('playSession');
           if (state.session?.purpose === 'play' && state.session?.state === 'playing' && state.audio?.state === 'playing') mark('playAudio');
         } catch (error) { errors.push(String(error)); }
       }, 25);
       await page.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.graph?.cv?.getStatus?.().lifecycleState === 'running' && game.graph.cv.getStatus().poseFrameCount > 0 && game.graph.gameplay.getSnapshot().session.state === 'calibrating'; }, null, { timeout: 90000 });
-      await new Promise(resolve => setTimeout(resolve, 250));
+      // Adapt the private phone-Play QA native-input stimulus, only after real CV
+      // produced a frame. Never replace the camera, Worker, scorer or game clock.
+      const synthetic = await game.evaluate(async element => {
+        const graph = element.graph, wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const deadline = performance.now() + 14000;
+        while (performance.now() < deadline && !graph.cv.getLatestPoseFrame()) await wait(35);
+        const initial = graph.cv.getStatus(), frame = graph.cv.getLatestPoseFrame();
+        if (!initial.running || !frame?.sourceId || !element.lastCameraIdentity || element.menuOpen) throw Error(`INVALID SETUP: native synthetic stimulus requires live CV frame, camera identity, closed menu: ${JSON.stringify({ running: initial.running, frame: Boolean(frame), poseCount: initial.poseFrameCount, camera: Boolean(element.lastCameraIdentity), menu: element.menuOpen })}`);
+        const sourceId = frame.sourceId, cameraIdentity = element.lastCameraIdentity;
+        const surface = graph.video.describeSurface(element.videoElement());
+        if (!(surface.sourceAspectRatio > 0)) throw Error('INVALID SETUP: camera aspect unavailable');
+        let clock = Math.max(performance.now(), Number(graph.input.getSnapshot().tracking.timestampMs ?? 0) + 1), samples = 0;
+        const events = {}, stamp = name => { if (!(name in events)) events[name] = performance.now(); };
+        const feed = tPose => {
+          if (element.graph !== graph || graph.cv.getStatus().running !== true || element.lastCameraIdentity !== cameraIdentity || graph.cv.getLatestPoseFrame()?.sourceId !== sourceId) throw Error('INVALID SETUP: CV source/camera identity changed during native calibration');
+          clock = Math.max(performance.now(), clock + 1000 / 15, Number(graph.input.getSnapshot().tracking.timestampMs ?? 0) + 1);
+          const y = tPose ? .4 : .58;
+          const points = { nose: { x: .5, y: .2 }, left_shoulder: { x: .35, y: .4 }, right_shoulder: { x: .65, y: .4 }, left_elbow: { x: .2, y }, right_elbow: { x: .8, y }, left_wrist: { x: .05, y }, right_wrist: { x: .95, y }, left_hip: { x: .43, y: .68 }, right_hip: { x: .57, y: .68 } };
+          graph.input.processPoseSample({ sourceId, timestampMs: clock, mirrored: frame.mirrored, landmarks: Object.entries(points).map(([name, position]) => ({ name, ...position, confidence: .99 })) }, { sourceAspectRatio: surface.sourceAspectRatio, sourceChangeId: cameraIdentity });
+          samples++;
+          const input = graph.input.getSnapshot(), session = graph.gameplay.getSnapshot().session;
+          if (input.tracking.timestampMs !== clock) throw Error(`INVALID SETUP: synthetic sample not accepted by native input (${samples})`);
+          if (input.calibration.state === 'holding') stamp('tPoseHolding');
+          if (input.calibration.calibrationId) stamp('calibrationAccepted');
+          if (session.state === 'countdown') stamp('countdown');
+          if (session.state === 'playing') stamp('playSession');
+        };
+        stamp('syntheticStimulusStart');
+        while (performance.now() < deadline && !graph.input.getSnapshot().calibration.calibrationId) { feed(true); await wait(30); }
+        if (!graph.input.getSnapshot().calibration.calibrationId) throw Error(`INVALID SETUP: alternating Worker frames blocked native T-pose hold: ${JSON.stringify({ samples, poses: graph.cv.getStatus().poseFrameCount, state: graph.input.getSnapshot().calibration.state, session: graph.gameplay.getSnapshot().session.state })}`);
+        while (performance.now() < deadline && (graph.gameplay.getSnapshot().session.state !== 'playing' || graph.audio.getStatus().state !== 'playing')) { feed(false); await wait(35); }
+        const input = graph.input.getSnapshot(), session = graph.gameplay.getSnapshot().session, cv = graph.cv.getStatus(), audio = graph.audio.getStatus();
+        if (!(input.calibration.state === 'calibrated' && session.purpose === 'play' && session.state === 'playing' && audio.state === 'playing' && cv.running && cv.poseFrameCount > initial.poseFrameCount)) throw Error(`INVALID SETUP: native release/countdown/audio did not reach Play: ${JSON.stringify({ samples, poseBefore: initial.poseFrameCount, poseAfter: cv.poseFrameCount, calibration: input.calibration.state, session: session.state, audio: audio.state, error: element.lastError?.message ?? null })}`);
+        stamp('playAudio');
+        return { events, samples, workerPosesBefore: initial.poseFrameCount, workerPosesAfter: cv.poseFrameCount };
+      }).catch(cause => { throw new Error(`Synthetic input did not reach signed Play audio: ${cause.message}`, { cause }); });
       const state = await game.evaluate(element => ({
         provider: element.graph.cv.getStatus().providerId, poses: element.graph.cv.getStatus().poseFrameCount,
         session: element.graph.gameplay.getSnapshot().session.state,
@@ -114,7 +156,9 @@ try {
       assert.equal(denied.length, 0, 'no off-origin request, including uploads');
       assert.equal(errors.length, 0, 'no page errors');
       assert([...requests.values()].every(item => item.failures.length === 0), 'local request failures');
-      results.push({ mode, workerEvents: workerMessages.map(item => ({ ...item, fromTapMs: item.ms - tapOffsetMs })), marksMs: Object.fromEntries(Object.entries(marks).map(([key, value]) => [key, Math.round(value - marks.playTap)])), workerAssets: assets, requestsByOrigin: { [origin]: Object.fromEntries(requests) }, totalRequests: [...requests.values()].reduce((count, item) => count + item.count, 0), endState: state, caveat: 'Fresh page in fresh/same context; no-store may refetch. Fake camera cannot provide measured human T-pose; Play-to-song remains unobserved unless playAudio exists.' });
+      assert.equal(state.session, 'playing', 'signed Play session reached song');
+      assert.equal(state.audio, 'playing', 'signed Play audio reached playback');
+      results.push({ mode, workerEvents: workerMessages.map(item => ({ ...item, fromTapMs: item.ms - tapOffsetMs })), marksMs: Object.fromEntries(Object.entries(marks).map(([key, value]) => [key, Math.round(value - marks.playTap)])), syntheticNativeEventsMs: Object.fromEntries(Object.entries(synthetic.events).map(([key, value]) => [key, Math.round(value - browserTapTime)])), syntheticSamples: synthetic.samples, workerPosesDuringStimulus: synthetic.workerPosesAfter - synthetic.workerPosesBefore, workerAssets: assets, requestsByOrigin: { [origin]: Object.fromEntries(requests) }, totalRequests: [...requests.values()].reduce((count, item) => count + item.count, 0), endState: state, caveat: 'TEST-ONLY synthetic native input is NOT physical pose tracking. Worker/camera/game are real; song timing requires artificial T-pose hold/release. Marks are Node monotonic observations (25ms polling); synthetic events use browser monotonic clock anchored just after Play mark and may differ by observation lag. Fresh page in fresh/same context; no-store may refetch.' });
     } finally {
       clearInterval(timer); await page.close();
       context.off('request', started); context.off('requestfinished', finished); context.off('requestfailed', failed);
