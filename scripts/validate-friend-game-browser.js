@@ -215,14 +215,19 @@ try {
       assert.equal(download.worker, true); assert.equal(download.variant, 'flow');
       assert.equal(download.audio.sourceId, `${download.packageId}:audio`, `${embedding}: BeatSaver audio belongs to selected package`);
       assert.equal(download.audio.state, 'ready', `${embedding}: BeatSaver ZIP audio decoding failed: ${download.audio.errorCode ?? 'no error code'}`);
+      // A local reimport of these exact ZIP bytes can retain the same packageId
+      // and sourceId. Require a new audio.load generation, not prior-song ready.
+      const beforeLocalAudioGeneration = download.audio.generation;
+      assert(Number.isSafeInteger(beforeLocalAudioGeneration), 'audio generation before local picker');
       // New isolated browser origin: verify the genuine child-local file picker too.
       const chooserPending = page.waitForEvent('filechooser');
       await music.getByRole('button', { name: 'Choose local ZIP' }).click();
       const chooser = await chooserPending;
       await chooser.setFiles({ name: 'friend-qa-stored-wav.zip', mimeType: 'application/zip', buffer: Buffer.from(archive) });
       await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.collections?.length >= 2 && game.graph?.content.getSnapshot().state === 'ready' && game.libraryView.selectedPackageId === game.graph.content.getSnapshot().packageId; }, null, { timeout: 60000 });
-      await frame.waitForFunction(() => { const game = document.querySelector('aero-game'), packageId = game?.graph?.content?.getSnapshot?.().packageId, audio = game?.graph?.audio?.getStatus?.(); return packageId && audio?.sourceId === `${packageId}:audio` && ['ready', 'error'].includes(audio.state); }, null, { timeout: 30000 });
+      await frame.waitForFunction(beforeGeneration => { const game = document.querySelector('aero-game'), packageId = game?.graph?.content?.getSnapshot?.().packageId, audio = game?.graph?.audio?.getStatus?.(); return packageId && audio?.generation > beforeGeneration && audio.sourceId === `${packageId}:audio` && ['ready', 'error'].includes(audio.state); }, beforeLocalAudioGeneration, { timeout: 30000 });
       const local = await game.evaluate(element => ({ packageId: element.graph.content.getSnapshot().packageId, audio: element.graph.audio.getStatus(), worker: element.graph.authoring.getCapabilities().conversionWorker, mode: element.graph.content.getSnapshot().selectedVariant?.mode }));
+      assert(local.audio.generation > beforeLocalAudioGeneration, `${embedding}: local ZIP started a new audio load`);
       assert.equal(local.audio.sourceId, `${local.packageId}:audio`, `${embedding}: local ZIP audio belongs to selected package`);
       assert.equal(local.audio.state, 'ready', `${embedding}: local ZIP audio decoding failed: ${local.audio.errorCode ?? 'no error code'}`);
       assert.equal(local.worker, true); assert.equal(local.mode, 'flow');
