@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-friend-game/
 dist-phone/
 dist-flow-centerline-phone/
 dist-phone-play-cv/
