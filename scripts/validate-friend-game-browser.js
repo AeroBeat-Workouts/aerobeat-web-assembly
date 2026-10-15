@@ -50,7 +50,7 @@ for (const [name, pin] of Object.entries(manifest.sourceManifest.sources)) {
 assert.equal(manifest.buildStamp, `FRIEND-GAME-CPU-${manifest.sourceManifest.packageVersion}-${digest(Buffer.from(JSON.stringify(manifest.sourceManifest))).slice(0, 24)}`);
 exactKeys(manifest.responsePolicy, ['documentCsp', 'assetCsp', 'referrerPolicy', 'contentTypeOptions'], 'response policy');
 const documentCsp = "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.beatsaver.com https://r2cdn.beatsaver.com; media-src 'self' blob: https://cfcdn.beatsaver.com; worker-src 'self' blob:; frame-ancestors *; base-uri 'none'; form-action 'none'; object-src 'none'";
-const assetCsp = "default-src 'none'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'";
+const assetCsp = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'";
 assert.equal(manifest.responsePolicy.documentCsp, documentCsp);
 assert.equal(manifest.responsePolicy.assetCsp, assetCsp);
 assert.equal(manifest.responsePolicy.referrerPolicy, 'no-referrer');
@@ -84,14 +84,15 @@ for (const entry of manifest.assets) {
   assert(Number.isSafeInteger(entry.bytes) && entry.bytes > 0 && entry.bytes <= 100_000_000 && hex(entry.sha256, 64), `bounded signature ${entry.path}`);
   failHash(await readFile(resolve(build, entry.path)), entry);
   const response = await fetch(new URL(`/${entry.path}`, rawUrl), { cache: 'no-store' });
-  assert.equal(response.status, entry.path === 'index.html' ? 404 : 200, `static route ${entry.path}: index.html must not be directly served`);
-  policy(response, assetCsp, entry.path);
-  if (response.status === 200) { const bytes = Buffer.from(await response.arrayBuffer()); failHash(bytes, entry); served.set(entry.path, bytes); }
+  assert.equal(response.status, 200, `signed static route ${entry.path}`);
+  policy(response, entry.path === 'index.html' ? documentCsp : assetCsp, entry.path);
+  const bytes = Buffer.from(await response.arrayBuffer()); failHash(bytes, entry); served.set(entry.path, bytes);
 }
 const rootResponse = await fetch(rawUrl, { cache: 'no-store' });
-assert.equal(rootResponse.status, 200, 'only / serves normal HTML');
+assert.equal(rootResponse.status, 200, '/ serves normal HTML');
 policy(rootResponse, documentCsp, '/');
 const rootBytes = Buffer.from(await rootResponse.arrayBuffer());
+assert.deepEqual(rootBytes, served.get('index.html'), '/ and /index.html serve identical signed HTML');
 failHash(rootBytes, manifest.assets.find(entry => entry.path === 'index.html'));
 const html = rootBytes.toString('utf8');
 assert.match(html, /<aero-game>/u);
@@ -100,7 +101,7 @@ assert(names.some(name => name.endsWith('.js') && html.includes(`/${name}`) && s
 // Counterfactual: same signed bytes and unchanged expected hash, one mutated in-memory byte.
 const badBytes = Buffer.from(rootBytes); badBytes[0] ^= 1;
 assert.throws(() => failHash(badBytes, manifest.assets.find(entry => entry.path === 'index.html')), /signed SHA-256/u, 'mutated response must fail the exact production hash assertion');
-for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', '/index.html', '/phone-play-cv-test.html', '/friend-game-bundle-manifest.json', '/assets/%2findex.js', '//index.html']) {
+for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', '/index.html/', '/phone-play-cv-test.html', '/friend-game-bundle-manifest.json', '/assets/%2findex.js', '//index.html']) {
   const response = await fetch(`${origin}${path}`, { cache: 'no-store' });
   assert.equal(response.status, 404, `unknown/forbidden path ${path}`);
   policy(response, assetCsp, path);
