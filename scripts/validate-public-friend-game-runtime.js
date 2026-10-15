@@ -73,4 +73,16 @@ await assert.rejects(()=>guarded('https://evil.example/song.zip'),/import it loc
 assert.equal(calls.length,1,'blocked URLs never reach fetch');
 const index = readFileSync(new URL('../src/index.js',import.meta.url),'utf8');
 assert.match(index,/if \(privateBeatSaverAccess \|\| publicFriendGame\) url = requirePrivateBeatSaverUrl\(url, "preview"\);\s*await this\.startPreview\(url\.href/u);
-console.log('public friend flag: local pinned CPU-WASM/fixed graph, untouched defaults, strict search/ZIP/preview and GET policy passed');
+const pendingSource = index.match(/function publicFriendPendingStatus\([^]*?\n\}\nfunction runtimeStatus/u)?.[0];
+assert.ok(pendingSource, 'execute the actual public pending-status decision');
+const pendingStatus = vm.runInNewContext(`${pendingSource.replace(/\nfunction runtimeStatus$/u,'')}\npublicFriendPendingStatus`);
+assert.equal(pendingStatus('start',1,1,0,1),'Preparing Play: starting camera and loading pose assets…');
+assert.equal(pendingStatus('test',2,2,1,2),'Test queued after Play initialization…');
+assert.equal(pendingStatus('test',2,2,2,2),'Preparing Test…');
+assert.equal(pendingStatus('test',2,2,0,2),'Preparing Test…');
+assert.equal(pendingStatus('test',0,2,1,2),'','cleared action must not retain copy');
+assert.equal(pendingStatus('test',1,2,1,2),'','superseded action must not retain copy');
+assert.match(index,/publicFriendGame && this\.menuOpen && this\.menuStarting && !this\.lastError\s*\? publicFriendPendingStatus\(/u,'only the public, visible menu uses pending copy while errors win');
+assert.match(index,/const runtimeMessage = pendingMessage \|\| runtimeStatus\(content, session, input\);[\s\S]*?const signature = JSON\.stringify\(\[runtimeMessage,[\s\S]*?\[data-role='status'\]/u,'pending copy must enter the runtime signature and visible status output');
+assert.match(index,/this\.pendingSessionAction = action; this\.menuStarting = true;[^\n]*this\.renderPresenters\(\)/u,'each pending click synchronously renders without a CV subscription');
+console.log('public friend flag: local CPU graph, strict access and visible pending Play/queued Test status passed');

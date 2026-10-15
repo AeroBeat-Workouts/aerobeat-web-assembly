@@ -2672,7 +2672,11 @@ export class AeroGame extends HTMLElement {
     const content = this.graph.content.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const input = this.graph.input.getSnapshot(); const session = gameplay.session;
     const hudPartition=Array.isArray(gameplay.scorePartitions)?gameplay.scorePartitions[0]:null;
     const hudScore=hudPartition?.score??0,hudCombo=hudPartition?.combo??0,hudMult=comboMultiplierLabel(hudCombo);
-    const runtimeMessage = runtimeStatus(content, session, input);
+    const publicFriendGame = typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true;
+    const pendingMessage = publicFriendGame && this.menuOpen && this.menuStarting && !this.lastError
+      ? publicFriendPendingStatus(this.pendingSessionAction, this.pendingSessionActionOrdinal, this.sessionActionIntentOrdinal, this.lifecycleIntentActiveGeneration, this.lifecycleIntentGeneration)
+      : "";
+    const runtimeMessage = pendingMessage || runtimeStatus(content, session, input);
     const cueMessage = transientCue(this.menuOpen, this.sessionStartRequested, session, gameplay, input);
     const action = actionableRuntimeMessage(this.lastError, this.capabilities().limitations);
     const lockedVolume = this.activeSessionSetup?.boxingColliderVolume;
@@ -3652,6 +3656,16 @@ function previewView(state, target, errorMessage) { const safeState = ["idle", "
 function activePreview(view, target) { return (view.state === "loading" || view.state === "playing") && view.mapId === target.mapId && view.versionHash === target.versionHash && view.packageId === target.packageId; }
 function previewMimeType(path) { const extension = String(path).split(".").at(-1)?.toLowerCase() ?? ""; return Object.freeze({ egg: "audio/ogg", ogg: "audio/ogg", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", aac: "audio/aac", flac: "audio/flac", webm: "audio/webm" })[extension] ?? "application/octet-stream"; }
 function playableContent(content) { return content?.state === "ready" && typeof content.packageId === "string" && content.packageId.length > 0 && typeof content.selectedVariant?.variantId === "string" && content.selectedVariant.variantId.length > 0; }
+// A later Test waits for the active lifecycle owner; do not call it preparing
+// while Play still acquires camera and pose assets.
+function publicFriendPendingStatus(action, ordinal, latestOrdinal, activeGeneration, latestGeneration) {
+  if (ordinal === 0 || ordinal !== latestOrdinal) return "";
+  if (action === "start") return "Preparing Play: starting camera and loading pose assets…";
+  if (action === "test") return activeGeneration !== 0 && activeGeneration < latestGeneration
+    ? "Test queued after Play initialization…"
+    : "Preparing Test…";
+  return "";
+}
 function runtimeStatus(content, session, input) {
   if (!playableContent(content)) return "Choose a song in Music.";
   if (session.state === "playing") return session.purpose === "visual_test" ? "Visual Test in progress." : "Workout in progress.";
