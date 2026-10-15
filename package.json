@@ -55,7 +55,7 @@
     "build:friend-game": "vite build --config vite.friend-game.config.js && node scripts/write-friend-game-bundle-manifest.js",
     "serve:friend-game": "node scripts/serve-friend-game.js",
     "test:friend-game-static": "node scripts/validate-friend-game-static.js",
-    "test:friend-game-progress": "AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING=direct node scripts/validate-friend-game-model-progress-browser.js && AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING=iframe node scripts/validate-friend-game-model-progress-browser.js",
+    "test:friend-game-progress": "AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING=direct node scripts/validate-friend-game-model-progress-browser.js && AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING=iframe node scripts/validate-friend-game-model-progress-browser.js && node scripts/validate-friend-game-model-integrity-browser.js",
     "build:flow-centerline-phone": "vite build --config vite.flow-centerline.config.js && node scripts/write-flow-centerline-bundle-manifest.js",
     "test:flow-centerline-phone-browser": "node scripts/validate-flow-centerline-phone-browser.js",
     "build:phone-play-cv": "vite build --config vite.phone-play-cv.config.js && node scripts/write-phone-play-cv-bundle-manifest.js",
