@@ -45,6 +45,7 @@ import { getGameSetupSnapshot, setGameSetupSnapshot, subscribeGameSetup } from "
 import { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./media-lease-coordinator.js";
 import { createLockedVideoFrameSource } from "./production-cv-service.js";
 import { createPrivateGameplayCameraPresentation } from "./private-gameplay-camera-presentation.js";
+import { requirePrivateBeatSaverUrl } from "./private-beatsaver-access.js";
 import { createAeroDisplayLoop } from "./runtime-cadence.js";
 import { createPrivatePerformanceRecorder } from "./private-performance-recorder.js";
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
@@ -2864,6 +2865,8 @@ export class AeroGame extends HTMLElement {
     if (typeof rawUrl !== "string" || rawUrl.length > 2048) throw new Error("Preview is unavailable for this song");
     let url; try { url = new URL(rawUrl); } catch { throw new Error("Preview is unavailable for this song"); }
     if (url.protocol !== "https:") throw new Error("Preview is unavailable for this song");
+    const privateBeatSaverAccess = typeof __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ !== "undefined" && __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ === true;
+    if (privateBeatSaverAccess) url = requirePrivateBeatSaverUrl(url, "preview");
     await this.startPreview(url.href, target, 0);
   }
 

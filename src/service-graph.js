@@ -11,6 +11,7 @@ import { createMediaPipeWorkerPoseAdapter, mediaPipeDelegates, mediaPipeLiveSour
 import { createBrowserVideoMediaFacade } from "@aerobeat/web-video";
 import { createLockedProductionCvService } from "./production-cv-service.js";
 import { createPrivateGameplayCvService } from "./private-gameplay-cv.js";
+import { createPrivateBeatSaverFetch } from "./private-beatsaver-access.js";
 import { lockedProductionCvProfile } from "./production-cv-profile.js";
 export { lockedProductionCvProfile };
 
@@ -43,6 +44,7 @@ export function createAeroGameServiceGraph(options = {}) {
     exportPackage: (handle) => authoring.exportPackage(handle)
   }});
   const candidate = typeof __AEROBEAT_PRIVATE_GAMEPLAY_CV_MODE__ !== "undefined" && __AEROBEAT_PRIVATE_GAMEPLAY_CV_MODE__ === "gpu-after-result";
+  const privateBeatSaverAccess = typeof __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ !== "undefined" && __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ === true;
   const video = createBrowserVideoMediaFacade();
   const audio = createAeroWebAudioService({ initialLeaseActive: false });
   // Only the separately built candidate diagnostic page can force a real fresh
@@ -56,7 +58,9 @@ export function createAeroGameServiceGraph(options = {}) {
     : createLockedProductionCvService({ poseAdapter: createLockedProductionPoseAdapter(), submissionCadenceTargetFps: 15 });
   return Object.freeze({
     instanceId,
-    vendor: createAeroBeatSaverVendorService(),
+    vendor: privateBeatSaverAccess
+      ? createAeroBeatSaverVendorService({ fetch: createPrivateBeatSaverFetch(globalThis.fetch.bind(globalThis)) })
+      : createAeroBeatSaverVendorService(),
     authoring,
     content,
     video,

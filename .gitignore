@@ -4,6 +4,7 @@ dist-phone/
 dist-flow-centerline-phone/
 dist-phone-play-cv/
 dist-phone-play-cv-gpu-result/
+dist-phone-play-cv-gpu-beatsaver/
 dist-phone-cv-marker-baseline/
 dist-phone-cv-gpu-experiment/
 dist-phone-cv-gpu-result-experiment/

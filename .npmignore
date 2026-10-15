@@ -32,6 +32,12 @@ vite.phone-play-cv-gpu-result.config.js
 dist-phone-play-cv-gpu-result/
 scripts/write-phone-play-cv-gpu-result-bundle-manifest.js
 scripts/validate-phone-play-cv-gpu-result-browser.js
+vite.phone-play-cv-gpu-beatsaver.config.js
+dist-phone-play-cv-gpu-beatsaver/
+scripts/write-phone-play-cv-gpu-beatsaver-bundle-manifest.js
+scripts/validate-phone-play-cv-gpu-beatsaver-policy.js
+scripts/validate-phone-play-cv-gpu-beatsaver-browser.js
+scripts/validate-private-beatsaver-access.js
 scripts/validate-private-gameplay-cv-graph.js
 scripts/validate-private-gameplay-camera-presentation.js
 scripts/validate-phone-play-cv-window.js
