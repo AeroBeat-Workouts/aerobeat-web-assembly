@@ -3,11 +3,15 @@
 // Real camera/MediaPipe Worker/game remain intact; only input service receives measured-form
 // T-pose samples after a genuine Worker pose to exercise native hold/release/countdown.
 // Run: AEROBEAT_FRIEND_GAME_QA_URL=http://127.0.0.1:4200/ node scripts/measure-friend-game-startup.js
+// Isolated signed candidate: AEROBEAT_FRIEND_GAME_QA_URL=http://127.0.0.1:4201/ AEROBEAT_FRIEND_GAME_QA_SNAPSHOT_DIR=.tmp/friend-game-cpu-stream-candidate-64d6990 node scripts/measure-friend-game-startup.js
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { lstatSync, realpathSync } from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
+import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadSignedSnapshot } from './serve-friend-game.js';
 import { chromium } from 'playwright';
 import { createSyntheticBeatSaverZip } from '../../aerobeat-web-vendor-beatsaver/scripts/fixture-helpers.js';
 import { createRequire } from 'node:module';
@@ -22,15 +26,27 @@ const shaping = process.env.AEROBEAT_STARTUP_SHAPE === undefined ? null : (() =>
   assert.equal(process.env.AEROBEAT_STARTUP_SHAPE, '1', 'AEROBEAT_STARTUP_SHAPE must be 1 or unset');
   return Object.freeze({ chunkBytes: 256 * 1024, intervalMs: 150 });
 })();
-const manifestPath = fileURLToPath(new URL('../dist-friend-game/friend-game-bundle-manifest.json', import.meta.url));
+const root = fileURLToPath(new URL('../', import.meta.url));
+const selected = process.env.AEROBEAT_FRIEND_GAME_QA_SNAPSHOT_DIR;
+assert(selected !== '', 'snapshot override must not be empty');
+assert(!selected || url === 'http://127.0.0.1:4201/', 'snapshot override is allowed only with exact loopback 4201 URL');
+assert(!selected || /^\.tmp\/[a-zA-Z0-9][a-zA-Z0-9_-]*$/u.test(selected), 'snapshot override must be one safe direct .tmp child');
+const snapshotDir = selected ? resolve(root, selected) : resolve(root, 'dist-friend-game');
+if (selected) {
+  assert.equal(realpathSync(resolve(root, '.tmp')), resolve(root, '.tmp'), '.tmp must not be symlinked');
+  assert(lstatSync(snapshotDir).isDirectory() && !lstatSync(snapshotDir).isSymbolicLink() && realpathSync(snapshotDir) === snapshotDir, 'snapshot must be a real direct-child directory');
+}
+const snapshot = loadSignedSnapshot(snapshotDir);
+const manifestPath = join(snapshotDir, 'friend-game-bundle-manifest.json');
 const manifestBytes = await readFile(manifestPath);
-const manifest = JSON.parse(manifestBytes.toString('utf8'));
+const manifest = snapshot.manifest;
 assert.equal(manifest.purpose, 'normal_cpu_friend_game');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const signedIndex = manifest.assets.find(asset => asset.path === 'index.html');
 assert(signedIndex, 'signed index identity required');
 const servedIndex = Buffer.from(await (await fetch(url, { cache: 'no-store' })).arrayBuffer());
-assert.equal(digest(servedIndex), signedIndex.sha256, 'served HTML must match frozen signed index');
+assert.equal(servedIndex.length, signedIndex.bytes, 'served HTML signed length');
+assert.equal(digest(servedIndex), signedIndex.sha256, 'served HTML must match selected signed index');
 const signedWasm = manifest.assets.filter(asset => asset.path === 'assets/mediapipe/wasm/vision_wasm_internal.wasm');
 const signedModel = manifest.assets.filter(asset => asset.path === 'assets/mediapipe/pose_landmarker_lite.task');
 assert.equal(signedWasm.length, 1, 'exactly one signed CPU WASM asset');
@@ -222,5 +238,5 @@ try {
       context.off('request', started); context.off('requestfinished', finished); context.off('requestfailed', failed);
     }
   }
-  console.log(JSON.stringify({ signed: { manifestSha256: digest(manifestBytes), buildStamp: manifest.buildStamp, sourceCommit: manifest.sourceManifest.sources['@aerobeat/web-assembly'].commit, origin }, results }, null, 2));
+  console.log(JSON.stringify({ signed: { snapshot: selected ?? 'dist-friend-game', manifestSha256: digest(manifestBytes), buildStamp: manifest.buildStamp, sourceCommit: manifest.sourceManifest.sources['@aerobeat/web-assembly'].commit, origin }, results }, null, 2));
 } finally { await context.close(); await browser.close(); }
