@@ -172,7 +172,12 @@ async function checkNormalPage(browser) {
 // The alternate parent is the hostname localhost; child URL must retain the
 // independently served build origin (127.0.0.1 or private HTTPS).
 const parent = createServer((_request, response) => { response.writeHead(200, { "content-type":"text/html; charset=utf-8", "referrer-policy":"strict-origin-when-cross-origin" }); response.end(`<!doctype html><meta name="viewport" content="width=device-width"><style>body{margin:0}iframe{border:0;width:390px;height:844px}</style><iframe allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${target.href}"></iframe>`); });
+let offHostServerHits = 0;
+const offHostServer = createServer((_request, response) => { offHostServerHits++; response.writeHead(204); response.end(); });
 await new Promise(done => parent.listen(0, "localhost", done));
+await new Promise(done => offHostServer.listen(0, "127.0.0.1", done));
+const offHostAddress = offHostServer.address(); assert(offHostAddress && typeof offHostAddress !== "string");
+const offHostMediaUrl = `http://127.0.0.1:${offHostAddress.port}/aerobeat-preview-redirect-probe.mp3`;
 const address = parent.address(); assert(address && typeof address !== "string");
 const parentUrl = `http://localhost:${address.port}/`;
 assert.notEqual(new URL(parentUrl).origin, target.origin, "INVALID SETUP: iframe parent must be cross-origin");
@@ -190,16 +195,16 @@ try {
       const url=request.url();
       if (!/^https?:/u.test(url) || [target.origin,new URL(parentUrl).origin].includes(new URL(url).origin)) return;
       const parsed=new URL(url);
-      if(redirectProbeActive && parsed.hostname==="example.invalid" && parsed.pathname==="/aerobeat-preview-redirect-probe.mp3") return;
+      if(redirectProbeActive && url===offHostMediaUrl) return;
       if(parsed.protocol==="https:" && ["api.beatsaver.com","r2cdn.beatsaver.com","cfcdn.beatsaver.com"].includes(parsed.hostname) && !request.isNavigationRequest() && request.headers()["referer"]===undefined && request.headers()["cookie"]===undefined) {
         allowedRequests.push({host:parsed.hostname,path:parsed.pathname});
       } else networkEscapes.push(`${parsed.origin}${parsed.pathname}`);
     });
     context.on("requestfailed",request=>{
-      if(request.url()==="https://example.invalid/aerobeat-preview-redirect-probe.mp3")blockedRedirects.push(request.failure()?.errorText??"");
+      if(request.url()===offHostMediaUrl)blockedRedirects.push(request.failure()?.errorText??"");
     });
     context.on("response",response=>{
-      if(response.url()==="https://example.invalid/aerobeat-preview-redirect-probe.mp3")unexpectedResponses.push(response.status());
+      if(response.url()===offHostMediaUrl)unexpectedResponses.push(response.status());
     });
     page.on("console",message=>{if(message.type()==="error" && message.text().includes("aerobeat-preview-redirect-probe.mp3"))cspViolations.push(message.text());});
      // Match the prior private full-game browser oracle's pageerror boundary;
@@ -286,19 +291,21 @@ try {
           assert(allowedRequests.some(row=>row.host==="cfcdn.beatsaver.com" && row.path===`/${selected.hash}.mp3`),`${journey}: actual selected preview host/path`);
           if(await detail.getByRole("button",{name:/^Stop /u}).count())await detail.getByRole("button",{name:/^Stop /u}).click();
           // Test-only transport substitute: preserve the game's selected-map URL
-          // and HTMLAudioElement path, but respond with a local 302 to an off-host
-          // destination. Chromium may emit a request event before CSP aborts;
-          // require CSP violation, aborted request and no HTTP response.
+          // and HTMLAudioElement path, but respond with a local 302 to a
+          // different origin. A request event can precede CSP denial; the
+          // independent loopback server proves whether HTTP was dispatched.
           let redirected=0;
+          const serverHitsBefore=offHostServerHits;
           redirectProbeActive=true;
           await context.route(`https://cfcdn.beatsaver.com/${selected.hash}.mp3`,async route=>{
             redirected++;
-            await route.fulfill({status:302,headers:{location:"https://example.invalid/aerobeat-preview-redirect-probe.mp3","cache-control":"no-store"},body:""});
+            await route.fulfill({status:302,headers:{location:offHostMediaUrl,"cache-control":"no-store"},body:""});
           });
           try {
             await detail.getByRole("button",{name:/^Preview /u}).click();
             await frame.waitForFunction(()=>document.querySelector("aero-game")?.previewView?.state==="error",null,{timeout:8000});
             assert(redirected>0,`${journey}: real HTMLAudioElement requested allowed initial preview`);
+            assert.equal(offHostServerHits,serverHitsBefore,`${journey}: no off-host media HTTP dispatch`);
             assert.deepEqual(blockedRedirects,["net::ERR_ABORTED"],`${journey}: off-host redirect aborted by browser`);
             assert.equal(unexpectedResponses.length,0,`${journey}: no off-host redirect response`);
             assert(cspViolations.some(text=>text.includes("media-src") && text.includes("violates")),`${journey}: redirect blocked by actual document media-src CSP`);
@@ -315,15 +322,20 @@ try {
           assert(allowedRequests.some(entry=>entry.host==="r2cdn.beatsaver.com" && entry.path===`/${selected.hash}.zip`),`${journey}: exact selected provider ZIP`);
           assert(await game.locator("aero-content-library").getByRole("heading",{name:"Downloaded songs",exact:true}).isVisible(),`${journey}: downloaded panel`);
           assert(await game.locator("aero-session-actions").getByRole("button",{name:"Start",exact:true}).isEnabled(),`${journey}: imported Start`);
-          // Deliberately malformed provider URL is never fetched; the approved
-          // real chart above proves this guard is not a fake-provider happy path.
+          // Retain the provider's normalized selected map/version shape. Change
+          // only its ZIP URL so selectVersion succeeds and the real candidate
+          // URL guard, rather than malformed test metadata, rejects the fetch.
           const denied=await game.evaluate(async element=>{
-            const hash="0123456789abcdef0123456789abcdef01234567";
-            const map={mapId:"QA",versions:[{hash,downloadUrl:`https://example.invalid/${hash}.zip`,difficulties:[{characteristic:"Standard",difficulty:"Expert"}]}]};
-            try {await element.graph.vendor.acquireVersion(map,hash);return "unexpected success";}
+            const selectedMapId=element.beatSaverView.selectedMap.mapId;
+            const selectedHash=element.beatSaverView.selectedVersionHash;
+            const original=element.browsedMaps.get(selectedMapId.toUpperCase());
+            const altered={...original,versions:original.versions.map(version=>version.hash===selectedHash
+              ? {...version,downloadUrl:`https://example.invalid/${selectedHash}.zip`}
+              : version)};
+            try {await element.graph.vendor.acquireVersion(altered,selectedHash);return "unexpected success";}
             catch(error){return error instanceof Error?error.message:String(error);}
           });
-          assert.match(denied,/not approved for this private build/u,`${journey}: off-list provider ZIP rejected before fetch`);
+                    assert.match(denied,/not approved for this private build/u,`${journey}: off-list provider ZIP rejected before fetch`);
           assert.deepEqual(networkEscapes,[],`${journey}: rejected ZIP made no off-host request`);
           console.log(`PASS ${journey}: live Linkin Park UI search, results, selected version and real ZIP; API HTTP=${apiStatuses.join(",")}`);
         } finally {page.off("response",onResponse);}
@@ -470,4 +482,4 @@ try {
       console.log(`PASS ${journey}: real Worker chart + real MediaPipe Play, named not-ready/ready/warmup/measuring/invalid/download; four-second QA report is not physical evidence`);
     } finally { await context.close(); }
   }
-} finally { await browser?.close(); await new Promise(done => parent.close(done)); }
+} finally { await browser?.close(); await new Promise(done => parent.close(done)); await new Promise(done => offHostServer.close(done)); }
