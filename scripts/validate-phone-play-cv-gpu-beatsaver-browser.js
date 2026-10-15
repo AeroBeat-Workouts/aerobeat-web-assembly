@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile, readdir } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -21,6 +22,32 @@ assert.equal(target.pathname, "/phone-play-cv-test.html", "INVALID SETUP: wrong 
 assert(["http:", "https:"].includes(target.protocol) && !target.username && !target.password && (target.search === "" || target.search === "?preview=1") && !target.hash, "INVALID SETUP: exact private page URL or ?preview=1 QA route required");
 assert.equal(target.search, "?preview=1", "INVALID SETUP: short browser journey requires ?preview=1; default 60s is physical-only");
 assert(target.protocol === "https:" || target.hostname === "127.0.0.1" && target.port === "4199", "INVALID SETUP: signed QA requires private HTTPS or isolated loopback4199");
+// The vendor's tiny archive fixture has only four Ogg magic bytes. It validates
+// import but can never start scored Play. Keep its real metadata/chart, replace
+// only the audio with a bounded, decodable 120-second PCM WAV, and store the
+// ZIP without compression so the production archive-ratio guard remains active.
+const { unzipSync, zipSync } = createRequire(new URL("../../aerobeat-web-vendor-beatsaver/package.json", import.meta.url))("fflate");
+const createPlayableLocalZip = () => {
+  const entries = unzipSync(createSyntheticBeatSaverZip(2));
+  const info = JSON.parse(new TextDecoder("utf-8", { fatal:true }).decode(entries["Info.dat"]));
+  assert.equal(info._songFilename, "Audio/Song.egg", "test-only archive audio identity");
+  const sampleRate = 8000, audioLength = sampleRate * 120 * 2;
+  const wav = new Uint8Array(44 + audioLength), view = new DataView(wav.buffer);
+  const label = (offset, text) => { for (let i=0; i<text.length; i++) view.setUint8(offset+i, text.charCodeAt(i)); };
+  label(0,"RIFF"); view.setUint32(4,36+audioLength,true); label(8,"WAVEfmt ");
+  view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+  view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*2,true);
+  view.setUint16(32,2,true); view.setUint16(34,16,true); label(36,"data");
+  view.setUint32(40,audioLength,true);
+  delete entries["Audio/Song.egg"];
+  info._songFilename="Audio/Song.wav";
+  entries["Info.dat"]=new TextEncoder().encode(JSON.stringify(info));
+  entries["Audio/Song.wav"]=wav;
+  const zip=zipSync(entries,{level:0});
+  assert(zip.length>wav.length && zip.length<2_000_000, "bounded test-only stored WAV ZIP");
+  return zip;
+};
+const playableLocalZip = createPlayableLocalZip();
 const digest = bytes => createHash("sha256").update(bytes).digest("hex");
 const keys = (object, expected, label) => { assert(object && typeof object === "object" && !Array.isArray(object), `${label}: object`); assert.deepEqual(Object.keys(object).sort(), expected.slice().sort(), `${label}: exact allowlist`); };
 const count = (value, max, label) => assert(Number.isSafeInteger(value) && value >= 0 && value <= max, `${label}: bounded count`);
@@ -196,7 +223,9 @@ try {
       if (!/^https?:/u.test(url) || [target.origin,new URL(parentUrl).origin].includes(new URL(url).origin)) return;
       const parsed=new URL(url);
       if(redirectProbeActive && url===offHostMediaUrl) return;
-      if(parsed.protocol==="https:" && ["api.beatsaver.com","r2cdn.beatsaver.com","cfcdn.beatsaver.com"].includes(parsed.hostname) && !request.isNavigationRequest() && request.headers()["referer"]===undefined && request.headers()["cookie"]===undefined) {
+      // Playwright's shortcut headers may carry referer: "" even when
+      // allHeaders() confirms no Referer was sent; require no nonempty value.
+      if(parsed.protocol==="https:" && ["api.beatsaver.com","r2cdn.beatsaver.com","cfcdn.beatsaver.com"].includes(parsed.hostname) && !request.isNavigationRequest() && !request.headers()["referer"] && !request.headers()["cookie"]) {
         allowedRequests.push({host:parsed.hostname,path:parsed.pathname});
       } else networkEscapes.push(`${parsed.origin}${parsed.pathname}`);
     });
@@ -206,7 +235,7 @@ try {
     context.on("response",response=>{
       if(response.url()===offHostMediaUrl)unexpectedResponses.push(response.status());
     });
-    page.on("console",message=>{if(message.type()==="error" && message.text().includes("aerobeat-preview-redirect-probe.mp3"))cspViolations.push(message.text());});
+    page.on("console",message=>{if(["warning","error"].includes(message.type()) && message.text().includes("aerobeat-preview-redirect-probe.mp3"))cspViolations.push(message.text());});
      // Match the prior private full-game browser oracle's pageerror boundary;
     // do not collect only console errors and silently miss other diagnostics.
     page.on("pageerror", error => errors.push(error.message));
@@ -340,14 +369,17 @@ try {
           console.log(`PASS ${journey}: live Linkin Park UI search, results, selected version and real ZIP; API HTTP=${apiStatuses.join(",")}`);
         } finally {page.off("response",onResponse);}
       } else {
-        const zip=createSyntheticBeatSaverZip(2);
         const chooserEvent=page.waitForEvent("filechooser");
         await music.getByRole("button",{name:"Choose local ZIP"}).click();
         const chooser=await chooserEvent;
-        await chooser.setFiles({name:"qa-synthetic.zip",mimeType:"application/zip",buffer:Buffer.from(zip)});
+        await chooser.setFiles({name:"qa-stored-wav.zip",mimeType:"application/zip",buffer:Buffer.from(playableLocalZip)});
         await frame.waitForFunction(()=>{const game=document.querySelector("aero-game");return game?.libraryView?.collections?.length>0 && game.graph?.content.getSnapshot().state==="ready" && game.libraryView.selectedPackageId===game.graph.content.getSnapshot().packageId;},null,{timeout:60000});
+        await frame.waitForFunction(()=>["ready","error"].includes(document.querySelector("aero-game")?.graph?.audio?.getStatus?.().state),null,{timeout:12000});
+        const fixtureAudio=await game.evaluate(element=>element.graph.audio.getStatus());
+        assert.equal(fixtureAudio.state,"ready",`${journey}: actual audio service decoded test-only ZIP; ${fixtureAudio.errorCode??"no error code"}`);
+        assert.equal(fixtureAudio.durationSeconds,120,`${journey}: test-only WAV is long enough for native scored Play`);
         assert(await game.locator("aero-session-actions").getByRole("button",{name:"Start",exact:true}).isEnabled(),`${journey}: local ZIP Start`);
-        console.log(`PASS ${journey}: child-local ZIP picker, actual authoring Worker and selected chart`);
+        console.log(`PASS ${journey}: child-local stored WAV ZIP picker, actual authoring Worker and playable selected chart`);
       }
       // Real browser camera and real MediaPipe Worker; fake-device's synthetic
       // checkerboard may contain no body. Do NOT set calibrationId or replace CV.
