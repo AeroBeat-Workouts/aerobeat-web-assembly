@@ -158,7 +158,17 @@ try {
           const actions = game?.shadowRoot?.querySelector('aero-session-actions');
           const label = actions?.shadowRoot?.querySelector('[part="pending-status"]');
           return game?.pendingSessionAction === 'test' && /test/iu.test(label?.textContent ?? '') && /queu/iu.test(label?.textContent ?? '');
-        }, null, { timeout: 5000 }).catch(async error => { throw new Error(`queued Test never replaced Play's numeric foreground: ${JSON.stringify(await inspect())}`, { cause: error }); });
+        }, null, { timeout: 5000 }).catch(async error => {
+          const presentation = await game.evaluate(element => ({
+            pendingMessage: element.publicFriendPendingMessage?.(),
+            snapshot: element.sessionActionsSnapshot?.(),
+            ordinals: { pending: element.pendingSessionActionOrdinal, latest: element.sessionActionIntentOrdinal },
+            generations: { active: element.lifecycleIntentActiveGeneration, latest: element.lifecycleIntentGeneration },
+            runtimeStatus: element.shadowRoot?.querySelector('[data-role="status"]')?.textContent?.trim() ?? ''
+          }));
+          const requests = { model: counts.get(modelPath) ?? 0, wasm: wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0) };
+          throw new Error(`queued Test never replaced Play's numeric foreground: visible=${JSON.stringify(await inspect())}; production=${JSON.stringify(presentation)}; requests=${JSON.stringify(requests)}`, { cause: error });
+        });
         const queued = await inspect();
         assert.equal(queued.pending, 'test', 'last intent is Test during held Play model');
         testQueued = true;
