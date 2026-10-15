@@ -61,6 +61,7 @@
     "test:phone-play-cv-gpu-beatsaver-policy": "node scripts/validate-phone-play-cv-gpu-beatsaver-policy.js",
     "test:phone-play-cv-browser": "node scripts/validate-phone-play-cv-browser.js",
     "test:phone-play-cv-gpu-result-browser": "node scripts/validate-phone-play-cv-gpu-result-browser.js",
+    "test:phone-play-cv-gpu-beatsaver-browser": "node scripts/validate-phone-play-cv-gpu-beatsaver-browser.js",
     "build:phone-cv-marker": "vite build --config vite.phone-cv-marker.config.js && node scripts/write-phone-cv-marker-bundle-manifest.js",
     "build:phone-cv-gpu": "vite build --config vite.phone-cv-gpu.config.js && node scripts/write-phone-cv-gpu-bundle-manifest.js",
     "build:phone-cv-gpu-result": "vite build --config vite.phone-cv-gpu-result.config.js && node scripts/write-phone-cv-gpu-result-bundle-manifest.js",

@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 import config, { BEATSAVER_DOCUMENT_CSP, BEATSAVER_OTHER_CSP, previewCspForPath } from "../vite.phone-play-cv-gpu-beatsaver.config.js";
 
 const root = new URL("../", import.meta.url);
@@ -37,4 +38,15 @@ assert.match(signer, /assetsUnder\(out\)\.sort\(\)/u);
 assert.match(signer, /previewCspForPath\(name\)/u);
 assert.match(signer, /full_game_play_gpu_after_result_beatsaver_private_candidate/u);
 assert.match(original, /outDir: "dist-phone-play-cv-gpu-result"/u, "original rollback profile remains unchanged");
-console.log(`PASS isolated BeatSaver document CSP, self-only Worker/other, signer contract and preview headers (${fileURLToPath(root)})`);
+// Exercise the production diagnostic's exact schema decision: before this guard,
+// the new signed sidecar failed closed and its Play Measure button stayed disabled.
+const diagnostic = readFileSync(new URL("src/phone-play-cv-diagnostic.js", root), "utf8");
+const schemaExpression = diagnostic.match(/const BUNDLE_SCHEMA = ([\s\S]*?);/u)?.[1];
+assert(schemaExpression, "actual diagnostic declares a bundle schema selector");
+const selectedSchema = (beatsaver, gpu) => vm.runInNewContext(schemaExpression, {
+  PRIVATE_BEATSAVER_ACCESS: beatsaver, PRIVATE_GPU_RESULT: gpu
+});
+assert.equal(selectedSchema(false, false), "aerobeat/private_phone_play_cv_bundle", "old CPU Play sidecar remains accepted");
+assert.equal(selectedSchema(false, true), "aerobeat/private_phone_play_cv_gpu_result_bundle", "old signed GPU Play sidecar remains accepted");
+assert.equal(selectedSchema(true, true), "aerobeat/private_phone_play_cv_gpu_beatsaver_bundle", "new BeatSaver Play diagnostic must accept its distinct signed sidecar");
+console.log(`PASS isolated BeatSaver document CSP, self-only Worker/other, three actual Play sidecar identities, signer contract and preview headers (${fileURLToPath(root)})`);

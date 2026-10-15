@@ -16,8 +16,10 @@ if (!game || !panel || !state || !startButton || !downloadButton || !summary) th
 const BUILD_STAMP = __AEROBEAT_BUILD_STAMP__;
 const PACKAGE_VERSION = __AEROBEAT_PACKAGE_VERSION__;
 const PRIVATE_GPU_RESULT = typeof __AEROBEAT_PRIVATE_GAMEPLAY_CV_MODE__ !== "undefined" && __AEROBEAT_PRIVATE_GAMEPLAY_CV_MODE__ === "gpu-after-result";
+const PRIVATE_BEATSAVER_ACCESS = typeof __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ !== "undefined" && __AEROBEAT_PRIVATE_BEATSAVER_ACCESS__ === true;
 const BUNDLE_PATH = PRIVATE_GPU_RESULT ? __AEROBEAT_PRIVATE_PLAY_CV_BUNDLE_PATH__ : "/phone-play-cv-bundle-manifest.json";
-const BUNDLE_SCHEMA = PRIVATE_GPU_RESULT ? "aerobeat/private_phone_play_cv_gpu_result_bundle" : "aerobeat/private_phone_play_cv_bundle";
+const BUNDLE_SCHEMA = PRIVATE_BEATSAVER_ACCESS && PRIVATE_GPU_RESULT ? "aerobeat/private_phone_play_cv_gpu_beatsaver_bundle" :
+  PRIVATE_GPU_RESULT ? "aerobeat/private_phone_play_cv_gpu_result_bundle" : "aerobeat/private_phone_play_cv_bundle";
 if (PRIVATE_GPU_RESULT) panel.querySelector("strong").textContent = "Private full-game GPU-first after-result / fresh CPU fallback";
 function executionIdentity() {
   if (!PRIVATE_GPU_RESULT) return null;
