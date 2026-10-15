@@ -218,7 +218,7 @@ try {
       assert.deepEqual(pacingFailures, [], 'signed shaping fixture must not abort');
       if (shaping) assert.deepEqual(paced.map(item => item.path).sort(), [...shapedAssets.keys()].sort(), 'each exact signed asset was paced exactly once');
       assert.equal(errors.length, 0, 'no page errors');
-      assert([...requests.values()].every(item => item.failures.length === 0), 'local request failures');
+      assert([...requests.values()].every(item => item.failures.length === 0), `local request failures: ${JSON.stringify([...requests].filter(([, item]) => item.failures.length > 0))}`);
       assert.equal(state.session, 'playing', 'signed Play session reached song');
       assert.equal(state.audio, 'playing', 'signed Play audio reached playback');
       const browserMarksMs = Object.fromEntries(Object.entries(synthetic.events).map(([key, value]) => [key, Math.round(value - browserTapTime)]));
