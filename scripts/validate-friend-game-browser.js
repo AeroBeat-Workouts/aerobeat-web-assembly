@@ -3,6 +3,7 @@
 // calibration stimuli are not physical-phone calibration, tracking or hit proof.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createServer, request as httpRequest } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -18,6 +19,8 @@ const sidecar = 'friend-game-bundle-manifest.json';
 const rawUrl = process.env.AEROBEAT_FRIEND_GAME_QA_URL;
 assert.equal(rawUrl, 'http://127.0.0.1:4200/', 'INVALID SETUP: exact isolated signed loopback URL required');
 const origin = new URL(rawUrl).origin;
+// Normal release gate stays short; the historical 35-second Pixel stall is opt-in.
+const slowWasmMs = process.env.AEROBEAT_FRIEND_GAME_EXTENDED_SLOW_START === '1' ? 35_000 : 6_000;
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const exactKeys = (object, expected, label) => {
   assert(object && typeof object === 'object' && !Array.isArray(object), `${label}: object required`);
@@ -180,6 +183,16 @@ try {
       fixtureHits.push('zip'); assert.equal(route.request().method(), 'GET');
       await route.fulfill({ status: 200, contentType: 'application/zip', headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: Buffer.from(archive) });
     });
+    // Delay only the first signed CPU WASM response, never the Worker, model,
+    // camera, HTML, BeatSaver fixture, or any off-origin request.
+    let wasmDelayed = 0;
+    if (embedding === 'direct') await context.route(url => {
+      const parsed = new URL(url);
+      return parsed.origin === origin && /^\/assets\/mediapipe\/wasm\/[^/]+\.wasm$/u.test(parsed.pathname);
+    }, async route => {
+      if (wasmDelayed++ === 0) await delay(slowWasmMs);
+      await route.continue();
+    });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
     try {
@@ -232,18 +245,77 @@ try {
       assert.equal(local.audio.state, 'ready', `${embedding}: local ZIP audio decoding failed: ${local.audio.errorCode ?? 'no error code'}`);
       assert.equal(local.worker, true); assert.equal(local.mode, 'flow');
       await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
-      await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.graph?.gameplay.getSnapshot().session.purpose === 'play' && game.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState === 'live' && game.graph.cv.getStatus().lifecycleState === 'running' && game.graph.cv.getStatus().poseFrameCount > 0; }, null, { timeout: 45000 });
+      if (embedding === 'direct') {
+        await frame.waitForFunction(() => {
+          const game = document.querySelector('aero-game');
+          return game?.graph?.video?.getRetainedCameraStream?.()?.getVideoTracks?.()[0]?.readyState === 'live' &&
+            game.graph.cv.getStatus().lifecycleState === 'loading' && game.menuOpen &&
+            game.pendingSessionAction === 'start' && !game.sessionStartRequested;
+        }, null, { timeout: 15_000 });
+        const pendingPlay = await game.evaluate(element => ({
+          live: element.graph.video.getRetainedCameraStream().getVideoTracks()[0].readyState,
+          cv: element.graph.cv.getStatus().lifecycleState,
+          status: element.shadowRoot.querySelector('[data-role="status"]')?.textContent,
+          visible: [...element.shadowRoot.querySelectorAll('*')].filter(node => node instanceof HTMLElement &&
+            node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
+            getComputedStyle(node).display !== 'none' && !node.closest('[hidden], [aria-hidden="true"]') &&
+            node.children.length === 0).map(node => node.textContent?.trim()).filter(Boolean)
+        }));
+        assert.equal(pendingPlay.live, 'live'); assert.equal(pendingPlay.cv, 'loading');
+        assert(pendingPlay.visible.some(text => /play/iu.test(text) && /(?:camera|pose|prepar|load)/iu.test(text)),
+          `SLOW START RED: visible Play camera/pose preparation missing (status=${JSON.stringify(pendingPlay.status)})`);
+        await game.locator('aero-session-actions').getByRole('button', { name: 'Test', exact: true }).click();
+        await frame.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'test', null, { timeout: 5_000 });
+        const pendingTest = await game.evaluate(element => ({
+          cv: element.graph.cv.getStatus().lifecycleState,
+          menuOpen: element.menuOpen,
+          visible: [...element.shadowRoot.querySelectorAll('*')].filter(node => node instanceof HTMLElement &&
+            node.getClientRects().length && getComputedStyle(node).visibility !== 'hidden' &&
+            getComputedStyle(node).display !== 'none' && !node.closest('[hidden], [aria-hidden="true"]') &&
+            node.children.length === 0).map(node => node.textContent?.trim()).filter(Boolean)
+        }));
+        assert.equal(pendingTest.cv, 'loading', 'queued Test observed while CPU Worker still loading');
+        assert.equal(pendingTest.menuOpen, true, 'menu stays open while Test queues');
+        assert(pendingTest.visible.some(text => /test/iu.test(text) && /queu/iu.test(text) && !/error|fail/iu.test(text)),
+          `SLOW START RED: visible queued Test missing (visible=${JSON.stringify(pendingTest.visible)})`);
+        await frame.waitForFunction(() => {
+          const game = document.querySelector('aero-game'), session = game?.graph?.gameplay?.getSnapshot?.().session;
+          return session?.purpose === 'visual_test' && session.state === 'playing' && game.menuOpen === false &&
+            game.pendingSessionAction === '' && game.graph.audio.getStatus().state === 'playing' &&
+            game.graph.cv.getStatus().lifecycleState !== 'running';
+        }, null, { timeout: slowWasmMs + 25_000 });
+        const final = await game.evaluate(element => ({
+          purpose: element.graph.gameplay.getSnapshot().session.purpose,
+          session: element.graph.gameplay.getSnapshot().session.state,
+          menuOpen: element.menuOpen, active: element.activeSessionAction,
+          audio: element.graph.audio.getStatus(), cv: element.graph.cv.getStatus(),
+          camera: element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none'
+        }));
+        assert.equal(final.purpose, 'visual_test'); assert.equal(final.session, 'playing');
+        assert.equal(final.menuOpen, false); assert.equal(final.active, 'test');
+        assert.equal(final.audio.state, 'playing', 'Test owns playback, not unintended Play audio');
+        assert.notEqual(final.cv.lifecycleState, 'running', 'Test does not keep Play CV running');
+        assert.equal(final.cv.providerId, 'cpu-wasm', 'genuine Worker initialized before queued Test');
+        assert(wasmDelayed >= 1, 'actual local CPU WASM response was delayed');
+        assert.deepEqual(external, [], 'slow start caused no external egress');
+        console.log(`PASS direct slow-start ${slowWasmMs}ms: visible Play preparation, queued Test, ordered audio-only Visual Test`);
+      } else {
+        await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.graph?.gameplay.getSnapshot().session.purpose === 'play' && game.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState === 'live' && game.graph.cv.getStatus().lifecycleState === 'running' && game.graph.cv.getStatus().poseFrameCount > 0; }, null, { timeout: 45000 });
+      }
       const state = await game.evaluate(element => ({ profile: element.getSnapshot().cvProfile, provider: element.graph.cv.getStatus().providerId, session: element.graph.gameplay.getSnapshot().session.state, poses: element.graph.cv.getStatus().poseFrameCount, worker: element.graph.authoring.getCapabilities().conversionWorker }));
       assert.equal(state.provider, 'cpu-wasm', 'actual initialized CPU Worker');
-      assert.equal(state.profile.providerId, 'cpu-wasm'); assert(state.poses > 0 && state.worker);
+      assert.equal(state.profile.providerId, 'cpu-wasm'); assert(state.worker);
+      if (embedding !== 'direct') assert(state.poses > 0, 'genuine Play consumes Worker poses');
       const canvas = await game.evaluate(element => { const renderer = element.shadowRoot.querySelector('canvas[data-role="renderer"]'); return { width: renderer?.width, height: renderer?.height, assets: element.graph.renderer.describe().gameplayAssets.state }; });
-      assert(canvas.width > 0 && canvas.height > 0 && canvas.assets === 'ready', 'named camera Play state has actual GLB-ready nonzero framebuffer');
+      assert(canvas.width > 0 && canvas.height > 0 && canvas.assets === 'ready', `${embedding}: actual GLB-ready nonzero framebuffer`);
       const cvWorkers = page.workers().filter(worker => /mediapipe/iu.test(worker.url()) && new URL(worker.url()).origin === origin);
-      assert.equal(cvWorkers.length, 1, 'one actual same-origin MediaPipe Worker');
-      const workerPaths = names.filter(name => /worker.*\.js$/iu.test(name));
-      assert(workerPaths.includes(new URL(cvWorkers[0].url()).pathname.slice(1)), 'real CPU Worker is a signed served asset');
+      if (embedding !== 'direct') assert.equal(cvWorkers.length, 1, 'one actual same-origin MediaPipe Worker');
+      if (cvWorkers.length) {
+        const workerPaths = names.filter(name => /worker.*\.js$/iu.test(name));
+        assert(workerPaths.includes(new URL(cvWorkers[0].url()).pathname.slice(1)), 'real CPU Worker is a signed served asset');
+      }
       const beforeForbidden = external.length;
-      assert.equal(await cvWorkers[0].evaluate(() => fetch('https://api.beatsaver.com/search/text/0?q=blocked-worker').then(() => false, () => true)), true, 'Worker must not inherit document API egress');
+      if (cvWorkers.length) assert.equal(await cvWorkers[0].evaluate(() => fetch('https://api.beatsaver.com/search/text/0?q=blocked-worker').then(() => false, () => true)), true, 'Worker must not inherit document API egress');
       assert.equal(await frame.evaluate(() => fetch('https://example.invalid/friend-qa-probe').then(() => false, () => true)), true, 'document blocks off-host');
       assert.equal(external.length, beforeForbidden, 'CSP-denied probes never dispatch external HTTP');
       assert.deepEqual(external, [], `unexpected request egress: ${embedding}`);
