@@ -29,8 +29,10 @@ const worker = await readFile(workerPath);
 const delayMs = Number(process.env.AEROBEAT_FIXTURE_DELAY_MS ?? 350);
 assert(Number.isInteger(delayMs) && delayMs >= 0 && delayMs <= 5000);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Bound model body transfer independently of the fixed WASM delay. Brotli uses
+// precompressed bytes; browser Fetch exposes decoded chunks to the reader.
+const modelBodyMs = 800, bodyPieces = 8;
 const counts = new Map(), transferWindows = new Map(); let encoding = 'identity';
-const runZero = performance.now();
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, 'http://localhost').pathname;
   const item = raw.get(path);
@@ -48,12 +50,21 @@ const server = createServer(async (req, res) => {
     res.end('<!doctype html><title>LOCAL TEST ONLY: CPU startup feasibility</title>'); return;
   }
   const bytes = item ?? worker;
-  // Delay each large signed asset, including the resolver's probe and full WASM GET.
-  if (path.endsWith('.wasm') || path.endsWith('.task')) await sleep(delayMs);
+  // WASM has the identical bounded delay in all three modes; the model's
+  // headers go out immediately and its signed body takes at least 800 ms.
+  if (path.endsWith('.wasm')) await sleep(delayMs);
   const compressed = encoding === 'br' && req.headers['accept-encoding']?.includes('br') && path !== '/fixture-worker.js';
   const body = compressed ? compressedAssets.get(path) : bytes;
   res.writeHead(200, { 'Content-Type': path.endsWith('.js') ? 'text/javascript' : path.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream', 'Content-Length': body.length, ...(compressed ? { 'Content-Encoding': 'br' } : {}), 'Cache-Control': 'no-store', 'Cross-Origin-Resource-Policy': 'same-origin', 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'" });
-  res.end(body, () => { if (window) window.finishedMs = performance.now(); });
+  if (path.endsWith('.task')) {
+    res.flushHeaders();
+    if (window) window.headersMs = performance.now();
+    for (let i = 0; i < bodyPieces; i++) {
+      await sleep(modelBodyMs / bodyPieces);
+      res.write(body.subarray(Math.floor(i * body.length / bodyPieces), Math.floor((i + 1) * body.length / bodyPieces)));
+    }
+  }
+  res.end(path.endsWith('.task') ? undefined : body, () => { if (window) window.finishedMs = performance.now(); });
 });
 server.listen(0, '127.0.0.1');
 await new Promise(resolve => server.once('listening', resolve));
@@ -62,8 +73,9 @@ const browser = await chromium.launch({ headless: true });
 try {
   for (encoding of ['identity', 'br']) {
     const rows = [];
-    for (const mode of ['path', 'buffer']) {
+    for (const mode of ['path', 'buffer', 'stream']) {
       counts.clear(); transferWindows.clear();
+      const attemptZero = performance.now();
       const context = await browser.newContext({ serviceWorkers: 'block' });
       const page = await context.newPage();
       const failures = [];
@@ -90,19 +102,28 @@ try {
         assert.equal(wasmCounts.reduce((sum, [, n]) => sum + n, 0), 1, 'signed WASM MIME must allow one WASM GET');
         assert(wasmCounts.every(([p]) => transferWindows.get(p)?.every(w => w.finishedMs !== null)), 'WASM transfer completes');
         assert(transferWindows.get('/assets/mediapipe/pose_landmarker_lite.task')?.every(w => w.finishedMs !== null), 'model transfer completes');
+        assert(transferWindows.get('/assets/mediapipe/pose_landmarker_lite.task')?.every(w => w.finishedMs - w.headersMs >= modelBodyMs - 20), 'model body takes bounded >=700ms after immediate headers');
         const wasmWindow = transferWindows.get(wasmCounts[0][0])[0];
         const modelWindow = transferWindows.get('/assets/mediapipe/pose_landmarker_lite.task')[0];
-        assert(mode === 'path'
+        if (mode === 'stream') assert(
+          modelWindow.startedMs < wasmWindow.finishedMs && wasmWindow.startedMs < modelWindow.finishedMs,
+          'stream mode must demonstrate actual concurrent model/WASM transfers');
+        else assert(mode === 'path'
           ? modelWindow.startedMs >= wasmWindow.finishedMs
           : wasmWindow.startedMs >= modelWindow.finishedMs,
-        `${mode}: fixture must report actual sequential transfer order`);
+        `${mode}: control must report actual sequential transfer order`);
         assert(failures.every(message => message.includes('odml.pa.googleapis.com/v1/log') || (message.includes('/pose_landmarker_lite.task') && message.includes('ERR_ABORTED'))), `unexpected network: ${failures.join(', ')}`);
         assert.equal(outcome.type, 'done', outcome.error ?? 'unknown Worker failure');
-        if (mode === 'buffer') assert.equal(outcome.progress.at(-1)?.received, model.bytes);
+        if (mode !== 'path') {
+          assert(outcome.progress.length > 1, 'actual decoded-byte progress before model completion');
+          assert.equal(outcome.progress.at(-1)?.received, model.bytes);
+          assert(outcome.progress.every((event, i) => i === 0 || event.received > outcome.progress[i - 1].received), 'decoded-byte progress strictly increases');
+        }
+        if (mode === 'stream') assert.equal(outcome.integrityTiming, 'after-consumption; not pre-load verification');
         const m = outcome.marks;
-        rows.push({ mode, modelGETs: modelCount, wasmGETs: wasmCounts, elapsedMs: Math.round(m.createDone - m.start), resolverMs: Math.round(m.resolverDone - m.resolverStart), creationMs: Math.round(m.createDone - m.createStart), modelStartedAfterWasm: modelWindow.startedMs >= wasmWindow.finishedMs, wasmStartedAfterModel: wasmWindow.startedMs >= modelWindow.finishedMs, assetGetWindowsSameNodeClock: Object.fromEntries([...transferWindows].map(([p, windows]) => [p, windows.map(w => ({ ...w, startedMs: Math.round(w.startedMs - runZero), finishedMs: w.finishedMs === null ? null : Math.round(w.finishedMs - runZero) }))])), workerMarksMs: Object.fromEntries(Object.entries(m).map(([key, value]) => [key, Math.round(value - m.start)])), clock: 'server GET timestamps relative to the Node run start; Worker marks relative to Worker load; clocks are not interchangeable', progressEvents: outcome.progress.length, decodedBytes: outcome.progress.at(-1)?.received ?? null, error: null });
+        rows.push({ mode, modelGETs: modelCount, wasmGETs: wasmCounts, elapsedMs: Math.round(m.createDone - m.start), resolverMs: Math.round(m.resolverDone - m.resolverStart), creationMs: Math.round(m.createDone - m.createStart), modelStartedAfterWasm: modelWindow.startedMs >= wasmWindow.finishedMs, wasmStartedAfterModel: wasmWindow.startedMs >= modelWindow.finishedMs, actualTransferOverlap: modelWindow.startedMs < wasmWindow.finishedMs && wasmWindow.startedMs < modelWindow.finishedMs, integrityTiming: outcome.integrityTiming, assetGetWindowsSameNodeClock: Object.fromEntries([...transferWindows].map(([p, windows]) => [p, windows.map(w => ({ ...w, startedMs: Math.round(w.startedMs - attemptZero), headersMs: w.headersMs === undefined ? null : Math.round(w.headersMs - attemptZero), finishedMs: w.finishedMs === null ? null : Math.round(w.finishedMs - attemptZero) }))])), workerMarksMs: Object.fromEntries(Object.entries(m).map(([key, value]) => [key, Math.round(value - m.start)])), clock: 'server GET timestamps relative to Node attempt start; Worker marks relative to Worker load; clocks are not interchangeable', progressEvents: outcome.progress.length, decodedBytes: outcome.progress.at(-1)?.received ?? null, error: null });
       } finally { await context.close(); }
     }
-    console.log(JSON.stringify({ fixture: 'LOCAL TEST ONLY; signed assets, separate unsigned Worker; NOT phone speed', encoding, artificialAssetDelayMs: delayMs, rows }));
+    console.log(JSON.stringify({ fixture: 'LOCAL TEST ONLY; signed assets, separate unsigned Worker; NOT phone speed', encoding, wasmDelayMs: delayMs, modelBodyTransferMs: modelBodyMs, rows }));
   }
 } finally { await browser.close(); server.close(); }
