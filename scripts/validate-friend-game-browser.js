@@ -185,9 +185,12 @@ try {
     try {
       const response = await page.goto(embedding === 'direct' ? rawUrl : parentUrl, { waitUntil: 'domcontentloaded' });
       assert.equal(response?.status(), 200);
-      const frame = embedding === 'direct' ? page : page.frameLocator('#game');
+      if (embedding !== 'direct') await page.frameLocator('#game').locator('aero-game').waitFor();
+      const frame = embedding === 'direct' ? page.mainFrame() : page.frames().find(candidate => candidate !== page.mainFrame() && candidate.url() === rawUrl);
+      assert(frame, `${embedding}: actual signed child Frame must be attached`);
+      assert.equal(frame.url(), rawUrl, `${embedding}: exact signed child URL`);
+      if (embedding !== 'direct') assert.notEqual(new URL(page.url()).origin, new URL(frame.url()).origin, 'genuine cross-origin iframe');
       const game = frame.locator('aero-game'); await game.waitFor();
-      if (embedding !== 'direct') assert.notEqual(new URL(parentUrl).origin, origin);
       assert.equal(await frame.locator('aero-game').count(), 1);
       assert.equal(await frame.locator('#play-cv-start, #play-cv-download, #play-cv-recorder').count(), 0, 'no diagnostic or JSON reporter');
       await frame.waitForFunction(() => document.querySelector('aero-game')?.graph?.authoring?.getCapabilities?.().conversionWorker === true && document.querySelector('aero-game')?.graph?.renderer?.describe?.().gameplayAssets?.state === 'ready', null, { timeout: 45000 });
