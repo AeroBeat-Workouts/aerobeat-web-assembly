@@ -335,7 +335,7 @@ try {
             try {await element.graph.vendor.acquireVersion(altered,selectedHash);return "unexpected success";}
             catch(error){return error instanceof Error?error.message:String(error);}
           });
-                    assert.match(denied,/not approved for this private build/u,`${journey}: off-list provider ZIP rejected before fetch`);
+          assert.match(denied,/not approved for this private build/u,`${journey}: off-list provider ZIP rejected before fetch`);
           assert.deepEqual(networkEscapes,[],`${journey}: rejected ZIP made no off-host request`);
           console.log(`PASS ${journey}: live Linkin Park UI search, results, selected version and real ZIP; API HTTP=${apiStatuses.join(",")}`);
         } finally {page.off("response",onResponse);}
