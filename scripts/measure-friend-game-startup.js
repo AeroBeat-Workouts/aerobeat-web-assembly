@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createSyntheticBeatSaverZip } from '../../aerobeat-web-vendor-beatsaver/scripts/fixture-helpers.js';
@@ -14,6 +15,13 @@ import { createRequire } from 'node:module';
 const url = process.env.AEROBEAT_FRIEND_GAME_QA_URL;
 assert(['http://127.0.0.1:4200/', 'http://127.0.0.1:4201/'].includes(url), 'exact signed loopback URL required');
 const origin = new URL(url).origin;
+// Opt-in fixed decoded-byte response-delay fixture. This is NOT network bandwidth shaping.
+// The same constants apply to each of the two exact signed Worker assets on every run.
+// Usage: AEROBEAT_STARTUP_SHAPE=1 AEROBEAT_FRIEND_GAME_QA_URL=http://127.0.0.1:4200/ node scripts/measure-friend-game-startup.js
+const shaping = process.env.AEROBEAT_STARTUP_SHAPE === undefined ? null : (() => {
+  assert.equal(process.env.AEROBEAT_STARTUP_SHAPE, '1', 'AEROBEAT_STARTUP_SHAPE must be 1 or unset');
+  return Object.freeze({ chunkBytes: 256 * 1024, intervalMs: 150 });
+})();
 const manifestPath = fileURLToPath(new URL('../dist-friend-game/friend-game-bundle-manifest.json', import.meta.url));
 const manifestBytes = await readFile(manifestPath);
 const manifest = JSON.parse(manifestBytes.toString('utf8'));
@@ -23,6 +31,11 @@ const signedIndex = manifest.assets.find(asset => asset.path === 'index.html');
 assert(signedIndex, 'signed index identity required');
 const servedIndex = Buffer.from(await (await fetch(url, { cache: 'no-store' })).arrayBuffer());
 assert.equal(digest(servedIndex), signedIndex.sha256, 'served HTML must match frozen signed index');
+const signedWasm = manifest.assets.filter(asset => asset.path === 'assets/mediapipe/wasm/vision_wasm_internal.wasm');
+const signedModel = manifest.assets.filter(asset => asset.path === 'assets/mediapipe/pose_landmarker_lite.task');
+assert.equal(signedWasm.length, 1, 'exactly one signed CPU WASM asset');
+assert.equal(signedModel.length, 1, 'exactly one signed model asset');
+const shapedAssets = new Map([...signedWasm, ...signedModel].map(asset => [`/${asset.path}`, asset]));
 const { unzipSync, zipSync } = createRequire(new URL('../../aerobeat-web-vendor-beatsaver/package.json', import.meta.url))('fflate');
 const entries = unzipSync(createSyntheticBeatSaverZip(2));
 const info = JSON.parse(new TextDecoder().decode(entries['Info.dat']));
@@ -43,12 +56,15 @@ const browser = await chromium.launch({ headless: true, args: ['--use-fake-devic
 const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, hasTouch: true, serviceWorkers: 'block' });
 const results = [];
 try {
-  for (const mode of ['cold-fresh-context', 'repeat-same-context']) {
-    // Repeat uses the same context and browser profile, but a new page and new game instance.
+  for (const mode of ['first-new-page-context', 'second-new-page-same-context']) {
+    // First is a new page in a new context; second is another new page/game instance
+    // in that same context, NOT a second Play on the same connected game.
     // The signed server's no-store policy can still force full transfers on both visits.
     const requests = new Map(), denied = [], errors = [], workerMessages = [];
     const zero = now();
     let tapOffsetMs = null;
+    const paced = [];
+    const pacingFailures = [];
     const record = (request, field) => {
       const path = `${request.method()} ${new URL(request.url()).pathname}`;
       const entry = requests.get(path) ?? { count: 0, startsMs: [], finishesMs: [], failures: [] };
@@ -71,9 +87,28 @@ try {
       if (new URL(worker.url()).origin === origin && /mediapipe-worker/iu.test(worker.url())) workerMessages.push({ event: 'workerCreated', ms: Math.round(now() - zero) });
     });
     // Fail closed before network: no BeatSaver, analytics, remote models, or uploads.
-    await page.route('**/*', route => {
-      if (new URL(route.request().url()).origin === origin) return route.continue();
-      denied.push(route.request().url()); return route.abort();
+    // The route applies to real Worker requests too. The intercepted GET is fetched
+    // exactly once and SHA-checked before its decoded bytes are paced into Chromium.
+    await page.route('**/*', async route => {
+      const request = route.request(), target = new URL(request.url());
+      if (target.origin !== origin) { denied.push(request.url()); return route.abort(); }
+      const signed = shaping && shapedAssets.get(target.pathname);
+      if (!signed) return route.continue();
+      try {
+        assert.equal(request.method(), 'GET', 'only a signed GET can be paced');
+        const response = await route.fetch({ maxRedirects: 0 });
+        assert.equal(response.status(), 200, `signed paced response ${target.pathname}`);
+        const bytes = Buffer.from(await response.body());
+        assert.equal(bytes.length, signed.bytes, `decoded signed length ${target.pathname}`);
+        assert.equal(digest(bytes), signed.sha256, `decoded signed SHA-256 ${target.pathname}`);
+        // Playwright fulfill sends a complete body, not chunks. Bounded deterministic
+        // whole-response delay preserves exact bytes, but is NOT a bandwidth fixture.
+        const chunks = Math.ceil(bytes.length / shaping.chunkBytes);
+        const delayMs = chunks * shaping.intervalMs;
+        await delay(delayMs);
+        paced.push({ path: target.pathname, bytes: bytes.length, chunks, delayMs, sha256: signed.sha256 });
+        await route.fulfill({ response, body: bytes });
+      } catch (error) { pacingFailures.push(String(error)); await route.abort(); }
     });
     const marks = {}; const mark = key => { if (!(key in marks)) marks[key] = now(); };
     let timer;
@@ -86,9 +121,19 @@ try {
       await music.getByRole('button', { name: 'Choose local ZIP' }).click();
       await (await chooserPromise).setFiles({ name: 'startup-timing-fixture.zip', mimeType: 'application/zip', buffer: archive });
       await page.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.selectedPackageId && game.graph?.content?.getSnapshot?.().state === 'ready' && game.graph.audio.getStatus().state === 'ready'; }, null, { timeout: 60000 });
-      mark('playTap'); tapOffsetMs = Math.round(marks.playTap - zero);
-      const browserTapTime = await page.evaluate(() => performance.now());
+      // Capture the trusted browser click *inside* the already-running page clock.
+      // No production instrumentation or programmatic click: Playwright performs
+      // the actual user gesture, the capture listener only marks its timestamp.
+      await page.evaluate(() => {
+        window.__aeroStartupClickMs = null;
+        document.addEventListener('click', event => {
+          if (event.composedPath().some(node => node?.tagName === 'AERO-SESSION-ACTIONS')) window.__aeroStartupClickMs = performance.now();
+        }, { capture: true, once: true });
+      });
       await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
+      const browserTapTime = await page.evaluate(() => window.__aeroStartupClickMs);
+      assert(Number.isFinite(browserTapTime), 'trusted Play click captured in browser clock');
+      mark('playTapObservedNode'); tapOffsetMs = Math.round(marks.playTapObservedNode - zero);
       timer = setInterval(async () => {
         try {
           const state = await game.evaluate(element => ({
@@ -149,16 +194,29 @@ try {
         session: element.graph.gameplay.getSnapshot().session.state,
         calibration: element.graph.input.getSnapshot().calibration.state, audio: element.graph.audio.getStatus().state
       }));
-      const assets = Object.fromEntries([...requests].filter(([path]) => /mediapipe|\.task$|\.wasm$/iu.test(path)).map(([path, item]) => [path, { ...item, startsFromTapMs: item.startsMs.map(ms => ms - tapOffsetMs), finishesFromTapMs: item.finishesMs.map(ms => ms - tapOffsetMs) }]));
+      const assets = Object.fromEntries([...requests].filter(([path]) => /mediapipe|\.task$|\.wasm$/iu.test(path)).map(([path, item]) => [path, { ...item, startsFromNodeClickObservationMs: item.startsMs.map(ms => ms - tapOffsetMs), finishesFromNodeClickObservationMs: item.finishesMs.map(ms => ms - tapOffsetMs) }]));
       assert.equal(state.provider, 'cpu-wasm'); assert(state.poses > 0);
       for (const [path, item] of Object.entries(assets)) assert.equal(item.count, 1, `${path}: exactly one request`);
       assert.equal(workerMessages.length, 1, 'one real CPU MediaPipe Worker created');
       assert.equal(denied.length, 0, 'no off-origin request, including uploads');
+      assert.deepEqual(pacingFailures, [], 'signed shaping fixture must not abort');
+      if (shaping) assert.deepEqual(paced.map(item => item.path).sort(), [...shapedAssets.keys()].sort(), 'each exact signed asset was paced exactly once');
       assert.equal(errors.length, 0, 'no page errors');
       assert([...requests.values()].every(item => item.failures.length === 0), 'local request failures');
       assert.equal(state.session, 'playing', 'signed Play session reached song');
       assert.equal(state.audio, 'playing', 'signed Play audio reached playback');
-      results.push({ mode, workerEvents: workerMessages.map(item => ({ ...item, fromTapMs: item.ms - tapOffsetMs })), marksMs: Object.fromEntries(Object.entries(marks).map(([key, value]) => [key, Math.round(value - marks.playTap)])), syntheticNativeEventsMs: Object.fromEntries(Object.entries(synthetic.events).map(([key, value]) => [key, Math.round(value - browserTapTime)])), syntheticSamples: synthetic.samples, workerPosesDuringStimulus: synthetic.workerPosesAfter - synthetic.workerPosesBefore, workerAssets: assets, requestsByOrigin: { [origin]: Object.fromEntries(requests) }, totalRequests: [...requests.values()].reduce((count, item) => count + item.count, 0), endState: state, caveat: 'TEST-ONLY synthetic native input is NOT physical pose tracking. Worker/camera/game are real; song timing requires artificial T-pose hold/release. Marks are Node monotonic observations (25ms polling); synthetic events use browser monotonic clock anchored just after Play mark and may differ by observation lag. Fresh page in fresh/same context; no-store may refetch.' });
+      const browserMarksMs = Object.fromEntries(Object.entries(synthetic.events).map(([key, value]) => [key, Math.round(value - browserTapTime)]));
+      browserMarksMs.trustedPlayClick = 0;
+      const nodeMarksMs = Object.fromEntries(Object.entries(marks).map(([key, value]) => [key, Math.round(value - marks.playTapObservedNode)]));
+      assert(Number.isFinite(browserMarksMs.playAudio), 'browser-clock click-to-audio mark required');
+      assert(Number.isFinite(nodeMarksMs.cvRunning), 'Node-observed Worker-ready mark required');
+      results.push({ mode, shaping: shaping ? { ...shaping, kind: 'whole-response-delay-not-bandwidth', paced } : null,
+        browserClockFromTrustedClickMs: browserMarksMs,
+        nodeClockFromClickObservationMs: nodeMarksMs,
+        workerEvents: workerMessages.map(item => ({ ...item, fromNodeClickObservationMs: item.ms - tapOffsetMs })),
+        workerAssets: assets, syntheticSamples: synthetic.samples, workerPosesDuringStimulus: synthetic.workerPosesAfter - synthetic.workerPosesBefore,
+        requestsByOrigin: { [origin]: Object.fromEntries(requests) }, totalRequests: [...requests.values()].reduce((count, item) => count + item.count, 0), endState: state,
+        caveat: 'TEST-ONLY synthetic native input is NOT physical pose tracking. Worker/camera/game are real. Play→CV running uses a Node observation after the click (25ms polling), not cross-clock subtraction. Play→audio uses the browser click clock and artificial T-pose/countdown. Whole-response decoded-byte delay is NOT bandwidth or public relay emulation. First and second runs are distinct new page/game instances in one browser context; no-store may refetch.' });
     } finally {
       clearInterval(timer); await page.close();
       context.off('request', started); context.off('requestfinished', finished); context.off('requestfailed', failed);
