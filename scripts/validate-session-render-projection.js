@@ -24,18 +24,21 @@ assert.equal(projectSessionTargets(events,playHit,1175,straightIndex)[0].feedbac
 assert.equal(projectSessionTargets(events,playHit,1349,straightIndex)[0].feedbackProgress,349/350);
 assert.equal(projectSessionTargets(events,playHit,1350,straightIndex).some((entry)=>entry.id==="flow-1"),false,"hit feedback leaves at the exact common feedback boundary");
 
-// A noncontact near pass remains an authoritative miss-result, but its actual
-// scored tier is Good. Do not turn that diagnostic into a fictitious hit.
-const near = Object.freeze({ eventId:"flow-1",result:"miss",tier:"good",diagnostics:Object.freeze(["near_timing"]),shadow:false,committedTimelinePositionMs:1000 });
+// Derrick's deferred Flow near-pass verdict arrives ONLY at the ordinary Play
+// Miss boundary. It remains a truthful noncontact miss, but scored Almost/50;
+// the original whole note, not a fictitious slice, must appear with yellow text.
+const near = Object.freeze({ eventId:"flow-1",result:"miss",tier:"almost",diagnostics:Object.freeze(["near_timing"]),shadow:false,committedTimelinePositionMs:2001 });
 const playNear = Object.freeze({ ...playSession, judgements:Object.freeze([near]) });
-const nearTarget=projectSessionTargets(events,playNear,1000,straightIndex)[0];
-assert.equal(nearTarget.judgement,"miss","near pass retains its authoritative noncontact result");
-assert.equal(nearTarget.tier,"good","real scored near_timing preserves the authoritative Good tier");
-const nearModel=buildGameplaySceneModel({presentation:"flow",nowMs:1000,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[nearTarget]});
-assert.equal(nearModel.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="feedback")?.feedback?.text,"Good","real near pass renders Good, not Miss or Almost");
-assert.equal(nearModel.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="icon")?.appearanceColor,"#FF0000","Good retains the authored GLB icon tint rather than gray Miss");
-const almostAliasTarget=projectSessionTargets(events,Object.freeze({...playSession,judgements:Object.freeze([Object.freeze({...near,tier:"almost"})])}),1000,straightIndex)[0];
-assert.equal(almostAliasTarget.judgement,"miss");assert.equal(almostAliasTarget.tier,"good","historical Almost alias is never a new yellow Play tier");
+assert.equal(projectSessionTargets(events,playNear,2000,straightIndex,180,true,3)[0]?.judgement,"pending","Flow note stays available for a later real slice through the Miss boundary");
+const nearTarget=projectSessionTargets(events,playNear,2001,straightIndex,180,true,3)[0];
+assert.equal(nearTarget.judgement,"miss","deferred near pass retains its authoritative noncontact result");
+assert.equal(nearTarget.tier,"almost","deferred near pass preserves its authoritative Almost tier instead of aliasing Good");
+const nearModel=buildGameplaySceneModel({presentation:"flow",nowMs:2001,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[nearTarget]});
+const almostFeedback=nearModel.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="feedback")?.feedback;
+assert.equal(almostFeedback?.text,"Almost","deferred near pass renders Almost, never blue Good");
+assert.equal(almostFeedback?.faceColor,"#facc15","Almost uses the declared yellow feedback color");
+assert.equal(nearModel.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="icon")?.appearanceColor,"#FF0000","Almost preserves the intact authored GLB tint instead of gray Miss");
+assert.equal(nearModel.objects.filter((entry)=>entry.targetId==="flow-1"&&entry.kind==="aftermath").length,0,"near contact cannot fabricate slice aftermath");
 const hitModel=buildGameplaySceneModel({presentation:"flow",nowMs:1000,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:[hitStart]});
 assert.equal(hitModel.objects.find((entry)=>entry.targetId==="flow-1"&&entry.kind==="feedback")?.feedback?.text,"Great","actual contact renders Great");
 
