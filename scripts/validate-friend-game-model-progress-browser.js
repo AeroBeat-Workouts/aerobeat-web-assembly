@@ -20,7 +20,11 @@ const embedding = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_EMBEDDING ?? 'direct
 assert(['direct', 'iframe'].includes(embedding), 'only direct or cross-origin iframe embedding');
 const extendedSlowStart = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_EXTENDED_SLOW_START;
 assert(extendedSlowStart === undefined || extendedSlowStart === '1', 'extended slow start must be exactly 1 when supplied');
+const wasmPartial = process.env.AEROBEAT_FRIEND_GAME_PROGRESS_WASM_PARTIAL;
+assert(wasmPartial === undefined || wasmPartial === '1', 'WASM partial mode must be exactly 1 when supplied');
+assert(!(wasmPartial === '1' && extendedSlowStart === '1'), 'WASM partial mode and extended whole-WASM hold are separate tests');
 const wasmHoldMs = extendedSlowStart === '1' ? 35_000 : 6_000;
+const pacedWasm = wasmPartial === '1';
 if (selected !== undefined) {
   assert(!isAbsolute(selected) && !selected.includes('\\') && selected.split('/').every(part => part && part !== '.' && part !== '..'), 'candidate selector must be a safe relative path');
   const inside = relative(resolve(root, '.tmp'), directory);
@@ -45,8 +49,12 @@ const holds = [0.25, 0.5, 0.75].map(fraction => Math.floor(model.length * fracti
 const release = []; const reach = [];
 const gates = holds.map((_, index) => new Promise(done => { release[index] = done; }));
 const reached = holds.map((_, index) => new Promise(done => { reach[index] = done; }));
+const wasmRelease = [], wasmReach = [];
+const wasmGates = holds.map((_, index) => new Promise(done => { wasmRelease[index] = done; }));
+const wasmReached = holds.map((_, index) => new Promise(done => { wasmReach[index] = done; }));
 const counts = new Map();
 let wasmHoldStartedAt = null, wasmBodySentAt = null, modelBodySentAt = null, modelResponseFinishedAt = null;
+let wasmResponseFinishedAt = null;
 let wasmRequestStartedAt = null, browserModelFinishedAt = null, browserWasmStartedAt = null;
 let markWasmSent;
 const wasmSent = new Promise(done => { markWasmSent = done; });
@@ -78,9 +86,31 @@ const server = createServer(async (request, response) => {
   if (path !== modelPath) {
     assert(wasmHoldStartedAt === null, 'one real signed WASM response held');
     wasmHoldStartedAt = performance.now();
-    await delay(wasmHoldMs + 50);
+    if (pacedWasm) {
+      let offset = 0;
+      for (let index = 0; index < wasmGates.length; index++) {
+        const end = Math.floor(bytes.length * (index + 1) / 4);
+        while (offset < end && !response.destroyed) {
+          const next = Math.min(end, offset + 65536);
+          if (!response.write(bytes.subarray(offset, next))) await withTimeout(new Promise(done => response.once('drain', done)), 15000, 'WASM response backpressure');
+          offset = next;
+        }
+        assert(!response.destroyed, 'WASM response remains open at quarter hold');
+        wasmReach[index]();
+        await withTimeout(wasmGates[index], 30000, `release WASM quarter ${index + 1}`);
+      }
+      while (offset < bytes.length && !response.destroyed) {
+        const next = Math.min(bytes.length, offset + 65536);
+        if (!response.write(bytes.subarray(offset, next))) await withTimeout(new Promise(done => response.once('drain', done)), 15000, 'WASM final backpressure');
+        offset = next;
+      }
+      assert(!response.destroyed, 'WASM response remains open through EOF');
+    } else {
+      await delay(wasmHoldMs + 50);
+    }
     wasmBodySentAt = performance.now();
-    response.end(bytes); markWasmSent(); return;
+    response.once('finish', () => { wasmResponseFinishedAt = performance.now(); });
+    response.end(pacedWasm ? undefined : bytes); markWasmSent(); return;
   }
   let offset = 0;
   for (let index = 0; index < holds.length; index++) {
@@ -158,6 +188,21 @@ try {
   await music.getByRole('button', { name: 'Choose local ZIP' }).click();
   await (await chooserPromise).setFiles({ name: 'qa-model-progress.zip', mimeType: 'application/zip', buffer: archive });
   await frame.waitForFunction(() => { const game = document.querySelector('aero-game'); return game?.libraryView?.selectedPackageId && game.graph?.content?.getSnapshot?.().state === 'ready' && game.graph.audio.getStatus().state === 'ready'; }, null, { timeout: 60000 });
+  let painted100BeforeHandoff = false;
+  if (pacedWasm) await frame.evaluate(() => {
+    window.__aerobeatProgressPaint = { painted100: false, stop: false };
+    const tick = () => {
+      const game = document.querySelector('aero-game');
+      const root = game?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
+      const bar = root?.querySelector('progress[part="model-download-progress"]');
+      const percent = root?.querySelector('[part="model-download-percent"]');
+      if (bar && bar.value === bar.max && percent?.textContent?.trim() === '100%' &&
+          getComputedStyle(percent).visibility === 'visible' && percent.getBoundingClientRect().width > 0)
+        window.__aerobeatProgressPaint.painted100 = true;
+      if (!window.__aerobeatProgressPaint.stop && game?.graph?.cv?.getStatus?.().lifecycleState === 'loading') requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
   const inspect = () => game.evaluate(element => {
     const drawer = element.shadowRoot.querySelector('[data-role="drawer"]');
     const viewport = { width: Math.min(innerWidth, document.documentElement.clientWidth), height: Math.min(innerHeight, document.documentElement.clientHeight) };
@@ -335,7 +380,50 @@ try {
   assert(heldWasm.cv === 'loading' && heldWasm.active === '' && heldWasm.audio !== 'playing' && heldWasm.session !== 'playing',
     `tracker/runtime still loading without counting subsequent calibration: ${JSON.stringify(heldWasm)}`);
   console.log(`PASS signed ${embedding} verified model EOF while real ${selectedWasmPath} held: native asset bar=${heldWasm.percent}, decoded=${heldWasm.modelDownload.receivedBytes}/${selectedPair.total}, no early 100% or calibration counted`);
-  await withTimeout(wasmSent, wasmHoldMs + 15000, 'delayed signed WASM body release after model verification');
+  if (pacedWasm) {
+    let previous = heldWasm.value;
+    const wasmBytes = snapshot.bytes.get(selectedWasmPath);
+    assert(wasmBytes, 'exact signed selected WASM identity available for quarter pacing');
+    for (let index = 0; index < wasmReached.length; index++) {
+      try {
+        await withTimeout(wasmReached[index], 20000, `selected WASM reaches ${index + 1}/4 decoded bytes`);
+        const expected = selectedPair.total - wasmBytes.length + Math.floor(wasmBytes.length * (index + 1) / 4);
+        await frame.waitForFunction(floor => {
+          const g = document.querySelector('aero-game');
+          const a = g?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
+          return g?.graph?.cv?.getStatus?.().lifecycleState === 'loading' &&
+            (g?.graph?.cv?.getModelDownloadProgress?.()?.receivedBytes ?? 0) >= floor &&
+            (a?.querySelector('progress[part="model-download-progress"]')?.value ?? 0) >= floor;
+        }, expected, { timeout: 3500 }).catch(async cause => {
+          throw new Error(`QUARTER WASM RED ${index + 1}/4: expected native bar >= ${expected} decoded selected model+loader+WASM bytes, actual ${JSON.stringify(await inspect())}`, { cause });
+        });
+        const state = await inspect();
+        const next = index < 2 ? selectedPair.total - wasmBytes.length + Math.floor(wasmBytes.length * (index + 2) / 4) : selectedPair.total;
+        assert(state.bar && state.visible && state.determinate && state.percentVisible && state.value >= expected && state.value < next && state.value > previous && state.max === selectedPair.total,
+          `QUARTER WASM RED ${index + 1}/4: native bar must visibly grow with signed decoded bytes: expected >=${expected}, actual=${JSON.stringify(state)}`);
+        assert.equal(state.percent, `${Math.floor(100 * state.value / selectedPair.total)}%`, 'adjacent bare percent uses exact signed selected denominator');
+        assert(Number(state.percent.slice(0, -1)) > Math.floor(100 * previous / selectedPair.total), `QUARTER WASM RED ${index + 1}/4: bare percent must visibly increase: previous=${previous}, actual=${state.percent}`);
+        assert.equal(state.modelDownload?.totalBytes, selectedPair.total, 'selected loader counted only after observed selected loader GET');
+        assert(state.modelDownload.receivedBytes >= expected && state.modelDownload.receivedBytes < next, 'actual CV bytes track same selected WASM quarter without premature future bytes');
+        assert.equal(counts.get(modelPath), 1, 'one signed model GET at held WASM quarter');
+        assert.equal(counts.get(selectedPair.loaderPath), 1, 'one proven selected loader GET at held WASM quarter');
+        assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one selected WASM GET at held WASM quarter');
+        assert(state.visibleCopy.length === 2 && state.visibleCopy[0] === state.queuedText && state.visibleCopy[1] === state.percent && state.text === '' && !state.panel && !state.labelVisible && state.aria === 'Tracker asset download',
+          `no extra status/copy/panel during WASM quarter: ${JSON.stringify(state)}`);
+        assert(state.cv === 'loading' && state.pending === 'test' && state.queuedVisible && state.audio !== 'playing' && state.session !== 'playing' && state.percent !== '100%',
+          `WASM quarter belongs to CV loading, not calibration/Test playback: ${JSON.stringify(state)}`);
+        assert.equal(wasmBodySentAt, null, 'WASM response has not reached EOF at held quarter');
+        previous = state.value;
+        console.log(`PASS signed ${embedding} WASM quarter ${index + 1}/4: native ${state.percent} (${state.value}/${selectedPair.total}), one model+loader+WASM GET`);
+      } finally {
+        wasmRelease[index]();
+      }
+    }
+    // Observe actual painted DOM in animation frames; do not infer a visible 100%
+    // from a final progress message that can be replaced in the same task.
+    // The paint observer started before Play; sample it after the CV handoff below.
+  }
+  await withTimeout(wasmSent, wasmHoldMs + 15000, 'signed WASM body release after model verification');
   assert(modelBodySentAt !== null && modelResponseFinishedAt !== null, 'complete signed model response EOF preceded WASM');
   assert(wasmRequestStartedAt !== null && wasmRequestStartedAt >= modelResponseFinishedAt,
     'WASM GET starts after signed model EOF; task cannot initialize before full model verification');
@@ -344,8 +432,9 @@ try {
   // handoff smoke asserts the signed server's actual model EOF and real Worker
   // readiness; the separate strict same-request CDP gate remains UNRUN, not green.
   console.log(`OBSERVED browser model requestfinished=${browserModelFinishedAt !== null}; server model EOF before WASM=${wasmRequestStartedAt >= modelResponseFinishedAt}`);
-  assert(wasmHoldStartedAt !== null && wasmBodySentAt - wasmHoldStartedAt >= wasmHoldMs,
+  if (!pacedWasm) assert(wasmHoldStartedAt !== null && wasmBodySentAt - wasmHoldStartedAt >= wasmHoldMs,
     `real WASM response hold must meet ${wasmHoldMs}ms, observed ${wasmBodySentAt - wasmHoldStartedAt}ms`);
+  else assert(wasmHoldStartedAt !== null && wasmBodySentAt !== null && wasmResponseFinishedAt !== null, 'paced signed WASM completed its one response');
   assert.equal(counts.get(modelPath), 1, 'one model GET after delayed WASM release');
   assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET only after full model EOF');
   if (testQueued) await frame.waitForFunction(() => {
@@ -374,12 +463,21 @@ try {
   assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET');
   assert(modelBodySentAt !== null && modelResponseFinishedAt !== null && modelResponseFinishedAt <= wasmRequestStartedAt,
     'complete signed model response preceded one WASM request and ordered Test audio');
+  if (pacedWasm) {
+    painted100BeforeHandoff = await frame.evaluate(() => {
+      const observed = window.__aerobeatProgressPaint?.painted100 === true;
+      if (window.__aerobeatProgressPaint) window.__aerobeatProgressPaint.stop = true;
+      return observed;
+    });
+    console.log(`OBSERVED signed ${embedding} 100% painted before CV handoff=${painted100BeforeHandoff}; absence is not a passing 100%-visibility claim`);
+  }
   assert.deepEqual(external, [], 'no off-origin request (including blocked dispatch)');
   assert.deepEqual(errors, [], 'no browser page errors');
   console.log(`OBSERVED model requestfinished=${browserModelFinishedAt !== null}; requestfailed=${JSON.stringify(modelRequestFailures)}`);
-  console.log(`PASS signed ${embedding} 390x844 model progress; phases=${JSON.stringify(seen)}; full=${model.length}; WASM hold=${Math.round(wasmBodySentAt - wasmHoldStartedAt)}ms (required ${wasmHoldMs}ms); queued Test/audio-only; one model/WASM GET; real camera/Worker; ${directory}`);
+  console.log(`PASS signed ${embedding} 390x844 model progress; phases=${JSON.stringify(seen)}; full=${model.length}; WASM ${pacedWasm ? `quarter paced, 100% painted=${painted100BeforeHandoff}` : `hold=${Math.round(wasmBodySentAt - wasmHoldStartedAt)}ms (required ${wasmHoldMs}ms)`}; queued Test/audio-only; one model/selected loader/WASM GET; real camera/Worker; ${directory}`);
 } finally {
   for (const unblock of release) unblock();
+  for (const unblock of wasmRelease) unblock();
   await context?.close(); await browser?.close();
   if (parent) await new Promise(done => parent.close(done));
   await new Promise(done => server.close(done));
