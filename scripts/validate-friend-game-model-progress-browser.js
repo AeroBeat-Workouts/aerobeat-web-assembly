@@ -300,14 +300,19 @@ try {
     while (wasmHoldStartedAt === null) await delay(25);
   })(), 20000, 'WASM GET after verified model');
   assert.equal(wasmBodySentAt, null, 'genuine delayed WASM body has not yet been sent');
-  await frame.waitForFunction(total => {
+  await frame.waitForFunction(({ total, lastHold }) => {
     const g = document.querySelector('aero-game');
     const root = g?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
     const bar = root?.querySelector('progress[part="model-download-progress"]');
     const percent = root?.querySelector('[part="model-download-percent"]')?.textContent?.trim();
-    return g?.graph?.cv?.getStatus?.().lifecycleState === 'loading' && bar?.hasAttribute('value') &&
-      bar.value === total && bar.max > total && percent === `${Math.floor(100 * total / bar.max)}%`;
-  }, model.length, { timeout: Math.min(5000, wasmHoldMs - 500) }).catch(async cause => {
+    const measured = g?.graph?.cv?.getModelDownloadProgress?.();
+    // The 100ms foreground repaint deliberately skips byte changes that round
+    // to the same integer percent. Prove real underlying EOF, while asserting
+    // the actual user-visible number remains truthful and below 100%.
+    return g?.graph?.cv?.getStatus?.().lifecycleState === 'loading' && measured?.receivedBytes === total &&
+      bar?.hasAttribute('value') && bar.value >= lastHold && bar.value <= total && bar.max > total &&
+      percent === `${Math.floor(100 * bar.value / bar.max)}%` && percent === `${Math.floor(100 * total / bar.max)}%`;
+  }, { total: model.length, lastHold: holds[2] }, { timeout: Math.min(5000, wasmHoldMs - 500) }).catch(async cause => {
     throw new Error(`held WASM model EOF must remain BELOW asset 100%: ${JSON.stringify({ visible: await inspect(), wasmHoldMs, wasBodySent: wasmBodySentAt !== null, modelFinished: modelResponseFinishedAt !== null, browserModelFinished: browserModelFinishedAt !== null })}`, { cause });
   });
   const heldWasm = await inspect();
@@ -319,8 +324,8 @@ try {
   const selectedWasmPath = wasmPaths.find(path => counts.get(path) === 1);
   const selectedPair = runtimePairs.get(selectedWasmPath);
   assert(selectedPair && counts.get(selectedPair.loaderPath) === 1, 'one actual selected signed runtime loader JS GET before held WASM');
-  assert(heldWasm.bar && heldWasm.visible && heldWasm.determinate && heldWasm.percentVisible && heldWasm.value === model.length && heldWasm.max === selectedPair.total &&
-    heldWasm.percent === `${Math.floor(100 * model.length / selectedPair.total)}%` && heldWasm.percent !== '100%' &&
+  assert(heldWasm.bar && heldWasm.visible && heldWasm.determinate && heldWasm.percentVisible && heldWasm.value >= holds[2] && heldWasm.value <= model.length && heldWasm.max === selectedPair.total &&
+    heldWasm.percent === `${Math.floor(100 * heldWasm.value / selectedPair.total)}%` && heldWasm.percent === `${Math.floor(100 * model.length / selectedPair.total)}%` && heldWasm.percent !== '100%' &&
     heldWasm.aria === 'Tracker asset download' && heldWasm.modelDownload?.receivedBytes === model.length && heldWasm.modelDownload?.totalBytes === selectedPair.total,
     `held WASM: native asset bar and bare percent remain below 100 after model EOF until selected JS/WASM load: ${JSON.stringify(heldWasm)}`);
   assert(heldWasm.text === '' && !heldWasm.panel && !heldWasm.labelVisible && heldWasm.visibleCopy.length === 2 &&
@@ -329,6 +334,7 @@ try {
     `held WASM: original queued Test and only bare asset percentage, without old model prose/panel: ${JSON.stringify(heldWasm)}`);
   assert(heldWasm.cv === 'loading' && heldWasm.active === '' && heldWasm.audio !== 'playing' && heldWasm.session !== 'playing',
     `tracker/runtime still loading without counting subsequent calibration: ${JSON.stringify(heldWasm)}`);
+  console.log(`PASS signed ${embedding} verified model EOF while real ${selectedWasmPath} held: native asset bar=${heldWasm.percent}, decoded=${heldWasm.modelDownload.receivedBytes}/${selectedPair.total}, no early 100% or calibration counted`);
   await withTimeout(wasmSent, wasmHoldMs + 15000, 'delayed signed WASM body release after model verification');
   assert(modelBodySentAt !== null && modelResponseFinishedAt !== null, 'complete signed model response EOF preceded WASM');
   assert(wasmRequestStartedAt !== null && wasmRequestStartedAt >= modelResponseFinishedAt,
