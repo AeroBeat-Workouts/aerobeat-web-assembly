@@ -86,10 +86,11 @@ export function createLockedProductionCvService(options) {
       if (loadingGeneration !== token || adapterLoadGeneration !== token) return null;
       const progress = adapter.getModelDownloadProgress();
       return token === generation && lifecycleState === "loading" && loading === currentLoading && progress != null &&
-        (adapterProgressBaseline === null || progress.receivedBytes !== adapterProgressBaseline.receivedBytes || progress.totalBytes !== adapterProgressBaseline.totalBytes || progress.verified !== adapterProgressBaseline.verified) &&
+        (adapterProgressBaseline === null || progress.receivedBytes !== adapterProgressBaseline.receivedBytes || progress.totalBytes !== adapterProgressBaseline.totalBytes || progress.verified !== adapterProgressBaseline.verified || progress.modelVerified !== adapterProgressBaseline.modelVerified) &&
         Number.isSafeInteger(progress.receivedBytes) && progress.receivedBytes >= 0 &&
         Number.isSafeInteger(progress.totalBytes) && progress.totalBytes > 0 && progress.receivedBytes <= progress.totalBytes
-        ? Object.freeze({ receivedBytes: progress.receivedBytes, totalBytes: progress.totalBytes, verified: true }) : null;
+        ? Object.freeze({ receivedBytes: progress.receivedBytes, totalBytes: progress.totalBytes, verified: true,
+          ...(progress.modelVerified === true ? { modelVerified: true } : {}) }) : null;
     },
     getLatestPoseFrame() { return latestPoseFrame; },
     getPerformanceSample() {

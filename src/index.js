@@ -17,6 +17,7 @@ import { canonicalPrototypeProfileJson } from "@aerobeat/web-gameplay";
 import { sha256Hex } from "@aerobeat/web-hash";
 import { createTestPresentationConfig, defaultGameplayCameraPose, defaultTestPresentationConfig, gameplayCameraPoseBounds, gameplayWorldGrid, maximumTestPresentationConfigBytes, normalizeGameplayCameraPose, normalizeTestPresentationConfig, parseTestPresentationConfig, serializeTestPresentationConfig, testPresentationConfigArtifactFilename, testPresentationConfigArtifactMimeType } from "@aerobeat/web-renderer";
 import { aeroUiIntentEventName, defineAeroUiElements, snapVisualTestVolume, beatSaverDifficultyColors } from "@aerobeat/web-ui";
+import { mediaPipeDefaultModelSizeBytes } from "@aerobeat/web-vendor-mediapipe";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
 import {
@@ -2691,7 +2692,7 @@ export class AeroGame extends HTMLElement {
       ? `Wrist preview (not hitbox) · scale ×${lockedVolume.colliderScale} · front ×${lockedVolume.colliderDepthForward} · rear ×${lockedVolume.colliderDepthBackward}` : "";
     const modelDownloadProgress = publicFriendGame ? this.foregroundModelDownloadProgress() : null;
     const modelDownloadPercent = modelDownloadProgress ? Math.floor(100 * modelDownloadProgress.receivedBytes / modelDownloadProgress.totalBytes) : null;
-    const signature = JSON.stringify([runtimeMessage, pendingMessage, modelDownloadPercent, cueMessage, action, this.musicPrerequisite, hudScore, hudCombo, hudMult, colliderPreview]);
+    const signature = JSON.stringify([runtimeMessage, pendingMessage, modelDownloadPercent, modelDownloadProgress?.modelVerified === true && this.publicModelDownloadAlmostReady === true, cueMessage, action, this.musicPrerequisite, hudScore, hudCombo, hudMult, colliderPreview]);
     if (signature === this.runtimeUiSignature) return;
     this.runtimeUiSignature = signature; this.runtimeUiCommitCount += 1;
     setPresenter(this,"aero-flow-hud",{score:hudScore,combo:hudCombo,multiplier:hudMult});
@@ -3149,14 +3150,24 @@ export class AeroGame extends HTMLElement {
       this.menuOpen && this.menuStarting && !this.lastError &&
       this.graph?.cv.getStatus().lifecycleState === "loading";
     if (!current()) return () => {};
+    this.publicModelDownloadAlmostReady = false;
     let lastPercent = null;
+    let modelFullSince = null;
     const timer = globalThis.setInterval(() => {
-      if (!current()) { globalThis.clearInterval(timer); return; }
+      if (!current()) { this.publicModelDownloadAlmostReady = false; globalThis.clearInterval(timer); return; }
       const progress = this.foregroundModelDownloadProgress();
       const percent = progress ? Math.floor(100 * progress.receivedBytes / progress.totalBytes) : null;
-      if (percent !== lastPercent) { lastPercent = percent; this.renderRuntimePresentation(); }
+      if (percent === 100 && modelFullSince === null) modelFullSince = globalThis.performance.now();
+      if (percent !== 100) modelFullSince = null;
+      const almostReady = progress?.modelVerified === true && percent === 100 && modelFullSince !== null &&
+        globalThis.performance.now() - modelFullSince >= 300;
+      if (percent !== lastPercent || almostReady !== this.publicModelDownloadAlmostReady) {
+        lastPercent = percent;
+        this.publicModelDownloadAlmostReady = almostReady;
+        this.renderRuntimePresentation();
+      }
     }, 100);
-    return () => globalThis.clearInterval(timer);
+    return () => { this.publicModelDownloadAlmostReady = false; globalThis.clearInterval(timer); };
   }
   foregroundModelDownloadProgress() {
     if (typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ === "undefined" || __AEROBEAT_PUBLIC_FRIEND_GAME__ !== true ||
@@ -3168,12 +3179,17 @@ export class AeroGame extends HTMLElement {
     const progress = this.graph.cv.getModelDownloadProgress?.();
     return progress?.verified === true && Number.isSafeInteger(progress.receivedBytes) && progress.receivedBytes >= 0 &&
       Number.isSafeInteger(progress.totalBytes) && progress.totalBytes > 0 && progress.receivedBytes <= progress.totalBytes
-      ? Object.freeze({ receivedBytes: progress.receivedBytes, totalBytes: progress.totalBytes }) : null;
+      ? Object.freeze({ receivedBytes: Math.min(progress.receivedBytes, mediaPipeDefaultModelSizeBytes),
+          totalBytes: mediaPipeDefaultModelSizeBytes,
+          ...(progress.modelVerified === true && progress.receivedBytes >= mediaPipeDefaultModelSizeBytes ? { modelVerified: true } : {}) }) : null;
   }
   sessionActionsSnapshot(modelDownloadProgress = this.foregroundModelDownloadProgress()) {
     const actions = { downloadedPlayable: this.downloadedPlayable(), activeAction: this.activeSessionAction, pendingAction: this.pendingSessionAction };
+    const download = modelDownloadProgress && this.publicModelDownloadAlmostReady === true && modelDownloadProgress.modelVerified === true &&
+      modelDownloadProgress.receivedBytes === modelDownloadProgress.totalBytes
+      ? Object.freeze({ ...modelDownloadProgress, almostReady: true }) : modelDownloadProgress;
     return Object.freeze(typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true
-      ? { ...actions, pendingStatus: this.publicFriendPendingMessage(), ...(modelDownloadProgress ? { modelDownloadProgress } : {}) } : actions);
+      ? { ...actions, pendingStatus: this.publicFriendPendingMessage(), ...(download ? { modelDownloadProgress: download } : {}) } : actions);
   }
   invalidatePendingSessionStart() { if (!this.pendingSessionAction && !this.menuStarting) return false; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.sessionStartRequested = false; this.activeSessionAction = ""; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.menuStarting = false; this.stopFrameLoop(); this.renderPresenters(); return true; }
   isSessionCurrent(sessionGeneration, connectionGeneration, graph) { return this.sessionGeneration === sessionGeneration && this.isCurrent(connectionGeneration, graph); }

@@ -17,27 +17,27 @@ async function runStartSequence(instance, owner, fail = false) {
   await pending;
 }
 function fixture(flag, initialState = 'loading') {
-  const timers = new Map(); let nextId = 1; let renders = 0; let lifecycleState = initialState;
+  const timers = new Map(); let nextId = 1; let renders = 0; let lifecycleState = initialState; let clockMs = 0;
   let resolveCv = () => {}; let rejectCv = () => {};
   const cvPending = new Promise((resolve, reject) => { resolveCv = resolve; rejectCv = reject; });
   const context = { __AEROBEAT_PUBLIC_FRIEND_GAME__: flag,
-    globalThis: { setInterval(fn, ms) { assert.equal(ms, 100); const id = nextId++; timers.set(id, fn); return id; }, clearInterval(id) { timers.delete(id); } } };
+    globalThis: { performance: { now: () => clockMs }, setInterval(fn, ms) { assert.equal(ms, 100); const id = nextId++; timers.set(id, fn); return id; }, clearInterval(id) { timers.delete(id); } } };
   const watch = vm.runInNewContext(`({${watcher}}).watchPublicModelDownload`, context);
   const owner = { generation: 4, connectionGeneration: 2, graph: {} };
   const game = { graph: { cv: { getStatus: () => ({ lifecycleState }) } },
     menuOpen: true, menuStarting: true, lastError: null, pendingSessionAction: 'start',
     pendingSessionActionOrdinal: 7, sessionActionIntentOrdinal: 7, lifecycleIntentActiveGeneration: 4,
     lifecycleIntentGeneration: 4, connectedGeneration: 2, sessionGeneration: 9, sessionActionGeneration: 3,
-    lifecycle: 'connected', receivedBytes: 0, renderRuntimePresentation() { renders++; },
+    lifecycle: 'connected', receivedBytes: 0, modelVerified: false, publicModelDownloadAlmostReady: false, renderRuntimePresentation() { renders++; },
     async startCv() { lifecycleState = 'loading'; return cvPending; },
-    foregroundModelDownloadProgress() { return this.receivedBytes ? { receivedBytes: this.receivedBytes, totalBytes: 100 } : null; },
+    foregroundModelDownloadProgress() { return this.receivedBytes ? { receivedBytes: this.receivedBytes, totalBytes: 100, modelVerified: this.modelVerified } : null; },
     isActionIntentOwner(value, session, action) { return this.lifecycle === 'connected' && value === owner &&
       value.connectionGeneration === this.connectedGeneration && value.graph === this.graph &&
       value.generation === this.lifecycleIntentActiveGeneration && session === this.sessionGeneration &&
       action === this.sessionActionGeneration; } };
   owner.graph = game.graph;
   const stop = watch.call(game, owner, 9, 3, 7);
-  const tick = () => { for (const fn of [...timers.values()]) fn(); };
+  const tick = (advanceMs = 0) => { clockMs += advanceMs; for (const fn of [...timers.values()]) fn(); };
   return { game, owner, watch, stop, tick, active: () => timers.size, renders: () => renders,
     completeCv() { lifecycleState = 'running'; resolveCv(); }, failCv() { lifecycleState = 'error'; rejectCv(Error('load failed')); } };
 }
@@ -65,11 +65,18 @@ queuedGame.game.sessionActionIntentOrdinal = 8;
 queuedGame.game.publicFriendPendingMessage = () => 'Test queued after Play initialization…';
 queuedGame.game.receivedBytes = 32;
 queuedGame.tick();
-assert.equal(queuedGame.active(), 1, 'queued Test keeps the Play-owned tracker asset repaint timer alive after model EOF at 32%');
-assert.equal(queuedGame.renders(), queuedBefore + 1, 'completed model bytes repaint below 100% while actual WASM is still held');
+assert.equal(queuedGame.active(), 1, 'queued Test keeps the Play-owned model repaint timer alive');
+assert.equal(queuedGame.renders(), queuedBefore + 1, 'real model bytes repaint partial percentage');
 queuedGame.game.receivedBytes = 100;
 queuedGame.tick();
-assert.equal(queuedGame.renders(), queuedBefore + 2, '100% combined model plus runtime asset bytes repaint only after WASM load, beside still-queued Test');
+assert.equal(queuedGame.renders(), queuedBefore + 2, '100% model transfer paints while actual WASM is held');
+assert.equal(queuedGame.game.publicModelDownloadAlmostReady, false);
+queuedGame.game.modelVerified = true;
+queuedGame.tick(100);
+assert.equal(queuedGame.game.publicModelDownloadAlmostReady, false, 'SHA verified alone does not skip visible 100% dwell');
+queuedGame.tick(250);
+assert.equal(queuedGame.game.publicModelDownloadAlmostReady, true, 'verified model and dwell replace percent with Almost Ready');
+assert.equal(queuedGame.renders(), queuedBefore + 3, 'same-byte Almost Ready transition forces a separate presenter paint');
 queuedGame.game.publicFriendPendingMessage = () => 'Preparing Test…';
 queuedGame.tick();
 assert.equal(queuedGame.active(), 0, 'timer stops once Test actually owns initialization');
