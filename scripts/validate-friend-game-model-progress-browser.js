@@ -39,12 +39,18 @@ const release = []; const reach = [];
 const gates = holds.map((_, index) => new Promise(done => { release[index] = done; }));
 const reached = holds.map((_, index) => new Promise(done => { reach[index] = done; }));
 const counts = new Map();
-let wasmHoldStartedAt = null, wasmBodySentAt = null, modelBodySentAt = null;
+let wasmHoldStartedAt = null, wasmBodySentAt = null, modelBodySentAt = null, modelResponseFinishedAt = null;
+let wasmRequestStartedAt = null, browserModelFinishedAt = null, browserWasmStartedAt = null;
 let markWasmSent;
 const wasmSent = new Promise(done => { markWasmSent = done; });
 const server = createServer(async (request, response) => {
   const path = new URL(request.url, 'http://127.0.0.1').pathname;
-  if (request.method === 'GET') counts.set(path, (counts.get(path) ?? 0) + 1);
+  if (request.method === 'GET') {
+    counts.set(path, (counts.get(path) ?? 0) + 1);
+    if (wasmPaths.includes(path)) {
+      if (wasmRequestStartedAt === null) wasmRequestStartedAt = performance.now();
+    }
+  }
   if (request.method !== 'GET' || ![modelPath, ...wasmPaths].includes(path)) return signedHandler(request, response);
   // Use the same signed handler's exact headers/CSP/MIME, but pace only its
   // verified identity bytes. The model content length is decoded identity size.
@@ -78,6 +84,7 @@ const server = createServer(async (request, response) => {
   }
   while (offset < bytes.length) { const next = Math.min(bytes.length, offset + 65536); response.write(bytes.subarray(offset, next)); offset = next; await delay(15); }
   modelBodySentAt = performance.now();
+  response.once('finish', () => { modelResponseFinishedAt = performance.now(); });
   response.end();
 });
 const withTimeout = (promise, milliseconds, label) => Promise.race([promise, delay(milliseconds).then(() => { throw Error(`timeout: ${label}`); })]);
@@ -117,7 +124,15 @@ try {
   const external = [], errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const approvedOrigins = new Set([origin, ...(parentUrl ? [new URL(parentUrl).origin] : [])]);
-  page.on('request', request => { if (/^https?:/u.test(request.url()) && !approvedOrigins.has(new URL(request.url()).origin)) external.push(request.url()); });
+  page.on('request', request => {
+    if (!/^https?:/u.test(request.url())) return;
+    const url = new URL(request.url());
+    if (!approvedOrigins.has(url.origin)) external.push(request.url());
+    if (request.method() === 'GET' && wasmPaths.includes(url.pathname) && browserWasmStartedAt === null) browserWasmStartedAt = performance.now();
+  });
+  page.on('requestfinished', request => {
+    if (request.method() === 'GET' && new URL(request.url()).pathname === modelPath) browserModelFinishedAt = performance.now();
+  });
   await page.route('**/*', route => approvedOrigins.has(new URL(route.request().url()).origin) ? route.continue() : route.abort());
   assert.equal((await page.goto(parentUrl ?? `${origin}/`, { waitUntil: 'domcontentloaded' }))?.status(), 200);
   if (parent) await page.frameLocator('#game').locator('aero-game').waitFor();
@@ -127,6 +142,10 @@ try {
   const game = frame.locator('aero-game'); await game.waitFor();
   await frame.waitForFunction(() => document.querySelector('aero-game')?.graph?.authoring?.getCapabilities?.().conversionWorker === true && document.querySelector('aero-game')?.graph?.renderer?.describe?.().gameplayAssets?.state === 'ready', null, { timeout: 45000 });
   const music = game.locator('aero-beatsaver-browser');
+  const beforeTest = await game.evaluate(element => ({ cv: element.graph.cv.getStatus().lifecycleState,
+    modelBar: Boolean(element.shadowRoot.querySelector('aero-session-actions')?.shadowRoot?.querySelector('progress[part="model-download-progress"]')),
+    modelPercent: Boolean(element.shadowRoot.querySelector('aero-session-actions')?.shadowRoot?.querySelector('[part="model-download-percent"]')) }));
+  assert(beforeTest.cv !== 'running' && !beforeTest.modelBar && !beforeTest.modelPercent, 'standalone audio-only Test begins without an earlier Play or model bar');
   const chooserPromise = page.waitForEvent('filechooser');
   await music.getByRole('button', { name: 'Choose local ZIP' }).click();
   await (await chooserPromise).setFiles({ name: 'qa-model-progress.zip', mimeType: 'application/zip', buffer: archive });
@@ -138,41 +157,69 @@ try {
     const root = actions?.shadowRoot;
     const bar = root?.querySelector('progress[part="model-download-progress"]');
     const label = root?.querySelector('[part="pending-status"]');
+    const percent = root?.querySelector('[part="model-download-percent"]');
+    const panel = root?.querySelector('[part="model-download"]');
+    const visibleCopy = [...(root?.querySelectorAll('p, [part="model-download-percent"]') ?? [])].filter(item => { const rect = item.getBoundingClientRect(), style = getComputedStyle(item); return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility === 'visible'; }).map(item => item.textContent?.trim() ?? '');
     const queuedLabel = root?.querySelector('[part="queued-status"]');
     const button = root?.querySelector('button[part="start-button"]');
     const testButton = root?.querySelector('button[part="test-button"]');
     const box = bar?.getBoundingClientRect(), buttonBox = button?.getBoundingClientRect();
+    const percentBox = percent?.getBoundingClientRect();
     const x = box ? box.x + box.width / 2 : 0, y = box ? box.y + box.height / 2 : 0;
     const hit = box ? root.elementFromPoint(x, y) : null;
     const foreground = box ? element.shadowRoot.elementFromPoint(x, y) : null;
+    const percentX = percentBox ? percentBox.x + percentBox.width / 2 : 0, percentY = percentBox ? percentBox.y + percentBox.height / 2 : 0;
+    const percentHit = percentBox ? root.elementFromPoint(percentX, percentY) : null;
+    const percentForeground = percentBox ? element.shadowRoot.elementFromPoint(percentX, percentY) : null;
     const queueBox = queuedLabel?.getBoundingClientRect();
     const queueX = queueBox ? queueBox.x + queueBox.width / 2 : 0, queueY = queueBox ? queueBox.y + queueBox.height / 2 : 0;
     const queueHit = queueBox ? root.elementFromPoint(queueX, queueY) : null;
     const queueForeground = queueBox ? element.shadowRoot.elementFromPoint(queueX, queueY) : null;
-    return { bar: Boolean(bar), value: bar?.value ?? null, max: bar?.max ?? null, text: label?.textContent?.trim() ?? '', aria: bar?.getAttribute('aria-label') ?? '', pending: element.pendingSessionAction,
+    return { bar: Boolean(bar), determinate: bar?.hasAttribute('value') ?? false, value: bar?.value ?? null, max: bar?.max ?? null,
+      text: label?.textContent?.trim() ?? '', percent: percent?.textContent?.trim() ?? '', visibleCopy, panel: Boolean(panel), aria: bar?.getAttribute('aria-label') ?? '', pending: element.pendingSessionAction,
+      percentVisible: Boolean(percentBox && box && percentBox.width > 0 && percentBox.height > 0 && percentBox.left >= box.right && percentBox.right <= viewport.width && percentBox.bottom <= viewport.height && Math.abs(percentBox.top - box.top) <= 16 && getComputedStyle(percent).visibility === 'visible' && getComputedStyle(percent).display !== 'none' && (percentHit === percent || percent.contains(percentHit)) && (percentForeground === actions || percentForeground === drawer)),
       queuedText: queuedLabel?.textContent?.trim() ?? '', queuedRole: queuedLabel?.getAttribute('role') ?? '',
       queuedVisible: Boolean(queuedLabel && queueBox.width >= 80 && queueBox.height >= 16 && queueBox.left >= 0 && queueBox.top >= 0 && queueBox.right <= viewport.width && queueBox.bottom <= viewport.height && buttonBox.width >= 40 && Math.abs(queueBox.top - buttonBox.top) <= 200 && getComputedStyle(queuedLabel).visibility === 'visible' && getComputedStyle(queuedLabel).display !== 'none' && Number(getComputedStyle(queuedLabel).opacity) > 0 && !queuedLabel.closest('[hidden], [aria-hidden="true"]') && (queueHit === queuedLabel || queuedLabel.contains(queueHit)) && (queueForeground === actions || queueForeground === drawer)),
       testEnabled: Boolean(testButton && !testButton.disabled), testBusy: testButton?.getAttribute('aria-busy') ?? '',
       cv: element.graph.cv.getStatus().lifecycleState, camera: element.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none',
+      session: element.graph.gameplay.getSnapshot().session.state, audio: element.graph.audio.getStatus().state,
+      active: element.activeSessionAction, modelDownload: element.graph.cv.getModelDownloadProgress?.() ?? null,
       visible: Boolean(bar && drawer && !drawer.hidden && drawer.getAttribute('aria-hidden') !== 'true' && box.width >= 80 && box.height >= 4 && box.x >= 0 && box.y >= 0 && box.right <= viewport.width && box.bottom <= viewport.height && buttonBox.width >= 40 && Math.abs(box.top - buttonBox.top) <= 200 && getComputedStyle(bar).visibility === 'visible' && getComputedStyle(bar).display !== 'none' && (hit === bar || bar.contains(hit)) && (foreground === actions || foreground === drawer)),
       labelVisible: Boolean(label && label.getBoundingClientRect().width >= 80 && getComputedStyle(label).visibility === 'visible') };
   });
   const checkIndeterminate = async stage => {
     const state = await inspect();
-    assert(!state.bar && !/%/u.test(state.text), `${stage}: no model or global percentage: ${JSON.stringify(state)}`);
-    assert(state.labelVisible && /prepar|load|camera|queu/iu.test(state.text), `${stage}: visible indeterminate preparation: ${JSON.stringify(state)}`);
+    assert(state.bar && state.visible && !state.determinate && state.aria === 'Pose model download', `${stage}: same accessible native indeterminate bar: ${JSON.stringify(state)}`);
+    assert(state.percent === '' && state.visibleCopy.length === 0 && state.text === '' && !state.labelVisible && !state.panel, `${stage}: no numeric percent, old visible model prose or extra panel: ${JSON.stringify(state)}`);
   };
+  // Before Play, this exact signed fixture can exercise Test in isolation: audio only,
+  // no Worker/model/WASM request, then stop cleanly before the paced Play journey.
+  await game.locator('aero-session-actions').getByRole('button', { name: 'Test', exact: true }).click();
+  await frame.waitForFunction(() => {
+    const g = document.querySelector('aero-game');
+    return g?.graph?.gameplay?.getSnapshot?.().session?.purpose === 'visual_test' &&
+      g.graph.gameplay.getSnapshot().session.state === 'playing' && g.graph.audio.getStatus().state === 'playing' &&
+      g.activeSessionAction === 'test' && g.pendingSessionAction === '';
+  }, null, { timeout: 40000 });
+  const standalone = await inspect();
+  assert(!standalone.bar && standalone.percent === '' && !standalone.panel && standalone.cv !== 'running',
+    `standalone audio-only Test must not show model bar/percent or activate CV: ${JSON.stringify(standalone)}`);
+  assert.equal(counts.get(modelPath) ?? 0, 0, 'standalone audio-only Test never requests pose model');
+  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, 'standalone audio-only Test never requests pose WASM');
+  await game.evaluate(element => element.stop());
+  await game.evaluate(element => element.setMenuOpen(true));
+  await frame.waitForFunction(() => {
+    const g = document.querySelector('aero-game');
+    return g?.graph?.audio?.getStatus?.().state !== 'playing' && g?.pendingSessionAction === '';
+  }, null, { timeout: 15000 });
+  assert(!page.workers().some(worker => /mediapipe/u.test(worker.url())), 'standalone Test never instantiated a pose Worker');
   await game.locator('aero-session-actions').getByRole('button', { name: 'Start', exact: true }).click();
   await frame.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'start' && document.querySelector('aero-game')?.graph?.cv?.getStatus?.().lifecycleState === 'loading', null, { timeout: 15000 });
   await checkIndeterminate('camera/Worker before measured model');
   await frame.waitForFunction(() => document.querySelector('aero-game')?.graph?.video?.getRetainedCameraStream?.()?.getVideoTracks?.()[0]?.readyState === 'live', null, { timeout: 10000 });
-  if (wasmHoldStartedAt !== null) {
-    const until = wasmHoldStartedAt + Math.min(1000, wasmHoldMs / 2);
-    const remaining = Math.max(0, until - performance.now());
-    if (remaining) await delay(remaining);
-    assert.equal(wasmBodySentAt, null, 'WASM remains held before first measurable model bytes');
-    await checkIndeterminate('signed WASM held before worker consumes model');
-  }
+  assert.equal(wasmHoldStartedAt, null, 'no WASM request before model download');
+  assert.equal(wasmBodySentAt, null, 'no WASM body before model download');
+  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, 'zero WASM GETs before signed model bytes');
   const seen = [];
   let testQueued = false;
   for (let index = 0; index < holds.length; index++) {
@@ -181,14 +228,19 @@ try {
       const a = document.querySelector('aero-game')?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
       const bar = a?.querySelector('progress[part="model-download-progress"]');
       return bar && bar.value >= floor;
-    }, holds[index], { timeout: wasmHoldMs + 12000 }).catch(async error => { const state = await inspect(); throw new Error(`SLOW MODEL RED: foreground percentage absent at held signed ${index + 1}/4 (label=${JSON.stringify(state.text)}, bar=${state.bar}, camera=${state.camera}, CV=${state.cv})`, { cause: error }); });
+    }, holds[index], { timeout: wasmHoldMs + 12000 }).catch(async error => { const state = await inspect(); throw new Error(`SLOW MODEL RED: native bar missing held signed decoded bytes at ${index + 1}/4 (state=${JSON.stringify(state)})`, { cause: error }); });
     const state = await inspect();
-    assert(state.bar && state.visible && state.labelVisible, `SLOW MODEL RED: foreground accessible progress missing at ${index + 1}/4: ${JSON.stringify(state)}`);
+    assert(state.bar && state.visible && state.determinate && state.percentVisible, `SLOW MODEL RED: foreground native bar plus adjacent bare percent missing at ${index + 1}/4: ${JSON.stringify(state)}`);
+    assert.equal(counts.get(modelPath), 1, `one signed model GET at held ${index + 1}/4`);
+    assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, `zero WASM GETs at held ${index + 1}/4 model bytes`);
+    assert.equal(wasmHoldStartedAt, null, 'WASM hold cannot start before verified full model');
     assert.equal(state.max, model.length, 'decoded signed denominator');
     assert(state.value >= holds[index] && state.value < (holds[index + 1] ?? model.length), `bounded actual decoded phase ${index}: ${JSON.stringify(state)}`);
-    assert.match(state.text, /^Loading pose model: (?:[0-9]|[1-9][0-9])%$/u);
-    assert.equal(Number(state.text.match(/(\d+)%$/u)[1]), Math.floor(100 * state.value / model.length), 'label matches exact decoded count');
-    assert.equal(state.aria, state.text, 'accessible bar names actual measured phase');
+    assert.equal(state.percent, `${Math.floor(100 * state.value / model.length)}%`, 'adjacent bare percent matches exact decoded byte floor');
+    assert.deepEqual(state.visibleCopy, [state.percent], 'no other visible status or old model prose beside numeric percent');
+    assert.equal(state.text, '', 'obsolete Loading pose model sentence absent');
+    assert(!state.panel && !state.labelVisible, 'no model panel or visible prose');
+    assert.equal(state.aria, 'Pose model download', 'bar names only the model download nonvisually');
     assert(state.camera === 'live' && state.cv === 'loading', `real camera and loading Worker at phase ${index}: ${JSON.stringify(state)}`);
     assert(seen.length === 0 || state.value > seen.at(-1), 'measured bytes monotone');
     seen.push(state.value);
@@ -219,24 +271,59 @@ try {
         assert.equal(queued.testBusy, 'true', 'Test action remains pending while Play owns Worker load');
         assert(queued.queuedVisible && queued.queuedRole === 'status' && queued.queuedText === 'Test queued after Play initialization…', `foreground queued Test status visible and hit-testable: ${JSON.stringify(queued)}`);
         assert(!/%|error|fail|running/iu.test(queued.queuedText), 'queue text is not a global/Test-running percentage');
-        assert(queued.bar && queued.visible && queued.labelVisible && queued.value === holds[2] && queued.max === model.length,
-          `active Play model bar retains exact signed decoded bytes while Test queues: ${JSON.stringify(queued)}`);
-        assert.equal(queued.text, `Loading pose model: ${Math.floor(100 * queued.value / model.length)}%`, 'model-only numeric label remains truthful');
-        assert.equal(queued.aria, queued.text, 'accessible bar remains model-only');
+        assert(queued.bar && queued.visible && queued.determinate && queued.percentVisible && queued.value === holds[2] && queued.max === model.length,
+          `active Play native model bar retains exact signed decoded bytes while Test queues: ${JSON.stringify(queued)}`);
+        assert.equal(queued.percent, `${Math.floor(100 * queued.value / model.length)}%`, 'adjacent bare numeric percent remains truthful');
+        assert.deepEqual(queued.visibleCopy, [queued.queuedText, queued.percent], 'only original queue text and bare percent visible');
+        assert(queued.text === '' && !queued.panel && !queued.labelVisible, 'no former model sentence or panel');
+        assert.equal(queued.aria, 'Pose model download', 'accessible bar names download, not overall readiness');
         assert.equal(queued.cv, 'loading', 'Test has not bypassed Play Worker initialization');
         assert.equal(counts.get(modelPath), 1, 'queued Test cannot duplicate model GET');
-        assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'queued Test cannot duplicate WASM GET');
-        console.log(`PASS signed ${embedding} queued Test plus measured Play model: ${JSON.stringify({ queuedText: queued.queuedText, modelText: queued.text, modelBytes: queued.value, modelGets: counts.get(modelPath) })}`);
+        assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, 'queued Test cannot start WASM while signed model remains held at 75%');
+        console.log(`PASS signed ${embedding} queued Test plus measured Play model: ${JSON.stringify({ queuedText: queued.queuedText, modelPercent: queued.percent, modelBytes: queued.value, modelGets: counts.get(modelPath) })}`);
       }
     }
     release[index]();
   }
   assert(testQueued, 'Test must remain clickable so queued visual state runs in the gate');
-  await withTimeout(wasmSent, wasmHoldMs + 15000, 'delayed signed WASM body release');
+  // A browser must observe a real WASM request, then the signed response remains
+  // held for the full 6s/35s while Play's queued Test cannot overtake CV startup.
+  await withTimeout((async () => {
+    while (wasmHoldStartedAt === null) await delay(25);
+  })(), 20000, 'WASM GET after verified model');
+  assert.equal(wasmBodySentAt, null, 'genuine delayed WASM body has not yet been sent');
+  await frame.waitForFunction(total => {
+    const g = document.querySelector('aero-game');
+    const root = g?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
+    const bar = root?.querySelector('progress[part="model-download-progress"]');
+    return g?.graph?.cv?.getStatus?.().lifecycleState === 'loading' && bar?.hasAttribute('value') &&
+      bar.value === total && root?.querySelector('[part="model-download-percent"]')?.textContent?.trim() === '100%';
+  }, model.length, { timeout: Math.min(5000, wasmHoldMs - 500) });
+  const heldWasm = await inspect();
+  assert.equal(wasmBodySentAt, null, 'real signed WASM body is still intentionally held during 100% capture');
+  assert.equal(counts.get(modelPath), 1, 'one complete signed model GET at authentic 100%');
+  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one actual held WASM GET at authentic 100%');
+  assert(modelResponseFinishedAt !== null && browserModelFinishedAt !== null && wasmRequestStartedAt >= modelResponseFinishedAt && browserWasmStartedAt >= browserModelFinishedAt,
+    '100% follows completed model GET on both signed server and browser timelines');
+  assert(heldWasm.bar && heldWasm.visible && heldWasm.determinate && heldWasm.percentVisible && heldWasm.value === model.length && heldWasm.max === model.length && heldWasm.percent === '100%' &&
+    heldWasm.aria === 'Pose model download' && heldWasm.modelDownload?.receivedBytes === model.length && heldWasm.modelDownload?.totalBytes === model.length,
+    `held WASM: accessible native model bar and adjacent bare 100% reflect exactly ${model.length} decoded model bytes: ${JSON.stringify(heldWasm)}`);
+  assert(heldWasm.text === '' && !heldWasm.panel && !heldWasm.labelVisible && heldWasm.visibleCopy.length === 2 &&
+    heldWasm.visibleCopy[0] === heldWasm.queuedText && heldWasm.visibleCopy[1] === '100%' &&
+    heldWasm.pending === 'test' && heldWasm.queuedVisible && heldWasm.queuedText === 'Test queued after Play initialization…',
+    `held WASM: original queued Test and only bare model percentage, without old model prose/panel: ${JSON.stringify(heldWasm)}`);
+  assert(heldWasm.cv === 'loading' && heldWasm.active === '' && heldWasm.audio !== 'playing' && heldWasm.session !== 'playing',
+    `100% model bytes never mean tracker/session ready or audio started: ${JSON.stringify(heldWasm)}`);
+  await withTimeout(wasmSent, wasmHoldMs + 15000, 'delayed signed WASM body release after model verification');
+  assert(modelBodySentAt !== null && modelResponseFinishedAt !== null, 'complete signed model response EOF preceded WASM');
+  assert(wasmRequestStartedAt !== null && wasmRequestStartedAt >= modelResponseFinishedAt,
+    'WASM GET starts after signed model EOF; task cannot initialize before full model verification');
+  assert(browserModelFinishedAt !== null && browserWasmStartedAt !== null && browserWasmStartedAt >= browserModelFinishedAt,
+    'browser observes completed Worker model GET before Worker WASM request');
   assert(wasmHoldStartedAt !== null && wasmBodySentAt - wasmHoldStartedAt >= wasmHoldMs,
-    `WASM hold must meet ${wasmHoldMs}ms, observed ${wasmBodySentAt - wasmHoldStartedAt}ms`);
-  assert.equal(counts.get(modelPath), 1, 'one model GET after held WASM release');
-  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET after held release');
+    `real WASM response hold must meet ${wasmHoldMs}ms, observed ${wasmBodySentAt - wasmHoldStartedAt}ms`);
+  assert.equal(counts.get(modelPath), 1, 'one model GET after delayed WASM release');
+  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET only after full model EOF');
   if (testQueued) await frame.waitForFunction(() => {
     const game = document.querySelector('aero-game');
     const session = game?.graph?.gameplay?.getSnapshot?.().session;
@@ -248,7 +335,7 @@ try {
   const worker = page.workers().filter(item => /mediapipe/u.test(item.url()));
   assert.equal(worker.length, 1, 'one genuine MediaPipe Worker');
   const state = await inspect();
-  assert(!state.bar && !/%/u.test(state.text), `post-download state has no invented percent: ${JSON.stringify(state)}`);
+  assert(!state.bar && state.percent === '' && !state.panel && !/%/u.test(state.text), `CV ready / ordered audio-only Test has no model bar or percent: ${JSON.stringify(state)}`);
   if (testQueued) {
     const final = await game.evaluate(element => ({ purpose: element.graph.gameplay.getSnapshot().session.purpose,
       session: element.graph.gameplay.getSnapshot().session.state, audio: element.graph.audio.getStatus().state,
@@ -261,7 +348,8 @@ try {
   }
   assert.equal(counts.get(modelPath), 1, 'one signed model GET');
   assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one signed WASM GET');
-  assert(modelBodySentAt !== null, 'complete signed model response delivered before ordered Test audio');
+  assert(modelBodySentAt !== null && modelResponseFinishedAt !== null && modelResponseFinishedAt <= wasmRequestStartedAt,
+    'complete signed model response preceded one WASM request and ordered Test audio');
   assert.deepEqual(external, [], 'no off-origin request (including blocked dispatch)');
   assert.deepEqual(errors, [], 'no browser page errors');
   console.log(`PASS signed ${embedding} 390x844 model progress; phases=${JSON.stringify(seen)}; full=${model.length}; WASM hold=${Math.round(wasmBodySentAt - wasmHoldStartedAt)}ms (required ${wasmHoldMs}ms); queued Test/audio-only; one model/WASM GET; real camera/Worker; ${directory}`);

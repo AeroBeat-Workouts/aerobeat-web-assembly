@@ -130,15 +130,22 @@ async function runCase(kind) {
       const actions = g.shadowRoot.querySelector('aero-session-actions')?.shadowRoot;
       const bar = actions?.querySelector('progress[part="model-download-progress"]');
       const status = actions?.querySelector('[part="pending-status"]');
+      const percent = actions?.querySelector('[part="model-download-percent"]');
+      const visibleCopy = [...(actions?.querySelectorAll('p, [part="model-download-percent"]') ?? [])].filter(item => { const rect = item.getBoundingClientRect(), style = getComputedStyle(item); return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility === 'visible'; }).map(item => item.textContent?.trim() ?? '');
       const error = g.shadowRoot.querySelector('[data-role="info-action"]');
       return { cv: g.graph.cv.getStatus(), session: g.graph.gameplay.getSnapshot().session,
         audio: g.graph.audio.getStatus().state, pending: g.pendingSessionAction,
         active: g.activeSessionAction, error: g.lastError,
         errorText: error?.textContent?.trim() ?? '', errorVisible: Boolean(error && !error.hidden && error.getBoundingClientRect().width > 0 && error.getBoundingClientRect().height > 0),
-        text: status?.textContent?.trim() ?? '', bar: Boolean(bar), bytes: bar?.value ?? null,
+        text: status?.textContent?.trim() ?? '', percent: percent?.textContent?.trim() ?? '', visibleCopy,
+        panel: Boolean(actions?.querySelector('[part="model-download"]')), bar: Boolean(bar), determinate: bar?.hasAttribute('value') ?? false,
+        aria: bar?.getAttribute('aria-label') ?? '', bytes: bar?.value ?? null,
         total: bar?.max ?? null, progress: g.graph.cv.getModelDownloadProgress?.() ?? null,
         camera: g.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none' };
     });
+    const preBytes = await state();
+    assert(preBytes.bar && !preBytes.determinate && preBytes.aria === 'Pose model download' && preBytes.percent === '' && preBytes.visibleCopy.length === 0 && preBytes.text === '' && !preBytes.panel,
+      `${kind}: pre-byte loading uses same indeterminate native bar without old visible prose, number, or panel: ${JSON.stringify(preBytes)}`);
     const observed = [];
     let cameraBeforeRemoval = null;
     for (let index = 0; index < checkpoints.length; index++) {
@@ -151,12 +158,16 @@ async function runCase(kind) {
       assert.equal(now.cv.lifecycleState, 'loading');
       assert.equal(now.total, model.length);
       assert(now.bytes >= checkpoints[index] && now.bytes < (checkpoints[index + 1] ?? model.length), JSON.stringify(now));
-      assert.match(now.text, /^Loading pose model: (?:[0-9]|[1-9][0-9])%$/u);
-      assert.equal(Number(now.text.match(/(\d+)%$/u)[1]), Math.floor(100 * now.bytes / model.length), 'only measured model bytes');
+      assert(now.bar && now.determinate && now.aria === 'Pose model download', 'native bar names only downloaded pose model');
+      assert.equal(now.percent, `${Math.floor(100 * now.bytes / model.length)}%`, 'bare adjacent percent derives only from signed decoded model bytes');
+      assert.deepEqual(now.visibleCopy, [now.percent], 'old model prose and extra visible status absent');
+      assert(now.text === '' && !now.panel, 'no former Loading pose model sentence or status panel');
       assert(now.camera === 'live' && !now.error && now.active === '' && now.pending === 'start', 'real pending Play and camera during model streaming');
       assert.equal(now.audio === 'playing', false);
       assert.notEqual(now.session.state, 'playing');
       assert.equal(counts.get(modelPath), 1);
+      assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0,
+        `${kind}: zero WASM GETs while signed model held at ${index + 1}/4`);
       observed.push(now.bytes);
       if (cancel) { cameraBeforeRemoval = now.camera; break; } // Hold at 25%; never send the other 75%.
       resume[index]();
@@ -175,7 +186,8 @@ async function runCase(kind) {
         return { track: videoTrack?.readyState ?? 'none', cv: graph.cv.getStatus(),
           audio: graph.audio.getStatus().state, session: graph.gameplay.getSnapshot().session.state,
           workerRunning: graph.cv.running, elementLifecycle: element.lifecycle, pending: element.pendingSessionAction,
-          active: element.activeSessionAction, oldBar: Boolean(element.shadowRoot.querySelector('progress[part="model-download-progress"]')) };
+          active: element.activeSessionAction, oldBar: Boolean(element.shadowRoot.querySelector('progress[part="model-download-progress"]')),
+          oldPercent: Boolean(element.shadowRoot.querySelector('[part="model-download-percent"]')) };
       });
       assert.equal(cancelled.track, 'ended', 'disconnected game stops its owned fake-camera track');
       assert.equal(cancelled.cv.lifecycleState, 'disposed', 'old CV service invalidated before load can finish');
@@ -186,14 +198,15 @@ async function runCase(kind) {
       assert.equal(cancelled.workerRunning, false);
       assert.equal(cancelled.elementLifecycle, 'disconnected');
       assert.equal(cancelled.pending, ''); assert.equal(cancelled.active, '');
-      assert.equal(cancelled.oldBar, false, 'disconnected element has no stale model bar or 100%');
+      assert.equal(cancelled.oldBar, false, 'disconnected element has no stale model bar');
+      assert.equal(cancelled.oldPercent, false, 'disconnected element has no stale model percent');
       // Old Worker termination may wait for its intentionally blocked fetch; the
       // disposed CV generation must reject all late loaded/pose continuations.
       assert.deepEqual(observed, [checkpoints[0]], 'model progress stopped at exact 25% checkpoint');
       assert.equal(modelBytesSent, checkpoints[0], 'fixture delivered only 25% signed model bytes');
       assert.equal(modelResponseCompleted, false, 'cancelled transfer did not complete signed model bytes');
       assert.equal(counts.get(modelPath), 1, 'one model GET before user cancellation');
-      assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one WASM GET before user cancellation');
+      assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, 'no WASM GET before incomplete model cancellation');
       assert.equal(workerUrls.filter(url => /mediapipe/u.test(url)).length, 1, 'real MediaPipe Worker created');
       assert.deepEqual(external, [], 'no off-origin request attempts');
       assert.deepEqual(errors, [], 'no uncaught page errors');
@@ -204,13 +217,14 @@ async function runCase(kind) {
           session: graph.gameplay.getSnapshot().session.state, track: videoTrack?.readyState ?? 'none',
           pending: element.pendingSessionAction, active: element.activeSessionAction,
           progress: element.foregroundModelDownloadProgress?.() ?? null,
-          bar: Boolean(element.shadowRoot.querySelector('progress[part="model-download-progress"]')) };
+          bar: Boolean(element.shadowRoot.querySelector('progress[part="model-download-progress"]')),
+          percent: Boolean(element.shadowRoot.querySelector('[part="model-download-percent"]')) };
       });
       assert.equal(late.cv.lifecycleState, 'disposed', 'late Worker messages cannot restore CV');
       assert.equal(late.cv.poseFrameCount, 0, 'late Worker messages cannot create accepted poses');
       assert.equal(late.audio, 'destroyed'); assert.equal(late.session, 'destroyed');
       assert.equal(late.track, 'ended'); assert.equal(late.pending, ''); assert.equal(late.active, '');
-      assert.equal(late.progress, null); assert.equal(late.bar, false);
+      assert.equal(late.progress, null); assert.equal(late.bar, false); assert.equal(late.percent, false);
       console.log(`PASS cancel: ${JSON.stringify({ bytes: observed[0], modelGets: counts.get(modelPath), wasmGets: wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), track: cancelled.track, cv: cancelled.cv.lifecycleState, session: cancelled.session, audio: cancelled.audio, responseCompleted: modelResponseCompleted, liveWorkersAfterRemoval: page.workers().filter(worker => /mediapipe/u.test(worker.url())).length, browserRequestFailures: requestFailures })}`);
       return;
     }
@@ -220,10 +234,10 @@ async function runCase(kind) {
     }, null, { timeout: 40000 });
     const failed = await state();
     assert.equal(counts.get(modelPath), 1, 'exactly one tampered/truncated model GET');
-    assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one genuine CPU WASM GET');
+    assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, 'tampered or truncated model cannot trigger any CPU WASM GET');
     assert.equal(workerUrls.filter(url => /mediapipe/u.test(url)).length, 1, `genuine MediaPipe Worker created: ${JSON.stringify(workerUrls)}`);
     assert(failed.error && /model|integrity|hash|length|fetch|load|network/iu.test(failed.error.message), `actionable model failure ${JSON.stringify(failed)}`);
-    assert(!failed.bar && !/%/u.test(failed.text), `no false foreground percentage after failure: ${JSON.stringify(failed)}`);
+    assert(!failed.bar && failed.percent === '' && !failed.panel && !/%/u.test(failed.text), `no stale model bar or foreground percentage after failure: ${JSON.stringify(failed)}`);
     assert(failed.errorVisible && failed.errorText.includes(failed.error.message), `visible actionable error: ${JSON.stringify(failed)}`);
     assert.notEqual(failed.cv.lifecycleState, 'running');
     assert.notEqual(failed.session.state, 'playing');
