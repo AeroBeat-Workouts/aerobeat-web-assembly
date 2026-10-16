@@ -58,9 +58,9 @@ try{
         const canvas=element.shadowRoot.querySelector("canvas");
         const sample=()=>{const out=new OffscreenCanvas(canvas.width,canvas.height),ctx=out.getContext("2d",{willReadFrequently:true});ctx.drawImage(canvas,0,0);return ctx.getImageData(0,0,out.width,out.height).data;};
         const summarize=(pixels,baseline)=>{
-          let colored=0,gray=0,blue=0,red=0,changed=0;
-          for(let i=0;i<pixels.length;i+=4){const r=pixels[i],g=pixels[i+1],b=pixels[i+2],d=Math.abs(r-baseline[i])+Math.abs(g-baseline[i+1])+Math.abs(b-baseline[i+2]);if(d<35)continue;changed++;if(b>r+20&&b>g+6&&b>75)colored++;if(Math.abs(r-g)<13&&Math.abs(g-b)<17&&r>=25&&r<130)gray++;if(b>110&&b>r*1.35&&b>g*1.2)blue++;if(r>115&&r>g*1.55&&r>b*1.35)red++;}
-          return{colored,gray,blue,red,changed};
+          let colored=0,gray=0,blue=0,red=0,yellow=0,changed=0;
+          for(let i=0;i<pixels.length;i+=4){const r=pixels[i],g=pixels[i+1],b=pixels[i+2],d=Math.abs(r-baseline[i])+Math.abs(g-baseline[i+1])+Math.abs(b-baseline[i+2]);if(d<35)continue;changed++;if(b>r+20&&b>g+6&&b>75)colored++;if(Math.abs(r-g)<13&&Math.abs(g-b)<17&&r>=25&&r<130)gray++;if(b>110&&b>r*1.35&&b>g*1.2)blue++;if(r>115&&r>g*1.55&&r>b*1.35)red++;if(r>175&&g>130&&b<r*.55&&b<g*.65)yellow++;}
+          return{colored,gray,blue,red,yellow,changed};
         };
         const cases=[];
         for(const presentation of ["flow","boxing_collider"]){
@@ -77,17 +77,17 @@ try{
               renderer.renderGameplayFrameWithCursorsAndEquipment({...frame,targets:[]},[],null,[],null);const baseline=sample();
               const result=renderer.renderGameplayFrameWithCursorsAndEquipment(frame,[],null,[],null);
               if(result.status?.state==="error")throw new Error(`renderer failed: ${result.status.errorMessage}`);
-              const pixels=sample(),icon=result.model.objects.find(object=>object.kind==="icon"&&object.targetId===event.eventId),feedback=result.model.objects.find(object=>object.kind==="feedback"&&object.targetId===event.eventId);
+              const pixels=sample(),icon=result.model.objects.find(object=>object.kind==="icon"&&object.targetId===event.eventId),feedback=result.model.objects.find(object=>object.kind==="feedback"&&object.targetId===event.eventId),aftermath=result.model.objects.filter(object=>object.kind==="aftermath"&&object.targetId===event.eventId);
               const actualFeedback=renderer.feedbackPool.filter(entry=>entry.root.enabled).map(entry=>({text:entry.text,texture:entry.quad.findComponents("render")[0]?.meshInstances?.[0]?.material?.diffuseMap?.name??null}));
               const activeAssetEntities=icon?[...(renderer.assetPools.get(icon.assetId)??[])].filter(entity=>entity.enabled):[];
               const material=activeAssetEntities.flatMap(entity=>(renderer.assetMaterials.get(entity)??[]).map(record=>({name:record.name,r:record.meshInstance.material.diffuse.r,g:record.meshInstance.material.diffuse.g,b:record.meshInstance.material.diffuse.b})));
               const meshBounds=activeAssetEntities.flatMap(entity=>entity.findComponents("render").flatMap(component=>component.meshInstances.map(({aabb})=>({nearZ:aabb.center.z-aabb.halfExtents.z,farZ:aabb.center.z+aabb.halfExtents.z}))));
               const world=icon?.position,projected=world?camera.worldToScreen(world):null;
-              return{nowMs,targets:targets.map(target=>({judgement:target.judgement,tier:target.tier})),icon:icon?{state:icon.state,z:icon.position.z,appearanceColor:icon.appearanceColor,assetId:icon.assetId}:null,feedback:feedback?.feedback?.text??null,drawnFeedback:actualFeedback,material,meshBounds,screen:projected?{x:projected.x,y:projected.y}:null,pixels:summarize(pixels,baseline),canvas:{width:canvas.width,height:canvas.height},renderDpr:renderer.devicePixelRatio,assetState:renderer.gameplayAssetLoader.describe().state};
+              return{nowMs,targets:targets.map(target=>({judgement:target.judgement,tier:target.tier})),icon:icon?{state:icon.state,z:icon.position.z,appearanceColor:icon.appearanceColor,assetId:icon.assetId}:null,feedback:feedback?.feedback?.text??null,drawnFeedback:actualFeedback,aftermath:aftermath.length,material,meshBounds,screen:projected?{x:projected.x,y:projected.y}:null,pixels:summarize(pixels,baseline),canvas:{width:canvas.width,height:canvas.height},renderDpr:renderer.devicePixelRatio,assetState:renderer.gameplayAssetLoader.describe().state};
             };
             for(const scalePercent of [100,200]){
               const pending540=draw(5540,[],scalePercent),pending999=draw(5999,[],scalePercent);
-              const near=draw(5000,[{eventId:event.eventId,result:"miss",tier:"good",diagnostics:["near_timing"],shadow:false,committedTimelinePositionMs:5000}],scalePercent);
+              const near=draw(presentation==="flow"?6041:5000,[{eventId:event.eventId,result:"miss",tier:"almost",diagnostics:["near_timing"],shadow:false,committedTimelinePositionMs:presentation==="flow"?6001:5000}],scalePercent);
               const great=draw(5000,[{eventId:event.eventId,result:"hit",tier:"great",shadow:false,committedTimelinePositionMs:5000}],scalePercent);
               const miss=draw(6041,[{eventId:event.eventId,result:"miss",tier:"miss",shadow:false,committedTimelinePositionMs:6001}],scalePercent);
               const clearance={cameraZ:renderer.cameraEntity.getPosition().z,nearClip:camera.nearClip,centerZAtMiss:(6041-5000)*.006};
@@ -109,12 +109,14 @@ try{
           if(state==="pending +540")assert.ok(frame.pixels.colored>20,`${key} ${state}: actual framebuffer contains blue target pixels: ${JSON.stringify(frame.pixels)}`);
         }
         assert.equal(row.near.targets[0]?.judgement,"miss",`${key}: near pass is authoritative noncontact`);
-        assert.equal(row.near.targets[0]?.tier,"good",`${key}: injected near_timing Good tier`);
-        assert.equal(row.near.feedback,"Good",`${key}: near pass displays Good, never Almost or Miss`);
-        assert.equal(row.near.icon?.appearanceColor,"#2693FF",`${key}: Good cannot gray its still-visible GLB icon`);
-        assert.ok(row.near.material.length>0&&row.near.material.some(part=>part.b>part.r+.05),`${key}: Good retains blue real GLB material`);
-        assert.ok(row.near.drawnFeedback.some(item=>item.text==="Good"&&item.texture?.toLowerCase().includes("good")),`${key}: renderer actually submitted Good texture`);
-        assert.ok(row.near.pixels.blue>15,`${key}: framebuffer actually contains blue Good pixels: ${JSON.stringify(row.near)}`);
+        assert.equal(row.near.targets[0]?.tier,row.presentation==="flow"?"almost":"good",`${key}: Flow Almost vs legacy Boxing Good tier`);
+        assert.equal(row.near.feedback,row.presentation==="flow"?"Almost":"Good",`${key}: Flow near displays yellow Almost, Boxing keeps legacy Good`);
+        assert.equal(row.near.icon?.appearanceColor,"#2693FF",`${key}: near pass cannot gray its still-visible GLB icon`);
+        assert.ok(row.near.material.length>0&&row.near.material.some(part=>part.b>part.r+.05)&&row.near.meshBounds.length>0,`${key}: near pass retains blue real GLB material and mesh`);
+        assert.equal(row.near.aftermath,0,`${key}: near pass cannot create slice halves`);
+        const nearText=row.presentation==="flow"?"Almost":"Good";
+        assert.ok(row.near.drawnFeedback.some(item=>item.text===nearText&&item.texture?.toLowerCase().includes(nearText.toLowerCase())),`${key}: renderer actually submitted exact ${nearText} texture`);
+        assert.ok((row.presentation==="flow"?row.near.pixels.yellow:row.near.pixels.blue)>15,`${key}: framebuffer actually contains ${nearText} glyph color next to intact real GLB: ${JSON.stringify(row.near)}`);
         assert.equal(row.great.targets[0]?.judgement,"hit",`${key}: injected hit is a hit`);
         assert.equal(row.great.targets[0]?.tier,"great",`${key}: injected hit Great tier`);
         assert.equal(row.great.feedback,"Great",`${key}: injected hit displays Great`);
