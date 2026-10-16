@@ -34,7 +34,7 @@ export function createLockedProductionPoseAdapter() {
       modelUrl: new URL("/assets/mediapipe/pose_landmarker_lite.task", origin).href,
       modelSha256: mediaPipeDefaultModelSha256,
       modelSizeBytes: mediaPipeDefaultModelSizeBytes,
-      streamModelDownload: true,
+      bufferModelDownload: true,
       wasmRootUrl: new URL("/assets/mediapipe/wasm", origin).href,
       tasksVisionScriptUrl: new URL("/assets/mediapipe/vision_bundle.js", origin).href
     };

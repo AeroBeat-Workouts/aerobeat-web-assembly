@@ -36,13 +36,15 @@ assert.equal(publicGame.cv.submissionCadenceTargetFps,15,'keep production fixed 
 assert.equal(publicGame.adapter.modelUrl,`${origin}/assets/mediapipe/pose_landmarker_lite.task`);
 assert.equal(publicGame.adapter.modelSha256,mediaPipeDefaultModelSha256);
 assert.equal(publicGame.adapter.modelSizeBytes,mediaPipeDefaultModelSizeBytes);
-assert.equal(publicGame.adapter.streamModelDownload,true,'only public game opts into the verified model stream');
+assert.equal(publicGame.adapter.bufferModelDownload,true,'only public game opts into the verified complete model buffer');
+assert.equal(publicGame.adapter.streamModelDownload,undefined,'public game must not opt into streaming');
 assert.equal(publicGame.adapter.wasmRootUrl,`${origin}/assets/mediapipe/wasm`);
 assert.equal(publicGame.adapter.tasksVisionScriptUrl,`${origin}/assets/mediapipe/vision_bundle.js`);
 assert.equal(typeof publicGame.vendor.fetch,'function');
 for (const disabled of [undefined,false,'true',1]) {
   const normal=graph(disabled);
   assert.equal(normal.adapter.modelUrl,undefined,'default graph must retain vendor model URL');
+  assert.equal(normal.adapter.bufferModelDownload,undefined,'private/default graph must not opt into buffering');
   assert.equal(normal.adapter.streamModelDownload,undefined,'private/default graph must not opt into streaming');
   assert.equal(normal.adapter.wasmRootUrl,undefined,'default graph must retain vendor WASM URL');
   assert.equal(normal.adapter.tasksVisionScriptUrl,undefined,'default graph must retain vendor vision URL');
@@ -88,8 +90,14 @@ assert.match(index,/return this\.menuOpen && this\.menuStarting && !this\.lastEr
 assert.match(index,/const signature = JSON\.stringify\(\[runtimeMessage, pendingMessage, modelDownloadPercent,[\s\S]*?if \(publicFriendGame\) setPresenter\(this, "aero-session-actions", this\.sessionActionsSnapshot\(modelDownloadProgress\)\)/u,'real model byte percentage must invalidate the runtime signature and repaint the action presenter');
 assert.match(index,/sessionActionsSnapshot\(modelDownloadProgress = this\.foregroundModelDownloadProgress\(\)\) \{[\s\S]*?typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ !== "undefined" && __AEROBEAT_PUBLIC_FRIEND_GAME__ === true\s*\? \{ \.\.\.actions, pendingStatus: this\.publicFriendPendingMessage\(\), \.\.\.\(modelDownloadProgress \? \{ modelDownloadProgress \} : \{\}\) \} : actions/u,'only exact public flag adds optional progress to action snapshot');
 const uiSource = readFileSync(new URL('../../aerobeat-web-ui/src/elements/aero-product-presenters.js',import.meta.url),'utf8');
-assert.match(uiSource,/const pendingStatus = readString\(this\.presenterSnapshot, "pendingStatus", ""\);[\s\S]*?const pendingLabel = measured[\s\S]*?: pendingStatus \? `<p part="pending-status"[^`]*?\$\{escapeHtml\(pendingStatus\)\}<\/p>` : "";/u,'optional measured bar retains escaped pending copy in indeterminate states');
-assert.match(uiSource,/Test<\/button><\/div>\$\{pendingLabel\}\$\{playable \?/u,'private/default markup has no extra node without pendingStatus');
+const sessionUi = uiSource.match(/export class AeroSessionActions extends AeroPresenterElement \{[\s\S]*?\n\}\n/u)?.[0];
+assert.ok(sessionUi,'inspect actual linked Start/Test presenter');
+assert.match(sessionUi,/const pendingLabel = pending && !nonModelStatus && \(measured \|\| \(pending === "start" && pendingStatus\.startsWith\("Preparing"\)\) \|\| queuedTest\)/u,'only eligible pending public actions show the model bar');
+assert.match(sessionUi,/const queuedTest = pending === "test" && pendingStatus\.startsWith\("Test queued"\);[\s\S]*?\$\{queuedTest \? `<p part="queued-status"[^`]*?\$\{escapeHtml\(pendingStatus\)\}<\/p>` : ""\}/u,'existing queued Test copy remains separate from the bar');
+assert.match(sessionUi,/<progress part="model-download-progress" max="\$\{measured \? total : 1\}" \$\{measured \? `value="\$\{received\}"` : ""\} aria-label="Pose model download"/u,'pre-byte Play bar is indeterminate and accessible');
+assert.match(sessionUi,/\$\{measured \? `<span part="model-download-percent"[^`]*?\$\{percent\}%<\/span>` : ""\}/u,'only measured bytes yield bare visible percentage');
+assert.doesNotMatch(sessionUi,/<(?:p|span)[^>]*>\s*Loading pose model/u,'no old visible model-loading sentence');
+assert.match(sessionUi,/Test<\/button><\/div>\$\{pendingLabel\}\$\{playable \?/u,'private/default markup has no extra node without pendingStatus');
 assert.match(index,/this\.pendingSessionAction = action; this\.menuStarting = true;[^\n]*this\.renderPresenters\(\)/u,'each pending click synchronously renders without a CV subscription');
 const sessionStart = index.match(/async startSession\(purpose, options = \{\}\) \{[\s\S]*?\n  \}\n\n  \/\*\* Await the initial action-owned audio/u)?.[0];
 assert.ok(sessionStart, 'inspect actual action acceptance and lifecycle enqueue boundary');
