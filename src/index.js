@@ -3142,8 +3142,10 @@ export class AeroGame extends HTMLElement {
   watchPublicModelDownload(owner, sessionGeneration, actionGeneration, ordinal) {
     if (typeof __AEROBEAT_PUBLIC_FRIEND_GAME__ === "undefined" || __AEROBEAT_PUBLIC_FRIEND_GAME__ !== true) return () => {};
     const current = () => this.isActionIntentOwner(owner, sessionGeneration, actionGeneration) &&
-      this.pendingSessionActionOrdinal === ordinal && this.sessionActionIntentOrdinal === ordinal &&
-      this.pendingSessionAction === "start" &&
+      this.pendingSessionActionOrdinal === this.sessionActionIntentOrdinal &&
+      ((this.pendingSessionAction === "start" && this.sessionActionIntentOrdinal === ordinal) ||
+        (this.pendingSessionAction === "test" && this.sessionActionIntentOrdinal > ordinal &&
+          this.publicFriendPendingMessage().startsWith("Test queued"))) &&
       this.menuOpen && this.menuStarting && !this.lastError &&
       this.graph?.cv.getStatus().lifecycleState === "loading";
     if (!current()) return () => {};

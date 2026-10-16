@@ -56,6 +56,21 @@ publicGame.tick();
 assert.equal(publicGame.active(), 0, 'superseded Test/cancel must stop old timer');
 assert.equal(publicGame.renders(), initialRenders + 2, 'stale action must never repaint');
 publicGame.stop();
+const queuedGame = fixture(true);
+queuedGame.tick();
+const queuedBefore = queuedGame.renders();
+queuedGame.game.pendingSessionAction = 'test';
+queuedGame.game.pendingSessionActionOrdinal = 8;
+queuedGame.game.sessionActionIntentOrdinal = 8;
+queuedGame.game.publicFriendPendingMessage = () => 'Test queued after Play initialization…';
+queuedGame.game.receivedBytes = 100;
+queuedGame.tick();
+assert.equal(queuedGame.active(), 1, 'queued Test does not stop the Play-owned model download repaint timer');
+assert.equal(queuedGame.renders(), queuedBefore + 1, '100% real model bytes repaint beside still-queued Test');
+queuedGame.game.publicFriendPendingMessage = () => 'Preparing Test…';
+queuedGame.tick();
+assert.equal(queuedGame.active(), 0, 'timer stops once Test actually owns initialization');
+queuedGame.stop();
 for (const mutate of [g => { g.menuOpen = false; }, g => { g.lastError = 'load failed'; },
   g => { g.sessionActionGeneration++; }, g => { g.connectedGeneration++; },
   g => { g.lifecycle = 'disconnected'; }, g => { g.graph.cv.getStatus = () => ({ lifecycleState: 'error' }); }]) {

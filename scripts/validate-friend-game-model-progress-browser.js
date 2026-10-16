@@ -298,7 +298,9 @@ try {
     const bar = root?.querySelector('progress[part="model-download-progress"]');
     return g?.graph?.cv?.getStatus?.().lifecycleState === 'loading' && bar?.hasAttribute('value') &&
       bar.value === total && root?.querySelector('[part="model-download-percent"]')?.textContent?.trim() === '100%';
-  }, model.length, { timeout: Math.min(5000, wasmHoldMs - 500) });
+  }, model.length, { timeout: Math.min(5000, wasmHoldMs - 500) }).catch(async cause => {
+    throw new Error(`held WASM 100% was not visible: ${JSON.stringify({ visible: await inspect(), wasmHoldMs, wasBodySent: wasmBodySentAt !== null, modelFinished: modelResponseFinishedAt !== null, browserModelFinished: browserModelFinishedAt !== null })}`, { cause });
+  });
   const heldWasm = await inspect();
   assert.equal(wasmBodySentAt, null, 'real signed WASM body is still intentionally held during 100% capture');
   assert.equal(counts.get(modelPath), 1, 'one complete signed model GET at authentic 100%');
