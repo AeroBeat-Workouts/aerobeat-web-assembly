@@ -94,7 +94,7 @@ const sessionUi = uiSource.match(/export class AeroSessionActions extends AeroPr
 assert.ok(sessionUi,'inspect actual linked Start/Test presenter');
 assert.match(sessionUi,/const pendingLabel = pending && !nonModelStatus && \(measured \|\| \(pending === "start" && pendingStatus\.startsWith\("Preparing"\)\) \|\| queuedTest\)/u,'only eligible pending public actions show the model bar');
 assert.match(sessionUi,/const queuedTest = pending === "test" && pendingStatus\.startsWith\("Test queued"\);[\s\S]*?\$\{queuedTest \? `<p part="queued-status"[^`]*?\$\{escapeHtml\(pendingStatus\)\}<\/p>` : ""\}/u,'existing queued Test copy remains separate from the bar');
-assert.match(sessionUi,/<progress part="model-download-progress" max="\$\{measured \? total : 1\}" \$\{measured \? `value="\$\{received\}"` : ""\} aria-label="Pose model download"/u,'pre-byte Play bar is indeterminate and accessible');
+assert.match(sessionUi,/<progress part="model-download-progress" max="\$\{measured \? total : 1\}" \$\{measured \? `value="\$\{received\}"` : ""\} aria-label="Tracker asset download"/u,'pre-byte Play bar is indeterminate and accessible without claiming calibration progress');
 assert.match(sessionUi,/\$\{measured \? `<span part="model-download-percent"[^`]*?\$\{percent\}%<\/span>` : ""\}/u,'only measured bytes yield bare visible percentage');
 assert.doesNotMatch(sessionUi,/<(?:p|span)[^>]*>\s*Loading pose model/u,'no old visible model-loading sentence');
 assert.match(sessionUi,/Test<\/button><\/div>\$\{pendingLabel\}\$\{playable \?/u,'private/default markup has no extra node without pendingStatus');

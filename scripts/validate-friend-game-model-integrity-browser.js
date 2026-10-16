@@ -29,7 +29,13 @@ const model = snapshot.bytes.get(modelPath);
 assert.equal(model?.length, 5_777_746, 'signed model decoded size');
 assert.equal(createHash('sha256').update(model).digest('hex'), snapshot.manifest.assets.find(asset => asset.path === modelPath.slice(1))?.sha256);
 const wasmPaths = [...snapshot.bytes.keys()].filter(path => /^\/assets\/mediapipe\/wasm\/[^/]+\.wasm$/u.test(path));
-assert(wasmPaths.length > 0, 'signed WASM present');
+assert.equal(wasmPaths.length, 3, 'all signed classic/module/nosimd WASM variants present');
+const selectedAssetTotals = new Set(wasmPaths.map(path => {
+  const loader = snapshot.bytes.get(path.replace(/\.wasm$/u, '.js'));
+  const binary = snapshot.bytes.get(path);
+  assert(loader?.length > 0 && binary?.length > 0, `signed runtime pair ${path}`);
+  return model.length + loader.length + binary.length;
+}));
 const signedHandler = handlerForSnapshot(snapshot);
 const { unzipSync, zipSync } = createRequire(new URL('../../aerobeat-web-vendor-beatsaver/package.json', import.meta.url))('fflate');
 const entries = unzipSync(createSyntheticBeatSaverZip(2));
@@ -144,7 +150,7 @@ async function runCase(kind) {
         camera: g.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState ?? 'none' };
     });
     const preBytes = await state();
-    assert(preBytes.bar && !preBytes.determinate && preBytes.aria === 'Pose model download' && preBytes.percent === '' && preBytes.visibleCopy.length === 0 && preBytes.text === '' && !preBytes.panel,
+    assert(preBytes.bar && !preBytes.determinate && preBytes.aria === 'Tracker asset download' && preBytes.percent === '' && preBytes.visibleCopy.length === 0 && preBytes.text === '' && !preBytes.panel,
       `${kind}: pre-byte loading uses same indeterminate native bar without old visible prose, number, or panel: ${JSON.stringify(preBytes)}`);
     const observed = [];
     let cameraBeforeRemoval = null;
@@ -156,10 +162,10 @@ async function runCase(kind) {
       }, checkpoints[index], { timeout: 12000 });
       const now = await state();
       assert.equal(now.cv.lifecycleState, 'loading');
-      assert.equal(now.total, model.length);
+      assert(selectedAssetTotals.has(now.total), 'bar denominator includes exact selected signed model+WASM loader/binary assets');
       assert(now.bytes >= checkpoints[index] && now.bytes < (checkpoints[index + 1] ?? model.length), JSON.stringify(now));
-      assert(now.bar && now.determinate && now.aria === 'Pose model download', 'native bar names only downloaded pose model');
-      assert.equal(now.percent, `${Math.floor(100 * now.bytes / model.length)}%`, 'bare adjacent percent derives only from signed decoded model bytes');
+      assert(now.bar && now.determinate && now.aria === 'Tracker asset download', 'native bar names selected tracker asset downloads');
+      assert.equal(now.percent, `${Math.floor(100 * now.bytes / now.total)}%`, 'bare adjacent percent derives from signed decoded model and runtime asset bytes');
       assert.deepEqual(now.visibleCopy, [now.percent], 'old model prose and extra visible status absent');
       assert(now.text === '' && !now.panel, 'no former Loading pose model sentence or status panel');
       assert(now.camera === 'live' && !now.error && now.active === '' && now.pending === 'start', 'real pending Play and camera during model streaming');

@@ -32,7 +32,14 @@ const model = snapshot.bytes.get(modelPath);
 assert.equal(model?.length, 5_777_746, 'exact signed decoded model size');
 assert.equal(createHash('sha256').update(model).digest('hex'), snapshot.manifest.assets.find(asset => asset.path === modelPath.slice(1))?.sha256);
 const wasmPaths = [...snapshot.bytes.keys()].filter(path => /^\/assets\/mediapipe\/wasm\/[^/]+\.wasm$/u.test(path));
-assert(wasmPaths.length >= 1);
+assert.equal(wasmPaths.length, 3, 'three signed Tasks Vision 1.0.1 classic/module/nosimd variants');
+const runtimePairs = new Map(wasmPaths.map(binaryPath => {
+  const loaderPath = binaryPath.replace(/\.wasm$/u, '.js');
+  const loader = snapshot.bytes.get(loaderPath), binary = snapshot.bytes.get(binaryPath);
+  assert(loader?.length > 0 && binary?.length > 0, `complete signed WASM pair: ${binaryPath}`);
+  return [binaryPath, { loaderPath, total: model.length + loader.length + binary.length }];
+}));
+const possibleAssetTotals = new Set([...runtimePairs.values()].map(pair => pair.total));
 const signedHandler = handlerForSnapshot(snapshot);
 const holds = [0.25, 0.5, 0.75].map(fraction => Math.floor(model.length * fraction));
 const release = []; const reach = [];
@@ -190,7 +197,7 @@ try {
   });
   const checkIndeterminate = async stage => {
     const state = await inspect();
-    assert(state.bar && state.visible && !state.determinate && state.aria === 'Pose model download', `${stage}: same accessible native indeterminate bar: ${JSON.stringify(state)}`);
+    assert(state.bar && state.visible && !state.determinate && ['Tracker asset download', 'Pose model download'].includes(state.aria), `${stage}: same accessible native indeterminate bar before asset selection: ${JSON.stringify(state)}`);
     assert(state.percent === '' && state.visibleCopy.length === 0 && state.text === '' && !state.labelVisible && !state.panel, `${stage}: no numeric percent, old visible model prose or extra panel: ${JSON.stringify(state)}`);
   };
   // Before Play, this exact signed fixture can exercise Test in isolation: audio only,
@@ -235,13 +242,13 @@ try {
     assert.equal(counts.get(modelPath), 1, `one signed model GET at held ${index + 1}/4`);
     assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, `zero WASM GETs at held ${index + 1}/4 model bytes`);
     assert.equal(wasmHoldStartedAt, null, 'WASM hold cannot start before verified full model');
-    assert.equal(state.max, model.length, 'decoded signed denominator');
+    assert(possibleAssetTotals.has(state.max), 'denominator includes exact selected signed Lite model plus Tasks Vision runtime loader and WASM bytes');
     assert(state.value >= holds[index] && state.value < (holds[index + 1] ?? model.length), `bounded actual decoded phase ${index}: ${JSON.stringify(state)}`);
-    assert.equal(state.percent, `${Math.floor(100 * state.value / model.length)}%`, 'adjacent bare percent matches exact decoded byte floor');
+    assert.equal(state.percent, `${Math.floor(100 * state.value / state.max)}%`, 'adjacent bare percent reflects combined selected assets, not model-only bytes');
     assert.deepEqual(state.visibleCopy, [state.percent], 'no other visible status or old model prose beside numeric percent');
     assert.equal(state.text, '', 'obsolete Loading pose model sentence absent');
     assert(!state.panel && !state.labelVisible, 'no model panel or visible prose');
-    assert.equal(state.aria, 'Pose model download', 'bar names only the model download nonvisually');
+    assert.equal(state.aria, 'Tracker asset download', 'bar names combined tracker assets nonvisually');
     assert(state.camera === 'live' && state.cv === 'loading', `real camera and loading Worker at phase ${index}: ${JSON.stringify(state)}`);
     assert(seen.length === 0 || state.value > seen.at(-1), 'measured bytes monotone');
     seen.push(state.value);
@@ -272,12 +279,12 @@ try {
         assert.equal(queued.testBusy, 'true', 'Test action remains pending while Play owns Worker load');
         assert(queued.queuedVisible && queued.queuedRole === 'status' && queued.queuedText === 'Test queued after Play initialization…', `foreground queued Test status visible and hit-testable: ${JSON.stringify(queued)}`);
         assert(!/%|error|fail|running/iu.test(queued.queuedText), 'queue text is not a global/Test-running percentage');
-        assert(queued.bar && queued.visible && queued.determinate && queued.percentVisible && queued.value === holds[2] && queued.max === model.length,
-          `active Play native model bar retains exact signed decoded bytes while Test queues: ${JSON.stringify(queued)}`);
-        assert.equal(queued.percent, `${Math.floor(100 * queued.value / model.length)}%`, 'adjacent bare numeric percent remains truthful');
+        assert(queued.bar && queued.visible && queued.determinate && queued.percentVisible && queued.value === holds[2] && possibleAssetTotals.has(queued.max),
+          `active Play native tracker bar retains exact signed model bytes plus selected runtime total while Test queues: ${JSON.stringify(queued)}`);
+        assert.equal(queued.percent, `${Math.floor(100 * queued.value / queued.max)}%`, 'adjacent bare numeric aggregate percent remains truthful');
         assert.deepEqual(queued.visibleCopy, [queued.queuedText, queued.percent], 'only original queue text and bare percent visible');
         assert(queued.text === '' && !queued.panel && !queued.labelVisible, 'no former model sentence or panel');
-        assert.equal(queued.aria, 'Pose model download', 'accessible bar names download, not overall readiness');
+        assert.equal(queued.aria, 'Tracker asset download', 'accessible bar names all tracker downloads, not calibration');
         assert.equal(queued.cv, 'loading', 'Test has not bypassed Play Worker initialization');
         assert.equal(counts.get(modelPath), 1, 'queued Test cannot duplicate model GET');
         assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 0, 'queued Test cannot start WASM while signed model remains held at 75%');
@@ -297,26 +304,31 @@ try {
     const g = document.querySelector('aero-game');
     const root = g?.shadowRoot?.querySelector('aero-session-actions')?.shadowRoot;
     const bar = root?.querySelector('progress[part="model-download-progress"]');
+    const percent = root?.querySelector('[part="model-download-percent"]')?.textContent?.trim();
     return g?.graph?.cv?.getStatus?.().lifecycleState === 'loading' && bar?.hasAttribute('value') &&
-      bar.value === total && root?.querySelector('[part="model-download-percent"]')?.textContent?.trim() === '100%';
+      bar.value === total && bar.max > total && percent === `${Math.floor(100 * total / bar.max)}%`;
   }, model.length, { timeout: Math.min(5000, wasmHoldMs - 500) }).catch(async cause => {
-    throw new Error(`held WASM 100% was not visible: ${JSON.stringify({ visible: await inspect(), wasmHoldMs, wasBodySent: wasmBodySentAt !== null, modelFinished: modelResponseFinishedAt !== null, browserModelFinished: browserModelFinishedAt !== null })}`, { cause });
+    throw new Error(`held WASM model EOF must remain BELOW asset 100%: ${JSON.stringify({ visible: await inspect(), wasmHoldMs, wasBodySent: wasmBodySentAt !== null, modelFinished: modelResponseFinishedAt !== null, browserModelFinished: browserModelFinishedAt !== null })}`, { cause });
   });
   const heldWasm = await inspect();
-  assert.equal(wasmBodySentAt, null, 'real signed WASM body is still intentionally held during 100% capture');
-  assert.equal(counts.get(modelPath), 1, 'one complete signed model GET at authentic 100%');
-  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one actual held WASM GET at authentic 100%');
+  assert.equal(wasmBodySentAt, null, 'real signed WASM body is still held during below-100% capture');
+  assert.equal(counts.get(modelPath), 1, 'one complete signed model GET before aggregate 100%');
+  assert.equal(wasmPaths.reduce((sum, path) => sum + (counts.get(path) ?? 0), 0), 1, 'one actual held WASM GET before aggregate 100%');
   assert(modelResponseFinishedAt !== null && wasmRequestStartedAt >= modelResponseFinishedAt && browserWasmStartedAt !== null,
-    '100% follows completed signed model GET before actual WASM starts');
-  assert(heldWasm.bar && heldWasm.visible && heldWasm.determinate && heldWasm.percentVisible && heldWasm.value === model.length && heldWasm.max === model.length && heldWasm.percent === '100%' &&
-    heldWasm.aria === 'Pose model download' && heldWasm.modelDownload?.receivedBytes === model.length && heldWasm.modelDownload?.totalBytes === model.length,
-    `held WASM: accessible native model bar and adjacent bare 100% reflect exactly ${model.length} decoded model bytes: ${JSON.stringify(heldWasm)}`);
+    'signed model EOF precedes actual WASM fetch');
+  const selectedWasmPath = wasmPaths.find(path => counts.get(path) === 1);
+  const selectedPair = runtimePairs.get(selectedWasmPath);
+  assert(selectedPair && counts.get(selectedPair.loaderPath) === 1, 'one actual selected signed runtime loader JS GET before held WASM');
+  assert(heldWasm.bar && heldWasm.visible && heldWasm.determinate && heldWasm.percentVisible && heldWasm.value === model.length && heldWasm.max === selectedPair.total &&
+    heldWasm.percent === `${Math.floor(100 * model.length / selectedPair.total)}%` && heldWasm.percent !== '100%' &&
+    heldWasm.aria === 'Tracker asset download' && heldWasm.modelDownload?.receivedBytes === model.length && heldWasm.modelDownload?.totalBytes === selectedPair.total,
+    `held WASM: native asset bar and bare percent remain below 100 after model EOF until selected JS/WASM load: ${JSON.stringify(heldWasm)}`);
   assert(heldWasm.text === '' && !heldWasm.panel && !heldWasm.labelVisible && heldWasm.visibleCopy.length === 2 &&
-    heldWasm.visibleCopy[0] === heldWasm.queuedText && heldWasm.visibleCopy[1] === '100%' &&
+    heldWasm.visibleCopy[0] === heldWasm.queuedText && heldWasm.visibleCopy[1] === heldWasm.percent &&
     heldWasm.pending === 'test' && heldWasm.queuedVisible && heldWasm.queuedText === 'Test queued after Play initialization…',
-    `held WASM: original queued Test and only bare model percentage, without old model prose/panel: ${JSON.stringify(heldWasm)}`);
+    `held WASM: original queued Test and only bare asset percentage, without old model prose/panel: ${JSON.stringify(heldWasm)}`);
   assert(heldWasm.cv === 'loading' && heldWasm.active === '' && heldWasm.audio !== 'playing' && heldWasm.session !== 'playing',
-    `100% model bytes never mean tracker/session ready or audio started: ${JSON.stringify(heldWasm)}`);
+    `tracker/runtime still loading without counting subsequent calibration: ${JSON.stringify(heldWasm)}`);
   await withTimeout(wasmSent, wasmHoldMs + 15000, 'delayed signed WASM body release after model verification');
   assert(modelBodySentAt !== null && modelResponseFinishedAt !== null, 'complete signed model response EOF preceded WASM');
   assert(wasmRequestStartedAt !== null && wasmRequestStartedAt >= modelResponseFinishedAt,
