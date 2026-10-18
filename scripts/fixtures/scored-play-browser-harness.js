@@ -14,6 +14,7 @@
 // fixture so browser evaluations never bypass the linked dependency provenance.
 export { boxingColliderTargetCenter } from '@aerobeat/web-gameplay';
 export { flowSolidBladeRadiusWu, resolveSaberCapsule } from '@aerobeat/web-contracts';
+export { equipmentColliderAnchors } from '../../src/equipment-collider-anchors.js';
 
 const HASH = 'a'.repeat(64);
 const PACKAGE_ID = 'scored-play-browser-fixture';

@@ -9,8 +9,8 @@ export const aeroGameSetupVersion=aeroGameSetupIdentity.version;
 export const aeroGameSetupStorageKey=aeroGameSetupIdentity.key;
 export const legacyAeroGameSetupV2StorageKey="aerobeat.game-setup.v2";
 export const legacyAeroGameSetupStorageKey="aerobeat.game-setup.v1";
-// Historical bounds still belong to Boxing only; Flow accepts finite nonnegative values.
-export const colliderVolumeBounds=Object.freeze({colliderScale:Object.freeze([.25,4]),colliderDepthForward:Object.freeze([1,4]),colliderDepthBackward:Object.freeze([1,4])});
+// Boxing scale stays bounded; either mode's depth accepts finite nonnegative values.
+export const colliderVolumeBounds=Object.freeze({colliderScale:Object.freeze([.25,4])});
 // Boxing retains its 0.0.74 depth defaults. Flow's rear now starts at the
 // hilt by default; positive rear values intentionally extend scored saber reach.
 export const defaultFlowColliderVolume=Object.freeze({colliderVisible:false,colliderScale:1,colliderDepthForward:1.5,colliderDepthBackward:0});
@@ -72,7 +72,7 @@ const legacyRemovedSaberStoredKeys=Object.freeze([...obstaclesEnabledStoredKeys,
 // Existing v3 records migrate these authoring preferences in place; old charts
 // remain immutable and take new converter options only when re-downloaded.
 const modeColliderVolumeKeys=Object.freeze(["colliderVisible","colliderScale","colliderDepthForward","colliderDepthBackward"]);
-function normalizeModeColliderVolume(value,mode){if(!exactDataRecord(value,modeColliderVolumeKeys))return null;const field=(key)=>Object.getOwnPropertyDescriptor(value,key)?.value;if(typeof field("colliderVisible")!=="boolean")return null;for(const key of modeColliderVolumeKeys.slice(1)){const candidate=field(key);if(mode==="flow"){if(typeof candidate!=="number"||!Number.isFinite(candidate)||candidate<0)return null;}else if(!boundedNumber(candidate,colliderVolumeBounds[key]))return null;}return Object.freeze({colliderVisible:field("colliderVisible"),colliderScale:field("colliderScale"),colliderDepthForward:field("colliderDepthForward"),colliderDepthBackward:field("colliderDepthBackward")});}
+function normalizeModeColliderVolume(value,mode){if(!exactDataRecord(value,modeColliderVolumeKeys))return null;const field=(key)=>Object.getOwnPropertyDescriptor(value,key)?.value;if(typeof field("colliderVisible")!=="boolean")return null;for(const key of modeColliderVolumeKeys.slice(1)){const candidate=field(key);if(mode==="boxing"&&key==="colliderScale"){if(!boundedNumber(candidate,colliderVolumeBounds.colliderScale))return null;}else if(typeof candidate!=="number"||!Number.isFinite(candidate)||candidate<0)return null;}return Object.freeze({colliderVisible:field("colliderVisible"),colliderScale:field("colliderScale"),colliderDepthForward:field("colliderDepthForward"),colliderDepthBackward:field("colliderDepthBackward")});}
 // W3-D: 0.0.51-0.0.53 persisted records carry the two debug visibility toggles
 // on top of the scale/reach fields (no hazard-vignette fields).
 const previousV3StoredKeys=Object.freeze([...v3StoredKeys,"visibleToleranceRange","visibleColliderRadius"]);

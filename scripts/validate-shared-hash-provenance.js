@@ -49,7 +49,7 @@ for (const [name, mutate] of [
 }
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
-assert.equal(packageJson.version, "0.0.132", "release source must use the exact Flow Test-outline candidate version");
+assert.equal(packageJson.version, "0.0.133", "release source must use the distinct Boxing depth candidate version");
 assert.equal(packageJson.dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages[""].dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages["../aerobeat-web-hash"].name, "@aerobeat/web-hash");

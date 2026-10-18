@@ -18,7 +18,7 @@ assert([1, 3].includes(deviceScaleFactor), 'Flow Test proof DPR must be 1 or 3')
 let vite = null, signedServer = null, fixtureDirectory = null, childUrl;
 if (signedDirectory) {
   const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-  assert(['0.0.131', '0.0.132'].includes(snapshot.manifest.sourceManifest.packageVersion), 'expected signed before/after Flow Test snapshot');
+  assert(['0.0.131', '0.0.132', '0.0.133'].includes(snapshot.manifest.sourceManifest.packageVersion), 'expected signed Flow Test baseline or successor snapshot');
   fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'aerobeat-flow-test-'));
   await buildFixture({ configFile: false, root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });
   const fixtures = new Map(readdirSync(fixtureDirectory).filter(name => name.endsWith('.js')).map(name => [`/scripts/fixtures/${name}`, readFileSync(path.join(fixtureDirectory, name))]));

@@ -2,22 +2,40 @@
 // Strict actual AeroGame scored Play browser oracle. No standalone renderer/score mocks.
 import assert from 'node:assert/strict';
 import { createServer as createHttpServer } from 'node:http';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { chromium } from 'playwright';
-import { createServer as createViteServer } from 'vite';
+import { build as buildFixture, createServer as createViteServer } from 'vite';
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from './readpixels-console-policy.js';
+import { handlerForSnapshot, loadSignedSnapshot } from './serve-friend-game.js';
 
-const vite=await createViteServer({appType:'spa',configFile:'vite.config.js',logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null}});
-let browser,host;
+const signedDirectory=process.env.AEROBEAT_SIGNED_BOXER_DIR;
+let browser,host,vite=null,signedServer=null,fixtureDirectory=null;
 try {
-  await vite.listen();
-  const childUrl=vite.resolvedUrls?.local?.[0];assert(childUrl,'Vite URL unavailable');
+  let childUrl;
+  if(signedDirectory){
+    const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
+    assert(['0.0.132','0.0.133'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
+    fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-boxer-fixture-'));
+    await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
+    const fixtures=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
+    const signedHandler=handlerForSnapshot(snapshot);
+    signedServer=createHttpServer((request,response)=>{const fixture=fixtures.get(new URL(request.url??'/','http://fixture.invalid').pathname);if(fixture){response.setHeader('Content-Type','text/javascript; charset=utf-8');response.setHeader('Cache-Control','no-store');response.end(fixture);return;}signedHandler(request,response);});
+    await new Promise(resolve=>signedServer.listen(0,'127.0.0.1',resolve));
+    const address=signedServer.address();assert(address&&typeof address!=='string');childUrl=`http://127.0.0.1:${address.port}/`;
+  }else{
+    vite=await createViteServer({appType:'spa',configFile:'vite.config.js',logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null}});
+    await vite.listen();childUrl=vite.resolvedUrls?.local?.[0];
+  }
+  assert(childUrl,'Child game URL unavailable');
   host=createHttpServer((request,response)=>{const query=new URL(request.url??'/','http://fixture.invalid');const width=Number(query.searchParams.get('width')),height=Number(query.searchParams.get('height'));assert([390,844,1280].includes(width)&&[390,844,720].includes(height),'Invalid iframe fixture size');response.setHeader('content-type','text/html; charset=utf-8');response.end(`<!doctype html><style>html,body{margin:0}iframe{width:${width}px;height:${height}px;border:0;display:block}</style><iframe id="game" allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${childUrl}"></iframe>`);});
   await new Promise(resolve=>host.listen(0,'127.0.0.1',resolve));
   const address=host.address();assert(address&&typeof address!=='string');const parentUrl=`http://127.0.0.1:${address.port}/`;
   browser=await chromium.launch();
   const contexts=[{kind:'direct',width:844,height:390},{kind:'direct',width:390,height:844},{kind:'iframe',width:390,height:844},{kind:'direct',width:1280,height:720},{kind:'iframe',width:1280,height:720}].filter(context=>!process.env.AEROBEAT_COLLIDER_CONTEXT||`${context.kind}:${context.width}x${context.height}`===process.env.AEROBEAT_COLLIDER_CONTEXT);
   assert(contexts.length,'Unknown AEROBEAT_COLLIDER_CONTEXT');
-  const scenarioDefinitions=[{name:'off',volume:{colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale',volume:{colliderVisible:true,colliderScale:4,colliderDepthForward:1,colliderDepthBackward:3}},{name:'forward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:4,colliderDepthBackward:3}},{name:'backward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:4}},{name:'default-near',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default-early',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}}];
+  const scenarioDefinitions=[{name:'off',volume:{colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale',volume:{colliderVisible:true,colliderScale:4,colliderDepthForward:1,colliderDepthBackward:3}},{name:'forward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:4,colliderDepthBackward:3}},{name:'backward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:4}},{name:'unbounded-depths',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:.5,colliderDepthBackward:5}},{name:'default-near',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default-early',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}}];
   for(const context of contexts){
     const results=[];
     for(const scenario of scenarioDefinitions.filter(item=>!process.env.AEROBEAT_COLLIDER_SCENARIO||item.name===process.env.AEROBEAT_COLLIDER_SCENARIO)){
@@ -63,7 +81,7 @@ try {
             // committed by harness.setSetup through the production lifecycle FIFO.
             let saved;
             try{saved=await harness.setSetup({boxingColliderVolume:scenario.volume});}
-            catch(error){const setup=await import('/src/game-setup-coordinator.js');const persisted=JSON.parse(localStorage.getItem(setup.aeroGameSetupStorageKey)??'null'),current=setup.getGameSetupSnapshot(),keys=[...new Set([...Object.keys(persisted??{}),...Object.keys(current)])];throw Error(`setup ${scenario.name}: ${String(error)}; diff=${JSON.stringify(keys.filter(key=>JSON.stringify(persisted?.[key])!==JSON.stringify(current[key])).map(key=>({key,persisted:persisted?.[key],current:current[key]})))}`);}
+            catch(error){const persisted=JSON.parse(localStorage.getItem('aerobeat.game-setup.v3')??'null'),current=element.desiredGameSetup,keys=[...new Set([...Object.keys(persisted??{}),...Object.keys(current??{})])];throw Error(`setup ${scenario.name}: ${String(error)}; diff=${JSON.stringify(keys.filter(key=>JSON.stringify(persisted?.[key])!==JSON.stringify(current?.[key])).map(key=>({key,persisted:persisted?.[key],current:current?.[key]})))}`);}
             fail(Object.entries(scenario.volume).every(([key,value])=>Object.is(saved.boxingColliderVolume?.[key],value)),`${scenario.name}: setup not saved from UI: ${JSON.stringify({actual:saved.boxingColliderVolume,expected:scenario.volume})}`);
             try{await harness.startPlay();await harness.calibrate();harness.element.stopFrameLoop();}
             catch(error){throw Error(`${scenario.name} fresh Start/calibration: ${String(error)}; ${JSON.stringify({session:harness.graph.gameplay.getSnapshot().session.state,camera:harness.graph.video.getRetainedCameraStream()?.getVideoTracks()[0]?.readyState,cv:harness.graph.cv.getStatus().lifecycleState,menu:harness.element.menuOpen,active:harness.element.activeSessionAction})}`);}
@@ -97,7 +115,7 @@ try {
             // capture() rebuilds a frame without the transient render-time anchors;
             // the actual combined production render has already populated lastModel.
             const frame=harness.element.rendererFrame();
-            frame.equipmentColliderAnchors=(await import('/src/equipment-collider-anchors.js')).equipmentColliderAnchors(harness.element.currentEquipmentPoses,harness.graph.input.getSnapshot(),'boxing');
+            frame.equipmentColliderAnchors=(await import('/scripts/fixtures/scored-play-browser-harness.js')).equipmentColliderAnchors(harness.element.currentEquipmentPoses,harness.graph.input.getSnapshot(),'boxing');
             fail(frame.presentation==='boxing_collider'&&capture.session.state==='playing'&&capture.session.purpose==='play',`${scenario.name}: not selected scored Boxing Play`);
             fail(frame.colliderSettings&&Object.entries(scenario.volume).every(([key,value])=>Object.is(frame.colliderSettings[key],value)),`${scenario.name}: run settings not sent to renderer`);
             const anchor=frame.equipmentColliderAnchors?.left;
@@ -145,7 +163,7 @@ try {
             // render-only baseline nor visibility switch creates a judgement.
             const target=boxingColliderTargetCenter(5,{topRowReachWU:harness.element.activeSessionSetup.topRowReachWU,bottomRowReachWU:harness.element.activeSessionSetup.bottomRowReachWU});
             const targetX=target.x,targetY=target.y;
-            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+1.14,y:targetY},forward:{song:5500,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+1.14,y:targetY},'default-early':{song:5500,x:targetX,y:targetY}};
+            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+1.14,y:targetY},forward:{song:5500,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+1.14,y:targetY},'default-early':{song:5500,x:targetX,y:targetY}};
             const contact=scoreCases[scenario.name],outsideX=scenario.name==='scale'||scenario.name==='default-near'?targetX+.9:.1,safe=wrist(outsideX,scenario.name==='scale'||scenario.name==='default-near'?targetY:1.8),at=wrist(contact.x,contact.y);
             fail(Number.isFinite(contact.x)&&Number.isFinite(contact.y)&&Number.isFinite(at.x)&&Number.isFinite(at.y),`${scenario.name}: calibrated target-centred wrist missing`);
             const before=harness.graph.gameplay.getSnapshot().judgements.find(item=>item.eventId==='volume-pixel-punch')??null;
@@ -156,13 +174,13 @@ try {
             fail(scored.session.purpose==='play'&&scored.session.state==='playing'&&scored.session.timelinePositionMs>=contact.song,`${scenario.name}: measured score frame did not advance the real Play audio clock`);
             const negative=scenario.name.startsWith('default-');
             fail(!before&&(negative?!judgement&&!partition?.hits:judgement?.result==='hit'&&partition?.hits===1&&partition.score>0),`${scenario.name}: measured ${negative?'near/early miss':'target hit'} boundary failed: ${JSON.stringify({before,judgement,partition,song:contact.song,targetX,targetY,contact,safe,at})}`);
-            outputs.push({name:scenario.name,volume:locked,frame:frame.colliderSettings,pixel:paired,projection,preview,glovePixels:{changed:glovePixels.changed,strongest:glovePixels.strongest},score:{result:judgement?.result??'pending',tier:judgement?.tier??null,hits:partition?.hits??0,points:partition?.score??0,contactSongMs:contact.song}});
+            outputs.push({name:scenario.name,volume:locked,frame:frame.colliderSettings,pixel:paired,projection,preview,gloveDepthWu:left?.scale.z??null,glovePixels:{changed:glovePixels.changed,strongest:glovePixels.strongest},score:{result:judgement?.result??'pending',tier:judgement?.tier??null,hits:partition?.hits??0,points:partition?.score??0,contactSongMs:contact.song}});
           }
           const row=outputs[0];
           fail(scenario.name==='off'?row.pixel.count===0:row.projection&&row.pixel.count>100,`${scenario.name}: expected OFF-negative or visible enabled collider pixel area: ${JSON.stringify({pixel:row.pixel,projection:row.projection})}`);
           // The separate-page parent must compare tuned rows against default;
           // this payload is bounded diagnostic evidence, not raw pose/pixels.
-          return {name:row.name,pixel:row.pixel,projection:row.projection,preview:row.preview,settings:row.volume,frameSettings:row.frame,glovePixels:row.glovePixels,score:row.score};
+          return {name:row.name,pixel:row.pixel,projection:row.projection,preview:row.preview,settings:row.volume,frameSettings:row.frame,gloveDepthWu:row.gloveDepthWu,glovePixels:row.glovePixels,score:row.score};
         }finally{harness.dispose();}
       },scenario);
       assert.equal(noise.length,0,`${context.kind}:${context.width}x${context.height} browser noise ${noise.join(' | ')}`);
@@ -185,6 +203,9 @@ try {
           Math.abs(box.minX-base.bounds.minX),Math.abs(box.maxX-base.bounds.maxX),Math.abs(box.minY-base.bounds.minY),Math.abs(box.maxY-base.bounds.maxY)
         ].some(delta=>delta>=2),`${context.kind}:${context.width}x${context.height} ${name} must change measured pixel area AND edge: ${JSON.stringify({base,tuned})}`);
       }
+      const unbounded=byName['unbounded-depths'];
+      assert(unbounded.settings.colliderDepthForward===.5&&unbounded.settings.colliderDepthBackward===5&&unbounded.frameSettings.colliderDepthForward===.5&&unbounded.frameSettings.colliderDepthBackward===5&&unbounded.preview.text.includes('front ×0.5')&&unbounded.preview.text.includes('rear ×5')&&unbounded.gloveDepthWu>byName.default.gloveDepthWu,`${context.kind}:${context.width}x${context.height}: native out-of-range Boxer depths must persist, lock for scored Play and enlarge the actual rendered glove Z extent: ${JSON.stringify({base:byName.default,unbounded})}`);
+      assert.equal(unbounded.score.result,'hit','Out-of-range Boxer depths must still score target-centred Play contact');
       assert.equal(byName.off.score.result,'hit','Overlay visibility OFF must preserve scored hit');
       assert.equal(byName.default.score.result,'hit','Default centered glove must score');
       assert.equal(byName.scale.score.result,'hit','Scale4 lateral boundary must score');
@@ -194,4 +215,4 @@ try {
       assert.equal(byName['default-early'].score.result,'pending','Default collider must reject forward4-only early wrist');
     }
   }
-}finally{if(browser)await browser.close();if(host)await new Promise(resolve=>host.close(resolve));await vite.close();}
+}finally{if(browser)await browser.close();if(host)await new Promise(resolve=>host.close(resolve));if(vite)await vite.close();if(signedServer)await new Promise(resolve=>signedServer.close(resolve));if(fixtureDirectory)rmSync(fixtureDirectory,{recursive:true,force:true});}
