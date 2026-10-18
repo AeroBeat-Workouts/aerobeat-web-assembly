@@ -16,7 +16,7 @@ try {
   let childUrl;
   if(signedDirectory){
     const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-    assert(['0.0.132','0.0.133','0.0.134'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
+    assert(['0.0.132','0.0.133','0.0.134','0.0.135'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
     fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-boxer-fixture-'));
     await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
     const fixtures=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
@@ -124,7 +124,7 @@ try {
             const left=scene?.objects.find(object=>object.id==='equipment-collider-volume-left');
             fail(Boolean(left)===(scenario.volume.colliderVisible&&scenario.volume.colliderScale>0),`${scenario.name}: model overlay presence disagrees with Show and nonzero Scale`);
              const wire=renderer.boxingColliderWirePool?.[0],wireMaterial=wire?.render?.meshInstances?.[0]?.material,wirePrimitive=wire?.render?.meshInstances?.[0]?.mesh?.primitive?.[0];
-             fail(left?wire?.enabled&&wire?.name==='boxing-collider-wire-0'&&wirePrimitive?.type===1&&wirePrimitive.count===24&&wireMaterial?.opacity>=.75&&wireMaterial?.emissive.r<.05&&wire.render.layers.includes(renderer.flowColliderOverlayLayer.id):!wire?.enabled,`${scenario.name}: Flow-style 12-edge charcoal Boxer outline must follow Show and use the post-World layer`);
+             fail(left?wire?.enabled&&wire?.name==='boxing-collider-wire-0'&&wirePrimitive?.type===1&&wirePrimitive.count===24&&wireMaterial?.opacity>=.75&&wireMaterial?.emissive.r<.05&&wire.render.layers.includes(renderer.gameplayColliderOverlayLayer.id):!wire?.enabled,`${scenario.name}: 12-edge charcoal Boxer outline must follow Show in the pre-World collider layer so beats stay readable`);
              if(left)for(const axis of ['x','y','z'])fail(Math.abs(wire.getPosition()[axis]-left.position[axis])<.00001&&Math.abs(wire.getLocalScale()[axis]-left.scale[axis])<.00001,`${scenario.name}: polygon wire diverged from scored ${axis} face`);
             const equipment=renderer.describe().equipment;
             fail(equipment?.instanceCount===2&&equipment.assetMode==='glb',`${scenario.name}: both foreground gloves must be actual GLBs: ${JSON.stringify(equipment)}`);
