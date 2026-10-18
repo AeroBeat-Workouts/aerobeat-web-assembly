@@ -124,8 +124,8 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     active(); required(changes && typeof changes === 'object', 'setup changes object required');
     element.setMenuOpen(true);
     element.renderPresenters();
-    const { aeroGameSetupStorageKey, getGameSetupSnapshot, defaultAeroGameSetupSnapshot } = await import('/src/game-setup-coordinator.js');
-    const before = getGameSetupSnapshot();
+    const { aeroGameSetupStorageKey, defaultAeroGameSetupSnapshot } = await import('/src/game-setup-coordinator.js');
+    const before = element.desiredGameSetup;
     const beforeStored = localStorage.getItem(aeroGameSetupStorageKey);
     const controlTrace = [];
     for (const [key, value] of Object.entries(changes)) {
@@ -146,7 +146,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
       }
     }
     const afterStored = localStorage.getItem(aeroGameSetupStorageKey);
-    const desired = getGameSetupSnapshot();
+    const desired = element.desiredGameSetup;
     const unchanged = JSON.stringify(desired) === JSON.stringify(before);
     // A pristine first-run default is intentionally not written by the
     // coordinator's no-op path. Native change events carrying the *same* value

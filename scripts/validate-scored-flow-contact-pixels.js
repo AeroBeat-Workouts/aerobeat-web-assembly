@@ -4,11 +4,15 @@
 // downloaded fixture content and audio device transport are substituted.
 import assert from 'node:assert/strict';
 import { createServer as createHttpServer } from 'node:http';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { chromium } from 'playwright';
 import { convertDifficulty, deriveBeatSaberSpawnTiming } from '@aerobeat/web-content-authoring';
-import { createServer as createViteServer } from 'vite';
+import { build as buildFixture, createServer as createViteServer } from 'vite';
 
 import { isExpectedReadPixelsWarning, isExpectedPlaycanvasMeshWarning } from './readpixels-console-policy.js';
+import { handlerForSnapshot, loadSignedSnapshot } from './serve-friend-game.js';
 
 // Source conversion is checked separately from the scored representative Play
 // chart: this fixture does not claim that its notes came from an exact song.
@@ -20,9 +24,29 @@ for(const [left,right] of [[2,1],[10,9],[10,1],[2,9]]){
   assert.deepEqual(flow?.beats.map(beat=>[beat.hand,beat.placement]),[['left',right],['right',left]],`source Flow center L${left}/R${right} maps to player-side hands`);
   assert.ok(converted.flowTrace&&/^sha256:[0-9a-f]{64}$/.test(String(flow.contentHash))&&/^sha256:[0-9a-f]{64}$/.test(String(converted.packageHash)),`center pair L${left}/R${right} carries converted trace and hash-bound package`);
 }
-const vite=await createViteServer({appType:'spa',configFile:'vite.config.js',logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null}});
-await vite.listen();
-const childUrl=vite.resolvedUrls?.local?.[0];assert(childUrl,'Vite URL unavailable');
+const signedDirectory=process.env.AEROBEAT_SIGNED_FLOW_DIR;
+let vite=null,signedServer=null,fixtureDirectory=null,childUrl;
+if(signedDirectory){
+  const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
+  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.129','signed candidate must carry the intended phone-playtest version');
+  fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-flow-fixture-'));
+  await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
+  const fixtureBytes=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
+  const signedHandler=handlerForSnapshot(snapshot);
+  signedServer=createHttpServer((request,response)=>{
+    const fixture=fixtureBytes.get(new URL(request.url??'/','http://local.invalid').pathname);
+    if(fixture){response.setHeader('Content-Type','text/javascript; charset=utf-8');response.setHeader('Cache-Control','no-store');response.end(fixture);return;}
+    signedHandler(request,response);
+  });
+  await new Promise(resolve=>signedServer.listen(0,'127.0.0.1',resolve));
+  const address=signedServer.address();assert(address&&typeof address!=='string');
+  childUrl=`http://127.0.0.1:${address.port}/`;
+}else{
+  vite=await createViteServer({appType:'spa',configFile:'vite.config.js',logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null}});
+  await vite.listen();
+  childUrl=vite.resolvedUrls?.local?.[0];
+}
+assert(childUrl,'child game URL unavailable');
 const parent=createHttpServer((_request,response)=>{response.setHeader('content-type','text/html; charset=utf-8');response.end(`<!doctype html><style>html,body{margin:0}iframe{width:844px;height:390px;border:0;display:block}</style><iframe id="game" allow="camera; fullscreen; autoplay; xr-spatial-tracking" src="${childUrl}"></iframe>`);});
 await new Promise(resolve=>parent.listen(0,'127.0.0.1',resolve));
 const address=parent.address();assert(address&&typeof address!=='string');
@@ -198,4 +222,4 @@ try{
   }
   assert.deepEqual(matrix[0].rows.map(({id,result,tier,scoreDelta})=>({id,result,tier,scoreDelta})),matrix[1].rows.map(({id,result,tier,scoreDelta})=>({id,result,tier,scoreDelta})));
   console.log(`ORACLE scored-flow-contact-pixels PASS ${JSON.stringify(matrix)}`);
-}finally{await browser.close();await vite.close();await new Promise(resolve=>parent.close(resolve));}
+}finally{await browser.close();if(vite)await vite.close();if(signedServer)await new Promise(resolve=>signedServer.close(resolve));await new Promise(resolve=>parent.close(resolve));if(fixtureDirectory)rmSync(fixtureDirectory,{recursive:true,force:true});}
