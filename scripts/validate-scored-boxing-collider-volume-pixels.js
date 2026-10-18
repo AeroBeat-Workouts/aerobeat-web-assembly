@@ -16,7 +16,7 @@ try {
   let childUrl;
   if(signedDirectory){
     const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-    assert(['0.0.132','0.0.133'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
+    assert(['0.0.132','0.0.133','0.0.134'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
     fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-boxer-fixture-'));
     await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
     const fixtures=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
@@ -35,7 +35,7 @@ try {
   browser=await chromium.launch();
   const contexts=[{kind:'direct',width:844,height:390},{kind:'direct',width:390,height:844},{kind:'iframe',width:390,height:844},{kind:'direct',width:1280,height:720},{kind:'iframe',width:1280,height:720}].filter(context=>!process.env.AEROBEAT_COLLIDER_CONTEXT||`${context.kind}:${context.width}x${context.height}`===process.env.AEROBEAT_COLLIDER_CONTEXT);
   assert(contexts.length,'Unknown AEROBEAT_COLLIDER_CONTEXT');
-  const scenarioDefinitions=[{name:'off',volume:{colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale',volume:{colliderVisible:true,colliderScale:4,colliderDepthForward:1,colliderDepthBackward:3}},{name:'forward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:4,colliderDepthBackward:3}},{name:'backward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:4}},{name:'unbounded-depths',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:.5,colliderDepthBackward:5}},{name:'default-near',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default-early',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}}];
+  const scenarioDefinitions=[{name:'off',volume:{colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale',volume:{colliderVisible:true,colliderScale:4,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale-unbounded',volume:{colliderVisible:true,colliderScale:5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale-zero',volume:{colliderVisible:true,colliderScale:0,colliderDepthForward:1,colliderDepthBackward:3}},{name:'forward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:4,colliderDepthBackward:3}},{name:'backward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:4}},{name:'unbounded-depths',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:.5,colliderDepthBackward:5}},{name:'default-near',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default-early',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}}];
   for(const context of contexts){
     const results=[];
     for(const scenario of scenarioDefinitions.filter(item=>!process.env.AEROBEAT_COLLIDER_SCENARIO||item.name===process.env.AEROBEAT_COLLIDER_SCENARIO)){
@@ -122,7 +122,10 @@ try {
             fail(anchor&&Number.isFinite(anchor.x)&&Number.isFinite(anchor.y)&&Number.isFinite(anchor.z),`${scenario.name}: live measured left wrist anchor absent: ${JSON.stringify({anchor,anchors:frame.equipmentColliderAnchors,input:harness.graph.input.getSnapshot().latestEvidence?.provenance,tracking:harness.graph.input.getSnapshot().tracking,evidenceAnchors:harness.graph.input.getSnapshot().latestEvidence?.anchors?.map(({anchor,valid,confidence})=>({anchor,valid,confidence})),session:capture.session.state,menu:harness.element.menuOpen,poses:harness.element.currentEquipmentPoses?.length})}`);
             const scene=renderer.lastModel;
             const left=scene?.objects.find(object=>object.id==='equipment-collider-volume-left');
-            fail(Boolean(left)===scenario.volume.colliderVisible,`${scenario.name}: model overlay presence disagrees with checkbox`);
+            fail(Boolean(left)===(scenario.volume.colliderVisible&&scenario.volume.colliderScale>0),`${scenario.name}: model overlay presence disagrees with Show and nonzero Scale`);
+             const wire=renderer.boxingColliderWirePool?.[0],wireMaterial=wire?.render?.meshInstances?.[0]?.material,wirePrimitive=wire?.render?.meshInstances?.[0]?.mesh?.primitive?.[0];
+             fail(left?wire?.enabled&&wire?.name==='boxing-collider-wire-0'&&wirePrimitive?.type===1&&wirePrimitive.count===24&&wireMaterial?.opacity>=.75&&wireMaterial?.emissive.r<.05&&wire.render.layers.includes(renderer.flowColliderOverlayLayer.id):!wire?.enabled,`${scenario.name}: Flow-style 12-edge charcoal Boxer outline must follow Show and use the post-World layer`);
+             if(left)for(const axis of ['x','y','z'])fail(Math.abs(wire.getPosition()[axis]-left.position[axis])<.00001&&Math.abs(wire.getLocalScale()[axis]-left.scale[axis])<.00001,`${scenario.name}: polygon wire diverged from scored ${axis} face`);
             const equipment=renderer.describe().equipment;
             fail(equipment?.instanceCount===2&&equipment.assetMode==='glb',`${scenario.name}: both foreground gloves must be actual GLBs: ${JSON.stringify(equipment)}`);
             const glovePixels=harness.assertGlovePixels();
@@ -163,8 +166,8 @@ try {
             // render-only baseline nor visibility switch creates a judgement.
             const target=boxingColliderTargetCenter(5,{topRowReachWU:harness.element.activeSessionSetup.topRowReachWU,bottomRowReachWU:harness.element.activeSessionSetup.bottomRowReachWU});
             const targetX=target.x,targetY=target.y;
-            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+1.14,y:targetY},forward:{song:5500,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+1.14,y:targetY},'default-early':{song:5500,x:targetX,y:targetY}};
-            const contact=scoreCases[scenario.name],outsideX=scenario.name==='scale'||scenario.name==='default-near'?targetX+.9:.1,safe=wrist(outsideX,scenario.name==='scale'||scenario.name==='default-near'?targetY:1.8),at=wrist(contact.x,contact.y);
+            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+1.14,y:targetY},'scale-unbounded':{song:6000,x:targetX+1.14,y:targetY},'scale-zero':{song:6000,x:targetX,y:targetY},forward:{song:5500,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+1.14,y:targetY},'default-early':{song:5500,x:targetX,y:targetY}};
+            const contact=scoreCases[scenario.name],outsideX=['scale','scale-unbounded','default-near'].includes(scenario.name)?targetX+.9:.1,safe=wrist(outsideX,['scale','scale-unbounded','default-near'].includes(scenario.name)?targetY:1.8),at=wrist(contact.x,contact.y);
             fail(Number.isFinite(contact.x)&&Number.isFinite(contact.y)&&Number.isFinite(at.x)&&Number.isFinite(at.y),`${scenario.name}: calibrated target-centred wrist missing`);
             const before=harness.graph.gameplay.getSnapshot().judgements.find(item=>item.eventId==='volume-pixel-punch')??null;
             const safeSong=Math.max(5010,contact.song-90);
@@ -172,12 +175,12 @@ try {
             await harness.seekSong(contact.song);harness.feedPose({leftWrist:at,rightWrist:safe,nose:{x:.5,y:.2}});
             const scored=harness.graph.gameplay.getSnapshot(),judgement=scored.judgements.find(item=>item.eventId==='volume-pixel-punch')??null,partition=scored.scorePartitions.find(item=>item.rulesetId==='boxing_collider_v1')??null;
             fail(scored.session.purpose==='play'&&scored.session.state==='playing'&&scored.session.timelinePositionMs>=contact.song,`${scenario.name}: measured score frame did not advance the real Play audio clock`);
-            const negative=scenario.name.startsWith('default-');
+            const negative=scenario.name.startsWith('default-')||scenario.name==='scale-zero';
             fail(!before&&(negative?!judgement&&!partition?.hits:judgement?.result==='hit'&&partition?.hits===1&&partition.score>0),`${scenario.name}: measured ${negative?'near/early miss':'target hit'} boundary failed: ${JSON.stringify({before,judgement,partition,song:contact.song,targetX,targetY,contact,safe,at})}`);
             outputs.push({name:scenario.name,volume:locked,frame:frame.colliderSettings,pixel:paired,projection,preview,gloveDepthWu:left?.scale.z??null,glovePixels:{changed:glovePixels.changed,strongest:glovePixels.strongest},score:{result:judgement?.result??'pending',tier:judgement?.tier??null,hits:partition?.hits??0,points:partition?.score??0,contactSongMs:contact.song}});
           }
           const row=outputs[0];
-          fail(scenario.name==='off'?row.pixel.count===0:row.projection&&row.pixel.count>100,`${scenario.name}: expected OFF-negative or visible enabled collider pixel area: ${JSON.stringify({pixel:row.pixel,projection:row.projection})}`);
+          fail(['off','scale-zero'].includes(scenario.name)?row.pixel.count===0:row.projection&&row.pixel.count>100,`${scenario.name}: expected OFF-negative or visible enabled collider pixel area: ${JSON.stringify({pixel:row.pixel,projection:row.projection})}`);
           // The separate-page parent must compare tuned rows against default;
           // this payload is bounded diagnostic evidence, not raw pose/pixels.
           return {name:row.name,pixel:row.pixel,projection:row.projection,preview:row.preview,settings:row.volume,frameSettings:row.frame,gloveDepthWu:row.gloveDepthWu,glovePixels:row.glovePixels,score:row.score};
@@ -192,12 +195,15 @@ try {
       const byName=Object.fromEntries(results.map(row=>[row.name,row]));
       const base=byName.default.pixel;
       assert.equal(byName.off.pixel.count,0,`${context.kind}: OFF Play must have zero collider-only pixels`);
+       assert.equal(byName['scale-zero'].pixel.count,0,`${context.kind}: zero Boxer Scale must hide fill and polygon wire`);
+       assert.equal(byName['scale-zero'].score.result,'pending',`${context.kind}: zero Boxer Scale must disable scored contact`);
+       assert.equal(byName['scale-unbounded'].score.result,'hit',`${context.kind}: Scale 5 must score under the existing Boxer target rule`);
       assert(base.count>1000&&base.bounds,`${context.kind}: default collider must have visible bounded area`);
       // The 3D B3→B4 near face is nearly coincident in landscape (~16 pixels);
       // the separate Play chip must expose the locked change without claiming
       // this wrist preview literally outlines the scorer's target bounds.
       assert(!byName.off.preview.shown&&byName.default.preview.shown&&byName.backward.preview.shown&&byName.default.preview.text!==byName.backward.preview.text,`${context.kind}:${context.width}x${context.height}: backward change must remain legible in run-locked Play preview`);
-      for(const name of ['scale','forward','backward']){
+      for(const name of ['scale','scale-unbounded','forward','backward']){
         const tuned=byName[name].pixel,box=tuned.bounds;
         assert(box&&tuned.count>100&&Math.abs(tuned.count-base.count)>12&&[
           Math.abs(box.minX-base.bounds.minX),Math.abs(box.maxX-base.bounds.maxX),Math.abs(box.minY-base.bounds.minY),Math.abs(box.maxY-base.bounds.maxY)

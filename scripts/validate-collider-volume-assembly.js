@@ -21,10 +21,10 @@ for(const field of ['colliderScale','colliderDepthForward','colliderDepthBackwar
   assert.equal(gameplayFlowColliderSettings(changed)[field],value,`Flow ${field}=${value} reaches the actual gameplay settings without limits`);
   assert.deepEqual(Object.fromEntries(['colliderScale','colliderDepthForward','colliderDepthBackward'].map(key=>[key,gameplayBoxingColliderSettings(changed)[key]])),{colliderScale:.75,colliderDepthForward:1,colliderDepthBackward:2},'Flow edits never relax Boxing settings');
 }
-for(const field of ['colliderDepthForward','colliderDepthBackward'])for(const value of [0,.00001,.5,5,9999999]){
+for(const field of ['colliderScale','colliderDepthForward','colliderDepthBackward'])for(const value of [0,.00001,.5,5,9999999]){
   const changed=setup.setSnapshot({...customized,boxingColliderVolume:{...customized.boxingColliderVolume,[field]:value}});
-  assert.equal(gameplayBoxingColliderSettings(changed)[field],value,`Boxing ${field}=${value} reaches scored gameplay without arbitrary depth bounds`);
-  assert.equal(gameplayFlowColliderSettings(changed).colliderDepthForward,2,'Boxing depth edits never alter Flow reach');
+  assert.equal(gameplayBoxingColliderSettings(changed)[field],value,`Boxing ${field}=${value} reaches scored gameplay without arbitrary scale/depth bounds`);
+  assert.equal(gameplayFlowColliderSettings(changed).colliderDepthForward,2,'Boxing scale/depth edits never alter Flow reach');
 }
 const events=[{eventId:'left',centerTimestampMs:1000,authoredBeat:{type:'note',hand:'left',placement:4}}];
 const game={session:{purpose:'play'},judgements:[]};

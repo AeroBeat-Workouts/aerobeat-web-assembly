@@ -107,7 +107,7 @@ for(const field of ["colliderScale","colliderDepthForward","colliderDepthBackwar
 }
 const zeroRear={...extended,flowColliderVolume:{...extended.flowColliderVolume,colliderDepthBackward:0}};
 assert.equal(normalizeGameSetup(zeroRear)?.flowColliderVolume.colliderDepthBackward,0,"Flow hilt-origin rear zero remains a scored setup value");
-for(const field of ["colliderDepthForward","colliderDepthBackward"])for(const value of [0,.00001,.5,5,9999999]){
+for(const field of ["colliderScale","colliderDepthForward","colliderDepthBackward"])for(const value of [0,.00001,.5,5,9999999]){
   const volume={...extended.boxingColliderVolume,[field]:value};
   assert.equal(normalizeGameSetup({...extended,boxingColliderVolume:volume})?.boxingColliderVolume[field],value,`Boxing ${field} accepts finite nonnegative ${value} without arbitrary caps`);
   const storage=createStorage(),saved=new AeroGameSetupCoordinator({storageFactory:()=>storage,eventTarget:null});
@@ -128,7 +128,7 @@ const rearRestart=new AeroGameSetupCoordinator({storageFactory:()=>rearStorage,e
 const freshRearStorage=createStorage(),freshRear=new AeroGameSetupCoordinator({storageFactory:()=>freshRearStorage,eventTarget:null});
 freshRear.setSnapshot({...freshRear.getSnapshot(),flowColliderVolume:{...freshRear.getSnapshot().flowColliderVolume,colliderDepthBackward:3}});freshRear.destroy();
 const freshRearReload=new AeroGameSetupCoordinator({storageFactory:()=>freshRearStorage,eventTarget:null});assert.equal(freshRearReload.getSnapshot().flowColliderVolume.colliderDepthBackward,3,"fresh explicit rear 3 never mistaken for the old default");freshRearReload.destroy();
-for(const [mode,field,value] of [["flowColliderVolume","colliderDepthForward",-.5],["flowColliderVolume","colliderVisible",1],["boxingColliderVolume","colliderScale",0],["boxingColliderVolume","colliderScale",5],...["colliderDepthForward","colliderDepthBackward"].flatMap(field=>[-1,NaN,Infinity,null,"1"].map(value=>["boxingColliderVolume",field,value]))])assert.equal(normalizeGameSetup({...extended,[mode]:{...extended[mode],[field]:value}}),null,`${mode}.${field} rejects invalid value`);
+for(const [mode,field,value] of [["flowColliderVolume","colliderDepthForward",-.5],["flowColliderVolume","colliderVisible",1],...[-1,NaN,Infinity,null,"1"].map(value=>["boxingColliderVolume","colliderScale",value]),...["colliderDepthForward","colliderDepthBackward"].flatMap(field=>[-1,NaN,Infinity,null,"1"].map(value=>["boxingColliderVolume",field,value]))])assert.equal(normalizeGameSetup({...extended,[mode]:{...extended[mode],[field]:value}}),null,`${mode}.${field} rejects invalid value`);
 const visStorage=createStorage([[aeroGameSetupStorageKey,JSON.stringify({...valid,visibleToleranceRange:true,visibleColliderRadius:true})]]),visCoordinator=new AeroGameSetupCoordinator({storageFactory:()=>visStorage,eventTarget:null});assert.equal(visCoordinator.getSnapshot().visibleToleranceRange,true);assert.equal(visCoordinator.getSnapshot().visibleColliderRadius,true);visCoordinator.destroy();
 // z2tx: row-reach world-unit fractions (inclusive 0..1, default .25) and guard count mode.
 for(const [field,min,max]of[["topRowReachWU",0,1],["bottomRowReachWU",0,1]]){
