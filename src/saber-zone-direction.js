@@ -25,6 +25,32 @@ const ZERO_WEIGHTS = Object.freeze({ edgeTop: 0, edgeBottom: 0, edgeLeft: 0, edg
 const DEFAULT_CENTER = Object.freeze({ x: 0.5, y: 0.5 });
 
 /**
+ * Keep authored cardinal edge rotations intact, but remove the out-of-plane
+ * shortening introduced when two edge quaternions blend near a corner. The
+ * shortest rotation projects the already-authored world blade axis onto the
+ * playfield plane, preserving its authored XY heading and full blade length.
+ * @param {Readonly<{x:number,y:number,z:number,w:number}>} orientation
+ * @param {Readonly<{x:number,y:number,z:number,w:number}> | null} baseOrientation
+ * @param {number} weight
+ */
+function extendDiagonalSaber(orientation, baseOrientation, weight) {
+  if (weight <= 0 || baseOrientation === null) return orientation;
+  const world = multiplyEquipmentQuaternions(baseOrientation, orientation);
+  const axis = { x: 1 - 2 * (world.y * world.y + world.z * world.z), y: 2 * (world.x * world.y + world.w * world.z), z: 2 * (world.x * world.z - world.w * world.y) };
+  const planarLength = Math.hypot(axis.x, axis.y);
+  if (planarLength < 1e-9) return orientation;
+  const planar = { x: axis.x / planarLength, y: axis.y / planarLength };
+  const cross = { x: -axis.z * planar.y, y: axis.z * planar.x, z: axis.x * planar.y - axis.y * planar.x };
+  const w = 1 + axis.x * planar.x + axis.y * planar.y;
+  const norm = Math.hypot(cross.x, cross.y, cross.z, w);
+  const correction = { x: cross.x / norm, y: cross.y / norm, z: cross.z / norm, w: w / norm };
+  const partial = slerpEquipmentQuaternionShortest(IDENTITY_QUATERNION, correction, Math.min(1, weight));
+  const adjustedWorld = multiplyEquipmentQuaternions(partial, world);
+  const inverseBase = { x: -baseOrientation.x, y: -baseOrientation.y, z: -baseOrientation.z, w: baseOrientation.w };
+  return multiplyEquipmentQuaternions(inverseBase, adjustedWorld);
+}
+
+/**
  * Resolve a finite radial pivot. Absent/undefined falls back to the square
  * center so existing callers are unchanged.
  * @param {{x?: unknown, y?: unknown} | null | undefined} center
@@ -131,7 +157,7 @@ export function squareRadialEdgeWeights(x, y, blendRadius, center = DEFAULT_CENT
  * heading * local XYZ first; smooth square-radius influence then slerps from the
  * identity spatial adjustment at center to that target at/on/outside the edge.
  */
-export function squareRadialSaberTarget(x, y, zones, blendRadius, center = DEFAULT_CENTER) {
+export function squareRadialSaberTarget(x, y, zones, blendRadius, center = DEFAULT_CENTER, baseOrientation = null) {
   if (zones === null || typeof zones !== "object") throw new TypeError("squareRadialSaberTarget: zones must be an object");
   const radial = squareRadialNeutralInfluence(x, y, center);
   const field = squareRadialEdgeWeights(x, y, blendRadius, center);
@@ -150,11 +176,12 @@ export function squareRadialSaberTarget(x, y, zones, blendRadius, center = DEFAU
   const perimeterOrientation = field.adjacent === null || field.adjacentWeight === 0
     ? primary
     : slerpEquipmentQuaternionShortest(primary, edgeQuaternion(zones[field.adjacent], field.adjacent), field.adjacentWeight);
+  const blended = slerpEquipmentQuaternionShortest(IDENTITY_QUATERNION, perimeterOrientation, radial.influence);
   return Object.freeze({
     ...field,
     radius: radial.radius,
     influence: radial.influence,
     perimeterOrientation,
-    orientation: slerpEquipmentQuaternionShortest(IDENTITY_QUATERNION, perimeterOrientation, radial.influence)
+    orientation: extendDiagonalSaber(blended, baseOrientation, 2 * field.adjacentWeight * radial.influence)
   });
 }

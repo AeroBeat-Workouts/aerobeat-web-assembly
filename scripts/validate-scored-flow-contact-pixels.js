@@ -56,7 +56,7 @@ try{
         ];
         const events=cases.map(row=>({schema:'aerobeat/resolved_content_event',version:3,eventId:row.id,centerTimestampMs:row.at,sourceEventIds:[`source-${row.id}`],appearanceColor:'#2693FF',authoredBeat:{type:'note',hand:'left',placement:5,requiresDirection:false}}));
         const harness=await installScoredPlayHarness(element,{events,mode:'flow',songDurationMs:37000});
-        await harness.waitForAssets();await harness.selectChart();await harness.setSetup({noseMarkerVisible:false});
+        await harness.waitForAssets();await harness.selectChart();await harness.setSetup({noseMarkerVisible:false,flowColliderVolume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:0}});
         for(const [name,value] of [['spawnDistanceOverrideEnabled',true],['spawnDistanceOverrideWorldUnits',20]]){
           const input=harness.element.shadowRoot.querySelector(`[data-game-setup-field='${name}']`);
           if(!(input instanceof HTMLInputElement))throw Error(`Native spawn override ${name} unavailable`);
@@ -103,6 +103,8 @@ try{
           const contact=harness.graph.gameplay.getSnapshot(),equipment=game.currentEquipmentPoses;
           if(equipment.length!==2||renderer.describe().equipment.assetMode!=='glb'||equipment[0].mode!=='flow')throw Error(`${row.id}: measured real saber GLBs absent`);
           const blade=resolveSaberCapsule(equipment[0]);
+          const visibleCollider=renderer.lastModel?.objects?.find(object=>object.id==='equipment-collider-volume-left');
+          if(visibleCollider?.shape!=='capsule'||Math.abs(visibleCollider.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.start.y-blade.start.y)>1e-7||Math.abs(visibleCollider.capsule.end.x-(blade.end.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.end.y-blade.end.y)>1e-7||Math.abs(visibleCollider.capsule.radius-blade.radius)>1e-7)throw Error(`${row.id}: real scored Flow blade and visible rear0/front1 collider disagree: ${JSON.stringify({blade,visibleCollider})}`);
           if((row.path==='hilt'||row.path==='near-then-hilt')&&!(Math.abs(blade.start.x-1.35)<.01&&Math.abs(blade.start.y-1)<.01))throw Error(`${row.id}: measured hilt differs from named path: ${JSON.stringify(blade)}`);
           let hiltEvidence=null;
           if(row.path==='hilt'||row.path==='near-then-hilt'){
@@ -176,6 +178,17 @@ try{
           if(row.expected==='miss'&&(icon?.appearanceColor!=='#2a3038'||pixels.red<15||aftermath.length!==0))throw Error(`${row.id}: full Miss must gray icon and draw red feedback without slice: ${JSON.stringify({icon,pixels,aftermath})}`);
           if(row.id==='near-then-hilt'&&(judgement.diagnostics.includes('near_timing')||aftermath.length!==2||aftermath.some(piece=>piece.aftermath?.sliceSign!==1&&piece.aftermath?.sliceSign!==-1)))throw Error(`${row.id}: later real contact must yield Great and two genuine slice halves, never Almost: ${JSON.stringify({judgement,aftermath})}`);
           rows.push({id:row.id,result:judgement.result,tier:judgement.tier,scoreDelta:delta,combo:current.scorePartitions.at(-1)?.combo??null,feedback,pixels,icon:icon?.assetId??null,aftermath:aftermath.length,...(hiltEvidence?{hiltEvidence}:{}),...(tipEvidence?{tipEvidence}:{})});
+        }
+        // A genuinely measured low-confidence frame must never conjure a fallback
+        // collider away from the blade; a valid held pose may remain until expiry.
+        const judgementsBeforeLoss=harness.graph.gameplay.getSnapshot().judgements.length;
+        for(const elapsed of [100,1100]){
+          harness.feedPose({confidence:.1,timestampMs:game.latestPoseTimestampMs+elapsed,leftWrist:wrist(1.35,1),rightWrist:wrist(3.4,-.4)});
+          const held=game.currentEquipmentPoses.filter(pose=>pose.mode==='flow');
+          const volumes=renderer.lastModel.objects.filter(object=>object.kind==='collider_volume');
+          if(volumes.length!==held.length)throw Error(`lost tracking invented or dropped Flow collider: ${JSON.stringify({elapsed,held,volumes})}`);
+          for(const pose of held){const blade=resolveSaberCapsule(pose),volume=volumes.find(object=>object.role===pose.role.replace('_wrist',''));if(volume?.shape!=='capsule'||Math.abs(volume.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(volume.capsule.end.x-(blade.end.x-1.5))>1e-7)throw Error(`held Flow collider diverged from equipment: ${JSON.stringify({pose,blade,volume})}`);}
+          if(harness.graph.gameplay.getSnapshot().judgements.length!==judgementsBeforeLoss)throw Error('invalid wrists scored during tracking loss');
         }
         harness.dispose();return rows;
       });

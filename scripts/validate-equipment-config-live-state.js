@@ -59,7 +59,7 @@ assert(queueBody.includes("canonicalEquipmentConfigJson(candidate) === canonical
 assert(queueBody.includes("this.equipmentConfigDraft = candidate") && queueBody.includes("this.equipmentConfigCommitTail.then(operation, operation)"), "pending drafts must merge before serialized SHA commits");
 assert(queueBody.includes("this.isCurrent(connectionGeneration, graph)"), "queued commits must reject stale lifecycle owners");
 assert(source.includes('gameplaySnapshot.session?.state === "paused_manual" ? 0 : config.ease.durationMs'), "paused Boxing tracker must resolve immediate endpoint poses");
-assert(source.includes("squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius, { x: center.x, y: 1-center.y })"), "Flow must resolve directly from the stateless cadence-independent spatial field (pivoted per-hand shoulder)");
+assert(source.includes("squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius, { x: center.x, y: 1-center.y }, equipmentEulerDegreesToQuaternion(this.equipmentConfig.flow.perHand[hand].rotationEulerDeg))"), "Flow must resolve directly from the stateless cadence-independent spatial field (pivoted per-hand shoulder)");
 const resolveEquipmentPosesBody = source.slice(source.indexOf("\n  resolveEquipmentPoses("), source.indexOf("\n  visualTestProductionFrame(", source.indexOf("\n  resolveEquipmentPoses(")));
 assert(resolveEquipmentPosesBody.includes("this.computeFlowQuaternionTargets(graph, poseInput, visualTest)"), "Test and Play Flow orientation must consume the current private pose input");
 assert.equal(resolveEquipmentPosesBody.includes("visualTest ? poseInput : null"), false, "Play Flow orientation must never discard its current private pose input");

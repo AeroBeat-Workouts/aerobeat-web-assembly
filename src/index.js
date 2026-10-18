@@ -4,6 +4,7 @@ import "@aerobeat/web-style/aero-theme.css";
 import {
   conversionRecipeIds,
   createEquipmentConfigIdentity,
+  equipmentEulerDegreesToQuaternion,
   elementNames,
   isGameCommand,
   isSafeIframePayload,
@@ -2233,7 +2234,7 @@ export class AeroGame extends HTMLElement {
           center = this.lastKnownShoulderPivot[hand] ?? { x: 0.5, y: 0.5 };
         }
       }
-      const target = squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius, { x: center.x, y: 1-center.y });
+      const target = squareRadialSaberTarget(position.x, 1-position.y, config.zones, config.blendRadius, { x: center.x, y: 1-center.y }, equipmentEulerDegreesToQuaternion(this.equipmentConfig.flow.perHand[hand].rotationEulerDeg));
       result[hand] = Object.freeze({ orientation:target.orientation, position:Object.freeze(position) });
     }
     return result;
@@ -2291,6 +2292,9 @@ export class AeroGame extends HTMLElement {
     // Do not make measured wrist bomb visualization depend on equipment meshes.
     // The frame owns the centers even when Visual Test hides the model layer.
     const measuredInput = visualTest ? fallbackInput : graph.input.getSnapshot();
+    // Debug Flow volume consumes the exact visible equipment poses, never a
+    // separate wrist-only box or a synthetic hand position on tracking loss.
+    if (frame.presentation === "flow") frame.equipmentColliderPoses = equipment.filter((pose) => pose.mode === "flow");
     frame.equipmentColliderAnchors = equipmentColliderAnchors(resolved, measuredInput, frame.presentation === "flow" ? "flow" : "boxing", visualTest);
     const input = graph.input.getSnapshot();
     const nose = Array.isArray(input?.anchors) ? input.anchors.find((anchor) => anchor?.anchor === "nose") : null;
@@ -3257,7 +3261,7 @@ export class AeroGame extends HTMLElement {
     section.insertBefore(cameraGroup, colliderGroup);
     this.renderCameraPoseControls();this.renderColliderVolumeControls();
   }
-  renderColliderVolumeControls(){const mode=this.cameraControlMode(),volume=(mode==="flow"?this.desiredGameSetup.flowColliderVolume:this.desiredGameSetup.boxingColliderVolume);const legend=this.shadowRoot?.querySelector("[data-role='collider-volume-mode']");if(legend instanceof HTMLElement)legend.textContent=`${mode==="flow"?"Flow saber":"Boxing glove"} collider`;for(const input of this.shadowRoot?.querySelectorAll("[data-collider-volume-field]")??[]){if(!(input instanceof HTMLInputElement)||this.shadowRoot?.activeElement===input)continue;const field=input.dataset.colliderVolumeField;if(!field)continue;if(input.type==="checkbox")input.checked=volume.colliderVisible;else input.value=String(volume[field]);}}
+  renderColliderVolumeControls(){const mode=this.cameraControlMode(),volume=(mode==="flow"?this.desiredGameSetup.flowColliderVolume:this.desiredGameSetup.boxingColliderVolume);const legend=this.shadowRoot?.querySelector("[data-role='collider-volume-mode']");if(legend instanceof HTMLElement)legend.textContent=`${mode==="flow"?"Flow saber":"Boxing glove"} collider`;for(const input of this.shadowRoot?.querySelectorAll("[data-collider-volume-field]")??[]){if(!(input instanceof HTMLInputElement)||this.shadowRoot?.activeElement===input)continue;const field=input.dataset.colliderVolumeField;if(!field)continue;if(input.type==="checkbox")input.checked=volume.colliderVisible;else {if(field==="colliderDepthBackward")input.min=mode==="flow"?"0":"1";input.value=String(volume[field]);}}}
   applyColliderVolumeControl(input){const field=input.dataset.colliderVolumeField;if(!["colliderVisible","colliderScale","colliderDepthForward","colliderDepthBackward"].includes(field))return;const mode=this.cameraControlMode(),key=mode==="flow"?"flowColliderVolume":"boxingColliderVolume",current=getGameSetupSnapshot();const value=input.type==="checkbox"?input.checked:input.validity.valid&&Number.isFinite(input.valueAsNumber)?input.valueAsNumber:null;if(value===null){this.renderColliderVolumeControls();return;}try{setGameSetupSnapshot({...current,[key]:{...current[key],[field]:value}});this.renderColliderVolumeControls();}catch{this.renderColliderVolumeControls();}}
   applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLSelectElement&&field==="renderScale")next={...current,renderScale:Number(input.value)};else if(input instanceof HTMLInputElement&&["obstaclesEnabled","showGameplayGrid","visibleToleranceRange","visibleColliderRadius","uppercutOppositeLane","anyOppositeLane","noseMarkerVisible","visibleWristObstacleRadius"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
   renderGameSetupError(field,message){const value=this.shadowRoot?.querySelector(`[data-game-setup-error='${field}']`);if(value instanceof HTMLElement)value.textContent=message;}

@@ -129,7 +129,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     const beforeStored = localStorage.getItem(aeroGameSetupStorageKey);
     const controlTrace = [];
     for (const [key, value] of Object.entries(changes)) {
-      const volume = key === 'boxingColliderVolume';
+      const volume = key === 'boxingColliderVolume' || key === 'flowColliderVolume';
       const fields = volume ? value : { [key]: value };
       required(fields && typeof fields === 'object', `invalid Game Setup field ${key}`);
       for (const [name, desired] of Object.entries(fields)) {
@@ -158,8 +158,8 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
       required(JSON.stringify(parsed) === JSON.stringify(desired), `persisted Game Setup differs from coordinator: ${JSON.stringify(Object.keys(desired).filter(key => JSON.stringify(parsed?.[key]) !== JSON.stringify(desired[key])).map(key => ({ key, persisted: parsed?.[key], current: desired[key] })))}`);
     }
     for (const [key, value] of Object.entries(changes)) {
-      const expected = key === 'boxingColliderVolume' ? value : { [key]: value };
-      for (const [field, actual] of Object.entries(expected)) required(Object.is((key === 'boxingColliderVolume' ? desired[key] : desired)[field], actual), `persisted ${key}.${field} differs from native input`);
+      const expected = key === 'boxingColliderVolume' || key === 'flowColliderVolume' ? value : { [key]: value };
+      for (const [field, actual] of Object.entries(expected)) required(Object.is((key === 'boxingColliderVolume' || key === 'flowColliderVolume' ? desired[key] : desired)[field], actual), `persisted ${key}.${field} differs from native input`);
     }
     return desired;
   };

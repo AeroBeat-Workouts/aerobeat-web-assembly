@@ -39,7 +39,7 @@ const flowPivotSource = source.match(/computeFlowQuaternionTargets\(graph, input
 assert.match(flowPivotSource, /entry\?\.anchor === `\$\{hand\}_shoulder`/u, "gameplay Flow rotation must pivot on the per-hand shoulder");
 assert.match(flowPivotSource, /this\.lastKnownShoulderPivot\[hand\] \?\? \{ x: 0\.5, y: 0\.5 \}/u, "a lost shoulder must hold the last known position, else fall back to center");
 assert.match(flowPivotSource, /if \(visualTest\) \{[\s\S]*?center = \{ x: 0\.5, y: 0\.5 \}/u, "Test mode must keep the screen-center pivot");
-assert.match(flowPivotSource, /squareRadialSaberTarget\(position\.x, 1-position\.y, config\.zones, config\.blendRadius, \{ x: center\.x, y: 1-center\.y \}\)/u, "the resolved pivot must be passed as the radial center (y-flipped)");
+assert.match(flowPivotSource, /squareRadialSaberTarget\(position\.x, 1-position\.y, config\.zones, config\.blendRadius, \{ x: center\.x, y: 1-center\.y \}, equipmentEulerDegreesToQuaternion\(this\.equipmentConfig\.flow\.perHand\[hand\]\.rotationEulerDeg\)\)/u, "the resolved pivot must be passed as the radial center (y-flipped)");
 assert.match(flowPivotSource, /lastKnownShoulderCalibrationId !== calibrationId/u, "the last-known shoulder cache must reset on a new calibration generation");
 // 0.0.72: the mid-game T-pose recalibration gesture must be disabled while the
 // session is in active gameplay (playing/countdown) so a T-pose held during a

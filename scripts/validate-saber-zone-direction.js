@@ -50,6 +50,8 @@ assert.deepEqual(squareRadialNeutralInfluence(1,.75), {radius:1,influence:1});
 assert.deepEqual(squareRadialNeutralInfluence(20,-20), {radius:1,influence:1});
 
 // Exact axes are full edge targets; exact corners are adjacent-edge 50/50 targets.
+// The production field also removes the slerp-induced out-of-plane tilt at
+// diagonal corners after composing the configured per-hand base rotation.
 for (const key of Object.keys(SABER_ZONE_ANCHORS)) {
   const point = SABER_ZONE_ANCHORS[key];
   const target = squareRadialSaberTarget(point.x, point.y, ZONES, RADIUS);
@@ -63,6 +65,19 @@ for (const [x,y,a,b] of [[1,1,"edgeRight","edgeTop"],[1,0,"edgeRight","edgeBotto
   close(target.weights[b], .5, 1e-12, `${b} corner weight`);
   quatClose(target.orientation, slerpEquipmentQuaternionShortest(edgeQ(a),edgeQ(b),.5), 1e-8, `${a}/${b} corner blend`);
 }
+
+const base = equipmentEulerDegreesToQuaternion(equipmentConfigDefaults.flow.perHand.left.rotationEulerDeg);
+const forwardAxis = (orientation) => { const q=multiplyEquipmentQuaternions(base,orientation);return {x:1-2*(q.y*q.y+q.z*q.z),y:2*(q.x*q.y+q.w*q.z),z:2*(q.x*q.z-q.w*q.y)}; };
+for (const [label,x,y,signX,signY] of [["top-right",1,1,1,1],["top-left",0,1,-1,1],["bottom-right",1,0,1,-1],["bottom-left",0,0,-1,-1]]) {
+  const corrected=squareRadialSaberTarget(x,y,ZONES,RADIUS,{x:.5,y:.5},base);
+  const axis=forwardAxis(corrected.orientation);
+  close(axis.x,signX/Math.SQRT2,1e-9,`${label} fully outward X`);
+  close(axis.y,signY/Math.SQRT2,1e-9,`${label} fully outward Y`);
+  close(axis.z,0,1e-9,`${label} full visible blade length in playfield plane`);
+}
+for (const [key,point] of Object.entries(SABER_ZONE_ANCHORS)) quatClose(squareRadialSaberTarget(point.x,point.y,ZONES,RADIUS,{x:.5,y:.5},base).orientation,edgeQ(key),1e-8,`${key} remains authored`);
+let lastCorrected=squareRadialSaberTarget(1,.5,ZONES,RADIUS,{x:.5,y:.5},base).orientation;
+for(let index=1;index<=512;index+=1){const next=squareRadialSaberTarget(1,.5+index/1024,ZONES,RADIUS,{x:.5,y:.5},base).orientation;assert(quatDistanceDeg(lastCorrected,next)<1,`fully extended diagonal must approach smoothly at ${index}`);lastCorrected=next;}
 
 const rays = [
   ["top",.5,1,"edgeTop"], ["bottom",.5,0,"edgeBottom"], ["left",0,.5,"edgeLeft"], ["right",1,.5,"edgeRight"],
