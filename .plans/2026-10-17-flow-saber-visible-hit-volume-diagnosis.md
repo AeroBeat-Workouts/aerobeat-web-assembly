@@ -1,6 +1,6 @@
 # Flow saber visible hit-volume diagnosis — public 0.0.128
 
-**Status:** Diagnosis drafted; implementation and public replacement require Derrick's approval. **Bead:** `aerobeat-web-assembly-8pp1` (in progress). **Owner:** Pico / assembly integration, with gameplay and renderer owning their respective code. **Next acceptance check:** Drive the same resolved hand-up/hand-down pose through actual renderer blade, Flow collider, and judgement at a deliberately chosen hit/miss boundary; compare rendered blade pixels and capsule endpoints rather than relying on the existing box overlay. Public signed game remains unchanged. **Dependencies:** Derrick's phone observation and existing clean owner repos; new signed build and explicit publication decision before replacing the public game. **Goal round cap if approved:** Maximum safe integer.
+**Status:** Diagnosis drafted; new depth-zero/forward-from-hilt design needs Derrick's timing choice and explicit implementation approval. **Bead:** `aerobeat-web-assembly-8pp1` (in progress). **Owner:** Pico / assembly integration, with gameplay, contracts and renderer owning their respective code. **Next acceptance check:** Drive the same resolved hand-up/hand-down pose through actual renderer blade, Flow collider, and judgement at a deliberately chosen hit/miss boundary; compare rendered blade pixels and capsule endpoints rather than relying on the existing box overlay. Public signed game remains unchanged. **Dependencies:** Derrick's depth-zero timing decision, existing clean owner repos; new signed build and explicit publication decision before replacing the public game. **Goal round cap if approved:** Maximum safe integer.
 
 ## Goal and scope
 
@@ -50,6 +50,14 @@ Corrective action: Same-frame boundary reproduction, then minimal owning-source 
 Verification test: Existing relevant owner units plus one signed direct/iframe real-game boundary check; later physical phone retest.
 Related files/components: assembly `src/index.js`, `src/gameplay-equipment-records.js`; gameplay `src/equipment-pose-collision.js`; renderer `src/gameplay-scene-model.js` and equipment staging.
 Remaining uncertainty: Whether screen-visible blade and authoritative capsule diverge in actual Play, or whether timing/depth/freshness explains Misses.
+
+## Second physical report and design decision, 2026-10-17
+
+Derrick also tried Flow **Depth − (backward) = 0**; the UI restored `1` instead. He expects zero rear extent to work. He expects **Depth + (forward)** to originate at the saber's bottom hilt and extend toward the incoming beats while following equipment rotation. This is a material behavior request, not merely a cosmetic correction.
+
+**Confirmed reason zero fails:** Assembly `src/game-setup-coordinator.js:12,74` bounds both depth factors to `[1,4]`, and `src/index.js:3236,3261` gives the inputs minimum `1` and rerenders the previous setting on failed validation. Gameplay `src/flow-collider-collision.js:18–21,60–63` and contracts `src/collider-contracts.js:29–36` also require depth >=1. The contracts `resolveColliderBounds` currently places axis-aligned Z faces around the **wrist plane**, scaling the 180ms × .006 WU/ms timing depth; forward is world −Z, backward is world +Z. Neither depth factor currently defines distance **along the rotating saber**. The visible debug box and Flow beat time/deadline consume this target-region depth; the actual saber capsule uses the resolved pose separately. Therefore simply changing HTML min to zero would not implement the requested design and could silently change late-note scoring or reject persisted settings.
+
+**Decision needed before implementation:** Does rear depth `0` also remove the post-crossing late-hit window (notes must be struck no later than the hilt plane), or should it remove only rearward *saber reach* while the existing note timing/late window stays unchanged? The latter separates equipment geometry from note timing, which matches the forward-from-hilt request more directly; propose that as the starting design if Derrick agrees. Specify forward extent in world units or explicitly retain the current bounded multiplier, then run old/new boundary tests for rotated hilt/forward tip, zero rear reach, note time/depth, storage migration and Boxing isolation. No code changed, public route unchanged.
 
 ## Proposed work, pending approval
 
