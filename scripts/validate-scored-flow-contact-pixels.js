@@ -28,7 +28,7 @@ const signedDirectory=process.env.AEROBEAT_SIGNED_FLOW_DIR;
 let vite=null,signedServer=null,fixtureDirectory=null,childUrl;
 if(signedDirectory){
   const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.131','signed candidate must carry the corrected phone-playtest version');
+  assert(['0.0.131','0.0.132'].includes(snapshot.manifest.sourceManifest.packageVersion),'signed candidate must be the corrected Flow Play release or its Test-outline successor');
   fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-flow-fixture-'));
   await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
   const fixtureBytes=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
