@@ -4,7 +4,7 @@
 // downloaded fixture content and audio device transport are substituted.
 import assert from 'node:assert/strict';
 import { createServer as createHttpServer } from 'node:http';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
@@ -28,7 +28,7 @@ const signedDirectory=process.env.AEROBEAT_SIGNED_FLOW_DIR;
 let vite=null,signedServer=null,fixtureDirectory=null,childUrl;
 if(signedDirectory){
   const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.129','signed candidate must carry the intended phone-playtest version');
+  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.130','signed candidate must carry the corrected phone-playtest version');
   fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-flow-fixture-'));
   await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
   const fixtureBytes=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
@@ -63,7 +63,7 @@ try{
       await page.goto(embedding==='direct'?childUrl:parentUrl,{waitUntil:'networkidle'});
       if(embedding!=='direct')assert.notEqual(new URL(parentUrl).origin,new URL(childUrl).origin);
       const game=embedding==='direct'?page.locator('aero-game'):page.frameLocator('#game').locator('aero-game');await game.waitFor();
-      const result=await game.evaluate(async element=>{
+      const result=await game.evaluate(async (element,captureProof)=>{
         const {installScoredPlayHarness,resolveSaberCapsule}=await import('/scripts/fixtures/scored-play-browser-harness.js');
         // Distinct pre-eligible baseline (center-200), then an eligible measured
         // pose; late tip also holds a fresh noncontact at center+40 before
@@ -129,6 +129,15 @@ try{
           const blade=resolveSaberCapsule(equipment[0]);
           const visibleCollider=renderer.lastModel?.objects?.find(object=>object.id==='equipment-collider-volume-left');
           if(visibleCollider?.shape!=='capsule'||Math.abs(visibleCollider.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.start.y-blade.start.y)>1e-7||Math.abs(visibleCollider.capsule.end.x-(blade.end.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.end.y-blade.end.y)>1e-7||Math.abs(visibleCollider.capsule.radius-blade.radius)>1e-7)throw Error(`${row.id}: real scored Flow blade and visible rear0/front1 collider disagree: ${JSON.stringify({blade,visibleCollider})}`);
+          // Model endpoints alone do not prove the actual GPU mesh's endcaps.
+          const entity=renderer.flowColliderCapsulePool?.find(candidate=>candidate.enabled&&candidate.name===visibleCollider.id),vertices=[];
+          const count=entity?.render?.meshInstances?.[0]?.mesh?.getPositions(vertices)??0;
+          if(count<4||vertices.length<count*3)throw Error(`${row.id}: actual Flow overlay mesh is unavailable`);
+          let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;
+          for(let index=0;index<count*3;index+=3){minX=Math.min(minX,vertices[index]);maxX=Math.max(maxX,vertices[index]);minY=Math.min(minY,vertices[index+1]);maxY=Math.max(maxY,vertices[index+1]);minZ=Math.min(minZ,vertices[index+2]);maxZ=Math.max(maxZ,vertices[index+2]);}
+          const meshScale=entity.getLocalScale(),centerline=Math.hypot(visibleCollider.capsule.end.x-visibleCollider.capsule.start.x,visibleCollider.capsule.end.y-visibleCollider.capsule.start.y,visibleCollider.capsule.end.z-visibleCollider.capsule.start.z),radius=visibleCollider.capsule.radius;
+          const actual={axis:(maxX-minX)*meshScale.x,radialY:(maxY-minY)*meshScale.y,radialZ:(maxZ-minZ)*meshScale.z,midpoint:(maxX+minX)*meshScale.x/2},expected={axis:centerline+2*radius,radialY:2*radius,radialZ:2*radius,midpoint:0};
+          if(Object.entries(expected).some(([key,value])=>Math.abs(actual[key]-value)>1e-5))throw Error(`${row.id}: actual GPU collider silhouette extends beyond scored saber capsule: ${JSON.stringify({actual,expected,meshScale,blade})}`);
           if((row.path==='hilt'||row.path==='near-then-hilt')&&!(Math.abs(blade.start.x-1.35)<.01&&Math.abs(blade.start.y-1)<.01))throw Error(`${row.id}: measured hilt differs from named path: ${JSON.stringify(blade)}`);
           let hiltEvidence=null;
           if(row.path==='hilt'||row.path==='near-then-hilt'){
@@ -201,7 +210,13 @@ try{
           if(row.expected==='almost'&&(!judgement.diagnostics.includes('near_timing')||icon?.appearanceColor!=='#2693FF'||!tinted||pixels.yellow<15||aftermath.length!==0))throw Error(`${row.id}: yellow Almost must keep intact tinted real GLB and show no slice: ${JSON.stringify({judgement,feedback,icon,pixels,aftermath})}`);
           if(row.expected==='miss'&&(icon?.appearanceColor!=='#2a3038'||pixels.red<15||aftermath.length!==0))throw Error(`${row.id}: full Miss must gray icon and draw red feedback without slice: ${JSON.stringify({icon,pixels,aftermath})}`);
           if(row.id==='near-then-hilt'&&(judgement.diagnostics.includes('near_timing')||aftermath.length!==2||aftermath.some(piece=>piece.aftermath?.sliceSign!==1&&piece.aftermath?.sliceSign!==-1)))throw Error(`${row.id}: later real contact must yield Great and two genuine slice halves, never Almost: ${JSON.stringify({judgement,aftermath})}`);
-          rows.push({id:row.id,result:judgement.result,tier:judgement.tier,scoreDelta:delta,combo:current.scorePartitions.at(-1)?.combo??null,feedback,pixels,icon:icon?.assetId??null,aftermath:aftermath.length,...(hiltEvidence?{hiltEvidence}:{}),...(tipEvidence?{tipEvidence}:{})});
+          if(captureProof&&row.id==='early-hilt'){
+             const canvas=game.shadowRoot.querySelector('canvas[data-role="renderer"]'),image=document.createElement('canvas');
+             if(!(canvas instanceof HTMLCanvasElement))throw Error('signed Flow visual proof canvas missing');
+             image.width=canvas.width;image.height=canvas.height;image.getContext('2d')?.drawImage(canvas,0,0);
+             globalThis.__aerobeatFlowProof=image.toDataURL('image/png');
+           }
+           rows.push({id:row.id,result:judgement.result,tier:judgement.tier,scoreDelta:delta,combo:current.scorePartitions.at(-1)?.combo??null,feedback,pixels,icon:icon?.assetId??null,aftermath:aftermath.length,...(hiltEvidence?{hiltEvidence}:{}),...(tipEvidence?{tipEvidence}:{})});
         }
         // A genuinely measured low-confidence frame must never conjure a fallback
         // collider away from the blade; a valid held pose may remain until expiry.
@@ -215,8 +230,15 @@ try{
           if(harness.graph.gameplay.getSnapshot().judgements.length!==judgementsBeforeLoss)throw Error('invalid wrists scored during tracking loss');
         }
         harness.dispose();return rows;
-      });
+      },Boolean(process.env.AEROBEAT_FLOW_VISUAL_PROOF_DIR));
       assert.deepEqual(noise,[],`${embedding}: browser noise`);
+      if(process.env.AEROBEAT_FLOW_VISUAL_PROOF_DIR){
+        const proof=embedding==='direct'?await page.evaluate(()=>globalThis.__aerobeatFlowProof):await page.frameLocator('#game').locator('html').evaluate(()=>globalThis.__aerobeatFlowProof);
+        assert(typeof proof==='string'&&proof.startsWith('data:image/png;base64,'),`${embedding}: actual scored frame visual proof missing`);
+        const directory=path.resolve(process.env.AEROBEAT_FLOW_VISUAL_PROOF_DIR),file=path.join(directory,`${embedding}-scored-flow.png`);
+        mkdirSync(directory,{recursive:true});writeFileSync(file,Buffer.from(proof.slice('data:image/png;base64,'.length),'base64'),{flag:'wx'});
+        console.log(`Saved scored Flow actual-browser image: ${file}`);
+      }
       matrix.push({embedding,rows:result});
     }finally{await context.close();}
   }
