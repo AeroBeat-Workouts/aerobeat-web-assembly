@@ -16,6 +16,11 @@ assert.deepEqual(reloaded.getSnapshot().flowColliderVolume,customized.flowCollid
 assert.deepEqual(reloaded.getSnapshot().boxingColliderVolume,customized.boxingColliderVolume);
 assert.deepEqual(Object.fromEntries(['colliderScale','colliderDepthForward','colliderDepthBackward'].map(key=>[key,gameplayFlowColliderSettings(customized)[key]])),{colliderScale:1.5,colliderDepthForward:2,colliderDepthBackward:3});
 assert.deepEqual(Object.fromEntries(['colliderScale','colliderDepthForward','colliderDepthBackward'].map(key=>[key,gameplayBoxingColliderSettings(customized)[key]])),{colliderScale:.75,colliderDepthForward:1,colliderDepthBackward:2});
+for(const field of ['colliderScale','colliderDepthForward','colliderDepthBackward'])for(const value of [0,.00001,9999999]){
+  const changed=setup.setSnapshot({...customized,flowColliderVolume:{...customized.flowColliderVolume,[field]:value}});
+  assert.equal(gameplayFlowColliderSettings(changed)[field],value,`Flow ${field}=${value} reaches the actual gameplay settings without limits`);
+  assert.deepEqual(Object.fromEntries(['colliderScale','colliderDepthForward','colliderDepthBackward'].map(key=>[key,gameplayBoxingColliderSettings(changed)[key]])),{colliderScale:.75,colliderDepthForward:1,colliderDepthBackward:2},'Flow edits never relax Boxing settings');
+}
 const events=[{eventId:'left',centerTimestampMs:1000,authoredBeat:{type:'note',hand:'left',placement:4}}];
 const game={session:{purpose:'play'},judgements:[]};
 const index=createSessionTargetIndex(events,{normalSpawnLeadMs:2500});

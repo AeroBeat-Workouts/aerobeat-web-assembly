@@ -28,7 +28,7 @@ const signedDirectory=process.env.AEROBEAT_SIGNED_FLOW_DIR;
 let vite=null,signedServer=null,fixtureDirectory=null,childUrl;
 if(signedDirectory){
   const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.130','signed candidate must carry the corrected phone-playtest version');
+  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.131','signed candidate must carry the corrected phone-playtest version');
   fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-flow-fixture-'));
   await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
   const fixtureBytes=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
@@ -64,7 +64,7 @@ try{
       if(embedding!=='direct')assert.notEqual(new URL(parentUrl).origin,new URL(childUrl).origin);
       const game=embedding==='direct'?page.locator('aero-game'):page.frameLocator('#game').locator('aero-game');await game.waitFor();
       const result=await game.evaluate(async (element,captureProof)=>{
-        const {installScoredPlayHarness,resolveSaberCapsule}=await import('/scripts/fixtures/scored-play-browser-harness.js');
+        const {installScoredPlayHarness,resolveSaberCapsule,flowSolidBladeRadiusWu}=await import('/scripts/fixtures/scored-play-browser-harness.js');
         // Distinct pre-eligible baseline (center-200), then an eligible measured
         // pose; late tip also holds a fresh noncontact at center+40 before
         // crossing at +80. Never sweep through a near/far target.
@@ -80,7 +80,15 @@ try{
         ];
         const events=cases.map(row=>({schema:'aerobeat/resolved_content_event',version:3,eventId:row.id,centerTimestampMs:row.at,sourceEventIds:[`source-${row.id}`],appearanceColor:'#2693FF',authoredBeat:{type:'note',hand:'left',placement:5,requiresDirection:false}}));
         const harness=await installScoredPlayHarness(element,{events,mode:'flow',songDurationMs:37000});
-        await harness.waitForAssets();await harness.selectChart();await harness.setSetup({noseMarkerVisible:false,flowColliderVolume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:0}});
+        await harness.waitForAssets();await harness.selectChart();await harness.setSetup({noseMarkerVisible:false,flowColliderVolume:{colliderVisible:true,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0}});
+        // Drive the REAL Flow menu input and persistence before starting scored Play.
+        // Its size/reach controls must not keep legacy UI or coordinator caps.
+        for(const field of ['colliderScale','colliderDepthForward','colliderDepthBackward']){
+          const input=harness.element.shadowRoot.querySelector(`input[data-collider-volume-field='${field}']`);
+          if(!(input instanceof HTMLInputElement)||input.min!=='0'||input.hasAttribute('max'))throw Error(`${field}: Flow input still has an arbitrary limit`);
+          for(const value of [0,.00001,9999999])await harness.setSetup({flowColliderVolume:{[field]:value}});
+        }
+        await harness.setSetup({flowColliderVolume:{colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0}});
         for(const [name,value] of [['spawnDistanceOverrideEnabled',true],['spawnDistanceOverrideWorldUnits',20]]){
           const input=harness.element.shadowRoot.querySelector(`[data-game-setup-field='${name}']`);
           if(!(input instanceof HTMLInputElement))throw Error(`Native spawn override ${name} unavailable`);
@@ -127,8 +135,9 @@ try{
           const contact=harness.graph.gameplay.getSnapshot(),equipment=game.currentEquipmentPoses;
           if(equipment.length!==2||renderer.describe().equipment.assetMode!=='glb'||equipment[0].mode!=='flow')throw Error(`${row.id}: measured real saber GLBs absent`);
           const blade=resolveSaberCapsule(equipment[0]);
+          const scoredRadius=flowSolidBladeRadiusWu*equipment[0].scale*game.activeSessionSetup.flowColliderVolume.colliderScale;
           const visibleCollider=renderer.lastModel?.objects?.find(object=>object.id==='equipment-collider-volume-left');
-          if(visibleCollider?.shape!=='capsule'||Math.abs(visibleCollider.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.start.y-blade.start.y)>1e-7||Math.abs(visibleCollider.capsule.end.x-(blade.end.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.end.y-blade.end.y)>1e-7||Math.abs(visibleCollider.capsule.radius-blade.radius)>1e-7)throw Error(`${row.id}: real scored Flow blade and visible rear0/front1 collider disagree: ${JSON.stringify({blade,visibleCollider})}`);
+          if(visibleCollider?.shape!=='capsule'||Math.abs(visibleCollider.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.start.y-blade.start.y)>1e-7||Math.abs(visibleCollider.capsule.end.x-(blade.end.x-1.5))>1e-7||Math.abs(visibleCollider.capsule.end.y-blade.end.y)>1e-7||Math.abs(visibleCollider.capsule.radius-scoredRadius)>1e-7)throw Error(`${row.id}: real scored Flow solid blade and visible rear0/front1 collider disagree: ${JSON.stringify({blade,scoredRadius,visibleCollider})}`);
           // Model endpoints alone do not prove the actual GPU mesh's endcaps.
           const entity=renderer.flowColliderCapsulePool?.find(candidate=>candidate.enabled&&candidate.name===visibleCollider.id),vertices=[];
           const count=entity?.render?.meshInstances?.[0]?.mesh?.getPositions(vertices)??0;
@@ -159,12 +168,12 @@ try{
             const locked=game.activeSessionSetup,volume=locked?.flowColliderVolume;
             if(!locked||locked!==game.desiredGameSetup||!volume||!Number.isFinite(volume.colliderScale)||placement!==5)throw Error(`${row.id}: run-locked Flow collider authority or placement missing`);
             // Canonical 4×3 placement 5 has center (1,1) and raw half-size
-            // (.5,.5). Production colliderScale shrinks both XY half-sizes.
-            const centerX=placement%4,centerY=2-Math.floor(placement/4),half=.5*volume.colliderScale;
+            // (.5,.5). Flow Scale changes the saber, not this note box.
+            const centerX=placement%4,centerY=2-Math.floor(placement/4),half=.5;
             const bounds={minX:centerX-half,maxX:centerX+half,minY:centerY-half,maxY:centerY+half};
             const distance=point=>Math.hypot(Math.max(bounds.minX-point.x,0,point.x-bounds.maxX),Math.max(bounds.minY-point.y,0,point.y-bounds.maxY));
             const startDistance=distance(blade.start),endDistance=distance(blade.end);
-            if(!(startDistance>blade.radius&&endDistance<=blade.radius&&blade.end.x<blade.start.x))throw Error(`${row.id}: distal-only measured saber contact invalid: ${JSON.stringify({blade,bounds,startDistance,endDistance,volume})}`);
+            if(!(startDistance>scoredRadius&&endDistance<=scoredRadius&&blade.end.x<blade.start.x))throw Error(`${row.id}: distal-only measured saber contact invalid: ${JSON.stringify({blade,bounds,startDistance,endDistance,volume})}`);
             const judgement=contact.judgements.find(j=>j.eventId===row.id);
             // Gameplay's recorded timingOffsetMs is the actual earliest swept
             // contact (recordJudgementAt receives swept.firstContactMs), not
@@ -172,7 +181,7 @@ try{
             const timingOffsetMs=judgement?.timingOffsetMs;
             if(!(judgement?.result==='hit'&&Number.isFinite(timingOffsetMs)&&
               (row.id==='early-tip'?timingOffsetMs<0:timingOffsetMs>=0&&timingOffsetMs>40&&timingOffsetMs<=80)))throw Error(`${row.id}: actual first swept contact not in intended temporal half: ${JSON.stringify(judgement)}`);
-            tipEvidence={wrist:{x:tipPose.x,y:tipPose.y},blade,bounds,startDistance,endDistance,radius:blade.radius,firstContactMs:row.at+timingOffsetMs,hitDepthHalf:timingOffsetMs<0?'front':'back'};
+            tipEvidence={wrist:{x:tipPose.x,y:tipPose.y},blade,bounds,startDistance,endDistance,radius:scoredRadius,firstContactMs:row.at+timingOffsetMs,hitDepthHalf:timingOffsetMs<0?'front':'back'};
           }
           if(row.expected==='great'&&contact.judgements.find(j=>j.eventId===row.id)?.result!=='hit')throw Error(`${row.id}: real scored blade contact did not hit: ${JSON.stringify({judgements:contact.judgements,equipment,session:contact.session,input:harness.graph.input.getSnapshot().latestEvidence?.anchors?.filter(a=>a.anchor==='left_wrist'),history:contact.saberWristHistory,frame:game.rendererFrame().targets.filter(t=>t.id===row.id),setup:game.desiredGameSetup.enforceAuthoredDirection})}`);
           if(row.path==='behind'){
@@ -226,7 +235,7 @@ try{
           const held=game.currentEquipmentPoses.filter(pose=>pose.mode==='flow');
           const volumes=renderer.lastModel.objects.filter(object=>object.kind==='collider_volume');
           if(volumes.length!==held.length)throw Error(`lost tracking invented or dropped Flow collider: ${JSON.stringify({elapsed,held,volumes})}`);
-          for(const pose of held){const blade=resolveSaberCapsule(pose),volume=volumes.find(object=>object.role===pose.role.replace('_wrist',''));if(volume?.shape!=='capsule'||Math.abs(volume.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(volume.capsule.end.x-(blade.end.x-1.5))>1e-7)throw Error(`held Flow collider diverged from equipment: ${JSON.stringify({pose,blade,volume})}`);}
+          for(const pose of held){const blade=resolveSaberCapsule(pose),volume=volumes.find(object=>object.role===pose.role.replace('_wrist',''));if(volume?.shape!=='capsule'||Math.abs(volume.capsule.start.x-(blade.start.x-1.5))>1e-7||Math.abs(volume.capsule.end.x-(blade.end.x-1.5))>1e-7||Math.abs(volume.capsule.radius-flowSolidBladeRadiusWu*pose.scale*game.activeSessionSetup.flowColliderVolume.colliderScale)>1e-7)throw Error(`held Flow collider diverged from equipment: ${JSON.stringify({pose,blade,volume})}`);}
           if(harness.graph.gameplay.getSnapshot().judgements.length!==judgementsBeforeLoss)throw Error('invalid wrists scored during tracking loss');
         }
         harness.dispose();return rows;

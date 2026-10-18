@@ -13,7 +13,7 @@
 // Export the canonical public-package target projection alongside the real Play
 // fixture so browser evaluations never bypass the linked dependency provenance.
 export { boxingColliderTargetCenter } from '@aerobeat/web-gameplay';
-export { resolveSaberCapsule } from '@aerobeat/web-contracts';
+export { flowSolidBladeRadiusWu, resolveSaberCapsule } from '@aerobeat/web-contracts';
 
 const HASH = 'a'.repeat(64);
 const PACKAGE_ID = 'scored-play-browser-fixture';

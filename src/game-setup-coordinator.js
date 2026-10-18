@@ -9,10 +9,11 @@ export const aeroGameSetupVersion=aeroGameSetupIdentity.version;
 export const aeroGameSetupStorageKey=aeroGameSetupIdentity.key;
 export const legacyAeroGameSetupV2StorageKey="aerobeat.game-setup.v2";
 export const legacyAeroGameSetupStorageKey="aerobeat.game-setup.v1";
+// Historical bounds still belong to Boxing only; Flow accepts finite nonnegative values.
 export const colliderVolumeBounds=Object.freeze({colliderScale:Object.freeze([.25,4]),colliderDepthForward:Object.freeze([1,4]),colliderDepthBackward:Object.freeze([1,4])});
 // Boxing retains its 0.0.74 depth defaults. Flow's rear now starts at the
 // hilt by default; positive rear values intentionally extend scored saber reach.
-export const defaultFlowColliderVolume=Object.freeze({colliderVisible:false,colliderScale:.5,colliderDepthForward:1.5,colliderDepthBackward:0});
+export const defaultFlowColliderVolume=Object.freeze({colliderVisible:false,colliderScale:1,colliderDepthForward:1.5,colliderDepthBackward:0});
 export const defaultBoxingColliderVolume=Object.freeze({colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3});
 export const defaultModeColliderVolume=defaultFlowColliderVolume;
 export const gameSetupBounds=deepFreeze({normalSpawnDistanceWorldUnits:[3,72],noseCameraRangeXWorldUnits:[0,1.1],noseCameraRangeYWorldUnits:[0,1.2],colliderRadius:[flowColliderSettingsBounds.colliderRadius.minimum,flowColliderSettingsBounds.colliderRadius.maximum],directionToleranceDegrees:[flowColliderSettingsBounds.directionToleranceDegrees.minimum,flowColliderSettingsBounds.directionToleranceDegrees.maximum],timingWindowMs:[flowColliderSettingsBounds.timingWindowMs.minimum,flowColliderSettingsBounds.timingWindowMs.maximum],topRowReachWU:[...aeroRowReachBounds[0].slice(1,3)],bottomRowReachWU:[...aeroRowReachBounds[1].slice(1,3)],noteScalePercent:[10,200],obstacleScalePercent:[10,200],bombScalePercent:[10,200],markerScalePercent:[10,200],guardSpacing:[0,2],noseMarkerScale:[0,2],trackExtensionWorldUnits:[0,20],wristBombColliderScale:[0,2],renderScale:[.25,1]});
@@ -71,7 +72,7 @@ const legacyRemovedSaberStoredKeys=Object.freeze([...obstaclesEnabledStoredKeys,
 // Existing v3 records migrate these authoring preferences in place; old charts
 // remain immutable and take new converter options only when re-downloaded.
 const modeColliderVolumeKeys=Object.freeze(["colliderVisible","colliderScale","colliderDepthForward","colliderDepthBackward"]);
-function normalizeModeColliderVolume(value,mode){if(!exactDataRecord(value,modeColliderVolumeKeys))return null;const field=(key)=>Object.getOwnPropertyDescriptor(value,key)?.value;if(typeof field("colliderVisible")!=="boolean")return null;for(const key of modeColliderVolumeKeys.slice(1)){const bounds=mode==="flow"&&key==="colliderDepthBackward"?[0,colliderVolumeBounds[key][1]]:colliderVolumeBounds[key];if(!boundedNumber(field(key),bounds))return null;}return Object.freeze({colliderVisible:field("colliderVisible"),colliderScale:field("colliderScale"),colliderDepthForward:field("colliderDepthForward"),colliderDepthBackward:field("colliderDepthBackward")});}
+function normalizeModeColliderVolume(value,mode){if(!exactDataRecord(value,modeColliderVolumeKeys))return null;const field=(key)=>Object.getOwnPropertyDescriptor(value,key)?.value;if(typeof field("colliderVisible")!=="boolean")return null;for(const key of modeColliderVolumeKeys.slice(1)){const candidate=field(key);if(mode==="flow"){if(typeof candidate!=="number"||!Number.isFinite(candidate)||candidate<0)return null;}else if(!boundedNumber(candidate,colliderVolumeBounds[key]))return null;}return Object.freeze({colliderVisible:field("colliderVisible"),colliderScale:field("colliderScale"),colliderDepthForward:field("colliderDepthForward"),colliderDepthBackward:field("colliderDepthBackward")});}
 // W3-D: 0.0.51-0.0.53 persisted records carry the two debug visibility toggles
 // on top of the scale/reach fields (no hazard-vignette fields).
 const previousV3StoredKeys=Object.freeze([...v3StoredKeys,"visibleToleranceRange","visibleColliderRadius"]);
