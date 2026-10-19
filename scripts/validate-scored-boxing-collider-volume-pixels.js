@@ -16,7 +16,7 @@ try {
   let childUrl;
   if(signedDirectory){
     const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-    assert(['0.0.132','0.0.133','0.0.134','0.0.135'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
+    assert(['0.0.132','0.0.133','0.0.134','0.0.135','0.0.136'].includes(snapshot.manifest.sourceManifest.packageVersion),'expected signed Boxer baseline or corrected successor');
     fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-signed-boxer-fixture-'));
     await buildFixture({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
     const fixtures=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
@@ -35,7 +35,18 @@ try {
   browser=await chromium.launch();
   const contexts=[{kind:'direct',width:844,height:390},{kind:'direct',width:390,height:844},{kind:'iframe',width:390,height:844},{kind:'direct',width:1280,height:720},{kind:'iframe',width:1280,height:720}].filter(context=>!process.env.AEROBEAT_COLLIDER_CONTEXT||`${context.kind}:${context.width}x${context.height}`===process.env.AEROBEAT_COLLIDER_CONTEXT);
   assert(contexts.length,'Unknown AEROBEAT_COLLIDER_CONTEXT');
-  const scenarioDefinitions=[{name:'off',volume:{colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale',volume:{colliderVisible:true,colliderScale:4,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale-unbounded',volume:{colliderVisible:true,colliderScale:5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'scale-zero',volume:{colliderVisible:true,colliderScale:0,colliderDepthForward:1,colliderDepthBackward:3}},{name:'forward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:4,colliderDepthBackward:3}},{name:'backward',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:4}},{name:'unbounded-depths',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:.5,colliderDepthBackward:5}},{name:'default-near',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}},{name:'default-early',volume:{colliderVisible:true,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3}}];
+  const scenarioDefinitions=[
+    {name:'off',volume:{colliderVisible:false,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0}},
+    {name:'default',volume:{colliderVisible:true,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0}},
+    {name:'scale',volume:{colliderVisible:true,colliderScale:4,colliderDepthForward:1,colliderDepthBackward:0}},
+    {name:'scale-unbounded',volume:{colliderVisible:true,colliderScale:5,colliderDepthForward:1,colliderDepthBackward:0}},
+    {name:'scale-zero',volume:{colliderVisible:true,colliderScale:0,colliderDepthForward:1,colliderDepthBackward:0}},
+    {name:'forward',volume:{colliderVisible:true,colliderScale:1,colliderDepthForward:4,colliderDepthBackward:0}},
+    {name:'backward',volume:{colliderVisible:true,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:4}},
+    {name:'unbounded-depths',volume:{colliderVisible:true,colliderScale:1,colliderDepthForward:.5,colliderDepthBackward:5}},
+    {name:'default-near',volume:{colliderVisible:true,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0}},
+    {name:'default-early',volume:{colliderVisible:true,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0}}
+  ];
   for(const context of contexts){
     const results=[];
     for(const scenario of scenarioDefinitions.filter(item=>!process.env.AEROBEAT_COLLIDER_SCENARIO||item.name===process.env.AEROBEAT_COLLIDER_SCENARIO)){
@@ -52,11 +63,13 @@ try {
         assert.equal(dimensions.hostWidth,context.width,'Iframe child host width incorrect');assert.equal(dimensions.hostHeight,context.height,'Iframe child host height incorrect');
       }
       const result=await game.evaluate(async(element,scenario)=>{
-        const {installScoredPlayHarness,boxingColliderTargetCenter}=await import('/scripts/fixtures/scored-play-browser-harness.js');
+        const {installScoredPlayHarness,boxingColliderTargetCenter,resolveGloveCylinder}=await import('/scripts/fixtures/scored-play-browser-harness.js');
         const events=[{schema:'aerobeat/resolved_content_event',version:3,eventId:'volume-pixel-punch',centerTimestampMs:6000,sourceEventIds:['volume-pixel-source'],authoredBeat:{type:'hook_left',spatialTarget:{targetCell:5,entryDirection:'right'}}}];
         const harness=await installScoredPlayHarness(element,{events});
         const fail=(condition,message)=>{if(!condition)throw Error(`Boxing scored Play pixels: ${message}`);};
         const box=(vertices)=>({minX:Math.min(...vertices.map(point=>point.x)),maxX:Math.max(...vertices.map(point=>point.x)),minY:Math.min(...vertices.map(point=>point.y)),maxY:Math.max(...vertices.map(point=>point.y))});
+        const close=(actual,expected,tolerance=.00002)=>Number.isFinite(actual)&&Math.abs(actual-expected)<tolerance;
+        const centeredCylinder=(cylinder,camera,Vec3)=>box([cylinder.start,cylinder.end].flatMap(point=>[-1,0,1].flatMap(x=>[-1,0,1].map(y=>camera.worldToScreen(new Vec3(point.x+x*cylinder.radius,point.y+y*cylinder.radius,point.z))))));
         // Analyze framebuffer deltas only around the projected LEFT overlay, away
         // from the right glove. No test passes on model geometry alone.
         const compare=(on,off,rect)=>{
@@ -98,7 +111,7 @@ try {
             const preCaptureStatus=renderer.describe();
             fail(!preCaptureStatus.errorMessage,`${scenario.name}: production renderer error before capture: ${JSON.stringify({state:preCaptureStatus.state,error:preCaptureStatus.errorMessage,session:harness.graph.gameplay.getSnapshot().session.state})}`);
             const capture=harness.capture();
-            // A real Play preview must name the locked wrist-relative setting:
+            // A real Play preview must name the locked scored-cylinder setting:
             // the rear Z face projects onto itself in landscape even when the
             // framebuffer is valid and its value really reaches the renderer.
             const chip=element.shadowRoot.querySelector('[data-role="collider-preview-chip"]');
@@ -107,25 +120,35 @@ try {
             let preview={shown,text:'',bounds:null};
             if(shown){
               const text=chip.textContent??'',rect=chip.getBoundingClientRect(),host=element.getBoundingClientRect(),style=getComputedStyle(chip),color=style.backgroundColor.match(/[\d.]+/g)?.map(Number)??[];
-              fail(text.includes('Wrist preview')&&text.includes('not hitbox')&&text.includes(`scale ×${locked.colliderScale}`)&&text.includes(`front ×${locked.colliderDepthForward}`)&&text.includes(`rear ×${locked.colliderDepthBackward}`),`${scenario.name}: Play preview does not identify all run-locked glove dimensions: ${text}`);
+              fail(text.includes('Scored glove cylinder')&&text.includes(`scale ×${locked.colliderScale}`)&&text.includes(`front ×${locked.colliderDepthForward}`)&&text.includes(`rear ×${locked.colliderDepthBackward}`),`${scenario.name}: Play preview does not identify all run-locked glove dimensions: ${text}`);
               fail(rect.width>=120&&rect.height>=25&&rect.left>=host.left&&rect.right<=host.right&&rect.top>=host.top&&rect.bottom<=host.bottom&&Number.parseFloat(style.fontSize)>=14&&color.length>=4&&color[3]>=.8,`${scenario.name}: Play preview is clipped or unreadably faint: ${JSON.stringify({rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},host:{x:host.x,y:host.y,width:host.width,height:host.height},font:style.fontSize,background:style.backgroundColor})}`);
               fail(rect.bottom<host.top+host.height*.42,`${scenario.name}: preview obscures center glove/target region`);
               preview={shown,text,bounds:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
             }
-            // capture() rebuilds a frame without the transient render-time anchors;
-            // the actual combined production render has already populated lastModel.
-            const frame=harness.element.rendererFrame();
-            frame.equipmentColliderAnchors=(await import('/scripts/fixtures/scored-play-browser-harness.js')).equipmentColliderAnchors(harness.element.currentEquipmentPoses,harness.graph.input.getSnapshot(),'boxing');
+            // Scored Play and Show must use the same resolved glove pose.
+            const frame=harness.element.rendererFrame(),poses=harness.element.currentEquipmentPoses;
+            const glove=poses?.find(pose=>pose.role==='left_wrist'&&pose.mode==='boxing');
+            fail(glove&&poses.length===2,`${scenario.name}: real resolved glove poses absent from production frame`);
+            frame.equipmentColliderPoses=poses;
             fail(frame.presentation==='boxing_collider'&&capture.session.state==='playing'&&capture.session.purpose==='play',`${scenario.name}: not selected scored Boxing Play`);
             fail(frame.colliderSettings&&Object.entries(scenario.volume).every(([key,value])=>Object.is(frame.colliderSettings[key],value)),`${scenario.name}: run settings not sent to renderer`);
-            const anchor=frame.equipmentColliderAnchors?.left;
-            fail(anchor&&Number.isFinite(anchor.x)&&Number.isFinite(anchor.y)&&Number.isFinite(anchor.z),`${scenario.name}: live measured left wrist anchor absent: ${JSON.stringify({anchor,anchors:frame.equipmentColliderAnchors,input:harness.graph.input.getSnapshot().latestEvidence?.provenance,tracking:harness.graph.input.getSnapshot().tracking,evidenceAnchors:harness.graph.input.getSnapshot().latestEvidence?.anchors?.map(({anchor,valid,confidence})=>({anchor,valid,confidence})),session:capture.session.state,menu:harness.element.menuOpen,poses:harness.element.currentEquipmentPoses?.length})}`);
-            const scene=renderer.lastModel;
-            const left=scene?.objects.find(object=>object.id==='equipment-collider-volume-left');
+            const scene=renderer.lastModel,left=scene?.objects.find(object=>object.id==='equipment-collider-volume-left');
             fail(Boolean(left)===(scenario.volume.colliderVisible&&scenario.volume.colliderScale>0),`${scenario.name}: model overlay presence disagrees with Show and nonzero Scale`);
-             const wire=renderer.boxingColliderWirePool?.[0],wireMaterial=wire?.render?.meshInstances?.[0]?.material,wirePrimitive=wire?.render?.meshInstances?.[0]?.mesh?.primitive?.[0];
-             fail(left?wire?.enabled&&wire?.name==='boxing-collider-wire-0'&&wirePrimitive?.type===1&&wirePrimitive.count===24&&wireMaterial?.opacity>=.75&&wireMaterial?.emissive.r<.05&&wire.render.layers.includes(renderer.gameplayColliderOverlayLayer.id):!wire?.enabled,`${scenario.name}: 12-edge charcoal Boxer outline must follow Show in the pre-World collider layer so beats stay readable`);
-             if(left)for(const axis of ['x','y','z'])fail(Math.abs(wire.getPosition()[axis]-left.position[axis])<.00001&&Math.abs(wire.getLocalScale()[axis]-left.scale[axis])<.00001,`${scenario.name}: polygon wire diverged from scored ${axis} face`);
+            const wire=renderer.boxingColliderWirePool?.[0],fill=renderer.boxingColliderCylinderPool?.find(entity=>entity.enabled&&entity.name==='equipment-collider-volume-left');
+            const wireMaterial=wire?.render?.meshInstances?.[0]?.material,wirePrimitive=wire?.render?.meshInstances?.[0]?.mesh?.primitive?.[0];
+            const layer=renderer.gameplayColliderOverlayLayer,world=renderer.app.scene.layers.getLayerById(0),layers=renderer.app.scene.layers;
+            fail(left?left.shape==='cylinder'&&fill?.render?.enabled!==false&&wire?.enabled&&wirePrimitive?.type===1&&wirePrimitive.count>=96&&wireMaterial?.opacity>=.75&&wireMaterial?.emissive.r<.05&&fill.render.layers.includes(layer.id)&&wire.render.layers.includes(layer.id)&&layers.getTransparentIndex(layer)<layers.getTransparentIndex(world):!wire?.enabled&&!fill?.enabled,`${scenario.name}: flat-ended cylinder fill and charcoal polygon rim must share pre-World layer behind beats ${JSON.stringify({shape:left?.shape,fill:fill?.enabled,wire:wire?.enabled,primitive:wirePrimitive?.type,count:wirePrimitive?.count,opacity:wireMaterial?.opacity,layer:layer?.id,worldIndex:layers.getTransparentIndex(world),overlayIndex:layers.getTransparentIndex(layer),fillLayers:fill?.render?.layers,wireLayers:wire?.render?.layers})}`);
+            if(left){
+              const scoredCylinder=resolveGloveCylinder(glove,{scale:locked.colliderScale,depthForward:locked.colliderDepthForward,depthBackward:locked.colliderDepthBackward});
+              fail(close(left.capsule.radius,scoredCylinder.radius),`${scenario.name}: Show radius differs from shared scored cylinder`);
+              for(const endpoint of ['start','end'])for(const axis of ['x','y','z'])fail(close(left.capsule[endpoint][axis],scoredCylinder[endpoint][axis]-(axis==='x'?1.5:0)),`${scenario.name}: Show ${endpoint}.${axis} differs from shared scored cylinder`);
+              for(const axis of ['x','y','z']){
+                fail(close(wire.getPosition()[axis],left.position[axis])&&close(fill.getPosition()[axis],left.position[axis])&&close(wire.getLocalScale()[axis],left.scale[axis])&&close(fill.getLocalScale()[axis],left.scale[axis]),`${scenario.name}: cylinder fill/wire diverged from scored ${axis} ${JSON.stringify({wirePosition:wire.getPosition()[axis],fillPosition:fill.getPosition()[axis],wireScale:wire.getLocalScale()[axis],fillScale:fill.getLocalScale()[axis],expectedPosition:left.position[axis],expectedScale:left.scale[axis]})}`);
+                fail(close(wire.getRotation()[axis],glove.orientation[axis])&&close(fill.getRotation()[axis],glove.orientation[axis]),`${scenario.name}: fill/outline lost the final glove quaternion ${axis}`);
+              }
+              fail(close(left.scale.x,left.capsule.radius*2)&&close(left.scale.y,left.capsule.radius*2)&&close(left.scale.z,Math.hypot(...['x','y','z'].map(axis=>left.capsule.end[axis]-left.capsule.start[axis]))),`${scenario.name}: mesh diameter/reach differs from its modeled flat-ended cylinder`);
+              if(scenario.name==='default')fail(close(left.capsule.radius,.34*glove.scale)&&close(left.scale.z,.68*glove.scale),`${scenario.name}: Scale1 +1/−0 glove silhouette diameter/reach differs from source glove geometry`);
+            }
             const equipment=renderer.describe().equipment;
             fail(equipment?.instanceCount===2&&equipment.assetMode==='glb',`${scenario.name}: both foreground gloves must be actual GLBs: ${JSON.stringify(equipment)}`);
             const glovePixels=harness.assertGlovePixels();
@@ -136,7 +159,7 @@ try {
             renderer.setEnvironmentVisible(false);renderer.setBackgroundProjection({kind:'solid',colors:['#071426'],angleDeg:180});
             const camera=renderer.cameraEntity?.camera,Vec3=renderer.cameraEntity?.getPosition()?.constructor;
             fail(camera&&Vec3,`${scenario.name}: active PlayCanvas camera unavailable`);
-            const projection=left?box([-1,1].flatMap(sx=>[-1,1].flatMap(sy=>[-1,1].map(sz=>camera.worldToScreen(new Vec3(left.position.x+sx*left.scale.x/2,left.position.y+sy*left.scale.y/2,left.position.z+sz*left.scale.z/2)))))):null;
+            const projection=left?centeredCylinder(left.capsule,camera,Vec3):null;
             // Paired render-only subtraction: the VERY SAME production Play frame,
             // frozen equipment and world, with visibility off solely for the
             // second renderer draw. This is NOT a second Play setup or judgement.
@@ -160,23 +183,24 @@ try {
             fail(paired.rendererStatus==='running'&&!paired.rendererError,`${scenario.name}: paired render failed: ${paired.rendererError}`);
             const input=harness.graph.input.getSnapshot();
             const wrist=(judgeX,judgeY)=>{const bounds=input.calibration.bounds,x=(judgeX+.5)/4,y=(2.5-judgeY)/3;return{x:1-(bounds.left+x*(bounds.right-bounds.left)),y:bounds.top+y*(bounds.bottom-bounds.top)};};
-            // The same real chart supplies a target-centered score boundary.
-            // Scale4 must reach a measured glove outside the default XY bound;
-            // forward4 opens the temporal front face earlier. Neither the
-            // render-only baseline nor visibility switch creates a judgement.
+            // The same authored chart and fixed note rectangle supply the score
+            // boundary. Scale changes glove radius, not target size; longer front
+            // reach can meet an earlier beat plane. Visibility alone never scores.
             const target=boxingColliderTargetCenter(5,{topRowReachWU:harness.element.activeSessionSetup.topRowReachWU,bottomRowReachWU:harness.element.activeSessionSetup.bottomRowReachWU});
             const targetX=target.x,targetY=target.y;
-            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+1.14,y:targetY},'scale-unbounded':{song:6000,x:targetX+1.14,y:targetY},'scale-zero':{song:6000,x:targetX,y:targetY},forward:{song:5500,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+1.14,y:targetY},'default-early':{song:5500,x:targetX,y:targetY}};
+            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+.9,y:targetY},'scale-unbounded':{song:6000,x:targetX+.9,y:targetY},'scale-zero':{song:6000,x:targetX,y:targetY},forward:{song:6000,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+.9,y:targetY},'default-early':{song:5900,x:targetX,y:targetY}};
             const contact=scoreCases[scenario.name],outsideX=['scale','scale-unbounded','default-near'].includes(scenario.name)?targetX+.9:.1,safe=wrist(outsideX,['scale','scale-unbounded','default-near'].includes(scenario.name)?targetY:1.8),at=wrist(contact.x,contact.y);
             fail(Number.isFinite(contact.x)&&Number.isFinite(contact.y)&&Number.isFinite(at.x)&&Number.isFinite(at.y),`${scenario.name}: calibrated target-centred wrist missing`);
             const before=harness.graph.gameplay.getSnapshot().judgements.find(item=>item.eventId==='volume-pixel-punch')??null;
             const safeSong=Math.max(5010,contact.song-90);
             await harness.seekSong(safeSong);harness.feedPose({leftWrist:safe,rightWrist:safe,nose:{x:.5,y:.2}});
+            const approachSong=contact.song-30;
+            await harness.seekSong(approachSong);harness.feedPose({leftWrist:at,rightWrist:safe,nose:{x:.5,y:.2}});
             await harness.seekSong(contact.song);harness.feedPose({leftWrist:at,rightWrist:safe,nose:{x:.5,y:.2}});
             const scored=harness.graph.gameplay.getSnapshot(),judgement=scored.judgements.find(item=>item.eventId==='volume-pixel-punch')??null,partition=scored.scorePartitions.find(item=>item.rulesetId==='boxing_collider_v1')??null;
             fail(scored.session.purpose==='play'&&scored.session.state==='playing'&&scored.session.timelinePositionMs>=contact.song,`${scenario.name}: measured score frame did not advance the real Play audio clock`);
             const negative=scenario.name.startsWith('default-')||scenario.name==='scale-zero';
-            fail(!before&&(negative?!judgement&&!partition?.hits:judgement?.result==='hit'&&partition?.hits===1&&partition.score>0),`${scenario.name}: measured ${negative?'near/early miss':'target hit'} boundary failed: ${JSON.stringify({before,judgement,partition,song:contact.song,targetX,targetY,contact,safe,at})}`);
+            fail(!before&&(negative?!judgement&&!partition?.hits:judgement?.result==='hit'&&partition?.hits===1&&partition.score>0),`${scenario.name}: measured ${negative?'near/early miss':'target hit'} boundary failed: ${JSON.stringify({before,judgement,partition,song:contact.song,targetX,targetY,contact,safe,at,timingWindowMs:harness.element.activeSessionSetup.timingWindowMs,directionRequired:harness.element.activeSessionSetup.enforceAuthoredDirection})}`);
             outputs.push({name:scenario.name,volume:locked,frame:frame.colliderSettings,pixel:paired,projection,preview,gloveDepthWu:left?.scale.z??null,glovePixels:{changed:glovePixels.changed,strongest:glovePixels.strongest},score:{result:judgement?.result??'pending',tier:judgement?.tier??null,hits:partition?.hits??0,points:partition?.score??0,contactSongMs:contact.song}});
           }
           const row=outputs[0];
@@ -197,11 +221,11 @@ try {
       assert.equal(byName.off.pixel.count,0,`${context.kind}: OFF Play must have zero collider-only pixels`);
        assert.equal(byName['scale-zero'].pixel.count,0,`${context.kind}: zero Boxer Scale must hide fill and polygon wire`);
        assert.equal(byName['scale-zero'].score.result,'pending',`${context.kind}: zero Boxer Scale must disable scored contact`);
-       assert.equal(byName['scale-unbounded'].score.result,'hit',`${context.kind}: Scale 5 must score under the existing Boxer target rule`);
-      assert(base.count>1000&&base.bounds,`${context.kind}: default collider must have visible bounded area`);
-      // The 3D B3→B4 near face is nearly coincident in landscape (~16 pixels);
-      // the separate Play chip must expose the locked change without claiming
-      // this wrist preview literally outlines the scorer's target bounds.
+       assert.equal(byName['scale-unbounded'].score.result,'hit',`${context.kind}: Scale 5 must score with enlarged glove radius against the fixed note`);
+      assert(base.count>100&&base.bounds,`${context.kind}: Scale1 glove cylinder must have visible bounded area`);
+      assert.deepEqual([byName.default.settings.colliderScale,byName.default.settings.colliderDepthForward,byName.default.settings.colliderDepthBackward],[1,1,0],`${context.kind}: native default must be Scale1 / Depth+1 / Depth−0`);
+      // The Play chip exposes run-locked depth controls independently of the
+      // scored cylinder's measured framebuffer footprint.
       assert(!byName.off.preview.shown&&byName.default.preview.shown&&byName.backward.preview.shown&&byName.default.preview.text!==byName.backward.preview.text,`${context.kind}:${context.width}x${context.height}: backward change must remain legible in run-locked Play preview`);
       for(const name of ['scale','scale-unbounded','forward','backward']){
         const tuned=byName[name].pixel,box=tuned.bounds;
@@ -215,7 +239,7 @@ try {
       assert.equal(byName.off.score.result,'hit','Overlay visibility OFF must preserve scored hit');
       assert.equal(byName.default.score.result,'hit','Default centered glove must score');
       assert.equal(byName.scale.score.result,'hit','Scale4 lateral boundary must score');
-      assert.equal(byName.forward.score.result,'hit','Forward4 early temporal boundary must score');
+      assert.equal(byName.forward.score.result,'hit','Forward4 centered glove must score while its visible +Z reach grows');
       assert.equal(byName.backward.score.result,'hit','Backward4 centered glove must score');
       assert.equal(byName['default-near'].score.result,'pending','Default collider must reject scale4-only lateral wrist');
       assert.equal(byName['default-early'].score.result,'pending','Default collider must reject forward4-only early wrist');

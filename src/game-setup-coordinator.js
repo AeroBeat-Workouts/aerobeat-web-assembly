@@ -10,10 +10,11 @@ export const aeroGameSetupStorageKey=aeroGameSetupIdentity.key;
 export const legacyAeroGameSetupV2StorageKey="aerobeat.game-setup.v2";
 export const legacyAeroGameSetupStorageKey="aerobeat.game-setup.v1";
 // Both collider modes accept finite nonnegative scale and depth values.
-// Boxing retains its 0.0.74 depth defaults. Flow's rear now starts at the
-// hilt by default; positive rear values intentionally extend scored saber reach.
-export const defaultFlowColliderVolume=Object.freeze({colliderVisible:false,colliderScale:1,colliderDepthForward:1.5,colliderDepthBackward:0});
-export const defaultBoxingColliderVolume=Object.freeze({colliderVisible:false,colliderScale:.5,colliderDepthForward:1,colliderDepthBackward:3});
+// Flow's rear starts at the hilt; forward 1 reaches the visible blade tip.
+// Boxer Scale 1 and forward 1 fit the scored rotated glove cylinder, while
+// rear 0 begins at its back face. All three remain finite nonnegative unbounded.
+export const defaultFlowColliderVolume=Object.freeze({colliderVisible:false,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0});
+export const defaultBoxingColliderVolume=Object.freeze({colliderVisible:false,colliderScale:1,colliderDepthForward:1,colliderDepthBackward:0});
 export const defaultModeColliderVolume=defaultFlowColliderVolume;
 export const gameSetupBounds=deepFreeze({normalSpawnDistanceWorldUnits:[3,72],noseCameraRangeXWorldUnits:[0,1.1],noseCameraRangeYWorldUnits:[0,1.2],colliderRadius:[flowColliderSettingsBounds.colliderRadius.minimum,flowColliderSettingsBounds.colliderRadius.maximum],directionToleranceDegrees:[flowColliderSettingsBounds.directionToleranceDegrees.minimum,flowColliderSettingsBounds.directionToleranceDegrees.maximum],timingWindowMs:[flowColliderSettingsBounds.timingWindowMs.minimum,flowColliderSettingsBounds.timingWindowMs.maximum],topRowReachWU:[...aeroRowReachBounds[0].slice(1,3)],bottomRowReachWU:[...aeroRowReachBounds[1].slice(1,3)],noteScalePercent:[10,200],obstacleScalePercent:[10,200],bombScalePercent:[10,200],markerScalePercent:[10,200],guardSpacing:[0,2],noseMarkerScale:[0,2],trackExtensionWorldUnits:[0,20],wristBombColliderScale:[0,2],renderScale:[.25,1]});
 // z2tx: the new Game Setup v3 boxing-collider fields and their run-gated defaults.
@@ -38,12 +39,12 @@ export class AeroGameSetupCoordinator{
   constructor(options={}){this.storageFactory=options.storageFactory??browserStorage;this.eventTarget=options.eventTarget===undefined?browserEventTarget():options.eventTarget;this.storage=this.acquireStorage();this.current=this.readStoredSnapshot();this.subscribers=new Set();this.storageListener=(event)=>this.handleStorageEvent(event);try{this.eventTarget?.addEventListener?.("storage",this.storageListener);}catch{/* optional synchronization */}}
   getSnapshot(){return freezeSnapshot(this.current);}
   /** @param {unknown} value */
-  setSnapshot(value){const normalized=normalizeGameSetup(value);if(!normalized)throw new TypeError("Game setup must be an exact v3 plain-data record");if(normalized.flowColliderVolume.colliderDepthBackward===3)try{this.storage?.setItem(flowRearDefaultMigrationKey,"1");}catch{/* best effort */}const unchanged=equalSetup(this.current,normalized);const result=this.applySnapshot(normalized,true);if(unchanged&&!fixedNoseCameraFields(value))this.persistReset(normalized);return result;}
+  setSnapshot(value){const normalized=normalizeGameSetup(value);if(!normalized)throw new TypeError("Game setup must be an exact v3 plain-data record");if(normalized.flowColliderVolume.colliderDepthBackward===3)try{this.storage?.setItem(flowRearDefaultMigrationKey,"1");}catch{/* best effort */}const unchanged=equalSetup(this.current,normalized);const result=this.applySnapshot(normalized,true);if(unchanged&&!fixedNoseCameraFields(value))this.persistReset(normalized);try{this.storage?.setItem(modeColliderDefaultsMigrationKey,"1");}catch{/* best effort */}return result;}
   /** @param {(snapshot:AeroGameSetupSnapshot)=>void} callback @param {boolean} [emitCurrent] */
   subscribe(callback,emitCurrent=true){if(typeof callback!=="function")throw new TypeError("Game setup subscriber must be a function");this.subscribers.add(callback);if(emitCurrent)try{callback(this.getSnapshot());}catch{/* isolate subscriber */}let active=true;return()=>{if(!active)return;active=false;this.subscribers.delete(callback);};}
   destroy(){try{this.eventTarget?.removeEventListener?.("storage",this.storageListener);}catch{/* best effort */}this.subscribers.clear();}
   acquireStorage(){try{const storage=this.storageFactory();return storage&&typeof storage.getItem==="function"&&typeof storage.setItem==="function"?storage:null;}catch{return null;}}
-  readStoredSnapshot(){if(!this.storage)return defaultAeroGameSetupSnapshot;try{const serialized=this.storage.getItem(aeroGameSetupStorageKey);if(serialized!==null){const normalized=normalizeSerializedSetup(serialized);if(normalized){const migrated=migrateFlowRearDefault(this,migrateGuardSpacingDefault(this,normalized));if(!storedSetupIsCanonical(serialized,migrated))this.persistReset(migrated);return migrated;}this.persistReset(defaultAeroGameSetupSnapshot);return defaultAeroGameSetupSnapshot;}const v2=this.storage.getItem(legacyAeroGameSetupV2StorageKey);if(v2!==null){const migrated=migrateV2GameSetup(v2)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}const v1=this.storage.getItem(legacyAeroGameSetupStorageKey);if(v1===null)return defaultAeroGameSetupSnapshot;const migrated=migrateV1GameSetup(v1)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}catch{return defaultAeroGameSetupSnapshot;}}
+  readStoredSnapshot(){if(!this.storage)return defaultAeroGameSetupSnapshot;try{const serialized=this.storage.getItem(aeroGameSetupStorageKey);if(serialized!==null){const normalized=normalizeSerializedSetup(serialized);if(normalized){const migrated=migrateModeColliderDefaults(this,migrateFlowRearDefault(this,migrateGuardSpacingDefault(this,normalized)));if(!storedSetupIsCanonical(serialized,migrated))this.persistReset(migrated);return migrated;}this.persistReset(defaultAeroGameSetupSnapshot);return defaultAeroGameSetupSnapshot;}const v2=this.storage.getItem(legacyAeroGameSetupV2StorageKey);if(v2!==null){const migrated=migrateV2GameSetup(v2)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}const v1=this.storage.getItem(legacyAeroGameSetupStorageKey);if(v1===null)return defaultAeroGameSetupSnapshot;const migrated=migrateV1GameSetup(v1)??defaultAeroGameSetupSnapshot;this.persistReset(migrated);return migrated;}catch{return defaultAeroGameSetupSnapshot;}}
   /** @param {AeroGameSetupSnapshot} snapshot */
   persistReset(snapshot){if(this.storage)try{this.storage.setItem(aeroGameSetupStorageKey,JSON.stringify(snapshot));}catch{/* in-memory setup remains authoritative */}}
   /** @param {GameSetupStorageEvent} event */
@@ -147,6 +148,24 @@ function migrateFlowRearDefault(coordinator,snapshot){
     : snapshot;
   if(migrated!==snapshot)coordinator.persistReset(migrated);
   try{storage.setItem(flowRearDefaultMigrationKey,"1");}catch{/* best effort */}
+  return migrated;
+}
+
+// Prior public defaults were Flow +1.5 and Boxer Scale .5 / rear 3.
+// Saved records contain those values even when their owner never touched the
+// fields. Migrate only these exact old-default sentinels once; any later
+// deliberate choice of the same number remains untouched.
+const modeColliderDefaultsMigrationKey="aerobeat.game-setup.mode-collider-defaults-v1";
+function migrateModeColliderDefaults(coordinator,snapshot){
+  const storage=coordinator.storage;
+  if(!storage)return snapshot;
+  try{if(storage.getItem(modeColliderDefaultsMigrationKey)==="1")return snapshot;}catch{return snapshot;}
+  const flow=snapshot.flowColliderVolume,boxing=snapshot.boxingColliderVolume;
+  const nextFlow=flow.colliderScale===1&&flow.colliderDepthForward===1.5&&flow.colliderDepthBackward===0?{...flow,colliderDepthForward:1}:flow;
+  const nextBoxing=boxing.colliderScale===.5&&boxing.colliderDepthForward===1&&boxing.colliderDepthBackward===3?{...boxing,colliderScale:1,colliderDepthBackward:0}:boxing;
+  const migrated=nextFlow===flow&&nextBoxing===boxing?snapshot:freezeSnapshot({...snapshot,flowColliderVolume:nextFlow,boxingColliderVolume:nextBoxing});
+  if(migrated!==snapshot)coordinator.persistReset(migrated);
+  try{storage.setItem(modeColliderDefaultsMigrationKey,"1");}catch{/* best effort */}
   return migrated;
 }
 

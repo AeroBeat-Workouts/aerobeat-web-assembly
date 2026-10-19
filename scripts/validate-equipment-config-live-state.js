@@ -75,13 +75,13 @@ assert(exportBody.includes("event?.isTrusted") && exportBody.includes("URL.revok
 
 const controlsBody = source.slice(controlsStart, source.indexOf("\n}\n\nfunction environmentAssetOptions", controlsStart));
 assert(controlsBody.includes("[data-equipment-config-field]"), "control renderer must synchronize grouped fields");
-assert(controlsBody.includes("[data-equipment-preview-toggle='true']"), "control renderer must synchronize default-off preview toggle");
+assert(controlsBody.includes("[data-equipment-preview-toggle='true']"), "control renderer must synchronize Test preview toggle");
 assert(controlsBody.includes("control.disabled = !enabled"), "controls must remain Test-authoring gated");
 
 // Preview evidence is renderer-only and the public shell must not publish it.
 assert(source.includes("testEquipmentInput(this.testEquipmentMouseHand, this.testEquipmentPointerPosition)"), "private per-frame deterministic Test preview evidence required");
-assert(source.includes("visualTest && !this.testEquipmentVisible"), "Test preview must default/gate off");
-assert(source.includes("this.testAutomaticFeedbackEnabled = true") && source.includes("this.testEquipmentMouseHand = \"off\"") && source.includes("this.testEquipmentPointerPosition = null"), "private authoring defaults must be explicit");
+assert(source.includes("visualTest && !this.testEquipmentVisible"), "Test preview off must still suppress equipment");
+assert(source.includes("this.testAutomaticFeedbackEnabled = true") && source.includes("this.testEquipmentMouseHand = \"right\"") && source.includes("this.testEquipmentPointerPosition = null"), "private authoring defaults must be explicit");
 assert(source.includes("projectSessionTargets(events, gameplay, nowMs, this.renderEventIndex, timingWindowMs, this.testAutomaticFeedbackEnabled, (presentation===\"flow\"?setup.flowColliderVolume:setup.boxingColliderVolume).colliderDepthBackward)"), "one private feedback flag must gate target projection (B2.2 collider depth)");
 assert(source.includes('Symbol.for("aerobeat.web-gameplay.internal-flow-slice")') && source.includes("acceptedFlowSliceT, this.testAutomaticFeedbackEnabled)"), "the same private feedback flag must gate aftermath projection through the accepted first-contact lookup");
 assert(source.includes('this.canvasElement().addEventListener("pointerdown", this.boundTestEquipmentPointerDown)') && source.includes('this.canvasElement().addEventListener("pointermove", this.boundTestEquipmentPointerMove)'), "direct canvas touch-down and pointermove ownership required");
@@ -97,8 +97,8 @@ assert(source.includes("const cameraControlEnabled = snapshot.enabled && this.te
 const resetAuthoringStart = source.indexOf("\n  resetTestEquipmentAuthoringState(");
 const resetAuthoringEnd = source.indexOf("\n  setTestAutomaticFeedbackEnabled(", resetAuthoringStart);
 const resetAuthoringBody = source.slice(resetAuthoringStart, resetAuthoringEnd);
-assert(resetAuthoringBody.includes("this.testAutomaticFeedbackEnabled = true") && resetAuthoringBody.includes("this.testEquipmentMouseHand = \"off\"") && resetAuthoringBody.includes("this.testEquipmentPointerPosition = null") && resetAuthoringBody.includes("setDebugCameraAuthoringInputEnabled(true)"), "one reset helper must restore every private default and camera ownership");
-assert(source.includes("if (action === \"test\") { this.testEquipmentVisible = false; this.resetTestEquipmentAuthoringState({ render:false }); }") && source.includes("if (document.hidden) { this.resetTestEquipmentAuthoringState({ render:false });") && (source.match(/this\.resetTestEquipmentAuthoringState\(\{ render:false \}\);/gu) ?? []).length >= 5, "fresh Test, hidden, terminal, stop/reset, and teardown boundaries must reset private authoring state");
+assert(resetAuthoringBody.includes("this.testAutomaticFeedbackEnabled = true") && resetAuthoringBody.includes("this.testEquipmentMouseHand = \"right\"") && resetAuthoringBody.includes("this.testEquipmentPointerPosition = null") && resetAuthoringBody.includes("setDebugCameraAuthoringInputEnabled(false)"), "one reset helper must restore default Right Test hand and disable free-camera input");
+assert(source.includes("if (action === \"test\") { this.testEquipmentVisible = true; this.resetTestEquipmentAuthoringState({ render:false }); }") && source.includes("if (document.hidden) { this.resetTestEquipmentAuthoringState({ render:false });") && (source.match(/this\.resetTestEquipmentAuthoringState\(\{ render:false \}\);/gu) ?? []).length >= 5, "fresh Test, hidden, terminal, stop/reset, and teardown boundaries must reset private authoring state");
 for (const token of ["Automatic GREAT/MISS feedback", "Mouse or touch-controlled hand", "data-equipment-mouse-hand=\"off\"", "data-equipment-mouse-hand=\"left\"", "data-equipment-mouse-hand=\"right\""]) assert(source.includes(token), `missing accessible private authoring control: ${token}`);
 for (const key of ["testEquipmentVisible:", "testAutomaticFeedbackEnabled:", "testEquipmentMouseHand:", "testEquipmentPointerPosition:"]) assert.equal(source.includes(key), false, `${key} must not enter public records`);
 

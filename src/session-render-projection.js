@@ -96,10 +96,13 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
   const indexed=validSessionTargetIndex(index,events);if(indexed&&index.spawnTimingAvailable===false)return[];
   const normalSpawnLeadMs=indexed?Number(index.normalSpawnLeadMs):FLOW_APPROACH_LEAD_MS,skyMode=indexed&&index.skyMode==="prelude"?"prelude":"off",skyPreludeDurationMs=indexed&&skyMode==="prelude"&&Number.isFinite(index.skyPreludeDurationMs)&&index.skyPreludeDurationMs>=0?index.skyPreludeDurationMs:0,skyLeadMs=skyMode==="prelude"?skyPreludeDurationMs:0;
   const effectiveLateWindowMs=timingWindowAfterMs*colliderDepthBackward;
+  // The glove's rear reach is geometry, not permission to expire a guard at
+  // its exact center. Keep its existing base hit window when rear depth is 0.
+  const guardLateWindowMs=Math.max(timingWindowAfterMs,effectiveLateWindowMs);
   const playNoteLateWindowMs=effectivePlayNoteAfterWindowMs(0,timingWindowAfterMs,colliderDepthBackward);
-  // Play pending-note projection must match the genuine sweep/finalizer. Test's
-  // synthetic GREAT/MISS preview retains its historical short deadline.
-  const indexedLateWindowMs=scoredPlay?playNoteLateWindowMs:effectiveLateWindowMs;
+  // Unhit Test notes need the same conservative post-camera clearance as
+  // scored Play; otherwise a visible note turns gray and says MISS in Test.
+  const indexedLateWindowMs=scoredPlay||visualTest?playNoteLateWindowMs:effectiveLateWindowMs;
   const orderedEntries = indexed ? indexedCandidateEntries(index, nowMs, realJudgements,indexedLateWindowMs,skyLeadMs) : createOrderedEntries(events);
   const targets = [];
   let fallbackFeedbackIndex = 0;
@@ -125,7 +128,8 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
       const real = realJudgements.get(eventId) ?? null;
       const syntheticFeedback = visualTest && visualTestSyntheticFeedbackEnabled && real === null;
-      const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : effectiveLateWindowMs + 1) : null;
+      const noteLateWindowMs=type==="guard"?guardLateWindowMs:(scoredPlay||visualTest)&&(type==="note"||Object.hasOwn(BOXING_PUNCH_TYPES,type))?playNoteLateWindowMs:effectiveLateWindowMs;
+      const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : noteLateWindowMs + 1) : null;
       const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
       const realResult = real?.result;
       const realCommitted = (realResult === "hit" || realResult === "miss") && commitMs !== null && nowMs >= commitMs;
@@ -133,7 +137,6 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const feedbackActive = (result === "hit" || result === "miss") && Number.isFinite(commitMs) && nowMs < Number(commitMs) + FEEDBACK_DURATION_MS;
       const bounceStartMs=Number.isFinite(entry.bounceStartMs)?Number(entry.bounceStartMs):null,normalSpawnMs=Number.isFinite(entry.normalSpawnMs)?Number(entry.normalSpawnMs):null,skyPreludeStartMs=Number.isFinite(entry.skyPreludeStartMs)?Number(entry.skyPreludeStartMs):null;
       const presentationStartMs=skyPreludeStartMs??normalSpawnMs??bounceStartMs;
-      const noteLateWindowMs=scoredPlay&&(type==="note"||Object.hasOwn(BOXING_PUNCH_TYPES,type))?playNoteLateWindowMs:effectiveLateWindowMs;
       const pendingVisible = result !== "hit" && result !== "miss" && centerMs + noteLateWindowMs >= nowMs && presentationStartMs!==null && nowMs>=presentationStartMs;
       if (pendingVisible || feedbackActive) {
         const feedbackProgress = result === "hit" && Number.isFinite(commitMs) ? clamp01((nowMs - Number(commitMs)) / FEEDBACK_DURATION_MS) : undefined,missCommitMs=result==="miss"&&Number.isFinite(commitMs)?Number(commitMs):undefined;

@@ -15,10 +15,11 @@ const signedDirectory = process.env.AEROBEAT_SIGNED_FLOW_DIR;
 const proofDirectory = process.env.AEROBEAT_FLOW_TEST_PROOF_DIR;
 const deviceScaleFactor = Number(process.env.AEROBEAT_FLOW_TEST_DPR ?? 1);
 assert([1, 3].includes(deviceScaleFactor), 'Flow Test proof DPR must be 1 or 3');
-let vite = null, signedServer = null, fixtureDirectory = null, childUrl;
+let vite = null, signedServer = null, fixtureDirectory = null, childUrl, signedVersion = null;
 if (signedDirectory) {
   const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-  assert(['0.0.131', '0.0.132', '0.0.133', '0.0.134', '0.0.135'].includes(snapshot.manifest.sourceManifest.packageVersion), 'expected signed Flow Test baseline or successor snapshot');
+  signedVersion = snapshot.manifest.sourceManifest.packageVersion;
+  assert(['0.0.131', '0.0.132', '0.0.133', '0.0.134', '0.0.135', '0.0.136'].includes(snapshot.manifest.sourceManifest.packageVersion), 'expected signed Flow Test baseline or successor snapshot');
   fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'aerobeat-flow-test-'));
   await buildFixture({ configFile: false, root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });
   const fixtures = new Map(readdirSync(fixtureDirectory).filter(name => name.endsWith('.js')).map(name => [`/scripts/fixtures/${name}`, readFileSync(path.join(fixtureDirectory, name))]));
@@ -63,10 +64,10 @@ try {
         element.renderGameplay();
         return { state: harness.graph.gameplay.getSnapshot().session.state, purpose: harness.graph.gameplay.getSnapshot().session.purpose, previewDefault: element.testEquipmentVisible, collider: element.activeSessionSetup?.flowColliderVolume, lastError: element.lastError?.message ?? null };
       });
-      assert.equal(setup.purpose, 'visual_test'); assert.equal(setup.state, 'playing'); assert.equal(setup.previewDefault, false);
+      assert.equal(setup.purpose, 'visual_test'); assert.equal(setup.state, 'playing'); assert.equal(setup.previewDefault, signedVersion === null || signedVersion === '0.0.136', 'Show hand equipment defaults ON in the new Flow Test build');
       assert.deepEqual(setup.collider, { colliderVisible: true, colliderScale: 1, colliderDepthForward: 1, colliderDepthBackward: 0 });
       assert.equal(setup.lastError, null);
-      // The separate Test Equipment preview is enabled by its actual native checkbox.
+      // Verify the real Test checkbox remains enabled (old signed baselines opt in explicitly).
       await game.locator("[data-equipment-preview-toggle='true']").check();
       if (proofDirectory) { mkdirSync(proofDirectory, { recursive: true }); await game.locator('canvas[data-role="renderer"]').screenshot({ path: path.join(proofDirectory, `${embedding}-flow-test-normal-environment.png`) }); }
       const result = await game.evaluate(element => {
@@ -121,7 +122,7 @@ try {
           element.stopFrameLoop(); element.setMenuOpen(false, { freshSession: true }); await element.menuPauseTail;
           return { purpose: element.graph.gameplay.getSnapshot().session.purpose, locked: element.activeSessionSetup?.flowColliderVolume, preview: element.testEquipmentVisible };
         }, { field, value });
-        assert.equal(setupControl.purpose, 'visual_test'); assert.equal(setupControl.preview, false);
+        assert.equal(setupControl.purpose, 'visual_test'); assert.equal(setupControl.preview, signedVersion === null || signedVersion === '0.0.136', 'new Flow Test entry retains Show equipment ON by default');
         assert.equal(setupControl.locked[field], value);
         await game.locator("[data-equipment-preview-toggle='true']").check();
         const control = await game.evaluate(element => {

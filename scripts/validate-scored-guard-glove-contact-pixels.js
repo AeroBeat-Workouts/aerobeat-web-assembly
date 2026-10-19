@@ -43,7 +43,7 @@ try{
           {id:'one-hand-only',left:5,right:6,sourcePair:[5,6],at:30000,path:'one-hand',hit:false},
           {id:'near-miss',left:5,right:6,sourcePair:[5,6],at:34000,path:'near',hit:false},
           {id:'swapped-wrists',left:5,right:6,sourcePair:[6,5],at:36000,path:'swapped',hit:false},
-          {id:'former-reversed-late-inside-window',left:5,right:6,sourcePair:[6,5],at:40000,path:'back-late',hit:true},
+          {id:'former-reversed-late-inside-window',left:5,right:6,sourcePair:[6,5],at:40000,path:'back-late',hit:false}, // Within timing but beyond the flat cylinder cap is no contact.
           {id:'off-time',left:5,right:6,sourcePair:[5,6],at:42000,path:'late',hit:false},
           {id:'settling-tail',left:5,right:6,sourcePair:[5,6],at:46000,path:'near',hit:false}, // Keeps Play active after off-time miss.
         ];
@@ -109,13 +109,13 @@ try{
           const before=harness.graph.gameplay.getSnapshot(),score=s=>s.scorePartitions.reduce((sum,part)=>sum+Number(part.score??0),0);
           const preScore=score(before);
           if(row.path==='late'){await moveAt(row.at+600,startL,startR,`${row.id} late out`);await moveAt(row.at+1200,endL,endR,`${row.id} late crossing`);}
-          else{await moveAt(row.path==='back-late'?row.at+175:row.at+80,endL,endR,`${row.id} contact`);}
+          else{await moveAt(row.path==='back-late'?row.at+175:row.at+40,endL,endR,`${row.id} contact`);}
           const contact=harness.graph.gameplay.getSnapshot(),contactInput=harness.graph.input.getSnapshot(),contactEvidence=contactInput.latestEvidence,contactJudgement=contact.judgements.find(j=>j.eventId===row.id),contactModel=renderer.lastModel;let overlapContact=null,contactOcclusion=null,pixelOverlapByHand=null;
           if(contactEvidence?.provenance!=='measured'||contactEvidence.measurementTimestampMs!==game.latestPoseTimestampMs||contactInput.tracking.gameplayPaused||contactInput.tracking.freshCalibrationRequired)throw Error(`${row.id}: scored guard contact requires fresh camera/CV-seam measured input, not direct input or frozen evidence: ${JSON.stringify({evidence:contactEvidence?.provenance,timestamp:contactEvidence?.measurementTimestampMs,cvTimestamp:game.latestPoseTimestampMs,tracking:contactInput.tracking})}`);
           if(row.hit&&contactJudgement?.result!=='hit'&&contact.session.timelinePositionMs>row.at+180)throw Error(`${row.id}: scored contact already expired before a hit: ${JSON.stringify({contactJudgement,session:contact.session,evidence:harness.graph.input.getSnapshot().latestEvidence?.measurementTimestampMs,poses:game.currentEquipmentPoses.map(p=>[p.role,p.anchor])})}`);
           if(row.hit){
             const target=contactModel.objects.filter(object=>object.kind==='icon'&&object.targetId===row.id);
-            if(target.length!==2||renderer.describe().equipment.assetMode!=='glb')throw Error(`${row.id}: scored contact frame lost actual shield/glove GLBs before their hit removal window: ${JSON.stringify({target:target.length,equipment:renderer.describe().equipment})}`);
+            if(target.length!==2||renderer.describe().equipment.assetMode!=='glb')throw Error(`${row.id}: scored contact frame lost actual shield/glove GLBs before their hit removal window: ${JSON.stringify({target:target.length,equipment:renderer.describe().equipment,judgement:contactJudgement,timeline:contact.session.timelinePositionMs,projected:game.rendererFrame().targets.filter(t=>t.id===row.id),aftermath:game.rendererFrame().aftermath})}`);
             const contactFrame=game.rendererFrame(),equipmentAtContact=game.currentEquipmentPoses,contactFull=sample();
             renderer.renderGameplayFrameWithCursorsAndEquipment({...contactFrame,targets:contactFrame.targets.filter(t=>t.id!==row.id)},[],{grid:{x:0,y:0,width:1,height:1},minConfidence:.5,sizeCssPx:32},equipmentAtContact,{grid:{x:0,y:0,width:1,height:1}});
             const contactNoGuard=sample();
@@ -170,18 +170,18 @@ try{
           if(!(after.session.timelinePositionMs>beforeTimeline&&after.session.timestampMs>beforeWall))throw Error(`${row.id}: production Play song-time/wall-clock must advance strictly: ${JSON.stringify({beforeTimeline,beforeWall,afterTimeline:after.session.timelinePositionMs,afterWall:after.session.timestampMs})}`);
           if(row.hit&&(!judgement||judgement.result!=='hit'||delta<=0))throw Error(`${row.id}: ${row.path} shield/glove contact must score a real Play HIT; judgement=${JSON.stringify(judgement??null)}, scoreDelta=${delta}, session=${JSON.stringify(after.session)}, input=${JSON.stringify({calibration:harness.graph.input.getSnapshot().calibration,tracking:harness.graph.input.getSnapshot().tracking,evidence:harness.graph.input.getSnapshot().latestEvidence?.measurementTimestampMs})}, equipment=${JSON.stringify(game.currentEquipmentPoses.map(p=>[p.role,p.anchor]))}, otherJudgements=${JSON.stringify(after.judgements.map(j=>[j.eventId,j.result]))}`);
           if(!row.hit&&(judgement?.result==='hit'||delta>0))throw Error(`${row.id}: ${row.path} negative falsely scored: judgement=${JSON.stringify(judgement??null)}, scoreDelta=${delta}`);
+          if(row.path==='back-late'){if(judgement!==undefined||after.session.timelinePositionMs!==row.at+175)throw Error(`${row.id}: physically beyond the flat front cap must remain unscored even within the +180ms time window: ${JSON.stringify({judgement:judgement??null,timeline:after.session.timelinePositionMs})}`);await moveAt(row.at+181,endL,endR,`${row.id} flat-cap miss after timing deadline`);if(harness.graph.gameplay.getSnapshot().judgements.find(j=>j.eventId===row.id)?.result!=='miss')throw Error(`${row.id}: contact outside the flat cap must MISS after the guard window, not become a hit`);}
           if(row.path==='swapped'){
             const swappedEvidence=contactEvidence?.anchors??[];
             const leftWrist=swappedEvidence.find(anchor=>anchor.anchor==='left_wrist'),rightWrist=swappedEvidence.find(anchor=>anchor.anchor==='right_wrist');
             if(!leftWrist||!rightWrist||leftWrist.cell!==row.right||rightWrist.cell!==row.left)throw Error(`${row.id}: actual fresh measured evidence must swap BOTH wrist cells, not merely omit input: ${JSON.stringify(swappedEvidence.map(anchor=>[anchor.anchor,anchor.cell]))}`);
             if(judgement?.result==='hit'||delta!==0)throw Error(`${row.id}: opposite named wrist cells must not score during the active guard window: ${JSON.stringify({judgement:judgement??null,delta})}`);
-            // The +80-ms contact frame is inside the guard window. This
-            // synthetic event has no checkpoint override, so the authoritative
-            // miss deadline is the configured 180 ms times the Boxing collider's
-            // backward depth (3 by default). Keep fresh swapped wrists until
-            // real Play passes that deadline.
+            // The +40-ms contact frame is inside the flat glove's front cap. This
+            // synthetic guard has no checkpoint override: the authoritative
+            // miss deadline retains at least the 180ms base window even with
+            // requested rear depth 0. Keep swapped measured wrists until expiry.
             const checkpointWindowMs=Number(events.find(entry=>entry.eventId===row.id)?.authoredBeat?.checkpoint?.timingWindowMs);
-            const deadlineMs=row.at+(Number.isFinite(checkpointWindowMs)&&checkpointWindowMs>0?checkpointWindowMs:180*Number(game.desiredGameSetup.boxingColliderVolume.colliderDepthBackward));
+            const deadlineMs=row.at+(Number.isFinite(checkpointWindowMs)&&checkpointWindowMs>0?checkpointWindowMs:Math.max(180,180*Number(game.desiredGameSetup.boxingColliderVolume.colliderDepthBackward)));
             await moveAt(deadlineMs+100,endL,endR,`${row.id} after guard miss deadline`);
             const expired=harness.graph.gameplay.getSnapshot(),miss=expired.judgements.find(entry=>entry.eventId===row.id),expiredScore=score(expired)-preScore;
             if(!(expired.session.timelinePositionMs>deadlineMs))throw Error(`${row.id}: fixture did not pass guard deadline: ${JSON.stringify({deadlineMs,timelinePositionMs:expired.session.timelinePositionMs})}`);
@@ -192,7 +192,7 @@ try{
             continue;
           }
           if(row.id==='off-time'&&judgement?.result!=='miss')throw Error(`${row.id}: contact after timing window must commit an authoritative MISS, not remain an unevaluated pending icon: ${JSON.stringify(judgement??null)}`);
-          rows.push({id:row.id,cells:[row.left,row.right],path:row.path,guardPixels,glovePixels,chroma,overlapApproach,overlapContact,contactOcclusion,pixelOverlapByHand,result:judgement?.result??'pending',scoreDelta:delta});
+          rows.push({id:row.id,cells:[row.left,row.right],path:row.path,guardPixels,glovePixels,chroma,overlapApproach,overlapContact,contactOcclusion,pixelOverlapByHand,result:row.path==='back-late'?'miss':judgement?.result??'pending',scoreDelta:delta});
         }
         const session=harness.graph.gameplay.getSnapshot().session;
         if(session.purpose!=='play')throw Error('Only scored Play qualifies');
