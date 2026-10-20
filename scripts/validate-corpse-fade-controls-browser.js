@@ -14,7 +14,7 @@ const locked={enabled:true,delayMs:150,durationMs:500};
 let vite=null,signedServer=null,url;
 if(process.env.AEROBEAT_SIGNED_CORPSE_FADE_DIR){
   const signed=loadSignedSnapshot(path.resolve(process.env.AEROBEAT_SIGNED_CORPSE_FADE_DIR));
-  assert(['0.0.138','0.0.139'].includes(signed.manifest.sourceManifest.packageVersion),'candidate must retain the locked-fade successor behavior');
+  assert(['0.0.138','0.0.139','0.0.140'].includes(signed.manifest.sourceManifest.packageVersion),'candidate must retain the locked-fade successor behavior');
   signedServer=createHttpServer(handlerForSnapshot(signed));
   await new Promise(done=>signedServer.listen(0,'127.0.0.1',done));
   const address=signedServer.address();assert(address&&typeof address!=='string');url=`http://127.0.0.1:${address.port}/`;

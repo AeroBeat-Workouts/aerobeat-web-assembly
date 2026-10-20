@@ -49,7 +49,7 @@ for (const [name, mutate] of [
 }
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
-assert.equal(packageJson.version, "0.0.139", "release source must use the verified Section A Boxing spacing successor version");
+assert.equal(packageJson.version, "0.0.140", "release source must use the verified Section B Boxing repetition successor version");
 assert.equal(packageJson.dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages[""].dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages["../aerobeat-web-hash"].name, "@aerobeat/web-hash");
