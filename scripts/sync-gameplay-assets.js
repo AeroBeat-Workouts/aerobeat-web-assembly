@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
@@ -11,12 +11,14 @@ import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "eadb37388477a62f50094e748d06851d025b07de";
-const rendererTree = "c4c1fc57dbcfbefca4198dd9bb4293d585f42fe5";
-const release = "0.0.11";
-const releaseTree = "06fb120939b17326c558b8a698025d6ab8bd093d";
-const inventoryHash = "b043fe4f039f34527aae229224e0fb1f4069848b67ea5a89a51d732f063cac29";
-const proofHash = "a3c9ffbd4d07fa2d8b0810d8b22210145c35a479d87399c5ac87060f7b7614d3";
+const rendererCommit = "63ec9fce2a1ec115054b766dfefb935f7290e90e";
+const rendererTree = "bc365efeb464659d815e3a5022057c4d927edddc";
+const historicalRelease = "0.0.11";
+const historicalTree = "06fb120939b17326c558b8a698025d6ab8bd093d";
+const release = "0.0.12";
+const releaseTree = "2ba5fc46f8aea74a1bc6e55a40a4d0b8bebfa36f";
+const inventoryHash = "a7a4902e7aa0bf92da8179dd4149e4e241e04ac64d0b9887d66151dacbf30231";
+const proofHash = "f37bb12bc3cafc53e0e3314c95e8bd0551a76a1366ee16e9af4adcb522dc9910";
 const arguments_ = process.argv.slice(2);
 const sourceIndex = arguments_.indexOf("--source");
 const source = resolve(sourceIndex >= 0 ? arguments_[sourceIndex + 1] ?? "" : canonicalRenderer);
@@ -39,9 +41,12 @@ assert.equal(git(source, "rev-parse", "HEAD"), rendererCommit, "renderer source 
 assert.equal(git(source, "rev-parse", "HEAD^{tree}"), rendererTree, "renderer source tree drifted");
 validateReleaseDependencyStatus(gitRaw(source, "status", "--porcelain=v1", "-z", "--untracked-files=all"), "renderer gameplay source");
 assert.equal(git(source, "rev-parse", `HEAD:assets/gameplay/${release}`), releaseTree, "renderer gameplay release tree drifted");
+assert.equal(git(source, "rev-parse", `HEAD:assets/gameplay/${historicalRelease}`), historicalTree, "renderer historical gameplay release drifted");
 const sourceRoot = resolve(source, "assets/gameplay", release);
 const payloadRoot = resolve(root, "assets/gameplay");
 const targetRoot = resolve(payloadRoot, release);
+const historicalRoot = resolve(payloadRoot, historicalRelease);
+const historicalSourceRoot = resolve(source, "assets/gameplay", historicalRelease);
 const inventoryBytes = readFileSync(resolve(sourceRoot, "inventory.v1.json"));
 const proofBytes = readFileSync(resolve(sourceRoot, "proof.v1.json"));
 assert.equal(hash(inventoryBytes), inventoryHash, "renderer gameplay inventory hash drifted");
@@ -62,25 +67,22 @@ assert.equal(expectedFiles.length, 19, "renderer gameplay exact file count drift
 assert.equal(new Set(expectedFiles).size, 19, "renderer gameplay inventory contains duplicates");
 verifyTree(sourceRoot, "renderer source");
 
+verifyHistoricalTree();
 if (mode === "sync") {
   const existingReleases = directories(payloadRoot);
-  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [release] : ["0.0.10"], "assembly mutable gameplay payload contains an unexpected release");
-  const staging = resolve(root, "assets/.gameplay-0.0.11-staging");
-  rmSync(staging, { recursive:true, force:true });
-  try {
-    mkdirSync(staging, { recursive:true });
-    cpSync(sourceRoot, resolve(staging, release), { recursive:true });
-    verifyTree(resolve(staging, release), "staged assembly payload");
-    makeDirectoriesWritable(payloadRoot);
-    rmSync(payloadRoot, { recursive:true, force:true });
-    mkdirSync(resolve(root, "assets"), { recursive:true });
-    renameSync(staging, payloadRoot);
-  } finally {
-    rmSync(staging, { recursive:true, force:true });
+  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [historicalRelease, release] : [historicalRelease], "assembly gameplay releases must retain the immutable predecessor");
+  if (!existingReleases.includes(release)) {
+    // Add only the new release. Never remove or rewrite the signed predecessor.
+    const staging = resolve(payloadRoot, `.gameplay-${release}-${process.pid}-${Date.now()}`);
+    assert.equal(existsSync(staging), false, "fresh gameplay staging directory required");
+    cpSync(sourceRoot, staging, { recursive:true, errorOnExist:true, force:false });
+    verifyTree(staging, "staged new assembly payload");
+    renameSync(staging, targetRoot);
   }
 }
+verifyHistoricalTree();
 verifyTree(targetRoot, "assembly payload");
-assert.deepEqual(directories(payloadRoot), [release], "assembly must package only gameplay 0.0.11");
+assert.deepEqual(directories(payloadRoot), [historicalRelease, release], "assembly gameplay payload must preserve the predecessor beside the active release");
 console.log(`Gameplay package ${mode} passed: renderer ${rendererCommit}/${rendererTree}, release tree ${releaseTree}, exact ${expectedFiles.length} files.`);
 
 function verifyTree(directory, label) {
@@ -105,9 +107,10 @@ function filesUnder(directory, current = "") {
   }).sort();
 }
 function directories(directory) { return readdirSync(directory, { withFileTypes:true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(); }
-function makeDirectoriesWritable(directory) {
-  chmodSync(directory, 0o755);
-  for (const entry of readdirSync(directory, { withFileTypes:true })) if (entry.isDirectory()) makeDirectoriesWritable(resolve(directory, entry.name));
+function verifyHistoricalTree() {
+  const sourceFiles = filesUnder(historicalSourceRoot);
+  assert.deepEqual(filesUnder(historicalRoot), sourceFiles, "immutable 0.0.11 assembly inventory drifted");
+  for (const file of sourceFiles) assert.equal(hash(readFileSync(resolve(historicalRoot, file))), hash(readFileSync(resolve(historicalSourceRoot, file))), `immutable 0.0.11 assembly bytes drifted: ${file}`);
 }
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 function git(repository, ...arguments_) { return gitRaw(repository, ...arguments_).trim(); }
