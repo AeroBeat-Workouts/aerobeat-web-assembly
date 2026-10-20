@@ -145,7 +145,12 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const directory = process.argv[2] ?? defaultDirectory;
   if (!path.isAbsolute(directory)) fail("snapshot directory must be absolute");
   const snapshot = loadSignedSnapshot(directory);
-  createServer(handlerForSnapshot(snapshot)).listen(4200, "127.0.0.1", () => {
-    console.log(`Signed friend game listening on 127.0.0.1:4200 (${snapshot.manifest.assets.length} files)`);
+  // Keep the existing public 4200 service untouched while a new signed build
+  // runs independently on 4201 for an additive, reversible public cutover.
+  const portText=process.env.AEROBEAT_FRIEND_GAME_PORT??"4200";
+  if(!/^\d{4,5}$/u.test(portText)||Number(portText)<1024||Number(portText)>65535)fail("friend game port must be a valid unprivileged TCP port");
+  const port=Number(portText);
+  createServer(handlerForSnapshot(snapshot)).listen(port, "127.0.0.1", () => {
+    console.log(`Signed friend game listening on 127.0.0.1:${port} (${snapshot.manifest.assets.length} files)`);
   });
 }
