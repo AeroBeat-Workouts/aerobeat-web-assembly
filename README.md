@@ -15,9 +15,9 @@ The component fills exactly its parent (`100%` inline/block size). It does not m
 
 There is no `aerobeat-app` alias.
 
-## Private Boxing authoring candidate (not published)
+## 0.0.139 Boxing Section A successor (candidate until signed/public checks pass)
 
-Game Setup now has `Minimum gap between same-hand punches (ms)` beside Guard spacing, accepting integers 0–2000 and defaulting to 0. It changes the next import or selected-song Reimport across all Standard difficulties, not stored charts immediately. Zero preserves existing Boxing chart identity; positive values constrain only same-hand emitted punches. Flow and the existing global punch interval are unchanged. Public signed 0.0.138 remains unchanged.
+Downloaded songs now offers selected-song `Reimport` beside `Reimport All`. It safely replaces only the chosen BeatSaver song after the exact source version and all Standard charts are ready; a failed acquisition/conversion retains the old song and unrelated songs. Game Setup has `Minimum gap between same-hand punches (ms)` beside Guard spacing, accepting integers 0–2000 and defaulting to 0. It changes the next import or selected-song Reimport across all Standard difficulties, not stored charts immediately. Zero preserves existing Boxing chart identity; positive values constrain only same-hand emitted punches while Flow and the existing global punch interval remain unchanged. Direct and cross-origin iframe Chromium tests using hash-pinned BeatSaver `54510` passed. The public HTTPS link still serves signed 0.0.138 until the new signed 0.0.139 build passes private checks and is deliberately switched over.
 
 ## Current public playtest (0.0.138)
 
