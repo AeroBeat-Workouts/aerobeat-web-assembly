@@ -16,7 +16,7 @@ try{
  let childUrl;
  if(signedDirectory){
    const snapshot=loadSignedSnapshot(path.resolve(signedDirectory));
-   assert(['0.0.135','0.0.136','0.0.137'].includes(snapshot.manifest.sourceManifest.packageVersion),'unsupported signed Test MISS snapshot');
+   assert(['0.0.135','0.0.136','0.0.137','0.0.138'].includes(snapshot.manifest.sourceManifest.packageVersion),'unsupported signed Test MISS snapshot');
    await build({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixturesDir,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
    const fixtures=new Map(readdirSync(fixturesDir).filter(file=>file.endsWith('.js')).map(file=>['/scripts/fixtures/'+file,readFileSync(path.join(fixturesDir,file))]));const handler=handlerForSnapshot(snapshot);
    server=createServer((request,response)=>{const file=fixtures.get(new URL(request.url??'/','http://local.invalid').pathname);if(file){response.setHeader('Content-Type','text/javascript; charset=utf-8');response.end(file);return;}handler(request,response);});

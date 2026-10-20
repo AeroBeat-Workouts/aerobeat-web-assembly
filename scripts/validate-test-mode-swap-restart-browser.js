@@ -13,7 +13,7 @@ const vite=await createViteServer({appType:'spa',configFile:'vite.config.js',log
 let browser=null,parent=null;
 try{
   await vite.listen();const url=vite.resolvedUrls?.local?.[0];assert(url);
-  parent=createHttpServer((_req,res)=>{res.setHeader('content-type','text/html; charset=utf-8');res.end(`<!doctype html><iframe allow="camera; autoplay" style="width:844px;height:390px" src="${url}"></iframe>`);});
+  parent=createHttpServer((_req,res)=>{res.setHeader('content-type','text/html; charset=utf-8');res.end(`<!doctype html><iframe allow="camera; autoplay; xr-spatial-tracking" style="width:844px;height:390px" src="${url}"></iframe>`);});
   await new Promise(done=>parent.listen(0,'127.0.0.1',done));const address=parent.address();assert(address&&typeof address!=='string');
   browser=await chromium.launch({headless:true});
   for(const embedding of ['direct','iframe'])for(const mode of ['flow','boxing']){

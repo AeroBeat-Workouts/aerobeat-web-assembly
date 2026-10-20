@@ -175,8 +175,11 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
       required(JSON.stringify(parsed) === JSON.stringify(desired), `persisted Game Setup differs from coordinator: ${JSON.stringify(Object.keys(desired).filter(key => JSON.stringify(parsed?.[key]) !== JSON.stringify(desired[key])).map(key => ({ key, persisted: parsed?.[key], current: desired[key] })))}`);
     }
     for (const [key, value] of Object.entries(changes)) {
-      const expected = key === 'boxingColliderVolume' || key === 'flowColliderVolume' ? value : { [key]: value };
-      for (const [field, actual] of Object.entries(expected)) required(Object.is((key === 'boxingColliderVolume' || key === 'flowColliderVolume' ? desired[key] : desired)[field], actual), `persisted ${key}.${field} differs from native input`);
+      const volume = key === 'boxingColliderVolume' || key === 'flowColliderVolume';
+      const spawnField = key === 'spawnDistanceOverrideEnabled' ? 'enabled' : key === 'spawnDistanceOverrideWorldUnits' ? 'normalSpawnDistanceWorldUnits' : null;
+      const expected = volume ? value : { [spawnField ?? key]: value };
+      const stored = volume ? desired[key] : spawnField ? desired.spawnDistanceOverride : desired;
+      for (const [field, actual] of Object.entries(expected)) required(Object.is(stored[field], actual), `persisted ${key}.${field} differs from native input`);
     }
     return desired;
   };

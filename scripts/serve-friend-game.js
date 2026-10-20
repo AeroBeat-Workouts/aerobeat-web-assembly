@@ -41,7 +41,9 @@ const documentCsp = "default-src 'none'; script-src 'self'; style-src 'self' 'un
 const assetCsp = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'";
 const mime = Object.freeze({ ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".wasm": "application/wasm", ".task": "application/octet-stream", ".glb": "model/gltf-binary", ".jpeg": "image/jpeg", ".jpg": "image/jpeg", ".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml", ".json": "application/json; charset=utf-8" });
 // JSON is permitted only as an owned environment config/rights manifest or gameplay manifest/set.
-const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.12\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
+// The signer emits only the current release; the signed server must also be
+// able to restart the untouched 0.0.137 rollback snapshot with its old GLBs.
+const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.(?:11|12)\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
 const compressedTypes = new Set([".wasm", ".task", ".js"]);
 function acceptsBrotli(header) {
   if (typeof header !== "string") return false;
@@ -102,7 +104,10 @@ export function loadSignedSnapshot(directory = defaultDirectory) {
   if (!html?.includes("<aero-game>") || html.includes("/src/index.js") || !entryScripts.length ||
       entryScripts.some(name => !/^\/assets\/[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*-[A-Za-z0-9_-]+\.js$/u.test(name) ||
         !bytes.get(name)?.includes(Buffer.from(manifest.buildStamp)))) fail("normal stamped game entry missing");
-  if (named.filter(name => /^assets\/gameplay\/0\.0\.12\/.*\.glb$/u.test(name)).length !== 9 ||
+  const gamePaths = named.filter(name => name.startsWith("assets/gameplay/"));
+  const gameReleases = new Set(gamePaths.map(name => name.split("/")[2]));
+  if (gameReleases.size !== 1 || !["0.0.11", "0.0.12"].includes([...gameReleases][0]) ||
+      gamePaths.filter(name => name.endsWith(".glb")).length !== 9 ||
       !named.includes("assets/mediapipe/pose_landmarker_lite.task") || !named.includes("assets/mediapipe/vision_bundle.js") ||
       !named.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) || !named.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) ||
       !named.includes("favicon.ico")) fail("required local game assets missing");

@@ -49,7 +49,7 @@ for (const [name, mutate] of [
 }
 const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
 const packageLock = JSON.parse(readFileSync(resolve(root, "package-lock.json"), "utf8"));
-assert.equal(packageJson.version, "0.0.137", "release source must use the distinct per-mode corpse fade candidate version");
+assert.equal(packageJson.version, "0.0.138", "release source must use the locked-fade and corrected playfield candidate version");
 assert.equal(packageJson.dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages[""].dependencies["@aerobeat/web-hash"], "file:../aerobeat-web-hash");
 assert.equal(packageLock.packages["../aerobeat-web-hash"].name, "@aerobeat/web-hash");
