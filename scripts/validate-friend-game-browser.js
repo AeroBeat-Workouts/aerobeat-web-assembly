@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createServer, request as httpRequest } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
+import { lstatSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,12 +14,22 @@ import { chromium } from 'playwright';
 import { computeBeatSaverMapHash, inspectBeatSaverArchive } from '@aerobeat/web-vendor-beatsaver';
 import { createSyntheticBeatSaverZip, createSyntheticMapPayload } from '../../aerobeat-web-vendor-beatsaver/scripts/fixture-helpers.js';
 
-const root = fileURLToPath(new URL('../', import.meta.url));
-const build = resolve(root, 'dist-friend-game');
+const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const sidecar = 'friend-game-bundle-manifest.json';
 const rawUrl = process.env.AEROBEAT_FRIEND_GAME_QA_URL;
 assert(['http://127.0.0.1:4200/', 'http://127.0.0.1:4201/'].includes(rawUrl),
   'INVALID SETUP: exact signed loopback 4200 rollback or 4201 candidate URL required');
+const candidateDir = process.env.AEROBEAT_FRIEND_GAME_QA_DIR;
+let build = resolve(root, 'dist-friend-game');
+if (candidateDir !== undefined) {
+  assert(rawUrl === 'http://127.0.0.1:4201/', 'INVALID SETUP: candidate QA requires signed loopback 4201');
+  assert(/^\.tmp\/[a-zA-Z0-9][a-zA-Z0-9_-]*$/u.test(candidateDir), 'INVALID SETUP: candidate QA directory must be .tmp/<candidate>');
+  const temp = resolve(root, '.tmp');
+  build = resolve(root, candidateDir);
+  assert(realpathSync(root) === root && lstatSync(temp).isDirectory() && realpathSync(temp) === temp &&
+    lstatSync(build).isDirectory() && realpathSync(build) === build,
+    'INVALID SETUP: candidate QA directory must be a real directory beneath .tmp');
+}
 const origin = new URL(rawUrl).origin;
 const signedPort = new URL(rawUrl).port;
 // Normal release gate stays short; the historical 35-second Pixel stall is opt-in.
@@ -63,7 +74,7 @@ const failHash = (bytes, entry) => {
 };
 let manifestBytes;
 try { manifestBytes = await readFile(resolve(build, sidecar)); }
-catch (cause) { throw new Error('INVALID SETUP: signed dist-friend-game is absent', { cause }); }
+catch (cause) { throw new Error(`INVALID SETUP: signed ${candidateDir ?? 'dist-friend-game'} is absent`, { cause }); }
 assert(manifestBytes.length > 128 && manifestBytes.length < 128000, 'bounded sidecar');
 const manifest = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes));
 exactKeys(manifest, ['schema', 'version', 'purpose', 'sourceManifest', 'buildStamp', 'responsePolicy', 'assets'], 'sidecar');
