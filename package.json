@@ -25,6 +25,7 @@
     "verify:gameplay-assets": "node scripts/sync-gameplay-assets.js verify",
     "test:gameplay-asset-provenance": "node scripts/test-sync-gameplay-assets-provenance.js",
     "test:v4-integration": "node scripts/validate-v4-assembly-integration.js",
+    "test:same-hand-reimport": "node scripts/validate-same-hand-reimport-browser.js",
     "test:insecure-hash-integration": "node scripts/validate-insecure-hash-integration.js",
     "test:hash-provenance": "node scripts/validate-shared-hash-provenance.js && node scripts/validate-production-hash-bundle.js",
     "test:live-v4-import": "node scripts/validate-live-v4-import.js",
