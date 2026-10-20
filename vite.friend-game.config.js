@@ -44,11 +44,11 @@ const aliases = packages.flatMap(({ name, path, exports: exported }) => {
     { find: new RegExp(`^${escaped}$`, "u"), replacement: `${path}/src/index.js` }
   ];
 });
-const gameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.11/", root);
+const gameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.12/", root);
 const inventoryBytes = readFileSync(new URL("inventory.v1.json", gameplayRoot));
 const proofBytes = readFileSync(new URL("proof.v1.json", gameplayRoot));
-if (sha256(inventoryBytes) !== "b043fe4f039f34527aae229224e0fb1f4069848b67ea5a89a51d732f063cac29" ||
-    sha256(proofBytes) !== "a3c9ffbd4d07fa2d8b0810d8b22210145c35a479d87399c5ac87060f7b7614d3") throw new Error("Friend game gameplay authority drift");
+if (sha256(inventoryBytes) !== "a7a4902e7aa0bf92da8179dd4149e4e241e04ac64d0b9887d66151dacbf30231" ||
+    sha256(proofBytes) !== "f37bb12bc3cafc53e0e3314c95e8bd0551a76a1366ee16e9af4adcb522dc9910") throw new Error("Friend game gameplay authority drift");
 const inventory = JSON.parse(inventoryBytes);
 if (inventory.expected_asset_count !== 9 || inventory.payload.filter(({ path }) => path.endsWith(".glb")).length !== 9) throw new Error("Friend game GLB inventory drift");
 function checked(url, bytes, digest) {
@@ -72,7 +72,7 @@ function mediaDigest() {
 }
 if (mediaFiles.length !== 8 || mediaDigest() !== "73dce3877d951dff100ed46655b82143d6644b1e1308164b8feab48dda0fee9b") throw new Error("Friend game MediaPipe inventory drift");
 const assets = [
-  ...inventory.payload.map(entry => [`assets/gameplay/0.0.11/${entry.path}`, checked(new URL(entry.path, gameplayRoot), entry.bytes, entry.sha256)]),
+  ...inventory.payload.map(entry => [`assets/gameplay/0.0.12/${entry.path}`, checked(new URL(entry.path, gameplayRoot), entry.bytes, entry.sha256)]),
   ...environmentAssetFiles.map(entry => [entry.path, checked(new URL(entry.path, root), entry.bytes, entry.sha256)]),
   ["favicon.ico", favicon], ...mediaFiles.map(([name, url]) => [name, readFileSync(url)])
 ];

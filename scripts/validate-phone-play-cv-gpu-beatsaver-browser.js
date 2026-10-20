@@ -76,7 +76,7 @@ assert(Array.isArray(manifest.assets) && manifest.assets.length > 20 && manifest
 const paths = manifest.assets.map(entry => entry.path);
 assert.equal(new Set(paths).size, paths.length, "no duplicate paths");
 assert(paths.includes("index.html") && paths.includes("phone-play-cv-test.html") && paths.some(path => /^assets\/.*worker.*\.js$/iu.test(path)) && paths.some(path => /^assets\/mediapipe\/.*\.task$/u.test(path)) && paths.some(path => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(path)), "HTML, Worker, MediaPipe model and WASM inventory");
-assert.equal(paths.filter(path => /^assets\/gameplay\/0\.0\.11\/.*\.glb$/u.test(path)).length, 9, "nine real gameplay models");
+assert.equal(paths.filter(path => /^assets\/gameplay\/0\.0\.12\/.*\.glb$/u.test(path)).length, 9, "nine real gameplay models");
 assert(paths.some(path => /^assets\/.*-[A-Za-z0-9_-]+\.js$/u.test(path)), "built JS entry");
 async function inventory(directory,prefix="") {
   const entries=await readdir(directory,{withFileTypes:true});

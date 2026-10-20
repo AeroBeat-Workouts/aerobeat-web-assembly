@@ -10,7 +10,8 @@ import { buildGameplaySceneModel } from "@aerobeat/web-renderer";
 const assembly = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
 assert.match(assembly, /prior\.guardSpacing!==setup\.guardSpacing\|\|prior\.uppercutOppositeLane!==setup\.uppercutOppositeLane\|\|prior\.anyOppositeLane!==setup\.anyOppositeLane/u);
 assert.match(assembly, /await graph\.content\.replaceBoxingPackage\(replacement\)/u);
-assert.match(assembly, /const resolvedEvents = futureOnly \? content\.resolvedEvents\.filter\([\s\S]*? : content\.resolvedEvents/u);
+assert.match(assembly, /const selectedVariantEvents = content\.resolvedEvents\.filter\(\(event\) => event\.variantId === content\.selectedVariant\.variantId && event\.chartId === content\.selectedVariant\.chartId\)/u);
+assert.match(assembly, /const resolvedEvents = selectedVariantEvents\.length > 0 \? selectedVariantEvents : content\.resolvedEvents/u);
 assert.match(assembly, /const events = Array\.isArray\(projected\)\?projected:Array\.isArray\(content\.resolvedEvents\) \? content\.resolvedEvents : \[\]/u);
 assert.match(assembly, /purpose === "visual_test" \? VISUAL_TEST_CONTENT_OPTIONS : undefined/u);
 assert.match(assembly, /graph\.renderer\.renderGameplayFrameWithCursorsAndEquipment\(frame, cursors, cursorOptions, equipment/u);
@@ -67,10 +68,10 @@ for(const purpose of ["play","visual_test"]){
     const model=buildGameplaySceneModel(frame);
     const icons=model.objects.filter((object)=>object.targetId===target.id&&object.kind==="icon");
     assert.deepEqual(icons.map((icon)=>icon.position.x).sort((a,b)=>a-b),cells.map((cell)=>cell%4-1.5).sort((a,b)=>a-b),`${purpose}/${presentation} draws authored guard spacing`);
-    const tracks=model.objects.filter((object)=>object.kind==="track").sort((a,b)=>a.position.z-b.position.z);
-    assert.equal(tracks.length,3);
-    const trackLength=(track)=>track.id==="track-0"?26:24;
-    for(let i=1;i<tracks.length;i++)assert.ok(Math.abs((tracks[i-1].position.z+trackLength(tracks[i-1])/2)-(tracks[i].position.z-trackLength(tracks[i])/2))<1e-9,`${purpose}/${presentation} track is continuous`);
+    const tracks=model.objects.filter((object)=>object.kind==="track");
+    assert.equal(tracks.length,1,`${purpose}/${presentation} uses one continuous track`);
+    assert.equal(tracks[0].id,"track-0");
+    assert.equal(tracks[0].assetId,"track/blue-glass-v1");
   }
 }
 content.destroy();authoring.destroy();

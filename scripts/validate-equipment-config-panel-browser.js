@@ -46,7 +46,7 @@ const testRoot = process.env.AEROBEAT_EQUIPMENT_TEST_ROOT?.trim() || root;
 const counterfactual = touchOnly && testRoot !== root;
 const siblings = resolve(root, "..");
 const packageVersion = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
-assert.equal(gameplayAssetReleaseVersion, "0.0.11");
+assert.equal(gameplayAssetReleaseVersion, "0.0.12");
 assert.equal(gameplayAssets.length, 9, "exact pinned renderer GLB inventory");
 const assetBase = resolve(siblings, "aerobeat-web-renderer/assets/gameplay", gameplayAssetReleaseVersion);
 const assets = new Map(gameplayAssets.map((asset) => {

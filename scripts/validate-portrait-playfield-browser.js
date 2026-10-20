@@ -23,7 +23,7 @@ const siblings=resolve(root,"..");
 const uiSource=resolve(siblings,"aerobeat-web-ui/src/index.js"),hashSource=resolve(siblings,"aerobeat-web-hash/src/index.js");
 const equipmentContractsSource=new URL("../../aerobeat-web-contracts/src/equipment-pose-contracts.js",import.meta.url).pathname;
 const assetBase=resolve(siblings,"aerobeat-web-renderer/assets/gameplay",gameplayAssetReleaseVersion);
-assert(gameplayAssets.length===9&&gameplayAssetReleaseVersion==="0.0.11","expected exact pinned nine-GLB renderer asset set");
+assert(gameplayAssets.length===9&&gameplayAssetReleaseVersion==="0.0.12","expected exact pinned nine-GLB renderer asset set");
 const assetInventory=new Map(gameplayAssets.map(asset=>{
   const path=resolve(assetBase,asset.path),data=readFileSync(path);
   assert(data.length===asset.bytes&&createHash("sha256").update(data).digest("hex")===asset.sha256,`renderer GLB inventory hash/length mismatch: ${asset.id}`);
@@ -58,7 +58,7 @@ try{
       element.serviceGraphFactory=options=>{
         const graph=original(options),audioState={state:"paused"};
         const snapshot=()=>({state:"ready",packageId:"portrait-browser",selectedVariant:{variantId:"portrait-flow",chartId:"portrait-chart",mode:"flow",rulesetId:"flow_colliders_v1",recipeId:null,modifierIds:[],ranked:false,mapHash:{schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:"a".repeat(64)},scoreIdentityHash:{schema:"aerobeat/content_hash",version:1,algorithm:"sha256",value:"a".repeat(64)},provenance:{baseVariantId:"portrait-flow"}},variants:[],resolvedEvents:[],song:{name:"Portrait browser fixture"},background:null,lineage:null});
-        const content={getSnapshot:snapshot,subscribe(listener){listener(snapshot());return()=>{};},readAsset:()=>new Uint8Array(),setPlaybackState(){},destroy(){}};
+        const content={getSnapshot:snapshot,subscribe(listener){listener(snapshot());return()=>{};},async selectVariant(variantId){if(variantId!=="portrait-flow")throw Error(`unknown portrait variant: ${variantId}`);return snapshot();},readAsset:()=>new Uint8Array(),setPlaybackState(){},destroy(){}};
         const audio={getMixSnapshot:()=>({musicVolume:.5,sfxVolume:.5}),setMix:()=>({musicVolume:.5,sfxVolume:.5}),activateLease:async()=>{},releaseLease:async()=>{},pauseForLease:async()=>{},play:async()=>{audioState.state="playing";},pause:async()=>{audioState.state="paused";},seek:async()=>{},stop:async()=>{audioState.state="stopped";},setDocumentHidden:async()=>{},destroy:async()=>{},getStatus:()=>({state:audioState.state,autoplayState:"allowed",durationSeconds:120}),getClockSnapshot:()=>({contextTimeSeconds:performance.now()/1000,positionSeconds:0,durationSeconds:120,progress:0,playing:audioState.state==="playing"})};
         const authoring={getSnapshot:()=>({state:"idle",progress:0}),subscribe:()=>()=>{},listPackages:async()=>[],listCollections:async()=>[],estimateStorage:async()=>({usageBytes:0,quotaBytes:1024}),destroy(){}};
         return Object.freeze({...graph,content,audio,authoring});

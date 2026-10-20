@@ -87,7 +87,7 @@ function run() {
   if (!jsPaths.some(name => viteChunk.test(name)) || jsPaths.some(name => !viteChunk.test(name) && !mediapipeStatic.test(name))) fail("built JS inventory missing or malformed");
   if (!files.some(name => /^assets\/mediapipe\/.*\.task$/u.test(name)) ||
       !files.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) ||
-      files.filter(name => /^assets\/gameplay\/0\.0\.11\/.*\.glb$/u.test(name)).length !== 9) fail("MediaPipe model/WASM or gameplay GLBs missing");
+      files.filter(name => /^assets\/gameplay\/0\.0\.12\/.*\.glb$/u.test(name)).length !== 9) fail("MediaPipe model/WASM or gameplay GLBs missing");
   const htmlText = readFileSync(regularWithin(out, htmlPath), "utf8");
   const entryScripts = [...htmlText.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js)["'][^>]*>/gu)].map(match => match[1]);
   if (!entryScripts.length || entryScripts.some(src => !src.startsWith("/assets/") || !viteChunk.test(src.slice(1)) || !jsPaths.includes(src.slice(1)))) fail("built HTML does not reference hashed JS entry");

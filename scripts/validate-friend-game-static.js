@@ -27,9 +27,9 @@ const files = new Map([
   ["assets/environments/test.jpg", Buffer.from("environment")],
   ["assets/environments/alpine-river-valley-photosphere/1.0.0/alpine-river-valley-photosphere.config.json", Buffer.from("{\"id\":\"alpine\"}")],
   ["assets/environments/alpine-river-valley-photosphere/1.0.0/manifest.json", Buffer.from("{\"rights\":true}")],
-  ["assets/gameplay/0.0.11/manifests/guard/outlined-shield-v1.v1.json", Buffer.from("{\"asset\":\"guard\"}")],
-  ["assets/gameplay/0.0.11/sets/default-v1.json", Buffer.from("{\"set\":\"default\"}")],
-  ...Array.from({ length: 9 }, (_, n) => [`assets/gameplay/0.0.11/model${n}.glb`, Buffer.from(`glb${n}`)])
+  ["assets/gameplay/0.0.12/manifests/guard/outlined-shield-v1.v1.json", Buffer.from("{\"asset\":\"guard\"}")],
+  ["assets/gameplay/0.0.12/sets/default-v1.json", Buffer.from("{\"set\":\"default\"}")],
+  ...Array.from({ length: 9 }, (_, n) => [`assets/gameplay/0.0.12/model${n}.glb`, Buffer.from(`glb${n}`)])
 ]);
 for (const [name, bytes] of files) {
   mkdirSync(path.dirname(path.join(root, name)), { recursive: true });
@@ -100,7 +100,7 @@ try {
     }
     assert.equal((await wire(target, "GET", "*;q=1")).headers["content-encoding"], "br");
   }
-  for (const name of ["/favicon.ico", "/assets/environments/test.jpg", "/assets/gameplay/0.0.11/model0.glb", "/assets/gameplay/0.0.11/sets/default-v1.json"]) {
+  for (const name of ["/favicon.ico", "/assets/environments/test.jpg", "/assets/gameplay/0.0.12/model0.glb", "/assets/gameplay/0.0.12/sets/default-v1.json"]) {
     const response = await wire(name, "GET", "br");
     assert.equal(response.status, 200);
     assert.equal(response.headers["content-encoding"], undefined, name);

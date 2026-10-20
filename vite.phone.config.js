@@ -34,11 +34,11 @@ const mediaFiles=[
   ["assets/mediapipe/vision_bundle.js",readFileSync(new URL("vision_bundle.js",mediaRoot)),"text/javascript"],
   ...readdirSync(new URL("wasm/",mediaRoot)).map(name=>[`assets/mediapipe/wasm/${name}`,readFileSync(new URL(`wasm/${name}`,mediaRoot)),name.endsWith(".wasm")?"application/wasm":"text/javascript"])
 ];
-const gameRoot=new URL("assets/gameplay/0.0.11/",root);
+const gameRoot=new URL("assets/gameplay/0.0.12/",root);
 function walkAssets(directory,prefix=""){
   return readdirSync(directory,{withFileTypes:true}).flatMap(entry=>entry.isDirectory()
     ? walkAssets(new URL(`${entry.name}/`,directory),`${prefix}${entry.name}/`)
-    : [[`assets/gameplay/0.0.11/${prefix}${entry.name}`,readFileSync(new URL(entry.name,directory)),"application/octet-stream"]]);
+    : [[`assets/gameplay/0.0.12/${prefix}${entry.name}`,readFileSync(new URL(entry.name,directory)),"application/octet-stream"]]);
 }
 const assets=[...mediaFiles,...walkAssets(gameRoot)];
 export default {

@@ -17,7 +17,7 @@ const testRoot=process.env.AEROBEAT_PLAY_FEEDBACK_TEST_ROOT?.trim()||root;
 const siblings=resolve(root,"..");
 const packageVersion=JSON.parse(readFileSync(resolve(root,"package.json"),"utf8")).version;
 assert.match(packageVersion,/^\d+\.\d+\.\d+$/);
-assert.equal(gameplayAssetReleaseVersion,"0.0.11");
+assert.equal(gameplayAssetReleaseVersion,"0.0.12");
 assert.equal(gameplayAssets.length,9);
 const assetBase=resolve(siblings,"aerobeat-web-renderer/assets/gameplay",gameplayAssetReleaseVersion);
 const inventory=new Map(gameplayAssets.map(asset=>{

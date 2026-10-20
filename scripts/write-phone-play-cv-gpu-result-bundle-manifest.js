@@ -91,7 +91,7 @@ function run() {
   if (!jsPaths.some(name => viteChunk.test(name)) || jsPaths.some(name => !viteChunk.test(name) && !mediapipeStatic.test(name))) fail("built JS inventory missing or malformed");
   if (!files.some(name => /^assets\/mediapipe\/.*\.task$/u.test(name)) ||
       !files.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) ||
-      files.filter(name => /^assets\/gameplay\/0\.0\.11\/.*\.glb$/u.test(name)).length !== 9 ||
+      files.filter(name => /^assets\/gameplay\/0\.0\.12\/.*\.glb$/u.test(name)).length !== 9 ||
       !files.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) ||
       !files.includes("favicon.ico")) fail("MediaPipe model/WASM, environment, favicon or gameplay GLBs missing");
   for (const htmlPath of htmlPaths) {

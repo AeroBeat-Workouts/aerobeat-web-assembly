@@ -46,11 +46,11 @@ const aliases = packages.flatMap(({ name, path, exports: exported }) => {
     { find: new RegExp(`^${escaped}$`, "u"), replacement: `${path}/src/index.js` }
   ];
 });
-const gameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.11/", root);
+const gameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.12/", root);
 const inventoryBytes = readFileSync(new URL("inventory.v1.json", gameplayRoot));
 const proofBytes = readFileSync(new URL("proof.v1.json", gameplayRoot));
-if (sha256(inventoryBytes) !== "b043fe4f039f34527aae229224e0fb1f4069848b67ea5a89a51d732f063cac29" ||
-    sha256(proofBytes) !== "a3c9ffbd4d07fa2d8b0810d8b22210145c35a479d87399c5ac87060f7b7614d3") throw new Error("Play CV gameplay inventory/proof drifted");
+if (sha256(inventoryBytes) !== "a7a4902e7aa0bf92da8179dd4149e4e241e04ac64d0b9887d66151dacbf30231" ||
+    sha256(proofBytes) !== "f37bb12bc3cafc53e0e3314c95e8bd0551a76a1366ee16e9af4adcb522dc9910") throw new Error("Play CV gameplay inventory/proof drifted");
 const inventory = JSON.parse(inventoryBytes);
 if (inventory.expected_asset_count !== 9 || inventory.payload.filter(({ path }) => path.endsWith(".glb")).length !== 9) throw new Error("Play CV gameplay GLB inventory drifted");
 function checked(url, bytes, digest) {
@@ -72,7 +72,7 @@ const mediaDigest = () => sha256(Buffer.from(mediaAssets.map(([name, bytes]) => 
 if (sha256(mediaAssets[0][1]) !== "59929e1d1ee95287735ddd833b19cf4ac46d29bc7afddbbf6753c459690d574a" ||
     mediaAssets.length !== 8 || mediaDigest() !== "73dce3877d951dff100ed46655b82143d6644b1e1308164b8feab48dda0fee9b") throw new Error("Play CV MediaPipe asset inventory drifted");
 const assets = [
-  ...inventory.payload.map(entry => [`assets/gameplay/0.0.11/${entry.path}`, checked(new URL(entry.path, gameplayRoot), entry.bytes, entry.sha256)]),
+  ...inventory.payload.map(entry => [`assets/gameplay/0.0.12/${entry.path}`, checked(new URL(entry.path, gameplayRoot), entry.bytes, entry.sha256)]),
   ...environmentAssetFiles.map(entry => [entry.path, checked(new URL(entry.path, root), entry.bytes, entry.sha256)]),
   ["favicon.ico", favicon], ...mediaAssets
 ];

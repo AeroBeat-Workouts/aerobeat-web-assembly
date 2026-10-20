@@ -92,15 +92,15 @@ assert(Array.isArray(manifest.assets) && manifest.assets.length > 25 && manifest
 const names = manifest.assets.map(entry => entry.path);
 // JSON is data only inside the two pinned runtime asset catalogs, never an
 // arbitrary upload, diagnostic, build sidecar, or top-level file.
-const ownedJson = name => /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.11\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u.test(name);
+const ownedJson = name => /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.12\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u.test(name);
 assert.deepEqual(names, names.slice().sort(), 'sorted inventory');
 assert.equal(new Set(names).size, names.length, 'unique inventory');
 assert.deepEqual(names.filter(name => name.endsWith('.html')), ['index.html'], 'normal game HTML only');
-assert(names.includes('favicon.ico') && names.includes('assets/mediapipe/pose_landmarker_lite.task') && names.includes('assets/mediapipe/vision_bundle.js') && names.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) && names.filter(name => /^assets\/gameplay\/0\.0\.11\/.*\.glb$/u.test(name)).length === 9, 'signed local model, WASM, GLBs and favicon');
+assert(names.includes('favicon.ico') && names.includes('assets/mediapipe/pose_landmarker_lite.task') && names.includes('assets/mediapipe/vision_bundle.js') && names.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) && names.filter(name => /^assets\/gameplay\/0\.0\.12\/.*\.glb$/u.test(name)).length === 9, 'signed local model, WASM, GLBs and favicon');
 assert(names.some(name => /^assets\/.*worker.*\.js$/iu.test(name)), 'signed authoring/CV Worker');
 assert(names.some(name => /^assets\/mediapipe\/wasm\/.*\.js$/u.test(name)), 'signed local MediaPipe WASM loader');
 assert.equal(names.filter(name => name.endsWith('.json')).length, 24, 'exactly 24 pinned environment/gameplay JSON files');
-assert(names.some(name => /^assets\/environments\/.*\.json$/u.test(name)) && names.some(name => /^assets\/gameplay\/0\.0\.11\/.*\.json$/u.test(name)), 'signed pinned environment and gameplay JSON catalogs');
+assert(names.some(name => /^assets\/environments\/.*\.json$/u.test(name)) && names.some(name => /^assets\/gameplay\/0\.0\.12\/.*\.json$/u.test(name)), 'signed pinned environment and gameplay JSON catalogs');
 async function inventory(directory, prefix = '') {
   const entries = await readdir(directory, { withFileTypes: true });
   return (await Promise.all(entries.map(async entry => {
@@ -144,7 +144,7 @@ assert(names.some(name => name.endsWith('.js') && html.includes(`/${name}`) && s
 // Counterfactual: same signed bytes and unchanged expected hash, one mutated in-memory byte.
 const badBytes = Buffer.from(rootBytes); badBytes[0] ^= 1;
 assert.throws(() => failHash(badBytes, manifest.assets.find(entry => entry.path === 'index.html')), /signed SHA-256/u, 'mutated response must fail the exact production hash assertion');
-for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', '/index.html/', '/phone-play-cv-test.html', '/friend-game-bundle-manifest.json', '/assets/debug.json', '/assets/environments/diagnostic.json', '/assets/gameplay/0.0.11/unowned.json', '/assets/%2findex.js', '//index.html']) {
+for (const path of ['/missing-friend-qa', '/.env', '/src/index.js', '/assets/', '/index.html/', '/phone-play-cv-test.html', '/friend-game-bundle-manifest.json', '/assets/debug.json', '/assets/environments/diagnostic.json', '/assets/gameplay/0.0.12/unowned.json', '/assets/%2findex.js', '//index.html']) {
   const response = await fetch(`${origin}${path}`, { cache: 'no-store' });
   assert.equal(response.status, 404, `unknown/forbidden path ${path}`);
   policy(response, assetCsp, path);
