@@ -1,6 +1,7 @@
 // @ts-check
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { createServer as createHttpServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
@@ -9,18 +10,23 @@ const mapId = "54510", hash = "f5c04797fe0831741adec66ce5386971153919d4";
 const archive = await readFile(`/tmp/aerobeat-${mapId}-${hash}.zip`);
 assert.equal(createHash("sha256").update(archive).digest("hex"), "0dc3f98537c679cb8e96ffc5d079a1e0cbb9ae59df571f693a67a53c5d051db3");
 const vite = await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_CACHE_BUST__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("0.0.138") }, server: { host: "127.0.0.1", port: 0, hmr: false, fs: { allow: [new URL("../../", import.meta.url).pathname] } } });
-let browser;
+let browser, parent;
 try {
   await vite.listen();
   const url = vite.resolvedUrls?.local?.[0]; assert.ok(url);
+  parent = createHttpServer((_request, response) => { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(`<!doctype html><iframe allow="camera; autoplay" style="width:390px;height:844px" src="${url}"></iframe>`); });
+  await new Promise((resolve) => parent.listen(0, "127.0.0.1", resolve));
+  const address = parent.address(); assert.ok(address && typeof address !== "string");
   browser = await chromium.launch();
+  for (const embedding of ["direct", "iframe"]) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.route("**/__same_hand_54510.zip", (route) => route.fulfill({ status: 200, contentType: "application/zip", body: archive }));
-  await page.goto(url, { waitUntil: "networkidle" });
-  const game = page.locator("aero-game"); await game.waitFor();
+  await page.goto(embedding === "direct" ? url : `http://localhost:${address.port}/`, { waitUntil: "networkidle" });
+  const child = embedding === "direct" ? page : page.frames().find((frame) => frame !== page.mainFrame()); assert.ok(child);
+  const game = child.locator("aero-game"); await game.waitFor();
   const result = await game.evaluate(async (element, fixture) => {
     const setup = await import("/src/game-setup-coordinator.js");
     const graph = element.graph;
@@ -77,6 +83,7 @@ try {
     assert.equal(row.flowUnchanged, true, `real ${row.difficulty} Flow unchanged`);
   }
   assert.deepEqual(errors, []);
-  console.log(`Real BeatSaver ${mapId} selected Reimport Chromium passed: ${result.perDifficulty.map((row) => `${row.difficulty} ${row.oldPunches}->${row.punches} drops=${row.dropped} left=${row.minimumLeftMs.toFixed(1)}ms right=${row.minimumRightMs.toFixed(1)}ms`).join(", ")}`);
+  console.log(`${embedding} Real BeatSaver ${mapId} selected Reimport Chromium passed: ${result.perDifficulty.map((row) => `${row.difficulty} ${row.oldPunches}->${row.punches} drops=${row.dropped} left=${row.minimumLeftMs.toFixed(1)}ms right=${row.minimumRightMs.toFixed(1)}ms`).join(", ")}`);
   await context.close();
-} finally { await browser?.close(); await vite.close(); }
+  }
+} finally { await browser?.close(); await new Promise((resolve) => parent?.close(resolve) ?? resolve()); await vite.close(); }
