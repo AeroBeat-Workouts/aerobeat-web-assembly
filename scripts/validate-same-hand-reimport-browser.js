@@ -3,19 +3,33 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer as createHttpServer } from "node:http";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { chromium } from "playwright";
 import { createServer as createViteServer } from "vite";
+import { handlerForSnapshot, loadSignedSnapshot } from "./serve-friend-game.js";
 
 const mapId = "54510", hash = "f5c04797fe0831741adec66ce5386971153919d4";
 const repetitionMode = process.env.AEROBEAT_REPETITION_TEST === "1";
 assert.ok(process.env.AEROBEAT_REPETITION_TEST === undefined || repetitionMode, "repetition test mode must be 1 when specified");
 const archive = await readFile(`/tmp/aerobeat-${mapId}-${hash}.zip`);
 assert.equal(createHash("sha256").update(archive).digest("hex"), "0dc3f98537c679cb8e96ffc5d079a1e0cbb9ae59df571f693a67a53c5d051db3");
-const vite = await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_CACHE_BUST__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("0.0.140") }, server: { host: "127.0.0.1", port: 0, hmr: false, fs: { allow: [new URL("../../", import.meta.url).pathname] } } });
-let browser, parent;
+const signedDirectory = process.env.AEROBEAT_SIGNED_BOXING_DIR;
+const vite = signedDirectory ? null : await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_CACHE_BUST__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("0.0.140") }, server: { host: "127.0.0.1", port: 0, hmr: false, fs: { allow: [new URL("../../", import.meta.url).pathname] } } });
+let browser, parent, signedServer;
 try {
-  await vite.listen();
-  const url = vite.resolvedUrls?.local?.[0]; assert.ok(url);
+  let url;
+  if (signedDirectory) {
+    const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
+    assert.equal(snapshot.manifest.sourceManifest.packageVersion, "0.0.140", "private B test requires signed successor");
+    signedServer = createHttpServer(handlerForSnapshot(snapshot));
+    await new Promise((resolve) => signedServer.listen(0, "127.0.0.1", resolve));
+    const signedAddress = signedServer.address(); assert.ok(signedAddress && typeof signedAddress !== "string");
+    url = `http://127.0.0.1:${signedAddress.port}/`;
+  } else {
+    await vite.listen();
+    url = vite.resolvedUrls?.local?.[0];
+  }
+  assert.ok(url);
   parent = createHttpServer((_request, response) => { response.setHeader("content-type", "text/html; charset=utf-8"); response.end(`<!doctype html><iframe allow="camera; autoplay" style="width:390px;height:844px" src="${url}"></iframe>`); });
   await new Promise((resolve) => parent.listen(0, "127.0.0.1", resolve));
   const address = parent.address(); assert.ok(address && typeof address !== "string");
@@ -30,7 +44,6 @@ try {
   const child = embedding === "direct" ? page : page.frames().find((frame) => frame !== page.mainFrame()); assert.ok(child);
   const game = child.locator("aero-game"); await game.waitFor();
   const result = await game.evaluate(async (element, fixture) => {
-    const setup = await import("/src/game-setup-coordinator.js");
     const graph = element.graph;
     const sourceBytes = new Uint8Array(await (await fetch("/__same_hand_54510.zip")).arrayBuffer());
     const acquired = await graph.vendor.importLocalArchive(sourceBytes);
@@ -88,7 +101,7 @@ try {
     const liveIds = new Set(liveBoxing.resolvedEvents.map((entry) => entry.eventId));
     const expectedChanged = after[activeIndex].package.conversionTrace.boxing[0].events.filter((entry) => entry.action === "emit" && entry.kind === "punch" && ["repeated_punch_switched", "repeated_guard_replaced"].includes(entry.repetition?.kind)).map((entry) => entry.eventId);
     const liveChangedIds = expectedChanged.filter((id) => liveIds.has(id));
-    return { ui, calls, liveHashStableBeforeReimport: liveHashBeforeReimport === contentHashBeforeSettings, liveBoxingEvents: liveBoxing.resolvedEvents.length, liveUniqueBoxingIds: liveIds.size, changedEventsInLiveBoxing: liveChangedIds.length, expectedChangedInSelectedChart: expectedChanged.length, gap: setup.getGameSetupSnapshot().sameHandPunchMinGapMs, switchChance: setup.getGameSetupSnapshot().repeatedPunchSwitchChancePercent, guardChance: setup.getGameSetupSnapshot().repeatedGuardReplaceChancePercent, previous: oldPackageIds, unchangedBeforeReimport, afterIds: selected.packages.map((entry) => entry.packageId), count: (await graph.authoring.listCollections()).length, selectedId: element.libraryView.selectedCollectionId, otherUnchanged: JSON.stringify(otherBytes) === JSON.stringify([...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes]), perDifficulty, error: element.lastError?.message ?? null };
+    return { ui, calls, liveHashStableBeforeReimport: liveHashBeforeReimport === contentHashBeforeSettings, liveBoxingEvents: liveBoxing.resolvedEvents.length, liveUniqueBoxingIds: liveIds.size, changedEventsInLiveBoxing: liveChangedIds.length, expectedChangedInSelectedChart: expectedChanged.length, gap: element.desiredGameSetup.sameHandPunchMinGapMs, switchChance: element.desiredGameSetup.repeatedPunchSwitchChancePercent, guardChance: element.desiredGameSetup.repeatedGuardReplaceChancePercent, previous: oldPackageIds, unchangedBeforeReimport, afterIds: selected.packages.map((entry) => entry.packageId), count: (await graph.authoring.listCollections()).length, selectedId: element.libraryView.selectedCollectionId, otherUnchanged: JSON.stringify(otherBytes) === JSON.stringify([...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes]), perDifficulty, error: element.lastError?.message ?? null };
   }, { mapId, hash, repetition: repetitionMode });
   assert.deepEqual(result.ui, { text: "Reimport", disabled: false, collectionId: result.selectedId });
   assert.deepEqual(result.calls, [{ kind: "map", id: mapId }, { kind: "version", id: mapId, hash }]);
@@ -113,7 +126,7 @@ try {
     assert.equal(row.flowUnchanged, true, `real ${row.difficulty} Flow unchanged`);
   }
   assert.deepEqual(errors, []);
-  console.log(`${embedding} Real BeatSaver ${mapId} selected ${repetitionMode ? "B100 repetition + " : ""}Reimport Chromium passed: ${result.perDifficulty.map((row) => `${row.difficulty} ${row.oldPunches}->${row.punches} drops=${row.dropped} switched=${row.switched} replaced=${row.replaced} left=${row.minimumLeftMs.toFixed(1)}ms right=${row.minimumRightMs.toFixed(1)}ms`).join(", ")}`);
+  console.log(`${embedding} ${signedDirectory ? "signed " : ""}Real BeatSaver ${mapId} selected ${repetitionMode ? "B100 repetition + " : ""}Reimport Chromium passed: ${result.perDifficulty.map((row) => `${row.difficulty} ${row.oldPunches}->${row.punches} drops=${row.dropped} switched=${row.switched} replaced=${row.replaced} left=${row.minimumLeftMs.toFixed(1)}ms right=${row.minimumRightMs.toFixed(1)}ms`).join(", ")}`);
   await context.close();
   }
-} finally { await browser?.close(); await new Promise((resolve) => parent?.close(resolve) ?? resolve()); await vite.close(); }
+} finally { await browser?.close(); await new Promise((resolve) => parent?.close(resolve) ?? resolve()); await new Promise((resolve) => signedServer?.close(resolve) ?? resolve()); await vite?.close(); }
