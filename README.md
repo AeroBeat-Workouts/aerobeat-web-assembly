@@ -15,6 +15,10 @@ The component fills exactly its parent (`100%` inline/block size). It does not m
 
 There is no `aerobeat-app` alias.
 
+## Private Boxing authoring candidate (not published)
+
+Game Setup now has `Minimum gap between same-hand punches (ms)` beside Guard spacing, accepting integers 0–2000 and defaulting to 0. It changes the next import or selected-song Reimport across all Standard difficulties, not stored charts immediately. Zero preserves existing Boxing chart identity; positive values constrain only same-hand emitted punches. Flow and the existing global punch interval are unchanged. Public signed 0.0.138 remains unchanged.
+
 ## Current public playtest (0.0.138)
 
 Flow and Boxing now use a fixed hit-time corpse fade: hold the struck note opaque for `150 ms`, fade it for `500 ms`, then remove it. The six old fade controls are hidden. Older saved values are normalized to the same fixed behavior; collider settings and note appearance distance are unchanged.

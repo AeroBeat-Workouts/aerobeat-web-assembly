@@ -20,7 +20,7 @@ const archives = Object.freeze({
 });
 const providerMap = syntheticMapPayload(goldenV4Hash, "https://cdn.example.invalid/v4-golden.zip", "V4GOLD", "ExpertPlus");
 
-const vite = await createViteServer({ appType: "spa", configFile: "vite.config.js", logLevel: "error", optimizeDeps: { force: true }, server: { host: "127.0.0.1", port: 0 } });
+const vite = await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("isolated-a2-browser"), __AEROBEAT_CACHE_BUST__: JSON.stringify("isolated-a2-browser"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("0.0.138") }, server: { host: "127.0.0.1", port: 0, fs: { allow: [new URL("../../", import.meta.url).pathname] } } });
 await vite.listen();
 const pageUrl = vite.resolvedUrls?.local?.[0];
 if (!pageUrl) throw new Error("Vite URL unavailable");
@@ -75,6 +75,7 @@ try {
   assert.equal(v4Evidence.cameraRequests, 0); assert.equal(v4Evidence.libraryCount, 1); assert.equal(v4Evidence.selectedSourceVersionHash, goldenV4Hash); assert.equal(v4Evidence.selectedDifficulty, "ExpertPlus"); assert.equal(v4Evidence.variantCount,2);assert.equal(v4Evidence.selectedRulesetId,"flow_colliders_v1");assert.deepEqual(new Set(v4Evidence.variantIdentities),new Set(["flow_colliders_v1|none","boxing_collider_v1|none"]));assert.deepEqual(v4Evidence.collider.map(({ranked,localOnly})=>({ranked,localOnly})),[{ranked:true,localOnly:false}]); assert.equal(v4Evidence.checkedLibraryRadios, 1); assert.equal(v4Evidence.contentReady, true); assert.equal(v4Evidence.rawExposure.length, 0);
 
   const selectedReimport = await game.evaluate(async (element) => {
+    const setup = await import("/src/game-setup-coordinator.js");
     const graph = element.graph;
     const selectedId = element.libraryView.selectedCollectionId;
     const selectedPackageId = element.libraryView.selectedPackageId;
@@ -103,13 +104,27 @@ try {
     await element.lifecycleIntentTail;
     const conversionFailure = { original: [...(await graph.authoring.exportPackage({ key: selected.packages[0].packageKey, packageId: selected.packages[0].packageId })).bytes], unrelated: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], selectedId: element.libraryView.selectedCollectionId, selectedPackageId: element.libraryView.selectedPackageId, count: (await graph.authoring.listCollections()).length, error: element.lastError?.message };
     fixture.failConversion = false;
+    const gapInput = element.shadowRoot.querySelector("input[data-game-setup-field='sameHandPunchMinGapMs']");
+    const guardInput = element.shadowRoot.querySelector("input[data-game-setup-field='guardSpacing']");
+    const gapVisible = { label: gapInput?.closest("label")?.querySelector("span")?.textContent, value: gapInput?.value, min: gapInput?.min, max: gapInput?.max, step: gapInput?.step, nearGuard: guardInput?.closest("label")?.nextElementSibling === gapInput?.closest("label") };
+    gapInput.value = "1000";
+    gapInput.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+    await element.lifecycleIntentTail;
+    const beforeReimport = { selectedId: element.libraryView.selectedCollectionId, selectedPackageId: element.libraryView.selectedPackageId, gap: setup.getGameSetupSnapshot().sameHandPunchMinGapMs, original: [...(await graph.authoring.exportPackage({ key: selected.packages[0].packageKey, packageId: selected.packages[0].packageId })).bytes] };
     button()?.click();
     await element.lifecycleIntentTail;
     element.graph = graph;
     const after = await graph.authoring.listCollections();
     const current = after.find((row) => row.collectionId === selectedId);
-    return { visible, before: [...originalBytes.bytes], unrelatedBytes, unrelatedAfter: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], failed, conversionFailure, afterCount: after.length, current: Boolean(current), selectedId: element.libraryView.selectedCollectionId, packages: current?.packages.length, authoringState: graph.authoring.getSnapshot().state, selectedPackageId: element.libraryView.selectedPackageId, source: await graph.authoring.getCollectionReimportSource(selectedId) };
+    const tunedPackage = await graph.authoring.loadPackage({ key: current.packages[0].packageKey, packageId: current.packages[0].packageId });
+    const boxing = tunedPackage.package.charts.find((chart) => chart.mode === "boxing");
+    const flow = tunedPackage.package.charts.find((chart) => chart.mode === "flow");
+    return { gapVisible, beforeReimport, tuned: { boxing: boxing?.beats, flow: flow?.beats, events: tunedPackage.package.conversionTrace.boxing[0].events, bpm: tunedPackage.package.song.timing.tempoSegments[0].bpm, difficulty: tunedPackage.package.source.difficulty }, visible, before: [...originalBytes.bytes], unrelatedBytes, unrelatedAfter: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], failed, conversionFailure, afterCount: after.length, current: Boolean(current), selectedId: element.libraryView.selectedCollectionId, packages: current?.packages.length, authoringState: graph.authoring.getSnapshot().state, selectedPackageId: element.libraryView.selectedPackageId, source: await graph.authoring.getCollectionReimportSource(selectedId) };
   });
+  assert.deepEqual(selectedReimport.gapVisible, { label: "Minimum gap between same-hand punches (ms)", value: "0", min: "0", max: "2000", step: "1", nearGuard: true });
+  assert.equal(selectedReimport.beforeReimport.gap, 1000);
+  assert.equal(selectedReimport.beforeReimport.selectedId, selectedReimport.visible.collectionId);
+  assert.deepEqual(selectedReimport.beforeReimport.original, selectedReimport.before, "changing preference alone cannot mutate the stored chart");
   assert.deepEqual(selectedReimport.visible, { label: "Reimport", disabled: false, beside: "Reimport All", collectionId: selectedReimport.source.collectionId });
   assert.deepEqual(selectedReimport.failed.original, selectedReimport.before, "failed acquisition must retain exported package bytes");
   assert.deepEqual(selectedReimport.failed.unrelated, selectedReimport.unrelatedBytes, "failed acquisition must retain unrelated exported bytes");
@@ -130,6 +145,9 @@ try {
   assert.equal(selectedReimport.authoringState, "complete");
   assert.ok(selectedReimport.packages >= 1);
   assert.deepEqual(selectedReimport.source, { collectionId: selectedReimport.visible.collectionId, sourceProvider: "beatsaver", sourceId: "V4GOLD", sourceVersionHash: goldenV4Hash });
+  const punches = selectedReimport.tuned.boxing.filter((beat) => /^(straight|hook|uppercut)_(left|right)$/u.test(beat.type));
+  for (const hand of ["left", "right"]) { const times = punches.filter((beat) => beat.type.endsWith(`_${hand}`)).map((beat) => beat.start * 60000 / selectedReimport.tuned.bpm); for (let index = 1; index < times.length; index += 1) assert.ok(times[index] - times[index - 1] >= 999.9999, `${hand} chart gap in actual song ms`); }
+  assert.ok(Array.isArray(selectedReimport.tuned.events), "selected song retains Boxer conversion trace");
 
   const legacyEvidence = await game.evaluate(async (element, fixture) => {
     const v2 = await element.importLocalZip(Uint8Array.from(fixture.v2), { sourceId: "LOCAL-V2" });
