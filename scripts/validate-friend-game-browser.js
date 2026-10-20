@@ -34,23 +34,27 @@ const origin = new URL(rawUrl).origin;
 const signedPort = new URL(rawUrl).port;
 // Normal release gate stays short; the historical 35-second Pixel stall is opt-in.
 const slowWasmMs = process.env.AEROBEAT_FRIEND_GAME_EXTENDED_SLOW_START === '1' ? 35_000 : 6_000;
-// Require the actual menu action's foreground label, not an aria-only node or
-// the tiny runtime status chip hidden behind the mobile drawer.
-const visiblePendingAction = game => game.evaluate(element => {
+// The owning UI intentionally shows a bare native model bar for pending Start
+// (no invented prose), and a visible queued-status label for pending Test.
+// Require actual foreground pixels adjacent to the active drawer button.
+const visiblePendingAction = (game, pending) => game.evaluate((element, pending) => {
   const drawer = element.shadowRoot.querySelector('[data-role="drawer"]');
   const actions = drawer?.querySelector('aero-session-actions');
-  const label = actions?.shadowRoot?.querySelector('[part="pending-status"]') ?? actions?.querySelector('[part="pending-status"]');
-  const buttons = actions?.shadowRoot?.querySelectorAll('button') ?? actions?.querySelectorAll('button') ?? [];
-  const button = [...buttons].find(node => /^(?:start|test)$/iu.test(node.textContent?.trim() ?? ''));
+  const part = pending === 'start' ? 'model-download-progress' : 'queued-status';
+  const label = actions?.shadowRoot?.querySelector(`[part="${part}"]`);
+  const button = actions?.shadowRoot?.querySelector(`[part="${pending === 'start' ? 'start-button' : 'test-button'}"]`);
   if (!label || !button || !drawer || drawer.hidden || drawer.getAttribute('aria-hidden') === 'true')
-    return { text: label?.textContent?.trim() ?? '', visible: false, reason: 'drawer action label/button absent' };
+    return { text: label?.textContent?.trim() ?? '', visible: false, part, reason: 'drawer action cue/button absent' };
   const rect = label.getBoundingClientRect(), action = button.getBoundingClientRect();
   const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
   const styles = getComputedStyle(label);
   const hit = label.getRootNode().elementFromPoint(x, y);
   const foreground = element.shadowRoot.elementFromPoint(x, y);
   return {
-    text: label.textContent?.trim() ?? '',
+    part, text: label.textContent?.trim() ?? '',
+    semantic: button.getAttribute('aria-busy') === 'true' && (pending === 'start'
+      ? label instanceof HTMLProgressElement && label.getAttribute('aria-label') === 'Pose model download'
+      : label.getAttribute('role') === 'status' && /^Test queued/iu.test(label.textContent?.trim() ?? '')),
     visible: rect.width >= 80 && rect.height >= 16 && rect.left >= 0 && rect.top >= 0 &&
       rect.right <= innerWidth && rect.bottom <= innerHeight &&
       Math.abs(rect.top - action.top) <= 180 && action.width >= 40 && action.height >= 25 &&
@@ -61,7 +65,7 @@ const visiblePendingAction = game => game.evaluate(element => {
     box: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     button: { x: action.x, y: action.y, width: action.width, height: action.height }
   };
-});
+}, pending);
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const exactKeys = (object, expected, label) => {
   assert(object && typeof object === 'object' && !Array.isArray(object), `${label}: object required`);
@@ -299,9 +303,9 @@ try {
           status: element.shadowRoot.querySelector('[data-role="status"]')?.textContent
         }));
         assert.equal(pendingPlay.live, 'live'); assert.equal(pendingPlay.cv, 'loading');
-        const playLabel = await visiblePendingAction(game);
-        assert(playLabel.visible && /play/iu.test(playLabel.text) && /(?:camera|pose|prepar|load)/iu.test(playLabel.text),
-          `SLOW START RED: foreground drawer Play preparation absent (label=${JSON.stringify(playLabel)}, status=${JSON.stringify(pendingPlay.status)})`);
+        const playLabel = await visiblePendingAction(game, 'start');
+        assert(playLabel.visible && playLabel.semantic && playLabel.part === 'model-download-progress',
+          `SLOW START RED: foreground drawer Pose model progress absent during pending Play (cue=${JSON.stringify(playLabel)}, status=${JSON.stringify(pendingPlay.status)})`);
         await game.locator('aero-session-actions').getByRole('button', { name: 'Test', exact: true }).click();
         await frame.waitForFunction(() => document.querySelector('aero-game')?.pendingSessionAction === 'test', null, { timeout: 5_000 });
         const pendingTest = await game.evaluate(element => ({
@@ -309,8 +313,8 @@ try {
         }));
         assert.equal(pendingTest.cv, 'loading', 'queued Test observed while CPU Worker still loading');
         assert.equal(pendingTest.menuOpen, true, 'menu stays open while Test queues');
-        const testLabel = await visiblePendingAction(game);
-        assert(testLabel.visible && /test/iu.test(testLabel.text) && /queu/iu.test(testLabel.text) && !/error|fail/iu.test(testLabel.text),
+        const testLabel = await visiblePendingAction(game, 'test');
+        assert(testLabel.visible && testLabel.semantic && testLabel.part === 'queued-status' && !/error|fail/iu.test(testLabel.text),
           `SLOW START RED: foreground drawer queued Test absent (label=${JSON.stringify(testLabel)})`);
         await frame.waitForFunction(() => {
           const game = document.querySelector('aero-game'), session = game?.graph?.gameplay?.getSnapshot?.().session;
