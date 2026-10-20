@@ -26,29 +26,44 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const required = (condition, message) => { if (!condition) throw new Error(`Scored Play fixture: ${message}`); };
 
 /** Install before selecting the chart; only boundary services are replaced. */
-export async function installScoredPlayHarness(element, { events, songDurationMs = 120000, mode = 'boxing' } = {}) {
+export async function installScoredPlayHarness(element, { events, songDurationMs = 120000, mode = 'boxing', alternativeEvents = null, beatToTimelineMs = null } = {}) {
   required(element?.tagName?.toLowerCase() === 'aero-game' && element.isConnected && element.graph, 'connected <aero-game> required');
   required(mode === 'boxing' || mode === 'flow', 'only scored Boxing or Flow mode supported');
   required(Array.isArray(events) && events.length > 0 && events.every(event => event?.schema === 'aerobeat/resolved_content_event' && event.version === 3 && typeof event.eventId === 'string' && Number.isFinite(event.centerTimestampMs)), 'nonempty resolved events required');
-  required(Number.isFinite(songDurationMs) && songDurationMs > Math.max(...events.map(event => event.centerTimestampMs)) + 1500, 'audio duration must cover every scored event');
+  required(alternativeEvents === null || Array.isArray(alternativeEvents) && alternativeEvents.length > 0 && alternativeEvents.every(event => event?.schema === 'aerobeat/resolved_content_event' && event.version === 3 && typeof event.eventId === 'string' && Number.isFinite(event.centerTimestampMs)), 'alternative mode events must be resolved');
+  required(beatToTimelineMs === null || typeof beatToTimelineMs === 'function', 'private authored beat timing mapper must be callable');
+  required(Number.isFinite(songDurationMs) && songDurationMs > Math.max(...events.map(event => event.centerTimestampMs),...(alternativeEvents??[]).map(event => event.centerTimestampMs)) + 1500, 'audio duration must cover every scored event');
   const variantId = mode === 'flow' ? 'scored-play-flow-collider' : VARIANT_ID;
   const chartId = mode === 'flow' ? 'scored-play-flow-chart' : CHART_ID;
   const variant = Object.freeze({ variantId, chartId, mode, rulesetId: mode === 'flow' ? 'flow_colliders_v1' : 'boxing_collider_v1', recipeId: null, modifierIds: [], ranked: true, localOnly: false, mapHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, scoreIdentityHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, provenance: { baseVariantId: variantId } });
   const chart = Object.freeze(events.map(event => Object.freeze({ ...event, variantId, chartId })));
+  const alternativeVariant=alternativeEvents===null?null:Object.freeze({ ...variant, mode:mode==='flow'?'boxing':'flow', variantId:mode==='flow'?VARIANT_ID:'scored-play-flow-collider', chartId:mode==='flow'?CHART_ID:'scored-play-flow-chart', rulesetId:mode==='flow'?'boxing_collider_v1':'flow_colliders_v1', provenance:{baseVariantId:mode==='flow'?VARIANT_ID:'scored-play-flow-collider'} });
+  const alternativeChart=alternativeVariant===null?null:Object.freeze(alternativeEvents.map(event=>Object.freeze({...event,variantId:alternativeVariant.variantId,chartId:alternativeVariant.chartId})));
+  const chartByVariant=new Map([[variantId,chart],...(alternativeVariant===null?[]:[[alternativeVariant.variantId,alternativeChart]])]);
   const originalFactory = element.serviceGraphFactory;
   required(typeof originalFactory === 'function', 'production service graph factory missing');
   element.remove();
   element.serviceGraphFactory = options => {
     const graph = originalFactory(options);
     required(graph?.gameplay && graph?.renderer && graph?.input, 'factory did not provide real gameplay, renderer and calibrated input');
-    const state = { pose: null, stream: null, cvRunning: false, cameraRequests: 0, cvStarts: 0, audioState: 'stopped', audioPositionMs: 0, durationMs: songDurationMs, audioSource: null, selectedVariant: null };
-    const snapshot = () => ({ state: state.selectedVariant ? 'ready' : 'idle', packageId: state.selectedVariant ? PACKAGE_ID : null, selectedVariant: state.selectedVariant, variants: state.selectedVariant ? [variant] : [], resolvedEvents: state.selectedVariant ? chart : [], song: state.selectedVariant ? { name: 'Representative downloaded scored fixture', audio: { filePath: 'song.ogg' } } : null, background: null, lineage: null });
-    const content = {
-      getSnapshot: snapshot, subscribe: () => () => {}, setPlaybackState() {}, readAsset(path) { required(path === 'song.ogg', 'unexpected audio asset path'); return new Uint8Array([1, 2, 3]); },
-      async loadPersistenceHandle(handle) { required(handle?.packageId === PACKAGE_ID, 'wrong persisted package'); state.selectedVariant = variant; },
-      async selectVariant(id) { required(id === variantId, 'wrong selected scored variant'); state.selectedVariant = variant; },
-      async swapFutureVariant(id) { return this.selectVariant(id); }, destroy() {}
+    const state = { pose: null, stream: null, cvRunning: false, cameraRequests: 0, cvStarts: 0, audioState: 'stopped', audioPositionMs: 0, durationMs: songDurationMs, audioSource: null, selectedVariant: null, resolvedEvents:[], contentPlaybackState:'idle',contentPositionMs:0 };
+    const snapshot = () => ({ state: state.selectedVariant ? 'ready' : 'idle', packageId: state.selectedVariant ? PACKAGE_ID : null, selectedVariant: state.selectedVariant, variants: state.selectedVariant ? [variant,...(alternativeVariant===null?[]:[alternativeVariant])] : [], resolvedEvents: state.resolvedEvents, song: state.selectedVariant ? { name: 'Representative downloaded scored fixture',durationSec:state.durationMs/1000, audio: { filePath: 'song.ogg' } } : null, background: null, lineage: null });
+    const select=(id,futureOnly=false)=>{
+      const next=[variant,alternativeVariant].find(candidate=>candidate?.variantId===id);
+      required(next,'wrong selected scored variant');
+      state.selectedVariant=next;
+      const events=chartByVariant.get(id);
+      required(events,'selected scored chart missing');
+      state.resolvedEvents=futureOnly?events.filter(event=>event.centerTimestampMs>=state.contentPositionMs):events;
+      return next;
     };
+    const content = {
+      getSnapshot: snapshot, subscribe: () => () => {}, setPlaybackState({state:playback,positionMs}) { state.contentPlaybackState=playback;state.contentPositionMs=positionMs; }, readAsset(path) { required(path === 'song.ogg', 'unexpected audio asset path'); return new Uint8Array([1, 2, 3]); },
+      async loadPersistenceHandle(handle) { required(handle?.packageId === PACKAGE_ID, 'wrong persisted package'); select(variantId); },
+      async selectVariant(id) { return select(id,state.contentPlaybackState==='paused'); },
+      async swapFutureVariant(id) { required(state.contentPlaybackState==='paused','future selection must be paused');return select(id,true); }, destroy() {}
+    };
+    if(beatToTimelineMs)content[Symbol.for('aerobeat.web-content.internal-timing-mapper')]=()=>beatToTimelineMs;
     const summary = Object.freeze({ key: PACKAGE_ID, packageId: PACKAGE_ID, packageHash: `sha256:${HASH}`, songName: 'Representative downloaded scored fixture', difficulty: 'Expert', createdAtMs: 1, assetCount: 1, sourceCacheCount: 0 });
     const authoring = { getSnapshot: () => ({ state: 'idle', progress: 0 }), subscribe: () => () => {}, async listPackages() { return [summary]; }, async estimateStorage() { return { usageBytes: 0, quotaBytes: 1024 }; }, async loadPackage(handle) { required(handle?.packageId === PACKAGE_ID, 'wrong downloaded package handle'); return { handle, package: {} }; }, cancel() {}, destroy() {} };
     const video = {

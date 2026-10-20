@@ -6,15 +6,17 @@ const defaults={schema:aeroGameSetupSchema,version:aeroGameSetupVersion,showGame
 assert.deepEqual(defaultAeroGameSetupSnapshot,defaults);assert(Object.isFrozen(defaultAeroGameSetupSnapshot)&&Object.isFrozen(defaultAeroGameSetupSnapshot.spawnDistanceOverride));
 const valid={...defaults,showGameplayGrid:true,guidanceBandMode:"song_beat_grid",noseCameraParallaxEnabled:true,spawnDistanceOverride:{enabled:true,normalSpawnDistanceWorldUnits:12},noseCameraRangeXWorldUnits:1.1,noseCameraRangeYWorldUnits:1.1,colliderRadius:.2,enforceAuthoredDirection:true,directionToleranceDegrees:30,timingWindowMs:225,topRowReachWU:.6,bottomRowReachWU:0,guardCountMode:"gesture",noteScalePercent:150,obstacleScalePercent:90,bombScalePercent:200,markerScalePercent:10};
 assert.deepEqual(normalizeGameSetup(valid),valid);
-// Old v3 records gain disabled timer defaults without dropping any existing athlete choices.
+// Historical v3 records keep every unrelated preference but both timers are
+// now fixed ON with a 150 ms hold and 500 ms fade, including existing athlete choices.
 const beforeCorpseFade={...valid};delete beforeCorpseFade.flowCorpseFade;delete beforeCorpseFade.boxingCorpseFade;
 assert.deepEqual(normalizeGameSetup(beforeCorpseFade),valid);
-const customFade={...valid,flowCorpseFade:{enabled:true,delayMs:0.25,durationMs:0},boxingCorpseFade:{enabled:true,delayMs:999999.125,durationMs:25.5}};
-assert.deepEqual(normalizeGameSetup(customFade),customFade,"Flow and Boxing timers keep independent finite floating point values, including zero duration");
-const fadeStorage=createStorage([[aeroGameSetupStorageKey,JSON.stringify(beforeCorpseFade)]]),fadeReader=new AeroGameSetupCoordinator({storageFactory:()=>fadeStorage,eventTarget:null});
-assert.deepEqual(fadeReader.getSnapshot(),valid,"older saved setup gains disabled fade without losing spawn or collider choices");
+const customFade={...valid,flowCorpseFade:{enabled:false,delayMs:0.25,durationMs:0},boxingCorpseFade:{enabled:true,delayMs:999999.125,durationMs:25.5}};
+assert.deepEqual(normalizeGameSetup(customFade),valid,"legacy independently saved timers no longer override locked public values");
+const fadeStorage=createStorage([[aeroGameSetupStorageKey,JSON.stringify(customFade)]]),fadeReader=new AeroGameSetupCoordinator({storageFactory:()=>fadeStorage,eventTarget:null});
+assert.deepEqual(fadeReader.getSnapshot(),valid,"older saved setup locks fade without losing spawn or collider choices");
+assert.deepEqual(JSON.parse(fadeStorage.getItem(aeroGameSetupStorageKey)).flowCorpseFade,defaultCorpseFadeSettings,"old saved Flow timer is rewritten to locked values");
 fadeReader.setSnapshot(customFade);fadeReader.destroy();
-const fadeReloaded=new AeroGameSetupCoordinator({storageFactory:()=>fadeStorage,eventTarget:null});assert.deepEqual(fadeReloaded.getSnapshot(),customFade,"Flow and Boxing timer floats survive a storage reload");fadeReloaded.destroy();
+const fadeReloaded=new AeroGameSetupCoordinator({storageFactory:()=>fadeStorage,eventTarget:null});assert.deepEqual(fadeReloaded.getSnapshot(),valid,"locked values survive storage reload");fadeReloaded.destroy();
 for(const mode of ["flowCorpseFade","boxingCorpseFade"]){for(const field of ["delayMs","durationMs"]){for(const value of [-1,NaN,Infinity,null,"250"]){assert.equal(normalizeGameSetup({...valid,[mode]:{...defaultCorpseFadeSettings,[field]:value}}),null,`${mode}.${field} rejects ${String(value)}`);}}assert.equal(normalizeGameSetup({...valid,[mode]:{...defaultCorpseFadeSettings,enabled:1}}),null);assert.equal(normalizeGameSetup({...valid,[mode]:{...defaultCorpseFadeSettings,extra:1}}),null);}
 for(const y of [0,.55,1.1,1.2])assert.deepEqual(cameraFields(normalizeGameSetup({...valid,noseCameraParallaxEnabled:false,noseCameraRangeXWorldUnits:.7,noseCameraRangeYWorldUnits:y})),[true,1.1,1.1],`legacy off/custom camera range ${y} canonicalized`);
 for(const y of [-.001,1.201,NaN,null,"1.1"])assert.equal(normalizeGameSetup({...valid,noseCameraRangeYWorldUnits:y}),null,`invalid vertical camera range ${String(y)} rejected`);

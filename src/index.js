@@ -503,6 +503,17 @@ export class AeroGame extends HTMLElement {
         if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         await this.ensureEquipmentConfigIdentity();
         if (ownershipBailed || checkOwnership()) return this.getSnapshot();
+        // A paused mode switch is deliberately future-only for the old run. A
+        // fresh Play/Test starts at zero, so replace that truncated snapshot
+        // with the full chosen chart (including its requested modifiers).
+        if (contentPlayable) {
+          const selected = graph.content.getSnapshot().selectedVariant;
+          if (selected?.variantId) {
+            graph.content.setPlaybackState({state:"idle",positionMs:0,judgedEventIds:[],activeEventIds:[]});
+            await graph.content.selectVariant(selected.provenance?.baseVariantId || selected.variantId, {modifierIds:selected.provenance?.requestedModifierIds ?? []});
+            if (ownershipBailed || checkOwnership()) return this.getSnapshot();
+          }
+        }
         this.invalidateVisualTestInteraction();
         if (contentPlayable) this.configureGameplayFromContent(false, purpose,true);
         if (ownershipBailed || checkOwnership()) return this.getSnapshot();
@@ -2025,7 +2036,7 @@ export class AeroGame extends HTMLElement {
     }
   }
 
-  /** Keep the three unscaled glass segments visible down to a portrait screen's bottom. */
+  /** Keep the continuous authored glass visible down to a portrait screen's bottom. */
   visualTrackExtensionWorldUnits(configured,presentation) {
     const renderer=this.graph?.renderer,camera=renderer?.cameraEntity?.camera;
     // Renderer applies this camera only after building its scene model. Project
@@ -2128,9 +2139,12 @@ export class AeroGame extends HTMLElement {
     // selected fixed mode pose (or the Test-only debug pose), never nose parallax.
     const cameraActive=setup.noseCameraParallaxEnabled&&session.purpose==="play"&&session.state==="playing"&&gameplay.safety?.ready===true&&!this.menuOpen&&this.lifecycle==="connected"&&!document.hidden&&this.activeCvSource!==null&&this.lastCameraIdentity!=="";
     const cameraDeflection=session.purpose==="visual_test"?null:sanitizedNoseCameraDeflection(/** @type {Record<PropertyKey,unknown>} */(this.graph.input),performance.now(),cameraActive);this.lastNoseCameraDeflection=cameraDeflection;const normalSpawnLeadMs=spawnDistanceWorldUnits===null?0:spawnDistanceWorldUnits/canonicalWorldUnitsPerMs;
-    // W3-D: guidance bands are locked to target_arrivals (the drawer select is
-    // hidden); the song_beat_grid band computation stays dormant.
-    const beatGuidance=null;
+    // The whole authored beat is the quarter-note unit. The content service's
+    // validated tempo mapper accounts for tempo changes and stops; never infer
+    // beat rows from sparse note arrivals. Retain past timestamps until their
+    // band has scrolled all the way through the glass's near extension.
+    const trackExtensionWorldUnits=this.visualTrackExtensionWorldUnits(setup.trackExtensionWorldUnits,presentation);
+    const beatGuidance=guidanceBeatTimestamps(this.renderEventIndex,Math.max(0,nowMs-trackExtensionWorldUnits/canonicalWorldUnitsPerMs),72/canonicalWorldUnitsPerMs);
     return {
       presentation, nowMs, targets,
       timingWindowBeforeMs: timingWindowMs,
@@ -2140,9 +2154,9 @@ export class AeroGame extends HTMLElement {
       showGameplayGrid:setup.showGameplayGrid,
       noseMarkerVisible:setup.noseMarkerVisible,
       noseMarkerScale:setup.noseMarkerScale,
-      trackExtensionWorldUnits:this.visualTrackExtensionWorldUnits(setup.trackExtensionWorldUnits,presentation),
-      guidanceBandMode:"target_arrivals",
-      ...(beatGuidance===null?{}:{guidanceBeatTimestampsMs:beatGuidance}),
+      trackExtensionWorldUnits,
+      guidanceBandMode:"song_beat_grid",
+      guidanceBeatTimestampsMs:beatGuidance,
       // p5pr/dntq: always emit the bounded lists so the renderer validates them
       // explicitly; an empty array is the idle state.
       aftermath,
@@ -3242,24 +3256,6 @@ export class AeroGame extends HTMLElement {
     const visibleLabel=document.createElement("label");visibleLabel.className="environment-option";const visibleInput=document.createElement("input");visibleInput.type="checkbox";visibleInput.dataset.colliderVolumeField="colliderVisible";const visibleText=document.createElement("span");visibleText.textContent="Show collider volume";visibleLabel.append(visibleInput,visibleText);colliderGroup.append(visibleLabel);
     for(const [field,title] of [["colliderScale","Collider scale"],["colliderDepthForward","Depth + (forward)"],["colliderDepthBackward","Depth − (backward)"]]){const label=document.createElement("label");label.className="game-setup-number-row";const text=document.createElement("span");text.textContent=title;const input=document.createElement("input");input.type="number";input.min="0";input.step="any";input.dataset.colliderVolumeField=field;label.append(text,input);colliderGroup.append(label);}
     section.append(colliderGroup);
-    // Each gameplay mode keeps its own optional hit-time corpse fade. The timer
-    // starts at the scored hit in both Play and Test; disabled keeps legacy fade.
-    for(const [mode,title] of [["flow","Flow"],["boxing","Boxing"]]){
-      const group=document.createElement("fieldset");group.className="gameplay-camera-controls";
-      const legend=document.createElement("legend");legend.textContent=`${title} corpse fade`;group.append(legend);
-      const enabledLabel=document.createElement("label");enabledLabel.className="environment-option";
-      const enabled=document.createElement("input");enabled.type="checkbox";enabled.dataset.gameSetupField=`${mode}CorpseFadeEnabled`;
-      const enabledText=document.createElement("span");enabledText.textContent="Use hit-time fade instead of original fade";
-      enabledLabel.append(enabled,enabledText);group.append(enabledLabel);
-      for(const [field,labelText] of [["DelayMs","Wait before fade (ms)"],["DurationMs","Fade duration (ms)"]]){
-        const name=`${mode}CorpseFade${field}`;const label=document.createElement("label");label.className="game-setup-number-row";
-        const text=document.createElement("span");text.textContent=labelText;
-        const input=document.createElement("input");input.type="number";input.min="0";input.step="any";input.dataset.gameSetupField=name;input.setAttribute("aria-describedby",`game-setup-${name}-error`);
-        const error=document.createElement("small");error.id=`game-setup-${name}-error`;error.dataset.gameSetupError=name;error.setAttribute("aria-live","polite");
-        label.append(text,input,error);group.append(label);
-      }
-      section.append(group);
-    }
     // B2.4: populate the UI scale preset select and reflect the persisted value.
     const scaleSelect=this.shadowRoot?.querySelector("select[data-action='ui-scale-select']");
     if(scaleSelect instanceof HTMLSelectElement){for(const preset of AeroGame.uiScalePresets){const option=document.createElement("option");option.value=String(preset.value);option.textContent=`${preset.label} (${Math.round(preset.value*100)}%)`;scaleSelect.append(option);}scaleSelect.value=String(this.uiScale);}
@@ -3284,9 +3280,9 @@ export class AeroGame extends HTMLElement {
   }
   renderColliderVolumeControls(){const mode=this.cameraControlMode(),volume=(mode==="flow"?this.desiredGameSetup.flowColliderVolume:this.desiredGameSetup.boxingColliderVolume);const legend=this.shadowRoot?.querySelector("[data-role='collider-volume-mode']");if(legend instanceof HTMLElement)legend.textContent=`${mode==="flow"?"Flow saber":"Boxing glove"} collider`;for(const input of this.shadowRoot?.querySelectorAll("[data-collider-volume-field]")??[]){if(!(input instanceof HTMLInputElement))continue;const field=input.dataset.colliderVolumeField;if(!field)continue;if(input.type!=="checkbox"){input.min="0";input.removeAttribute("max");}if(this.shadowRoot?.activeElement===input)continue;if(input.type==="checkbox")input.checked=volume.colliderVisible;else input.value=String(volume[field]);}}
   applyColliderVolumeControl(input){const field=input.dataset.colliderVolumeField;if(!["colliderVisible","colliderScale","colliderDepthForward","colliderDepthBackward"].includes(field))return;const mode=this.cameraControlMode(),key=mode==="flow"?"flowColliderVolume":"boxingColliderVolume",current=getGameSetupSnapshot();const value=input.type==="checkbox"?input.checked:input.validity.valid&&Number.isFinite(input.valueAsNumber)?input.valueAsNumber:null;if(value===null){this.renderColliderVolumeControls();return;}try{setGameSetupSnapshot({...current,[key]:{...current[key],[field]:value}});this.renderColliderVolumeControls();}catch{this.renderColliderVolumeControls();}}
-  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;const fadeMatch=/^(flow|boxing)CorpseFade(DelayMs|DurationMs)$/.exec(field);let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(fadeMatch){const key=fadeMatch[1]==="flow"?"flowCorpseFade":"boxingCorpseFade",part=fadeMatch[2]==="DelayMs"?"delayMs":"durationMs";next={...current,[key]:{...current[key],[part]:value}};}else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLSelectElement&&field==="renderScale")next={...current,renderScale:Number(input.value)};else if(input instanceof HTMLInputElement&&["obstaclesEnabled","showGameplayGrid","visibleToleranceRange","visibleColliderRadius","uppercutOppositeLane","anyOppositeLane","noseMarkerVisible","visibleWristObstacleRadius"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else if(input instanceof HTMLInputElement&&input.type==="checkbox"&&["flowCorpseFadeEnabled","boxingCorpseFadeEnabled"].includes(field)){const key=field==="flowCorpseFadeEnabled"?"flowCorpseFade":"boxingCorpseFade";next={...current,[key]:{...current[key],enabled:input.checked}};}else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
+  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLSelectElement&&field==="renderScale")next={...current,renderScale:Number(input.value)};else if(input instanceof HTMLInputElement&&["obstaclesEnabled","showGameplayGrid","visibleToleranceRange","visibleColliderRadius","uppercutOppositeLane","anyOppositeLane","noseMarkerVisible","visibleWristObstacleRadius"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
   renderGameSetupError(field,message){const value=this.shadowRoot?.querySelector(`[data-game-setup-error='${field}']`);if(value instanceof HTMLElement)value.textContent=message;}
-  renderGameSetupControls() { const setup=this.desiredGameSetup;for(const control of this.shadowRoot?.querySelectorAll("[data-game-setup-field]")??[]){if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement))continue;const field=control.dataset.gameSetupField;if(!field)continue;if(control instanceof HTMLSelectElement){control.value=field==="renderScale"?String(setup.renderScale):setup.guidanceBandMode;continue;}if(control.type==="number"){if(this.shadowRoot?.activeElement===control&&this.gameSetupDrafts.has(field))continue;if(field==="spawnDistanceOverrideWorldUnits"){control.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);control.disabled=!setup.spawnDistanceOverride.enabled;control.title=control.disabled?"Enable Override spawn distance to edit this value.":"";const msLabel=this.shadowRoot?.querySelector("[data-role=\"spawn-distance-ms\"]");if(msLabel instanceof HTMLElement)msLabel.textContent=`≈ ${Math.round(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits/0.006)} ms`;}else if(/^(flow|boxing)CorpseFade(DelayMs|DurationMs)$/.test(field)){const mode=field.startsWith("flow")?"flowCorpseFade":"boxingCorpseFade",part=field.endsWith("DelayMs")?"delayMs":"durationMs";control.value=String(setup[mode][part]);}else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))control.value=String(setup[field]);continue;}if(field==="spawnDistanceOverrideEnabled")control.checked=setup.spawnDistanceOverride.enabled;else if(field==="flowCorpseFadeEnabled"||field==="boxingCorpseFadeEnabled")control.checked=setup[field==="flowCorpseFadeEnabled"?"flowCorpseFade":"boxingCorpseFade"].enabled;else if(field in setup&&typeof setup[field]==="boolean")control.checked=setup[field];} }
+  renderGameSetupControls() { const setup=this.desiredGameSetup;for(const control of this.shadowRoot?.querySelectorAll("[data-game-setup-field]")??[]){if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement))continue;const field=control.dataset.gameSetupField;if(!field)continue;if(control instanceof HTMLSelectElement){control.value=field==="renderScale"?String(setup.renderScale):setup.guidanceBandMode;continue;}if(control.type==="number"){if(this.shadowRoot?.activeElement===control&&this.gameSetupDrafts.has(field))continue;if(field==="spawnDistanceOverrideWorldUnits"){control.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);control.disabled=!setup.spawnDistanceOverride.enabled;control.title=control.disabled?"Enable Override spawn distance to edit this value.":"";const msLabel=this.shadowRoot?.querySelector("[data-role=\"spawn-distance-ms\"]");if(msLabel instanceof HTMLElement)msLabel.textContent=`≈ ${Math.round(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits/0.006)} ms`;}else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))control.value=String(setup[field]);continue;}if(field==="spawnDistanceOverrideEnabled")control.checked=setup.spawnDistanceOverride.enabled;else if(field in setup&&typeof setup[field]==="boolean")control.checked=setup[field];} }
   drawerElement() { const value = this.shadowRoot?.querySelector("[data-role='drawer']"); return value instanceof HTMLElement ? value : null; }
   menuButtonElement() { const value = this.shadowRoot?.querySelector("[data-role='menu-button']"); return value instanceof HTMLButtonElement ? value : null; }
 
