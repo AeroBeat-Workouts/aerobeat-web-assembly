@@ -15,11 +15,17 @@ The component fills exactly its parent (`100%` inline/block size). It does not m
 
 There is no `aerobeat-app` alias.
 
-## Public corpse fade controls (0.0.137)
+## Next playtest build (0.0.138, under verification)
+
+Flow and Boxing now use a fixed hit-time corpse fade: hold the struck note opaque for `150 ms`, fade it for `500 ms`, then remove it. The six old fade controls are hidden. Older saved values are normalized to the same fixed behavior; collider settings and note appearance distance are unchanged.
+
+The playfield uses a new canonical single-piece glass track with four beat columns (boundaries `−2, −1, 0, 1, 2`), replacing the old three-column/three-segment geometry and its translucent joins. Transverse lines now follow the song's tempo-mapped quarter notes, including tempo changes and the portion of the track just past a beat's hit point. When a paused Test switches Flow ↔ Boxing and starts again, the entire selected chart is reloaded from song zero; the old paused run still keeps its future-only switch behavior. These changes are undergoing connected/native and signed-build verification before the authorized public cutover. The existing public `0.0.137` snapshot remains live and intact for rollback.
+
+## Historical public corpse fade controls (0.0.137)
 
 Game Setup now has independent **Flow corpse fade** and **Boxing corpse fade** controls. Each has **Use hit-time fade instead of original fade**, **Wait before fade (ms)**, and **Fade duration (ms)**. Both toggles default off, leaving the original offscreen/eviction fade unchanged; initial editable values are `150` ms wait and `500` ms fade. Enabling a timer holds hit corpses opaque for its wait, fades them linearly over its duration, then removes them. Zero duration removes them at the wait boundary. Finite nonnegative decimal values are accepted without an arbitrary maximum. Settings save independently and update the live renderer for scored Play and unranked Test when a genuine hit produces a corpse; Test's automatic feedback alone does not produce scored aftermath, so turn it off and use Test's hand input to try the fade. These settings do not change hit judgement or the existing author-default/athlete-override beat appearance distance. Derrick approved publication of the signed 0.0.137 candidate; the existing public game service now serves its exact verified bytes, and the separate signed 0.0.136 snapshot is retained for rollback.
 
-Focused verification: `node scripts/validate-game-setup-coordinator.js` tests saved values and older-record migration; `node scripts/validate-corpse-fade-controls-browser.js` exercises connected Game Setup, native Flow/Boxing GLBs, timer ON/OFF and zero duration in direct and genuine iframe browser views. `node scripts/validate-corpse-fade-scored-browser.js` uses actual Flow and Boxing judgements in both Play and Test (Test automatic feedback off): the native renderer sees independently enabled timers, and each hit's GLB alpha declines before removal. Renderer-owner native framebuffer checks verify the corresponding on-screen opacity declines for Flow halves, Boxing punches and guard pairs. These browser fixtures substitute input/content/audio boundaries and do not replace a physical Pico timing/comfort playtest.
+The 0.0.137 release was verified with connected and native GLB checks for optional ON/OFF timers. The current regression scripts now test the locked 0.0.138 settings instead: saved old values normalize on reload; no fade control remains in Game Setup; actual Flow and Boxing Play/Test hits still fade in native GLBs. The fixture substitutes content/input/audio devices but does not replace Derrick's physical timing and comfort playtest.
 
 ## Existing playtest controls (introduced in 0.0.136)
 
