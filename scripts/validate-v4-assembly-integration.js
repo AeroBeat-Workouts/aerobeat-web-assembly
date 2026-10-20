@@ -74,6 +74,63 @@ try {
   // the sole flow_colliders_v1 and the sole no-recipe boxing_collider_v1.
   assert.equal(v4Evidence.cameraRequests, 0); assert.equal(v4Evidence.libraryCount, 1); assert.equal(v4Evidence.selectedSourceVersionHash, goldenV4Hash); assert.equal(v4Evidence.selectedDifficulty, "ExpertPlus"); assert.equal(v4Evidence.variantCount,2);assert.equal(v4Evidence.selectedRulesetId,"flow_colliders_v1");assert.deepEqual(new Set(v4Evidence.variantIdentities),new Set(["flow_colliders_v1|none","boxing_collider_v1|none"]));assert.deepEqual(v4Evidence.collider.map(({ranked,localOnly})=>({ranked,localOnly})),[{ranked:true,localOnly:false}]); assert.equal(v4Evidence.checkedLibraryRadios, 1); assert.equal(v4Evidence.contentReady, true); assert.equal(v4Evidence.rawExposure.length, 0);
 
+  const selectedReimport = await game.evaluate(async (element) => {
+    const graph = element.graph;
+    const selectedId = element.libraryView.selectedCollectionId;
+    const selectedPackageId = element.libraryView.selectedPackageId;
+    const originalSource = await graph.vendor.importLocalArchive(globalThis.__v4AssemblyFixture.archive);
+    const unrelated = await graph.authoring.convertAllStandardAndPersist(originalSource.source, { sourceProvider: "local", sourceId: "fixture-unrelated", sourceVersionHash: originalSource.sourceHash, includeAudio: true });
+    await element.refreshLibrary(element.connectedGeneration, { preferredCollectionId: selectedId, preferredPackageId: selectedPackageId });
+    const unrelatedBytes = [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes];
+    const authored = await graph.authoring.listCollections();
+    const selected = authored.find((row) => row.collectionId === selectedId);
+    const originalBytes = await graph.authoring.exportPackage({ key: selected.packages[0].packageKey, packageId: selected.packages[0].packageId });
+    const originalConvert = graph.authoring.convertAllStandardAndPersist;
+    const authoring = Object.freeze({ ...graph.authoring, async convertAllStandardAndPersist(...args) { if (globalThis.__v4AssemblyFixture.failConversion) throw new Error("Fixture conversion rejected"); return originalConvert(...args); } });
+    element.graph = Object.freeze({ ...graph, authoring });
+    const fixture = globalThis.__v4AssemblyFixture;
+    const originalArchive = fixture.archive;
+    const library = element.shadowRoot.querySelector("aero-content-library");
+    const button = () => library.shadowRoot.querySelector("button[data-intent='library-reimport']");
+    const visible = { label: button()?.textContent.trim(), disabled: button()?.disabled, beside: button()?.nextElementSibling?.textContent.trim(), collectionId: button()?.dataset.value };
+    fixture.archive = Uint8Array.from([1, 2, 3]);
+    button()?.click();
+    await element.lifecycleIntentTail;
+    const failed = { original: [...(await graph.authoring.exportPackage({ key: selected.packages[0].packageKey, packageId: selected.packages[0].packageId })).bytes], collectionCount: (await graph.authoring.listCollections()).length, unrelated: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], selectedId: element.libraryView.selectedCollectionId, selectedPackageId: element.libraryView.selectedPackageId, error: element.lastError?.message };
+    fixture.archive = originalArchive;
+    fixture.failConversion = true;
+    button()?.click();
+    await element.lifecycleIntentTail;
+    const conversionFailure = { original: [...(await graph.authoring.exportPackage({ key: selected.packages[0].packageKey, packageId: selected.packages[0].packageId })).bytes], unrelated: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], selectedId: element.libraryView.selectedCollectionId, selectedPackageId: element.libraryView.selectedPackageId, count: (await graph.authoring.listCollections()).length, error: element.lastError?.message };
+    fixture.failConversion = false;
+    button()?.click();
+    await element.lifecycleIntentTail;
+    element.graph = graph;
+    const after = await graph.authoring.listCollections();
+    const current = after.find((row) => row.collectionId === selectedId);
+    return { visible, before: [...originalBytes.bytes], unrelatedBytes, unrelatedAfter: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], failed, conversionFailure, afterCount: after.length, current: Boolean(current), selectedId: element.libraryView.selectedCollectionId, packages: current?.packages.length, authoringState: graph.authoring.getSnapshot().state, selectedPackageId: element.libraryView.selectedPackageId, source: await graph.authoring.getCollectionReimportSource(selectedId) };
+  });
+  assert.deepEqual(selectedReimport.visible, { label: "Reimport", disabled: false, beside: "Reimport All", collectionId: selectedReimport.source.collectionId });
+  assert.deepEqual(selectedReimport.failed.original, selectedReimport.before, "failed acquisition must retain exported package bytes");
+  assert.deepEqual(selectedReimport.failed.unrelated, selectedReimport.unrelatedBytes, "failed acquisition must retain unrelated exported bytes");
+  assert.deepEqual(selectedReimport.unrelatedAfter, selectedReimport.unrelatedBytes, "successful selected import must retain unrelated exported bytes");
+  assert.equal(selectedReimport.failed.collectionCount, 2);
+  assert.deepEqual(selectedReimport.conversionFailure.original, selectedReimport.before, "failed conversion must retain original exported bytes");
+  assert.deepEqual(selectedReimport.conversionFailure.unrelated, selectedReimport.unrelatedBytes, "failed conversion must retain unrelated exported bytes");
+  assert.equal(selectedReimport.conversionFailure.count, 2);
+  assert.equal(selectedReimport.conversionFailure.selectedId, selectedReimport.visible.collectionId);
+  assert.equal(selectedReimport.conversionFailure.selectedPackageId, v4Evidence.selectedPackageId);
+  assert.ok(selectedReimport.conversionFailure.error);
+  assert.equal(selectedReimport.failed.selectedId, selectedReimport.visible.collectionId);
+  assert.equal(selectedReimport.failed.selectedPackageId, v4Evidence.selectedPackageId);
+  assert.ok(selectedReimport.failed.error);
+  assert.equal(selectedReimport.afterCount, 2);
+  assert.equal(selectedReimport.current, true);
+  assert.equal(selectedReimport.selectedId, selectedReimport.visible.collectionId);
+  assert.equal(selectedReimport.authoringState, "complete");
+  assert.ok(selectedReimport.packages >= 1);
+  assert.deepEqual(selectedReimport.source, { collectionId: selectedReimport.visible.collectionId, sourceProvider: "beatsaver", sourceId: "V4GOLD", sourceVersionHash: goldenV4Hash });
+
   const legacyEvidence = await game.evaluate(async (element, fixture) => {
     const v2 = await element.importLocalZip(Uint8Array.from(fixture.v2), { sourceId: "LOCAL-V2" });
     const v2Loaded = await element.graph.authoring.loadPackage(v2.defaultPackage.handle); const v2Source = v2Loaded.package.source.sourceVersionHash; const v2Version = v2Loaded.package.conversionTrace.boxing[0].sourceBeatmapVersion;
@@ -86,10 +143,10 @@ try {
   // The four-byte OggS placeholders test content compatibility, not playable music.
   assert.equal(legacyEvidence.v2ContentState, "ready"); assert.equal(legacyEvidence.v2AudioState, "error"); assert.equal(legacyEvidence.v2AudioErrorCode, "audio_decode_failed");
   assert.equal(legacyEvidence.v3ContentState, "ready"); assert.equal(legacyEvidence.v3AudioState, "error"); assert.equal(legacyEvidence.v3AudioErrorCode, "audio_decode_failed");
-  assert.equal(legacyEvidence.packageCount, 3); assert.ok(legacyEvidence.selectedPackageId); assert.ok(legacyEvidence.selectedVariantId); assert.equal(legacyEvidence.cameraRequests, 0);
+  assert.equal(legacyEvidence.packageCount, 4); assert.ok(legacyEvidence.selectedPackageId); assert.ok(legacyEvidence.selectedVariantId); assert.equal(legacyEvidence.cameraRequests, 0);
 
   const finalEvidence = await integrationSnapshot(game);
-  assert.equal(finalEvidence.libraryCount, 3); assert.equal(finalEvidence.contentReady, true); assert.equal(finalEvidence.rawExposure.length, 0); assert.equal(noProductionWinner(finalEvidence.publicSnapshot), true); assert.deepEqual(noise, []);
+  assert.equal(finalEvidence.libraryCount, 4); assert.equal(finalEvidence.contentReady, true); assert.equal(finalEvidence.rawExposure.length, 0); assert.equal(noProductionWinner(finalEvidence.publicSnapshot), true); assert.deepEqual(noise, []);
   console.log(`Assembly v4 golden/import regression passed: vendor=7b14eec hash=${goldenV4Hash} packages=${finalEvidence.libraryCount} variants=${finalEvidence.variantCount}`);
 } finally { await browser.close(); await vite.close(); }
 

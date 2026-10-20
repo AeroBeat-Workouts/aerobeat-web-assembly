@@ -1195,6 +1195,26 @@ export class AeroGame extends HTMLElement {
     return Object.freeze({ deleted: ids.length });
   }
 
+  /** Replace one selected song only after its verified source and every difficulty are ready. */
+  async reimportSelectedLibraryCollection(collectionIdValue) {
+    this.assertConnected();
+    const collectionId = boundedString(collectionIdValue, "");
+    if (!collectionId || collectionId !== this.libraryView.selectedCollectionId || !this.libraryView.collections.some((entry) => entry.collectionId === collectionId)) return null;
+    this.invalidatePendingSessionStart(); this.stopPreview();
+    return this.enqueueLifecycleIntent("collection-reimport", async (owner) => {
+      const graph = owner.graph;
+      const source = await graph.authoring.getCollectionReimportSource(collectionId);
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      if (source?.sourceProvider !== "beatsaver" || !boundedString(source.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) return null;
+      const map = await graph.vendor.getMapById(source.sourceId, { signal: this.activeAbort.signal });
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      const acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), source.sourceVersionHash, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isLifecycleIntentOwner(owner)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } });
+      if (!this.isLifecycleIntentOwner(owner)) return null;
+      if (acquired.sourceHash !== source.sourceVersionHash) throw new Error("BeatSaver version does not match the selected song");
+      return this.convertAcquired(acquired, { sourceId: source.sourceId }, owner, collectionId);
+    });
+  }
+
   /** Re-import from private persisted collection provenance, not the public library projection. */
   async reimportAllLibraryCollections() {
     this.assertConnected();
@@ -1512,7 +1532,7 @@ export class AeroGame extends HTMLElement {
     this.bridge = createAeroGameIframeBridge({ parentWindow: globalThis.parent, instanceId: this.instanceId, expectedOrigin, onConnect: () => this.emitGameEvent("ready", { snapshot: this.getSnapshot() }), onCommand: (command) => { Promise.resolve(this.executeCommand(command)).catch((error) => this.handleError(error)); }, onError: (error) => this.handleError(error) });
   }
 
-  async convertAcquired(acquired, options, owner) {
+  async convertAcquired(acquired, options, owner, replaceCollectionId) {
     const generation = this.connectedGeneration; const graph = this.graph;
     const ownsImport = () => owner ? this.isLifecycleIntentOwner(owner) : this.isCurrent(generation, graph);
     const raw = options === undefined ? Object.freeze({}) : safeData(options, 0, 32);
@@ -1522,6 +1542,7 @@ export class AeroGame extends HTMLElement {
       sourceProvider: "beatsaver",
       sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
       sourceVersionHash: acquired.sourceHash,
+      ...(replaceCollectionId ? { replaceCollectionId } : {}),
       modifiers: stringList(dataValue(raw, "modifiers") ?? [], 5), includeAudio: true,
       converterProfile: converter.profile,
       // Cache source difficulties locally so lane controls can reprocess without a download.
@@ -2866,13 +2887,19 @@ export class AeroGame extends HTMLElement {
     const collectionsRequest = typeof graph.authoring.listCollections === "function" ? graph.authoring.listCollections() : Promise.resolve(null);
     const [listedPackages, listedCollectionsValue, storage] = await Promise.all([graph.authoring.listPackages(), collectionsRequest, graph.authoring.estimateStorage()]);
     if (!this.isCurrent(generation, graph)) return;
+    const reusableCollectionIds = [];
+    if (typeof graph.authoring.getCollectionReimportSource === "function") for (const collection of listedCollectionsValue ?? []) {
+      const source = await graph.authoring.getCollectionReimportSource(collection.collectionId).catch(() => null);
+      if (!this.isCurrent(generation, graph)) return;
+      if (source?.sourceProvider === "beatsaver" && boundedString(source.sourceId, "") && /^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) reusableCollectionIds.push(collection.collectionId);
+    }
     const packages = productLibraryPackages(listedPackages); const listedCollections = listedCollectionsValue ?? legacyLibraryCollections(packages);
     const requestedPackageId = autoSelect ? boundedString(preferences.preferredPackageId, this.desiredLibrarySelection?.packageId ?? this.libraryView.selectedPackageId ?? "") : "";
     const requestedCollectionId = autoSelect ? boundedString(preferences.preferredCollectionId, this.desiredLibrarySelection?.collectionId ?? this.libraryView.selectedCollectionId ?? "") : "";
     const collections = productLibraryCollections(listedCollections, requestedCollectionId, requestedPackageId);
     const selectedCollection = autoSelect ? collections.find((entry) => entry.collectionId === requestedCollectionId) ?? collections.find((entry) => entry.difficulties.some((difficulty) => difficulty.packageId === requestedPackageId)) ?? collections[0] ?? null : null;
     const selectedPackageId = selectedCollection?.difficulties.some((entry) => entry.packageId === requestedPackageId) ? requestedPackageId : selectedCollection?.activePackageId ?? null;
-    this.libraryView = Object.freeze({ packages, collections, songs: publicLibrarySongs(collections), selectedCollectionId: selectedCollection?.collectionId ?? null, selectedPackageId, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
+    this.libraryView = Object.freeze({ packages, collections, songs: publicLibrarySongs(collections), reusableCollectionIds: Object.freeze(reusableCollectionIds), selectedCollectionId: selectedCollection?.collectionId ?? null, selectedPackageId, usedBytes: storage.usageBytes, quotaBytes: storage.quotaBytes, storage }); this.renderPresenters();
     if (!autoSelect || !selectedCollection || !selectedPackageId) return;
     const current = graph.content.getSnapshot();
     if (current.packageId === selectedPackageId) return;
@@ -3314,6 +3341,7 @@ export class AeroGame extends HTMLElement {
     else if (detail.type === "library-delete") void this.deleteLibraryCollection(dataValue(detail.payload, "collectionId")).catch((error) => this.handleError(error));
     // 0.0.87 (Derrick): bulk library actions from the Downloaded songs panel.
     else if (detail.type === "library-delete-all") void this.deleteAllLibraryCollections().catch((error) => this.handleError(error));
+    else if (detail.type === "library-reimport") void this.reimportSelectedLibraryCollection(dataValue(detail.payload, "collectionId")).catch((error) => this.handleError(error));
     else if (detail.type === "library-reimport-all") void this.reimportAllLibraryCollections().catch((error) => this.handleError(error));
     else if (detail.type === "gameplay-mode-select") {
       try { const rulesetId = readGameplayRulesetIntent(detail.payload); void this.selectGameplayAxes(rulesetId).catch((error) => this.handleError(error)); }
