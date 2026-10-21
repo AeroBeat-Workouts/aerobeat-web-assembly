@@ -11,14 +11,16 @@ import { validateReleaseDependencyStatus } from "./release-fingerprint.js";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const parent = resolve(root, "..");
 const canonicalRenderer = resolve(parent, "aerobeat-web-renderer");
-const rendererCommit = "9f87fb7a7d3c8f9acb84e28c93afa6a44d4f2475";
-const rendererTree = "b96a0a475c7c04361b61ddaa344a4c5f9b90f4be";
-const historicalRelease = "0.0.11";
-const historicalTree = "06fb120939b17326c558b8a698025d6ab8bd093d";
-const release = "0.0.12";
-const releaseTree = "2ba5fc46f8aea74a1bc6e55a40a4d0b8bebfa36f";
-const inventoryHash = "a7a4902e7aa0bf92da8179dd4149e4e241e04ac64d0b9887d66151dacbf30231";
-const proofHash = "f37bb12bc3cafc53e0e3314c95e8bd0551a76a1366ee16e9af4adcb522dc9910";
+const rendererCommit = "b73eee00892c17d1ed1334cdddfa72392336fd32";
+const rendererTree = "f93ebc62da260e545d94ca92814a6e08b879da25";
+const earlierRelease = "0.0.11";
+const earlierTree = "06fb120939b17326c558b8a698025d6ab8bd093d";
+const historicalRelease = "0.0.12";
+const historicalTree = "2ba5fc46f8aea74a1bc6e55a40a4d0b8bebfa36f";
+const release = "0.0.13";
+const releaseTree = "71a96a79a6f4f325e6c1919814e54689b06ee189";
+const inventoryHash = "77e90badd35b8e21460045f05ab669d624bd6249b1b248609f32778b48660123";
+const proofHash = "0bbf78d723babd15150b8dfbf544f5b289673bdf98f9ddc738c46fa682d1ebdb";
 const arguments_ = process.argv.slice(2);
 const sourceIndex = arguments_.indexOf("--source");
 const source = resolve(sourceIndex >= 0 ? arguments_[sourceIndex + 1] ?? "" : canonicalRenderer);
@@ -42,35 +44,34 @@ assert.equal(git(source, "rev-parse", "HEAD^{tree}"), rendererTree, "renderer so
 validateReleaseDependencyStatus(gitRaw(source, "status", "--porcelain=v1", "-z", "--untracked-files=all"), "renderer gameplay source");
 assert.equal(git(source, "rev-parse", `HEAD:assets/gameplay/${release}`), releaseTree, "renderer gameplay release tree drifted");
 assert.equal(git(source, "rev-parse", `HEAD:assets/gameplay/${historicalRelease}`), historicalTree, "renderer historical gameplay release drifted");
+assert.equal(git(source, "rev-parse", `HEAD:assets/gameplay/${earlierRelease}`), earlierTree, "renderer earlier gameplay release drifted");
 const sourceRoot = resolve(source, "assets/gameplay", release);
 const payloadRoot = resolve(root, "assets/gameplay");
 const targetRoot = resolve(payloadRoot, release);
-const historicalRoot = resolve(payloadRoot, historicalRelease);
-const historicalSourceRoot = resolve(source, "assets/gameplay", historicalRelease);
 const inventoryBytes = readFileSync(resolve(sourceRoot, "inventory.v1.json"));
 const proofBytes = readFileSync(resolve(sourceRoot, "proof.v1.json"));
 assert.equal(hash(inventoryBytes), inventoryHash, "renderer gameplay inventory hash drifted");
 assert.equal(hash(proofBytes), proofHash, "renderer gameplay proof hash drifted");
 const inventory = JSON.parse(inventoryBytes.toString("utf8"));
 const proof = JSON.parse(proofBytes.toString("utf8"));
-assert.equal(inventory.expected_asset_count, 9, "renderer gameplay asset count drifted");
+assert.equal(inventory.expected_asset_count, 11, "renderer gameplay asset count drifted");
 assert.equal(inventory.immutable, true, "renderer gameplay immutable claim drifted");
-assert.equal(inventory.payload.length, 17, "renderer gameplay payload inventory drifted");
+assert.equal(inventory.payload.length, 21, "renderer gameplay payload inventory drifted");
 assert.equal(proof.release, release, "renderer gameplay proof release drifted");
 assert.equal(proof.inventory_sha256, inventoryHash, "renderer gameplay proof inventory binding drifted");
 const markerEntry = inventory.payload.find((entry) => entry.path === "athlete-marker/sphere-v1.glb");
 assert.equal(markerEntry?.sha256, "f376934f218a25c11f2f31928c67684611aaf9c73aa1724548682ae280b5cbcc", "tint-dominant marker identity drifted");
-// 0.0.62 L-D (5y0q): the boxing-glove GLB joins the payload
-// (9 GLBs + 7 manifests + 1 set = 17 entries). The assembly payload matches.
+// Additive 0.0.13 keeps all predecessor GLB/manifest bytes and adds two distinct
+// knee target/pad GLBs and their manifests (11 GLBs + 9 manifests + 1 set).
 const expectedFiles = [...inventory.payload.map((entry) => entry.path), "inventory.v1.json", "proof.v1.json"].sort();
-assert.equal(expectedFiles.length, 19, "renderer gameplay exact file count drifted");
-assert.equal(new Set(expectedFiles).size, 19, "renderer gameplay inventory contains duplicates");
+assert.equal(expectedFiles.length, 23, "renderer gameplay exact file count drifted");
+assert.equal(new Set(expectedFiles).size, 23, "renderer gameplay inventory contains duplicates");
 verifyTree(sourceRoot, "renderer source");
 
 verifyHistoricalTree();
 if (mode === "sync") {
   const existingReleases = directories(payloadRoot);
-  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [historicalRelease, release] : [historicalRelease], "assembly gameplay releases must retain the immutable predecessor");
+  assert.deepEqual(existingReleases, existingReleases.includes(release) ? [earlierRelease, historicalRelease, release] : [earlierRelease, historicalRelease], "assembly gameplay releases must retain the immutable predecessor");
   if (!existingReleases.includes(release)) {
     // Add only the new release. Never remove or rewrite the signed predecessor.
     const staging = resolve(payloadRoot, `.gameplay-${release}-${process.pid}-${Date.now()}`);
@@ -82,7 +83,7 @@ if (mode === "sync") {
 }
 verifyHistoricalTree();
 verifyTree(targetRoot, "assembly payload");
-assert.deepEqual(directories(payloadRoot), [historicalRelease, release], "assembly gameplay payload must preserve the predecessor beside the active release");
+assert.deepEqual(directories(payloadRoot), [earlierRelease, historicalRelease, release], "assembly gameplay payload must preserve both predecessors beside the active release");
 console.log(`Gameplay package ${mode} passed: renderer ${rendererCommit}/${rendererTree}, release tree ${releaseTree}, exact ${expectedFiles.length} files.`);
 
 function verifyTree(directory, label) {
@@ -108,9 +109,11 @@ function filesUnder(directory, current = "") {
 }
 function directories(directory) { return readdirSync(directory, { withFileTypes:true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort(); }
 function verifyHistoricalTree() {
-  const sourceFiles = filesUnder(historicalSourceRoot);
-  assert.deepEqual(filesUnder(historicalRoot), sourceFiles, "immutable 0.0.11 assembly inventory drifted");
-  for (const file of sourceFiles) assert.equal(hash(readFileSync(resolve(historicalRoot, file))), hash(readFileSync(resolve(historicalSourceRoot, file))), `immutable 0.0.11 assembly bytes drifted: ${file}`);
+  for(const predecessor of [earlierRelease,historicalRelease]){
+    const sourceFiles=filesUnder(resolve(source,"assets/gameplay",predecessor));
+    assert.deepEqual(filesUnder(resolve(payloadRoot,predecessor)),sourceFiles,`immutable ${predecessor} assembly inventory drifted`);
+    for(const file of sourceFiles)assert.equal(hash(readFileSync(resolve(payloadRoot,predecessor,file))),hash(readFileSync(resolve(source,"assets/gameplay",predecessor,file))),`immutable ${predecessor} assembly bytes drifted: ${file}`);
+  }
 }
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
 function git(repository, ...arguments_) { return gitRaw(repository, ...arguments_).trim(); }

@@ -44,13 +44,13 @@ const aliases = packages.flatMap(({ name, path, exports: exported }) => {
     { find: new RegExp(`^${escaped}$`, "u"), replacement: `${path}/src/index.js` }
   ];
 });
-const gameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.12/", root);
+const gameplayRoot = new URL("../aerobeat-web-renderer/assets/gameplay/0.0.13/", root);
 const inventoryBytes = readFileSync(new URL("inventory.v1.json", gameplayRoot));
 const proofBytes = readFileSync(new URL("proof.v1.json", gameplayRoot));
-if (sha256(inventoryBytes) !== "a7a4902e7aa0bf92da8179dd4149e4e241e04ac64d0b9887d66151dacbf30231" ||
-    sha256(proofBytes) !== "f37bb12bc3cafc53e0e3314c95e8bd0551a76a1366ee16e9af4adcb522dc9910") throw new Error("Friend game gameplay authority drift");
+if (sha256(inventoryBytes) !== "77e90badd35b8e21460045f05ab669d624bd6249b1b248609f32778b48660123" ||
+    sha256(proofBytes) !== "0bbf78d723babd15150b8dfbf544f5b289673bdf98f9ddc738c46fa682d1ebdb") throw new Error("Friend game gameplay authority drift");
 const inventory = JSON.parse(inventoryBytes);
-if (inventory.expected_asset_count !== 9 || inventory.payload.filter(({ path }) => path.endsWith(".glb")).length !== 9) throw new Error("Friend game GLB inventory drift");
+if (inventory.expected_asset_count !== 11 || inventory.payload.filter(({ path }) => path.endsWith(".glb")).length !== 11) throw new Error("Friend game GLB inventory drift");
 function checked(url, bytes, digest) {
   const content = readFileSync(url);
   if (content.byteLength !== bytes || sha256(content) !== digest) throw new Error(`Friend game asset drift: ${url.pathname}`);
@@ -72,7 +72,7 @@ function mediaDigest() {
 }
 if (mediaFiles.length !== 8 || mediaDigest() !== "73dce3877d951dff100ed46655b82143d6644b1e1308164b8feab48dda0fee9b") throw new Error("Friend game MediaPipe inventory drift");
 const assets = [
-  ...inventory.payload.map(entry => [`assets/gameplay/0.0.12/${entry.path}`, checked(new URL(entry.path, gameplayRoot), entry.bytes, entry.sha256)]),
+  ...inventory.payload.map(entry => [`assets/gameplay/0.0.13/${entry.path}`, checked(new URL(entry.path, gameplayRoot), entry.bytes, entry.sha256)]),
   ...environmentAssetFiles.map(entry => [entry.path, checked(new URL(entry.path, root), entry.bytes, entry.sha256)]),
   ["favicon.ico", favicon], ...mediaFiles.map(([name, url]) => [name, readFileSync(url)])
 ];

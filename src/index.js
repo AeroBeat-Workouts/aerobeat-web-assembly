@@ -1561,6 +1561,16 @@ export class AeroGame extends HTMLElement {
     if (!ownsImport()) return null;
     const target = librarySelectionTarget(this.libraryView.collections, result.collection.collectionId, result.defaultPackage.packageId);
     if (target && owner) {
+      // Reimport keeps the same package ID, so the different-song retirement
+      // path cannot clear a completed run's old Start/Test transport intent.
+      // Retire it only after the replacement has persisted successfully.
+      if (owner.kind === "collection-reimport" && ["completed", "stopped"].includes(graph.gameplay.getSnapshot().session.state)) {
+        this.sessionActionGeneration += 1;
+        this.sessionGeneration += 1;
+        this.sessionStartRequested = false;
+        this.activeSessionAction = "";
+        this.visualTestTransportArmedOrdinal = -1;
+      }
       const selectionGeneration = ++this.librarySelectionGeneration;
       this.desiredLibrarySelection = Object.freeze({ collectionId: target.collectionId, packageId: target.packageId, generation: selectionGeneration });
       const activatedCollections = activateLibraryCollection(this.libraryView.collections, target.collectionId, target.packageId);
@@ -3267,7 +3277,7 @@ export class AeroGame extends HTMLElement {
     const spacingError=document.createElement("small");spacingError.id="game-setup-guardSpacing-error";spacingError.dataset.gameSetupError="guardSpacing";spacingError.setAttribute("aria-live","polite");
     spacingLabel.append(spacingText,spacingInput,spacingError);section.append(spacingLabel);
     const handGapLabel=document.createElement("label");handGapLabel.className="game-setup-number-row";
-    const handGapText=document.createElement("span");handGapText.textContent="Minimum gap between same-hand punches (ms)";
+    const handGapText=document.createElement("span");handGapText.textContent="Minimum gap between same-hand beats (ms)";
     const handGapInput=document.createElement("input");handGapInput.type="number";handGapInput.min="0";handGapInput.max="2000";handGapInput.step="1";handGapInput.dataset.gameSetupField="sameHandPunchMinGapMs";
     handGapLabel.append(handGapText,handGapInput);section.append(handGapLabel);
     for(const [field,title] of [["repeatedPunchSwitchChancePercent","Repeated punch: switch hand (%)"],["repeatedGuardReplaceChancePercent","Repeated guards: replace with punch (%)"]]){const label=document.createElement("label");label.className="game-setup-number-row";const text=document.createElement("span");text.textContent=title;const input=document.createElement("input");input.type="number";input.min="0";input.max="100";input.step="1";input.dataset.gameSetupField=field;label.append(text,input);section.append(label);}
@@ -3961,13 +3971,13 @@ function packageCarriesConverterProfile(packageValue, profile) {
     const expected = canonicalPrototypeProfileJson(profile); const source = dataValue(packageValue, "source"); const trace = dataValue(packageValue, "conversionTrace");
     if (canonicalPrototypeProfileJson(dataValue(source, "converterProfile")) !== expected || canonicalPrototypeProfileJson(dataValue(trace, "converterProfile")) !== expected) return false;
     const boxing = dataValue(trace, "boxing"); const flow = dataValue(trace, "flow"); const charts = dataValue(packageValue, "charts");
-    // 0.0.54 W1-A rebaseline: new imports carry exactly one Boxing (collider)
-    // trace/chart with the profile provenance; legacy stored packages keep the
-    // four-chart Lanes/Grid matrix. Mixed shapes fail closed in both directions.
-    if (!Array.isArray(boxing) || (boxing.length !== 1 && boxing.length !== 4) || boxing.some((entry) => canonicalPrototypeProfileJson(dataValue(entry, "converterProfile")) !== expected)) return false;
+    // New packages pair no-knee/knee Boxer charts; historical single-Boxer and
+    // four-Boxer packages remain readable, but mixed profile shapes fail closed.
+    if (!Array.isArray(boxing) || ![1, 2, 4].includes(boxing.length) || boxing.some((entry) => canonicalPrototypeProfileJson(dataValue(entry, "converterProfile")) !== expected)) return false;
     if (!Array.isArray(flow) || flow.some((entry) => dataValue(entry, "converterProfile") !== undefined)) return false;
     const boxingCharts = Array.isArray(charts) ? charts.filter((chart) => dataValue(chart, "mode") === "boxing") : [];
-    return (boxingCharts.length === 1 || boxingCharts.length === 4) && boxingCharts.every((chart) => canonicalPrototypeProfileJson(dataValue(dataValue(chart, "prototype"), "converterProfile")) === expected);
+    if (boxingCharts.length !== boxing.length || !boxingCharts.every((chart) => canonicalPrototypeProfileJson(dataValue(dataValue(chart, "prototype"), "converterProfile")) === expected)) return false;
+    return boxing.length !== 2 || (dataValue(dataValue(boxingCharts[0], "prototype"), "rulesetId") === "boxing_collider_v1" && dataValue(dataValue(boxingCharts[1], "prototype"), "rulesetId") === "boxing_collider_knee_v1" && boxing.every((entry, index) => dataValue(entry, "chartId") === dataValue(boxingCharts[index], "chartId")));
   } catch { return false; }
 }
 /** Return keyboard-focusable controls in composed tree order, including open presenter roots. @param {Element | ShadowRoot} root @returns {HTMLElement[]} */

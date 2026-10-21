@@ -79,15 +79,12 @@ assert.ok(walls[0].scale.z>0&&Number.isFinite(walls[0].scale.z),"wall depth must
 assert.equal(synthesisGameplay.getJudgements().length,0,"no judgements before scoring input");
 synthesisGameplay.destroy();
 
-// 0.0.54 W1-A rebaseline: convertDifficulty now emits EXACTLY ONE boxing chart
-// per difficulty — the sole boxing_collider_v1 variant (no conversion recipe);
-// the four-chart Lanes/Grid matrix is retired for new imports. After t7sv it
-// contains no weave/squat beats (the source has no obstacles).
+// New imports retain the no-knee/knee Boxer pair and one Flow chart; the
+// four-chart Lanes/Grid matrix remains retired. This source has no obstacles.
 const boxingCharts=converted.package.charts.filter((chart)=>chart.mode==="boxing");
-assert.equal(boxingCharts.length,1,"new imports carry exactly one Boxing (collider) chart — the Lanes/Grid pair is retired");
-assert.equal(boxingCharts[0].prototype.rulesetId,"boxing_collider_v1","the sole boxing chart binds the collider ruleset");
-assert.equal(Object.hasOwn(boxingCharts[0].prototype,"recipeId"),false,"the collider chart carries no conversion recipe identity");
-assert.equal(converted.package.charts.filter((chart)=>chart.mode==="flow").length,1,"the flow_colliders_v1 chart remains alongside the collider chart");
+assert.deepEqual(boxingCharts.map((chart)=>chart.prototype.rulesetId),["boxing_collider_v1","boxing_collider_knee_v1"],"new imports carry the exact no-knee/knee Boxer pair");
+assert.equal(boxingCharts.every((chart)=>!Object.hasOwn(chart.prototype,"recipeId")),true,"collider charts carry no conversion recipe identity");
+assert.equal(converted.package.charts.filter((chart)=>chart.mode==="flow").length,1,"the flow_colliders_v1 chart remains alongside both Boxer charts");
 for(const chart of boxingCharts){
   assert.equal(chart.beats.some((beat)=>String(beat.type??"").startsWith("weave_")||String(beat.type??"")==="squat"),false,`${chart.chartId} Boxing chart must contain no weave/squat beats because there are no source obstacles`);
 }

@@ -43,7 +43,7 @@ const mime = Object.freeze({ ".html": "text/html; charset=utf-8", ".js": "text/j
 // JSON is permitted only as an owned environment config/rights manifest or gameplay manifest/set.
 // The signer emits only the current release; the signed server must also be
 // able to restart the untouched 0.0.137 rollback snapshot with its old GLBs.
-const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.(?:11|12)\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
+const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.(?:11|12|13)\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
 const compressedTypes = new Set([".wasm", ".task", ".js"]);
 function acceptsBrotli(header) {
   if (typeof header !== "string") return false;
@@ -106,8 +106,9 @@ export function loadSignedSnapshot(directory = defaultDirectory) {
         !bytes.get(name)?.includes(Buffer.from(manifest.buildStamp)))) fail("normal stamped game entry missing");
   const gamePaths = named.filter(name => name.startsWith("assets/gameplay/"));
   const gameReleases = new Set(gamePaths.map(name => name.split("/")[2]));
-  if (gameReleases.size !== 1 || !["0.0.11", "0.0.12"].includes([...gameReleases][0]) ||
-      gamePaths.filter(name => name.endsWith(".glb")).length !== 9 ||
+  const gameRelease = [...gameReleases][0];
+  if (gameReleases.size !== 1 || !["0.0.11", "0.0.12", "0.0.13"].includes(gameRelease) ||
+      gamePaths.filter(name => name.endsWith(".glb")).length !== (gameRelease === "0.0.13" ? 11 : 9) ||
       !named.includes("assets/mediapipe/pose_landmarker_lite.task") || !named.includes("assets/mediapipe/vision_bundle.js") ||
       !named.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name)) || !named.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) ||
       !named.includes("favicon.ico")) fail("required local game assets missing");

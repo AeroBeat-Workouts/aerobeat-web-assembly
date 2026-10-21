@@ -14,13 +14,13 @@ assert.ok(process.env.AEROBEAT_REPETITION_TEST === undefined || repetitionMode, 
 const archive = await readFile(`/tmp/aerobeat-${mapId}-${hash}.zip`);
 assert.equal(createHash("sha256").update(archive).digest("hex"), "0dc3f98537c679cb8e96ffc5d079a1e0cbb9ae59df571f693a67a53c5d051db3");
 const signedDirectory = process.env.AEROBEAT_SIGNED_BOXING_DIR;
-const vite = signedDirectory ? null : await createViteServer({ appType: "spa", configFile: false, logLevel: "error", define: { __AEROBEAT_BUILD_STAMP__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_CACHE_BUST__: JSON.stringify("isolated-a2-real-song"), __AEROBEAT_PACKAGE_VERSION__: JSON.stringify("0.0.140") }, server: { host: "127.0.0.1", port: 0, hmr: false, fs: { allow: [new URL("../../", import.meta.url).pathname] } } });
+const vite = signedDirectory ? null : await createViteServer({ logLevel: "error", server: { host: "127.0.0.1", port: 0, hmr: false } });
 let browser, parent, signedServer;
 try {
   let url;
   if (signedDirectory) {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.equal(snapshot.manifest.sourceManifest.packageVersion, "0.0.140", "private B test requires signed successor");
+    assert.ok(["0.0.140", "0.0.141"].includes(snapshot.manifest.sourceManifest.packageVersion), "selected-song QA requires the signed Boxer baseline or corrective successor");
     signedServer = createHttpServer(handlerForSnapshot(snapshot));
     await new Promise((resolve) => signedServer.listen(0, "127.0.0.1", resolve));
     const signedAddress = signedServer.address(); assert.ok(signedAddress && typeof signedAddress !== "string");
@@ -89,7 +89,7 @@ try {
       const minimum = (hand) => punches.filter((beat) => beat.type.endsWith(`_${hand}`)).reduce((state, beat) => { const delta = ms(beat) - state.last; return { last: ms(beat), min: Math.min(state.min, delta) }; }, { last: -1e9, min: Infinity }).min;
       const trace = tuned.conversionTrace.boxing[0];
       const changed = (kind) => trace.events.filter((event) => event.action === "emit" && event.kind === "punch" && event.repetition?.kind === kind);
-      return { difficulty: tuned.source.difficulty, minimumLeftMs: minimum("left"), minimumRightMs: minimum("right"), oldPunches: oldPunches.length, punches: punches.length, dropped: trace.events.filter((event) => event.reason === "same_hand_punch_min_gap").length, switched: changed("repeated_punch_switched").length, replaced: changed("repeated_guard_replaced").length, recordedSwitchChance: trace.optimizer.repeatedPunchSwitchChancePercent ?? 0, recordedGuardChance: trace.optimizer.repeatedGuardReplaceChancePercent ?? 0, flowUnchanged: JSON.stringify(flow) === JSON.stringify(oldFlow) };
+      return { difficulty: tuned.source.difficulty, minimumLeftMs: minimum("left"), minimumRightMs: minimum("right"), oldPunches: oldPunches.length, punches: punches.length, dropped: trace.events.filter((event) => event.reason === "same_hand_beat_min_gap").length, switched: changed("repeated_punch_switched").length, replaced: changed("repeated_guard_replaced").length, recordedSwitchChance: trace.optimizer.repeatedPunchSwitchChancePercent ?? 0, recordedGuardChance: trace.optimizer.repeatedGuardReplaceChancePercent ?? 0, flowUnchanged: JSON.stringify(flow) === JSON.stringify(oldFlow) };
     });
     const active = graph.content.getSnapshot();
     const activeIndex = selected.packages.findIndex((entry) => entry.packageId === active.packageId);

@@ -70,9 +70,8 @@ try {
   try { await waitFor(page, async () => game.evaluate((element) => element.graph.authoring.getSnapshot().state === "complete" && element.graph.content.getSnapshot().state === "ready"), 15_000); }
   catch (error) { const state = await game.evaluate(async (element) => ({ authoring: element.graph.authoring.getSnapshot(), content: element.graph.content.getSnapshot(), vendor: element.graph.vendor.snapshot(), lastError: element.lastError, packages: (await element.graph.authoring.listPackages()).length, events: globalThis.__v4AssemblyFixture.events })); throw new Error(`${error.message}: ${JSON.stringify(state)}`, { cause: error }); }
   const v4Evidence = await integrationSnapshot(game);
-  // 0.0.54 W1-A rebaseline: a fresh v4 import authors exactly two variants —
-  // the sole flow_colliders_v1 and the sole no-recipe boxing_collider_v1.
-  assert.equal(v4Evidence.cameraRequests, 0); assert.equal(v4Evidence.libraryCount, 1); assert.equal(v4Evidence.selectedSourceVersionHash, goldenV4Hash); assert.equal(v4Evidence.selectedDifficulty, "ExpertPlus"); assert.equal(v4Evidence.variantCount,2);assert.equal(v4Evidence.selectedRulesetId,"flow_colliders_v1");assert.deepEqual(new Set(v4Evidence.variantIdentities),new Set(["flow_colliders_v1|none","boxing_collider_v1|none"]));assert.deepEqual(v4Evidence.collider.map(({ranked,localOnly})=>({ranked,localOnly})),[{ranked:true,localOnly:false}]); assert.equal(v4Evidence.checkedLibraryRadios, 1); assert.equal(v4Evidence.contentReady, true); assert.equal(v4Evidence.rawExposure.length, 0);
+  // Fresh v4 imports author Flow plus exact no-knee/knee Boxer variants.
+  assert.equal(v4Evidence.cameraRequests, 0); assert.equal(v4Evidence.libraryCount, 1); assert.equal(v4Evidence.selectedSourceVersionHash, goldenV4Hash); assert.equal(v4Evidence.selectedDifficulty, "ExpertPlus"); assert.equal(v4Evidence.variantCount,3);assert.equal(v4Evidence.selectedRulesetId,"flow_colliders_v1");assert.deepEqual(new Set(v4Evidence.variantIdentities),new Set(["flow_colliders_v1|none","boxing_collider_v1|none","boxing_collider_knee_v1|none"]));assert.deepEqual(v4Evidence.collider.map(({ranked,localOnly})=>({ranked,localOnly})),[{ranked:true,localOnly:false}]); assert.equal(v4Evidence.checkedLibraryRadios, 1); assert.equal(v4Evidence.contentReady, true); assert.equal(v4Evidence.rawExposure.length, 0);
 
   const selectedReimport = await game.evaluate(async (element) => {
     const setup = await import("/src/game-setup-coordinator.js");
@@ -121,7 +120,7 @@ try {
     const flow = tunedPackage.package.charts.find((chart) => chart.mode === "flow");
     return { gapVisible, beforeReimport, tuned: { boxing: boxing?.beats, flow: flow?.beats, events: tunedPackage.package.conversionTrace.boxing[0].events, bpm: tunedPackage.package.song.timing.tempoSegments[0].bpm, difficulty: tunedPackage.package.source.difficulty }, visible, before: [...originalBytes.bytes], unrelatedBytes, unrelatedAfter: [...(await graph.authoring.exportPackage(unrelated.defaultPackage.handle)).bytes], failed, conversionFailure, afterCount: after.length, current: Boolean(current), selectedId: element.libraryView.selectedCollectionId, packages: current?.packages.length, authoringState: graph.authoring.getSnapshot().state, selectedPackageId: element.libraryView.selectedPackageId, source: await graph.authoring.getCollectionReimportSource(selectedId) };
   });
-  assert.deepEqual(selectedReimport.gapVisible, { label: "Minimum gap between same-hand punches (ms)", value: "0", min: "0", max: "2000", step: "1", nearGuard: true });
+  assert.deepEqual(selectedReimport.gapVisible, { label: "Minimum gap between same-hand beats (ms)", value: "0", min: "0", max: "2000", step: "1", nearGuard: true });
   assert.equal(selectedReimport.beforeReimport.gap, 1000);
   assert.equal(selectedReimport.beforeReimport.selectedId, selectedReimport.visible.collectionId);
   assert.deepEqual(selectedReimport.beforeReimport.original, selectedReimport.before, "changing preference alone cannot mutate the stored chart");

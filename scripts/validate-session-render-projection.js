@@ -117,7 +117,7 @@ for (const nowMs of [actualObstacle.centerTimestampMs, (actualObstacle.centerTim
     beatCenterMs:actualObstacle.centerTimestampMs,intervalStartMs:actualObstacle.centerTimestampMs,intervalEndMs:actualObstacle.intervalEndTimestampMs,normalSpawnMs:actualObstacle.intervalStartTimestampMs-dFallbackLead
   }],`D actual obstacle remains exact and feedback-free at ${nowMs}`);
 }
-assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs+.001).length,0,"actual obstacle leaves immediately after exact end");
+assert.equal(projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs+1000.001).length,0,"actual obstacle leaves after its trailing face clears the beat despawn line");
 const obstacleEarlier=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
 projectSessionTargets([actualObstacle],testTruth,actualObstacle.intervalEndTimestampMs);
 const obstacleEarlierAfterForward=projectSessionTargets([actualObstacle],testTruth,actualObstacle.centerTimestampMs-1000);
@@ -164,7 +164,31 @@ assert.deepEqual(obstacleEarlierAfterForward,obstacleEarlier,"forward-then-backw
 const longGameplayGeometry=Object.freeze({...gameplayGeometry,x:1,y:0,width:2,height:2});
 const longObstacle=Object.freeze({eventId:"long-obstacle",centerTimestampMs:1000,intervalStartTimestampMs:1000,intervalEndTimestampMs:2000,authoredBeat:Object.freeze({start:1,end:2,type:"obstacle",sourceGeometry,gameplayGeometry:longGameplayGeometry,gridMask:Object.freeze([1,2,5,6])})});
 assert.deepEqual({ start:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalStartMs, end:projectSessionTargets([longObstacle],testTruth,1500)[0]?.intervalEndMs },{ start:1000,end:2000 },"long obstacle publishes its exact renderer duration interval beyond generic feedback lifetime");
-assert.equal(projectSessionTargets([longObstacle],testTruth,2001).length,0,"long obstacle uses exact interval end");
+assert.equal(projectSessionTargets([longObstacle],testTruth,3000.001).length,0,"long obstacle clears only after its trailing face reaches the note despawn line");
+// The front face is long past Z=6 while the trailing face still occupies the
+// athlete's lane. Both index and fallback must retain the same exact geometry.
+for(const [label,obstacleEvents,presentation] of [
+  ["Flow",Object.freeze([Object.freeze({...longObstacle,eventId:"long-flow",centerTimestampMs:10000,intervalStartTimestampMs:10000,intervalEndTimestampMs:13000})]),"flow"],
+  ["Boxing",Object.freeze([Object.freeze({...boxingObstacleEvent("long-boxing",10000,"weave_left",{x:2,y:0,width:2,height:2}),intervalEndTimestampMs:13000})]),"boxing_collider"]
+]){
+  const index=createSessionTargetIndex(obstacleEvents);
+  const original=obstacleEvents[0];
+  for(const [nowMs,present] of [[13001,true],[13500,true],[14000,true],[14000.001,false]]){
+    const indexedTargets=projectSessionTargets(obstacleEvents,playSession,nowMs,index);
+    const plainTargets=projectSessionTargets(obstacleEvents,playSession,nowMs);
+    assert.deepEqual(indexedTargets,plainTargets,`${label} indexed/unindexed trailing-face parity at ${nowMs}`);
+    assert.equal(indexedTargets.length,present?1:0,`${label} visual persists only through the trailing-face cutoff at ${nowMs}`);
+    const model=buildGameplaySceneModel({presentation,nowMs,timingWindowBeforeMs:180,timingWindowAfterMs:180,targets:indexedTargets});
+    const wall=model.objects.find(entry=>entry.targetId===original.eventId&&entry.kind==="obstacle");
+    assert.equal(Boolean(wall),present,`${label} renderer draws the wall until its back clears the line at ${nowMs}`);
+    if(wall){
+      assert.equal(indexedTargets[0].intervalEndMs,13000,`${label} collider interval stays unchanged`);
+      assert.ok(Math.abs((wall.position.z-wall.scale.z/2)-(nowMs-13000)*.006)<1e-9,`${label} trailing face follows the original interval endpoint`);
+      assert.ok((wall.position.z+wall.scale.z/2)>6,`${label} front is already beyond the beat despawn line`);
+      assert.equal(indexedTargets[0].judgement,undefined,`${label} persistence adds no judgement`);
+    }
+  }
+}
 const falseObstacleHit=Object.freeze({...testTruth,judgements:Object.freeze([{eventId:"long-obstacle",result:"hit",shadow:false,committedTimelinePositionMs:1000}])});
 assert.equal(projectSessionTargets([longObstacle],falseObstacleHit,1200)[0]?.judgement,undefined,"obstacle ignores all synthetic/real feedback");
 const noObstacleTruth=Object.freeze({...playSession,selectedVariant:Object.freeze({modifierIds:Object.freeze(["no_obstacles"])})});

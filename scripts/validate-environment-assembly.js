@@ -47,25 +47,29 @@ const expectedGameplayPaths = [
   "assets/gameplay/0.0.12/wall/red-glass-v1.glb"
 ];
 const expectedHistoricalGameplayPaths = expectedGameplayPaths.map((path) => path.replace("/0.0.12/", "/0.0.11/"));
+const currentGameplayPaths = [...JSON.parse(readFileSync("assets/gameplay/0.0.13/inventory.v1.json", "utf8")).payload.map((entry) => `assets/gameplay/0.0.13/${entry.path}`), "assets/gameplay/0.0.13/inventory.v1.json", "assets/gameplay/0.0.13/proof.v1.json"].sort();
+assert.equal(currentGameplayPaths.length, 23, "additive knee gameplay release inventory drifted");
 const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
 const rendererRoot = resolve(root, "../aerobeat-web-renderer");
-const rendererCommit = "9f87fb7a7d3c8f9acb84e28c93afa6a44d4f2475";
-const rendererTree = "b96a0a475c7c04361b61ddaa344a4c5f9b90f4be";
+const rendererCommit = "b73eee00892c17d1ed1334cdddfa72392336fd32";
+const rendererTree = "f93ebc62da260e545d94ca92814a6e08b879da25";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), rendererTree, "linked renderer tree drifted");
 validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD:assets/gameplay/0.0.12"]), "2ba5fc46f8aea74a1bc6e55a40a4d0b8bebfa36f", "linked gameplay raw tree drifted");
 assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.12"]).split("\n"), expectedGameplayPaths, "linked gameplay member inventory drifted");
-for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly gameplay runtime member drifted: ${path}`);
+for (const path of expectedGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly historical gameplay member drifted: ${path}`);
+assert.deepEqual(git(rendererRoot, ["ls-tree", "-r", "--name-only", "HEAD", "assets/gameplay/0.0.13"]).split("\n"), currentGameplayPaths, "linked knee gameplay inventory drifted");
+for (const path of currentGameplayPaths) assert.deepEqual(readFileSync(path), readFileSync(resolve(rendererRoot, path)), `assembly current gameplay member drifted: ${path}`);
 const rendererGameplaySource = readFileSync(resolve(rendererRoot, "src/gameplay-assets.js"), "utf8");
-assert.match(rendererGameplaySource, /gameplayAssetReleaseVersion="0\.0\.12"/u);
-assert.match(rendererGameplaySource, /gameplayAssetSourceCommit="398d0370af86fbb7c411845139990f9e0be11cb6"/u);
-assert.match(rendererGameplaySource, /gameplayAssetSourceTree="90773e1b3254f640bf7d082ef1d7eac8b6259ecc"/u);
-assert.match(rendererGameplaySource, /gameplayAssetAuditCommit="398d0370af86fbb7c411845139990f9e0be11cb6"/u);
-assert.match(rendererGameplaySource, /gameplayAssetAuditTree="90773e1b3254f640bf7d082ef1d7eac8b6259ecc"/u);
-assert.match(rendererGameplaySource, /gameplayAssetRawTree="08e8f8524d6e6642c65d5842ab05ec2095a30b97"/u);
-assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="a7a4902e7aa0bf92da8179dd4149e4e241e04ac64d0b9887d66151dacbf30231"/u);
-assert.match(rendererGameplaySource, /gameplayAssetProofSha256="f37bb12bc3cafc53e0e3314c95e8bd0551a76a1366ee16e9af4adcb522dc9910"/u);
+assert.match(rendererGameplaySource, /gameplayAssetReleaseVersion="0\.0\.13"/u);
+assert.match(rendererGameplaySource, /gameplayAssetSourceCommit="54e83d89264b2cedbdcc616ddd7c8b386ac9e204"/u);
+assert.match(rendererGameplaySource, /gameplayAssetSourceTree="3122baa63d481173992a637ad275d2aec6f3ec37"/u);
+assert.match(rendererGameplaySource, /gameplayAssetAuditCommit="cf38fa7c61030f4a9f38e228563d5dd820b5ed04"/u);
+assert.match(rendererGameplaySource, /gameplayAssetAuditTree="3da9af7827efb93d0a7f6a25d61769ed6fce9910"/u);
+assert.match(rendererGameplaySource, /gameplayAssetRawTree="e01a56f3b1f1dd53444a8cbcb1b7fa7f21f45faf"/u);
+assert.match(rendererGameplaySource, /gameplayAssetInventorySha256="77e90badd35b8e21460045f05ab669d624bd6249b1b248609f32778b48660123"/u);
+assert.match(rendererGameplaySource, /gameplayAssetProofSha256="0bbf78d723babd15150b8dfbf544f5b289673bdf98f9ddc738c46fa682d1ebdb"/u);
 const setManifest = JSON.parse(readFileSync("assets/gameplay/0.0.12/sets/default-v1.json", "utf8"));
 assert.deepEqual(setManifest.roles, {"any-note":"outlined-circle-v1","athlete-marker":"sphere-v1",bomb:"urchin-v1","directional-arrow":"rounded-outline-v1",guard:"outlined-shield-v1",track:"blue-glass-v1",wall:"red-glass-v1"});
 const wallManifest = JSON.parse(readFileSync("assets/gameplay/0.0.12/manifests/wall/red-glass-v1.v1.json", "utf8"));
@@ -195,7 +199,7 @@ assert.doesNotMatch(rendererTelemetryBody, /environment|sha256|bytes|url/u);
 const packed = JSON.parse(execFileSync("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"], { encoding:"utf8", maxBuffer:16 * 1024 * 1024 }));
 const packedPaths = packed[0].files.map((file) => file.path);
 assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/environments/")).sort(), expectedPaths, "npm package environment inventory drifted");
-assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/gameplay/")).sort(), [...expectedHistoricalGameplayPaths, ...expectedGameplayPaths], "npm package historical and active gameplay inventories drifted");
+assert.deepEqual(packedPaths.filter((path) => path.startsWith("assets/gameplay/")).sort(), [...expectedHistoricalGameplayPaths, ...expectedGameplayPaths, ...currentGameplayPaths].sort(), "npm package two historical and current gameplay inventories drifted");
 const forbiddenPackageRoots = [".beads/", ".github/", ".plans/", ".tmp/", "demo/", "dist/", "docs/", "fixtures/", "release/", "test/"];
 assert.equal(packedPaths.some((path) => forbiddenPackageRoots.some((prefix) => path.startsWith(prefix)) || /(?:\.ply$|\.blend$|\.png$|\.ya?ml$)/iu.test(path)), false, "npm package contains forbidden evidence/source/release payload");
 // kl80: the branding-derived favicon ships under assets/favicon/ and is emitted
@@ -203,7 +207,7 @@ assert.equal(packedPaths.some((path) => forbiddenPackageRoots.some((prefix) => p
 // scripts/validate-favicon-provenance.js).
 assert.equal(packedPaths.some((path) => path.startsWith("assets/favicon/") && !path.endsWith("favicon.ico")), false, "npm package contains unexpected favicon payload");
 assert.equal(packedPaths.filter((path) => path.startsWith("assets/favicon/")).length, 1, "npm package must contain exactly one favicon asset");
-assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.11/", "assets/gameplay/0.0.12/", "assets/favicon/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
+assert.equal(packedPaths.every((path) => ["assets/environments/", "assets/gameplay/0.0.11/", "assets/gameplay/0.0.12/", "assets/gameplay/0.0.13/", "assets/favicon/", "scripts/", "src/"].some((prefix) => path.startsWith(prefix)) || ["index.html", "vite.config.js", "README.md", "LICENSE.md", "package.json"].includes(path)), true, "npm package escaped exact runtime/tooling roots");
 const fingerprintEnvironment = listReleaseFingerprintInputs(root).map((path) => relative(root, path)).filter((path) => path.startsWith("assets/environments/")).sort();
 assert.deepEqual(fingerprintEnvironment, expectedPaths);
 assert.equal(expectedPaths.some((path) => /(?:\.ply$|(?:^|\/)(?:pos|neg)_[xyz]\.png$|\.ya?ml$)/iu.test(path)), false);
@@ -215,7 +219,7 @@ assert.doesNotMatch(builtText, /At centered position, sphere radius scale does n
 const builtEnvironment = outputs.filter((entry) => entry.type === "asset" && entry.fileName.startsWith("assets/environments/")).map((entry) => ({ path:entry.fileName, bytes:Buffer.from(entry.source) })).sort((left, right) => left.path.localeCompare(right.path));
 assert.deepEqual(builtEnvironment.map(({ path }) => path), expectedPaths);
 for (const built of builtEnvironment) { const expected = environmentAssetFiles.find(({ path }) => path === built.path); assert(expected); assert.equal(built.bytes.byteLength, expected.bytes); assert.equal(hash(built.bytes), expected.sha256); }
-console.log(`Environment catalog/config/UI privacy and exact 24-file environment + ${expectedHistoricalGameplayPaths.length + expectedGameplayPaths.length}-file historical/active gameplay npm package inventories, fingerprint, and Vite inventory passed (${packedPaths.length} packed files).`);
+console.log(`Environment catalog/config/UI privacy and exact 24-file environment + ${expectedHistoricalGameplayPaths.length + expectedGameplayPaths.length + currentGameplayPaths.length}-file historical/current gameplay npm package inventories, fingerprint, and Vite inventory passed (${packedPaths.length} packed files).`);
 
 /** @param {Uint8Array} bytes */
 function hash(bytes) { return createHash("sha256").update(bytes).digest("hex"); }

@@ -54,7 +54,8 @@ export function createSessionTargetIndex(events, options = {}) {
     if (normalSpawnLeadMs !== null && startMs !== null && endMs !== null && endMs > startMs) {
       const intervalSkyStartMs=Math.max(0,startMs-normalSpawnLeadMs-skyLeadMs);
       maximumPresentationLeadMs=Math.max(maximumPresentationLeadMs,startMs-intervalSkyStartMs);
-      intervals.push(Object.freeze({ start:intervalSkyStartMs, end:endMs, orderedIndex:entry.orderedIndex }));
+      // Index visual persistence separately from the original collider interval.
+      intervals.push(Object.freeze({ start:intervalSkyStartMs, end:obstacleVisualEndMs(endMs), orderedIndex:entry.orderedIndex }));
     }
   }
   const maximumWholeBeat=Math.min(100_000,Math.max(0,Math.ceil(maximumAuthoredBeat))),guidanceEndMs=Number.isFinite(songDurationMs)&&songDurationMs>=0?Math.min(86_400_000,songDurationMs):null,guidanceTimeline=[];if(mapBeat)for(let beat=0,prior=-1;beat<=100_000;beat+=1){if(guidanceEndMs===null&&beat>maximumWholeBeat)break;let timestamp;try{timestamp=Number(mapBeat(beat));}catch{break;}if(!Number.isFinite(timestamp)||timestamp<0||timestamp>86_400_000)continue;if(guidanceEndMs!==null&&timestamp>guidanceEndMs)break;if(timestamp>prior){guidanceTimeline.push(timestamp);prior=timestamp;}}
@@ -182,7 +183,7 @@ function flowObstacleTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyL
   const gridMask = recordValue(beat, "gridMask"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
   if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry)) return null;
   const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs),skyPreludeStartMs=skyMode==="prelude"?Math.max(0,normalSpawnMs-skyLeadMs):null,wallGateMs=skyPreludeStartMs??normalSpawnMs;
-  if (nowMs < wallGateMs || nowMs > endMs) return null;
+  if (nowMs < wallGateMs || nowMs > obstacleVisualEndMs(endMs)) return null;
   const firstContactMs = outcome?.result === "contact" ? optionalFiniteNumber(recordValue(outcome, "firstContactTimelinePositionMs")) : null;
   const contactPulseProgress = firstContactMs !== null && nowMs >= firstContactMs && nowMs <= firstContactMs + FEEDBACK_DURATION_MS ? clamp01((nowMs - firstContactMs) / FEEDBACK_DURATION_MS) : undefined;
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:"neutral", family:"obstacle", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:null, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs, normalSpawnMs, ...(skyPreludeStartMs === null ? {} : { skyPreludeStartMs }), ...(contactPulseProgress === undefined ? {} : { contactPulseProgress }) };
@@ -195,13 +196,18 @@ function boxingObstacleTarget(event, beat, type, nowMs, normalSpawnLeadMs, skyMo
   const gridMask = recordValue(beat, "gridMask"); const blockedCells = recordValue(beat, "blockedCells"); const sourceGeometry = recordValue(beat, "sourceGeometry"); const gameplayGeometry = recordValue(beat, "gameplayGeometry");
   if (startMs === null || endMs === null || endMs <= startMs || !isObstacleSourceGeometry(sourceGeometry) || !isObstacleGameplayGeometry(gameplayGeometry) || !isObstacleGridMask(gridMask, gameplayGeometry) || !sameCells(blockedCells, gridMask)) return null;
   const normalSpawnMs=Math.max(0,startMs-normalSpawnLeadMs),skyPreludeStartMs=skyMode==="prelude"?Math.max(0,normalSpawnMs-skyLeadMs):null,wallGateMs=skyPreludeStartMs??normalSpawnMs;
-  if (nowMs < wallGateMs || nowMs > endMs) return null;
+  if (nowMs < wallGateMs || nowMs > obstacleVisualEndMs(endMs)) return null;
   const weaveHand = type === "weave_left" ? "left" : type === "weave_right" ? "right" : null;
   return { id:String(recordValue(event, "eventId") ?? ""), kind:"obstacle", hand:weaveHand ?? "neutral", family:type === "squat" ? "squat" : "weave", cell:null, cells:[...gridMask], sourceGeometry, gameplayGeometry, lane:weaveHand, beatCenterMs:startMs, intervalStartMs:startMs, intervalEndMs:endMs,normalSpawnMs,...(skyPreludeStartMs === null ? {} : { skyPreludeStartMs }) };
 }
 
 /** @param {unknown} left @param {unknown} right */
 function sameCells(left, right) { return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((cell, index) => Number.isInteger(cell) && cell === right[index]); }
+
+// The authored interval end is the trailing face's timestamp, not its removal
+// time. At +1000 ms that face reaches Z=6, beyond the pinned Z=5 athlete camera.
+// This is presentation-only; gameplay keeps the original interval endpoints.
+function obstacleVisualEndMs(endMs) { return Math.min(86_400_000, endMs + 1000); }
 
 /** @param {Record<string, unknown>} event @param {Record<string, unknown>} beat @param {number} nowMs @param {number} normalSpawnLeadMs @param {"off"|"prelude"} skyMode @param {number} skyLeadMs */
 function flowBombTarget(event, beat, nowMs, normalSpawnLeadMs, skyMode, skyLeadMs) {

@@ -18,7 +18,7 @@ function safeName(name) {
   if (!name || name.startsWith("/") || name.includes("\\") || name.split("/").some(part => !part || part === "." || part === ".." || part.startsWith("."))) fail(`unsafe output path: ${name}`);
 }
 // JSON is permitted only as an owned environment config/rights manifest or gameplay manifest/set.
-const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.12\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
+const gameJson = /^(?:assets\/environments\/([a-z0-9]+(?:-[a-z0-9]+)*)\/1\.0\.0\/(?:\1\.config|manifest)|assets\/gameplay\/0\.0\.13\/(?:manifests\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:-[a-z0-9]+)*\.v1|sets\/[a-z0-9]+(?:-[a-z0-9]+)*))\.json$/u;
 function regularFile(relative) {
   safeName(relative);
   let cursor = out;
@@ -95,7 +95,7 @@ function main() {
   const entries = [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+\.js)["'][^>]*>/gu)].map(match => match[1]);
   if (!entries.length || entries.some(name => !name.startsWith("/assets/") || !chunk.test(name.slice(1)) || !jsPaths.includes(name.slice(1)) ||
       !readFileSync(regularFile(name.slice(1))).includes(Buffer.from(buildStamp)))) fail("built game entry or source stamp missing");
-  if (files.filter(name => /^assets\/gameplay\/0\.0\.12\/.*\.glb$/u.test(name)).length !== 9 ||
+  if (files.filter(name => /^assets\/gameplay\/0\.0\.13\/.*\.glb$/u.test(name)).length !== 11 ||
       !files.some(name => /^assets\/environments\/.*\.jpe?g$/u.test(name)) || !files.includes("favicon.ico") ||
       !files.includes("assets/mediapipe/pose_landmarker_lite.task") || !files.includes("assets/mediapipe/vision_bundle.js") ||
       !files.some(name => /^assets\/mediapipe\/wasm\/.*\.wasm$/u.test(name))) fail("pinned game or MediaPipe assets missing");

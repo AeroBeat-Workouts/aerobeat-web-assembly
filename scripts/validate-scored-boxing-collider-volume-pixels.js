@@ -188,7 +188,7 @@ try {
             // reach can meet an earlier beat plane. Visibility alone never scores.
             const target=boxingColliderTargetCenter(5,{topRowReachWU:harness.element.activeSessionSetup.topRowReachWU,bottomRowReachWU:harness.element.activeSessionSetup.bottomRowReachWU});
             const targetX=target.x,targetY=target.y;
-            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+.9,y:targetY},'scale-unbounded':{song:6000,x:targetX+.9,y:targetY},'scale-zero':{song:6000,x:targetX,y:targetY},forward:{song:6000,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6000,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+.9,y:targetY},'default-early':{song:5900,x:targetX,y:targetY}};
+            const scoreCases={off:{song:6000,x:targetX,y:targetY},default:{song:6000,x:targetX,y:targetY},scale:{song:6000,x:targetX+.9,y:targetY},'scale-unbounded':{song:6000,x:targetX+.9,y:targetY},'scale-zero':{song:6000,x:targetX,y:targetY},forward:{song:6000,x:targetX,y:targetY},backward:{song:6000,x:targetX,y:targetY},'unbounded-depths':{song:6060,x:targetX,y:targetY},'default-near':{song:6000,x:targetX+.9,y:targetY},'default-early':{song:5900,x:targetX,y:targetY}};
             const contact=scoreCases[scenario.name],outsideX=['scale','scale-unbounded','default-near'].includes(scenario.name)?targetX+.9:.1,safe=wrist(outsideX,['scale','scale-unbounded','default-near'].includes(scenario.name)?targetY:1.8),at=wrist(contact.x,contact.y);
             fail(Number.isFinite(contact.x)&&Number.isFinite(contact.y)&&Number.isFinite(at.x)&&Number.isFinite(at.y),`${scenario.name}: calibrated target-centred wrist missing`);
             const before=harness.graph.gameplay.getSnapshot().judgements.find(item=>item.eventId==='volume-pixel-punch')??null;
@@ -235,11 +235,11 @@ try {
       }
       const unbounded=byName['unbounded-depths'];
       assert(unbounded.settings.colliderDepthForward===.5&&unbounded.settings.colliderDepthBackward===5&&unbounded.frameSettings.colliderDepthForward===.5&&unbounded.frameSettings.colliderDepthBackward===5&&unbounded.preview.text.includes('front ×0.5')&&unbounded.preview.text.includes('rear ×5')&&unbounded.gloveDepthWu>byName.default.gloveDepthWu,`${context.kind}:${context.width}x${context.height}: native out-of-range Boxer depths must persist, lock for scored Play and enlarge the actual rendered glove Z extent: ${JSON.stringify({base:byName.default,unbounded})}`);
-      assert.equal(unbounded.score.result,'hit','Out-of-range Boxer depths must still score target-centred Play contact');
+      assert.equal(unbounded.score.result,'hit','Out-of-range Boxer backward depth must score a late target-centred Play contact');
       assert.equal(byName.off.score.result,'hit','Overlay visibility OFF must preserve scored hit');
       assert.equal(byName.default.score.result,'hit','Default centered glove must score');
       assert.equal(byName.scale.score.result,'hit','Scale4 lateral boundary must score');
-      assert.equal(byName.forward.score.result,'hit','Forward4 centered glove must score while its visible +Z reach grows');
+      assert.equal(byName.forward.score.result,'hit','Forward4 centered glove must score while its visible incoming −Z reach grows');
       assert.equal(byName.backward.score.result,'hit','Backward4 centered glove must score');
       assert.equal(byName['default-near'].score.result,'pending','Default collider must reject scale4-only lateral wrist');
       assert.equal(byName['default-early'].score.result,'pending','Default collider must reject forward4-only early wrist');
