@@ -26,16 +26,16 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const required = (condition, message) => { if (!condition) throw new Error(`Scored Play fixture: ${message}`); };
 
 /** Install before selecting the chart; only boundary services are replaced. */
-export async function installScoredPlayHarness(element, { events, songDurationMs = 120000, mode = 'boxing', alternativeEvents = null, beatToTimelineMs = null } = {}) {
+export async function installScoredPlayHarness(element, { events, songDurationMs = 120000, mode = 'boxing', kneeRuleset = false, alternativeEvents = null, beatToTimelineMs = null } = {}) {
   required(element?.tagName?.toLowerCase() === 'aero-game' && element.isConnected && element.graph, 'connected <aero-game> required');
-  required(mode === 'boxing' || mode === 'flow', 'only scored Boxing or Flow mode supported');
+  required((mode === 'boxing' || mode === 'flow') && (!kneeRuleset || mode === 'boxing'), 'knee ruleset requires scored Boxing');
   required(Array.isArray(events) && events.length > 0 && events.every(event => event?.schema === 'aerobeat/resolved_content_event' && event.version === 3 && typeof event.eventId === 'string' && Number.isFinite(event.centerTimestampMs)), 'nonempty resolved events required');
   required(alternativeEvents === null || Array.isArray(alternativeEvents) && alternativeEvents.length > 0 && alternativeEvents.every(event => event?.schema === 'aerobeat/resolved_content_event' && event.version === 3 && typeof event.eventId === 'string' && Number.isFinite(event.centerTimestampMs)), 'alternative mode events must be resolved');
   required(beatToTimelineMs === null || typeof beatToTimelineMs === 'function', 'private authored beat timing mapper must be callable');
   required(Number.isFinite(songDurationMs) && songDurationMs > Math.max(...events.map(event => event.centerTimestampMs),...(alternativeEvents??[]).map(event => event.centerTimestampMs)) + 1500, 'audio duration must cover every scored event');
   const variantId = mode === 'flow' ? 'scored-play-flow-collider' : VARIANT_ID;
   const chartId = mode === 'flow' ? 'scored-play-flow-chart' : CHART_ID;
-  const variant = Object.freeze({ variantId, chartId, mode, rulesetId: mode === 'flow' ? 'flow_colliders_v1' : 'boxing_collider_v1', recipeId: null, modifierIds: [], ranked: true, localOnly: false, mapHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, scoreIdentityHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, provenance: { baseVariantId: variantId } });
+  const variant = Object.freeze({ variantId, chartId, mode, rulesetId: mode === 'flow' ? 'flow_colliders_v1' : kneeRuleset ? 'boxing_collider_knee_v1' : 'boxing_collider_v1', recipeId: null, modifierIds: [], ranked: true, localOnly: false, mapHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, scoreIdentityHash: { schema: 'aerobeat/content_hash', version: 1, algorithm: 'sha256', value: HASH }, provenance: { baseVariantId: variantId } });
   const chart = Object.freeze(events.map(event => Object.freeze({ ...event, variantId, chartId })));
   const alternativeVariant=alternativeEvents===null?null:Object.freeze({ ...variant, mode:mode==='flow'?'boxing':'flow', variantId:mode==='flow'?VARIANT_ID:'scored-play-flow-collider', chartId:mode==='flow'?CHART_ID:'scored-play-flow-chart', rulesetId:mode==='flow'?'boxing_collider_v1':'flow_colliders_v1', provenance:{baseVariantId:mode==='flow'?VARIANT_ID:'scored-play-flow-collider'} });
   const alternativeChart=alternativeVariant===null?null:Object.freeze(alternativeEvents.map(event=>Object.freeze({...event,variantId:alternativeVariant.variantId,chartId:alternativeVariant.chartId})));
@@ -102,11 +102,17 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
   delete element.__scoredPlayFixtureState;
   const originalGraph = graph;
   const active = () => required(element.isConnected && element.graph === originalGraph && element.graph.gameplay === graph.gameplay && element.graph.renderer === graph.renderer, 'connected production graph changed');
-  const feedPose = ({ leftWrist = { x: .05, y: .58 }, rightWrist = { x: .95, y: .58 }, nose = { x: .5, y: .2 }, tPose = false, confidence = .99, timestampMs: requestedTimestampMs, render = true } = {}) => {
+  const feedPose = ({ leftWrist = { x: .05, y: .58 }, rightWrist = { x: .95, y: .58 }, nose = { x: .5, y: .2 }, legs = null, tPose = false, confidence = .99, timestampMs: requestedTimestampMs, render = true } = {}) => {
     active();
     for (const point of [leftWrist, rightWrist, nose]) required(Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.x <= 1 && point.y >= 0 && point.y <= 1, 'pose landmarks must be normalized');
+    required(legs === null || typeof legs === 'object' && !Array.isArray(legs), 'optional measured legs must be a record');
     const y = tPose ? .4 : .58;
     const points = { nose, left_shoulder: { x: .35, y: .4 }, right_shoulder: { x: .65, y: .4 }, left_elbow: { x: .2, y }, right_elbow: { x: .8, y }, left_wrist: tPose ? { x: .05, y: .4 } : leftWrist, right_wrist: tPose ? { x: .95, y: .4 } : rightWrist, left_hip: { x: .43, y: .68 }, right_hip: { x: .57, y: .68 } };
+    for (const side of ['left', 'right']) if (legs?.[side]) for (const joint of ['hip', 'knee', 'ankle']) {
+      const point = legs[side][joint];
+      required(point && Number.isFinite(point.x) && Number.isFinite(point.y), `measured ${side} ${joint} required`);
+      points[`${side}_${joint}`] = point;
+    }
     const timestampMs = Number.isFinite(requestedTimestampMs) ? requestedTimestampMs : Math.max(performance.now(), (state.pose?.timestampMs ?? -Infinity) + 1, Number(element.latestPoseTimestampMs ?? -Infinity) + 1);
     required(timestampMs > (state.pose?.timestampMs ?? -Infinity) && timestampMs > Number(element.latestPoseTimestampMs ?? -Infinity), 'measured pose clock must advance strictly');
     state.pose = { sourceId: SOURCE_ID, timestampMs, mirrored: true, landmarks: Object.entries(points).map(([name, position]) => ({ name, ...position, confidence })) };
@@ -131,7 +137,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     element.setMenuOpen(true);
     element.renderPresenters();
     const selector = element.shadowRoot.querySelector("aero-prototype-selector[scope='gameplay']");
-    const radio = selector?.shadowRoot?.querySelector(`input[data-intent='gameplay-mode-select'][value='${variant.rulesetId}']`);
+    const radio = selector?.shadowRoot?.querySelector(`input[data-intent='gameplay-mode-select'][value='${kneeRuleset ? 'boxing_collider_v1' : variant.rulesetId}']`);
     if (radio instanceof HTMLInputElement && !radio.disabled) { radio.click(); await element.lifecycleIntentTail; }
     else required(mode === 'flow' && graph.content.getSnapshot().selectedVariant?.rulesetId === variant.rulesetId, 'scored gameplay mode native radio missing');
     required(graph.content.getSnapshot().selectedVariant?.variantId === variantId, 'scored variant selection did not commit');
@@ -146,11 +152,11 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     const beforeStored = localStorage.getItem(aeroGameSetupStorageKey);
     const controlTrace = [];
     for (const [key, value] of Object.entries(changes)) {
-      const volume = key === 'boxingColliderVolume' || key === 'flowColliderVolume';
+      const volume = key === 'boxingColliderVolume' || key === 'flowColliderVolume' || key === 'kneeColliderVolume';
       const fields = volume ? value : { [key]: value };
       required(fields && typeof fields === 'object', `invalid Game Setup field ${key}`);
       for (const [name, desired] of Object.entries(fields)) {
-        const selector = volume ? `input[data-collider-volume-field='${name}']` : `[data-game-setup-field='${name}']`;
+        const selector = volume ? `input[${key === 'kneeColliderVolume' ? 'data-knee-collider-volume-field' : 'data-collider-volume-field'}='${name}']` : `[data-game-setup-field='${name}']`;
         const input = element.shadowRoot.querySelector(selector);
         required(input instanceof HTMLInputElement || input instanceof HTMLSelectElement, `native Game Setup control ${key}.${name} missing`);
         const previous = input instanceof HTMLInputElement && input.type === 'checkbox' ? input.checked : input.value;
@@ -175,7 +181,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
       required(JSON.stringify(parsed) === JSON.stringify(desired), `persisted Game Setup differs from coordinator: ${JSON.stringify(Object.keys(desired).filter(key => JSON.stringify(parsed?.[key]) !== JSON.stringify(desired[key])).map(key => ({ key, persisted: parsed?.[key], current: desired[key] })))}`);
     }
     for (const [key, value] of Object.entries(changes)) {
-      const volume = key === 'boxingColliderVolume' || key === 'flowColliderVolume';
+      const volume = key === 'boxingColliderVolume' || key === 'flowColliderVolume' || key === 'kneeColliderVolume';
       const spawnField = key === 'spawnDistanceOverrideEnabled' ? 'enabled' : key === 'spawnDistanceOverrideWorldUnits' ? 'normalSpawnDistanceWorldUnits' : null;
       const expected = volume ? value : { [spawnField ?? key]: value };
       const stored = volume ? desired[key] : spawnField ? desired.spawnDistanceOverride : desired;

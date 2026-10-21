@@ -10,6 +10,9 @@ const events = Object.freeze([
   Object.freeze({ eventId:"flow-2", centerTimestampMs:2000, appearanceColor:"#808080", authoredBeat:Object.freeze({type:"note",hand:"right",placement:7,direction:"up"}) })
 ]);
 const playSession = Object.freeze({ session:Object.freeze({purpose:"play"}), judgements:Object.freeze([]), shadowJudgements:Object.freeze([]), scorePartitions:Object.freeze([]) });
+const kneeEvents=[{eventId:"knee-left",centerTimestampMs:1000,authoredBeat:{type:"knee_left",spatialTarget:{targetCell:9,acceptedSubcells:[36]}}},{eventId:"knee-right",centerTimestampMs:2000,authoredBeat:{type:"knee_right",spatialTarget:{targetCell:10,acceptedSubcells:[40]}}}];
+const kneeTargets=projectSessionTargets(kneeEvents,playSession,900,createSessionTargetIndex(kneeEvents));
+assert.deepEqual(kneeTargets.map(({kind,family,hand,cell,cells})=>({kind,family,hand,cell,cells})),[{kind:"knee",family:"knee_left",hand:"left",cell:9,cells:[]},{kind:"knee",family:"knee_right",hand:"right",cell:10,cells:[]}],"authored lowest-row 9/10 knee targets project independently of punch families");
 const straightIndex=createSessionTargetIndex(events,{bounceLeadBeats:4,normalSpawnLeadMs:2500,skyMode:"off",skyPreludeDurationMs:0});
 assert.equal(straightIndex.timingMapperUnavailableCount,2,"missing mapper is a truthful nonzero private diagnostic");
 const pending = projectSessionTargets(events, playSession, 900,straightIndex);

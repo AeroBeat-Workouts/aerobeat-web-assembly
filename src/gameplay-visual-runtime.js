@@ -1,6 +1,6 @@
 // @ts-check
 
-import { createBoxingColliderSettings, createFlowColliderSettings, defaultBoxingColliderSettings, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
+import { createBoxingColliderSettings, createFlowColliderSettings, createKneeColliderSettings, defaultBoxingColliderSettings, defaultFlowColliderSettings, defaultKneeColliderSettings } from "@aerobeat/web-gameplay";
 import { createGameplayVisualExperimentConfig, rendererVisualScalesIdentity } from "@aerobeat/web-renderer";
 
 /** Derive the four per-class visual scale percentages from a Game Setup v3 snapshot. */
@@ -55,6 +55,9 @@ export function gameplayFlowColliderSettings(setup){return createFlowColliderSet
  * @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup
  */
 export function gameplayBoxingColliderSettings(setup){return createBoxingColliderSettings({schema:defaultBoxingColliderSettings.schema,version:defaultBoxingColliderSettings.version,algorithm:defaultBoxingColliderSettings.algorithm,colliderRadius:setup.colliderRadius,enforceAuthoredDirection:setup.enforceAuthoredDirection,directionToleranceDegrees:setup.directionToleranceDegrees,timingWindowMs:setup.timingWindowMs,topRowReachWU:setup.topRowReachWU,bottomRowReachWU:setup.bottomRowReachWU,guardCountMode:setup.guardCountMode,colliderVisible:setup.boxingColliderVolume.colliderVisible,colliderScale:setup.boxingColliderVolume.colliderScale,colliderDepthForward:setup.boxingColliderVolume.colliderDepthForward,colliderDepthBackward:setup.boxingColliderVolume.colliderDepthBackward,wristBombColliderScale:setup.wristBombColliderScale});}
+
+/** Independent run-locked knee-pad collision volume; never changes historical glove identities. @param {import("./game-setup-coordinator.js").AeroGameSetupSnapshot} setup */
+export function gameplayKneeColliderSettings(setup){return createKneeColliderSettings({schema:defaultKneeColliderSettings.schema,version:defaultKneeColliderSettings.version,colliderVisible:setup.kneeColliderVolume.colliderVisible,colliderScale:setup.kneeColliderVolume.colliderScale,colliderDepthForward:setup.kneeColliderVolume.colliderDepthForward,colliderDepthBackward:setup.kneeColliderVolume.colliderDepthBackward});}
 
 /**
  * Consume one measured-only sample without retaining a mirror and expose only normalized deflections.

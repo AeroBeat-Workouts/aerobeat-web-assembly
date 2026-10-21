@@ -129,7 +129,7 @@ export function projectSessionTargets(events, gameplay, nowMs, index, timingWind
       const centerMs = finiteNumber(recordValue(event, "centerTimestampMs"));
       const real = realJudgements.get(eventId) ?? null;
       const syntheticFeedback = visualTest && visualTestSyntheticFeedbackEnabled && real === null;
-      const noteLateWindowMs=type==="guard"?guardLateWindowMs:(scoredPlay||visualTest)&&(type==="note"||Object.hasOwn(BOXING_PUNCH_TYPES,type))?playNoteLateWindowMs:effectiveLateWindowMs;
+      const noteLateWindowMs=type==="guard"?guardLateWindowMs:(scoredPlay||visualTest)&&(type==="note"||type==="knee_left"||type==="knee_right"||Object.hasOwn(BOXING_PUNCH_TYPES,type))?playNoteLateWindowMs:effectiveLateWindowMs;
       const syntheticCommitMs = syntheticFeedback ? centerMs + (feedbackIndex % 2 === 0 ? 0 : noteLateWindowMs + 1) : null;
       const commitMs = real ? finiteNumber(real.committedTimelinePositionMs) : syntheticCommitMs;
       const realResult = real?.result;
@@ -225,6 +225,7 @@ function renderFeedbackTarget(event, type, judgement = "pending", feedbackProgre
   const feedback = { judgement, ...(Number.isFinite(feedbackProgress) ? { feedbackProgress: clamp01(Number(feedbackProgress)) } : {}),...(judgement==="miss"&&Number.isFinite(missCommitMs)?{missCommitMs:Number(missCommitMs)}:{}),...(judgement!=="pending"&&tier!==undefined&&["great","good","almost","miss"].includes(tier)?{tier}:{}) },appearance=privateAppearanceColor(event),trajectory={...(normalSpawnMs===null?{}:{normalSpawnMs}),...(bounceStartMs===null||skyPreludeStartMs===null?{}:{bounceStartMs,skyPreludeStartMs})},group=arrivalGroupIdentity===null?{}:{arrivalGroupIdentity};
   if (type === "note") return { id: eventId, kind: "flow", hand: recordValue(beat, "hand") === "right" ? "right" : "left", family: "flow", cell: Number.isInteger(recordValue(beat, "placement")) ? Number(recordValue(beat, "placement")) : null, cells: [], lane: null, beatCenterMs, direction: flowDirection(recordValue(beat, "direction")), requiresDirection:recordValue(beat,"requiresDirection")!==false, ...(appearance?{appearanceColor:appearance}:{}), ...trajectory, ...group, ...feedback };
   if (type === "guard") { const guardTarget = recordValue(beat, "guardTarget"); return { id: eventId, kind: "guard", hand: "both", family: "guard", cell: null, cells: isRecord(guardTarget) ? [recordValue(guardTarget, "leftCell"), recordValue(guardTarget, "rightCell")].filter(Number.isInteger) : [], lane: null, beatCenterMs, ...trajectory, ...group, ...feedback }; }
+  if (type === "knee_left" || type === "knee_right") { const hand=type === "knee_left" ? "left" : "right",spatialTarget=recordValue(beat,"spatialTarget");return { id:eventId,kind:"knee",family:type,hand,cell:isRecord(spatialTarget)&&Number.isInteger(recordValue(spatialTarget,"targetCell"))?Number(recordValue(spatialTarget,"targetCell")):null,cells:[],lane:hand,beatCenterMs,...(appearance?{appearanceColor:appearance}:{}),...trajectory,...group,...feedback }; }
   const punch=Object.hasOwn(BOXING_PUNCH_TYPES,type)?BOXING_PUNCH_TYPES[type]:null;if(!punch)return null;
   const {hand,family}=punch; const spatialTarget = recordValue(beat, "spatialTarget");
   return { id: eventId, kind: "punch", hand, family, cell: isRecord(spatialTarget) && Number.isInteger(recordValue(spatialTarget, "targetCell")) ? Number(recordValue(spatialTarget, "targetCell")) : null, cells: [], lane: hand, beatCenterMs, direction: isRecord(spatialTarget) ? recordValue(spatialTarget, "entryDirection") ?? null : null, ...(appearance?{appearanceColor:appearance}:{}), ...trajectory, ...group, ...feedback };
@@ -235,7 +236,7 @@ function targetArrivalIdentity(timestampMs){const bytes=new Uint8Array(8);new Da
 /** @param {Record<string,unknown>} event */
 function privateAppearanceColor(event){const candidate={appearanceColor:recordValue(event,"appearanceColor")};return isPrivateNoteAppearance(candidate)?candidate.appearanceColor:null;}
 /** @param {string} type */
-function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || Object.hasOwn(BOXING_PUNCH_TYPES,type); }
+function isRenderableFeedbackType(type) { return type === "note" || type === "guard" || type === "knee_left" || type === "knee_right" || Object.hasOwn(BOXING_PUNCH_TYPES,type); }
 /** @param {Record<string, unknown>} event */
 function authoredBeatFor(event) { const value = recordValue(event, "authoredBeat"); return isRecord(value) ? value : {}; }
 /** @param {unknown} value */

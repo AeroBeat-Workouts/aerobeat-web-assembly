@@ -35,6 +35,7 @@ import {
   exactGameplayVariant,
   firstUseBoxingRecipeId,
   flowGameplayRulesetIds,
+  preferredBoxingColliderVariant,
   gameplayRulesetIds,
   readBoxingRecipeIntent,
   readGameplayRulesetIntent,
@@ -53,7 +54,7 @@ import { createPrivatePerformanceRecorder } from "./private-performance-recorder
 import { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 import { createSessionTargetIndex, guidanceBeatTimestamps, projectSessionTargets } from "./session-render-projection.js";
 import { scoringClockMinimumDurationSeconds } from "./scoring-clock-minimum.js";
-import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
+import { canonicalWorldUnitsPerMs, gameplayBoxingColliderSettings, gameplayFlowColliderSettings, gameplayKneeColliderSettings, rendererGameplayVisualConfig, rendererVisualScales, rendererVisualScalesId, sanitizedNoseCameraDeflection, selectedNormalSpawnDistanceWorldUnits } from "./gameplay-visual-runtime.js";
 import { effectivePortraitTrackExtensionWorldUnits } from "./portrait-track-coverage.js";
 import { isRecord, projectAftermathEntries, projectHazardContactEvents } from "./gameplay-frame-effects.js";
 import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
@@ -128,6 +129,10 @@ const EQUIPMENT_CONTROL_GROUPS = Object.freeze([
   ])})
 ]);
 const EQUIPMENT_CONTROL_PATHS = new Set(EQUIPMENT_CONTROL_GROUPS.flatMap((group) => group.controls.map((control) => control.path)));
+const DEFAULT_KNEE_PAD_ROTATIONS = Object.freeze({lowered:Object.freeze({x:0,y:0,z:0}),raised:Object.freeze({x:0,y:0,z:0})});
+// Visual Test has no camera: these leg outlines preview pad tuning only. They
+// never enter measured kneePose evidence or the gameplay scoring frame.
+const TEST_KNEE_PREVIEW_JOINTS = Object.freeze({left:Object.freeze({hip:{x:.25,y:.5},knee:{x:.25,y:5/6},ankle:{x:.25,y:7/6}}),right:Object.freeze({hip:{x:.75,y:.5},knee:{x:.75,y:5/6},ankle:{x:.75,y:.5}})});
 let instanceSequence = 0;
 
 defineAeroUiElements();
@@ -137,7 +142,7 @@ function equipmentControlMarkup() {
     const id = `equipment-${control.path.replaceAll(".", "-")}`;
     if (control.kind === "select") return `<label for="${id}">${control.label}</label><select id="${id}" data-equipment-config-field="${control.path}">${EQUIPMENT_EASE_OPTIONS.map((value) => `<option value="${value}">${value}</option>`).join("")}</select>`;
     return `<label for="${id}">${control.label}</label><input id="${id}" data-equipment-config-field="${control.path}" type="number" step="any" inputmode="decimal"${control.nullable ? " placeholder=\"Neutral\"" : ""}>`;
-  }).join("")}</div></fieldset>`).join("");
+  }).join("")}</div></fieldset>`).join("") + `<fieldset class="equipment-control-group" data-role="knee-pad-rotation-group"><legend>Boxing · knee pads</legend><div class="equipment-fields">${["lowered","raised"].flatMap((state)=>["x","y","z"].map((axis)=>`<label for="knee-pad-${state}-${axis}">${state === "lowered" ? "Lowered" : "Raised"} rotation ${axis.toUpperCase()} (deg)</label><input id="knee-pad-${state}-${axis}" data-knee-pad-rotation="${state}.${axis}" type="number" step="any" inputmode="decimal">`)).join("")}</div></fieldset>`;
 }
 
 function equipmentConfigValue(config, path) {
@@ -283,6 +288,7 @@ export class AeroGame extends HTMLElement {
     this.equipmentConfigIdentityGeneration = 0;
     this.equipmentConfigCommitTail = Promise.resolve(false);
     this.equipmentConfigStatus = "";
+    this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS;
     this.visualTestInteractionEpoch = 0;
     this.visualTestInteractionActivationMs = null;
     this.visualTestEvidenceFrameSequence = 0;
@@ -356,7 +362,7 @@ export class AeroGame extends HTMLElement {
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
     this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
-    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = true; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "right"; this.testEquipmentPointerPosition = null; this.testEquipmentTouchPointerId = null;
+    this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = true; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "right"; this.testEquipmentPointerPosition = null; this.testEquipmentTouchPointerId = null;
     this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]); this.lastValidEquipmentPoses = Object.freeze([]);
     this.stopPreview({ render: false });
     this.browsedMaps.clear(); this.beatSaverView = emptyBeatSaverView(); this.libraryView = Object.freeze({ collections: Object.freeze([]), selectedCollectionId: null, selectedPackageId: null, storage: null });
@@ -507,10 +513,13 @@ export class AeroGame extends HTMLElement {
         // fresh Play/Test starts at zero, so replace that truncated snapshot
         // with the full chosen chart (including its requested modifiers).
         if (contentPlayable) {
-          const selected = graph.content.getSnapshot().selectedVariant;
+          const contentBeforeStart = graph.content.getSnapshot(), selected = contentBeforeStart.selectedVariant;
           if (selected?.variantId) {
+            const preferred = selected.rulesetId === gameplayRulesetIds.boxingCollider || selected.rulesetId === gameplayRulesetIds.boxingColliderKnee
+              ? preferredBoxingColliderVariant(contentBeforeStart.variants, this.desiredGameSetup.kneeStrikesEnabled) ?? selected
+              : selected;
             graph.content.setPlaybackState({state:"idle",positionMs:0,judgedEventIds:[],activeEventIds:[]});
-            await graph.content.selectVariant(selected.provenance?.baseVariantId || selected.variantId, {modifierIds:selected.provenance?.requestedModifierIds ?? []});
+            await graph.content.selectVariant(preferred.provenance?.baseVariantId || preferred.variantId, {modifierIds:selected.provenance?.requestedModifierIds ?? []});
             if (ownershipBailed || checkOwnership()) return this.getSnapshot();
           }
         }
@@ -1054,9 +1063,11 @@ export class AeroGame extends HTMLElement {
     if (!boxingGameplayRulesetIds.includes(rulesetId) && !flowGameplayRulesetIds.includes(rulesetId)) throw new TypeError("Gameplay ruleset intent is invalid");
     this.invalidatePendingSessionStart();
     return this.enqueueLifecycleIntent("gameplay-mode-select", async (owner) => {
-      const target = exactGameplayVariant(owner.graph.content.getSnapshot().variants, rulesetId, recipeId);
+      const target = rulesetId === gameplayRulesetIds.boxingCollider || rulesetId === gameplayRulesetIds.boxingColliderKnee
+        ? preferredBoxingColliderVariant(owner.graph.content.getSnapshot().variants, this.desiredGameSetup.kneeStrikesEnabled)
+        : exactGameplayVariant(owner.graph.content.getSnapshot().variants, rulesetId, recipeId);
       if (!target?.variantId) {
-        if (rulesetId === gameplayRulesetIds.boxingCollider) {
+        if (rulesetId === gameplayRulesetIds.boxingCollider || rulesetId === gameplayRulesetIds.boxingColliderKnee) {
           // 0.0.54 W2-E: the selected package predates Boxing collider authoring
           // (no boxing_collider_v1 variant exists in it). Surface the bounded
           // reimport reason through the same lastError/info-action UX path the
@@ -1069,8 +1080,8 @@ export class AeroGame extends HTMLElement {
         throw new Error("Selected gameplay variant is unavailable");
       }
       const result = await this.performSelectVariant(target.variantId, Object.freeze([]), owner);
-      if (this.isLifecycleIntentOwner(owner) && owner.graph.content.getSnapshot().selectedVariant?.rulesetId === rulesetId) {
-        this.lastGameplayRulesetId = rulesetId;
+      if (this.isLifecycleIntentOwner(owner) && owner.graph.content.getSnapshot().selectedVariant?.rulesetId === target.rulesetId) {
+        this.lastGameplayRulesetId = target.rulesetId;
         if (boxingGameplayRulesetIds.includes(rulesetId)) this.lastBoxingRecipeId = recipeId;
       }
       return result;
@@ -1547,7 +1558,7 @@ export class AeroGame extends HTMLElement {
       converterProfile: converter.profile,
       // Cache source difficulties locally so lane controls can reprocess without a download.
       cacheSourceEntries: true,
-      converterSettings: Object.freeze({ guardSpacing: this.desiredGameSetup.guardSpacing, ...(this.desiredGameSetup.sameHandPunchMinGapMs > 0 ? { sameHandPunchMinGapMs: this.desiredGameSetup.sameHandPunchMinGapMs } : {}), ...(this.desiredGameSetup.repeatedPunchSwitchChancePercent > 0 ? { repeatedPunchSwitchChancePercent: this.desiredGameSetup.repeatedPunchSwitchChancePercent } : {}), ...(this.desiredGameSetup.repeatedGuardReplaceChancePercent > 0 ? { repeatedGuardReplaceChancePercent: this.desiredGameSetup.repeatedGuardReplaceChancePercent } : {}), uppercutOppositeLane: this.desiredGameSetup.uppercutOppositeLane, anyOppositeLane: this.desiredGameSetup.anyOppositeLane }),
+      converterSettings: Object.freeze({ guardSpacing: this.desiredGameSetup.guardSpacing, ...(this.desiredGameSetup.sameHandPunchMinGapMs > 0 ? { sameHandPunchMinGapMs: this.desiredGameSetup.sameHandPunchMinGapMs } : {}), ...(this.desiredGameSetup.repeatedPunchSwitchChancePercent > 0 ? { repeatedPunchSwitchChancePercent: this.desiredGameSetup.repeatedPunchSwitchChancePercent } : {}), ...(this.desiredGameSetup.repeatedGuardReplaceChancePercent > 0 ? { repeatedGuardReplaceChancePercent: this.desiredGameSetup.repeatedGuardReplaceChancePercent } : {}), ...(this.desiredGameSetup.kneeStrikeChancePercent > 0 ? { kneeStrikeChancePercent: this.desiredGameSetup.kneeStrikeChancePercent } : {}), uppercutOppositeLane: this.desiredGameSetup.uppercutOppositeLane, anyOppositeLane: this.desiredGameSetup.anyOppositeLane }),
       signal: this.activeAbort.signal
     }); } catch (error) { if (!ownsImport()) return null; throw error; }
     if (!ownsImport()) return null;
@@ -1603,7 +1614,7 @@ export class AeroGame extends HTMLElement {
   selectedScoringClockMinimum(content, setup) {
     const variant = content.selectedVariant;
     if (content.state !== "ready" || !variant || !Array.isArray(content.resolvedEvents)) return undefined;
-    const settings = variant.rulesetId === gameplayRulesetIds.flow ? gameplayFlowColliderSettings(setup) : variant.rulesetId === gameplayRulesetIds.boxingCollider ? gameplayBoxingColliderSettings(setup) : null;
+    const settings = variant.rulesetId === gameplayRulesetIds.flow ? gameplayFlowColliderSettings(setup) : [gameplayRulesetIds.boxingCollider,gameplayRulesetIds.boxingColliderKnee].includes(variant.rulesetId) ? gameplayBoxingColliderSettings(setup) : null;
     return settings ? scoringClockMinimumDurationSeconds(content.resolvedEvents, variant, settings) : undefined;
   }
 
@@ -1659,7 +1670,7 @@ export class AeroGame extends HTMLElement {
     if (futureOnly && this.activeSessionSetup) this.extendSelectedScoringClock(this.activeSessionSetup);
     this.extendSelectedScoringClock(setup);
     if (futureOnly && setup !== this.desiredGameSetup) this.extendSelectedScoringClock(this.desiredGameSetup);
-    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { ...(!futureOnly ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}) } : {}), ...(!futureOnly && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingCollider ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}) };
+    const configuration = { packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents, profileIdentity: scoring.identity, scoringSettings: scoring.settings, obstaclesEnabled:setup.obstaclesEnabled, ...(content.selectedVariant.rulesetId === gameplayRulesetIds.flow ? { ...(!futureOnly ? { flowColliderSettings: gameplayFlowColliderSettings(setup) } : {}) } : {}), ...(!futureOnly && [gameplayRulesetIds.boxingCollider,gameplayRulesetIds.boxingColliderKnee].includes(content.selectedVariant.rulesetId) ? { boxingColliderSettings: gameplayBoxingColliderSettings(setup) } : {}), ...(!futureOnly && content.selectedVariant.rulesetId === gameplayRulesetIds.boxingColliderKnee ? { kneeColliderSettings: gameplayKneeColliderSettings(setup) } : {}) };
     if (futureOnly) this.graph.gameplay.applyFutureContent(configuration);
     else {
       // A new package cannot inherit the outgoing song's active Test transport.
@@ -2176,8 +2187,15 @@ export class AeroGame extends HTMLElement {
     // band has scrolled all the way through the glass's near extension.
     const trackExtensionWorldUnits=this.visualTrackExtensionWorldUnits(setup.trackExtensionWorldUnits,presentation);
     const beatGuidance=guidanceBeatTimestamps(this.renderEventIndex,Math.max(0,nowMs-trackExtensionWorldUnits/canonicalWorldUnitsPerMs),72/canonicalWorldUnitsPerMs);
+    const kneeEnabled=selected?.rulesetId===gameplayRulesetIds.boxingColliderKnee&&session.rulesetId===gameplayRulesetIds.boxingColliderKnee;
+    const inputEvidence=kneeEnabled&&session.purpose==="play"&&!this.menuOpen&&!document.hidden?this.graph.input.getSnapshot().latestEvidence:null;
+    const kneePose=inputEvidence?.provenance==="measured"?inputEvidence.kneePose:null;
+    const kneeAge=performance.now()-Number(kneePose?.measurementTimestampMs);
+    const measuredKneePose=kneePose?.schema==="aerobeat/measured_knee_pose"&&kneePose.calibrationId===inputEvidence?.calibrationId&&Number.isFinite(kneeAge)&&kneeAge>=0&&kneeAge<=150?kneePose:null;
+    const kneeJoints={left:null,right:null};for(const leg of measuredKneePose?.legs??[])if((leg.side==="left"||leg.side==="right")&&kneeJoints[leg.side]===null)kneeJoints[leg.side]={hip:leg.hip,knee:leg.knee,ankle:leg.ankle};
     return {
       presentation, nowMs, targets,
+      kneeEnabled,kneeJoints,kneePadRotationTuning:this.kneePadRotationTuning,kneeColliderSettings:setup.kneeColliderVolume,
       timingWindowBeforeMs: timingWindowMs,
       timingWindowAfterMs: timingWindowMs,
       colliderSettings:{...(presentation==="flow"?setup.flowColliderVolume:setup.boxingColliderVolume),visibleWristObstacleRadius:setup.visibleWristObstacleRadius,wristBombColliderScale:setup.wristBombColliderScale},
@@ -2333,6 +2351,13 @@ export class AeroGame extends HTMLElement {
     // independently persisted per-mode fade controls.
     frame.aftermathFadeByMode = { flow:this.desiredGameSetup.flowCorpseFade, boxing:this.desiredGameSetup.boxingCorpseFade };
     const visualTest = session?.purpose === "visual_test";
+    if (visualTest && frame.kneeEnabled && session?.state === "playing" && this.testEquipmentVisible && !this.menuOpen && !document.hidden) {
+      // Explicit renderer-only Test preview: preserve authored knee targets while
+      // omitting measured joints entirely. No preview point can score a hit.
+      delete frame.kneeJoints;
+      frame.kneePreview=true;
+      frame.kneePreviewJoints=TEST_KNEE_PREVIEW_JOINTS;
+    }
     const fallbackInput = visualTest ? testEquipmentInput(this.testEquipmentMouseHand, this.testEquipmentPointerPosition) : graph.input.getSnapshot();
     const resolved = equipmentOverride ?? this.resolveEquipmentPoses(graph, session, fallbackInput, frame);
     const equipment = visualTest && !this.testEquipmentVisible ? Object.freeze([]) : resolved;
@@ -2839,8 +2864,10 @@ export class AeroGame extends HTMLElement {
     // (a different recipe must not silently reset the mode to Flow).
     const equivalent = flowGameplayRulesetIds.includes(retainedRulesetId)
       ? content.variants.find((variant) => variant.rulesetId === retainedRulesetId && (variant.recipeId===null||variant.recipeId===undefined))
-      : content.variants.find((variant) => variant.rulesetId === retainedRulesetId && variant.recipeId === retainedRecipeId)
-        ?? content.variants.find((variant) => variant.rulesetId === retainedRulesetId);
+      : retainedRulesetId === gameplayRulesetIds.boxingCollider || retainedRulesetId === gameplayRulesetIds.boxingColliderKnee
+        ? preferredBoxingColliderVariant(content.variants, this.desiredGameSetup.kneeStrikesEnabled)
+        : content.variants.find((variant) => variant.rulesetId === retainedRulesetId && variant.recipeId === retainedRecipeId)
+          ?? content.variants.find((variant) => variant.rulesetId === retainedRulesetId);
     const fallback = content.variants.find((variant) => variant.rulesetId === gameplayRulesetIds.flow) ?? content.variants[0];
     const selected = equivalent ?? fallback;
     if (selected?.variantId && (content.selectedVariant?.variantId !== selected.variantId || modifierIds.length > 0)) await this.performSelectVariant(selected.variantId, modifierIds, owner);
@@ -2848,7 +2875,9 @@ export class AeroGame extends HTMLElement {
     if (selected?.variantId) this.lastGameplayRulesetId = graph.content.getSnapshot().selectedVariant?.rulesetId ?? gameplayRulesetIds.flow;
     if (this.pendingRetainedModeFallback) {
       const pending = this.pendingRetainedModeFallback; this.pendingRetainedModeFallback = null;
-      const targetVariant = exactGameplayVariant(content.variants, pending.rulesetId, pending.recipeId);
+      const targetVariant = pending.rulesetId === gameplayRulesetIds.boxingCollider || pending.rulesetId === gameplayRulesetIds.boxingColliderKnee
+        ? preferredBoxingColliderVariant(content.variants, this.desiredGameSetup.kneeStrikesEnabled)
+        : exactGameplayVariant(content.variants, pending.rulesetId, pending.recipeId);
       if (!targetVariant?.variantId) {
         const reason = Object.freeze({ code: "boxing_collider_reimport_required", message: BOXING_REIMPORT_MESSAGES.boxing_collider_reimport_required });
         this.lastError = reason;
@@ -3070,6 +3099,7 @@ export class AeroGame extends HTMLElement {
     const target = event.target;
     if((target instanceof HTMLInputElement||target instanceof HTMLSelectElement)&&target.dataset.gameSetupField){if(target instanceof HTMLInputElement&&target.type==="number"&&event.type==="input"){this.gameSetupDrafts.set(target.dataset.gameSetupField,{value:target.value,error:""});this.renderGameSetupError(target.dataset.gameSetupField,"");}else if(event.type==="change")this.applyGameSetupControl(target);}
     else if(target instanceof HTMLInputElement&&target.dataset.colliderVolumeField&&event.type==="change")this.applyColliderVolumeControl(target);
+    else if(target instanceof HTMLInputElement&&target.dataset.kneeColliderVolumeField&&event.type==="change")this.applyKneeColliderVolumeControl(target);
     else if (target instanceof HTMLSelectElement && target.dataset.action === "environment-asset-select" && event.type === "change") this.selectEnvironment(target.value);
     else if (target instanceof HTMLInputElement && target.dataset.cameraPoseField && event.type === "change") {
       const mode = this.cameraControlMode(); const field = target.dataset.cameraPoseField;
@@ -3085,6 +3115,7 @@ export class AeroGame extends HTMLElement {
     else if (target instanceof HTMLInputElement && target.dataset.testAutomaticFeedbackToggle === "true") this.setTestAutomaticFeedbackEnabled(target.checked);
     else if (target instanceof HTMLInputElement && target.dataset.equipmentMouseHand && target.checked) this.setTestEquipmentMouseHand(target.value);
     else if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement) && target.dataset.equipmentConfigField) this.applyEquipmentConfigControl(target);
+    else if (target instanceof HTMLInputElement && target.dataset.kneePadRotation && event.type === "change") this.applyKneePadRotationControl(target);
   }
 
   handleInteractionBlur(event){const target=event.target;if(!(target instanceof HTMLInputElement)||target.type!=="number"||!target.dataset.gameSetupField||!this.gameSetupDrafts.has(target.dataset.gameSetupField))return;if(target.validity.valid&&Number.isFinite(target.valueAsNumber))this.applyGameSetupControl(target);else{this.gameSetupDrafts.delete(target.dataset.gameSetupField);this.renderGameSetupControls();this.renderGameSetupError(target.dataset.gameSetupField,"Enter a value within the allowed range and step.");}}
@@ -3281,6 +3312,8 @@ export class AeroGame extends HTMLElement {
     const handGapInput=document.createElement("input");handGapInput.type="number";handGapInput.min="0";handGapInput.max="2000";handGapInput.step="1";handGapInput.dataset.gameSetupField="sameHandPunchMinGapMs";
     handGapLabel.append(handGapText,handGapInput);section.append(handGapLabel);
     for(const [field,title] of [["repeatedPunchSwitchChancePercent","Repeated punch: switch hand (%)"],["repeatedGuardReplaceChancePercent","Repeated guards: replace with punch (%)"]]){const label=document.createElement("label");label.className="game-setup-number-row";const text=document.createElement("span");text.textContent=title;const input=document.createElement("input");input.type="number";input.min="0";input.max="100";input.step="1";input.dataset.gameSetupField=field;label.append(text,input);section.append(label);}
+    const kneeToggleLabel=document.createElement("label");kneeToggleLabel.className="environment-option";const kneeToggleInput=document.createElement("input");kneeToggleInput.type="checkbox";kneeToggleInput.dataset.gameSetupField="kneeStrikesEnabled";const kneeToggleText=document.createElement("span");kneeToggleText.textContent="Knee strikes";kneeToggleLabel.append(kneeToggleInput,kneeToggleText);section.append(kneeToggleLabel);
+    const kneeChanceLabel=document.createElement("label");kneeChanceLabel.className="game-setup-number-row";const kneeChanceText=document.createElement("span");kneeChanceText.textContent="Knee strike chance (%)";const kneeChanceInput=document.createElement("input");kneeChanceInput.type="number";kneeChanceInput.min="0";kneeChanceInput.max="100";kneeChanceInput.step="1";kneeChanceInput.dataset.gameSetupField="kneeStrikeChancePercent";kneeChanceLabel.append(kneeChanceText,kneeChanceInput);section.append(kneeChanceLabel);
     for(const [field,title,max] of [["wristBombColliderScale","Wrist Bomb Collider Scale",2]]){const label=document.createElement("label");label.className="game-setup-number-row";const text=document.createElement("span");text.textContent=title;const input=document.createElement("input");input.type="number";input.min="0";input.max=String(max);input.step="any";input.dataset.gameSetupField=field;input.setAttribute("aria-describedby",`game-setup-${field}-error`);const error=document.createElement("small");error.id=`game-setup-${field}-error`;error.dataset.gameSetupError=field;error.setAttribute("aria-live","polite");label.append(text,input,error);section.append(label);}
     // 0.0.90 (htsg): Note appearance distance toggle + custom distance input.
     const spawnToggleLabel=document.createElement("label");spawnToggleLabel.className="environment-option";
@@ -3298,6 +3331,10 @@ export class AeroGame extends HTMLElement {
     const visibleLabel=document.createElement("label");visibleLabel.className="environment-option";const visibleInput=document.createElement("input");visibleInput.type="checkbox";visibleInput.dataset.colliderVolumeField="colliderVisible";const visibleText=document.createElement("span");visibleText.textContent="Show collider volume";visibleLabel.append(visibleInput,visibleText);colliderGroup.append(visibleLabel);
     for(const [field,title] of [["colliderScale","Collider scale"],["colliderDepthForward","Depth + (forward)"],["colliderDepthBackward","Depth − (backward)"]]){const label=document.createElement("label");label.className="game-setup-number-row";const text=document.createElement("span");text.textContent=title;const input=document.createElement("input");input.type="number";input.min="0";input.step="any";input.dataset.colliderVolumeField=field;label.append(text,input);colliderGroup.append(label);}
     section.append(colliderGroup);
+    const kneeColliderGroup=document.createElement("fieldset");kneeColliderGroup.className="gameplay-camera-controls";kneeColliderGroup.dataset.role="knee-collider-volume-group";const kneeColliderLegend=document.createElement("legend");kneeColliderLegend.textContent="Boxing knee pad collider";kneeColliderGroup.append(kneeColliderLegend);
+    const kneeVisibleLabel=document.createElement("label");kneeVisibleLabel.className="environment-option";const kneeVisibleInput=document.createElement("input");kneeVisibleInput.type="checkbox";kneeVisibleInput.dataset.kneeColliderVolumeField="colliderVisible";const kneeVisibleText=document.createElement("span");kneeVisibleText.textContent="Show collider volume";kneeVisibleLabel.append(kneeVisibleInput,kneeVisibleText);kneeColliderGroup.append(kneeVisibleLabel);
+    for(const [field,title] of [["colliderScale","Collider scale"],["colliderDepthForward","Depth + (forward)"],["colliderDepthBackward","Depth − (backward)"]]){const label=document.createElement("label");label.className="game-setup-number-row";const text=document.createElement("span");text.textContent=title;const input=document.createElement("input");input.type="number";input.min="0";input.step="any";input.dataset.kneeColliderVolumeField=field;label.append(text,input);kneeColliderGroup.append(label);}
+    section.append(kneeColliderGroup);
     // B2.4: populate the UI scale preset select and reflect the persisted value.
     const scaleSelect=this.shadowRoot?.querySelector("select[data-action='ui-scale-select']");
     if(scaleSelect instanceof HTMLSelectElement){for(const preset of AeroGame.uiScalePresets){const option=document.createElement("option");option.value=String(preset.value);option.textContent=`${preset.label} (${Math.round(preset.value*100)}%)`;scaleSelect.append(option);}scaleSelect.value=String(this.uiScale);}
@@ -3320,11 +3357,14 @@ export class AeroGame extends HTMLElement {
     section.insertBefore(cameraGroup, colliderGroup);
     this.renderCameraPoseControls();this.renderColliderVolumeControls();
   }
-  renderColliderVolumeControls(){const mode=this.cameraControlMode(),volume=(mode==="flow"?this.desiredGameSetup.flowColliderVolume:this.desiredGameSetup.boxingColliderVolume);const legend=this.shadowRoot?.querySelector("[data-role='collider-volume-mode']");if(legend instanceof HTMLElement)legend.textContent=`${mode==="flow"?"Flow saber":"Boxing glove"} collider`;for(const input of this.shadowRoot?.querySelectorAll("[data-collider-volume-field]")??[]){if(!(input instanceof HTMLInputElement))continue;const field=input.dataset.colliderVolumeField;if(!field)continue;if(input.type!=="checkbox"){input.min="0";input.removeAttribute("max");}if(this.shadowRoot?.activeElement===input)continue;if(input.type==="checkbox")input.checked=volume.colliderVisible;else input.value=String(volume[field]);}}
+  renderColliderVolumeControls(){const mode=this.cameraControlMode(),volume=(mode==="flow"?this.desiredGameSetup.flowColliderVolume:this.desiredGameSetup.boxingColliderVolume);const legend=this.shadowRoot?.querySelector("[data-role='collider-volume-mode']");if(legend instanceof HTMLElement)legend.textContent=`${mode==="flow"?"Flow saber":"Boxing glove"} collider`;for(const input of this.shadowRoot?.querySelectorAll("[data-collider-volume-field]")??[]){if(!(input instanceof HTMLInputElement))continue;const field=input.dataset.colliderVolumeField;if(!field)continue;if(input.type!=="checkbox"){input.min="0";input.removeAttribute("max");}if(this.shadowRoot?.activeElement===input)continue;if(input.type==="checkbox")input.checked=volume.colliderVisible;else input.value=String(volume[field]);}
+    const kneeGroup=this.shadowRoot?.querySelector("[data-role='knee-collider-volume-group']");if(kneeGroup instanceof HTMLElement)kneeGroup.style.display=mode==="boxing"?"":"none";
+    const kneeVolume=this.desiredGameSetup.kneeColliderVolume;for(const input of this.shadowRoot?.querySelectorAll("[data-knee-collider-volume-field]")??[]){if(!(input instanceof HTMLInputElement))continue;const field=input.dataset.kneeColliderVolumeField;if(!field)continue;if(this.shadowRoot?.activeElement===input)continue;if(input.type==="checkbox")input.checked=kneeVolume.colliderVisible;else input.value=String(kneeVolume[field]);}}
   applyColliderVolumeControl(input){const field=input.dataset.colliderVolumeField;if(!["colliderVisible","colliderScale","colliderDepthForward","colliderDepthBackward"].includes(field))return;const mode=this.cameraControlMode(),key=mode==="flow"?"flowColliderVolume":"boxingColliderVolume",current=getGameSetupSnapshot();const value=input.type==="checkbox"?input.checked:input.validity.valid&&Number.isFinite(input.valueAsNumber)?input.valueAsNumber:null;if(value===null){this.renderColliderVolumeControls();return;}try{setGameSetupSnapshot({...current,[key]:{...current[key],[field]:value}});this.renderColliderVolumeControls();}catch{this.renderColliderVolumeControls();}}
-  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","sameHandPunchMinGapMs","repeatedPunchSwitchChancePercent","repeatedGuardReplaceChancePercent","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLSelectElement&&field==="renderScale")next={...current,renderScale:Number(input.value)};else if(input instanceof HTMLInputElement&&["obstaclesEnabled","showGameplayGrid","visibleToleranceRange","visibleColliderRadius","uppercutOppositeLane","anyOppositeLane","noseMarkerVisible","visibleWristObstacleRadius"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
+  applyKneeColliderVolumeControl(input){const field=input.dataset.kneeColliderVolumeField;if(!["colliderVisible","colliderScale","colliderDepthForward","colliderDepthBackward"].includes(field))return;const current=getGameSetupSnapshot();const value=input.type==="checkbox"?input.checked:input.validity.valid&&Number.isFinite(input.valueAsNumber)?input.valueAsNumber:null;if(value===null){this.renderColliderVolumeControls();return;}try{setGameSetupSnapshot({...current,kneeColliderVolume:{...current.kneeColliderVolume,[field]:value}});this.renderColliderVolumeControls();}catch{this.renderColliderVolumeControls();}}
+  applyGameSetupControl(input){const current=getGameSetupSnapshot(),field=input.dataset.gameSetupField;if(!field)return;let next=current;if(input instanceof HTMLInputElement&&input.type==="number"){if(!input.validity.valid||!Number.isFinite(input.valueAsNumber)){this.renderGameSetupError(field,"Enter a value within the allowed range and step.");return;}const value=input.valueAsNumber;if(field==="spawnDistanceOverrideWorldUnits")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,normalSpawnDistanceWorldUnits:value}};else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","sameHandPunchMinGapMs","repeatedPunchSwitchChancePercent","repeatedGuardReplaceChancePercent","kneeStrikeChancePercent","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))next={...current,[field]:value};else return;}else if(input instanceof HTMLSelectElement&&field==="guidanceBandMode")next={...current,guidanceBandMode:input.value};else if(input instanceof HTMLSelectElement&&field==="renderScale")next={...current,renderScale:Number(input.value)};else if(input instanceof HTMLInputElement&&["obstaclesEnabled","kneeStrikesEnabled","showGameplayGrid","visibleToleranceRange","visibleColliderRadius","uppercutOppositeLane","anyOppositeLane","noseMarkerVisible","visibleWristObstacleRadius"].includes(field))next={...current,[field]:input.checked};else if(input instanceof HTMLInputElement&&field==="spawnDistanceOverrideEnabled")next={...current,spawnDistanceOverride:{...current.spawnDistanceOverride,enabled:input.checked}};else return;try{setGameSetupSnapshot(next);this.gameSetupDrafts.delete(field);if(field==="guidanceBandMode")this.renderGuidanceModeFrame(next);this.renderGameSetupError(field,"");}catch{this.gameSetupDrafts.delete(field);this.renderGameSetupControls();this.renderGameSetupError(field,"Enter a value within the allowed range and step.");}}
   renderGameSetupError(field,message){const value=this.shadowRoot?.querySelector(`[data-game-setup-error='${field}']`);if(value instanceof HTMLElement)value.textContent=message;}
-  renderGameSetupControls() { const setup=this.desiredGameSetup;for(const control of this.shadowRoot?.querySelectorAll("[data-game-setup-field]")??[]){if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement))continue;const field=control.dataset.gameSetupField;if(!field)continue;if(control instanceof HTMLSelectElement){control.value=field==="renderScale"?String(setup.renderScale):setup.guidanceBandMode;continue;}if(control.type==="number"){if(this.shadowRoot?.activeElement===control&&this.gameSetupDrafts.has(field))continue;if(field==="spawnDistanceOverrideWorldUnits"){control.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);control.disabled=!setup.spawnDistanceOverride.enabled;control.title=control.disabled?"Enable Override spawn distance to edit this value.":"";const msLabel=this.shadowRoot?.querySelector("[data-role=\"spawn-distance-ms\"]");if(msLabel instanceof HTMLElement)msLabel.textContent=`≈ ${Math.round(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits/0.006)} ms`;}else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","sameHandPunchMinGapMs","repeatedPunchSwitchChancePercent","repeatedGuardReplaceChancePercent","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))control.value=String(setup[field]);continue;}if(field==="spawnDistanceOverrideEnabled")control.checked=setup.spawnDistanceOverride.enabled;else if(field in setup&&typeof setup[field]==="boolean")control.checked=setup[field];} }
+  renderGameSetupControls() { const setup=this.desiredGameSetup;for(const control of this.shadowRoot?.querySelectorAll("[data-game-setup-field]")??[]){if(!(control instanceof HTMLInputElement||control instanceof HTMLSelectElement))continue;const field=control.dataset.gameSetupField;if(!field)continue;if(control instanceof HTMLSelectElement){control.value=field==="renderScale"?String(setup.renderScale):setup.guidanceBandMode;continue;}if(control.type==="number"){if(this.shadowRoot?.activeElement===control&&this.gameSetupDrafts.has(field))continue;if(field==="spawnDistanceOverrideWorldUnits"){control.value=String(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits);control.disabled=!setup.spawnDistanceOverride.enabled;control.title=control.disabled?"Enable Override spawn distance to edit this value.":"";const msLabel=this.shadowRoot?.querySelector("[data-role=\"spawn-distance-ms\"]");if(msLabel instanceof HTMLElement)msLabel.textContent=`≈ ${Math.round(setup.spawnDistanceOverride.normalSpawnDistanceWorldUnits/0.006)} ms`;}else if(["timingWindowMs","colliderRadius","directionToleranceDegrees","noteScalePercent","obstacleScalePercent","bombScalePercent","markerScalePercent","hazardVignetteIntensity","hazardVignettePulseHz","hazardVignettePulseDepth","hazardVignetteRampMs","hazardVignetteDecayMs","guardSpacing","sameHandPunchMinGapMs","repeatedPunchSwitchChancePercent","repeatedGuardReplaceChancePercent","kneeStrikeChancePercent","noseMarkerScale","trackExtensionWorldUnits","wristBombColliderScale"].includes(field))control.value=String(setup[field]);continue;}if(field==="spawnDistanceOverrideEnabled")control.checked=setup.spawnDistanceOverride.enabled;else if(field in setup&&typeof setup[field]==="boolean")control.checked=setup[field];} }
   drawerElement() { const value = this.shadowRoot?.querySelector("[data-role='drawer']"); return value instanceof HTMLElement ? value : null; }
   menuButtonElement() { const value = this.shadowRoot?.querySelector("[data-role='menu-button']"); return value instanceof HTMLButtonElement ? value : null; }
 
@@ -3484,7 +3524,7 @@ export class AeroGame extends HTMLElement {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
     this.resetTestEquipmentAuthoringState({ render:false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.detachPrivateCameraPresentation(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.detachPrivateCameraPresentation(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen); document.removeEventListener("pointermove", this.boundBottomUiPointer); document.removeEventListener("pointerdown", this.boundBottomUiPointerDown); for(const type of ["pointerup","pointercancel"]) document.removeEventListener(type, this.boundBottomUiPointerRelease); document.removeEventListener("touchend", this.boundBottomUiPointerRelease); document.removeEventListener("touchcancel", this.boundBottomUiPointerRelease);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
@@ -3676,6 +3716,15 @@ export class AeroGame extends HTMLElement {
     return true;
   }
 
+  applyKneePadRotationControl(control) {
+    if (!this.testPresentationAuthoringSnapshot().enabled) return false;
+    const [state,axis] = (control.dataset.kneePadRotation ?? "").split(".");
+    if (!["lowered","raised"].includes(state) || !["x","y","z"].includes(axis) || !control.validity.valid || !Number.isFinite(control.valueAsNumber) || Math.abs(control.valueAsNumber) > 360) { this.renderEquipmentConfigControls(); return false; }
+    this.kneePadRotationTuning = Object.freeze({...this.kneePadRotationTuning,[state]:Object.freeze({...this.kneePadRotationTuning[state],[axis]:control.valueAsNumber})});
+    this.renderGameplay();
+    return true;
+  }
+
   applyEquipmentConfigControl(control) {
     if (!this.testPresentationAuthoringSnapshot().enabled) return false;
     const path = control.dataset.equipmentConfigField;
@@ -3723,12 +3772,18 @@ export class AeroGame extends HTMLElement {
       const value = equipmentConfigValue(this.equipmentConfig, control.dataset.equipmentConfigField ?? "");
       control.value = value === null ? "" : String(value);
     }
+    if (updateInputs) for (const control of this.shadowRoot?.querySelectorAll("[data-knee-pad-rotation]") ?? []) {
+      if (!(control instanceof HTMLInputElement)) continue;
+      const [state,axis]=(control.dataset.kneePadRotation ?? "").split(".");
+      if (this.shadowRoot?.activeElement !== control && this.kneePadRotationTuning[state] && Object.hasOwn(this.kneePadRotationTuning[state],axis)) control.value=String(this.kneePadRotationTuning[state][axis]);
+    }
+    const kneeGroup=this.shadowRoot?.querySelector("[data-role='knee-pad-rotation-group']");if(kneeGroup instanceof HTMLElement)kneeGroup.hidden=this.cameraControlMode()!=="boxing";
     const toggle = this.shadowRoot?.querySelector("[data-equipment-preview-toggle='true']");
     if (toggle instanceof HTMLInputElement) toggle.checked = visible && this.testEquipmentVisible;
     const automatic = this.shadowRoot?.querySelector("[data-test-automatic-feedback-toggle='true']");
     if (automatic instanceof HTMLInputElement) automatic.checked = this.testAutomaticFeedbackEnabled;
     for (const control of this.shadowRoot?.querySelectorAll("[data-equipment-mouse-hand]") ?? []) if (control instanceof HTMLInputElement) control.checked = control.value === this.testEquipmentMouseHand;
-    for (const control of this.shadowRoot?.querySelectorAll("[data-equipment-config-field], [data-equipment-preview-toggle], button[data-equipment-config-action]") ?? []) {
+    for (const control of this.shadowRoot?.querySelectorAll("[data-equipment-config-field], [data-knee-pad-rotation], [data-equipment-preview-toggle], button[data-equipment-config-action]") ?? []) {
       if (control instanceof HTMLInputElement || control instanceof HTMLSelectElement || control instanceof HTMLButtonElement) control.disabled = !enabled;
     }
     const authoringEnabled = this.testEquipmentAuthoringSnapshot().enabled;
