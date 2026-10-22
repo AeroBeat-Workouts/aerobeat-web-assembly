@@ -23,7 +23,7 @@ try {
   if (vite) { await vite.listen(); base = vite.resolvedUrls?.local?.[0]; }
   else {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.ok(['0.0.141', '0.0.142', '0.0.143'].includes(snapshot.manifest.sourceManifest.packageVersion), 'terminal Reimport QA requires a signed corrective or knee successor');
+    assert.ok(['0.0.141', '0.0.142', '0.0.143', '0.0.144'].includes(snapshot.manifest.sourceManifest.packageVersion), 'terminal Reimport QA requires a signed corrective or knee successor');
     gameServer = createServer(handlerForSnapshot(snapshot));
     await new Promise(resolve => gameServer.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${gameServer.address().port}/`;

@@ -70,6 +70,7 @@ export { aeroGameMediaLeaseCoordinator, AeroGameMediaLeaseCoordinator } from "./
 export { createAeroGameServiceGraph, lockedProductionCvProfile } from "./service-graph.js";
 
 const GAME_EVENT_NAME = "aero-game-event";
+const GAME_EVENT_ARRAY_LIMIT = 96;
 const INTERNAL_CONTENT_RENDER_PROJECTION = Symbol.for("aerobeat.web-content.internal-render-projection");
 const INTERNAL_CONTENT_TIMING_MAPPER = Symbol.for("aerobeat.web-content.internal-timing-mapper");
 const INTERNAL_CONTENT_EFFECTIVE_PALETTE = Symbol.for("aerobeat.web-content.internal-effective-palette");
@@ -2211,14 +2212,22 @@ export class AeroGame extends HTMLElement {
     const trackExtensionWorldUnits=this.visualTrackExtensionWorldUnits(setup.trackExtensionWorldUnits,presentation);
     const beatGuidance=guidanceBeatTimestamps(this.renderEventIndex,Math.max(0,nowMs-trackExtensionWorldUnits/canonicalWorldUnitsPerMs),72/canonicalWorldUnitsPerMs);
     const kneeEnabled=selected?.rulesetId===gameplayRulesetIds.boxingColliderKnee&&session.rulesetId===gameplayRulesetIds.boxingColliderKnee;
-    const inputEvidence=kneeEnabled&&session.purpose==="play"&&!this.menuOpen&&!document.hidden?this.graph.input.getSnapshot().latestEvidence:null;
-    const kneePose=inputEvidence?.provenance==="measured"?inputEvidence.kneePose:null;
+    const inputSnapshot=kneeEnabled&&session.purpose==="play"&&!this.menuOpen&&!document.hidden?this.graph.input.getSnapshot():null;
+    const inputEvidence=inputSnapshot?.latestEvidence?.provenance==="measured"?inputSnapshot.latestEvidence:null;
+    const kneePose=inputEvidence?.kneePose;
     const kneeAge=performance.now()-Number(kneePose?.measurementTimestampMs);
     const measuredKneePose=kneePose?.schema==="aerobeat/measured_knee_pose"&&kneePose.calibrationId===inputEvidence?.calibrationId&&Number.isFinite(kneeAge)&&kneeAge>=0&&kneeAge<=150?kneePose:null;
     const kneeJoints={left:null,right:null};for(const leg of measuredKneePose?.legs??[])if((leg.side==="left"||leg.side==="right")&&kneeJoints[leg.side]===null)kneeJoints[leg.side]={hip:leg.hip,knee:leg.knee,ankle:leg.ankle};
+    // A knee wearable only needs a measured hip and knee; the ankle remains
+    // mandatory for the separate hit-bearing kneePose above. Both paths keep
+    // the same 150 ms measured-frame and calibration/source provenance gates.
+    const visualPose=inputSnapshot?.latestKneeVisualPose;
+    const visualAge=performance.now()-Number(visualPose?.measurementTimestampMs);
+    const measuredVisualPose=visualPose?.schema==="aerobeat/measured_knee_visual_pose"&&visualPose.calibrationId===inputEvidence?.calibrationId&&visualPose.measuredSourceFrameId===inputEvidence?.measuredSourceFrameId&&Number.isFinite(visualAge)&&visualAge>=0&&visualAge<=150?visualPose:null;
+    const kneeVisualJoints={left:null,right:null};for(const leg of measuredVisualPose?.legs??[])if((leg.side==="left"||leg.side==="right")&&kneeVisualJoints[leg.side]===null)kneeVisualJoints[leg.side]={hip:leg.hip,knee:leg.knee,ankle:leg.ankle};
     return {
       presentation, nowMs, targets,
-      kneeEnabled,kneeJoints,kneePadRotationTuning:this.kneePadRotationTuning,kneeColliderSettings:setup.kneeColliderVolume,
+      kneeEnabled,kneeJoints,kneeVisualJoints,kneePadRotationTuning:this.kneePadRotationTuning,kneeColliderSettings:setup.kneeColliderVolume,
       timingWindowBeforeMs: timingWindowMs,
       timingWindowAfterMs: timingWindowMs,
       colliderSettings:{...(presentation==="flow"?setup.flowColliderVolume:setup.boxingColliderVolume),visibleWristObstacleRadius:setup.visibleWristObstacleRadius,wristBombColliderScale:setup.wristBombColliderScale},
@@ -2378,6 +2387,7 @@ export class AeroGame extends HTMLElement {
       // Explicit renderer-only Test preview: preserve authored knee targets while
       // omitting measured joints entirely. No preview point can score a hit.
       delete frame.kneeJoints;
+      delete frame.kneeVisualJoints;
       frame.kneePreview=true;
       frame.kneePreviewJoints=TEST_KNEE_PREVIEW_JOINTS;
     }
@@ -3473,7 +3483,7 @@ export class AeroGame extends HTMLElement {
   publish(type) { this.renderPresenters(); this.emitGameEvent(type, { snapshot: this.snapshotForType(type) }); }
 
   emitGameEvent(type, payload) {
-    const event = Object.freeze({ schema: "aerobeat/game_event", version: 1, eventId: `${this.instanceId}-${++this.eventSequence}`, type, timestampMs: Math.max(0, performance.now()), payload: safeData(payload, 0, 96) });
+    const event = Object.freeze({ schema: "aerobeat/game_event", version: 1, eventId: `${this.instanceId}-${++this.eventSequence}`, type, timestampMs: Math.max(0, performance.now()), payload: safeData(payload, 0, GAME_EVENT_ARRAY_LIMIT) });
     this.dispatchEvent(new CustomEvent(GAME_EVENT_NAME, { bubbles: true, composed: true, detail: event }));
     this.bridge?.sendEvent(event);
     return event;
@@ -3481,7 +3491,7 @@ export class AeroGame extends HTMLElement {
 
   snapshotForType(type) {
     const snapshot = this.getSnapshot();
-    if (type === "content_changed") return snapshot.services?.content ?? null;
+    if (type === "content_changed") return contentEventTelemetry(snapshot.services?.content ?? null);
     if (type === "import_changed") return snapshot.services?.authoring ?? null;
     if (type === "calibration_changed" || type === "tracking_changed") return snapshot.services?.input ?? null;
     if (type === "session_changed" || type === "score_changed") return snapshot.services?.gameplay ?? null;
@@ -3850,6 +3860,19 @@ function errorMessage(error) { const message = ownDataValue(error, "message"); r
 function ownDataValue(record, key) { if (!record || typeof record !== "object") return undefined; const descriptor = Object.getOwnPropertyDescriptor(record, key); return descriptor && "value" in descriptor ? descriptor.value : undefined; }
 function inputTelemetry(snapshot) { const calibration=snapshot?.calibration??{};const tracking=snapshot?.tracking??{};return Object.freeze({schema:snapshot?.schema,version:snapshot?.version,readiness:calibration.readiness??null,gameplayPaused:tracking.gameplayPaused===true,freshCalibrationRequired:tracking.freshCalibrationRequired===true,countdownFrozen:snapshot?.countdownFrozen===true,anchorsFrozen:tracking.anchorsFrozen===true,degradedAnchors:Object.freeze(Array.isArray(tracking.degradedAnchors)?tracking.degradedAnchors:[])}); }
 function contentTelemetry(snapshot) { const result = {}; for (const key of Object.keys(snapshot)) if (key !== "resolvedEvents") result[key] = snapshot[key]; result.resolvedEventCount = Array.isArray(snapshot.resolvedEvents) ? snapshot.resolvedEvents.length : 0; return Object.freeze(result); }
+function contentEventTelemetry(snapshot) {
+  const playback = snapshot?.playback;
+  const judged = playback?.judgedEventIds, active = playback?.activeEventIds;
+  if (!Array.isArray(judged) || !Array.isArray(active) || (judged.length <= GAME_EVENT_ARRAY_LIMIT && active.length <= GAME_EVENT_ARRAY_LIMIT)) return snapshot;
+  // The full public snapshot retains the run's IDs (up to its own 2048-item
+  // contract). A content_changed event has a separate 96-item array limit:
+  // publish a bounded ID prefix with exact counts instead of rejecting a
+  // paused mode switch after the 97th scored beat. Scoring data is untouched.
+  return Object.freeze({ ...snapshot, playback: Object.freeze({ ...playback,
+    judgedEventIds: Object.freeze(judged.slice(0, GAME_EVENT_ARRAY_LIMIT)), activeEventIds: Object.freeze(active.slice(0, GAME_EVENT_ARRAY_LIMIT)),
+    judgedEventCount: judged.length, activeEventCount: active.length
+  }) });
+}
 function gameplayTelemetry(snapshot) { const selectedVariant=publicGameplayVariant(snapshot.selectedVariant),modifiers=Array.isArray(selectedVariant?.modifierIds)?selectedVariant.modifierIds:[];const accessibilityMode=modifiers.includes("no_obstacles")||modifiers.includes("obstacle_visual_only")?"no_obstacles":"default";const outcomes=Array.isArray(snapshot.obstacleOutcomes)?snapshot.obstacleOutcomes:[];const count=(result)=>Math.min(maximumObstaclesPerChart,outcomes.filter((entry)=>ownDataValue(entry,"result")===result).length);const obstacleCounts=Object.freeze({contact:count("contact"),avoided:count("avoided"),unevaluatedTracking:count("unevaluated_tracking")}),flowCollidersSummary=selectedVariant?.rulesetId===gameplayRulesetIds.flow?publicFlowCollidersSummary(snapshot):null;return Object.freeze({ schema: snapshot.schema, version: snapshot.version, serviceId: snapshot.serviceId, generation: snapshot.generation, session: telemetryFields(snapshot.session,["schema","version","sessionId","state","purpose","timestampMs","timelinePositionMs","packageId","chartId","rulesetId","recipeId","ranked","pauseReason"]), countdown: telemetryFields(snapshot.countdown,["schema","version","state","reason","value","timestampMs","gameplayTimeFrozen"]), safety: telemetryFields(snapshot.safety,["ready","freshCalibrationRequired"]), lease: snapshot.lease, selectedVariant, profileIdentity: snapshot.profileIdentity, activeEventCount: Math.min(flowCollidersPublicCountMaximum,Array.isArray(snapshot.activeEventIds)?snapshot.activeEventIds.length:0), judgedEventCount: Math.min(flowCollidersPublicCountMaximum,Array.isArray(snapshot.judgedEventIds)?snapshot.judgedEventIds.length:0), latestJudgement:publicSemanticJudgement(Array.isArray(snapshot.judgements)?snapshot.judgements.at(-1):null), latestShadowJudgement:publicSemanticJudgement(Array.isArray(snapshot.shadowJudgements)?snapshot.shadowJudgements.at(-1):null), scorePartitions: Array.isArray(snapshot.scorePartitions)?Object.freeze(snapshot.scorePartitions.map(publicScorePartition)):Object.freeze([]), obstacleCounts, ...(flowCollidersSummary?{flowCollidersSummary}:{}), accessibilityMode, error: snapshot.error }); }
 function telemetryFields(record,keys){const result={};for(const key of keys){const value=ownDataValue(record,key);if(value!==undefined)result[key]=value;}return Object.freeze(result);}
 function publicContentHash(value){return telemetryFields(value,["schema","version","algorithm","value"]);}
