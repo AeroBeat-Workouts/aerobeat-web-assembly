@@ -1,5 +1,5 @@
 // @ts-check
-// Connected QA: pinned real 5e BeatSaver ZIP, completed Play/Test → selected Reimport.
+// Connected QA: pinned real 5e ZIP, completed Play/Test or paused Play → selected Reimport.
 // Runs configured Vite or an isolated immutable signed snapshot; never touches public services.
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -15,6 +15,7 @@ fixture.bytes = await readFile(fixture.file);
 assert.equal(createHash('sha256').update(fixture.bytes).digest('hex'), fixture.sha256);
 // A source provenance rejection is a hard blocker: never use configFile:false.
 const signedDirectory = process.env.AEROBEAT_TERMINAL_SIGNED_DIR;
+const pausedMode = process.env.AEROBEAT_PAUSED_REIMPORT_TEST === '1';
 const vite = signedDirectory ? null : await createViteServer({ logLevel: 'error', server: { host: '127.0.0.1', port: 0, hmr: false } });
 let browser, parent, gameServer;
 try {
@@ -22,7 +23,7 @@ try {
   if (vite) { await vite.listen(); base = vite.resolvedUrls?.local?.[0]; }
   else {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.ok(['0.0.141', '0.0.142'].includes(snapshot.manifest.sourceManifest.packageVersion), 'terminal Reimport QA requires a signed corrective or knee successor');
+    assert.ok(['0.0.141', '0.0.142', '0.0.143'].includes(snapshot.manifest.sourceManifest.packageVersion), 'terminal Reimport QA requires a signed corrective or knee successor');
     gameServer = createServer(handlerForSnapshot(snapshot));
     await new Promise(resolve => gameServer.listen(0, '127.0.0.1', resolve));
     base = `http://127.0.0.1:${gameServer.address().port}/`;
@@ -31,7 +32,7 @@ try {
   parent = createServer((_request, response) => { response.setHeader('content-type', 'text/html; charset=utf-8'); response.end(`<!doctype html><iframe allow="camera; autoplay" style="width:390px;height:844px" src="${base}"></iframe>`); });
   await new Promise(resolve => parent.listen(0, '127.0.0.1', resolve));
   browser = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
-  for (const purpose of ['play', 'visual_test']) for (const embedding of ['direct', 'iframe']) {
+  for (const purpose of pausedMode ? ['play'] : ['play', 'visual_test']) for (const embedding of ['direct', 'iframe']) {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     try {
       const page = await context.newPage();
@@ -40,7 +41,7 @@ try {
       await page.goto(embedding === 'direct' ? base : `http://localhost:${parent.address().port}/`, { waitUntil: 'networkidle' });
       const frame = embedding === 'direct' ? page : page.frames().find(item => item !== page.mainFrame()); assert.ok(frame);
       const game = frame.locator('aero-game'); await game.waitFor();
-      const result = await game.evaluate(async (element, { id, hash, purpose }) => {
+      const result = await game.evaluate(async (element, { id, hash, purpose, pausedMode }) => {
         const graph = element.graph, events = [], t0 = performance.now(), wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         const snap = label => {
           const content = graph.content.getSnapshot(), session = graph.gameplay.getSnapshot().session, audio = graph.audio.getStatus(), clock = graph.audio.getClockSnapshot();
@@ -60,6 +61,10 @@ try {
           await element.lifecycleIntentTail;
           if (element.libraryView.selectedCollectionId !== converted.collection.collectionId) throw Error('Selected collection mismatch');
           snap('selected');
+          if (pausedMode) {
+            await element.selectGameplayAxes('boxing_collider_v1');
+            if (!['boxing_collider_v1', 'boxing_collider_knee_v1'].includes(graph.content.getSnapshot().selectedVariant?.rulesetId)) throw Error('The paused Play regression must start in Boxing');
+          }
           // Explicit first session only. No further Start/Test/Preview until after E+2.
           await element.startSession(purpose, { requireDownloaded: true });
           if (purpose === 'play') {
@@ -87,13 +92,25 @@ try {
           while (graph.gameplay.getSnapshot().session.state === 'playing' && graph.audio.getStatus().state !== 'playing' && performance.now() < audioStartDeadline) await wait(25);
           if (graph.gameplay.getSnapshot().session.state !== 'playing' || graph.gameplay.getSnapshot().session.purpose !== purpose || graph.audio.getStatus().state !== 'playing') throw Error(`Real ${purpose} did not reach playing: ${JSON.stringify(snap('not-playing'))}`);
           snap('first-session-playing');
-          await graph.audio.seek(Math.max(0, graph.audio.getStatus().durationSeconds - .015));
-          if (purpose === 'visual_test') element.runDisplayFrame();
-          const finishDeadline = performance.now() + 5000;
-          while (performance.now() < finishDeadline && graph.gameplay.getSnapshot().session.state !== 'completed') { if (purpose === 'visual_test') element.runDisplayFrame(); await wait(35); }
-          if (graph.gameplay.getSnapshot().session.state !== 'completed') throw Error(`Real ${purpose} did not complete: ${JSON.stringify(snap('completion-blocked'))}`);
-          await element.terminalServiceTail;
-          snap('completed'); element.setMenuOpen(true);
+          if (pausedMode) {
+            // Natural full-length music can stop fractionally before the scoring
+            // clock and leave this same active-paused run instead of completed.
+            await graph.audio.seek(Math.max(0, graph.audio.getStatus().durationSeconds - .01));
+            await graph.audio.pause();
+            const deadline = performance.now() + 5000;
+            while (performance.now() < deadline && graph.gameplay.getSnapshot().session.state !== 'paused_manual') await wait(35);
+            if (graph.gameplay.getSnapshot().session.state !== 'paused_manual') throw Error(`Play did not reach the natural-EOF pause branch: ${JSON.stringify(snap('pause-blocked'))}`);
+            snap('paused-before-menu'); element.menuButtonElement().click();
+            if (!element.menuOpen || element.menuDisposition !== 'active-paused') throw Error('The real menu button did not take the outgoing active-paused path');
+          } else {
+            await graph.audio.seek(Math.max(0, graph.audio.getStatus().durationSeconds - .015));
+            if (purpose === 'visual_test') element.runDisplayFrame();
+            const finishDeadline = performance.now() + 5000;
+            while (performance.now() < finishDeadline && graph.gameplay.getSnapshot().session.state !== 'completed') { if (purpose === 'visual_test') element.runDisplayFrame(); await wait(35); }
+            if (graph.gameplay.getSnapshot().session.state !== 'completed') throw Error(`Real ${purpose} did not complete: ${JSON.stringify(snap('completion-blocked'))}`);
+            await element.terminalServiceTail;
+            snap('completed'); element.setMenuOpen(true);
+          }
           const previousHash = graph.content.getSnapshot().packageHash?.value;
           const originalMap = graph.vendor.getMapById, originalAcquire = graph.vendor.acquireVersion;
           graph.vendor.getMapById = async sourceId => ({ mapId: sourceId, versions: [{ hash, downloadUrl: 'https://fixture.invalid/archive.zip' }] });
@@ -120,6 +137,17 @@ try {
           }
           const postCalls = events.slice(reimportClickIndex + 1, E2Index).filter(row => ['source.start', 'media.play'].includes(row.label));
           if (postCalls.length) throw Error(`Unexpected post-Reimport media calls: ${JSON.stringify(postCalls)}`);
+          if (pausedMode) {
+            element.menuButtonElement().click();
+            await wait(2000);
+            const closed = snap('menu-closed+2');
+            if (element.menuOpen || closed.flags.startRequested || closed.session.state === 'countdown' || closed.audio.state === 'playing' || events.slice(E2Index + 1).some(row => ['source.start', 'media.play'].includes(row.label))) throw Error(`Outgoing Play resumed on menu close: ${JSON.stringify(closed)}`);
+            const flow = element.shadowRoot.querySelector("aero-prototype-selector[scope='gameplay']")?.shadowRoot?.querySelector("input[data-intent='gameplay-mode-select'][value='flow_colliders_v1']");
+            if (!(flow instanceof HTMLInputElement)) throw Error('Flow radio unavailable after Boxer Reimport');
+            flow.click(); await element.lifecycleIntentTail;
+            if (graph.content.getSnapshot().selectedVariant?.rulesetId !== 'flow_colliders_v1' || element.lastError) throw Error(`Boxing→Flow after paused Reimport failed: ${JSON.stringify({ selected: graph.content.getSnapshot().selectedVariant?.rulesetId, error: element.lastError })}`);
+            snap('boxing-to-flow-after-reimport');
+          }
           // Only now verify an explicit new Test/Start can play the reloaded song.
           const restart = 'visual_test';
           snap('explicit-restart-invoked');
@@ -130,7 +158,7 @@ try {
           await graph.audio.pause();
           return { purpose, sourceHash: hash, previousHash, storedHash, loadedHash, callsBeforeRestart: events.filter(row => ['source.start', 'media.play'].includes(row.label)), E0, E2, restarted, events };
         } finally { AudioBufferSourceNode.prototype.start = originalStart; HTMLMediaElement.prototype.play = originalPlay; }
-      }, { id: fixture.id, hash: fixture.hash, purpose });
+      }, { id: fixture.id, hash: fixture.hash, purpose, pausedMode });
       assert.equal(result.purpose, purpose);
       assert.equal(result.sourceHash, fixture.hash);
       assert.equal(result.loadedHash, result.storedHash);

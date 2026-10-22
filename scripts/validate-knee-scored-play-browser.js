@@ -19,7 +19,7 @@ try {
   if (vite) { await vite.listen(); url = vite.resolvedUrls?.local?.[0]; }
   else {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.equal(snapshot.manifest.sourceManifest.packageVersion, '0.0.142', 'signed knee scoring needs the knee release');
+    assert.ok(['0.0.142', '0.0.143'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or corrective successor');
     fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'aerobeat-signed-knee-scoring-'));
     await buildFixture({ configFile: false, root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });
     const fixtures = new Map(readdirSync(fixtureDirectory).filter(name => name.endsWith('.js')).map(name => [`/scripts/fixtures/${name}`, readFileSync(path.join(fixtureDirectory, name))]));

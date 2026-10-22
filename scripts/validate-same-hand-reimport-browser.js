@@ -22,7 +22,7 @@ try {
   let url;
   if (signedDirectory) {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.ok(["0.0.140", "0.0.141", "0.0.142"].includes(snapshot.manifest.sourceManifest.packageVersion), "selected-song QA requires a signed Boxer baseline or successor");
+    assert.ok(["0.0.140", "0.0.141", "0.0.142", "0.0.143"].includes(snapshot.manifest.sourceManifest.packageVersion), "selected-song QA requires a signed Boxer baseline or successor");
     signedServer = createHttpServer(handlerForSnapshot(snapshot));
     await new Promise((resolve) => signedServer.listen(0, "127.0.0.1", resolve));
     const signedAddress = signedServer.address(); assert.ok(signedAddress && typeof signedAddress !== "string");

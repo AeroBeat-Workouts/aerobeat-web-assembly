@@ -111,20 +111,7 @@ try {
             const preCaptureStatus=renderer.describe();
             fail(!preCaptureStatus.errorMessage,`${scenario.name}: production renderer error before capture: ${JSON.stringify({state:preCaptureStatus.state,error:preCaptureStatus.errorMessage,session:harness.graph.gameplay.getSnapshot().session.state})}`);
             const capture=harness.capture();
-            // A real Play preview must name the locked scored-cylinder setting:
-            // the rear Z face projects onto itself in landscape even when the
-            // framebuffer is valid and its value really reaches the renderer.
-            const chip=element.shadowRoot.querySelector('[data-role="collider-preview-chip"]');
-            const shown=chip instanceof HTMLElement&&!chip.hidden;
-            fail(scenario.volume.colliderVisible?shown:!shown,`${scenario.name}: run-locked wrist preview missing or shown while OFF in scored Play`);
-            let preview={shown,text:'',bounds:null};
-            if(shown){
-              const text=chip.textContent??'',rect=chip.getBoundingClientRect(),host=element.getBoundingClientRect(),style=getComputedStyle(chip),color=style.backgroundColor.match(/[\d.]+/g)?.map(Number)??[];
-              fail(text.includes('Scored glove cylinder')&&text.includes(`scale ×${locked.colliderScale}`)&&text.includes(`front ×${locked.colliderDepthForward}`)&&text.includes(`rear ×${locked.colliderDepthBackward}`),`${scenario.name}: Play preview does not identify all run-locked glove dimensions: ${text}`);
-              fail(rect.width>=120&&rect.height>=25&&rect.left>=host.left&&rect.right<=host.right&&rect.top>=host.top&&rect.bottom<=host.bottom&&Number.parseFloat(style.fontSize)>=14&&color.length>=4&&color[3]>=.8,`${scenario.name}: Play preview is clipped or unreadably faint: ${JSON.stringify({rect:{x:rect.x,y:rect.y,width:rect.width,height:rect.height},host:{x:host.x,y:host.y,width:host.width,height:host.height},font:style.fontSize,background:style.backgroundColor})}`);
-              fail(rect.bottom<host.top+host.height*.42,`${scenario.name}: preview obscures center glove/target region`);
-              preview={shown,text,bounds:{x:rect.x,y:rect.y,width:rect.width,height:rect.height}};
-            }
+            fail(!element.shadowRoot.querySelector('[data-role="collider-preview-chip"]'),`${scenario.name}: unapproved glove text chip must be absent from scored Play`);
             // Scored Play and Show must use the same resolved glove pose.
             const frame=harness.element.rendererFrame(),poses=harness.element.currentEquipmentPoses;
             const glove=poses?.find(pose=>pose.role==='left_wrist'&&pose.mode==='boxing');
@@ -201,13 +188,13 @@ try {
             fail(scored.session.purpose==='play'&&scored.session.state==='playing'&&scored.session.timelinePositionMs>=contact.song,`${scenario.name}: measured score frame did not advance the real Play audio clock`);
             const negative=scenario.name.startsWith('default-')||scenario.name==='scale-zero';
             fail(!before&&(negative?!judgement&&!partition?.hits:judgement?.result==='hit'&&partition?.hits===1&&partition.score>0),`${scenario.name}: measured ${negative?'near/early miss':'target hit'} boundary failed: ${JSON.stringify({before,judgement,partition,song:contact.song,targetX,targetY,contact,safe,at,timingWindowMs:harness.element.activeSessionSetup.timingWindowMs,directionRequired:harness.element.activeSessionSetup.enforceAuthoredDirection})}`);
-            outputs.push({name:scenario.name,volume:locked,frame:frame.colliderSettings,pixel:paired,projection,preview,gloveDepthWu:left?.scale.z??null,glovePixels:{changed:glovePixels.changed,strongest:glovePixels.strongest},score:{result:judgement?.result??'pending',tier:judgement?.tier??null,hits:partition?.hits??0,points:partition?.score??0,contactSongMs:contact.song}});
+            outputs.push({name:scenario.name,volume:locked,frame:frame.colliderSettings,pixel:paired,projection,gloveDepthWu:left?.scale.z??null,glovePixels:{changed:glovePixels.changed,strongest:glovePixels.strongest},score:{result:judgement?.result??'pending',tier:judgement?.tier??null,hits:partition?.hits??0,points:partition?.score??0,contactSongMs:contact.song}});
           }
           const row=outputs[0];
           fail(['off','scale-zero'].includes(scenario.name)?row.pixel.count===0:row.projection&&row.pixel.count>100,`${scenario.name}: expected OFF-negative or visible enabled collider pixel area: ${JSON.stringify({pixel:row.pixel,projection:row.projection})}`);
           // The separate-page parent must compare tuned rows against default;
           // this payload is bounded diagnostic evidence, not raw pose/pixels.
-          return {name:row.name,pixel:row.pixel,projection:row.projection,preview:row.preview,settings:row.volume,frameSettings:row.frame,gloveDepthWu:row.gloveDepthWu,glovePixels:row.glovePixels,score:row.score};
+          return {name:row.name,pixel:row.pixel,projection:row.projection,settings:row.volume,frameSettings:row.frame,gloveDepthWu:row.gloveDepthWu,glovePixels:row.glovePixels,score:row.score};
         }finally{harness.dispose();}
       },scenario);
       assert.equal(noise.length,0,`${context.kind}:${context.width}x${context.height} browser noise ${noise.join(' | ')}`);
@@ -224,9 +211,6 @@ try {
        assert.equal(byName['scale-unbounded'].score.result,'hit',`${context.kind}: Scale 5 must score with enlarged glove radius against the fixed note`);
       assert(base.count>100&&base.bounds,`${context.kind}: Scale1 glove cylinder must have visible bounded area`);
       assert.deepEqual([byName.default.settings.colliderScale,byName.default.settings.colliderDepthForward,byName.default.settings.colliderDepthBackward],[1,1,0],`${context.kind}: native default must be Scale1 / Depth+1 / Depth−0`);
-      // The Play chip exposes run-locked depth controls independently of the
-      // scored cylinder's measured framebuffer footprint.
-      assert(!byName.off.preview.shown&&byName.default.preview.shown&&byName.backward.preview.shown&&byName.default.preview.text!==byName.backward.preview.text,`${context.kind}:${context.width}x${context.height}: backward change must remain legible in run-locked Play preview`);
       for(const name of ['scale','scale-unbounded','forward','backward']){
         const tuned=byName[name].pixel,box=tuned.bounds;
         assert(box&&tuned.count>100&&Math.abs(tuned.count-base.count)>12&&[
@@ -234,7 +218,7 @@ try {
         ].some(delta=>delta>=2),`${context.kind}:${context.width}x${context.height} ${name} must change measured pixel area AND edge: ${JSON.stringify({base,tuned})}`);
       }
       const unbounded=byName['unbounded-depths'];
-      assert(unbounded.settings.colliderDepthForward===.5&&unbounded.settings.colliderDepthBackward===5&&unbounded.frameSettings.colliderDepthForward===.5&&unbounded.frameSettings.colliderDepthBackward===5&&unbounded.preview.text.includes('front ×0.5')&&unbounded.preview.text.includes('rear ×5')&&unbounded.gloveDepthWu>byName.default.gloveDepthWu,`${context.kind}:${context.width}x${context.height}: native out-of-range Boxer depths must persist, lock for scored Play and enlarge the actual rendered glove Z extent: ${JSON.stringify({base:byName.default,unbounded})}`);
+      assert(unbounded.settings.colliderDepthForward===.5&&unbounded.settings.colliderDepthBackward===5&&unbounded.frameSettings.colliderDepthForward===.5&&unbounded.frameSettings.colliderDepthBackward===5&&unbounded.gloveDepthWu>byName.default.gloveDepthWu,`${context.kind}:${context.width}x${context.height}: native out-of-range Boxer depths must persist, lock for scored Play and enlarge the actual rendered glove Z extent: ${JSON.stringify({base:byName.default,unbounded})}`);
       assert.equal(unbounded.score.result,'hit','Out-of-range Boxer backward depth must score a late target-centred Play contact');
       assert.equal(byName.off.score.result,'hit','Overlay visibility OFF must preserve scored hit');
       assert.equal(byName.default.score.result,'hit','Default centered glove must score');

@@ -93,7 +93,7 @@ assert.equal(source.includes("normalizedTestEquipmentPointer"), false, "obsolete
 const pointerBody = source.slice(source.indexOf("\n  handleTestEquipmentPointerMove("), source.indexOf("\n  setTestEquipmentVisible(", source.indexOf("\n  handleTestEquipmentPointerMove(")));
 assert.equal(pointerBody.includes("pointerleave"), false, "pointer movement handler must not clear latched position on leave");
 assert(source.includes("setDebugCameraAuthoringInputEnabled(hand === \"off\")"), "hand selection must own renderer camera input gate");
-assert(source.includes("const cameraControlEnabled = snapshot.enabled && this.testEquipmentMouseHand === \"off\""), "camera-specific controls must disable while a hand is selected");
+assert(source.includes("const cameraControlEnabled = snapshot.enabled;") && source.includes("debugCameraAuthoringControlEnabled() { return this.debugCameraSnapshot().enabled; }"), "explicit camera buttons and pose files must remain available with a selected simulated hand");
 const resetAuthoringStart = source.indexOf("\n  resetTestEquipmentAuthoringState(");
 const resetAuthoringEnd = source.indexOf("\n  setTestAutomaticFeedbackEnabled(", resetAuthoringStart);
 const resetAuthoringBody = source.slice(resetAuthoringStart, resetAuthoringEnd);
