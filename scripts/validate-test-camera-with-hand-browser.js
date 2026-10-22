@@ -64,11 +64,12 @@ try {
       }
       const state = () => game.evaluate(element => {
         const renderer = element.graph.renderer, pose = renderer.cameraEntity?.getPosition(), controls = [...element.shadowRoot.querySelectorAll("button[data-debug-camera-intent],button[data-action='debug-camera-speed'],button[data-action='debug-camera-reset'],button[data-action='debug-camera-load'],button[data-action='debug-camera-export']")];
-        return { hand: element.testEquipmentMouseHand, canvasInput: renderer.debugCameraAuthoringInputEnabled, buttonsEnabled: controls.length >= 10 && controls.every(control => !control.disabled), z: pose?.z, intents: renderer.describe().debugActiveIntentCount, status: element.shadowRoot.querySelector("[data-role='debug-camera-pose-status']")?.textContent, error: element.lastError?.message ?? null };
+        return { hand: element.testEquipmentMouseHand, canvasInput: renderer.debugCameraAuthoringInputEnabled, buttonsEnabled: controls.length >= 10 && controls.every(control => !control.disabled), chipPresent: Boolean(element.shadowRoot.querySelector("[data-role='collider-preview-chip']")), z: pose?.z, intents: renderer.describe().debugActiveIntentCount, status: element.shadowRoot.querySelector("[data-role='debug-camera-pose-status']")?.textContent, error: element.lastError?.message ?? null };
       });
       const before = await state();
       assert.equal(before.hand, "right"); assert.equal(before.canvasInput, false);
       assert.equal(before.buttonsEnabled, true, `${embedding}: right-hand Test must expose camera buttons and files`);
+      assert.equal(before.chipPresent, false, `${embedding}: unapproved scored-glove text chip must stay absent`);
       const forward = game.locator("button[data-debug-camera-intent='forward']");
       await forward.hover(); await page.mouse.down(); await page.waitForTimeout(260);
       const held = await state(); await page.mouse.up(); await page.waitForTimeout(100);

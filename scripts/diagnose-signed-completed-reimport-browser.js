@@ -93,13 +93,13 @@ try {
           if (graph.gameplay.getSnapshot().session.state !== 'playing' || graph.gameplay.getSnapshot().session.purpose !== purpose || graph.audio.getStatus().state !== 'playing') throw Error(`Real ${purpose} did not reach playing: ${JSON.stringify(snap('not-playing'))}`);
           snap('first-session-playing');
           if (pausedMode) {
-            // Natural full-length music can stop fractionally before the scoring
-            // clock and leave this same active-paused run instead of completed.
-            await graph.audio.seek(Math.max(0, graph.audio.getStatus().durationSeconds - .01));
+            // Cover the active-paused outgoing run independently of EOF rounding:
+            // the fixed game should complete at natural EOF, not fake a pause.
+            await graph.audio.seek(15);
             await graph.audio.pause();
             const deadline = performance.now() + 5000;
             while (performance.now() < deadline && graph.gameplay.getSnapshot().session.state !== 'paused_manual') await wait(35);
-            if (graph.gameplay.getSnapshot().session.state !== 'paused_manual') throw Error(`Play did not reach the natural-EOF pause branch: ${JSON.stringify(snap('pause-blocked'))}`);
+            if (graph.gameplay.getSnapshot().session.state !== 'paused_manual') throw Error(`Play did not reach the deliberate mid-song pause branch: ${JSON.stringify(snap('pause-blocked'))}`);
             snap('paused-before-menu'); element.menuButtonElement().click();
             if (!element.menuOpen || element.menuDisposition !== 'active-paused') throw Error('The real menu button did not take the outgoing active-paused path');
           } else {
