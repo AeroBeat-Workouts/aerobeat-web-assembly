@@ -2,6 +2,7 @@
 .beads.gate.lock
 .github/
 .plans/
+.ui-fidelity/
 .tmp/
 dist/
 dist-friend-game/
