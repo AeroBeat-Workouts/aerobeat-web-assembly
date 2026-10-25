@@ -51,8 +51,8 @@ const currentGameplayPaths = [...JSON.parse(readFileSync("assets/gameplay/0.0.13
 assert.equal(currentGameplayPaths.length, 23, "additive knee gameplay release inventory drifted");
 const ids = environmentAssetCatalog.map((entry) => entry.descriptor.id);
 const rendererRoot = resolve(root, "../aerobeat-web-renderer");
-const rendererCommit = "3ae0c5f42568d2dfebab496122c66943a545fe10";
-const rendererTree = "ebcfc8687864f8536ee3d83f26bc4fc5d1204465";
+const rendererCommit = "94f1a06422f4e720f16b2d9f1b14f43dfd7a7b40";
+const rendererTree = "840cc205eb4f5fa5c74b62a6599c362896f4dc80";
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD"]), rendererCommit, "linked renderer commit drifted");
 assert.equal(git(rendererRoot, ["rev-parse", "HEAD^{tree}"]), rendererTree, "linked renderer tree drifted");
 validateReleaseDependencyStatus(gitRaw(rendererRoot, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]), "linked renderer");

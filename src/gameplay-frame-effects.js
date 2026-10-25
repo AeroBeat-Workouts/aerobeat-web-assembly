@@ -163,6 +163,14 @@ function guardSpawnPositionsForEvent(event) {
   return { left, right };
 }
 
+/** Keep Play and Test aftermath at the live Boxer target height, without changing Flow spawns. */
+function atBoxingHeight(position, mapping, tuning) {
+  if (tuning === null || mapping.family === "flow") return position;
+  const family = mapping.family === "guard" ? "guard" : mapping.mode;
+  const offset = tuning.offsets[family];
+  return typeof offset === "number" ? { ...position, y: tuning.shoulderWorldY + offset } : position;
+}
+
 /** Convert a canonical 4×3 grid cell to its world position at Z=0. */
 function gridCellToWorldZ0(cell) {
   const column = cell % 4;
@@ -254,8 +262,9 @@ function normalizeSpawnRowReach(reach) {
  * @param {boolean} [visualTestSyntheticFeedbackEnabled] Enables only the
  * renderer-local Visual Test even-feedbackIndex synthetic aftermath branch;
  * defaults true. Real Play hit aftermath is independent of this option.
+ * @param {Readonly<{shoulderWorldY:number,offsets:Readonly<Record<string,number>>}>|null} [boxingHeightTuning] Current live shoulder-relative Boxing Y; absent for Flow and legacy.
  */
-export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null, acceptedFlowSliceT = null, visualTestSyntheticFeedbackEnabled = true) {
+export function projectAftermathEntries(events, gameplay, nowMs, targets, renderEventIndex, rowReach = null, acceptedFlowSliceT = null, visualTestSyntheticFeedbackEnabled = true, boxingHeightTuning = null) {
   const judgementsValue = recordValue(gameplay, "judgements");
   if (!Array.isArray(judgementsValue)) return [];
   /** @type {{eventId:string}} */
@@ -298,7 +307,7 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
         family: mapping.family,
         hand: mapping.hand,
         mode: mapping.mode,
-        spawn: spawnForEvent(event, rowReach),
+        spawn: atBoxingHeight(spawnForEvent(event, rowReach), mapping, boxingHeightTuning),
         seed: aftermathSeedForTargetId(eventId),
         ...(mapping.shape ? { shape: mapping.shape } : {}),
         ...(direction !== null ? { direction } : {}),
@@ -354,10 +363,10 @@ export function projectAftermathEntries(events, gameplay, nowMs, targets, render
           // (left + right) at the authored cell positions — instead of one
           // central bonk. The renderer tints each per hand and desaturates.
           const positions = guardSpawnPositionsForEvent(event);
-          candidates.push({ commitMs, targetId, entry: { ...baseEntry, hand: "left", spawn: positions.left } });
-          candidates.push({ commitMs, targetId: `${targetId}#r`, entry: { ...baseEntry, hand: "right", spawn: positions.right } });
+          candidates.push({ commitMs, targetId, entry: { ...baseEntry, hand: "left", spawn: atBoxingHeight(positions.left, mapping, boxingHeightTuning) } });
+          candidates.push({ commitMs, targetId: `${targetId}#r`, entry: { ...baseEntry, hand: "right", spawn: atBoxingHeight(positions.right, mapping, boxingHeightTuning) } });
         } else {
-          candidates.push({ commitMs, targetId, entry: { ...baseEntry, spawn: spawnForEvent(event, rowReach) } });
+          candidates.push({ commitMs, targetId, entry: { ...baseEntry, spawn: atBoxingHeight(spawnForEvent(event, rowReach), mapping, boxingHeightTuning) } });
         }
       }
     }

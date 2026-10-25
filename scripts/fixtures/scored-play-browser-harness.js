@@ -208,9 +208,14 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
   const calibrate = async () => {
     active(); required(element.sessionStartRequested && !element.menuOpen && state.cvRunning, 'Start scored Play with active CV and closed setup menu before calibration');
     const deadline = performance.now() + 14000;
+    // Knee-enabled Boxer now requires both measured knees during the same T-pose
+    // hold, independently of whether this authored chart contains a knee beat.
+    const calibrationLegs = mode === 'boxing' && element.activeSessionSetup?.kneeStrikesEnabled
+      ? { left: { hip: { x: .43, y: .68 }, knee: { x: .43, y: .8 }, ankle: { x: .43, y: .93 } }, right: { hip: { x: .57, y: .68 }, knee: { x: .57, y: .8 }, ankle: { x: .57, y: .93 } } }
+      : null;
     // One real display establishes the camera identity exactly as production
     // does before the faster measured input-only calibration samples begin.
-    feedPose({ tPose: true });
+    feedPose({ tPose: true, legs: calibrationLegs });
     const failure = phase => {
       const input = graph.input.getSnapshot(), gameplay = graph.gameplay.getSnapshot();
       throw new Error(`Scored Play fixture: ${phase}: ${JSON.stringify({ session: gameplay.session.state, purpose: gameplay.session.purpose, countdown: gameplay.countdown?.value ?? null, calibration: input.calibration.state, readiness: input.calibration.readiness, holdProgressMs: input.calibration.holdProgressMs, calibrationId: input.calibration.calibrationId, trackingPaused: input.tracking.gameplayPaused, evidence: input.latestEvidence?.provenance ?? null, cv: graph.cv.getStatus().lifecycleState, audio: graph.audio.getStatus().state, menuOpen: element.menuOpen, lastError: element.lastError?.message ?? null })}`);
@@ -227,7 +232,7 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
       // used by the display/coordinator for countdown, but a slow GLB render
       // must not masquerade as lost camera frames in the measured input seam.
       measurementMs = Math.max(performance.now(), measurementMs + 1000 / 15, Number(element.latestPoseTimestampMs ?? 0) + 1);
-      feedPose({ tPose, timestampMs: measurementMs, render });
+      feedPose({ tPose, legs: tPose ? calibrationLegs : null, timestampMs: measurementMs, render });
       required(state.pose !== before && graph.input.getSnapshot().tracking.allRequiredAnchorsVisible, 'calibration measured upper-body sample unavailable');
     };
     // Rendering is not required for the input service's real 2000ms measured

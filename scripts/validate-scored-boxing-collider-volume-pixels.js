@@ -131,9 +131,11 @@ try {
               for(const endpoint of ['start','end'])for(const axis of ['x','y','z'])fail(close(left.capsule[endpoint][axis],scoredCylinder[endpoint][axis]-(axis==='x'?1.5:0)),`${scenario.name}: Show ${endpoint}.${axis} differs from shared scored cylinder`);
               for(const axis of ['x','y','z']){
                 fail(close(wire.getPosition()[axis],left.position[axis])&&close(fill.getPosition()[axis],left.position[axis])&&close(wire.getLocalScale()[axis],left.scale[axis])&&close(fill.getLocalScale()[axis],left.scale[axis]),`${scenario.name}: cylinder fill/wire diverged from scored ${axis} ${JSON.stringify({wirePosition:wire.getPosition()[axis],fillPosition:fill.getPosition()[axis],wireScale:wire.getLocalScale()[axis],fillScale:fill.getLocalScale()[axis],expectedPosition:left.position[axis],expectedScale:left.scale[axis]})}`);
-                fail(close(wire.getRotation()[axis],glove.orientation[axis])&&close(fill.getRotation()[axis],glove.orientation[axis]),`${scenario.name}: fill/outline lost the final glove quaternion ${axis}`);
+                fail(close(wire.getRotation()[axis],0)&&close(fill.getRotation()[axis],0),`${scenario.name}: scored Show cylinder must not follow glove art quaternion ${axis}`);
               }
-              fail(close(left.scale.x,left.capsule.radius*2)&&close(left.scale.y,left.capsule.radius*2)&&close(left.scale.z,Math.hypot(...['x','y','z'].map(axis=>left.capsule.end[axis]-left.capsule.start[axis]))),`${scenario.name}: mesh diameter/reach differs from its modeled flat-ended cylinder`);
+              fail(close(wire.getRotation().w,1)&&close(fill.getRotation().w,1),`${scenario.name}: scored Show cylinder must retain identity quaternion`);
+               if(scenario.name==='default')fail(Math.abs(glove.orientation.z)>.001,`${scenario.name}: glove art should still rotate independently of fixed scoring cylinder`);
+               fail(close(left.scale.x,left.capsule.radius*2)&&close(left.scale.y,left.capsule.radius*2)&&close(left.scale.z,Math.hypot(...['x','y','z'].map(axis=>left.capsule.end[axis]-left.capsule.start[axis]))),`${scenario.name}: mesh diameter/reach differs from its modeled flat-ended cylinder`);
               if(scenario.name==='default')fail(close(left.capsule.radius,.34*glove.scale)&&close(left.scale.z,.68*glove.scale),`${scenario.name}: Scale1 +1/−0 glove silhouette diameter/reach differs from source glove geometry`);
             }
             const equipment=renderer.describe().equipment;

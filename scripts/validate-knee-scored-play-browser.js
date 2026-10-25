@@ -19,9 +19,10 @@ try {
   if (vite) { await vite.listen(); url = vite.resolvedUrls?.local?.[0]; }
   else {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.ok(['0.0.142', '0.0.143'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or corrective successor');
+    assert.ok(['0.0.142', '0.0.143', '0.0.145'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or private corrective successor');
+     if (snapshot.manifest.sourceManifest.packageVersion === '0.0.145') assert.equal(snapshot.manifest.sourceManifest.sources['@aerobeat/web-input']?.commit, '31c96a36e6c7a9ac6f9c61e7c52ba0e776137990', 'the private 0.0.145 candidate must not be confused with the frozen public 0.0.145 knee gate');
     fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'aerobeat-signed-knee-scoring-'));
-    await buildFixture({ configFile: false, root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });
+    await buildFixture({ configFile: 'vite.config.js', root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });
     const fixtures = new Map(readdirSync(fixtureDirectory).filter(name => name.endsWith('.js')).map(name => [`/scripts/fixtures/${name}`, readFileSync(path.join(fixtureDirectory, name))]));
     const handler = handlerForSnapshot(snapshot);
     signedServer = createHttpServer((request, response) => {
@@ -72,8 +73,14 @@ try {
       try {
         await harness.waitForAssets(); await harness.selectChart();
         await harness.setSetup({ noseMarkerVisible: true, spawnDistanceOverrideEnabled: true, spawnDistanceOverrideWorldUnits: 20, kneeColliderVolume: { colliderVisible: true } });
-        await harness.startPlay(); await harness.calibrate();
-        const { graph } = harness;
+        await harness.startPlay();
+         const { graph } = harness;
+         check(harness.element.activeSessionSetup.kneeStrikeChancePercent === 0, 'zero knee-strike chance remains a knee-required calibration mode');
+         harness.feedPose({ tPose: true });
+         const beforeCalibration = graph.input.getSnapshot();
+         check(beforeCalibration.calibrationChecklist.kneesRequired === true && beforeCalibration.calibrationChecklist.visible.left_knee === false && beforeCalibration.calibrationChecklist.visible.right_knee === false && beforeCalibration.calibrationChecklist.qualified === false, 'connected Play must require both measured knees even at 0% chance');
+         await harness.calibrate();
+         check(graph.input.getSnapshot().calibrationChecklist.kneesRequired === true && Number.isFinite(graph.input.getSnapshot().calibratedShoulderWorldY), 'the same knee-aware T-pose commits a shoulder height without relaxing knee visibility');
         // Calibration can intentionally run its 15fps measurement clock ahead
         // of wall time. Native Play visuals correctly reject future poses, so
         // restore a real-time measured clock before asserting pad/marker pixels.
@@ -81,9 +88,10 @@ try {
         const bounds = graph.input.getSnapshot().calibration.bounds;
         const toCamera = (x, y) => ({ x: 1 - (bounds.left + x * (bounds.right - bounds.left)), y: bounds.top + y * (bounds.bottom - bounds.top) });
         const leg = (x, y) => ({ hip: toCamera(x, y - .22), knee: toCamera(x, y), ankle: toCamera(x, y + .22) });
-        const bottomTargetY = 1 - harness.element.activeSessionSetup.bottomRowReachWU;
-        const raisedY = (2.5 - bottomTargetY) / 3;
-        const raised = { left: leg(.375, raisedY), right: leg(.625, raisedY) };
+        const tuning = typeof harness.element.boxingHeightTuning === 'function' ? harness.element.boxingHeightTuning(graph) : null;
+         const bottomTargetY = tuning ? tuning.shoulderWorldY + tuning.offsets.knee : 1 - harness.element.activeSessionSetup.bottomRowReachWU;
+        let raisedY = (2.5 - bottomTargetY) / 3;
+        let raised = { left: leg(.375, raisedY), right: leg(.625, raisedY) };
         const away = { left: leg(.375, 1.35), right: leg(.625, 1.35) };
         const absent = { left: away.left };
         const score = snapshot => snapshot.scorePartitions.reduce((sum, partition) => sum + Number(partition.score ?? 0), 0);
@@ -91,6 +99,22 @@ try {
         for (const row of cases.slice(0, -1)) {
           await harness.seekSong(row.at - 600, { legs: away });
           await harness.seekSong(row.at - 300, { legs: away });
+           if (row.id === 'left-hit' && tuning) {
+             const authored = graph.content.getSnapshot().resolvedEvents;
+             const beforeTarget = harness.element.rendererFrame().targets.find(entry => entry.id === row.id);
+             const beforeIcon = graph.renderer.lastModel.objects.find(object => object.targetId === row.id && object.kind === 'icon');
+             const offsetControl = harness.element.shadowRoot.querySelector('[data-game-setup-field="boxingHeightOffset:knee"]');
+             check(offsetControl instanceof HTMLInputElement && beforeTarget && beforeIcon, 'live Knee Strike Game Setup control and already-visible native target required');
+             offsetControl.value = '-0.25'; offsetControl.dispatchEvent(new Event('change', { bubbles: true }));
+             await harness.element.lifecycleIntentTail;
+             harness.element.runDisplayFrame();
+             const afterTarget = harness.element.rendererFrame().targets.find(entry => entry.id === row.id);
+             const afterIcon = graph.renderer.lastModel.objects.find(object => object.targetId === row.id && object.kind === 'icon');
+             check(graph.content.getSnapshot().resolvedEvents === authored && afterTarget?.id === beforeTarget.id && Math.abs(afterTarget.heightWorldY - (beforeTarget.heightWorldY - 0.25)) < 1e-9 && afterIcon && Math.abs(afterIcon.position.y - (beforeIcon.position.y - 0.25)) < 1e-8, 'native already-visible knee target must move with persisted live height without reimport');
+             check(harness.element.activeSessionSetup.boxingHeightOffsets.knee === 0 && harness.element.desiredGameSetup.boxingHeightOffsets.knee === -0.25, 'Knee Strike tuning must stay live, not rewrite the locked run settings');
+             raisedY = (2.5 - afterTarget.heightWorldY) / 3;
+             raised = { left: leg(.375, raisedY), right: leg(.625, raisedY) };
+           }
           const target = harness.element.rendererFrame().targets.find(entry => entry.id === row.id);
           const native = graph.renderer.lastModel.objects.filter(object => object.targetId === row.id && object.kind === 'icon');
           check(target?.kind === 'knee' && target.cell === row.cell && native.length > 0, `${row.id}: authored lowest-row native knee target absent`);

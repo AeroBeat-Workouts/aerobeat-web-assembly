@@ -459,6 +459,27 @@ const snapshot = (judgements) => Object.freeze({ judgements: Object.freeze(judge
   assert.deepEqual(stableA[0].spawn, stableB[0].spawn, "punch spawn holds the authored cell's rendered position through the cull boundary (no mid-fall teleport)");
 }
 
+// ---------- Live shoulder-relative Boxing heights retain X and separate Flow ----------
+{
+  const events = [punch("height-straight", "straight_left", "left", 12_000), punch("height-hook", "hook_right", "right", 12_000), punch("height-uppercut", "uppercut_left", "left", 12_000), guard("height-guard", 12_000), flowNote("height-flow", 12_000)];
+  const results = playSnapshot(events.map((event) => hitJudgement(event.eventId, 12_000)));
+  const tuning = { shoulderWorldY: 0.8, offsets: { straight: 0.1, hook: 0.2, uppercut: 0.3, guard: -0.2, knee: -0.5 } };
+  const project = (offsets) => new Map(projectAftermathEntries(events, results, 12_100, null, null, { topRowReachWU: 1, bottomRowReachWU: 0 }, null, true, { ...tuning, offsets }).map((entry) => [entry.targetId, entry]));
+  const first = project(tuning.offsets);
+  for (const [id, y] of [["height-straight", 0.9], ["height-hook", 1], ["height-uppercut", 1.1], ["height-guard", 0.6]]) assert.ok(Math.abs(first.get(id).spawn.y - y) < 1e-9, `${id} hit aftermath follows its own live target Y`);
+  assert.equal(first.get("height-flow").spawn.y, 1, "Flow aftermath ignores Boxer height tuning");
+  const next = project({ ...tuning.offsets, hook: -0.5 });
+  assert.ok(Math.abs(next.get("height-hook").spawn.y - 0.3) < 1e-9, "changing Hook reprojects its existing hit aftermath without reimport");
+  assert.equal(next.get("height-straight").spawn.y, first.get("height-straight").spawn.y, "an independent family retains its prior height");
+  assert.equal(next.get("height-hook").spawn.x, first.get("height-hook").spawn.x, "row and authored lane still own horizontal placement");
+  const synthetic = [flowNote("height-test-flow", 12_000), punch("height-test-miss", "straight_left", "left", 12_100), guard("height-test-guard", 12_200)];
+  const index = createSessionTargetIndex(synthetic, {});
+  const test = new Map(projectAftermathEntries(synthetic, testSnapshot(), 12_250, null, index, null, null, true, tuning).map((entry) => [entry.targetId, entry]));
+  assert.ok(Math.abs(test.get("height-test-guard").spawn.y - 0.6) < 1e-9, "Test left guard aftermath follows live height");
+  assert.ok(Math.abs(test.get("height-test-guard#r").spawn.y - 0.6) < 1e-9, "Test right guard aftermath follows the same live height");
+  assert.equal(test.get("height-test-flow").spawn.y, 1, "Test Flow aftermath remains at its authored row");
+}
+
 // ---------- Accepted first-contact scalar, not current wrist midpoint ----------
 {
   const note = flowNote("contact", 12_000);
