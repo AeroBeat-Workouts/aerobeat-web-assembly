@@ -19,7 +19,7 @@ try {
   if (vite) { await vite.listen(); url = vite.resolvedUrls?.local?.[0]; }
   else {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.ok(['0.0.142', '0.0.143', '0.0.145'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or private corrective successor');
+    assert.ok(['0.0.142', '0.0.143', '0.0.145', '0.0.146'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or a corrective successor');
      if (snapshot.manifest.sourceManifest.packageVersion === '0.0.145') assert.equal(snapshot.manifest.sourceManifest.sources['@aerobeat/web-input']?.commit, '31c96a36e6c7a9ac6f9c61e7c52ba0e776137990', 'the private 0.0.145 candidate must not be confused with the frozen public 0.0.145 knee gate');
     fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'aerobeat-signed-knee-scoring-'));
     await buildFixture({ configFile: 'vite.config.js', root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });
@@ -74,12 +74,18 @@ try {
         await harness.waitForAssets(); await harness.selectChart();
         await harness.setSetup({ noseMarkerVisible: true, spawnDistanceOverrideEnabled: true, spawnDistanceOverrideWorldUnits: 20, kneeColliderVolume: { colliderVisible: true } });
         await harness.startPlay();
+        // The approved read-only checklist must ship in the signed bundle: it
+        // paints nine measured rows for a knee-required Boxer mode.
+        const checklist = element.shadowRoot.querySelector('[data-role="play-calibration-checklist"]');
+        const cue = element.shadowRoot.querySelector('[data-role="transient-cue"]');
+        check(checklist instanceof HTMLElement && !checklist.hidden && checklist.querySelectorAll('[data-checklist-landmark]:not([hidden])').length === 9, 'signed Play must paint the approved nine-row calibration checklist');
          const { graph } = harness;
          check(harness.element.activeSessionSetup.kneeStrikeChancePercent === 0, 'zero knee-strike chance remains a knee-required calibration mode');
          harness.feedPose({ tPose: true });
          const beforeCalibration = graph.input.getSnapshot();
          check(beforeCalibration.calibrationChecklist.kneesRequired === true && beforeCalibration.calibrationChecklist.visible.left_knee === false && beforeCalibration.calibrationChecklist.visible.right_knee === false && beforeCalibration.calibrationChecklist.qualified === false, 'connected Play must require both measured knees even at 0% chance');
          await harness.calibrate();
+         check(checklist.hidden && cue.textContent.trim() === '3', `signed Play must hand the frame to the native countdown cue with the checklist hidden: ${JSON.stringify({ hidden: checklist.hidden, cue: cue.textContent.trim() })}`);
          check(graph.input.getSnapshot().calibrationChecklist.kneesRequired === true && Number.isFinite(graph.input.getSnapshot().calibratedShoulderWorldY), 'the same knee-aware T-pose commits a shoulder height without relaxing knee visibility');
         // Calibration can intentionally run its 15fps measurement clock ahead
         // of wall time. Native Play visuals correctly reject future poses, so
