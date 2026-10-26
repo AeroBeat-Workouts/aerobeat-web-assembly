@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer as createViteServer } from 'vite';
+import { isExpectedReadPixelsWarning } from './readpixels-console-policy.js';
 
 const vite = await createViteServer({ appType: 'spa', configFile: 'vite.config.js', logLevel: 'error', server: { host: '127.0.0.1', port: 0, hmr: false, watch: null } });
 let browser;
@@ -13,16 +14,24 @@ try {
   assert(url);
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 844, height: 390 } });
-  const errors = [];
-  page.on('pageerror', error => errors.push(error.stack ?? error.message));
-  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  // Warn-visible collector: the exact managed-browser ReadPixels warning from
+  // scored-Play pixel readback is the only admitted diagnostic; nothing is
+  // filtered down to error-only.
+  const noise = [];
+  page.on('pageerror', error => noise.push(`pageerror:${error.stack ?? error.message}`));
+  page.on('console', message => {
+    const type = message.type(), text = message.text(), location = message.location();
+    if (!['warning', 'error'].includes(type)) return;
+    if (isExpectedReadPixelsWarning(type, text, location.url, location.lineNumber, location.columnNumber, url)) return;
+    noise.push(`${type}:${text}:sourceUrl=${JSON.stringify(location.url)}`);
+  });
   await page.goto(url, { waitUntil: 'networkidle' });
   const game = page.locator('aero-game');
   await game.waitFor({ state: 'attached' });
   try { await page.waitForFunction(() => Boolean(document.querySelector('aero-game')?.graph), null, { timeout: 10000 }); }
   catch (error) {
     const lifecycle = await game.evaluate(element => ({ defined: Boolean(customElements.get('aero-game')), connected: element.isConnected, lifecycle: element.lifecycle ?? null, lastError: element.lastError?.message ?? null }));
-    throw new Error(`Assembly did not connect: ${JSON.stringify({ errors, lifecycle })}; ${error}`);
+    throw new Error(`Assembly did not connect: ${JSON.stringify({ noise, lifecycle })}; ${error}`);
   }
   const result = await game.evaluate(async element => {
     const { installScoredPlayHarness } = await import('/scripts/fixtures/scored-play-browser-harness.js');
@@ -87,7 +96,7 @@ try {
       return { landmarkRows: 9, flicker: 'Seen → Missing → Seen', gameplay: 'hidden', visualTest: 'hidden' };
     } finally { harness.dispose(); }
   });
-  assert.deepEqual(errors, [], 'connected Play page errors');
+  assert.deepEqual(noise, [], 'connected Play browser noise');
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForFunction(() => Boolean(document.querySelector('aero-game')?.graph), null, { timeout: 10000 });
   const flow = await game.evaluate(async element => {
@@ -113,7 +122,7 @@ try {
       return 'Flow hold subtitle and seven rows';
     } finally { harness.dispose(); }
   }, { timeout: 120000 });
-  assert.deepEqual(errors, [], 'connected Play page errors');
+  assert.deepEqual(noise, [], 'connected Play browser noise');
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForFunction(() => Boolean(document.querySelector('aero-game')?.graph), null, { timeout: 10000 });
   const kneesOff = await game.evaluate(async element => {
@@ -129,7 +138,7 @@ try {
       return 'knee-disabled Boxer seven rows';
     } finally { harness.dispose(); }
   });
-  assert.deepEqual(errors, [], 'connected Play page errors');
+  assert.deepEqual(noise, [], 'connected Play browser noise');
   console.log(`ORACLE play-calibration-checklist-browser PASS ${JSON.stringify({ ...result, flow, kneesOff })}`);
   await page.close();
 } finally { if (browser) await browser.close(); await vite.close(); }
