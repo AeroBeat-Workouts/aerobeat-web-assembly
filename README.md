@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Signed candidate 0.0.147 (built, NOT public)
+## Current public playtest (0.0.147 measurement-time collider scoring, live)
 
 0.0.147 scores collider judgement at the song position a tracking frame was measured at instead
 of discarding any frame older than 150 ms of wall clock. On a CPU-saturated host or a low-end
@@ -24,7 +24,16 @@ stay pending, and Test remains visual-only. The latency behaviour itself is prov
 repo by `aerobeat-web-gameplay` `scripts/validate-latency-tolerant-scoring.js`, which scores both
 modes at 0-700 ms latency across 60/15/5 poses per second.
 
-Derrick's public link still serves 0.0.146; re-pointing it needs his explicit go-ahead.
+Derrick authorised the cutover on 2026-10-26. The [public playtest link](https://pico.tail613fcb.ts.net/)
+now serves 0.0.147 from the new systemd user unit `aerobeat-r147` on loopback 4210; the Funnel target
+moved from 4209 to 4210. Public HTTPS HTML and entry JS are byte-identical to the frozen snapshot
+(same SHA-256 values above) and report release proof `0.0.147`. Public Chromium loaded it directly
+and in a true cross-origin iframe with a ready renderer, ready environment, `cpu-wasm` provider and
+nonzero framebuffers, with no unexpected page errors.
+
+Rollback is one unit-level operation: `systemctl --user stop aerobeat-r147` then
+`tailscale funnel --bg --https=443 --yes http://127.0.0.1:4209`, which still serves signed 0.0.146.
+Signed 0.0.145 stays on 4208 and 0.0.144 on 4207.
 
 Known QA-script drift (not in `npm test`): `scripts/validate-friend-game-browser.js` still asserts
 gameplay asset paths under `assets/gameplay/0.0.12/` while the build ships `0.0.13`, so that
@@ -45,17 +54,17 @@ There is no `aerobeat-app` alias.
 
 ## In-development source (not public)
 
-The current source adds five persisted, independent Game Setup offsets for Straight Punch, Hook, Uppercut, Guard and Knee Strike, each relative to the captured average T-pose shoulder height. Changes reproject already-visible and upcoming Boxer targets, scoring and hit aftermath without changing song imports or authored chart identity. Glove and knee scoring cylinders keep their front toward incoming beats even when the artwork rotates. Knee-enabled Boxing now requires **both measured knees during the same two-second T-pose hold**, including when knee-strike chance is 0%; Flow and knee-disabled Boxing retain their prior hold. These changes are published as signed public **0.0.146**. Derrick approved Play checklist revision 3 after removing “Visible” and the redundant knee instruction. He subsequently chose to preserve immediate calibration-to-countdown timing, so design revision 4 (`4a3dad7`) replaced its unpaintable Release/Complete sample with the real `3` countdown and hidden checklist. The checklist ships in the signed public 0.0.146 Play shell. Design revision 5 (`7385163`) then recorded his decision that the countdown keeps the existing digit-only cue instead of gaining a `PLAY CALIBRATION` label, and the landscape calibration cue now centres on the approved 25% axis instead of pinning its left edge. The whole slice passed clean private signed direct and cross-origin iframe Play before the public cutover.
+The current source adds five persisted, independent Game Setup offsets for Straight Punch, Hook, Uppercut, Guard and Knee Strike, each relative to the captured average T-pose shoulder height. Changes reproject already-visible and upcoming Boxer targets, scoring and hit aftermath without changing song imports or authored chart identity. Glove and knee scoring cylinders keep their front toward incoming beats even when the artwork rotates. Knee-enabled Boxing now requires **both measured knees during the same two-second T-pose hold**, including when knee-strike chance is 0%; Flow and knee-disabled Boxing retain their prior hold. These changes were published as signed public **0.0.146** and are superseded by live 0.0.147. Derrick approved Play checklist revision 3 after removing “Visible” and the redundant knee instruction. He subsequently chose to preserve immediate calibration-to-countdown timing, so design revision 4 (`4a3dad7`) replaced its unpaintable Release/Complete sample with the real `3` countdown and hidden checklist. The checklist ships in the signed public 0.0.146 Play shell. Design revision 5 (`7385163`) then recorded his decision that the countdown keeps the existing digit-only cue instead of gaining a `PLAY CALIBRATION` label, and the landscape calibration cue now centres on the approved 25% axis instead of pinning its left edge. The whole slice passed clean private signed direct and cross-origin iframe Play before the public cutover.
 
-## Current public playtest (0.0.146 live Boxing heights, fixed colliders, knee-aware checklist)
+## Previous public playtest (0.0.146 Boxing heights, fixed colliders, knee-aware checklist; retained on 4209 for rollback)
 
 Derrick's same [public playtest link](https://pico.tail613fcb.ts.net/) now serves immutable signed **0.0.146** from assembly source commit `6426481`, UI owner `7385163` (design revision 5) and input owner `31c96a3`. It adds five independent, persisted Game Setup Boxing heights (Straight Punch, Hook, Uppercut, Guard, Knee Strike) resolved from the same captured average T-pose shoulder height and applied live to already-visible and future targets as well as scoring; glove scoring/Show cylinders now hold the world-Z axis while the art rotates, with knee cylinders already fixed; knee-enabled Boxing requires **both measured knees during the same two-second T-pose**, including at 0% knee chance; and Play calibration shows the approved **read-only checklist** (nine measured rows for knee-enabled Boxing, seven for Flow or knee strikes off) that hides the moment the native `3` countdown owns the frame.
 
-The frozen signed snapshot is `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly-private-heights-candidate/.tmp/boxing-r146-6426481` (59 assets, manifest SHA-256 `9922b0646804f632c1f2c2d31a9697bf6f92a032e259759a10bca5e02a1fd93e`, HTML `cd3cffed31970adf2de0ba6be2eb20ff0d22915e178d697b9b5cb52593b04e01`, entry `assets/index-94Hn_xn0.js` `4afc17d42105b3a611fc462e4b7fec58769d6e8c76db814f0e10813695503697`). Live public HTTPS HTML and entry JS are byte-identical to those files and report release proof `0.0.146`.
+The frozen signed snapshot is `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly-private-heights-candidate/.tmp/boxing-r146-6426481` (59 assets, manifest SHA-256 `9922b0646804f632c1f2c2d31a9697bf6f92a032e259759a10bca5e02a1fd93e`, HTML `cd3cffed31970adf2de0ba6be2eb20ff0d22915e178d697b9b5cb52593b04e01`, entry `assets/index-94Hn_xn0.js` `4afc17d42105b3a611fc462e4b7fec58769d6e8c76db814f0e10813695503697`). Live public HTTPS HTML and entry JS were byte-identical to those files and reported release proof `0.0.146`. It remains served by `aerobeat-r146` on loopback 4209 as the rollback target.
 
 Acceptance for this cutover, in order: the ten-state UI fidelity run passes against approved design revision 5 at 390x844, 844x390 and 1440x900; the full assembly `npm test` is green; the signed snapshot passes direct and true cross-origin iframe knee-scored Play, including that the shipped bundle paints the nine-row checklist during calibration and hides it once the hold commits; and public HTTPS Chromium loads 0.0.146 connected in both direct and true cross-origin iframe with ready renderer/environment, the checklist present and hidden, and no page errors. Derrick's own Glitch camera framing and physical fit were **not** replayed.
 
-The public Funnel targets loopback4209. Signed **0.0.145** remains on4208 and signed **0.0.144** on4207 for immediate rollback. On 2026-10-26 those listeners were found stopped (the public link returned HTTP 502 during fleet convergence), so serving was rebuilt on a durable footing: user lingering is enabled and three systemd user units (`aerobeat-r146`, `aerobeat-r145`, `aerobeat-r144`) now own the three loopback listeners with `Restart=always`, replacing ad-hoc processes that died with their launching session. Each unit serves one frozen snapshot through `scripts/serve-friend-game.js`; stopping a release or reverting the Funnel is a unit-level operation, and the snapshots themselves are still immutable. The retained 0.0.145 HTML carries a stale `0.0.143` release-proof meta from its own build; 0.0.146 reports `0.0.146`.
+The public Funnel targeted loopback 4209 until the 0.0.147 cutover moved it to 4210. Signed **0.0.145** remains on4208 and signed **0.0.144** on4207 for immediate rollback. On 2026-10-26 those listeners were found stopped (the public link returned HTTP 502 during fleet convergence), so serving was rebuilt on a durable footing: user lingering is enabled and three systemd user units (`aerobeat-r146`, `aerobeat-r145`, `aerobeat-r144`) now own the three loopback listeners with `Restart=always`, replacing ad-hoc processes that died with their launching session. Each unit serves one frozen snapshot through `scripts/serve-friend-game.js`; stopping a release or reverting the Funnel is a unit-level operation, and the snapshots themselves are still immutable. The retained 0.0.145 HTML carries a stale `0.0.143` release-proof meta from its own build; 0.0.146 reports `0.0.146`.
 
 ## Previous public playtest (0.0.145 knee alignment, retained on loopback4208 for rollback)
 
