@@ -2,6 +2,34 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## Signed candidate 0.0.147 (built, NOT public)
+
+0.0.147 scores collider judgement at the song position a tracking frame was measured at instead
+of discarding any frame older than 150 ms of wall clock. On a CPU-saturated host or a low-end
+phone the pipeline runs behind the audio clock; the old gate rejected that evidence, threw
+`equipment_poses_invalid` on every display frame, and scored nothing while the renderer still
+held its frame rate. Judgement now accepts a measured frame up to 750 ms old and grades it where
+it happened, so a slow pipeline delays the verdict instead of voiding it. Collider geometry,
+substeps, tiers, grading bands, hit/miss semantics and every Game Setup control are unchanged;
+no re-import is needed.
+
+Source: assembly `0321e1d`, gameplay `ec30921` (tree `baf71de3`), input `31c96a3`, UI `7385163`.
+The frozen signed snapshot is `.tmp/boxing-r147-0321e1d` in the private candidate checkout
+(59 signed assets, manifest SHA-256 `901f2fd89814ee862abbfca9db4766621f77a85f6c6610a0f0aaa9715274089d`,
+HTML `8d6f210e0074c3ec36298c9d8a9039f8ecd295a41e328684feaaa6c82f3d4932`, entry
+`assets/index-DG7k5hs4.js` `5deeb1e26010ea97919ba333b60618e9a52ab0533e78d2b1c50b07177c89f68d`).
+It passes the full assembly `npm test` and real signed Play in Chromium, direct and true
+cross-origin iframe: correct Boxing knee hits score, wrong side, missing leg and frozen frames
+stay pending, and Test remains visual-only. The latency behaviour itself is proven in the owning
+repo by `aerobeat-web-gameplay` `scripts/validate-latency-tolerant-scoring.js`, which scores both
+modes at 0-700 ms latency across 60/15/5 poses per second.
+
+Derrick's public link still serves 0.0.146; re-pointing it needs his explicit go-ahead.
+
+Known QA-script drift (not in `npm test`): `scripts/validate-friend-game-browser.js` still asserts
+gameplay asset paths under `assets/gameplay/0.0.12/` while the build ships `0.0.13`, so that
+manual script cannot pass. Signed Play acceptance uses `validate-knee-scored-play-browser.js`.
+
 ## Embed
 
 ```html
