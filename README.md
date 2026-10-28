@@ -2,30 +2,52 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Current public playtest (0.0.148 wall-heavy map imports, live)
+## Current public playtest (0.0.149 local ZIP reimport and clearer import failures, live)
 
-0.0.148 raises the per-chart obstacle bound from 512 to 4,096 so ordinary wall-heavy human-made
-maps import. A real map failed before it: "On My Knees" (BeatSaver `54441`) holds 3,619 raw v3
-obstacle entries on ExpertPlus, 2,528 of them zero-width art placeholders the parser drops, leaving
-1,091 real walls. Because a song imports all of its Standard difficulties into one collection, that
-single chart failed the whole song with `flow_obstacle_limit_exceeded`. Nothing else changes:
-converted geometry, judging, rendering, rulesets and every Game Setup control are untouched, and
-songs already imported stay valid.
+0.0.149 makes Reimport work for songs imported from a ZIP file, and replaces the unexplained
+`Worker conversion failed` text with the real reason a conversion stopped.
 
-Source: assembly `d46c5ce`, contracts `43ec0a4`, content `4721207`, content-authoring `3d082d7`,
-gameplay `6f5d6a6`. The frozen signed snapshot is `.tmp/boxing-r148-d46c5ce` in the private
-candidate checkout (59 signed assets, build stamp `FRIEND-GAME-CPU-0.0.148-af1ed6e62bf54e636428ed73`).
-It passes the full assembly `npm test`, and importing `54441` through the shipped bundle in Chromium
-produced one "On My Knees" collection with all three difficulties persisted (Hard 302 walls,
-Expert 450, ExpertPlus 1,091) in about 10 s, for the local snapshot and again over the public URL.
+Two reports drove this. First, after importing a song from a local ZIP and then downloading a
+BeatSaver map with the same song name, the download failed with `Worker conversion failed`;
+clearing all songs and retrying worked. A crashed conversion worker used to collapse to that
+constant string, a browser `DOMException` lost its own message, and a crash was never retried.
+Now the message names the failure, a crashed worker is retried once with a fresh worker, and a
+second crash fails with the real reason.
 
-The [public playtest link](https://pico.tail613fcb.ts.net/) serves 0.0.148 from systemd user unit
-`aerobeat-r148` on loopback 4211. Public Chromium reports release proof `0.0.148` directly and in a
-true cross-origin iframe with a ready renderer, ready environment, `cpu-wasm` provider and nonzero
-framebuffers, and imports the failing map from there.
+Second, local ZIP songs could not be reimported at all: they recorded BeatSaver provider metadata
+with a `local` source id, so Reimport had nothing to download. Local imports now record `local`
+provenance, and Reimport rebuilds the song from the `Info.dat`, difficulty bytes and audio stored at
+import time. No file prompt, no archive kept twice, and the rebuilt source must reproduce the
+recorded provider version hash before it replaces anything. A song whose cache is incomplete says so
+and asks for its ZIP file again. Reimport All covers local songs too.
 
-Rollback to 0.0.147: `systemctl --user stop aerobeat-r148`, then
-`tailscale funnel --bg --https=443 --yes http://127.0.0.1:4210`.
+Source: assembly `ae07836`, contracts `43ec0a4`, content `4721207`, content-authoring `9edce4c`,
+vendor-beatsaver `13ffc00`, gameplay `6f5d6a6`. The frozen signed snapshot is `.tmp/boxing-r149-ae07836`
+in the private candidate checkout (59 signed assets, build stamp `FRIEND-GAME-CPU-0.0.149-b189e6a0c020661c084e4a40`).
+It passes the full assembly `npm test`. In the shipped bundle, importing a local ZIP produced one
+"Numb" collection recording `local` provenance with source id `local:9c1dd6c…`; pressing the shipped
+Reimport button rebuilt it from the cached source (no file chooser, no BeatSaver request), kept the
+same collection, id and difficulty, and re-published the same converted package. A BeatSaver "Numb"
+(`78e`) then imported alongside it, leaving both songs side by side, which is the pair that failed
+in 0.0.148. The same script passes against the local snapshot and the public URL.
+
+The [public playtest link](https://pico.tail613fcb.ts.net/) serves 0.0.149 from systemd user unit
+`aerobeat-r149` on loopback 4212. Public Chromium reports release proof `0.0.149` directly and in a
+true cross-origin iframe with a ready conversion worker, ready pinned render assets, ready environment, `cpu-wasm` provider and
+nonzero framebuffers, and the local-ZIP reimport acceptance above passes there too.
+
+Rollback to 0.0.148: `systemctl --user stop aerobeat-r149`, then
+`tailscale funnel --bg --https=443 --yes http://127.0.0.1:4211`.
+
+## Retained: 0.0.148 wall-heavy map imports (unit `aerobeat-r148`, loopback 4211)
+
+0.0.148 raised the per-chart obstacle bound from 512 to 4,096 so ordinary wall-heavy human-made
+maps import. "On My Knees" (BeatSaver `54441`) holds 3,619 raw v3 obstacle entries on ExpertPlus,
+2,528 of them zero-width art placeholders the parser drops, leaving 1,091 real walls; the old bound
+failed the whole song with `flow_obstacle_limit_exceeded` because all Standard difficulties import
+into one collection. Nothing else changed: converted geometry, judging, rendering, rulesets and every
+Game Setup control are untouched, and songs already imported stay valid. Its frozen snapshot is
+`.tmp/boxing-r148-d46c5ce` (build stamp `FRIEND-GAME-CPU-0.0.148-af1ed6e62bf54e636428ed73`).
 
 ## Retained: 0.0.147 measurement-time collider scoring (unit `aerobeat-r147`, loopback 4210)
 
