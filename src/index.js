@@ -1202,7 +1202,10 @@ export class AeroGame extends HTMLElement {
       try { acquired = await owner.graph.vendor.importLocalArchive(input, { signal: this.activeAbort.signal }); }
       catch (error) { if (!this.isLifecycleIntentOwner(owner)) return null; throw error; }
       if (!this.isLifecycleIntentOwner(owner)) return null;
-      return this.convertAcquired(acquired, authoringOptions, owner);
+      // A ZIP import has no BeatSaver provider identity: record it as `local`, keyed by the
+      // archive's SHA-1, so Reimport later rebuilds from the cached source instead of asking
+      // BeatSaver for a map that was never downloaded from there.
+      return this.convertAcquired(acquired, { ...(authoringOptions ?? {}), sourceProvider: "local", sourceId: `local:${acquired.archiveSha1}` }, owner);
     });
   }
 
@@ -1218,6 +1221,24 @@ export class AeroGame extends HTMLElement {
     return Object.freeze({ deleted: ids.length });
   }
 
+  /**
+   * A song imported from a ZIP file has no provider to download from again, so Reimport
+   * rebuilds its source from the Info.dat, difficulty bytes and audio cached at import time.
+   * The rebuilt source must hash to the recorded provider version, otherwise the stored copy is
+   * not the source that produced this song and reimport stops instead of replacing it.
+   * @param {{authoring: Record<string, unknown>, vendor: Record<string, unknown>}} graph
+   * @param {string} collectionId
+   */
+  async rebuildLocalAcquired(graph, collectionId) {
+    if (typeof graph.authoring.getCollectionStoredSource !== "function" || typeof graph.vendor.rebuildSourceFromEntries !== "function") return null;
+    const stored = await graph.authoring.getCollectionStoredSource(collectionId);
+    if (!stored || !Array.isArray(stored.entries) || stored.entries.length === 0 || !stored.audio) return null;
+    const source = await graph.vendor.rebuildSourceFromEntries([...stored.entries, stored.audio]);
+    const sourceHash = await graph.vendor.computeBeatSaverMapHash(source);
+    if (sourceHash !== stored.sourceVersionHash) throw new Error("Stored source does not match the version this song was imported from");
+    return Object.freeze({ source, sourceHash, map: null, stored });
+  }
+
   /** Replace one selected song only after its verified source and every difficulty are ready. */
   async reimportSelectedLibraryCollection(collectionIdValue) {
     this.assertConnected();
@@ -1228,7 +1249,16 @@ export class AeroGame extends HTMLElement {
       const graph = owner.graph;
       const source = await graph.authoring.getCollectionReimportSource(collectionId);
       if (!this.isLifecycleIntentOwner(owner)) return null;
-      if (source?.sourceProvider !== "beatsaver" || !boundedString(source.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) return null;
+      if (!boundedString(source?.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source?.sourceVersionHash ?? "")) return null;
+      // A song imported from a local ZIP (new imports say `local`; older ones wrote the
+      // `beatsaver` provider with a `local` source id) has no map to download again.
+      if (source.sourceProvider === "local" || source.sourceId === "local") {
+        const rebuilt = await this.rebuildLocalAcquired(graph, collectionId);
+        if (!this.isLifecycleIntentOwner(owner)) return null;
+        if (!rebuilt) { this.publish("library_changed"); throw new Error("This song's stored source is incomplete. Import its ZIP file again to reimport it."); }
+        return this.convertAcquired(rebuilt, { sourceProvider: "local", sourceId: source.sourceId }, owner, collectionId);
+      }
+      if (source.sourceProvider !== "beatsaver") return null;
       const map = await graph.vendor.getMapById(source.sourceId, { signal: this.activeAbort.signal });
       if (!this.isLifecycleIntentOwner(owner)) return null;
       const acquired = await graph.vendor.acquireVersion(safeData(map, 0, 64), source.sourceVersionHash, { signal: this.activeAbort.signal, onProgress: (progress) => { if (this.isLifecycleIntentOwner(owner)) this.emitGameEvent("import_changed", { phase: progress.phase, loadedBytes: progress.loadedBytes, totalBytes: progress.totalBytes ?? null }); } });
@@ -1263,20 +1293,33 @@ export class AeroGame extends HTMLElement {
           const songName = boundedString(entry.songName, boundedString(entry.collectionId, "Downloaded song"));
           const source = await graph.authoring.getCollectionReimportSource(entry.collectionId).catch(() => null);
           if (!source) { failed.push(songName); continue; }
-          if (source.sourceProvider !== "beatsaver") { skipped.push(songName); continue; }
+          const local = source.sourceProvider === "local" || source.sourceId === "local";
+          if (!local && source.sourceProvider !== "beatsaver") { skipped.push(songName); continue; }
           if (!boundedString(source.sourceId, "") || !/^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) { failed.push(songName); continue; }
-          const key = `${source.sourceId}:${source.sourceVersionHash}`;
+          const key = local ? `local:${source.sourceVersionHash}` : `${source.sourceId}:${source.sourceVersionHash}`;
           const bucket = bySource.get(key);
           if (bucket) bucket.collectionIds.push(entry.collectionId);
-          else bySource.set(key, { source, songName, collectionIds: [entry.collectionId] });
+          else bySource.set(key, { source, songName, collectionIds: [entry.collectionId], local });
         }
         const total = bySource.size;
         let completed = skipped.length + failed.length;
         update({ state: "running", completed, total, reimported: 0, skipped: skipped.length, failed: failed.length, message: `Reimport All: ${completed}/${total} checked; preparing ${total} song${total === 1 ? "" : "s"}…` });
-        for (const { source, songName, collectionIds } of bySource.values()) {
+        for (const { source, songName, collectionIds, local } of bySource.values()) {
           if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
           if (this.bulkReimportCancelled) break;
           try {
+            // Local songs rebuild from their cached source in place, keeping the existing
+            // collection id, so they are never deleted before the replacement is ready.
+            if (local) {
+              const rebuilt = await this.rebuildLocalAcquired(graph, collectionIds[0]);
+              if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+              const converted = rebuilt ? await this.convertAcquired(rebuilt, { sourceProvider: "local", sourceId: source.sourceId }, null, collectionIds[0]) : null;
+              if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
+              if (converted === null) failed.push(songName); else reimported.push(songName);
+              completed = reimported.length + skipped.length + failed.length;
+              update({ state: "running", completed, total, reimported: reimported.length, skipped: skipped.length, failed: failed.length, message: `Reimport All: ${completed}/${total} checked; ${reimported.length} reimported, ${skipped.length} skipped, ${failed.length} failed.` });
+              continue;
+            }
             for (const id of collectionIds) { if (this.isCurrent(generation, graph)) await graph.authoring.deleteCollection(id); }
             const imported = this.isCurrent(generation, graph) ? await this.importBeatSaverById(source.sourceId, source.sourceVersionHash) : null;
             if (!this.isCurrent(generation, graph)) return Object.freeze({ reimported, skipped, failed });
@@ -1562,7 +1605,7 @@ export class AeroGame extends HTMLElement {
     const converter = graph.profiles.getActive("converter_regeneration");
     let result;
     try { result = await graph.authoring.convertAllStandardAndPersist(acquired.source, {
-      sourceProvider: "beatsaver",
+      sourceProvider: dataValue(raw, "sourceProvider") === "local" ? "local" : "beatsaver",
       sourceId: boundedString(dataValue(raw, "sourceId"), boundedString(acquired.map?.mapId, "local")),
       sourceVersionHash: acquired.sourceHash,
       ...(replaceCollectionId ? { replaceCollectionId } : {}),
@@ -2987,7 +3030,10 @@ export class AeroGame extends HTMLElement {
     if (typeof graph.authoring.getCollectionReimportSource === "function") for (const collection of listedCollectionsValue ?? []) {
       const source = await graph.authoring.getCollectionReimportSource(collection.collectionId).catch(() => null);
       if (!this.isCurrent(generation, graph)) return;
-      if (source?.sourceProvider === "beatsaver" && boundedString(source.sourceId, "") && /^[a-f0-9]{40}$/iu.test(source.sourceVersionHash)) reusableCollectionIds.push(collection.collectionId);
+      // BeatSaver songs reimport from the provider; local ZIP songs reimport from the source cache
+      // written at import time. Both need an exact, recorded source identity.
+      const exactSource = boundedString(source?.sourceId, "") !== "" && /^[a-f0-9]{40}$/iu.test(source?.sourceVersionHash ?? "");
+      if (exactSource && (source.sourceProvider === "beatsaver" || source.sourceProvider === "local" || source.sourceId === "local")) reusableCollectionIds.push(collection.collectionId);
     }
     const packages = productLibraryPackages(listedPackages); const listedCollections = listedCollectionsValue ?? legacyLibraryCollections(packages);
     const requestedPackageId = autoSelect ? boundedString(preferences.preferredPackageId, this.desiredLibrarySelection?.packageId ?? this.libraryView.selectedPackageId ?? "") : "";
