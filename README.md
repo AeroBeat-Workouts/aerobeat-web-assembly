@@ -2,7 +2,32 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Current public playtest (0.0.147 measurement-time collider scoring, live)
+## Current public playtest (0.0.148 wall-heavy map imports, live)
+
+0.0.148 raises the per-chart obstacle bound from 512 to 4,096 so ordinary wall-heavy human-made
+maps import. A real map failed before it: "On My Knees" (BeatSaver `54441`) holds 3,619 raw v3
+obstacle entries on ExpertPlus, 2,528 of them zero-width art placeholders the parser drops, leaving
+1,091 real walls. Because a song imports all of its Standard difficulties into one collection, that
+single chart failed the whole song with `flow_obstacle_limit_exceeded`. Nothing else changes:
+converted geometry, judging, rendering, rulesets and every Game Setup control are untouched, and
+songs already imported stay valid.
+
+Source: assembly `d46c5ce`, contracts `43ec0a4`, content `4721207`, content-authoring `3d082d7`,
+gameplay `6f5d6a6`. The frozen signed snapshot is `.tmp/boxing-r148-d46c5ce` in the private
+candidate checkout (59 signed assets, build stamp `FRIEND-GAME-CPU-0.0.148-af1ed6e62bf54e636428ed73`).
+It passes the full assembly `npm test`, and importing `54441` through the shipped bundle in Chromium
+produced one "On My Knees" collection with all three difficulties persisted (Hard 302 walls,
+Expert 450, ExpertPlus 1,091) in about 10 s, for the local snapshot and again over the public URL.
+
+The [public playtest link](https://pico.tail613fcb.ts.net/) serves 0.0.148 from systemd user unit
+`aerobeat-r148` on loopback 4211. Public Chromium reports release proof `0.0.148` directly and in a
+true cross-origin iframe with a ready renderer, ready environment, `cpu-wasm` provider and nonzero
+framebuffers, and imports the failing map from there.
+
+Rollback to 0.0.147: `systemctl --user stop aerobeat-r148`, then
+`tailscale funnel --bg --https=443 --yes http://127.0.0.1:4210`.
+
+## Retained: 0.0.147 measurement-time collider scoring (unit `aerobeat-r147`, loopback 4210)
 
 0.0.147 scores collider judgement at the song position a tracking frame was measured at instead
 of discarding any frame older than 150 ms of wall clock. On a CPU-saturated host or a low-end
@@ -24,9 +49,8 @@ stay pending, and Test remains visual-only. The latency behaviour itself is prov
 repo by `aerobeat-web-gameplay` `scripts/validate-latency-tolerant-scoring.js`, which scores both
 modes at 0-700 ms latency across 60/15/5 poses per second.
 
-Derrick authorised the cutover on 2026-10-26. The [public playtest link](https://pico.tail613fcb.ts.net/)
-now serves 0.0.147 from the new systemd user unit `aerobeat-r147` on loopback 4210; the Funnel target
-moved from 4209 to 4210. Public HTTPS HTML and entry JS are byte-identical to the frozen snapshot
+This version served the public link from 2026-10-26 until the 0.0.148 cutover, from systemd user unit
+`aerobeat-r147` on loopback 4210. Public HTTPS HTML and entry JS are byte-identical to the frozen snapshot
 (same SHA-256 values above) and report release proof `0.0.147`. Public Chromium loaded it directly
 and in a true cross-origin iframe with a ready renderer, ready environment, `cpu-wasm` provider and
 nonzero framebuffers, with no unexpected page errors.
