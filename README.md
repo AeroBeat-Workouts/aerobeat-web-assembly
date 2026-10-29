@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Next public playtest: 0.0.150 spline collider reprojection (in preparation)
+## Current public playtest: 0.0.150 spline collider reprojection (live)
 
 Flow and Boxing reconstruct a bounded, timestamped wrist spline between webcam updates and judge
 projected equipment along that path through the existing collision, grading and already-hit logic.
@@ -15,7 +15,27 @@ webcam FPS** (0 = native, 1–60 = sampled input). Equipment measurements are he
 rendering and audio continue normally. This setting affects Test only. Automated simulation supports
 development; Derrick's phone Play test remains the human usability acceptance.
 
-## Current public playtest (0.0.149 local ZIP reimport and clearer import failures, live)
+The [public playtest](https://pico.tail613fcb.ts.net/) serves signed snapshot
+`.tmp/boxing-r150-724ee30` from `aerobeat-r150` on loopback 4213. Build source is assembly `724ee30`
+and gameplay `4a89afd`; stamp `FRIEND-GAME-CPU-0.0.150-c942956c9e3a0505c8e8acbe` has 59 signed files.
+
+Verification: final assembly `npm test` passes. The connected Flow-arrow/Boxing-hook matrix passes at
+1 and 2 FPS under default direction enforcement, both from source and the actual signed bundle.
+It checks default automatic-feedback sampling, input hold through 750 ms, independent render ticks,
+real reconstructed hits and exactly-once outcomes. Existing signed calibrated Boxing knee Play also
+passes direct and cross-origin iframe checks. The public URL reports 0.0.150 in both host types with
+ready conversion/render assets, ready environment, `cpu-wasm` and nonzero framebuffers.
+
+The existing admission bounds, hit tiers, timing windows and Miss finalization remain in force; a
+beat already finalized as Miss is not rewritten by a later endpoint. Real measurement history is
+preserved through idle and frozen display ticks, but cleared at normal run/source/calibration resets.
+An unrelated older equipment-panel browser camera-control expectation remains tracked in
+`aerobeat-web-assembly-nnm6`; the full legacy panel script is not claimed green.
+
+Rollback: `tailscale funnel --bg --https=443 --yes http://127.0.0.1:4212`, then
+`systemctl --user stop aerobeat-r150`. The previous 0.0.149 service remains active.
+
+## Retained: 0.0.149 local ZIP reimport and clearer import failures (unit `aerobeat-r149`, loopback 4212)
 
 0.0.149 makes Reimport work for songs imported from a ZIP file, and replaces the unexplained
 `Worker conversion failed` text with the real reason a conversion stopped.
@@ -44,10 +64,10 @@ same collection, id and difficulty, and re-published the same converted package.
 (`78e`) then imported alongside it, leaving both songs side by side, which is the pair that failed
 in 0.0.148. The same script passes against the local snapshot and the public URL.
 
-The [public playtest link](https://pico.tail613fcb.ts.net/) serves 0.0.149 from systemd user unit
-`aerobeat-r149` on loopback 4212. Public Chromium reports release proof `0.0.149` directly and in a
-true cross-origin iframe with a ready conversion worker, ready pinned render assets, ready environment, `cpu-wasm` provider and
-nonzero framebuffers, and the local-ZIP reimport acceptance above passes there too.
+This version served the public link before the 0.0.150 cutover and remains available from
+`aerobeat-r149` on loopback 4212. Its public acceptance reported release proof `0.0.149` directly and
+in a cross-origin iframe with ready conversion/render assets, environment, `cpu-wasm` and nonzero
+framebuffers; local ZIP reimport acceptance passed over HTTPS too.
 
 Rollback to 0.0.148: `systemctl --user stop aerobeat-r149`, then
 `tailscale funnel --bg --https=443 --yes http://127.0.0.1:4211`.

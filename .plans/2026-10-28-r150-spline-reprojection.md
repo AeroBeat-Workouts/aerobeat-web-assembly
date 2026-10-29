@@ -1,6 +1,6 @@
 # 0.0.150 integration: continuous equipment reprojection and Test webcam FPS
 
-Status: implementation and connected low-FPS browser checks pass; signed build and public release verification in progress. Owner: Pico.
+Status: shipped publicly as 0.0.150; automated acceptance complete. Derrick's physical-phone Play usability check remains human acceptance. Owner: Pico.
 Bead: aerobeat-web-assembly-3xji. Gameplay plan: ../aerobeat-web-gameplay/.plans/2026-10-28-continuous-spline-reprojection.md.
 
 ## Approved product behavior
@@ -16,11 +16,13 @@ Continuously reconstruct between webcam measurements and score projected equipme
 
 ## Checks and release
 
-1. Implement and test production projection parity and Test sample-and-hold (source helper regression passes).
-2. Run connected Test control/Flow/Boxing regression and the existing relevant suites.
-3. Commit/push and pin final gameplay source; build signed 0.0.150 from clean candidate source.
-4. Run connected sparse-input Flow/Boxing scenarios against that actual signed build; verify public direct and cross-origin iframe serving, then publish with 0.0.149 rollback. Preflight confirms aerobeat-r149 active on 4212, pico public funnel points to 4212, and next release port 4213 is free.
-5. Update release README, gameplay documentation and plans, close implemented bead and verify pushed state. Derrick phone Play remains final human usability acceptance, not an automated claim.
+1. Complete: production projection parity and Test sample-and-hold regression passes in the normal unit gate.
+2. Complete: connected directional Flow/Boxing Test at 1/2 FPS, plus final assembly npm test and gameplay npm test/browser smoke. The unrelated full legacy equipment-panel camera expectation remains tracked separately (see below).
+3. Complete: assembly 724ee303ce30da535c54ec0b1b3ea9b341d6cd89 pins gameplay 4a89afd5c7315135d8a9198cc6f293f3ba078fd6. Built from the clean private candidate checkout and froze .tmp/boxing-r150-724ee30.
+4. Complete: all four sparse Test cases pass against that actual signed bundle, including >750ms held input and independent render ticks. Existing signed calibrated Boxing knee Play passes direct/cross-origin iframe. Published through aerobeat-r150 (4213); public HTTPS direct and cross-origin iframe report 0.0.150, ready conversion/render assets and environment, cpu-wasm, FPS control present and nonzero framebuffers. Local/public HTML SHA-256 identical: f7088bbb2d770c0e8778ff708fafe2249c98a322c6858fc43067aca192824a75.
+5. Complete: gameplay README/source plan and assembly README/release plan document behavior and limits. Close implementation bead with automated evidence; physical phone usability remains Derrick's human check, not claimed by automation. Intentional docs are committed/pushed without staging unrelated ledger/screenshots.
+
+Release stamp: FRIEND-GAME-CPU-0.0.150-c942956c9e3a0505c8e8acbe, 59 signed files, entry assets/index-DfOjj6JW.js. Service is enabled and persistent. The public pico funnel points at 4213. Rollback: repoint it to http://127.0.0.1:4212, then stop aerobeat-r150. aerobeat-r149 remains active.
 
 ## Known integration findings
 
@@ -28,7 +30,7 @@ The equipment panel browser validator was stale relative to current assets (0.0.
 
 Slow input handling now preserves the real measurement bracket through stale duplicate and frozen display ticks (gameplay 2237264, both-mode coordinator regressions). Do not substitute measured-only simulation for real frozen Play recovery.
 
-Connected browser results: Flow crosses correctly at 1 and 2 FPS with independently advancing renderer. Boxing hook geometry crossed but produced no hit: default authored-direction enforcement still calls the existing direction predicate on original webcam endpoints, whose >150ms gap fails its continuity check. This is a demonstrated in-scope blocker, not a reason to disable direction enforcement. Resolved in gameplay 4a89afd: the unchanged direction predicate receives private local spline samples clipped to contact ±75ms, with the same maximum gap, tolerances and minimum travel. Reverse-direction coordinator regressions still fail the authored-right event without consuming valid same-frame controls. The connected browser fixture now passes directional Flow and hooks at both 1 and 2 FPS under default enforcement, including >750ms held-input ticks, automatic feedback ON preview sampling without scoring, independent rendering and exactly-once outcomes. The full assembly npm test passed with the prior clean 2237264 pin; the final pin is rerun before publication.
+Connected browser results: Flow crosses correctly at 1 and 2 FPS with independently advancing renderer. Boxing hook geometry crossed but produced no hit: default authored-direction enforcement still calls the existing direction predicate on original webcam endpoints, whose >150ms gap fails its continuity check. This is a demonstrated in-scope blocker, not a reason to disable direction enforcement. Resolved in gameplay 4a89afd: the unchanged direction predicate receives private local spline samples clipped to contact ±75ms, with the same maximum gap, tolerances and minimum travel. Reverse-direction coordinator regressions still fail the authored-right event without consuming valid same-frame controls. The connected browser fixture now passes directional Flow and hooks at both 1 and 2 FPS under default enforcement, including >750ms held-input ticks, automatic feedback ON preview sampling without scoring, independent rendering and exactly-once outcomes. Final assembly npm test also passes against the clean 4a89afd release pin; signed browser acceptance passes on that same implementation.
 
 Focused host-only cost sample: 10,000 Flow node reprojections took about 250ms after warmup (~0.025ms/node) in Node on this host. This is not phone performance evidence.
 
