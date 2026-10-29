@@ -19,7 +19,7 @@ try {
   if (vite) { await vite.listen(); url = vite.resolvedUrls?.local?.[0]; }
   else {
     const snapshot = loadSignedSnapshot(path.resolve(signedDirectory));
-    assert.ok(['0.0.142', '0.0.143', '0.0.145', '0.0.146', '0.0.147', '0.0.148', '0.0.149'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or a corrective successor');
+    assert.ok(['0.0.142', '0.0.143', '0.0.145', '0.0.146', '0.0.147', '0.0.148', '0.0.149', '0.0.150'].includes(snapshot.manifest.sourceManifest.packageVersion), 'signed knee scoring needs the knee release or a corrective successor');
      if (snapshot.manifest.sourceManifest.packageVersion === '0.0.145') assert.equal(snapshot.manifest.sourceManifest.sources['@aerobeat/web-input']?.commit, '31c96a36e6c7a9ac6f9c61e7c52ba0e776137990', 'the private 0.0.145 candidate must not be confused with the frozen public 0.0.145 knee gate');
     fixtureDirectory = mkdtempSync(path.join(tmpdir(), 'aerobeat-signed-knee-scoring-'));
     await buildFixture({ configFile: 'vite.config.js', root: process.cwd(), logLevel: 'error', build: { outDir: fixtureDirectory, emptyOutDir: true, lib: { entry: 'scripts/fixtures/scored-play-browser-harness.js', formats: ['es'], fileName: () => 'scored-play-browser-harness.js' } } });

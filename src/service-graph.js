@@ -87,7 +87,7 @@ export function createAeroGameServiceGraph(options = {}) {
     input: createAeroBodyGridService({ calibrationIdPrefix: `${instanceId}-calibration` }),
     audio,
     profiles: createAeroPrototypeProfileRegistry(),
-    gameplay: createAeroGameplaySessionCoordinator({ instanceId }),
+    gameplay: createAeroGameplaySessionCoordinator({ instanceId, ...(typeof options.reprojectEquipmentPose === "function" ? { reprojectEquipmentPose: options.reprojectEquipmentPose } : {}) }),
     renderer: createAeroPlayCanvasRenderer()
   });
 }

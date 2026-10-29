@@ -2,6 +2,19 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## Next public playtest: 0.0.150 spline collider reprojection (in preparation)
+
+Flow and Boxing reconstruct a bounded, timestamped wrist spline between webcam updates and judge
+projected equipment along that path through the existing collision, grading and already-hit logic.
+Flow rotation is recalculated at intermediate grid positions using the same live equipment settings.
+Boxing's scored cylinder follows the reconstructed wrist path. No new movement requirement or
+approximation penalty applies. A visible cosmetic trail is not required.
+
+In Test, turn off **Automatic GREAT/MISS feedback**, select a mouse/touch hand and set **Simulated
+webcam FPS** (0 = native, 1–60 = sampled input). Equipment measurements are held between updates;
+rendering and audio continue normally. This setting affects Test only. Automated simulation supports
+development; Derrick's phone Play test remains the human usability acceptance.
+
 ## Current public playtest (0.0.149 local ZIP reimport and clearer import failures, live)
 
 0.0.149 makes Reimport work for songs imported from a ZIP file, and replaces the unexplained

@@ -46,8 +46,8 @@ const testRoot = process.env.AEROBEAT_EQUIPMENT_TEST_ROOT?.trim() || root;
 const counterfactual = touchOnly && testRoot !== root;
 const siblings = resolve(root, "..");
 const packageVersion = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).version;
-assert.equal(gameplayAssetReleaseVersion, "0.0.12");
-assert.equal(gameplayAssets.length, 9, "exact pinned renderer GLB inventory");
+assert.equal(gameplayAssetReleaseVersion, "0.0.13");
+assert.equal(gameplayAssets.length, 11, "exact pinned renderer GLB inventory including knee pad/target");
 const assetBase = resolve(siblings, "aerobeat-web-renderer/assets/gameplay", gameplayAssetReleaseVersion);
 const assets = new Map(gameplayAssets.map((asset) => {
   const data = readFileSync(resolve(assetBase, asset.path));
@@ -116,7 +116,7 @@ try {
     ...["straight","uppercut","hookL","hookR","guard"].flatMap((state)=>xyz(`boxing.glove.states.${state}.rotationEulerDeg`)),"boxing.glove.ease.type","boxing.glove.ease.durationMs","boxing.glove.upcomingBeatWindowMs"
   ];
   const idleEvidence = await game.evaluate((element) => { const root=element.shadowRoot; return {textarea:root.querySelectorAll(".equipment-authoring textarea").length,apply:root.querySelectorAll("[data-action='equipment-config-apply']").length,paths:[...root.querySelectorAll("[data-equipment-config-field]")].map((control)=>control.dataset.equipmentConfigField),groups:[...root.querySelectorAll(".equipment-control-group>legend")].map((legend)=>legend.textContent),toggle:root.querySelector("[data-equipment-preview-toggle='true']")?.checked,automatic:{checked:root.querySelector("[data-test-automatic-feedback-toggle='true']")?.checked,label:root.querySelector("[data-test-automatic-feedback-toggle='true']")?.parentElement?.textContent?.trim()},mouse:{legend:root.querySelector(".equipment-mouse-hand>legend")?.textContent,values:[...root.querySelectorAll("[data-equipment-mouse-hand]")].map((control)=>({value:control.value,checked:control.checked}))},disabled:[...root.querySelectorAll("[data-equipment-config-field],[data-equipment-preview-toggle],[data-test-automatic-feedback-toggle],[data-equipment-mouse-hand],button[data-equipment-config-action]")].every((control)=>control.disabled),snapshotLeak:/equipmentConfig|equipment_config|rotationZDeg|rotationEulerDeg|headingDeg|localRotationEulerDeg|testEquipmentVisible|testAutomaticFeedback|testEquipmentMouseHand|testEquipmentPointerPosition/u.test(JSON.stringify(element.getSnapshot()))}; });
-  assert.equal(idleEvidence.textarea,0,"raw YAML textarea removed"); assert.equal(idleEvidence.apply,0,"Apply path removed"); assert.deepEqual(idleEvidence.paths,expectedPaths,"complete ordered grouped field inventory"); assert.deepEqual(idleEvidence.groups,["Flow · hand transforms","Flow · saber zones","Boxing · hand transforms","Boxing · glove states"]); assert.equal(idleEvidence.toggle,false,'idle preview is disabled until an actual Test starts'); assert.deepEqual(idleEvidence.automatic,{checked:true,label:"Automatic GREAT/MISS feedback"}); assert.deepEqual(idleEvidence.mouse,{legend:counterfactual?"Mouse-controlled hand":"Mouse or touch-controlled hand",values:[{value:"off",checked:false},{value:"left",checked:false},{value:"right",checked:true}]}); assert.equal(idleEvidence.disabled,true); assert.equal(idleEvidence.snapshotLeak,false);
+  assert.equal(idleEvidence.textarea,0,"raw YAML textarea removed"); assert.equal(idleEvidence.apply,0,"Apply path removed"); assert.deepEqual(idleEvidence.paths,expectedPaths,"complete ordered grouped field inventory"); assert.deepEqual(idleEvidence.groups,["Flow · hand transforms","Flow · saber zones","Boxing · hand transforms","Boxing · glove states","Boxing · knee pads"]); assert.equal(idleEvidence.toggle,false,'idle preview is disabled until an actual Test starts'); assert.deepEqual(idleEvidence.automatic,{checked:true,label:"Automatic GREAT/MISS feedback"}); assert.deepEqual(idleEvidence.mouse,{legend:counterfactual?"Mouse-controlled hand":"Mouse or touch-controlled hand",values:[{value:"off",checked:false},{value:"left",checked:false},{value:"right",checked:true}]}); assert.equal(idleEvidence.disabled,true); assert.equal(idleEvidence.snapshotLeak,false);
   console.log("PASS: grouped idle inventory, no YAML editor/Apply, privacy clean");
 
   // ---------- (b) boot a REAL Flow visual_test session ----------
@@ -211,6 +211,34 @@ try {
   });
   assert.deepEqual(result.defaultOn.map(pose=>pose.role),["left_wrist","right_wrist"],"Test preview defaults on with both real resolved equipment poses"); assert.equal(result.enabled,true,"controls enabled in active Test");
 
+  // Simulated webcam cadence is a real enabled Test control, not a render throttle.
+  await game.locator("[data-test-webcam-fps='true']").fill("5");
+  await game.locator("[data-test-webcam-fps='true']").dispatchEvent("change");
+  const simulatedCadence = await game.evaluate((element) => {
+    element.stopFrameLoop();
+    element.setTestAutomaticFeedbackEnabled(false);
+    const session = {...element.graph.gameplay.getSnapshot().session, state:"playing", purpose:"visual_test"};
+    const now = Math.max(performance.now(), session.timestampMs);
+    const clock = {playing:true,positionSeconds:1};
+    element.testEquipmentPointerPosition={x:.2,y:.5};
+    const first=element.visualTestProductionFrame(session,clock,now);
+    element.testEquipmentPointerPosition={x:.8,y:.5};
+    const held=element.visualTestProductionFrame(session,clock,now+100);
+    const next=element.visualTestProductionFrame(session,clock,now+200);
+    const result={fps:element.testWebcamFps,sameInput:first.input===held.input,samePreview:first.preview===held.preview,changed:next.input.latestEvidence.measuredSourceFrameId!==first.input.latestEvidence.measuredSourceFrameId,firstStamp:first.input.latestEvidence.measurementTimestampMs,heldStamp:held.input.latestEvidence.measurementTimestampMs,nextStamp:next.input.latestEvidence.measurementTimestampMs};
+    element.testEquipmentPointerPosition=null;
+    element.setTestWebcamFps(0);
+    element.setTestAutomaticFeedbackEnabled(true);
+    element.startFrameLoop();
+    return result;
+  });
+  assert.equal(simulatedCadence.fps,5);
+  assert.equal(simulatedCadence.sameInput,true,"intermediate render frames reuse measured input");
+  assert.equal(simulatedCadence.samePreview,true,"visible equipment holds the same sampled anchors");
+  assert.equal(simulatedCadence.changed,true,"the next simulated webcam update creates new evidence");
+  assert.equal(simulatedCadence.firstStamp,simulatedCadence.heldStamp,"held frames preserve measurement timestamps");
+  assert.ok(simulatedCadence.nextStamp>simulatedCadence.firstStamp);
+
   await game.locator("[data-equipment-preview-toggle='true']").check();
   const toggledOn=await game.evaluate((element)=>{element.renderGameplay(); return {visible:element.testEquipmentVisible,snapshot:JSON.stringify(element.getSnapshot()),input:structuredClone(element.graph.input.getSnapshot())};});
   const onRecords=await game.evaluate((element)=>{let captured=null;const renderer=element.graph.renderer,original=renderer.renderGameplayFrameWithCursorsAndEquipment;renderer.renderGameplayFrameWithCursorsAndEquipment=(...args)=>{captured=structuredClone(args[3]);return original.apply(renderer,args);};try{element.renderGameplay();}finally{renderer.renderGameplayFrameWithCursorsAndEquipment=original;}return captured;});
@@ -233,7 +261,7 @@ try {
     const renderer=element.graph.renderer,canvas=element.canvasElement(),box=canvas.getBoundingClientRect(),device=renderer.app.graphicsDevice.clientRect,camera=renderer.cameraEntity.camera,Vec3=renderer.cameraEntity.getPosition().constructor;
     const point=(x,y)=>{const screen=camera.worldToScreen(new Vec3(-2+4*x,2.5-3*y,.45));const client={x:box.left+screen.x/device.width*box.width,y:box.top+screen.y/device.height*box.height};const projected=renderer.projectDebugEquipmentAnchor(client.x,client.y);if(!projected||!Object.isFrozen(projected))throw new Error(`DPR3 touch point failed genuine renderer projection: ${JSON.stringify({x,y,client})}`);return{client,projected:structuredClone(projected)};};
     const send=(type,id,where)=>{const event=new PointerEvent(type,{bubbles:true,composed:true,pointerType:"touch",pointerId:id,isPrimary:id===601,clientX:where.client.x,clientY:where.client.y,buttons:type==="pointerup"||type==="pointercancel"?0:1});canvas.dispatchEvent(event);};
-    const state=()=>{let poses=null;const original=renderer.renderGameplayFrameWithCursorsAndEquipment;renderer.renderGameplayFrameWithCursorsAndEquipment=function(...args){poses=structuredClone(args[3]);return original.apply(this,args);};try{element.renderGameplay();}finally{renderer.renderGameplayFrameWithCursorsAndEquipment=original;}return{latch:structuredClone(element.testEquipmentPointerPosition),poses:poses?.map(({role,anchor})=>({role,x:(anchor.x+.5)/4,y:(2.5-anchor.y)/3})),camera:structuredClone(renderer.exportDebugCameraPoseArtifact().data),cameraInput:renderer.debugCameraAuthoringInputEnabled,privacy:/testEquipmentPointerPosition|left_wrist|right_wrist|equipmentConfig|rotationEulerDeg/iu.test(JSON.stringify({snapshot:element.getSnapshot(),input:element.graph.input.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))}))};};
+    const state=()=>{let poses=null;const original=renderer.renderGameplayFrameWithCursorsAndEquipment;renderer.renderGameplayFrameWithCursorsAndEquipment=function(...args){poses=structuredClone(args[3]);return original.apply(this,args);};try{element.renderGameplay();}finally{renderer.renderGameplayFrameWithCursorsAndEquipment=original;}return{latch:structuredClone(element.testEquipmentPointerPosition),poses:poses?.map(({role,anchor})=>({role,x:(anchor.x+.5)/4,y:(2.5-anchor.y)/3})),camera:structuredClone(renderer.exportDebugCameraPoseArtifact().data),cameraInput:renderer.debugCameraAuthoringInputEnabled,privacyDetails: JSON.stringify({snapshot:element.getSnapshot(),input:element.graph.input.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))}).match(/.{0,100}(?:testEquipmentPointerPosition|"anchor"\s*:\s*"(?:left_wrist|right_wrist)"|"(?:left_wrist|right_wrist)"\s*:\s*\{|equipmentConfig|rotationEulerDeg).{0,100}/giu),privacy:/testEquipmentPointerPosition|"anchor"\s*:\s*"(?:left_wrist|right_wrist)"|"(?:left_wrist|right_wrist)"\s*:\s*\{|equipmentConfig|rotationEulerDeg/iu.test(JSON.stringify({snapshot:element.getSnapshot(),input:element.graph.input.getSnapshot(),storage:Object.fromEntries(Object.entries(localStorage))}))};};
     const a=point(.4,.52),b=point(.5,.48),other=point(.6,.4),right=point(.55,.53),invalid={client:{x:box.left-2,y:box.top-2}};
     const score=()=>{const snapshot=element.graph.gameplay.getSnapshot();return{judgements:snapshot.judgements.map(({eventId,result})=>({eventId,result})),score:snapshot.scorePartitions.map(({hits,misses,ranked,localOnly})=>({hits,misses,ranked,localOnly}))};};
     const tick=(seconds)=>{globalThis.__c5State.audioState.positionSeconds=seconds;globalThis.__c5State.audioState.playing=true;element.runDisplayFrame();};
@@ -258,7 +286,7 @@ try {
   assert.deepEqual(touchTrace.rightDown.poses,anchors(idleLeft,touchTrace.points.right),"right Flow selection moves only right equipment pose");
   assert.equal(touchTrace.off.latch,null,"hand Off clears the touch authoring latch");
   assert.deepEqual(touchTrace.offGesture.poses,anchors(idleLeft,idleRight),"hand Off touch gestures cannot drive either hand");
-  for(const [name,record] of Object.entries(touchTrace).filter(([key])=>["down","moved","second","invalidMove","released","nextDown","canceled","rightDown","offGesture"].includes(key))){assert.deepEqual(record.camera,touchTrace.initial.camera,`${name} touch does not move the camera`);assert.equal(record.privacy,false,`${name} touch position stays out of public/input/storage state`);}
+  for(const [name,record] of Object.entries(touchTrace).filter(([key])=>["down","moved","second","invalidMove","released","nextDown","canceled","rightDown","offGesture"].includes(key))){assert.deepEqual(record.camera,touchTrace.initial.camera,`${name} touch does not move the camera`);assert.equal(record.privacy,false,`${name} touch position stays out of public/input/storage state: ${JSON.stringify(record.privacyDetails)}`);}
   assert.equal(touchTrace.offGesture.cameraInput,true,"hand Off restores camera gesture ownership");
   assert.deepEqual(touchTrace.boxingDown.latch,touchTrace.points.boxingA,"Boxing touch down places the selected hand");
   assert.deepEqual(touchTrace.boxingMove.poses,anchors(touchTrace.points.boxingB,idleRight),"Boxing touch drag drives only the selected glove's resolved pose");
