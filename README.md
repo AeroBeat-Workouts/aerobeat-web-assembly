@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Next public playtest: 0.0.152 calibration idle-gap correction (in preparation)
+## Current public playtest: 0.0.152 calibration idle-gap correction (live)
 
 Calibration no longer treats waiting for the next pose result as a new missing-landmark result.
 The last measured checklist and hold survive ordinary inference gaps below the existing 750 ms
@@ -14,7 +14,26 @@ MediaPipe, its confidence thresholds, the two-second measured hold, tracking-los
 frozen gameplay publication remain unchanged. This also retains the spline and 8 MiB cache fixes.
 The camera preview may still run faster than pose inference; physical phone behavior needs testing.
 
-## Current public playtest: 0.0.151 cache-entry limit correction (live)
+The [public playtest](https://pico.tail613fcb.ts.net/) serves `.tmp/boxing-r152-655586a` from enabled
+unit `aerobeat-r152` on loopback 4215. Sources: assembly `655586a`, input `18b5e24`;
+build stamp `FRIEND-GAME-CPU-0.0.152-64ba3233174bff1b03995036`, 59 signed files.
+
+Input checks/unit/browser validation and assembly `npm test` pass. `npm run test:slow-calibration`
+is included in `test:browser`: stable 4 FPS pose updates through the actual display loop keep rows
+Seen and commit calibration for knee-enabled Boxing, knee-disabled Boxing and Flow. It also checks
+fresh missing/low-confidence measurements, real timeout, unchanged measurement timestamps and
+countdown hiding the checklist. All three cases pass from source and the actual signed bundle;
+the signed 1/2 FPS Flow/Boxing spline matrix remains green.
+
+Public HTTPS direct and cross-origin iframe checks confirm 0.0.152, stable idle-gap calibration in
+the shipped input service, ready worker/render assets/environment, `cpu-wasm` and nonzero canvases.
+These are controlled input tests, not raw phone-camera acceptance. Results older than the existing
+750 ms measurement timeout still expire, and raw per-joint confidence may still vary on a device.
+
+Rollback: `tailscale funnel --bg --https=443 --yes http://127.0.0.1:4214`, then
+`systemctl --user stop aerobeat-r152`. The previous 0.0.151 service remains active.
+
+## Retained: 0.0.151 cache-entry limit correction (unit `aerobeat-r151`, loopback 4214)
 
 The per-entry source-cache limit rises from 2 MiB to 8 MiB, allowing large valid difficulty files to
 be kept for reimport. The reported GAS GAS GAS Expert file is 3,874,764 bytes. Separate difficulty,
@@ -24,8 +43,8 @@ This does **not** add Noodle Extensions/custom-wall compatibility. That specific
 still fails later on unsupported v2 obstacle types. Derrick approved shipping the cache fix
 separately; the custom-wall support discussion is tracked as `aerobeat-web-assembly-igiw`.
 
-The [public playtest](https://pico.tail613fcb.ts.net/) serves `.tmp/boxing-r151-79b7b8b` from enabled
-unit `aerobeat-r151` on loopback 4214. Sources: assembly `79b7b8b`, content-authoring `505faf0`;
+This version served the public link before 0.0.152 and remains as a rollback snapshot:
+`.tmp/boxing-r151-79b7b8b` from enabled unit `aerobeat-r151` on loopback 4214. Sources: assembly `79b7b8b`, content-authoring `505faf0`;
 build stamp `FRIEND-GAME-CPU-0.0.151-c421069ba8ab8d7ba5922440`, 59 signed files.
 
 Authoring checks, unit/security suites and assembly `npm test` pass. Against both the actual signed

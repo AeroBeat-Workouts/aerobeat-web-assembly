@@ -1,6 +1,6 @@
 # Calibration checklist flicker: diagnosis and proposed fix
 
-Status: diagnosis complete. Derrick approved the fix and a new public build; implementation and 0.0.152 verification in progress.
+Status: approved fix delivered in public 0.0.152; automated acceptance complete. Derrick's physical-phone test remains the device usability check.
 
 ## Approved execution
 
@@ -8,11 +8,23 @@ Goal: goal-f0c96883-9745-49ad-b845-2bc5cc45b9a7. Source plan: ../aerobeat-web-in
 
 - Source implementation complete and pushed: input 18b5e24887fc3b54680816445165b1ecd8899d78, tree 7d502f3124d6a09ea3bdb0cd91d1f583d9c92845. Preserve last measured checklist/visibility and calibration hold across ordinary gaps shorter than existing 750 ms timeout. New actual missing/low-confidence results and true timeout still invalidate immediately as appropriate. Do not fabricate measurements or change model, thresholds, loss hysteresis, frozen publication or spline scoring.
 - Input coder 20865026-b312-4d4f-99c6-e88092b9c899 verified running as direct child. Single bounded input-source task plus tests/docs/commit/push; parent owns assembly UI regression and release. No other implementation delegate.
-- Source product check passes: test:slow-calibration covers controlled 4 FPS stable poses through the real assembly display loop. Knee-required Boxing, knee-disabled Boxing and Flow each consumed 9 measured samples, ran 16 real no-new-result ticks and committed the genuine hold into countdown; maximum sample gap was 274–279 ms. Visible rows stayed Seen. Actual missing/low-confidence results and >750 ms silence still displayed Missing/reset. Signed repetition is next.
+- Source product check passes: test:slow-calibration covers controlled 4 FPS stable poses through the real assembly display loop. Knee-required Boxing, knee-disabled Boxing and Flow each consumed 9 measured samples, ran 16 real no-new-result ticks and committed the genuine hold into countdown; maximum sample gap was 274–279 ms. Visible rows stayed Seen. Actual missing/low-confidence results and >750 ms silence still displayed Missing/reset. Signed repetition also passes (release results below).
 - Input coder delivered exactly source guard, regressions, README and source plan, with clean pushed state. npm check, npm test, Chromium module smoke, npm pack --dry-run and diff checks pass. Existing tracking/frozen/source/reset tests remain green. Source countercheck failed on the expected cleared-checklist timestamp before the fix. Coder has finished with all jobs collected.
 - Add the focused browser regression to the normal browser command and run it against the actual signed bundle. Preserve approved checklist layout/copy; this is a state fix, not a UI redesign.
 - Repin final clean input commit, bump release to 0.0.152, build from clean candidate, verify signed calibration flow and public direct/iframe readiness before/after cutover. Retain active 0.0.151 on 4214 for rollback; next free port expected 4215.
 - Update affected READMEs and plan results, close dvay after verification, commit/push intentional changes only. Preserve unrelated ledger/screenshots and deferred custom-wall task igiw.
+
+## Release results
+
+- Shipped assembly 655586adefc148f6f57c8d148630dffa0c1b57a8 pins input 18b5e24887fc3b54680816445165b1ecd8899d78. Candidate checkout was clean; all release/provenance gates retained.
+- Snapshot .tmp/boxing-r152-655586a; stamp FRIEND-GAME-CPU-0.0.152-64ba3233174bff1b03995036; 59 signed files; entry assets/index-Dx3TiQps.js.
+- Input check/unit/browser/pack and final assembly npm test pass. Source and signed slow-calibration UI tests pass all three modes: each used 9 measured samples, 16 true idle ticks and entered countdown, with maximum sample gaps 276–280 ms. Actual failed measurements and >750 ms silence still show Missing/reset. No new averaging samples or measurement timestamps are created by idle ticks.
+- The focused test runs in normal test:browser via test:slow-calibration. This is behavioral state coverage (Seen while waiting, Missing on actual failure/timeout, countdown hiding), not a new pixel-fidelity claim or UI design change. No checklist layout/copy changes.
+- Signed Flow/Boxing 1/2 FPS spline scoring matrix passes; exactly-once hits and independent rendering preserved. Authoring cache bound and unsupported custom-wall policy are unchanged.
+- Published on enabled aerobeat-r152, port 4215; public pico funnel targets it. Public/local HTML SHA-256 matches: 0585d93271c68ddf27170af4befffbe923badf1f48be5530a27e48bdb3eef5b2.
+- Public HTTPS direct and genuine cross-origin iframe report 0.0.152, ready conversion/render assets/environment, cpu-wasm and nonzero canvases. A repeat of the previously failing stable-pose/interleaved-idle input replay now retains all nine joints and commits calibration in both public hosts.
+- Rollback: repoint public funnel to http://127.0.0.1:4214 and stop aerobeat-r152. aerobeat-r151 remains active.
+- README documents actual behavior and bounds. Close dvay, commit/push intended docs; preserve unrelated ledger/screenshots. No MediaPipe/model/confidence or scoring changes. No claim of raw phone-camera acceptance; a measurement already older than 750 ms can still expire, and raw per-joint confidence can still fluctuate.
 
 ## Historical investigation
 Bug: **aerobeat-web-assembly-dvay** (P1, open).
@@ -72,7 +84,7 @@ Used fresh Playwright pages on the public HTTPS 0.0.151 app and its real graph.i
 
 The assembly timer branch was traced in source; this probe manually invoked that existing branch's input call. It did not run real camera inference or capture the user's exact phone frames.
 
-## Proposed fix and acceptance (awaiting approval)
+## Approved fix and acceptance (verified as recorded above)
 
 1. Distinguish a pending/no-new-result interval from a newly measured missing/low-confidence result and a genuine stale timeout.
 2. Preserve the last real checklist through ordinary inference gaps without fabricating new measurement timestamps or hold samples. Do not merely mask the DOM flicker: knee hold state must remain consistent too.
@@ -89,7 +101,7 @@ Observed symptom: nine good landmarks become all false on no-frame ticks; knee h
 Root cause: 100 ms no-new-result policy calls advanceTime, which treats the gap as absent measured landmarks.
 Evidence: source trace plus controlled replay through the shipped 0.0.151 input service and passing no-idle control.
 Failed approaches: no product fix attempted; one diagnostic assertion corrected for the normal cooldown state.
-Corrective action: proposed separation of pending results from actual failure/timeout; not implemented.
+Corrective action: separation of pending results from actual failure/timeout was proposed at diagnosis, then approved, implemented and shipped as 0.0.152.
 Verification test: real assembly cadence, slow stable results, knee/on/off calibration and honest missing/timeout handling.
 Related files/components: assembly src/index.js and src/production-cv-service.js; input src/body-grid-service.js; MediaPipe normalizers.
 Remaining uncertainty: raw per-joint phone visibility, actual inference durations and whether threshold chatter also contributes.
