@@ -2,6 +2,18 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## Next public playtest: 0.0.153 athlete-facing depth− option (in preparation)
+
+The Flow saber and Boxing glove collider sections add **Keep depth− aimed toward athlete**.
+It defaults OFF for Flow and ON for Boxing. ON fixes the rear extension along world +Z toward the
+athlete; OFF lets that extension follow the equipment. Forward reach and wearable art do not change.
+Show volume and scoring use the same shared parts, including spline reconstruction.
+
+The existing Depth − amount still controls reach; at zero there is no extra rear extension to see.
+Like the other collider settings, changing this in the pause menu takes effect on the next Play/Test
+run. Each mode remembers its own value, independently of Show volume. No knee-pad option is added.
+Existing saved depth/scale values remain intact, with the new mode-specific boolean filled in.
+
 ## Current public playtest: 0.0.152 calibration idle-gap correction (live)
 
 Calibration no longer treats waiting for the next pose result as a new missing-landmark result.

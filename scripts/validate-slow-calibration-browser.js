@@ -14,7 +14,7 @@ let vite,server,fixtureDirectory,browser,url;
 try{
  if(process.env.AEROBEAT_CALIBRATION_SIGNED_DIR){
   const snapshot=loadSignedSnapshot(process.env.AEROBEAT_CALIBRATION_SIGNED_DIR);
-  assert.equal(snapshot.manifest.sourceManifest.packageVersion,'0.0.152');
+  assert.ok(['0.0.152','0.0.153'].includes(snapshot.manifest.sourceManifest.packageVersion),'calibration fix release or successor required');
   fixtureDirectory=mkdtempSync(path.join(tmpdir(),'aerobeat-slow-calibration-'));
   await build({configFile:false,root:process.cwd(),logLevel:'error',build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:'scripts/fixtures/scored-play-browser-harness.js',formats:['es'],fileName:()=> 'scored-play-browser-harness.js'}}});
   const fixtures=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith('.js')).map(name=>[`/scripts/fixtures/${name}`,readFileSync(path.join(fixtureDirectory,name))]));
@@ -86,5 +86,5 @@ try{
   },variant);
   assert.deepEqual(noise,[],'no unexpected browser warnings/errors');console.log(JSON.stringify(result));await page.close();
  }
- console.log(`Slow-pose calibration UI/display-loop regression passed${process.env.AEROBEAT_CALIBRATION_SIGNED_DIR?' in signed 0.0.152':''}`);
+ console.log(`Slow-pose calibration UI/display-loop regression passed${process.env.AEROBEAT_CALIBRATION_SIGNED_DIR?' in signed bundle':''}`);
 }finally{await browser?.close();if(vite)await vite.close();if(server)await new Promise(resolve=>server.close(resolve));if(fixtureDirectory)rmSync(fixtureDirectory,{recursive:true,force:true});}
