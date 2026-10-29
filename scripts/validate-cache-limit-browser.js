@@ -16,7 +16,7 @@ try {
   let base=process.env.AEROBEAT_CACHE_BASE;
   if(process.env.AEROBEAT_CACHE_SIGNED_DIR){
     const snapshot=loadSignedSnapshot(process.env.AEROBEAT_CACHE_SIGNED_DIR);
-    assert.equal(snapshot.manifest.sourceManifest.packageVersion,"0.0.151");
+    assert.equal(snapshot.manifest.sourceManifest.packageVersion,"0.0.152");
     server=createServer(handlerForSnapshot(snapshot));
     await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
     base=`http://127.0.0.1:${server.address().port}/`;
@@ -28,7 +28,7 @@ try {
   page.on("filechooser",()=>{fileChoosers+=1;});
   await page.goto(base,{waitUntil:"load",timeout:60000});
   await page.waitForFunction(()=>document.querySelector("aero-game")?.graph?.authoring?.getCapabilities?.().conversionWorker===true,null,{timeout:90000});
-  assert.equal(await page.locator("meta[name='aerobeat-release-proof']").getAttribute("content"),"0.0.151");
+  assert.equal(await page.locator("meta[name='aerobeat-release-proof']").getAttribute("content"),"0.0.152");
   const before=await page.evaluate(async(base64)=>{
     const game=document.querySelector("aero-game");
     await game.importLocalZip(new Blob([Uint8Array.from(atob(base64),c=>c.charCodeAt(0))]));
@@ -58,5 +58,5 @@ try {
   assert.equal(gas.imported,false);assert.equal(gas.code,"obstacle_type_unsupported");assert.match(gas.message,/v2 obstacle type/);assert.equal(gas.collections,1,"unsupported custom walls cannot partially persist a song");
   assert.deepEqual(errors,[]);
   console.log(JSON.stringify({before,after,fileChoosers,gas}));
-  console.log("0.0.151 large-entry import and cached reimport passed; GAS custom-wall limitation retained explicitly");
+  console.log("Large-entry import and cached reimport passed; GAS custom-wall limitation retained explicitly");
 }finally{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));}

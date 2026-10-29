@@ -16,7 +16,7 @@ try {
   const signed=process.env.AEROBEAT_SPLINE_SIGNED_DIR;
   if(signed) {
     const snapshot=loadSignedSnapshot(path.resolve(signed));
-    assert.ok(["0.0.150","0.0.151"].includes(snapshot.manifest.sourceManifest.packageVersion),"signed spline release or cache-fix successor required");
+    assert.ok(["0.0.150","0.0.151","0.0.152"].includes(snapshot.manifest.sourceManifest.packageVersion),"signed spline release or cache-fix successor required");
     fixtureDirectory=mkdtempSync(path.join(tmpdir(),"aerobeat-spline-fixture-"));
     await build({configFile:"vite.config.js",logLevel:"error",build:{outDir:fixtureDirectory,emptyOutDir:true,lib:{entry:"scripts/fixtures/scored-play-browser-harness.js",formats:["es"],fileName:()=>"scored-play-browser-harness.js"}}});
     const fixtures=new Map(readdirSync(fixtureDirectory).filter(name=>name.endsWith(".js")).map(name=>["/scripts/fixtures/"+name,readFileSync(path.join(fixtureDirectory,name))]));

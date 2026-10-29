@@ -2,6 +2,18 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## Next public playtest: 0.0.152 calibration idle-gap correction (in preparation)
+
+Calibration no longer treats waiting for the next pose result as a new missing-landmark result.
+The last measured checklist and hold survive ordinary inference gaps below the existing 750 ms
+measurement timeout. New missing/low-confidence measurements still update immediately; a genuine
+timeout still expires the checklist and clears the hold. Idle ticks do not invent measurements or
+add calibration averaging samples.
+
+MediaPipe, its confidence thresholds, the two-second measured hold, tracking-loss behavior and
+frozen gameplay publication remain unchanged. This also retains the spline and 8 MiB cache fixes.
+The camera preview may still run faster than pose inference; physical phone behavior needs testing.
+
 ## Current public playtest: 0.0.151 cache-entry limit correction (live)
 
 The per-entry source-cache limit rises from 2 MiB to 8 MiB, allowing large valid difficulty files to
