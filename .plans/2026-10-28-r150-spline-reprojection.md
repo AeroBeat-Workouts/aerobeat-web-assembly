@@ -3,6 +3,15 @@
 Status: shipped publicly as 0.0.150; automated acceptance complete. Derrick's physical-phone Play usability check remains human acceptance. Owner: Pico.
 Bead: aerobeat-web-assembly-3xji. Gameplay plan: ../aerobeat-web-gameplay/.plans/2026-10-28-continuous-spline-reprojection.md.
 
+## Required before the next build
+
+- [ ] **Fix the cache-entry limit for BeatSaver "[[Wall Show + Chroma]] GAS GAS GAS | Manuel".** Bead: **aerobeat-web-assembly-ruoi** (P1, open). Derrick reported the exact import failure `cache entry exceeds the byte limit` after the 0.0.150 release and explicitly requires this fix before the next build in this plan.
+  - Owner: content-authoring for cache limits; assembly for release integration.
+  - Inspect the offending archive entry and raise the appropriate finite cache limit enough for this legitimate map, without changing unrelated archive/storage limits.
+  - Add a focused size-boundary regression and verify this real song imports through the affected browser flow; check cached-source reimport remains usable.
+  - Commit/push and repin changed dependencies before creating the next build. Verify the resulting build before publishing it.
+  - Scheduling only at this checkpoint: no limit change, fix or new build is claimed. The already-shipped 0.0.150 result below remains historical truth.
+
 ## Approved product behavior
 
 Continuously reconstruct between webcam measurements and score projected equipment along that path using the existing timing, grading and already-hit state. Approximation is accepted without new confidence penalties or a movement requirement. Both Flow and Boxing, in Play and Test, use the same pipeline. A visible decorative trail is not required.
