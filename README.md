@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Next public playtest: 0.0.151 cache-entry limit correction (in preparation)
+## Current public playtest: 0.0.151 cache-entry limit correction (live)
 
 The per-entry source-cache limit rises from 2 MiB to 8 MiB, allowing large valid difficulty files to
 be kept for reimport. The reported GAS GAS GAS Expert file is 3,874,764 bytes. Separate difficulty,
@@ -12,7 +12,21 @@ This does **not** add Noodle Extensions/custom-wall compatibility. That specific
 still fails later on unsupported v2 obstacle types. Derrick approved shipping the cache fix
 separately; the custom-wall support discussion is tracked as `aerobeat-web-assembly-igiw`.
 
-## Current public playtest: 0.0.150 spline collider reprojection (live)
+The [public playtest](https://pico.tail613fcb.ts.net/) serves `.tmp/boxing-r151-79b7b8b` from enabled
+unit `aerobeat-r151` on loopback 4214. Sources: assembly `79b7b8b`, content-authoring `505faf0`;
+build stamp `FRIEND-GAME-CPU-0.0.151-c421069ba8ab8d7ba5922440`, 59 signed files.
+
+Authoring checks, unit/security suites and assembly `npm test` pass. Against both the actual signed
+bundle and public HTTPS, a valid archive with its Expert JSON whitespace-padded to 3,874,764 bytes
+imports all three difficulties and reimports from stored source with the same collection, byte count
+and zero file choosers. The exact GAS GAS GAS archive passes the cache boundary and then reports
+`obstacle_type_unsupported`, with no partial collection. Public direct/cross-origin iframe checks
+report 0.0.151, ready worker/render assets/environment, `cpu-wasm` and nonzero framebuffers.
+
+Rollback: `tailscale funnel --bg --https=443 --yes http://127.0.0.1:4213`, then
+`systemctl --user stop aerobeat-r151`. The previous 0.0.150 service remains active.
+
+## Retained: 0.0.150 spline collider reprojection (unit `aerobeat-r150`, loopback 4213)
 
 Flow and Boxing reconstruct a bounded, timestamped wrist spline between webcam updates and judge
 projected equipment along that path through the existing collision, grading and already-hit logic.
@@ -25,7 +39,7 @@ webcam FPS** (0 = native, 1–60 = sampled input). Equipment measurements are he
 rendering and audio continue normally. This setting affects Test only. Automated simulation supports
 development; Derrick's phone Play test remains the human usability acceptance.
 
-The [public playtest](https://pico.tail613fcb.ts.net/) serves signed snapshot
+This version served the public playtest before 0.0.151 and remains as a rollback snapshot:
 `.tmp/boxing-r150-724ee30` from `aerobeat-r150` on loopback 4213. Build source is assembly `724ee30`
 and gameplay `4a89afd`; stamp `FRIEND-GAME-CPU-0.0.150-c942956c9e3a0505c8e8acbe` has 59 signed files.
 

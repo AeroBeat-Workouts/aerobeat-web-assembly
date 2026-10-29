@@ -1,6 +1,6 @@
 # 0.0.150 integration: continuous equipment reprojection and Test webcam FPS
 
-Status: shipped publicly as 0.0.150; automated acceptance complete. Derrick's physical-phone Play usability check remains human acceptance. Owner: Pico.
+Status: spline release 0.0.150 and approved cache-only corrective release 0.0.151 shipped publicly; automated acceptance complete. Derrick's physical-phone Play usability check remains human acceptance. Owner: Pico.
 Bead: aerobeat-web-assembly-3xji. Gameplay plan: ../aerobeat-web-gameplay/.plans/2026-10-28-continuous-spline-reprojection.md.
 
 ## Corrective 0.0.151 execution
@@ -11,17 +11,21 @@ Approved by Derrick: ship the cache-only fix; discuss Noodle Extensions/custom-w
 - Source checks pass: authoring check (including types), unit suite and security suite. Restored a displaced existing SourceBundle type-guard annotation and corrected two existing test typing/factory mistakes to make those gates runnable; no extra production behavior changed.
 - Exact GAS GAS GAS now passes cache preparation but conversion rejects independent custom walls: obstacle_type_unsupported, v2 type must be 0 or 1. Metadata requires Noodle Extensions; 13,898 custom obstacles. This limitation is explicitly accepted for the cache-only release.
 - Browser acceptance: valid real Numb archive with Expert JSON padded by whitespace to the exact 3,874,764-byte boundary, then actual import and shipped Reimport button. Verify retained bytes, three difficulties, same collection and no file chooser. Exact GAS archive must report the independent custom-wall error with no partial persistence. Fixture archives stay outside Git.
-- Next: build the corrected signed 0.0.151 only after this source fix, run browser acceptance, publish with 0.0.150 rollback, update release notes and close cache bead. Keep the custom-wall discussion open.
+- Complete: built signed 0.0.151 after the source fix, from clean assembly 79b7b8b / authoring 505faf0. Snapshot .tmp/boxing-r151-79b7b8b, stamp FRIEND-GAME-CPU-0.0.151-c421069ba8ab8d7ba5922440, 59 files, assets/index-CkmApnBi.js.
+- Passed: full assembly npm test and signed/public browser cache acceptance. The valid 3,874,764-byte difficulty imports/reimports all three packages in the same collection with no file chooser; the exact GAS archive reports only the independent unsupported-wall rejection, with no partial persistence. Public direct and real cross-origin iframe load ready assets/environment/worker and nonzero framebuffers.
+- Public service aerobeat-r151 is enabled on 4214 and the pico funnel targets it. Public/local HTML hashes match: e54b376ad8ae9a8d59974c26d1ec53dace01bd032e2263c8631b97b1ca4dd4b9. Rollback targets still-active aerobeat-r150 on 4213.
+- Reproduction inputs stay outside Git. Valid browser fixture: start with BeatSaver78e Numb ZIP, append JSON whitespace to Expert.dat until 3,874,764 bytes, and write that entry ZIP_STORED. Deflating pure padding initially hit the existing compression-ratio protection; the fixture compression was corrected and that guard was not relaxed. Run scripts/validate-cache-limit-browser.js with AEROBEAT_CACHE_VALID_ZIP / AEROBEAT_CACHE_GAS_ZIP and either AEROBEAT_CACHE_SIGNED_DIR or AEROBEAT_CACHE_BASE.
+- Release README documents the unsupported modded map explicitly. Close cache-only bead; keep custom-wall discussion igiw open. Intentional docs/source are committed/pushed; unrelated ledger/screenshots preserved.
 - Execution source plan: ../aerobeat-web-content-authoring/.plans/2026-10-29-gas-gas-gas-cache-limit.md; goal goal-8d6f4121-8b41-47b3-b2b4-14f6be0e557c.
 
 ## Required before the next build
 
-- [ ] **Fix the cache-entry limit for BeatSaver "[[Wall Show + Chroma]] GAS GAS GAS | Manuel".** Bead: **aerobeat-web-assembly-ruoi** (P1, open). Derrick reported the exact import failure `cache entry exceeds the byte limit` after the 0.0.150 release and explicitly requires this fix before the next build in this plan.
+- [x] **Fix the cache-entry limit for BeatSaver "[[Wall Show + Chroma]] GAS GAS GAS | Manuel".** Bead: **aerobeat-web-assembly-ruoi** (P1, open). Derrick reported the exact import failure `cache entry exceeds the byte limit` after the 0.0.150 release and explicitly requires this fix before the next build in this plan.
   - Owner: content-authoring for cache limits; assembly for release integration.
   - Inspect the offending archive entry and raise the appropriate finite cache limit enough for this legitimate map, without changing unrelated archive/storage limits.
   - Add a focused size-boundary regression and verify this real song imports through the affected browser flow; check cached-source reimport remains usable.
   - Commit/push and repin changed dependencies before creating the next build. Verify the resulting build before publishing it.
-  - Scheduling only at this checkpoint: no limit change, fix or new build is claimed. The already-shipped 0.0.150 result below remains historical truth.
+  - Completed as the approved cache-only 0.0.151 release. Exact GAS custom-wall compatibility remains deferred in igiw by Derrick's explicit choice; the original 0.0.150 result below remains historical truth.
 
 ## Approved product behavior
 
