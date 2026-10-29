@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Next public playtest: 0.0.153 athlete-facing depth− option (in preparation)
+## Current public playtest: 0.0.153 athlete-facing depth− option (live)
 
 The Flow saber and Boxing glove collider sections add **Keep depth− aimed toward athlete**.
 It defaults OFF for Flow and ON for Boxing. ON fixes the rear extension along world +Z toward the
@@ -14,7 +14,23 @@ Like the other collider settings, changing this in the pause menu takes effect o
 run. Each mode remembers its own value, independently of Show volume. No knee-pad option is added.
 Existing saved depth/scale values remain intact, with the new mode-specific boolean filled in.
 
-## Current public playtest: 0.0.152 calibration idle-gap correction (live)
+The [public playtest](https://pico.tail613fcb.ts.net/) serves `.tmp/boxing-r153-6aa7422` from enabled
+unit `aerobeat-r153` on loopback 4216. Assembly source `6aa7422` pins contracts `a1c1fbc`,
+gameplay `20a1697` and renderer `b5a1e77`. Build stamp
+`FRIEND-GAME-CPU-0.0.153-e4fb0750c7f2a4802ddeda7e` contains 59 signed files.
+
+Normal source suites pass, including assembly `npm test`. `npm run test:rear-depth` is in the normal
+browser command; its signed-bundle run passes Flow/Boxing × Play/Test × OFF/ON, with native checkbox
+changes, saved mode independence, next-run binding, rotated shared Show geometry, unchanged art/front
+reach, correct scored identity and exactly-once hits. Renderer native fill/wire tests cover both
+bent unions. Signed slow-calibration and 1/2 FPS spline matrices remain green. Public direct and
+cross-origin iframe checks confirm 0.0.153, the checkbox/defaults, ready worker/assets/environment,
+`cpu-wasm` and nonzero canvases. Physical comfort and preference remain Derrick's phone playtest.
+
+Rollback: `tailscale funnel --bg --https=443 --yes http://127.0.0.1:4215`, then
+`systemctl --user stop aerobeat-r153`. The previous 0.0.152 service remains active.
+
+## Retained: 0.0.152 calibration idle-gap correction (unit `aerobeat-r152`, loopback 4215)
 
 Calibration no longer treats waiting for the next pose result as a new missing-landmark result.
 The last measured checklist and hold survive ordinary inference gaps below the existing 750 ms
@@ -26,8 +42,8 @@ MediaPipe, its confidence thresholds, the two-second measured hold, tracking-los
 frozen gameplay publication remain unchanged. This also retains the spline and 8 MiB cache fixes.
 The camera preview may still run faster than pose inference; physical phone behavior needs testing.
 
-The [public playtest](https://pico.tail613fcb.ts.net/) serves `.tmp/boxing-r152-655586a` from enabled
-unit `aerobeat-r152` on loopback 4215. Sources: assembly `655586a`, input `18b5e24`;
+This version served the public link before 0.0.153 and remains as a rollback snapshot:
+`.tmp/boxing-r152-655586a` from enabled unit `aerobeat-r152` on loopback 4215. Sources: assembly `655586a`, input `18b5e24`;
 build stamp `FRIEND-GAME-CPU-0.0.152-64ba3233174bff1b03995036`, 59 signed files.
 
 Input checks/unit/browser validation and assembly `npm test` pass. `npm run test:slow-calibration`

@@ -1,6 +1,6 @@
 # 0.0.153: athlete-facing depth-minus option
 
-Status: approved directly by Derrick for implementation and next public release.
+Status: delivered publicly as 0.0.153; automated acceptance complete. Physical preference remains Derrick's playtest.
 Bead: aerobeat-web-assembly-qrtp. Owner: Pico; contracts/gameplay/renderer source owners participate.
 Goal: goal-c58ca57d-af68-4d2a-b290-5a2f9dc4b4da; round cap Maximum safe integer.
 
@@ -32,9 +32,9 @@ Retain current collider settings run binding: changes made in the pause menu app
 
 1. Complete: inspect existing geometry/settings/UI and claim feature. Read owner READMEs/status before edits; protect unrelated assembly ledger/screenshots.
 2. Complete: contracts + gameplay implementation, normal regressions for mode defaults/boolean validation, rotated front invariant/rear direction, zero depths, setting identities, point/sweep exactly-once scoring.
-3. Source implementation complete; integration verification in progress: matching renderer Show parts + native orientation and menu wiring. Test checkbox independence, mode-switch retention and next-run binding in Play/Test.
-4. Pending: focused source gates and actual signed 0.0.153 browser checks with visibly rotated equipment. Confirm front/art unchanged, Show geometry matches scorer, defaults preserve existing behavior. Retain calibration152, spline150 and cache151 regressions where affected.
-5. Pending: commit/push dependencies, repin clean source, build candidate, freeze snapshot, publish with0.0.152 rollback and verify public direct/iframe readiness. Update affected source and assembly READMEs/plans, close completed bead, verify intentional pushed state.
+3. Complete: matching renderer Show parts + native orientation and menu wiring. Test checkbox independence, mode-switch retention and next-run binding in Play/Test.
+4. Complete: focused source gates and actual signed 0.0.153 browser checks with visibly rotated equipment. Confirm front/art unchanged, Show geometry matches scorer, defaults preserve existing behavior. Retain calibration152, spline150 and cache151 regressions where affected.
+5. Complete: commit/push dependencies, repin clean source, build candidate, freeze snapshot, publish with0.0.152 rollback and verify public direct/iframe readiness. Update affected source and assembly READMEs/plans, close completed bead, verify intentional pushed state.
 
 ## Execution results before signed build
 
@@ -45,6 +45,17 @@ Retain current collider settings run binding: changes made in the pause menu app
 - Parent implements per-mode stored boolean normalization (old four-field records preserved with mode defaults), scorer field forwarding, requested checkbox and independent Show handling. Dedicated source regression passes defaults, invalid booleans/accessors, persistence, knee exclusion and scored identity.
 - Connected source browser test passed all eight choices: Flow/Boxing × Play/Test × toggle OFF/ON. Native checkbox, next-run binding, same Show/scorer parts, real hits and exactly-once records pass. Additional explicit art/front invariant assertions are included for signed repetition.
 - Normal test fixtures were updated to include the requested new boolean. Existing asset-source guards correctly rejected the old renderer pin; both asset-sync/environment guards were repinned to the new committed renderer, without changing asset bytes or weakening checks. The first normal check also required two missing @ts-check headers in new test files; corrected. Final assembly suite is running.
+
+## Signed release and public results
+
+- Assembly build source 6aa7422bb76ea0ed04bd5ad2f69bf4db929edf49; dependencies pinned to the exact source identities above. Built from clean private candidate checkout; source/asset/provenance gates retained. Final assembly npm test passes.
+- Frozen snapshot .tmp/boxing-r153-6aa7422; stamp FRIEND-GAME-CPU-0.0.153-e4fb0750c7f2a4802ddeda7e, 59 signed files, entry assets/index-BTL98-AL.js.
+- Signed test:rear-depth passes all eight mode/purpose/value cases. Native checkbox and mode defaults, separate Show boolean, next-run binding, all shared convex parts, unchanged wearable rotation/scale and positive front endpoints, real hit, scored identity and duplicate prevention are asserted. Eight cases each render into a nonzero 1000×700 framebuffer. Source settings test separately verifies old saved values, mode defaults, strict booleans/accessors, persistence roundtrip and unchanged knee shape.
+- Signed 4 FPS calibration regression passes knee-enabled Boxing, knee-disabled Boxing and Flow: 9 actual pose samples, 16 idle ticks, successful countdown. Signed directional 1/2 FPS Flow/Boxing spline matrix passes. These are controlled browser input tests, not raw phone-camera claims.
+- Public service aerobeat-r153 is enabled on 4216; pico funnel targets it. Local/public HTML SHA-256 identical: eb7236f4f1c2c06ae2979186397aa581a5fcf12749bb7d853df9a149cf8cdea5.
+- Public HTTPS direct and true cross-origin iframe show 0.0.153 and the new checkbox, Flow false/Boxing true defaults, ready conversion/render assets/environment, cpu-wasm and nonzero canvases. No page errors.
+- Rollback: repoint the public funnel to http://127.0.0.1:4215 and stop aerobeat-r153. aerobeat-r152 remains active. README explains Depth− must be >0 for added rear reach and changes apply next run.
+- Source and release documentation are committed/pushed; close qrtp with automated evidence. Preserve unrelated ledger/screenshots. No new in-scope unresolved findings; earlier unrelated camera-control follow-up nnm6 and custom-wall discussion igiw are unchanged and do not block this feature.
 
 ## References / non-goals
 
