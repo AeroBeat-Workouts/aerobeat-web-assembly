@@ -2,6 +2,16 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## Next public playtest: 0.0.151 cache-entry limit correction (in preparation)
+
+The per-entry source-cache limit rises from 2 MiB to 8 MiB, allowing large valid difficulty files to
+be kept for reimport. The reported GAS GAS GAS Expert file is 3,874,764 bytes. Separate difficulty,
+audio, selected-source and archive bounds remain unchanged.
+
+This does **not** add Noodle Extensions/custom-wall compatibility. That specific wall-show map
+still fails later on unsupported v2 obstacle types. Derrick approved shipping the cache fix
+separately; the custom-wall support discussion is tracked as `aerobeat-web-assembly-igiw`.
+
 ## Current public playtest: 0.0.150 spline collider reprojection (live)
 
 Flow and Boxing reconstruct a bounded, timestamped wrist spline between webcam updates and judge

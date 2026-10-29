@@ -3,6 +3,17 @@
 Status: shipped publicly as 0.0.150; automated acceptance complete. Derrick's physical-phone Play usability check remains human acceptance. Owner: Pico.
 Bead: aerobeat-web-assembly-3xji. Gameplay plan: ../aerobeat-web-gameplay/.plans/2026-10-28-continuous-spline-reprojection.md.
 
+## Corrective 0.0.151 execution
+
+Approved by Derrick: ship the cache-only fix; discuss Noodle Extensions/custom-wall support separately in **aerobeat-web-assembly-igiw**. Do not silently drop walls or claim the reported modded map fully imports.
+
+- Source fix complete and pushed: content-authoring **505faf0**, finite cache entry default 2 MiB -> 8 MiB. Exact real file is 3,874,764 bytes. Existing difficulty/audio/selected-source/archive bounds are unchanged.
+- Source checks pass: authoring check (including types), unit suite and security suite. Restored a displaced existing SourceBundle type-guard annotation and corrected two existing test typing/factory mistakes to make those gates runnable; no extra production behavior changed.
+- Exact GAS GAS GAS now passes cache preparation but conversion rejects independent custom walls: obstacle_type_unsupported, v2 type must be 0 or 1. Metadata requires Noodle Extensions; 13,898 custom obstacles. This limitation is explicitly accepted for the cache-only release.
+- Browser acceptance: valid real Numb archive with Expert JSON padded by whitespace to the exact 3,874,764-byte boundary, then actual import and shipped Reimport button. Verify retained bytes, three difficulties, same collection and no file chooser. Exact GAS archive must report the independent custom-wall error with no partial persistence. Fixture archives stay outside Git.
+- Next: build the corrected signed 0.0.151 only after this source fix, run browser acceptance, publish with 0.0.150 rollback, update release notes and close cache bead. Keep the custom-wall discussion open.
+- Execution source plan: ../aerobeat-web-content-authoring/.plans/2026-10-29-gas-gas-gas-cache-limit.md; goal goal-8d6f4121-8b41-47b3-b2b4-14f6be0e557c.
+
 ## Required before the next build
 
 - [ ] **Fix the cache-entry limit for BeatSaver "[[Wall Show + Chroma]] GAS GAS GAS | Manuel".** Bead: **aerobeat-web-assembly-ruoi** (P1, open). Derrick reported the exact import failure `cache entry exceeds the byte limit` after the 0.0.150 release and explicitly requires this fix before the next build in this plan.
