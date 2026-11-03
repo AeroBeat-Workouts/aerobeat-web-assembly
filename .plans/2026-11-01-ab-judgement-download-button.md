@@ -1,14 +1,16 @@
 # A/B judgement capture: "Download Data" button in the menu drawer
 
-Status: CORRECTED PROBES LIVE — waiting for valid physical-play captures. Overall playability investigation remains active.
+Status: CONFIRMED LOGIC REGRESSION — fresh authentic .149/.153 captures received (828/830 vs 573/830). Matching Flow settings and a real-coordinator reversal fixture expose earliest wrong-way contact masking a later valid hit. Targeted source fix active; permanent movement recording/Test replay requested separately.
 
 ## Current action — 2026-11-03
 
-Owner: Pico. Bead: aerobeat-web-assembly-3g45. Goal remains active; maximum rounds: Maximum safe integer.
+Owner: Pico. Active source-fix Bead: aerobeat-web-assembly-nrrv (gameplay owner); performance 2bsk; recording feature 1fnl. Rebuild 3g45 is complete. Goal active; maximum rounds: Maximum safe integer.
 
 The first .149 probe build was invalid: it retained the old assembly label but linked current dependencies, including post-spline gameplay 20a1697. Derrick's two captures therefore do not compare pre-spline against post-spline. The original .149 manifest pins gameplay 6f5d6a6, contracts 43ec0a4, input 31c96a3, renderer 94f1a06 and content-authoring 9edce4c.
 
-Next acceptance check: Derrick refreshes both existing pages, plays the same song/difficulty and exports both completed runs. Compare new files identified by corrected stamps below. Do not interpret old captures as a pre/post-spline comparison. Dependency isolation, metadata repair, signed download checks and public deployment verification are complete. No scoring changes.
+Current acceptance check: source regression must recover a later geometry+direction-qualified contact after rejecting an earlier wrong-way contact, while reverse-only/no-contact controls still fail. Then verify in an actual locally built assembly before proposing deployment. Fresh .149 stamp bb26fd6c889f95b0c482ebaf and .153 stamp f2d26b97608cf1dcbee4e712 share all 830 event IDs/beat centers and matching Flow volume/timing/direction settings. Full analysis is in `.plans/2026-11-03-real-play-analysis.md`. Do not use the earlier mislabeled .149 baseline. Do not replace either live artifact during source work.
+
+Coder child f2e79c08-0a57-4d34-bd1e-9a04cae662cf (standalone role coder, registration verified) completed bounded gameplay commit 011c860 under its repo-local `.plans/2026-11-03-direction-qualified-flow-contact.md`; not pushed. Reported genuine red/green reversal regression, negative controls, exactly-once and full owning npm test passing; parent independent source/build review remains next. No assembly edits or deployments by child. Parent owns new recording/replay plan `.plans/2026-11-03-human-movement-recording-replay.md` (proposed Test UI needs approval) and built acceptance. Previous QA child remains available but idle; no concurrent source edits.
 
 Deferred report: aerobeat-web-assembly-5fgy tracks Derrick's Boxing 100% repeated-punch switch-hand observation; do not fix it during probe work. Historical test compatibility is filed as aerobeat-web-assembly-7edx (P3, safe to defer; no product-scoring change needed). Rebuild Bead 3g45 is closed; physical comparison and the overall goal remain open.
 
@@ -122,15 +124,9 @@ A button removes the console step entirely.
 
 ## Sequence this must be added to
 
-This button is an observation instrument for a specific comparison. It is not a general
-product feature. Two rules follow:
+Derrick explicitly requested keeping Download Data and extending it into a human-movement recording/replay tool on 2026-11-03. That supersedes the original temporary-button/removal proposal. Feature Bead: 1fnl.
 
-1. **Remove it after the comparison.** Leaving a data-export control in a public game
-   build is scope creep and a small privacy surface (it captures the player's own session).
-2. **It must not change gameplay.** It reads the existing gameplay snapshot; it never
-   writes to session state, never alters scoring, never touches timing.
-
-If it turns out useful beyond this comparison, that is a separate proposal.
+The recorder must remain observational: it must not alter live scoring, timestamps or evidence. Movement/calibration records stay in the locally downloaded file; no automatic upload or video/audio capture is proposed. Replay is an explicit Test-only input source, not live/ranked evidence. The replay UI and data path need a scoped execution plan.
 
 ## Design
 
@@ -220,7 +216,7 @@ and report rather than serving a build I cannot vouch for.
 - No automatic upload, no network call, no telemetry. The file lands in Downloads only.
 - No change to scoring, colliders, timing, or difficulty.
 - No new developer-facing settings screen.
-- The button is temporary; a removal Bead is filed alongside this plan.
+- Superseded: the original temporary-button removal requirement. Derrick now wants the button retained and expanded under feature Bead 1fnl.
 
 ## Risks
 

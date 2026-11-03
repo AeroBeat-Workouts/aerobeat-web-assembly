@@ -2,13 +2,22 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Temporary A/B probe deployment — 2026-11-03
+## Playtest data export and A/B deployment — 2026-11-03
 
 The menu's **Download Data** button exports a finished run as JSON. The corrected
 probe records source difficulty/map ID, all run-locked Game Setup options, and
 per-note judgements. Changing settings after completion does not rewrite the run.
-Refresh both pages before testing; play the same song/difficulty and download once
-per build. The earlier .149 probe was invalid and must not guide a rollback decision.
+Derrick requested retaining the button and adding calibrated movement recording and
+Test replay (feature `1fnl`); that extension is proposed, not implemented yet.
+The earlier .149 probe was invalid and must not guide a rollback decision.
+
+Fresh authentic .149/.153 Expert runs now share all 830 event IDs and timestamps,
+with matching recorded Flow scale/depth/timing/direction settings: 828 hits versus
+573. A real-coordinator synthetic reversal fixture also exposes an independent
+logic defect: an early wrong-way contact can mask a later valid directional hit.
+Gameplay fix `nrrv` is in progress; its contribution to all physical misses is not
+yet quantified because the exports lack raw movement/calibration histories.
+See `.plans/2026-11-03-real-play-analysis.md` for evidence and limitations.
 
 - Pre-spline on existing tailnet port 8449: `aerobeat-r149-abprobe`, loopback 4212,
   candidate `.tmp/boxing-r149-verified-probe-6628d21`. Its fourteen dependencies
