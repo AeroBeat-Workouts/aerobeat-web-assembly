@@ -259,7 +259,11 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     state.audioPositionMs = songMs;
     const result = feedPose(pose);
     const after = result.session.timelinePositionMs;
-    required(after >= before && after <= songMs && graph.audio.getClockSnapshot().positionSeconds * 1000 === songMs && result.input.latestEvidence?.provenance === 'measured' && result.input.latestEvidence.measurementTimestampMs === state.pose.timestampMs, 'scored Play did not consume a fresh measured frame on the requested audio clock');
+    const clockMs = graph.audio.getClockSnapshot().positionSeconds * 1000;
+    // Audio exposes seconds: 8.05 * 1000 is 8050.000000000001, not 8050.
+    // Keep the session bounded by its actual audio clock; compare the requested
+    // millisecond value within sub-microsecond floating-point roundoff only.
+    required(after >= before && after <= clockMs && Math.abs(clockMs - songMs) < 1e-6 && result.input.latestEvidence?.provenance === 'measured' && result.input.latestEvidence.measurementTimestampMs === state.pose.timestampMs, 'scored Play did not consume a fresh measured frame on the requested audio clock');
     return result;
   };
   const capture = () => {
