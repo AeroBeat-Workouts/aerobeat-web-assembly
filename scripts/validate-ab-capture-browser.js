@@ -48,6 +48,7 @@ try {
     await harness.calibrate();
     await harness.seekSong(5500);
     await harness.graph.audio.seek(7);
+    await harness.graph.audio.pause(); // Audio device reports ended only when no longer playing.
     harness.feedPose();
     await element.audioSyncTail;
     const gameplay = harness.graph.gameplay.getSnapshot();
