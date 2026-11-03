@@ -25,6 +25,14 @@ Diagnostic record: observed .149 probe stamp 480a4d9554943b4bf13ba454 includes g
 - Current `npm test` and 8 focused capture tests pass. Historical `check` passed. Its full unit chain cannot be reported green: (1) clone-provenance test restores today's main renderer rather than the historical clone's initial commit, (2) Vite's shared tooling adds an external client root to the isolated development-server allowlist, (3) shared-hash provenance requires current public main, incompatible with original content-authoring 9edce4c. Remaining historical unit commands passed individually. Missing asset-source links were supplied without product changes. No gate was weakened.
 - Live snapshots: `boxing-r149-verified-probe-6628d21` (stamp `FRIEND-GAME-CPU-0.0.149-bb26fd6c889f95b0c482ebaf`) and `boxing-r153-verified-probe-33d565d` (stamp `FRIEND-GAME-CPU-0.0.153-f2d26b97608cf1dcbee4e712`). Specific `-abprobe` systemd units now use these snapshots on the unchanged ports 4212/4216. Public TLS browser checks confirmed exact HTML bytes and entry-JavaScript hashes plus visible disabled idle buttons on 8449/443. Original snapshots remain untouched.
 
+## Capture interpretation — follow-up while awaiting replay
+
+Only the original two invalid-baseline files were present in Downloads on this check. Their miss counts are .149-labelled: 253 wrong_direction + 3 near_timing; .153: 229 wrong_direction + 2 near_timing. These are not valid pre/post-spline comparison results.
+
+Critically, current gameplay `colliderMissDiagnostics` (session-coordinator.js, lines 1648–1653) emits wrong_direction for any expired directional note with fresh input and authored-direction enforcement, without establishing contact or a failed direction predicate. Therefore the code cannot distinguish no-contact from a true direction rejection. Earlier promises that exported diagnostic codes would directly identify the cause were too strong. Filed aerobeat-web-assembly-cqs7. Do not change live builds mid-replay or weaken direction enforcement based on this label.
+
+The previously omitted content-authoring delta 9edce4c -> 505faf0 changes the per-entry source cache allowance from 2 MiB to 8 MiB plus a moved type comment; it does not alter conversion/judgement algorithms. This observation does not rule out other real-session causes.
+
 ## Diagnostic report — incorrect pre-spline baseline
 
 **Observed failure:** Derrick reported both probe versions felt similarly bad. The .149 capture identifies stamp `480a4d9554943b4bf13ba454`; its build manifest pins post-spline gameplay 20a1697, not original 6f5d6a6.
