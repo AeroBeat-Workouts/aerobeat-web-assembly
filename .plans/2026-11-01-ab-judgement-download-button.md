@@ -43,6 +43,24 @@ After confirming no corrected captures yet, ran `.tmp/production-pose-ab.mjs` ag
 
 Next independent executable check while waiting for replay: compare actual signed browser frame costs on the same existing deterministic input/content fixture, alternating old/new and controlling frame/sample counts. Distinguish judgement-path work from renderer work where available. Do not change production scoring or claim performance is the cause unless this translates into the affected runtime.
 
+## Signed-browser performance diagnosis (2bsk, in progress)
+
+**Observed:** the same signed-runtime fixture produced ABBA mean real coordinator `advance` times 8.48 ms (.149) vs 42.98 ms (.153), over two 55-frame runs each. Whole-frame means 10.33 vs 45.57 ms; maximum frames 28.7 vs 159.8 ms. This uses actual input/coordinator/renderer and test camera/audio/content boundaries, not a natural camera cadence or phone run. Twelve notes at 100 ms spacing, 66 ms song-clock steps, bottom-right wrists away from top-left targets; all four runs commit the same twelve misses.
+
+**Path:** signed element -> existing scored-Play fixture -> real calibrated input -> one actual gameplay.advance per measured frame -> Flow candidate loop -> swept resolver -> production orientation projector. A test-owned factory wrapper times the genuine advance exactly once; it does not replace judgments or the algorithm. Renderer/rest-of-frame time is much smaller than the observed increase in advance time.
+
+**Cause of a demonstrated portion:** repeated identical reconstruction projections inside the same advance. Current-only profile made 60870 projector requests over 55 updates, with 33257 distinct complete pose/context pairs per-update and 27613 exact repeats. Projector body consumed 1370.5 ms of 2315.2 ms advance time (59%). This is evidence of redundant work, not yet a complete explanation of physical missed beats.
+
+**Controlled experiment:** test-only per-advance cache keyed by full serialized pose/context, cleared at each advance, reused those 27613 duplicate requests. Actual signed current advance mean fell from 42.09 to 27.52 ms; whole-frame mean 29.60 ms, max 85 ms. Same twelve committed event/result records. Sampled cached returns were recomputed and compared for exact value equality. This is a promising partial improvement only: misses-only workload does not prove hit/direction parity, cache reuse does not remove all new work, and production files/live services have not changed.
+
+**Alternatives/unknowns:** some extra cost is required by approved spline/reprojection semantics; source observation cannot determine how this maps to real camera scheduling, device FPS or Derrick's perceived tracking. The original macrobenchmark had no projector profiling wrapper; instrumentation adds its own overhead to the second profile. Need hit, near, reversed-direction, changing config/pivot, reset/seek and stale-evidence parity before any production optimization. Do not disable projection or widen volumes to lower CPU.
+
+**Proposed minimal fix if review supports it:** reuse exact identical pure projection results only inside one synchronous scoring advance, always clear afterward (including exceptions), retain all pose/return validation and sample schedules. Keep both public comparison builds frozen while making/verifying any local candidate. This falls under the existing confirmed-difference investigation, not authorization to silently replace the A/B baselines.
+
+**Independent QA:** child 84988c49-8fd3-403f-860c-80cc71435cae (role QA, registered running) owns read-only Bead 6zof. It reviews the fixture/claims and smallest safe optimization, no product edits or services. Parent owns integration. Existing reports: `.tmp/signed-frame-cost-baseline.json`, `.tmp/signed-frame-projection-profile.json`, `.tmp/signed-frame-cost-report.json` (cache experiment); script `.tmp/measure-signed-frames.mjs` currently runs the cached experiment.
+
+**Debugging record:** Problem: extra signed-runtime scoring cost. Observed symptom: repeatable ~5× advance cost in fixture. Root cause demonstrated in part: duplicate pure projection work. Evidence: callback count/time and cache-removal experiment. Failed approaches: prior geometry-only harnesses measured outcomes, not runtime cost. Corrective action: evaluate tightly scoped synchronous reuse with parity tests. Verification remaining: hit/safety parity and actual built candidate speed. Uncertainty: physical-play causality and remaining nonduplicate cost.
+
 ## Diagnostic report — incorrect pre-spline baseline
 
 **Observed failure:** Derrick reported both probe versions felt similarly bad. The .149 capture identifies stamp `480a4d9554943b4bf13ba454`; its build manifest pins post-spline gameplay 20a1697, not original 6f5d6a6.
