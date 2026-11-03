@@ -29,19 +29,25 @@ try {
     await vite.listen();url=vite.resolvedUrls.local[0];
   }
   browser=await chromium.launch({headless:true});
-  for(const {mode,fps} of ["flow","boxing"].flatMap(mode=>[2,1].map(fps=>({mode,fps})))) {
+  const uncachedJudgements = new Map();
+   for(const {mode,fps,cache} of ["flow","boxing"].flatMap(mode=>[2,1].flatMap(fps=>[false,true].map(cache=>({mode,fps,cache}))))) {
     const page=await browser.newPage({viewport:{width:1000,height:700}});
     const errors=[];
     page.on("pageerror",e=>errors.push(e.message));
     await page.goto(url,{waitUntil:"networkidle"});
     const game=page.locator("aero-game");
     assert.equal(await game.locator("[data-test-webcam-fps]").isDisabled(),true,"simulated webcam control is disabled outside Test");
-    const result=await game.evaluate(async(element,{mode,fps})=>{
+    const result=await game.evaluate(async(element,{mode,fps,cache})=>{
       const {installScoredPlayHarness}=await import("/scripts/fixtures/scored-play-browser-harness.js");
       const check=(condition,message)=>{if(!condition)throw Error(`Spline ${mode}: ${message}`);};
       const event={schema:"aerobeat/resolved_content_event",version:3,eventId:"sparse-crossing",centerTimestampMs:6000,sourceEventIds:["sparse-source"],authoredBeat:mode==="flow"?{type:"note",hand:"left",placement:5,direction:"right",requiresDirection:true}:{type:"hook_left",spatialTarget:{targetCell:5,entryDirection:"right"}}};
       const harness=await installScoredPlayHarness(element,{events:[event],mode,songDurationMs:12000});
       await harness.waitForAssets();await harness.selectChart();
+      // Test-only OFF path retains this signed implementation and its inputs;
+      // the callback uses its unchanged uncached fallback instead.
+      let scopedProjector = null;
+      Object.defineProperty(element,"scoringFrameEquipmentProjector",{configurable:true,
+        get:()=>cache?scopedProjector:null,set:value=>{scopedProjector=value;}});
       await harness.setSetup({spawnDistanceOverrideEnabled:true,spawnDistanceOverrideWorldUnits:20});
       await element.startSession("visual_test",{requireDownloaded:false});
       await element.setMenuOpen(false);await element.menuPauseTail;await element.audioSyncTail;
@@ -52,7 +58,7 @@ try {
       control.value=String(fps);control.dispatchEvent(new Event("change",{bubbles:true}));
       check(element.testWebcamFps===fps,"native Test control must configure sampler");
       let y=.5;
-      const tick=async(ms)=>{await harness.graph.audio.seek(ms/1000);element.runDisplayFrame();check(!element.lastError,element.lastError?.message??"display error");};
+      const tick=async(ms)=>{await harness.graph.audio.seek(ms/1000);element.runDisplayFrame();check(scopedProjector===null,"frame projection cache must be discarded after every advance");check(!element.lastError,element.lastError?.message??"display error");};
       // Default automatic feedback still samples visible equipment, but cannot score.
       element.setTestAutomaticFeedbackEnabled(true);
       element.testEquipmentPointerPosition={x:.02,y};
@@ -99,9 +105,16 @@ try {
       await tick(endpointMs+10);
       check(harness.graph.gameplay.getJudgements().length===1,"the hit cannot be consumed twice");
       const canvas=element.canvasElement();check(canvas.width>0&&canvas.height>0,"nonzero built framebuffer");
-      const output={mode,first,held,next:element.visualTestEvidenceFrameSequence,before,after,renderFrames:rendersHeld-rendersBefore,canvas:[canvas.width,canvas.height],fps:element.testWebcamFps};
+      const judgements=harness.graph.gameplay.getJudgements().map(j=>({...j,
+        // Device wall times differ between independent browser runs; all
+        // scoring/contact/timing/diagnostic fields must remain exact.
+        evidenceTimestampMs:null}));
+      const output={mode,cache,judgements,first,held,next:element.visualTestEvidenceFrameSequence,before,after,renderFrames:rendersHeld-rendersBefore,canvas:[canvas.width,canvas.height],fps:element.testWebcamFps};
       harness.dispose();return output;
-    },{mode,fps});
+    },{mode,fps,cache});
+    const parityKey=`${mode}:${fps}`;
+    if(cache) assert.deepEqual(result.judgements,uncachedJudgements.get(parityKey),"cache preserves every scoring judgement field");
+    else uncachedJudgements.set(parityKey,result.judgements);
     assert.deepEqual(errors,[]);
     console.log(JSON.stringify(result));
     await page.close();

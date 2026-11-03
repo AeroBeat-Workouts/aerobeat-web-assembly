@@ -63,6 +63,16 @@ QA recommends smaller assembly-owned **orientation-only** reuse by exact hand an
 
 Existing reports: `.tmp/signed-frame-cost-baseline.json`, `.tmp/signed-frame-projection-profile.json`, `.tmp/signed-frame-cost-report.json` (cache experiment); script `.tmp/measure-signed-frames.mjs` currently runs the cached experiment. No production source change yet.
 
+## Local orientation-cache candidate — implementation/testing
+
+Implemented in `src/spline-equipment-projection.js` and `src/index.js`: a fresh hand/x/y orientation map is created after current equipment/shoulder resolution, used only during one synchronous `advance`, then discarded in `finally`. Boxing remains identity; each Flow return still calls `createResolvedEquipmentPose`. No gameplay package or public A/B snapshot was modified.
+
+The first exact-pose unit comparison exposed one-ULP quaternion drift from caching an already pose-normalized orientation and normalizing it again. Fixed the implementation, not the assertion: cache the quaternion before the existing pose normalization, preserving the original arithmetic/validation order. Expanded existing normal-gate projection tests now deep-compare full returned poses across both hands, repeated coordinates, z/scale changes, asymmetric configuration, next-frame pivots/config, and cached-return rejection of invalid scale.
+
+Expanded existing spline browser test runs Flow/Boxing × 1/2 FPS × cache OFF/ON using the same implementation. Source-browser matrix passed: exact scoring/contact/timing/diagnostic fields match (only independent device wall-clock evidenceTimestampMs is excluded), exactly-once hits and independent held-frame rendering remain valid, and the per-advance projector is null after each update. A dev-watcher ELOOP initially came from exposing a pre-existing branding self-link through the temporary historical asset-source link; removed only our temporary link, leaving the unrelated branding repo untouched.
+
+Next: commit candidate, build locally signed artifact, rerun the same hit/parity matrix on signed bytes, run balanced same-current OFF/ON elapsed measurement without serialized profiling overhead, and independently inspect the small implementation. Full current assembly suite is in flight. Keep live comparison snapshots frozen; this is not a public performance release.
+
 **Debugging record:** Problem: extra signed-runtime scoring cost. Observed symptom: repeatable ~5× advance cost in fixture. Root cause demonstrated in part: duplicate pure projection work. Evidence: callback count/time and cache-removal experiment. Failed approaches: prior geometry-only harnesses measured outcomes, not runtime cost. Corrective action: evaluate tightly scoped synchronous reuse with parity tests. Verification remaining: hit/safety parity and actual built candidate speed. Uncertainty: physical-play causality and remaining nonduplicate cost.
 
 ## Diagnostic report — incorrect pre-spline baseline

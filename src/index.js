@@ -62,7 +62,7 @@ import { gameplayEquipmentRecords } from "./gameplay-equipment-records.js";
 import { equipmentColliderAnchors } from "./equipment-collider-anchors.js";
 import { boxingUpcomingActions, createGloveRotationTracker, gloveMotionVector, selectGloveState } from "./glove-rotation-states.js";
 import { squareRadialSaberTarget } from "./saber-zone-direction.js";
-import { reprojectSplineEquipmentPose } from "./spline-equipment-projection.js";
+import { createFrameSplineEquipmentProjector, reprojectSplineEquipmentPose } from "./spline-equipment-projection.js";
 import { createTestWebcamSampler, normalizeTestWebcamFps } from "./test-webcam-sampler.js";
 import { canonicalEquipmentConfigIdentityInput, canonicalEquipmentConfigJson, serializeEquipmentConfigYaml, validateEquipmentConfig } from "./equipment-config.js";
 import { equipmentConfigDefaults } from "./equipment-config-defaults.js";
@@ -201,6 +201,8 @@ export class AeroGame extends HTMLElement {
     this.renderSpawnDistanceWorldUnits = null;
     this.desiredGameSetup = getGameSetupSnapshot();
     this.activeSessionSetup = null;
+    /** @type {ReturnType<typeof createFrameSplineEquipmentProjector> | null} */
+    this.scoringFrameEquipmentProjector = null;
     this.gameSetupDrafts = new Map();
     this.privatePerformance = createPrivatePerformanceRecorder();
     this.privatePerformance.reset("rolling", performance.now());
@@ -377,8 +379,10 @@ export class AeroGame extends HTMLElement {
     try {
       this.assertPrivateEnvironmentAsset();
       this.graph = this.serviceGraphFactory({ instanceId: this.instanceId,
-        reprojectEquipmentPose: (pose) => reprojectSplineEquipmentPose(pose, this.equipmentConfig,
-          this.splineProjectionVisualTest ? { left: null, right: null } : this.lastKnownShoulderPivot)
+        reprojectEquipmentPose: (pose) => this.scoringFrameEquipmentProjector
+          ? this.scoringFrameEquipmentProjector(pose)
+          : reprojectSplineEquipmentPose(pose, this.equipmentConfig,
+            this.splineProjectionVisualTest ? { left: null, right: null } : this.lastKnownShoulderPivot)
       });
       const graph = this.graph; const generation = this.connectedGeneration;
       if (typeof graph.renderer.setDebugCameraAuthoringInputEnabled === "function") graph.renderer.setDebugCameraAuthoringInputEnabled(true);
@@ -2049,7 +2053,14 @@ export class AeroGame extends HTMLElement {
           const equipmentMode = this.equipmentModeForSession(beforeAdvance);
           const advanceEquipmentPoses = frameEquipmentPoses.length === 2 ? frameEquipmentPoses : (beforeAdvance.state === "playing" && this.lastValidEquipmentPoses.length === 2 ? this.lastValidEquipmentPoses : null);
           if (typeof graph.gameplay.setBoxingHeightTuning === "function") graph.gameplay.setBoxingHeightTuning(this.boxingHeightTuning(graph));
-          graph.gameplay.advance({ timestampMs:advanceTimestampMs, clock:audioClock, ...(visualTest ? (productionTestFrame === null ? {} : {input:productionTestFrame.input,interaction:productionTestFrame.interaction}) : {input}), ...(equipmentMode === null || advanceEquipmentPoses === null ? {} : {equipmentPoses:advanceEquipmentPoses}), lease:this.leaseSnapshotForGameplay() });
+          // Equipment resolution above updates the current shoulder pivots.
+          // Reuse the pure Flow field only inside this synchronous advance;
+          // never carry a projected orientation into the next frame or run.
+          this.scoringFrameEquipmentProjector = createFrameSplineEquipmentProjector(this.equipmentConfig,
+            visualTest ? { left: null, right: null } : this.lastKnownShoulderPivot);
+          try {
+            graph.gameplay.advance({ timestampMs:advanceTimestampMs, clock:audioClock, ...(visualTest ? (productionTestFrame === null ? {} : {input:productionTestFrame.input,interaction:productionTestFrame.interaction}) : {input}), ...(equipmentMode === null || advanceEquipmentPoses === null ? {} : {equipmentPoses:advanceEquipmentPoses}), lease:this.leaseSnapshotForGameplay() });
+          } finally { this.scoringFrameEquipmentProjector = null; }
           const equipmentCounts = this.privatePlayEquipmentCounters;
           if (equipmentCounts && equipmentCounts.graph === graph && equipmentCounts.sessionGeneration === this.sessionGeneration && !visualTest && beforeAdvance.purpose === "play" && beforeAdvance.state === "playing" && freshPlayPose) {
             equipmentCounts.freshProcessed += 1;

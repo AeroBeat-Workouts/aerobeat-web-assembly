@@ -5,7 +5,7 @@ import { validateEquipmentConfig } from "../src/equipment-config.js";
 import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
 import { gameplayEquipmentRecords } from "../src/gameplay-equipment-records.js";
 import { squareRadialSaberTarget } from "../src/saber-zone-direction.js";
-import { reprojectSplineEquipmentPose } from "../src/spline-equipment-projection.js";
+import { createFrameSplineEquipmentProjector, reprojectSplineEquipmentPose } from "../src/spline-equipment-projection.js";
 import { createTestWebcamSampler, normalizeTestWebcamFps } from "../src/test-webcam-sampler.js";
 
 const config = validateEquipmentConfig(equipmentConfigDefaults);
@@ -27,6 +27,38 @@ for (const point of [{x:0,y:0},{x:.5,y:.5},{x:.7,y:.2},{x:1,y:1}]) {
 }
 const boxing=createResolvedEquipmentPose({role:"right_wrist",mode:"boxing",anchor:{x:1,y:1,z:0},scale:1,orientation:{x:0,y:0,z:0,w:1},geometryIdentity:gloveObbGeometry.identity,configIdentity:identity});
 assert.equal(reprojectSplineEquipmentPose(boxing,config,{left:null,right:null}),boxing,"Boxing keeps its resolved action-driven animation; scored cylinder follows the reconstructed anchor");
+
+// A frame cache may reuse orientation, never the rest of an equipment pose.
+const changedConfig = structuredClone(equipmentConfigDefaults);
+changedConfig.flow.perHand.left.rotationEulerDeg.z = 17;
+changedConfig.flow.perHand.right.rotationEulerDeg.z = -23;
+const asymmetric = validateEquipmentConfig(changedConfig);
+const pivots = { left: { x:.3, y:.4 }, right: { x:.7, y:.45 } };
+const cached = createFrameSplineEquipmentProjector(asymmetric, pivots);
+for (const role of ["left_wrist", "right_wrist"]) {
+  for (const x of [-.5, 0, 1.5, 3.5]) for (const y of [-.5, 1, 2.5]) {
+    for (const scale of [.5, 2]) for (const z of [-.25, .75]) {
+      const pose = createResolvedEquipmentPose({ role, mode:"flow", anchor:{x,y,z}, scale,
+        orientation:equipmentEulerDegreesToQuaternion({x:11,y:23,z:37}),
+        geometryIdentity:saberCapsuleGeometry.identity, configIdentity:z<0?identity:{...identity,value:"b".repeat(64)} });
+      assert.deepEqual(cached(pose), reprojectSplineEquipmentPose(pose, asymmetric, pivots),
+        "cached projection preserves every returned pose field across repeated x/y, hands, z and scale");
+    }
+  }
+}
+assert.equal(cached(boxing), boxing, "cached projector leaves Boxing identity untouched");
+const seed = createResolvedEquipmentPose({role:"left_wrist", mode:"flow",anchor:{x:0,y:1,z:0},scale:1,orientation:{x:0,y:0,z:0,w:1},geometryIdentity:saberCapsuleGeometry.identity,configIdentity:identity});
+cached(seed);
+assert.throws(()=>cached({...seed,scale:NaN}), "a cache hit must still validate the complete return pose");
+const nextPivots = { left: {x:.6,y:.25}, right:null };
+const nextFrame = createFrameSplineEquipmentProjector(config, nextPivots);
+assert.deepEqual(nextFrame(seed), reprojectSplineEquipmentPose(seed,config,nextPivots), "new frame uses changed config/pivot");
+assert.notDeepEqual(nextFrame(seed).orientation, cached(seed).orientation, "frame reset case must actually change orientation");
+const copiedPivots = {left:{x:.3,y:.4},right:null};
+const captured = createFrameSplineEquipmentProjector(config,copiedPivots);
+copiedPivots.left.x = .9;
+assert.deepEqual(captured(seed),reprojectSplineEquipmentPose(seed,config,{left:{x:.3,y:.4},right:null}),"frame captures scalar pivot values");
+console.log("Frame-local orientation reuse has exact full-pose parity, fresh-frame config/pivots, Boxing identity and cached-return validation.");
 
 const sampler=createTestWebcamSampler();
 let sequence=0;
