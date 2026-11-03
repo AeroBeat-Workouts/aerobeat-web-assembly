@@ -33,6 +33,16 @@ Critically, current gameplay `colliderMissDiagnostics` (session-coordinator.js, 
 
 The previously omitted content-authoring delta 9edce4c -> 505faf0 changes the per-entry source cache allowance from 2 MiB to 8 MiB plus a moved type comment; it does not alter conversion/judgement algorithms. This observation does not rule out other real-session causes.
 
+## Bounded host performance lead — not a confirmed playability cause
+
+After confirming no corrected captures yet, ran `.tmp/production-pose-ab.mjs` against the authentic isolated .149 judge and current judge. Endpoint poses were generated from the production Flow zone map/default equipment config with explicit shoulder pivots. Exact endpoints bypassed the projector (asserted). Deterministic seed 149153; 12 trajectories × 12 cells per interval; intervals 33/66/100/133 ms; Derrick's depth settings and 180 ms timing window. Initial broader sweep was cancelled for excessive runtime; only the bounded result below is evidence.
+
+- 576 comparisons: old/current hit counts 17/17, 20/20, 22/22, 21/21. No hit flips and no extra hit-volume outcome from athlete-facing rear depth.
+- Host cumulative old/new query CPU milliseconds: 262/1196, 192/907, 143/746, 128/740. New path approximately 4.6–5.8× old in this fixture. These are sequential, unbalanced, host-only microbench timings and must not be generalized to phone FPS or causal hit-rate loss.
+- Production orientation callback executed on interior nodes (162476 calls including depth-setting control queries). Unlike earlier invalid tests, measured histories were not pre-overwritten with arbitrary rotation.
+
+Next independent executable check while waiting for replay: compare actual signed browser frame costs on the same existing deterministic input/content fixture, alternating old/new and controlling frame/sample counts. Distinguish judgement-path work from renderer work where available. Do not change production scoring or claim performance is the cause unless this translates into the affected runtime.
+
 ## Diagnostic report — incorrect pre-spline baseline
 
 **Observed failure:** Derrick reported both probe versions felt similarly bad. The .149 capture identifies stamp `480a4d9554943b4bf13ba454`; its build manifest pins post-spline gameplay 20a1697, not original 6f5d6a6.
