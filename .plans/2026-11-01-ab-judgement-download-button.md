@@ -1,6 +1,18 @@
 # A/B judgement capture: "Download Data" button in the menu drawer
 
-Status: PLAN — awaiting Derrick's approval before implementation.
+Status: APPROVED — rebuild correction in progress (Derrick authorized authentic pre-spline rebuild).
+
+## Current action — 2026-11-03
+
+Owner: Pico. Bead: aerobeat-web-assembly-3g45. Goal remains active; maximum rounds: Maximum safe integer.
+
+The first .149 probe build was invalid: it retained the old assembly label but linked current dependencies, including post-spline gameplay 20a1697. Derrick's two captures therefore do not compare pre-spline against post-spline. The original .149 manifest pins gameplay 6f5d6a6, contracts 43ec0a4, input 31c96a3, renderer 94f1a06 and content-authoring 9edce4c.
+
+Next acceptance check: build in an isolated sibling-repository layout with all fourteen dependencies at the original manifest commits; compare every non-assembly commit/tree/source digest to the original manifest. No scoring changes. Repair missing difficulty and nested collider options; exercise an actual completed-run browser download before deployment. Keep current build gates unchanged. Document corrected services and commits after serving existing routes.
+
+Deferred report: aerobeat-web-assembly-5fgy tracks Derrick's Boxing 100% repeated-punch switch-hand observation; do not fix it during probe work.
+
+Diagnostic record: observed .149 probe stamp 480a4d9554943b4bf13ba454 includes gameplay 20a1697 instead of 6f5d6a6. Root cause is shared current node_modules/sibling links during backport. Prior verification checked only the version label/button and missed dependency identity. Corrective action is isolated original-commit dependency worktrees. Remaining uncertainty: the real playability regression is not yet diagnosed.
 
 ## Goal
 

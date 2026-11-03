@@ -89,6 +89,19 @@ test("malformed judgements are dropped rather than recorded as fake results", ()
   assert.deepEqual(capture.judgements.map((entry) => entry.eventId), ["real"]);
 });
 
+test("real snapshot lineage and nested run options survive export", () => {
+  const content = { ...sampleContent(), lineage: { difficulty: "ExpertPlus", sourceId: "beatsaver-map-id", sourceVersionHash: "source-hash" }, selectedVariant: { mode: "flow", rulesetId: "flow_colliders_v1", chartId: "chart-1" } };
+  const setup = { timingWindowMs: 180, repeatedPunchSwitchChancePercent: 100, flowColliderVolume: { colliderScale: 1.5, colliderDepthForward: 1, colliderDepthBackward: 0, colliderDepthBackwardAthleteFacing: false }, boxingColliderVolume: { colliderScale: 2, colliderDepthBackward: 1 } };
+  const capture = buildAbJudgementCapture({ content, gameplay: finishedRun(), colliderSettings: setup });
+  assert.equal(capture.song.difficulty, "ExpertPlus");
+  assert.equal(capture.song.sourceId, "beatsaver-map-id");
+  assert.equal(capture.options.colliderScale, 1.5);
+  assert.equal(capture.options.colliderDepthBackward, 0);
+  assert.equal(capture.options.colliderDepthBackwardAthleteFacing, false);
+  assert.equal(capture.options.repeatedPunchSwitchChancePercent, 100);
+  assert.deepEqual(capture.options.boxingColliderVolume, setup.boxingColliderVolume);
+});
+
 test("filename identifies the run without opening the file", () => {
   const capture = buildAbJudgementCapture({
     build: { version: "0.0.149" },
