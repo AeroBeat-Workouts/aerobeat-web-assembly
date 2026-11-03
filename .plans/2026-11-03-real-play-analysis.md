@@ -1,6 +1,6 @@
 # Real-play comparison and reproduced directional-hit regression
 
-Status: analysis complete for available captures; targeted fix next. Owner: Pico.
+Status: targeted fix and cost mitigation pass source and actual locally signed Play checks; deployment/physical acceptance pending. Owner: Pico.
 Gameplay fix Bead: `aerobeat-web-assembly-nrrv` (owning source is sibling gameplay repo, which has no Beads database).
 Recording/replay feature: `aerobeat-web-assembly-1fnl`.
 Parent execution record: `2026-11-01-ab-judgement-download-button.md`.
@@ -81,6 +81,18 @@ Add reverse-only and no-contact controls that remain misses; verify near-miss pr
 Choose the earliest sample where BOTH geometric contact and authored direction qualify. Keep the existing sample schedule, volume, windows, predicate, continuity/provenance rules and consumption rules. Do not simply disable direction enforcement or go back to checking unrelated current motion.
 
 In parallel, keep Download Data as requested and plan numeric movement/calibration recording plus explicit Test-only replay. No camera video or audio recording/upload is needed. The replay must remain non-ranked and cannot claim live-camera provenance. New replay UI requires a scoped approved plan before implementation.
+
+## Implemented and built verification
+
+Gameplay 011c860 repairs contact selection. Its dense rejected-contact workload exposed extra work, addressed in 669259a by sharing exact anchor interpolation and skipping full equipment work only after direction already rules out a later sample. All incoming evidence/equipment admission and actual geometry checks for accepted hits remain unchanged.
+
+Parent independently reran anchor parity and coordinator reversal controls. Owning full tests, independent read-only review, full assembly tests and signed Flow/Boxing 1/2 FPS OFF/ON matrix pass. Signed assembly d432abd (stamp `FRIEND-GAME-CPU-0.0.153-bacd82f632d36f6e18adf25c`) runs real calibration, raw landmark input, equipment projection, scoring and rendering:
+
+- Original .153: reversal misses at 7050 ms. Fixed: Great at 6050 ms, accepted contact +35.4167 ms.
+- Reverse-only and no-contact both remain plain misses; exactly one judgement per note.
+- Twelve overlapping wrong-way notes all remain misses. On 48 active ticks, first fix mean/p95/max advance elapsed 46.07/78.40/102.50 ms; final candidate 2.73/4.20/6.30 ms. Original .153 mean was 1.10 ms in this workload. These are host-fixture elapsed times, not phone FPS or proof of every physical miss's cause.
+
+Commands live in `scripts/validate-flow-direction-reversal-browser.js`, requiring `AEROBEAT_DIRECTION_SIGNED_DIR`; `AEROBEAT_DIRECTION_STRESS_NOTE_COUNT=12` selects the cost workload. Reports under `.tmp/direction-*-browser.json` and `.tmp/direction-stress-*.json`. Public comparison snapshots remain unchanged. Next is a deployment/recording-order decision and physical acceptance, not another speculative optimization pass.
 
 ## Debugging record
 

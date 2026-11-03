@@ -15,8 +15,14 @@ Fresh authentic .149/.153 Expert runs now share all 830 event IDs and timestamps
 with matching recorded Flow scale/depth/timing/direction settings: 828 hits versus
 573. A real-coordinator synthetic reversal fixture also exposes an independent
 logic defect: an early wrong-way contact can mask a later valid directional hit.
-Gameplay fix `nrrv` is in progress; its contribution to all physical misses is not
-yet quantified because the exports lack raw movement/calibration histories.
+Gameplay fix `nrrv` passes local signed Play reversal/negative controls, the full
+assembly suite and sparse Flow/Boxing OFF/ON parity. The final local candidate uses
+gameplay `669259a`, assembly `d432abd`, stamp
+`FRIEND-GAME-CPU-0.0.153-bacd82f632d36f6e18adf25c`. It is not publicly deployed.
+Its contribution to all physical misses remains unquantified because the exports
+lack raw movement/calibration histories. A dense wrong-way-contact cost regression
+in the first fix was reduced from mean/max 46.07/102.50 ms to 2.73/6.30 ms in the
+same host fixture; this is not a phone-FPS claim.
 See `.plans/2026-11-03-real-play-analysis.md` for evidence and limitations.
 
 - Pre-spline on existing tailnet port 8449: `aerobeat-r149-abprobe`, loopback 4212,

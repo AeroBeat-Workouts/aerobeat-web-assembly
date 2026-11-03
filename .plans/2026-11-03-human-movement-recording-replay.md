@@ -29,7 +29,9 @@ The current files contain judgements/settings only. They cannot recover the miss
 
 Assembly already sees the raw pose, accepted input and resolved equipment at frame advancement; use that existing seam, not a second CV pipeline. Input snapshots expose calibration bounds, grids, anchors and calibrated shoulder height, but the nose baseline is private. The input owner must provide a narrow read-only calibration export or sufficient calibration frames; do not pretend the existing calibration ID/bounds alone are enough.
 
-Inspect the existing recorded/Test-source contracts before implementing replay. Recorded timestamps must be mapped into a replay clock while preserving their original spacing, idle periods and calibration boundaries. Do not restore old media leases, forge camera provenance, assign arbitrary trusted snapshots, or relax freshness/continuity gates. Existing Test-purpose rules remain authoritative.
+Inspect existing Test-source contracts before implementing replay. Preserve original timestamp spacing, idle periods and calibration boundaries. Do not restore old media leases, forge camera provenance, assign arbitrary trusted snapshots, or relax live admission gates.
+
+There is an observed comparison trap: Play permits the existing 1000 ms late deadline, while ordinary Test uses the base timing window (180 ms in these runs). The old human capture contains valid hits later than 180 ms. A replay comparison must explicitly reproduce the recorded Play rules in the non-ranked Test environment, rather than label Test's different defaults a regression. Do not make recorded files eligible for live/ranked scoring to solve this.
 
 ## Delivery slices and checks
 
