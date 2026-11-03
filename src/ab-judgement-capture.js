@@ -87,7 +87,7 @@ function captureJudgement(judgement) {
  */
 function captureOptions(colliderSettings) {
   /** @type {Record<string, unknown>} */
-  const out = {};
+  const out = JSON.parse(JSON.stringify(colliderSettings));
   for (const key of optionKeys) {
     const value = field(colliderSettings, key);
     if (value !== undefined && (typeof value === "number" || typeof value === "boolean" || typeof value === "string")) out[key] = value;
@@ -115,7 +115,12 @@ export function buildAbJudgementCapture(input) {
   const gameplay = isRecord(input.gameplay) ? input.gameplay : null;
   const content = isRecord(input.content) ? input.content : null;
   const build = isRecord(input.build) ? input.build : null;
-  const variant = field(content, "selectedVariant");
+  const variant = field(gameplay, "selectedVariant") ?? field(content, "selectedVariant");
+  const lineage = field(content, "lineage");
+  const settings = isRecord(input.colliderSettings) ? input.colliderSettings : {};
+  const ruleset = field(field(gameplay, "session"), "rulesetId") ?? field(variant, "rulesetId") ?? field(gameplay, "rulesetId");
+  const mode = field(variant, "mode") ?? (ruleset === "flow_colliders_v1" ? "flow" : "boxing");
+  const volume = field(settings, mode === "flow" ? "flowColliderVolume" : "boxingColliderVolume");
   const song = field(content, "song");
   const session = field(gameplay, "session");
   const judgementsIn = field(gameplay, "judgements");
@@ -140,7 +145,9 @@ export function buildAbJudgementCapture(input) {
     song: Object.freeze({
       name: field(song, "songName") ?? field(song, "name") ?? null,
       id: field(content, "packageId") ?? field(song, "id") ?? null,
-      difficulty: field(variant, "difficulty") ?? null,
+      difficulty: field(lineage, "difficulty") ?? field(variant, "difficulty") ?? null,
+      sourceId: field(lineage, "sourceId") ?? null,
+      sourceVersionHash: field(lineage, "sourceVersionHash") ?? null,
       characteristic: field(variant, "characteristic") ?? null,
       chartId: field(gameplay, "chartId") ?? field(variant, "chartId") ?? null,
       rulesetId: field(gameplay, "rulesetId") ?? field(variant, "rulesetId") ?? null,
@@ -152,7 +159,7 @@ export function buildAbJudgementCapture(input) {
       ranked: field(session, "ranked") ?? null,
       sessionId: field(session, "sessionId") ?? null
     }),
-    options: captureOptions(isRecord(input.colliderSettings) ? input.colliderSettings : Object.freeze({})),
+    options: captureOptions({ ...settings, ...(isRecord(volume) ? volume : {}) }),
     summary: Object.freeze({
       totalJudgements: judgements.length,
       byResult: Object.freeze(byResult)
