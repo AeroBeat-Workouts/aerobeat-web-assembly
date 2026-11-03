@@ -2,7 +2,45 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Current public playtest: 0.0.153 athlete-facing depth− option (live)
+## Temporary A/B probe deployment — 2026-11-03
+
+The menu's **Download Data** button exports a finished run as JSON. The corrected
+probe records source difficulty/map ID, all run-locked Game Setup options, and
+per-note judgements. Changing settings after completion does not rewrite the run.
+Refresh both pages before testing; play the same song/difficulty and download once
+per build. The earlier .149 probe was invalid and must not guide a rollback decision.
+
+- Pre-spline on existing tailnet port 8449: `aerobeat-r149-abprobe`, loopback 4212,
+  candidate `.tmp/boxing-r149-verified-probe-6628d21`. Its fourteen dependencies
+  match the original `boxing-r149-ae07836` commit/tree/source digests exactly.
+  Gameplay remains `6f5d6a6`; assembly is old source plus the export probe.
+  Stamp: `FRIEND-GAME-CPU-0.0.149-bb26fd6c889f95b0c482ebaf`.
+- Current on existing public 443: `aerobeat-r153-abprobe`, loopback 4216,
+  candidate `.tmp/boxing-r153-verified-probe-33d565d`. Its fourteen dependencies
+  match original `boxing-r153-6aa7422` exactly, including gameplay `20a1697`.
+  Stamp: `FRIEND-GAME-CPU-0.0.153-f2d26b97608cf1dcbee4e712`.
+
+Both candidates reside under the sibling private-heights-candidate repository.
+The signed browser download check passed on each: actual input/coordinator,
+fixture camera/audio/content, real committed judgement and completion, native
+button click, parsed download matching the judgement and completed-run settings.
+Both public pages' HTML and entry JavaScript hashes match these exact snapshots.
+This proves deployment/export, not physical-phone playability.
+
+Current `npm test` and eight focused capture tests passed. Historical checks have
+three environment/history-specific failures: the clone test restores today's main
+renderer, the Vite allowlist test sees shared tooling outside its expected roots,
+and hash provenance requires today's public main rather than the original pins.
+Remaining historical unit checks passed; no gate was weakened to manufacture a
+full green result. The historical signed build's original dependency comparison
+and actual download test passed independently.
+
+Original uninstrumented `aerobeat-r149` and `aerobeat-r153` units remain stopped.
+To restore either, stop its `-abprobe` unit before starting the original unit.
+Plan: `.plans/2026-11-01-ab-judgement-download-button.md`; rebuild Bead `3g45`.
+Boxing switch-hand report `5fgy` and Sonic Heroes import report `gili` remain deferred.
+
+## Retained public release: 0.0.153 athlete-facing depth− option
 
 The Flow saber and Boxing glove collider sections add **Keep depth− aimed toward athlete**.
 It defaults OFF for Flow and ON for Boxing. ON fixes the rear extension along world +Z toward the

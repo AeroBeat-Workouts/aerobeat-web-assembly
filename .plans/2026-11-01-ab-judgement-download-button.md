@@ -1,6 +1,6 @@
 # A/B judgement capture: "Download Data" button in the menu drawer
 
-Status: APPROVED — rebuild correction in progress (Derrick authorized authentic pre-spline rebuild).
+Status: CORRECTED PROBES LIVE — waiting for valid physical-play captures. Overall playability investigation remains active.
 
 ## Current action — 2026-11-03
 
@@ -8,11 +8,42 @@ Owner: Pico. Bead: aerobeat-web-assembly-3g45. Goal remains active; maximum roun
 
 The first .149 probe build was invalid: it retained the old assembly label but linked current dependencies, including post-spline gameplay 20a1697. Derrick's two captures therefore do not compare pre-spline against post-spline. The original .149 manifest pins gameplay 6f5d6a6, contracts 43ec0a4, input 31c96a3, renderer 94f1a06 and content-authoring 9edce4c.
 
-Next acceptance check: build in an isolated sibling-repository layout with all fourteen dependencies at the original manifest commits; compare every non-assembly commit/tree/source digest to the original manifest. No scoring changes. Repair missing difficulty and nested collider options; exercise an actual completed-run browser download before deployment. Keep current build gates unchanged. Document corrected services and commits after serving existing routes.
+Next acceptance check: Derrick refreshes both existing pages, plays the same song/difficulty and exports both completed runs. Compare new files identified by corrected stamps below. Do not interpret old captures as a pre/post-spline comparison. Dependency isolation, metadata repair, signed download checks and public deployment verification are complete. No scoring changes.
 
-Deferred report: aerobeat-web-assembly-5fgy tracks Derrick's Boxing 100% repeated-punch switch-hand observation; do not fix it during probe work.
+Deferred report: aerobeat-web-assembly-5fgy tracks Derrick's Boxing 100% repeated-punch switch-hand observation; do not fix it during probe work. Historical test compatibility is filed as aerobeat-web-assembly-7edx (P3, safe to defer; no product-scoring change needed). Rebuild Bead 3g45 is closed; physical comparison and the overall goal remain open.
+
+Source retention: current probe assembly commit 33d565d; pre-spline probe commit 6628d21 retained by tag `probe-r149-authentic-20261103`. Deployment docs follow the build commits and do not imply a rebuild of those frozen artifacts.
 
 Diagnostic record: observed .149 probe stamp 480a4d9554943b4bf13ba454 includes gameplay 20a1697 instead of 6f5d6a6. Root cause is shared current node_modules/sibling links during backport. Prior verification checked only the version label/button and missed dependency identity. Corrective action is isolated original-commit dependency worktrees. Remaining uncertainty: the real playability regression is not yet diagnosed.
+
+## Corrected rebuild evidence
+
+- Isolated layout: `.tmp/authentic149/`, assembly on pre-spline ae07836 plus probe-only changes (6628d21); every package has its own original-commit worktree and isolated local package links.
+- All fourteen non-assembly commit/tree/source digests compare equal to original `boxing-r149-ae07836`. The current probe's fourteen dependencies also match original `boxing-r153-6aa7422`.
+- Corrected captures read difficulty and provider map ID from content lineage. They preserve the complete run-locked Game Setup, including nested Flow/Boxing/knee volume settings, and expose the active mode's depth/scale at the top level.
+- Both signed builds pass `validate-ab-capture-browser.js`: existing fake camera/audio/content fixture, real input/coordinator, real committed judgement and completion, native menu download click, downloaded JSON parsed and compared against judgement truth. Changing next-run scale after completion does not rewrite the finished run's settings. This is export proof, not physical phone playability proof.
+- Current `npm test` and 8 focused capture tests pass. Historical `check` passed. Its full unit chain cannot be reported green: (1) clone-provenance test restores today's main renderer rather than the historical clone's initial commit, (2) Vite's shared tooling adds an external client root to the isolated development-server allowlist, (3) shared-hash provenance requires current public main, incompatible with original content-authoring 9edce4c. Remaining historical unit commands passed individually. Missing asset-source links were supplied without product changes. No gate was weakened.
+- Live snapshots: `boxing-r149-verified-probe-6628d21` (stamp `FRIEND-GAME-CPU-0.0.149-bb26fd6c889f95b0c482ebaf`) and `boxing-r153-verified-probe-33d565d` (stamp `FRIEND-GAME-CPU-0.0.153-f2d26b97608cf1dcbee4e712`). Specific `-abprobe` systemd units now use these snapshots on the unchanged ports 4212/4216. Public TLS browser checks confirmed exact HTML bytes and entry-JavaScript hashes plus visible disabled idle buttons on 8449/443. Original snapshots remain untouched.
+
+## Diagnostic report — incorrect pre-spline baseline
+
+**Observed failure:** Derrick reported both probe versions felt similarly bad. The .149 capture identifies stamp `480a4d9554943b4bf13ba454`; its build manifest pins post-spline gameplay 20a1697, not original 6f5d6a6.
+
+**Expected:** old assembly plus observation-only UI, with all original dependency identities preserved.
+
+**Execution path:** backport assembly -> shared current node_modules/sibling repositories -> Vite alias resolution -> signed current gameplay dependencies -> old package-version label. The build gate correctly recorded the inputs; the operator compared only the label and button, not the recorded dependency pins.
+
+**Root cause:** incorrect dependency isolation in the earlier backport. This explains why that build was not a valid pre-spline baseline; it does not establish the root cause of the reported playability regression.
+
+**Alternatives:** settings, tracking cadence, user motion, cached content and collision logic remain candidates for the playability report. They cannot explain the demonstrated wrong dependency pins. No claim that the .149 probe and .153 probe were behaviorally identical: the older assembly wiring still differed.
+
+**Why prior checks failed:** a green version label, visible button and helper-unit test cannot verify dependency identity. Earlier button tests also attempted writes into frozen service objects and supplied fake shapes that omitted real nested settings and content lineage.
+
+**Unknowns/minimal reproduction:** the physical regression remains unresolved. Repeat one same-song run per corrected build after refreshing both pages, then export. Do not use the earlier two files to decide rollback.
+
+**Verification/fix:** exact manifest comparison across all fourteen dependencies plus a built native-download test using real coordinator outcomes. Only repair build isolation and observational capture fields; do not alter scoring.
+
+Problem: invalid A/B baseline. Observed symptom: rebuilt .149 uses new gameplay. Root cause: shared current dependency links. Evidence: original and rebuilt manifests. Failed approach: version-label-only acceptance. Corrective action: isolated original-commit worktrees. Verification: all dependency identities equal; actual downloaded payload matches real committed outcome. Remaining uncertainty: physical playability regression.
 
 ## Goal
 
