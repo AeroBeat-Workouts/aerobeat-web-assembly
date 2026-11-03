@@ -188,7 +188,16 @@ export function abCaptureFilename(capture, extension) {
   const song = field(capture, "song");
   const safe = (value, fallback) => {
     const text = typeof value === "string" ? value.trim() : "";
-    const cleaned = text.replace(/[^A-Za-z0-9._-]+/gu, "-").replace(/^-+|-+$/gu, "").slice(0, 48);
+    // Drop traversal segments entirely. Replacing characters alone would leave
+    // ".." intact and let a crafted id walk out of the download directory.
+    const cleaned = text
+      .split(/[/\\]+/u)
+      .filter((segment) => segment !== ".." && segment !== ".")
+      .join("-")
+      .replace(/[^A-Za-z0-9._-]+/gu, "-")
+      .replace(/\.{2,}/gu, "-")
+      .replace(/^[.-]+|[.-]+$/gu, "")
+      .slice(0, 48);
     return cleaned.length > 0 ? cleaned : fallback;
   };
   const version = safe(field(build, "version"), "unknown-version");
