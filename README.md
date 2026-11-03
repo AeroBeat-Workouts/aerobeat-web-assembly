@@ -40,6 +40,31 @@ To restore either, stop its `-abprobe` unit before starting the original unit.
 Plan: `.plans/2026-11-01-ab-judgement-download-button.md`; rebuild Bead `3g45`.
 Boxing switch-hand report `5fgy` and Sonic Heroes import report `gili` remain deferred.
 
+## Local performance candidate — not deployed
+
+Commit `309b5a6` adds reuse of identical Flow blade orientations within one scoring
+update. The projector is discarded after that update; every returned pose still
+uses the original validation and normalization order. Collider size, timing,
+authored-direction rules, sample locations and endpoint behavior are unchanged.
+The public comparison snapshots above still contain their original gameplay.
+
+Current `npm test` passed. The signed Flow/Boxing 1/2 FPS OFF/ON matrix preserves
+all scoring/timing/diagnostic fields (independent device wall-clock evidence time
+excluded), exactly-once hits and independent rendering. Focused helper tests
+compare exact full poses and verify fresh config/pivots and cached-return validation.
+
+Balanced same-candidate OFF/ON/ON/OFF measurement reduced mean gameplay-update
+elapsed time from 45.63 ms to 21.68 ms in a controlled repeated-miss workload.
+These are host-browser fixture timings, not phone FPS or proof of physical miss
+causality. The candidate remains slower than the pre-spline baseline in that
+workload; this is a partial performance improvement, not the completed diagnosis.
+
+Retained local snapshot: `.tmp/flow-orientation-cache-309b5a6`, stamp
+`FRIEND-GAME-CPU-0.0.153-62bb382731f93dbb2dfa3934`. Measurement command:
+`AEROBEAT_SPLINE_SIGNED_DIR=<snapshot> node scripts/measure-spline-projection-frame-cost.js`.
+No public deployment is implied by a green local check. Physical replay and the
+rollback-versus-new-release decision remain open. Bead: `2bsk`.
+
 ## Retained public release: 0.0.153 athlete-facing depth− option
 
 The Flow saber and Boxing glove collider sections add **Keep depth− aimed toward athlete**.

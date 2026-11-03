@@ -45,9 +45,10 @@ try {
       await harness.waitForAssets();await harness.selectChart();
       // Test-only OFF path retains this signed implementation and its inputs;
       // the callback uses its unchanged uncached fallback instead.
-      let scopedProjector = null;
+      let scopedProjector = null, cacheProjectionCalls = 0;
       Object.defineProperty(element,"scoringFrameEquipmentProjector",{configurable:true,
-        get:()=>cache?scopedProjector:null,set:value=>{scopedProjector=value;}});
+        get:()=>cache?scopedProjector:null,
+        set:value=>{scopedProjector=typeof value==="function"?(pose)=>{cacheProjectionCalls++;return value(pose);}:value;}});
       await harness.setSetup({spawnDistanceOverrideEnabled:true,spawnDistanceOverrideWorldUnits:20});
       await element.startSession("visual_test",{requireDownloaded:false});
       await element.setMenuOpen(false);await element.menuPauseTail;await element.audioSyncTail;
@@ -105,11 +106,12 @@ try {
       await tick(endpointMs+10);
       check(harness.graph.gameplay.getJudgements().length===1,"the hit cannot be consumed twice");
       const canvas=element.canvasElement();check(canvas.width>0&&canvas.height>0,"nonzero built framebuffer");
+      if(mode==="flow") check(cache?cacheProjectionCalls>0:cacheProjectionCalls===0,"OFF/ON must exercise the intended projection path, not pass on an older bundle");
       const judgements=harness.graph.gameplay.getJudgements().map(j=>({...j,
         // Device wall times differ between independent browser runs; all
         // scoring/contact/timing/diagnostic fields must remain exact.
         evidenceTimestampMs:null}));
-      const output={mode,cache,judgements,first,held,next:element.visualTestEvidenceFrameSequence,before,after,renderFrames:rendersHeld-rendersBefore,canvas:[canvas.width,canvas.height],fps:element.testWebcamFps};
+      const output={mode,cache,cacheProjectionCalls,judgements,first,held,next:element.visualTestEvidenceFrameSequence,before,after,renderFrames:rendersHeld-rendersBefore,canvas:[canvas.width,canvas.height],fps:element.testWebcamFps};
       harness.dispose();return output;
     },{mode,fps,cache});
     const parityKey=`${mode}:${fps}`;
