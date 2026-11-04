@@ -1,6 +1,6 @@
 # Record human Play movement and replay it in Test
 
-Status: IMPLEMENTED AND VERIFIED LOCALLY. Signed native replay and final normal suite pass. Publication/phone acceptance remain. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
+Status: IMPLEMENTED AND VERIFIED LOCALLY. Derrick approved publication as 0.0.154 at the current .153 link; authentic .149 stays unchanged. Publication active; phone acceptance remains. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
 Owner: Pico. Feature Bead: aerobeat-web-assembly-1fnl.
 
 ## Current action
