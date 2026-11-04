@@ -22,6 +22,7 @@ import { mediaPipeDefaultModelSizeBytes } from "@aerobeat/web-vendor-mediapipe";
 import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
 import { abCaptureFilename, abCaptureReadiness, buildAbJudgementCapture } from "./ab-judgement-capture.js";
+import { createPlayMovementRecorder } from "./play-movement-recording.js";
 import {
   defaultEnvironmentAssetId,
   environmentAssetCatalog,
@@ -201,6 +202,13 @@ export class AeroGame extends HTMLElement {
     this.renderSpawnDistanceWorldUnits = null;
     this.desiredGameSetup = getGameSetupSnapshot();
     this.activeSessionSetup = null;
+    this.activeGameplayConfiguration = null;
+    /** @type {ReturnType<typeof createPlayMovementRecorder> | null} */
+    this.playMovementRecorder = null;
+    this.playMovementRecordingSessionGeneration = -1;
+    /** @type {(() => void) | null} */
+    this.playMovementUnsubscribe = null;
+    this.playMovementCameraSurface = null;
     /** @type {ReturnType<typeof createFrameSplineEquipmentProjector> | null} */
     this.scoringFrameEquipmentProjector = null;
     this.gameSetupDrafts = new Map();
@@ -369,7 +377,7 @@ export class AeroGame extends HTMLElement {
     this.connectedGeneration += 1;
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
-    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
+    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.activeGameplayConfiguration=null; this.endPlayMovementRecording("stopped"); this.playMovementRecorder=null; this.playMovementRecordingSessionGeneration=-1; this.playMovementCameraSurface=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
     this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = true; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "right"; this.testEquipmentPointerPosition = null; this.testEquipmentTouchPointerId = null;
     this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]); this.lastValidEquipmentPoses = Object.freeze([]);
     this.stopPreview({ render: false });
@@ -580,6 +588,8 @@ export class AeroGame extends HTMLElement {
         await this.commitInitialAudioForAction(owner, sessionGeneration, actionGeneration);
         if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         sessionCommitted = true;
+        if (purpose === "play") this.beginPlayMovementRecording(graph);
+        else { this.endPlayMovementRecording("stopped"); this.playMovementRecorder = null; this.playMovementRecordingSessionGeneration = -1; }
         this.startFrameLoop(); this.syncContentPlayback();
         this.publish("session_changed");
         return this.getSnapshot();
@@ -1769,6 +1779,7 @@ export class AeroGame extends HTMLElement {
       }
       this.activeSessionSetup=setup;this.applyGameSetup(this.graph,setup);this.graph.gameplay.configureContent(configuration, purpose === "visual_test" ? VISUAL_TEST_CONTENT_OPTIONS : undefined);
     }
+    this.activeGameplayConfiguration = configuration;
   }
 
   gameplayContentPurpose() {
@@ -2001,6 +2012,53 @@ export class AeroGame extends HTMLElement {
     this.startFpsCounter();
   }
 
+  beginPlayMovementRecording(graph) {
+    this.endPlayMovementRecording("stopped");
+    this.playMovementRecordingSessionGeneration = this.sessionGeneration;
+    const generation = this.sessionGeneration;
+    try {
+      this.playMovementCameraSurface = graph.video.describeSurface(this.videoElement());
+      this.playMovementRecorder = createPlayMovementRecorder({ metadata: {
+        capture: buildAbJudgementCapture({ build: { version: appMetadata.packageVersion, buildStamp: appMetadata.buildStamp }, gameplay: graph.gameplay.getSnapshot(), content: graph.content.getSnapshot(), colliderSettings: this.activeSessionSetup ?? getGameSetupSnapshot() }),
+        configuration: this.activeGameplayConfiguration,
+        equipment: this.equipmentConfig,
+        equipmentIdentity: this.equipmentConfigIdentity,
+        initialCalibrationModel: graph.input.getCalibrationModel()
+      } });
+    } catch {
+      // Observation must never prevent a real session from starting.
+      this.playMovementRecorder = createPlayMovementRecorder({ metadata: { captureError: "session_metadata_unavailable" } });
+      this.playMovementRecorder.fail("metadata_unavailable");
+    }
+    // Observe input consumption even while media alignment temporarily skips
+    // gameplay, and keep calibration samples rather than only scored frames.
+    this.playMovementUnsubscribe = graph.input.subscribe(input => {
+      if (this.graph !== graph || this.playMovementRecordingSessionGeneration !== generation) return;
+      const raw = graph.cv.getLatestPoseFrame();
+      const consumedRaw = raw?.timestampMs === input.calibrationChecklist?.measuredAt ? raw : null;
+      const observation = this.playMovementFrameContext(graph, performance.now(), input, this.playMovementCameraSurface, consumedRaw);
+      if (observation) this.playMovementRecorder.observe(observation);
+    });
+  }
+
+  endPlayMovementRecording(state) {
+    this.playMovementRecorder?.finish(state);
+    this.playMovementUnsubscribe?.(); this.playMovementUnsubscribe = null;
+  }
+
+  playMovementFrameContext(graph, timestampMs, input, surface, rawPose = null) {
+    const recorder = this.playMovementRecorder;
+    if (!recorder || recorder.getStatus().status !== "recording" || this.playMovementRecordingSessionGeneration !== this.sessionGeneration || graph.gameplay.getSnapshot().session.purpose !== "play") return null;
+    const calibration = input?.calibration;
+    return {
+      timestampMs, input, rawPose,
+      modelKey: [calibration?.calibrationId, calibration?.state, calibration?.readiness, calibration?.bounds, input?.sourceIdentity, input?.tracking?.freshCalibrationRequired, this.midGameRecalibrationDisabled, this.desiredGameSetup.kneeStrikesEnabled, surface?.sourceAspectRatio],
+      configurationKey: [this.activeGameplayConfiguration, this.activeSessionSetup, this.desiredGameSetup, this.equipmentConfig, this.equipmentConfigIdentity, this.kneePadRotationTuning, this.lastCameraIdentity, surface?.intrinsicWidth, surface?.intrinsicHeight, surface?.mirrored, surface?.fitMode, surface?.playbackState, surface?.readabilityState],
+      getCalibrationModel: () => graph.input.getCalibrationModel(),
+      getConfiguration: () => ({ gameplay: this.activeGameplayConfiguration, setup: this.activeSessionSetup, presentationSetup: this.desiredGameSetup, equipment: this.equipmentConfig, equipmentIdentity: this.equipmentConfigIdentity, kneePadRotations: this.kneePadRotationTuning, camera: surface ? { sourceKind: surface.sourceKind, sourceId: surface.sourceId, intrinsicWidth: surface.intrinsicWidth, intrinsicHeight: surface.intrinsicHeight, sourceAspectRatio: surface.sourceAspectRatio, mirrored: surface.mirrored, fitMode: surface.fitMode, sourceChangeId: surface.sourceChangeId, calibrationSourceIdentity: surface.calibrationSourceIdentity, playbackState: surface.playbackState, readabilityState: surface.readabilityState } : null })
+    };
+  }
+
   runDisplayFrame(graph = this.graph) {
     if (!graph) return;
     try {
@@ -2008,8 +2066,9 @@ export class AeroGame extends HTMLElement {
       this.syncKneeCalibrationRequirement(graph);
       const visualTest = graph.gameplay.getSnapshot().session.purpose === "visual_test";
       let freshPlayPose = false;
+      let movementSurface = null;
       if (!visualTest) {
-        const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface);
+        const surface = graph.video.describeSurface(this.videoElement()); this.updateCameraIdentity(surface); movementSurface = surface; this.playMovementCameraSurface = surface;
         const frame = graph.cv.getLatestPoseFrame();
         if (frame && frame.timestampMs !== this.latestPoseTimestampMs) {
           this.latestPoseTimestampMs = frame.timestampMs; this.lastFreshPoseAtMs = frameNow; this.lastInputAdvanceAtMs = frameNow; this.freshPoseConsumptionCount += 1;
@@ -2061,6 +2120,12 @@ export class AeroGame extends HTMLElement {
           try {
             graph.gameplay.advance({ timestampMs:advanceTimestampMs, clock:audioClock, ...(visualTest ? (productionTestFrame === null ? {} : {input:productionTestFrame.input,interaction:productionTestFrame.interaction}) : {input}), ...(equipmentMode === null || advanceEquipmentPoses === null ? {} : {equipmentPoses:advanceEquipmentPoses}), lease:this.leaseSnapshotForGameplay() });
           } finally { this.scoringFrameEquipmentProjector = null; }
+          if (!visualTest) {
+            const resultState = graph.gameplay.getSnapshot().session.state;
+            const recorded = this.playMovementFrameContext(graph, advanceTimestampMs, input, movementSurface);
+            if (recorded) this.playMovementRecorder.record({ ...recorded, clock: audioClock, equipmentPoses: equipmentMode === null ? null : advanceEquipmentPoses, renderTimelineMs: Number(poseFrame?.nowMs ?? audioClock.positionSeconds * 1000), sessionState: beforeAdvance.state, resultState });
+            if (this.playMovementRecordingSessionGeneration === this.sessionGeneration && ["completed", "stopped"].includes(resultState)) this.endPlayMovementRecording(resultState);
+          }
           const equipmentCounts = this.privatePlayEquipmentCounters;
           if (equipmentCounts && equipmentCounts.graph === graph && equipmentCounts.sessionGeneration === this.sessionGeneration && !visualTest && beforeAdvance.purpose === "play" && beforeAdvance.state === "playing" && freshPlayPose) {
             equipmentCounts.freshProcessed += 1;
@@ -3525,7 +3590,18 @@ export class AeroGame extends HTMLElement {
    * Called every frame, so it only touches the DOM when the displayed state changes. */
   syncAbDownloadButton(gameplay){const button=this.shadowRoot?.querySelector("[data-role='download-data']");if(!(button instanceof HTMLButtonElement))return;const state=abCaptureReadiness(gameplay);const key=`${state.ready}|${state.count}|${state.reason}`;if(this.abDownloadButtonKey===key)return;this.abDownloadButtonKey=key;const label=state.count>0?`Download Data (${state.count} notes)`:"Download Data";if(button.textContent!==label)button.textContent=label;button.disabled=!state.ready;button.title=state.ready?"Download the judgement record for this run":`No data to download yet: ${state.reason}`;}
   /** Capture the finished run and download it as JSON. Reads snapshots only. */
-  downloadAbJudgementCapture(){const graph=this.graph;if(!graph)return;const capture=buildAbJudgementCapture({build:{version:appMetadata.packageVersion,buildStamp:appMetadata.buildStamp},gameplay:graph.gameplay.getSnapshot(),content:graph.content.getSnapshot(),colliderSettings:this.activeSessionSetup??getGameSetupSnapshot()});if(capture.summary.totalJudgements===0)return;const blob=new Blob([JSON.stringify(capture,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=abCaptureFilename(capture,"json");link.rel="noopener";this.shadowRoot?.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+  downloadAbJudgementCapture() {
+    const graph = this.graph; if (!graph) return;
+    const gameplay = graph.gameplay.getSnapshot();
+    const movement = gameplay.session.purpose === "play" && this.playMovementRecordingSessionGeneration === this.sessionGeneration ? this.playMovementRecorder?.snapshot() ?? null : null;
+    const capture = buildAbJudgementCapture({ build: { version: appMetadata.packageVersion, buildStamp: appMetadata.buildStamp }, gameplay, content: graph.content.getSnapshot(), colliderSettings: this.activeSessionSetup ?? getGameSetupSnapshot(), movement });
+    if (capture.summary.totalJudgements === 0) return;
+    // Compact numeric tables avoid multiplying a long recording's file size.
+    const blob = new Blob([JSON.stringify(capture)], { type: "application/json" });
+    const url = URL.createObjectURL(blob), link = document.createElement("a");
+    link.href = url; link.download = abCaptureFilename(capture, "json"); link.rel = "noopener";
+    this.shadowRoot?.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+  }
   menuButtonElement() { const value = this.shadowRoot?.querySelector("[data-role='menu-button']"); return value instanceof HTMLButtonElement ? value : null; }
 
   handleUiIntent(event) {
@@ -3684,7 +3760,7 @@ export class AeroGame extends HTMLElement {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
     this.resetTestEquipmentAuthoringState({ render:false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.lifecycle = finalState; this.activeAbort.abort(); this.detachPrivateCameraPresentation(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.endPlayMovementRecording("stopped"); this.playMovementRecorder = null; this.playMovementRecordingSessionGeneration = -1; this.playMovementCameraSurface = null; this.activeGameplayConfiguration = null; this.lifecycle = finalState; this.activeAbort.abort(); this.detachPrivateCameraPresentation(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen); document.removeEventListener("pointermove", this.boundBottomUiPointer); document.removeEventListener("pointerdown", this.boundBottomUiPointerDown); for(const type of ["pointerup","pointercancel"]) document.removeEventListener(type, this.boundBottomUiPointerRelease); document.removeEventListener("touchend", this.boundBottomUiPointerRelease); document.removeEventListener("touchcancel", this.boundBottomUiPointerRelease);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);

@@ -35,7 +35,7 @@ test("capture records build, song, difficulty and the run's real options", () =>
     capturedAtMs: 1762000000000
   });
   assert.equal(capture.schema, "aerobeat/ab_judgement_capture");
-  assert.equal(capture.version, 1);
+  assert.equal(capture.version, 2);
   assert.equal(capture.build.version, "0.0.153");
   assert.equal(capture.build.buildStamp, "BUILD-STAMP");
   assert.equal(capture.song.name, "Probe Test Song");
@@ -47,7 +47,7 @@ test("capture records build, song, difficulty and the run's real options", () =>
   assert.equal(capture.options.colliderDepthBackwardAthleteFacing, true);
 });
 
-test("capture keeps diagnostic codes, which explain why a note was missed", () => {
+test("capture keeps original diagnostic labels without inventing a cause", () => {
   const capture = buildAbJudgementCapture({ gameplay: finishedRun(), content: sampleContent() });
   assert.equal(capture.judgements.length, 4);
   const miss = capture.judgements.find((entry) => entry.eventId === "note-2");

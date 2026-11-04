@@ -1,7 +1,13 @@
 # Record human Play movement and replay it in Test
 
-Status: proposed execution shape for Derrick's requested extension. Button retention is requested; approve the new Test replay control before UI implementation.
+Status: APPROVED, CAPTURE SLICE ACTIVE. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
 Owner: Pico. Feature Bead: aerobeat-web-assembly-1fnl.
+
+## Current action
+
+Parent owns assembly capture/schema/export and later Test replay integration. Same bounded coder completed input-owned read-only calibration export under 4zvi: commit 374de74, normal input tests and independent parent focused check pass. No restoration or scoring authority is added. Parent will repin it before building the capture path. Next passing check is a genuine completed Play download containing marker/model/tick/equipment data that match accepted input, with unchanged judgements and exactly one gameplay advance per display tick.
+
+Keep measured samples once, deduplicate immutable input/equipment/configuration snapshots, and store compact tick references so real input gaps and display cadence remain reproducible without repeating full snapshots at display FPS. Capture is bounded and observational; failure/truncation must be explicit and must not affect gameplay. Native goal-text editing was denied on the automatic turn, so this approved plan and the task-list mirror carry the updated supporting slice; the same original goal remains active.
 
 ## Outcome
 

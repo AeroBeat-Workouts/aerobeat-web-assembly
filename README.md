@@ -7,8 +7,12 @@ Deployable composition shell for the full-parent, reconnectable `<aero-game>` We
 The menu's **Download Data** button exports a finished run as JSON. The corrected
 probe records source difficulty/map ID, all run-locked Game Setup options, and
 per-note judgements. Changing settings after completion does not rewrite the run.
-Derrick requested retaining the button and adding calibrated movement recording and
-Test replay (feature `1fnl`); that extension is proposed, not implemented yet.
+Derrick approved calibrated movement recording and Test replay first (feature
+`1fnl`), before publishing the gameplay fix. Capture source now records numeric
+input/calibration/equipment snapshots and compact advance references, bounded to
+48 MiB with explicit truncation/error status. Export schema 2 includes movement;
+old judgement-only files cannot recover missing positions. The actual built
+export check is next; the Test Load Recording/replay slice is not implemented yet.
 The earlier .149 probe was invalid and must not guide a rollback decision.
 
 Fresh authentic .149/.153 Expert runs now share all 830 event IDs and timestamps,

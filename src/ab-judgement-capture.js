@@ -3,9 +3,9 @@
  * Build the A/B judgement-capture payload from live gameplay and content
  * snapshots.
  *
- * This exists to compare two AeroBeat builds on the same song. It records what
- * the game judged, together with enough identity (build version, song, chart,
- * difficulty, run options) to prove both captures came from the same setup.
+ * Permanent numeric run export: judgements and identity, plus an optional
+ * immutable movement/calibration recording for explicit Test replay. Missing
+ * movement stays null; judgement-only files cannot reconstruct human poses.
  *
  * Pure function: no DOM, no download, no session mutation. The caller renders
  * the file. Nothing here reads or writes scoring state.
@@ -52,9 +52,8 @@ function field(value, key) {
 
 /**
  * Collapse a judgement record to the fields that can explain a hit-rate
- * difference. Diagnostic codes are the important part: they say *why* a note
- * was judged the way it was, which is what separates a timing miss from a
- * direction miss from a near miss.
+ * difference. Preserve diagnostic labels, but do not treat them as proof of
+ * the failed predicate: wrong_direction can be a generic expiry fallback.
  * @param {unknown} judgement
  * @returns {DataRecord | null}
  */
@@ -71,9 +70,13 @@ function captureJudgement(judgement) {
   };
   // Copy the optional numbers only when they are actually numbers, so a null
   // stays visibly null rather than becoming 0 and looking like a real reading.
-  for (const key of ["timingOffsetMs", "beatCenterTimestampMs", "committedTimelinePositionMs"]) {
+  for (const key of ["timingOffsetMs", "beatCenterTimestampMs", "committedTimelinePositionMs", "evidenceTimestampMs"]) {
     const value = field(judgement, key);
-    if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+    if (value === null || (typeof value === "number" && Number.isFinite(value))) out[key] = value;
+  }
+  for (const key of ["schema", "version", "sessionPurpose", "rulesetId", "recipeId", "shadow"]) {
+    const value = field(judgement, key);
+    if (value === null || ["string", "boolean", "number"].includes(typeof value)) out[key] = value;
   }
   if (Array.isArray(diagnostics)) out.diagnostics = Object.freeze(diagnostics.map(String));
   return Object.freeze(out);
@@ -107,6 +110,7 @@ function captureOptions(colliderSettings) {
  *   gameplay?: DataRecord | null,
  *   content?: DataRecord | null,
  *   colliderSettings?: DataRecord | null,
+ *   movement?: DataRecord | null,
  *   capturedAtMs?: number
  * }} input
  * @returns {DataRecord}
@@ -136,7 +140,7 @@ export function buildAbJudgementCapture(input) {
   const capturedAtMs = typeof input.capturedAtMs === "number" && Number.isFinite(input.capturedAtMs) ? input.capturedAtMs : Date.now();
   return Object.freeze({
     schema: "aerobeat/ab_judgement_capture",
-    version: 1,
+    version: 2,
     capturedAt: new Date(capturedAtMs).toISOString(),
     build: Object.freeze({
       version: typeof field(build, "version") === "string" ? field(build, "version") : null,
@@ -164,7 +168,8 @@ export function buildAbJudgementCapture(input) {
       totalJudgements: judgements.length,
       byResult: Object.freeze(byResult)
     }),
-    judgements: Object.freeze(judgements)
+    judgements: Object.freeze(judgements),
+    movement: isRecord(input.movement) ? input.movement : null
   });
 }
 
