@@ -1,11 +1,15 @@
 # Record human Play movement and replay it in Test
 
-Status: APPROVED, CAPTURE SLICE ACTIVE. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
+Status: APPROVED, TEST LOADER/PLAYBACK SLICE ACTIVE. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
 Owner: Pico. Feature Bead: aerobeat-web-assembly-1fnl.
 
 ## Current action
 
-Parent owns assembly capture/schema/export and later Test replay integration. Same bounded coder completed input-owned read-only calibration export under 4zvi: commit 374de74, normal input tests and independent parent focused check pass. No restoration or scoring authority is added. Parent will repin it before building the capture path. Next passing check is a genuine completed Play download containing marker/model/tick/equipment data that match accepted input, with unchanged judgements and exactly one gameplay advance per display tick.
+Capture/export is implemented in assembly 1abb81d with input 374de74. Full assembly tests pass. The actual signed Play download contains 80 measured frames and 51 actual advances, all 13 available named markers, exact calibration/model mapping and equipment, unchanged judgement and run-locked settings. Capture observes each real advance once. Saved synthetic fixture: `.tmp/movement-capture-built-fixture.json` (520486 bytes; not human data).
+
+Reader e25f566 passes 7 focused / 20 combined tests and parses all 51 actual saved ticks without changing any numbers. Gameplay a4ba863 adds the explicit non-ranked recorded-Play temporal context; parent inspected its small production diff and independently passed its focused Flow/Boxing/epoch/admission checks. Source full tests pass; parent handles pins/push.
+
+Next: implement Test Load Recording and playback under us3e, using existing controls. Final next acceptance is actual Play -> Download Data -> native Test Load Recording -> real Test scoring, with recorded markers/equipment and expected results, plus the late-contact and reversal controls. No public build changes yet. Source helpers alone are not replay acceptance.
 
 Keep measured samples once, deduplicate immutable input/equipment/configuration snapshots, and store compact tick references so real input gaps and display cadence remain reproducible without repeating full snapshots at display FPS. Capture is bounded and observational; failure/truncation must be explicit and must not affect gameplay. Native goal-text editing was denied on the automatic turn, so this approved plan and the task-list mirror carry the updated supporting slice; the same original goal remains active.
 
@@ -38,6 +42,14 @@ Assembly already sees the raw pose, accepted input and resolved equipment at fra
 Inspect existing Test-source contracts before implementing replay. Preserve original timestamp spacing, idle periods and calibration boundaries. Do not restore old media leases, forge camera provenance, assign arbitrary trusted snapshots, or relax live admission gates.
 
 There is an observed comparison trap: Play permits the existing 1000 ms late deadline, while ordinary Test uses the base timing window (180 ms in these runs). The old human capture contains valid hits later than 180 ms. A replay comparison must explicitly reproduce the recorded Play rules in the non-ranked Test environment, rather than label Test's different defaults a regression. Do not make recorded files eligible for live/ranked scoring to solve this.
+
+## Owners and continuation
+
+- Parent Pico owns integration review, source pins, commits/pushes and actual signed acceptance/publication decisions.
+- Coder f2e79c08-0a57-4d34-bd1e-9a04cae662cf, verified direct child, completed 4zvi (input model), bg6v (file reader), kit4 (explicit Test rules); next us3e owns assembly Test UI/playback. Existing QA child remains idle; no serial audit chain.
+- Preserve actual `visual_test`/non-ranked purpose. Import data through a fresh explicit Test namespace/epoch and current audio-only lease; never restore old camera IDs/leases or pretend the recording is live input.
+- Reuse the real coordinator and recorded full endpoints. Use recorded body shoulders for Flow spline reprojection, not pointer Test's neutral center. Preserve source confidence/frozen states, timing spacing and configuration. Do not mutate global Play preferences when binding recorded Test settings.
+- Matching content is mandatory. Report old judgement-only files, incomplete files or mismatched song/chart clearly. Loader parsing is not evidence authority.
 
 ## Delivery slices and checks
 

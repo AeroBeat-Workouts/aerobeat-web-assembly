@@ -3,7 +3,7 @@
 // landmarks; production input, equipment projection, coordinator and renderer stay real.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { build } from "vite";
@@ -19,6 +19,8 @@ if (process.env.AEROBEAT_EXPECT_GAMEPLAY_COMMIT) assert.equal(snapshot.manifest.
 const directory = mkdtempSync(path.join(tmpdir(), "aerobeat-direction-fixture-"));
 let server, browser;
 const results = [];
+const recordingDirectory = process.env.AEROBEAT_DIRECTION_RECORDING_DIR;
+if (recordingDirectory) mkdirSync(recordingDirectory, { recursive: true });
 try {
   await build({ configFile: "vite.config.js", logLevel: "error", build: { outDir: directory, emptyOutDir: true, lib: { entry: "scripts/fixtures/scored-play-browser-harness.js", formats: ["es"], fileName: () => "scored-play-browser-harness.js" } } });
   const fixtures = new Map(readdirSync(directory).filter(n => n.endsWith(".js")).map(n => ["/scripts/fixtures/" + n, readFileSync(path.join(directory, n))]));
@@ -31,11 +33,11 @@ try {
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   browser = await chromium.launch({ headless: true });
   for (const scenario of noteCount === 1 ? ["reversal", "reverse-only", "no-contact"] : ["reverse-only"]) {
-    const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    const page = await browser.newPage({ acceptDownloads: true, viewport: { width: 1000, height: 700 } });
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: "networkidle" });
-    const result = await page.locator("aero-game").evaluate(async (element, { scenario, noteCount }) => {
+    const result = await page.locator("aero-game").evaluate(async (element, { scenario, noteCount, captureRecording }) => {
       const { installScoredPlayHarness } = await import("/scripts/fixtures/scored-play-browser-harness.js");
       const advances = [];
       const factory = element.serviceGraphFactory;
@@ -77,14 +79,29 @@ try {
       const judgements = harness.graph.gameplay.getJudgements();
       if (judgements.length !== noteCount || new Set(judgements.map(j => j.eventId)).size !== noteCount) throw Error("Exactly one completed judgement per note required");
       const output = { scenario, noteCount, judgement: judgements.find(j => j.eventId === "up-after-down-0"), judgements, ticks, calibrationBounds: bounds };
-      harness.dispose(); return output;
-    }, { scenario, noteCount });
+      if (captureRecording) {
+        await harness.graph.audio.seek(10); await harness.graph.audio.pause();
+        harness.feedPose(); await element.audioSyncTail;
+        if (harness.graph.gameplay.getSnapshot().session.state !== "completed") throw Error("Recording fixture must finish through the actual audio-end path");
+        element.setMenuOpen(true); element.renderPresenters();
+      } else harness.dispose();
+      return output;
+    }, { scenario, noteCount, captureRecording: Boolean(recordingDirectory) });
     assert.deepEqual(errors, []);
     assert.equal(result.judgement.result, scenario === "reversal" && expectFixed ? "hit" : "miss", `${scenario}: wrong signed scoring result`);
     if (result.judgement.result === "hit") {
       assert.equal(result.judgement.tier, "great");
       assert(result.judgement.timingOffsetMs >= -180 && result.judgement.timingOffsetMs <= 180, "reversal hit must use original base timing window");
     } else for (const judgement of result.judgements) assert.equal(judgement.tier, "miss", "negative controls must not become hits or near judgements");
+    if (recordingDirectory) {
+      const pending = page.waitForEvent("download");
+      await page.locator("aero-game").locator("[data-role='download-data']").click();
+      const download = await pending;
+      const text = readFileSync(await download.path(), "utf8"), capture = JSON.parse(text);
+      assert.equal(capture.movement?.complete, true, "the actual completed run must include its movement recording");
+      assert.deepEqual(capture.judgements.map(j => ({ eventId: j.eventId, result: j.result, tier: j.tier, timingOffsetMs: j.timingOffsetMs })), result.judgements.map(j => ({ eventId: j.eventId, result: j.result, tier: j.tier, timingOffsetMs: j.timingOffsetMs })));
+      writeFileSync(path.join(recordingDirectory, `${scenario}.json`), text);
+    }
     results.push(result);
     console.log(JSON.stringify({ scenario, result: result.judgement.result, tier: result.judgement.tier, committed: result.judgement.committedTimelinePositionMs, timingOffsetMs: result.judgement.timingOffsetMs, maxAdvanceElapsedMs: Math.max(...result.ticks.map(t => t.advanceElapsedMs)) }));
     await page.close();

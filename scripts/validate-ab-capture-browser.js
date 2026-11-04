@@ -3,7 +3,7 @@
 // camera/audio/content fixture. This is download proof, not physical play proof.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { build } from "vite";
@@ -120,7 +120,8 @@ try {
   assert(movement.configurations.every(c => c.setup.flowColliderVolume.colliderScale === 1.5), "next-run edits cannot rewrite recorded configuration");
   assert(download.suggestedFilename().endsWith("-Expert.json"));
   assert.deepEqual(errors, []);
-  console.log(`PASS actual signed ${capture.build.version} completed-run UI download: ${download.suggestedFilename()}; exact real judgement, source difficulty, run-locked depth/scale.`);
+  if (process.env.AEROBEAT_AB_CAPTURE_OUTPUT) writeFileSync(process.env.AEROBEAT_AB_CAPTURE_OUTPUT, JSON.stringify(capture));
+  console.log(`PASS actual signed ${capture.build.version} numeric run download: ${movement.rawPoses.length} measured frames, ${movement.ticks.length} real advances; raw/model marker mapping, equipment, judgement and run-locked options match.`);
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));

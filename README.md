@@ -11,8 +11,11 @@ Derrick approved calibrated movement recording and Test replay first (feature
 `1fnl`), before publishing the gameplay fix. Capture source now records numeric
 input/calibration/equipment snapshots and compact advance references, bounded to
 48 MiB with explicit truncation/error status. Export schema 2 includes movement;
-old judgement-only files cannot recover missing positions. The actual built
-export check is next; the Test Load Recording/replay slice is not implemented yet.
+old judgement-only files cannot recover missing positions. The actual signed
+Play export passes: all available markers and calibration map to real accepted
+input, and each actual advance is recorded once. The reader also parses that file
+without rewriting its numbers. Test Load Recording/playback integration is next;
+no replay acceptance or public deployment is claimed yet.
 The earlier .149 probe was invalid and must not guide a rollback decision.
 
 Fresh authentic .149/.153 Expert runs now share all 830 event IDs and timestamps,
