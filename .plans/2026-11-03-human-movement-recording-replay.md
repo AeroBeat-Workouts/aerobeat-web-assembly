@@ -1,6 +1,6 @@
 # Record human Play movement and replay it in Test
 
-Status: APPROVED, TEST LOADER/PLAYBACK SLICE ACTIVE. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
+Status: IMPLEMENTED AND VERIFIED LOCALLY. Signed native replay and final normal suite pass. Publication/phone acceptance remain. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
 Owner: Pico. Feature Bead: aerobeat-web-assembly-1fnl.
 
 ## Current action
@@ -9,9 +9,9 @@ Capture/export is implemented in assembly 1abb81d with input 374de74. Full assem
 
 Reader e25f566 passes 7 focused / 20 combined tests and parses all 51 actual saved ticks without changing any numbers. Gameplay a4ba863 adds the explicit non-ranked recorded-Play temporal context; parent inspected its small production diff and independently passed its focused Flow/Boxing/epoch/admission checks. Source full tests pass; parent handles pins/push.
 
-Test UI/playback is implemented under us3e in 0985418: native Load/Clear control and recorded-input status, local settings, all ticks/observations, body-pivot projection, existing pause/restart/seek and current audio-only Test lease. Source checks/controller 6/6 and combined 26/26 pass. Two old static syntax oracles caught normal-Test branch-shape changes; production structure was corrected and the original gates left untouched. All tail checks pass, but final monolithic npm test remains to run. Child had one unknown native/empty-closing failure; resumed the same verified ID idempotently, preserved all partial work and collected all jobs. No replacement worker or skipped gate.
+Test UI/playback is implemented under us3e in 0985418: native Load/Clear control and recorded-input status, local settings, all ticks/observations, body-pivot projection, existing pause/restart/seek and current audio-only Test lease. Final controller 7/7, combined 27/27, signed native flow and monolithic npm test pass. Two old static syntax oracles initially caught normal-Test branch-shape changes; production structure was corrected and the original gates left untouched. Child had one unknown native/empty-closing failure; resumed the same verified ID idempotently, preserved all partial work and collected all jobs. No replacement worker or skipped gate.
 
-Next acceptance is actual Play -> Download Data -> native Test Load Recording -> real Test scoring, with recorded markers/equipment and expected results, plus positive reversal, >180 ms late contact and strict negative controls. The exact next commands are the signed capture validator with AEROBEAT_AB_TEST_REPLAY=1 and the direction validator with AEROBEAT_DIRECTION_TEST_REPLAY=1, RECORDING_DIR and INCLUDE_LATE=1 after a clean signed rebuild. No public build changes yet. Source helpers alone are not replay acceptance.
+Actual Play -> Download -> native Test Load Recording -> real Test scoring is verified, including marker/equipment equality, positive reversal, >180 ms late contact and strict miss controls. Repro command: npm run test:movement-replay after a clean signed build. Next is the publication decision and physical phone test. No public build changes yet.
 
 Keep measured samples once, deduplicate immutable input/equipment/configuration snapshots, and store compact tick references so real input gaps and display cadence remain reproducible without repeating full snapshots at display FPS. Capture is bounded and observational; failure/truncation must be explicit and must not affect gameplay. Native goal-text editing was denied on the automatic turn, so this approved plan and the task-list mirror carry the updated supporting slice; the same original goal remains active.
 
@@ -53,7 +53,18 @@ There is an observed comparison trap: Play permits the existing 1000 ms late dea
 - Reuse the real coordinator and recorded full endpoints. Use recorded body shoulders for Flow spline reprojection, not pointer Test's neutral center. Preserve source confidence/frozen states, timing spacing and configuration. Do not mutate global Play preferences when binding recorded Test settings.
 - Matching content is mandatory. Report old judgement-only files, incomplete files or mismatched song/chart clearly. Loader parsing is not evidence authority.
 
-## Current repair: live settings lost on replay (xkrs, from QA nvnb)
+## Latest actual acceptance (cd8330c, local signed candidate only)
+
+- `npm run test:movement-replay` PASS (bash76). Genuine Play -> Download -> native file chooser -> same real Test scorer. Reversal Great at6050, qualified offset +35.41666666666697; late reversal Great at6550, +535.416666666667; reverse-only/no-contact remain Miss7050. Every recorded tick and observation is consumed.
+- Native UI passes marker/equipment equality, active audio-only ownership and terminal release, unranked Test, pause/prefix seek/resume, EOF restart with cleared scores and second terminal release, Clear, portrait control bounds, and old-file error. Play preferences/equipment globals stay unchanged.
+- Actual live nose visibility was changed during the recorded run and changed back for the next run. Test preserves the captured hidden nose (actual renderer cursor count), not current preferences. Source regression also verifies 150% notes and hook height +.5 reach the local binding/real coordinator while next-run collider scale is ignored. Seven controller tests + npm check PASS.
+- Recorder methods measured on the real synthetic Play boundary: combined observation+tick elapsed mean per advance 0.0906–0.1465 ms across four cases; per-method maximum 0.3 ms. This excludes other frame work and is not phone FPS/human acceptance. Exactly-once actual advances remain checked.
+- Monolithic final `npm test`: bash77 PASS, including all normal source/static/unit/public progress checks. Current combined data/controller coverage is 27 tests. Both public comparison builds remain unchanged. No physical recovery claim.
+- Verified local signed artifact: assembly cd8330c, gameplay a4ba863, input374de74; stamp FRIEND-GAME-CPU-0.0.153-f40a7f4cee73bd77cab8ed58. This is a local candidate, not either original public comparison.
+- Exact continuation: commit/push completed checks/docs, close bounded recording/QA tasks, then ask Derrick whether to publish a distinctly versioned 0.0.154 at the current .153 link while keeping authentic .149 unchanged. No further audits, schema cleanup or optimization are required before that decision.
+- Independent QA nvnb completed one bounded pass. Its one faithful-replay defect xkrs was repaired in cd8330c and verified above. Optional file compaction is deferred as iomn; no format refactor or extra audit is required for this delivery.
+
+## Resolved repair: live settings lost on replay (xkrs, from QA nvnb)
 
 ### Exact observed failure / expected behavior
 

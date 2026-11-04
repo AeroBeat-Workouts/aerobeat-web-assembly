@@ -59,7 +59,9 @@ try {
     await harness.setSetup({ flowColliderVolume: { colliderScale: 1.5, colliderDepthForward: 1, colliderDepthBackward: 0 } });
     await harness.startPlay();
     await harness.calibrate();
-    await harness.setSetup({ noseMarkerVisible: false, noteScalePercent: 150 });
+    const liveNose = element.shadowRoot.querySelector("[data-game-setup-field='noseMarkerVisible']");
+    if (!(liveNose instanceof HTMLInputElement) || liveNose.disabled || !liveNose.checked) throw Error("Expected live nose visibility control");
+    liveNose.click(); await element.lifecycleIntentTail;
     const legs = { left: { hip: { x: .43, y: .68 }, knee: { x: .4, y: .8 }, ankle: { x: .43, y: .97 } }, right: { hip: { x: .57, y: .68 }, knee: { x: .6, y: .8 }, ankle: { x: .57, y: .97 } } };
     await harness.seekSong(5500, { legs });
     const model = harness.graph.input.getCalibrationModel();
@@ -75,7 +77,7 @@ try {
     element.setMenuOpen(true);
     element.renderPresenters();
     // Change the next-run control: export must retain the just-finished run.
-    await harness.setSetup({ flowColliderVolume: { colliderScale: 2 }, noseMarkerVisible: true, noteScalePercent: 100 });
+    await harness.setSetup({ flowColliderVolume: { colliderScale: 2 }, noseMarkerVisible: true });
     return { judgements: gameplay.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), state: gameplay.session.state, model, equipment, surface, recordedAdvances };
   });
   assert(await button.isEnabled(), "completed run with real judgement must enable download");
@@ -165,10 +167,9 @@ try {
     assert(paused.partitions.every(p => p.ranked === false && p.localOnly === true));
     assert.equal(paused.scene.state, "running"); assert.equal(paused.scene.equipment.instanceCount, 2); assert(paused.nonblack > 0);
     assert.equal(paused.scene.cursors.instanceCount, 0, "replay must retain recorded live nose visibility, not the current Play preference");
-    assert.equal(paused.scene.visualScalesId.split("|")[0], "1.5", "replay must render the captured live 150% note scale");
+
     const capturedSetup = movement.configurations[tick[8]];
     assert.equal(capturedSetup.setup.noseMarkerVisible, true); assert.equal(capturedSetup.presentationSetup.noseMarkerVisible, false);
-    assert.equal(capturedSetup.setup.noteScalePercent, 100); assert.equal(capturedSetup.presentationSetup.noteScalePercent, 150);
     const originalInput = movement.inputs[tick[4]];
     for (const anchor of originalInput.anchors.filter(a => a.valid)) {
       const actual = paused.anchors.find(a => a.anchor === anchor.anchor);

@@ -19,8 +19,9 @@ controls are implemented, with recorded settings isolated from Play preferences.
 The signed native flow now passes for tracked markers/equipment, pause, restart,
 seek, legacy-file errors, exact reversal/late-hit and miss controls, and unchanged
 Play preferences. QA found that recorded live visual/Boxing-height changes were
-being dropped; the local binding is repaired and its final built check is next.
-No public deployment or physical recovery is claimed yet.
+being dropped; the local binding is repaired and its signed check passes. The
+full normal `npm test` also passes. No public deployment or physical recovery is
+claimed yet.
 
 After a completed Play run, choose **Download Data**. In Test, select the matching
 song and difficulty, then **Load Recording**. Playback is local and unranked;
