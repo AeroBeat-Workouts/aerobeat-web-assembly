@@ -1,9 +1,15 @@
 # Squash reported playtest bugs, then update the live game
 
-Status: APPROVED for immediate execution by Derrick's 2026-11-04 request.
+Status: THREE FIXES VERIFIED AND PUBLISHED as0.0.155. Owner/full assembly suites, signed bug-batch and actual public HTTPS checks pass. Physical-only follow-ups remain explicit.
 Owner: Pico. Current live baseline: signed 0.0.154, assembly c0fbed7, gameplay a4ba863, input374de74. Keep authentic .149 comparison unchanged.
 
-## Current action
+## Delivery result
+
+Live main HTTPS is0.0.155, verified99 against exact frozen HTML/entryJS; visibleversion, Download/recordingcontrols and zero pageerrors pass. Authentic149 remains exactoriginalstamp/assets and both managed services active. Finalfullassemblynpmtest98PASS after updatingonlystaleversionoracle153->155. One foreground normal run timedout at60seconds, then managed98 completed; no test assertion was waived. Source normal/browser/real checks and signed96PASS, QA lc4xGO.
+
+Closed newbugs gili/5fgy/cqs7 and QAlc4x. Reconciled already-shipped a3w9/wo5x/73xt with signed141 source/artifact evidence, not new155fixes. Original intermittentphysical music/camera/switched-hand/performance uncertainties remainopen; no claim that every oldphysical report is solved. Nextplaytest useslatest155; savedBoxingcharts need selected Reimport. Download Data remains available if the physical trace is needed. Engineering batch is complete; no further automatic audits/tests are required.
+
+## Original action
 
 Start with the recent deferred reports: gili (Sonic Heroes import when NJS is absent), 5fgy (100% repeated-punch hand switch), and cqs7 (misleading wrong_direction diagnostic). Reproduce each in its owning package, make the smallest correction, then exercise the built assembly. Reconcile older user-reported bugs against current source/tests: many ledger entries still describe already-shipped September/October work. Do not equate an open historical entry with a current regression, or close one without concrete shipped/test evidence.
 
@@ -33,6 +39,12 @@ Early 5fgy reproduction: source L,L,L independently flips later source repeats t
 - 5fgy: authoring dcb0138 after diagnostic527ad9e, clean/ahead2, not pushed. Final emitted100% hands now alternate in straight/hook/uppercut and both variants; family unchanged. Source/browser/security tests pass. Full unit/real suites require missing local54510 and3D44B archive fixtures; do not claim complete green until parent restores exact public test inputs or records the gap.
 - gili: actual named map is2fa8c/hashfb09ccd3edeb747ee3735a01824234d5c31fb9a1, Info2.0 Easy explicitly0, not absent. Parent corrected scope to documented zero sentinel. Child cross-checked pinned ChroMapper V2/V4 shared10/10/10/12/16 resolver, bsmap and SongCore defaulting; no proprietary game binary execution claimed. Actual service import now PASS Easy10 with explicitExpert16/ExpertPlus18 unchanged; normal45 value/version rows and browser tests pass. Commit/report is finishing.
 - Next: source review/push complete (vendor ea715b2/treef9230128d85c0e6bb7da11577bca314fa76a3b05; authoring dcb0138/tree4c1d84f54a838504e0855705842549d35e74f04d; gameplay cb028da/tree6175a75c06165e7aa2ec0f0e7da4c3e2983732ad). Authoring exact public archive fixtures restored from pinned CDN versions, then full npm test and test:real PASS (bash94), no waived gates. Assembly pins updated and version0.0.155 staged. Exercise real named map +100% native import/reimport + signed diagnostic controls in the built game; run normal assembly/replay, then publish next version under the direct authorization.
+
+## Final gate diagnosis
+
+The first monolithic assembly run97 stopped at shared-hash-provenance.js:52: actual version0.0.155 versus hardcoded expected0.0.153. The oracle explicitly checks the published candidate patch version; the planned release bump made that literal stale. This is not a dependency/provenance/runtime failure. Update only the expected patch to0.0.155, retaining every dirty-worktree/hash/closure assertion, then rerun the full normal gate. No product or collision change is justified.
+
+Signed build d30c9c8 already passes the complete bug-batch command96: real Sonic Heroes zero-NJS archive direct+iframe import; real54510 native100% settings/Reimport direct+iframe; full recorded-input/marker/control/currentlease/scoring replay including exact reversal/late hit and strict negative diagnostic reasons. Frozen59-file candidate `.tmp/cpu-r155-verified-d30c9c8`, stamp FRIEND-GAME-CPU-0.0.155-5517f32d47835b236e10dddf. Live still.154 until final gate passes. QA lc4x is GO, no likely new blocker or required complexity cleanup.
 
 ## Initial backlog disposition
 

@@ -2,18 +2,23 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## 0.0.155 bug-fix candidate — not public yet
+## Public 0.0.155 — reported playtest fixes
 
 This batch fixes Sonic Heroes import with automatic (missing/zero) note jump
 speed, makes 100% repeated-punch switching alternate actual emitted hands without
 changing punch family, and reports wrong_direction only after an observed
 rejected contact. Saved Boxing charts need selected-song **Reimport** to apply
 new conversion rules; changing a setting does not silently rewrite saved songs.
-Owner normal tests pass, including the restored exact public-map fixtures.
-Signed import/reimport/scoring acceptance is next. Current live remains .154.
-After a clean signed build, run `npm run test:playtest-bug-batch`.
+Owner normal tests, complete assembly suite and signed direct/iframe import,
+Reimport, diagnostic and recorded-input checks pass. Current live is **0.0.155**,
+source `d30c9c8`, stamp `FRIEND-GAME-CPU-0.0.155-5517f32d47835b236e10dddf`
+(59 files), frozen at `.tmp/cpu-r155-verified-d30c9c8`. The existing main service
+still uses loopback4216. Public HTTPS bytes/version/controls match the frozen
+release; authentic .149 remains unchanged. Physical-only open reports are not
+claimed solved by host checks. After a clean signed build, rerun
+`npm run test:playtest-bug-batch`.
 
-## Public 0.0.154 — contact fix and local movement replay
+## Previous public 0.0.154 — contact fix and local movement replay
 
 Derrick approved publication on 2026-11-04. The current public playtest serves
 signed **0.0.154**, assembly `c0fbed7`, gameplay `a4ba863`, input `374de74`.
