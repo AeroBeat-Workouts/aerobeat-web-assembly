@@ -2,6 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createPlayMovementRecorder, recordedEquipmentPair } from "../src/play-movement-recording.js";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import { buildAbJudgementCapture } from "../src/ab-judgement-capture.js";
 
 const identity = { schema: "aerobeat/equipment_config_identity", version: 1, algorithm: "sha256", value: "a".repeat(64) };
 const poses = () => ["left_wrist", "right_wrist"].map((role, i) => ({ role, mode: "flow", geometryIdentity: "aerobeat/saber_capsule_v1", configIdentity: identity, anchor: { x: i + .5, y: .75, z: 0 }, scale: 2, orientation: { x: 0, y: 0, z: 0, w: 1 } }));
@@ -72,4 +75,133 @@ test("capture failures are explicit and never escape into gameplay", () => {
   assert.equal(recorder.snapshot().status, "capture_error"); assert.equal(recorder.snapshot().complete, false);
   const raw = createPlayMovementRecorder(), bad = frame(); bad.rawPose.landmarks[0].x = NaN;
   assert.doesNotThrow(() => raw.observe(bad)); assert.equal(raw.snapshot().status, "capture_error");
+});
+
+// Execute the owning lifecycle and display-loop methods, not a parallel capture
+// implementation. Device/render services are fixtures; this is source-only proof.
+const assemblySource = readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
+const lifecycleSource = assemblySource.slice(assemblySource.indexOf("  beginPlayMovementRecording(graph) {"), assemblySource.indexOf("  stopFrameLoop() {"));
+function lifecycleFixture(initialState = "calibrating") {
+  let now = 0, input = frame().input, raw = frame().rawPose, model = { calibrationId: "initial" }, modelReads = 0;
+  let session = { state: initialState, purpose: "play", timestampMs: 0 }, safety = { ready: false };
+  const listeners = new Set(), advances = [];
+  input = { ...input, calibration: { state: "calibrating", readiness: "not_ready" }, calibrationChecklist: { measuredAt: raw.timestampMs } };
+  const surface = { sourceAspectRatio: 1.5, intrinsicWidth: 640, intrinsicHeight: 480, mirrored: true };
+  const graph = {
+    video: { describeSurface: () => surface },
+    cv: { getLatestPoseFrame: () => raw, getStatus: () => ({ running: true }) },
+    input: {
+      getSnapshot: () => input,
+      getCalibrationModel: () => { modelReads++; return model; },
+      subscribe: listener => { listeners.add(listener); listener(input); return () => listeners.delete(listener); },
+      processPoseSample: () => { for (const listener of listeners) listener(input); },
+      advanceTime: () => { for (const listener of listeners) listener(input); },
+      setMidGameRecalibrationEnabled: () => {}
+    },
+    content: { getSnapshot: () => ({}) },
+    audio: { getClockSnapshot: () => ({ contextTimeSeconds: now / 1000, positionSeconds: 0, playing: false }), getStatus: () => ({ state: "paused" }) },
+    gameplay: {
+      getSnapshot: () => ({ session, safety }),
+      advance: value => { advances.push({ ...value, state: session.state }); safety = { ready: input.calibration.readiness === "ready" }; session = { ...session, timestampMs: value.timestampMs }; },
+      requestStart: () => { if (safety.ready) session = { ...session, state: "countdown" }; }
+    }
+  };
+  const Owner = runInNewContext(`(class { ${lifecycleSource} })`, {
+    createPlayMovementRecorder, buildAbJudgementCapture,
+    appMetadata: { packageVersion: "test", buildStamp: "test" },
+    getGameSetupSnapshot: () => ({}), performance: { now: () => now },
+    audioClockAlignedWithGameplay: () => true,
+    createFrameSplineEquipmentProjector: () => null,
+    cameraPerformanceFormat: () => ({}), currentDpr: () => 1
+  });
+  const owner = new Owner();
+  Object.assign(owner, {
+    graph, sessionGeneration: 1, playMovementRecordingSessionGeneration: -1, playMovementRecorder: null,
+    desiredGameSetup: { kneeStrikesEnabled: false }, activeSessionSetup: { timingWindowMs: 180 },
+    activeGameplayConfiguration: { chart: { id: "unchanged" } }, equipmentConfig: { scale: 1 }, equipmentConfigIdentity: identity,
+    kneePadRotationTuning: {}, lastCameraIdentity: "camera", lastKnownShoulderPivot: {}, lastValidEquipmentPoses: [],
+    latestPoseTimestampMs: -1, lastFreshPoseAtMs: -Infinity, lastInputAdvanceAtMs: -Infinity, lastContentSyncAtMs: 0,
+    freshPoseConsumptionCount: 0, inputAdvanceCount: 0, displayFrameCount: 0,
+    sessionStartRequested: true, privatePerformance: { record: () => {} }, container: { devicePixelRatio: 1 },
+    videoElement: () => ({}), rendererFrame: () => ({ nowMs: now }), resolveEquipmentPoses: () => [],
+    equipmentModeForSession: () => null, leaseSnapshotForGameplay: () => ({}),
+    handleError: error => { throw error; }
+  });
+  for (const name of ["syncKneeCalibrationRequirement", "updateCameraIdentity", "syncAudioForGameplay", "syncContentPlayback", "observeEnvironmentLoad", "syncCameraPresentation", "renderGameplay", "syncDebugCameraControlState", "renderVisualTestTransport", "syncAbDownloadButton", "renderRuntimePresentation", "reconcileTerminalServices"]) owner[name] = () => {};
+  return {
+    owner, graph, advances, listeners,
+    get modelReads() { return modelReads; },
+    get input() { return input; }, get raw() { return raw; }, get model() { return model; },
+    setState: state => { session = { ...session, state }; },
+    sample(calibrated = false) {
+      now += 7;
+      input = { ...input, calibration: { state: calibrated ? "calibrated" : "calibrating", readiness: calibrated ? "ready" : "not_ready", calibrationId: calibrated ? "cal-1" : null }, calibrationChecklist: { measuredAt: now } };
+      raw = { ...raw, timestampMs: now };
+      model = { calibrationId: input.calibration.calibrationId, bounds: { left: .123, right: .987 }, timestampMs: now };
+    },
+    display() { owner.runDisplayFrame(graph); },
+    emit() { for (const listener of listeners) listener(input); }
+  };
+}
+
+test("initial calibration waiting allocates no run budget; first countdown snapshots exact current data", () => {
+  const f = lifecycleFixture(); f.owner.beginPlayMovementRecording(f.graph);
+  for (let i = 0; i < 41902; i++) { f.sample(); f.display(); }
+  assert.equal(f.advances.length, 41902, "waiting still advances gameplay normally");
+  assert.equal(f.owner.playMovementRecorder, null, "no metadata, input, raw pose or tick allocation during initial waiting");
+  assert.equal(f.modelReads, 0);
+  f.sample(true); f.display();
+  const data = f.owner.playMovementRecorder.snapshot();
+  assert.equal(f.graph.gameplay.getSnapshot().session.state, "countdown");
+  assert.equal(data.ticks.length, 0, "requestStart is not an advance; earlier calibrating advance is outside capture");
+  assert.deepEqual(data.inputs, [f.input]);
+  assert.deepEqual(data.rawPoses, [f.raw]);
+  assert.deepEqual(data.models, [f.model]);
+  assert.deepEqual(data.metadata.initialCalibrationModel, f.model);
+  assert.deepEqual(data.configurations[0].setup, f.owner.activeSessionSetup);
+  assert.deepEqual(data.configurations[0].gameplay, f.owner.activeGameplayConfiguration);
+  assert.deepEqual(data.configurations[0].presentationSetup, f.owner.desiredGameSetup);
+  assert.deepEqual(data.configurations[0].equipment, f.owner.equipmentConfig);
+  assert.equal(data.configurations[0].camera.intrinsicWidth, 640);
+  const boundaryAdvanceCount = f.advances.length;
+  for (const state of ["countdown", "playing", "paused_manual", "paused_tracking", "calibrating", "countdown", "playing"]) {
+    f.setState(state); f.sample(state !== "calibrating");
+    f.emit(); // Input observed even when media alignment skips a gameplay advance.
+    f.display();
+  }
+  const after = f.owner.playMovementRecorder.snapshot();
+  const retained = f.advances.slice(boundaryAdvanceCount);
+  assert.equal(after.ticks.length, retained.length);
+  assert.deepEqual(after.ticks.map(row => row[0]), retained.map(value => value.timestampMs));
+  assert.deepEqual(after.ticks.map(row => after.states[row[10]]), retained.map(value => value.state));
+  assert.equal(after.inputs.length, 8); assert.equal(after.rawPoses.length, 8);
+  assert(after.models.some(value => value.calibrationId === null), "later recalibration is retained, not filtered");
+  f.setState("completed"); f.display();
+  assert.equal(f.owner.playMovementRecorder.snapshot().complete, true);
+  assert.equal(f.listeners.size, 0);
+});
+
+test("ready start, stop, reset and restart preserve generation-scoped recording ownership", () => {
+  const f = lifecycleFixture("countdown"); f.sample(true);
+  f.owner.beginPlayMovementRecording(f.graph);
+  const first = f.owner.playMovementRecorder;
+  assert.equal(first.snapshot().inputs.length, 1, "already-ready Play captures immediately without waiting for another pose");
+  f.display(); assert.equal(first.snapshot().ticks.length, 1);
+  f.owner.endPlayMovementRecording("stopped");
+  f.sample(true); f.emit(); f.display();
+  assert.equal(first.snapshot().status, "stopped"); assert.equal(first.snapshot().ticks.length, 1);
+  f.owner.sessionGeneration++; f.setState("calibrating");
+  f.owner.beginPlayMovementRecording(f.graph);
+  assert.equal(f.owner.playMovementRecorder, null); assert.equal(f.listeners.size, 1);
+  f.owner.endPlayMovementRecording("stopped");
+  f.setState("countdown"); f.sample(true); f.display();
+  assert.equal(f.owner.playMovementRecorder, null, "stopping an armed wait must disarm lazy capture");
+  f.owner.beginPlayMovementRecording(f.graph);
+  const restarted = f.owner.playMovementRecorder;
+  assert.notEqual(restarted, first); assert.equal(restarted.snapshot().ticks.length, 0);
+  f.owner.sessionGeneration++; // Reset invalidates old callbacks and ticks.
+  f.sample(true); f.emit(); f.display();
+  assert.equal(restarted.snapshot().inputs.length, 1); assert.equal(restarted.snapshot().ticks.length, 0);
+  f.owner.endPlayMovementRecording("stopped");
+  assert.equal(f.listeners.size, 0);
 });

@@ -2059,8 +2059,23 @@ export class AeroGame extends HTMLElement {
 
   beginPlayMovementRecording(graph) {
     this.endPlayMovementRecording("stopped");
+    this.playMovementRecorder = null;
     this.playMovementRecordingSessionGeneration = this.sessionGeneration;
     const generation = this.sessionGeneration;
+    // Arm observation now, but allocate the run budget only at first countdown.
+    // Once started, keep every observation, including pause/recalibration.
+    const observeInput = input => {
+      if (this.graph !== graph || this.playMovementRecordingSessionGeneration !== generation) return;
+      const raw = graph.cv.getLatestPoseFrame();
+      const consumedRaw = raw?.timestampMs === input.calibrationChecklist?.measuredAt ? raw : null;
+      const observation = this.playMovementFrameContext(graph, performance.now(), input, this.playMovementCameraSurface, consumedRaw);
+      if (observation) this.playMovementRecorder.observe(observation);
+    };
+    this.playMovementCameraSurface = null;
+    this.playMovementUnsubscribe = graph.input.subscribe(observeInput);
+  }
+
+  startReadyPlayMovementRecording(graph) {
     try {
       this.playMovementCameraSurface = graph.video.describeSurface(this.videoElement());
       this.playMovementRecorder = createPlayMovementRecorder({ metadata: {
@@ -2075,25 +2090,25 @@ export class AeroGame extends HTMLElement {
       this.playMovementRecorder = createPlayMovementRecorder({ metadata: { captureError: "session_metadata_unavailable" } });
       this.playMovementRecorder.fail("metadata_unavailable");
     }
-    // Observe input consumption even while media alignment temporarily skips
-    // gameplay, and keep calibration samples rather than only scored frames.
-    this.playMovementUnsubscribe = graph.input.subscribe(input => {
-      if (this.graph !== graph || this.playMovementRecordingSessionGeneration !== generation) return;
-      const raw = graph.cv.getLatestPoseFrame();
-      const consumedRaw = raw?.timestampMs === input.calibrationChecklist?.measuredAt ? raw : null;
-      const observation = this.playMovementFrameContext(graph, performance.now(), input, this.playMovementCameraSurface, consumedRaw);
-      if (observation) this.playMovementRecorder.observe(observation);
-    });
   }
 
   endPlayMovementRecording(state) {
     this.playMovementRecorder?.finish(state);
     this.playMovementUnsubscribe?.(); this.playMovementUnsubscribe = null;
+    if (!this.playMovementRecorder) this.playMovementRecordingSessionGeneration = -1;
   }
 
   playMovementFrameContext(graph, timestampMs, input, surface, rawPose = null) {
-    const recorder = this.playMovementRecorder;
-    if (!recorder || recorder.getStatus().status !== "recording" || this.playMovementRecordingSessionGeneration !== this.sessionGeneration || graph.gameplay.getSnapshot().session.purpose !== "play") return null;
+    const session = graph.gameplay.getSnapshot().session;
+    if (this.playMovementRecordingSessionGeneration !== this.sessionGeneration || session.purpose !== "play") return null;
+    if (!this.playMovementRecorder) {
+      if (!["countdown", "playing"].includes(session.state)) return null;
+      this.startReadyPlayMovementRecording(graph);
+      surface = this.playMovementCameraSurface;
+      const raw = graph.cv.getLatestPoseFrame();
+      rawPose = raw?.timestampMs === input?.calibrationChecklist?.measuredAt ? raw : null;
+    }
+    if (this.playMovementRecorder.getStatus().status !== "recording") return null;
     const calibration = input?.calibration;
     return {
       timestampMs, input, rawPose,
@@ -2180,7 +2195,13 @@ export class AeroGame extends HTMLElement {
               if (poseInput?.tracking?.anchorsFrozen === true || poseInput?.latestEvidence?.provenance === "frozen") equipmentCounts.freshHeldPair += 1;
             }
           }
-          if (!visualTest && this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) graph.gameplay.requestStart(advanceTimestampMs);
+          if (!visualTest && this.sessionStartRequested && graph.gameplay.getSnapshot().session.state === "calibrating" && graph.gameplay.getSnapshot().safety.ready) {
+            graph.gameplay.requestStart(advanceTimestampMs);
+            // requestStart is not an advance. Snapshot the exact first-ready
+            // input/model/settings now; ticks begin with the next actual advance.
+            const initial = this.playMovementFrameContext(graph, advanceTimestampMs, input, movementSurface);
+            if (initial) this.playMovementRecorder.observe(initial);
+          }
         }
         this.syncAudioForGameplay();
         if (frameNow - this.lastContentSyncAtMs >= 1000 / 15) { this.lastContentSyncAtMs = frameNow; this.syncContentPlayback(); }
