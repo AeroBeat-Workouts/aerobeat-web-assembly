@@ -14,8 +14,10 @@ input/calibration/equipment snapshots and compact advance references, bounded to
 old judgement-only files cannot recover missing positions. The actual signed
 Play export passes: all available markers and calibration map to real accepted
 input, and each actual advance is recorded once. The reader also parses that file
-without rewriting its numbers. Test Load Recording/playback integration is next;
-no replay acceptance or public deployment is claimed yet.
+without rewriting its numbers. Test Load/Clear Recording and existing playback
+controls are implemented, with recorded settings isolated from Play preferences.
+Source/controller checks pass; final signed native file-load/replay acceptance is
+next. No public deployment or physical recovery is claimed yet.
 The earlier .149 probe was invalid and must not guide a rollback decision.
 
 Fresh authentic .149/.153 Expert runs now share all 830 event IDs and timestamps,

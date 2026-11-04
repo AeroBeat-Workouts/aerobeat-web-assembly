@@ -43,6 +43,7 @@ try {
       return Object.freeze({ ...graph, gameplay: Object.freeze({ ...graph.gameplay, advance(...args) {
         const recording = element.playMovementRecorder?.getStatus().status === "recording";
         const result = graph.gameplay.advance(...args);
+        if (graph.gameplay.getSnapshot().session.purpose === "visual_test" && args[0]?.input) element.__recordedTestLastInput = args[0].input;
         if (recording) recordedAdvances++;
         return result;
       } }) });
@@ -120,6 +121,67 @@ try {
   assert(movement.configurations.every(c => c.setup.flowColliderVolume.colliderScale === 1.5), "next-run edits cannot rewrite recorded configuration");
   assert(download.suggestedFilename().endsWith("-Expert.json"));
   assert.deepEqual(errors, []);
+  if (process.env.AEROBEAT_AB_TEST_REPLAY === "1") {
+    await game.evaluate(async element => {
+      await element.startSession("visual_test", { requireDownloaded: true });
+      element.stopFrameLoop(); element.setMenuOpen(false, { freshSession: true }); element.renderPresenters();
+      element.__recordingEquipmentBefore = element.equipmentConfig;
+      element.__recordingPrefsBefore = localStorage.getItem("aerobeat.game-setup.v3");
+      if (!element.__recordingPrefsBefore) throw Error("Expected real persisted Play preferences before replay");
+    });
+    const load = game.locator("[data-role='recording-load']");
+    assert(await load.isVisible() && await load.isEnabled(), "Test must expose the approved Load Recording control");
+    const chooser = page.waitForEvent("filechooser"); await load.click();
+    await (await chooser).setFiles(await download.path());
+    await page.waitForFunction(() => document.querySelector("aero-game")?.recordedTestPlayback, null, { timeout: 10000 });
+    await game.evaluate(async element => { await element.pause(); element.enqueueVisualTestSeek(5500); await element.transportIntentTail; });
+    await page.waitForFunction(() => {
+      const source = document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot();
+      return source && !source.rebuilding && source.frame?.clock.positionSeconds === 5.5;
+    }, null, { timeout: 10000 });
+    const paused = await game.evaluate(element => {
+      const graph = element.graph, source = element.recordedTestPlayback.getSnapshot(), gameplay = graph.gameplay.getSnapshot();
+      const scene = graph.renderer.describe();
+      const canvas = element.shadowRoot.querySelector("canvas[data-role='renderer']");
+      graph.renderer.manualTick();
+      const copy = new OffscreenCanvas(canvas.width, canvas.height), context = copy.getContext("2d");
+      context.drawImage(canvas, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let nonblack = 0; for (let i = 0; i < pixels.length; i += 4) if (pixels[i] || pixels[i + 1] || pixels[i + 2]) nonblack++;
+      return { purpose: gameplay.session.purpose, ranked: gameplay.session.ranked, calibrationId: gameplay.session.calibrationId, partitions: gameplay.scorePartitions, judgements: gameplay.judgements, source, equipment: JSON.parse(JSON.stringify(element.currentEquipmentPoses)), anchors: element.__recordedTestLastInput?.latestEvidence?.anchors ?? [], scene, nonblack, cvRunning: graph.cv.getStatus().running, lease: element.leaseSnapshotForGameplay().resources, preferencesUnchanged: element.__recordingPrefsBefore === localStorage.getItem("aerobeat.game-setup.v3"), equipmentUnchanged: element.equipmentConfig === element.__recordingEquipmentBefore, lastError: element.lastError?.message ?? null };
+    });
+    assert.equal(paused.purpose, "visual_test"); assert.equal(paused.ranked, false); assert.equal(paused.calibrationId, null);
+    assert.equal(paused.cvRunning, false); assert.deepEqual(paused.lease, ["audio"]);
+    assert.equal(paused.preferencesUnchanged, true); assert.equal(paused.equipmentUnchanged, true); assert.equal(paused.lastError, null);
+    assert.equal(paused.source.playing, false); assert.equal(paused.source.index, tick === movement.ticks.at(-1) ? movement.ticks.length : movement.ticks.indexOf(tick) + 1);
+    assert.deepEqual(paused.equipment, expected.equipment);
+    assert.deepEqual(paused.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), expected.judgements);
+    assert(paused.partitions.every(p => p.ranked === false && p.localOnly === true));
+    assert.equal(paused.scene.state, "running"); assert.equal(paused.scene.equipment.instanceCount, 2); assert(paused.nonblack > 0);
+    const originalInput = movement.inputs[tick[4]];
+    for (const anchor of originalInput.anchors.filter(a => a.valid)) {
+      const actual = paused.anchors.find(a => a.anchor === anchor.anchor);
+      assert(actual && actual.x === anchor.x && actual.y === anchor.y, `recorded ${anchor.anchor} must reach the actual Test coordinator`);
+      assert.notEqual(actual.calibrationId, anchor.calibrationId, "original live calibration identity must not be restored");
+    }
+    assert.match(await game.locator("[data-role='recording-status']").textContent(), /Recorded input/);
+    assert.equal(await load.textContent(), "Clear Recording");
+    assert(await game.locator("[data-test-webcam-fps]").isDisabled(), "pointer cadence must not replace recorded cadence");
+    await page.setViewportSize({ width: 375, height: 812 }); await load.scrollIntoViewIfNeeded();
+    const rect = await load.boundingBox(); assert(rect && rect.width > 0 && rect.x >= 0 && rect.x + rect.width <= 375, "recording control must fit the portrait viewport");
+    await game.evaluate(async element => { await element.resume(); });
+    await page.waitForFunction(() => document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot().complete, null, { timeout: 10000 });
+    const completed = await game.evaluate(element => ({ purpose: element.graph.gameplay.getSnapshot().session.purpose, state: element.graph.gameplay.getSnapshot().session.state, judgements: element.graph.gameplay.getJudgements(), source: element.recordedTestPlayback.getSnapshot() }));
+    assert.equal(completed.state, "completed"); assert.equal(completed.purpose, "visual_test"); assert.equal(completed.source.index, movement.ticks.length);
+    assert.deepEqual(completed.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), expected.judgements);
+    await load.click();
+    await page.waitForFunction(() => !document.querySelector("aero-game")?.recordedTestPrepared);
+    const invalid = page.waitForEvent("filechooser"); await load.click();
+    await (await invalid).setFiles({ name: "old-judgements-only.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...capture, version: 1, movement: undefined })) });
+    await page.waitForFunction(() => /judgement-only/.test(document.querySelector("aero-game")?.shadowRoot.querySelector("[data-role='recording-status']")?.textContent ?? ""));
+    assert.equal(await game.evaluate(element => element.recordedTestPrepared), null, "judgement-only data must not manufacture a movement source");
+    console.log("PASS native Test Load Recording: original markers/equipment, real unranked judgements, paused seek/resume, current audio-only lease, unchanged Play preferences, portrait control and legacy-file error.");
+  }
   if (process.env.AEROBEAT_AB_CAPTURE_OUTPUT) writeFileSync(process.env.AEROBEAT_AB_CAPTURE_OUTPUT, JSON.stringify(capture));
   console.log(`PASS actual signed ${capture.build.version} numeric run download: ${movement.rawPoses.length} measured frames, ${movement.ticks.length} real advances; raw/model marker mapping, equipment, judgement and run-locked options match.`);
 } finally {

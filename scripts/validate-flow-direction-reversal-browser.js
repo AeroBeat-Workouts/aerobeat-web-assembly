@@ -32,7 +32,7 @@ try {
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   browser = await chromium.launch({ headless: true });
-  for (const scenario of noteCount === 1 ? ["reversal", "reverse-only", "no-contact"] : ["reverse-only"]) {
+  for (const scenario of noteCount === 1 ? ["reversal", "reverse-only", "no-contact", ...(process.env.AEROBEAT_DIRECTION_INCLUDE_LATE === "1" ? ["late-reversal"] : [])] : ["reverse-only"]) {
     const page = await browser.newPage({ acceptDownloads: true, viewport: { width: 1000, height: 700 } });
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
@@ -60,11 +60,11 @@ try {
       if (!bounds) throw Error("Real calibration bounds missing");
       // Calibration bounds use athlete space; camera-preview x is mirrored.
       const raw = (sx, sy) => ({ x: 1 - (bounds.left + ((sx + .5) / 4) * (bounds.right - bounds.left)), y: bounds.top + ((2.5 - sy) / 3) * (bounds.bottom - bounds.top) });
-      const points = [];
-      for (let t = 5000; t < 5800; t += 50) points.push([t, 1.5]);
+      const points = [], lateShift = scenario === "late-reversal" ? 500 : 0;
+      for (let t = 5000; t < 5800 + lateShift; t += 50) points.push([t, 1.5]);
       const reversal = [[5800, 1], [5850, .65], [5900, .3], [5950, .05], [6000, -.25], [6050, .05], [6100, .3], [6150, .65], [6200, 1]];
-      for (const [t, y] of reversal) points.push([t, scenario === "reverse-only" && t > 6000 ? -.25 : y]);
-      for (let t = 6250; t <= 7100 + (noteCount - 1) * 100; t += 50) points.push([t, scenario === "reverse-only" ? -.25 : 1]);
+      for (const [t, y] of reversal) points.push([t + lateShift, scenario === "reverse-only" && t > 6000 ? -.25 : y]);
+      for (let t = 6250 + lateShift; t <= 7100 + lateShift + (noteCount - 1) * 100; t += 50) points.push([t, scenario === "reverse-only" ? -.25 : 1]);
       const ticks = [];
       for (const [t, y] of points) {
         const before = advances.length;
@@ -88,10 +88,11 @@ try {
       return output;
     }, { scenario, noteCount, captureRecording: Boolean(recordingDirectory) });
     assert.deepEqual(errors, []);
-    assert.equal(result.judgement.result, scenario === "reversal" && expectFixed ? "hit" : "miss", `${scenario}: wrong signed scoring result`);
+    assert.equal(result.judgement.result, ["reversal", "late-reversal"].includes(scenario) && expectFixed ? "hit" : "miss", `${scenario}: wrong signed scoring result`);
     if (result.judgement.result === "hit") {
       assert.equal(result.judgement.tier, "great");
-      assert(result.judgement.timingOffsetMs >= -180 && result.judgement.timingOffsetMs <= 180, "reversal hit must use original base timing window");
+      if (scenario === "late-reversal") assert(result.judgement.timingOffsetMs > 180 && result.judgement.timingOffsetMs <= 1000, "late fixture must exercise existing Play rules beyond ordinary Test's base window");
+      else assert(result.judgement.timingOffsetMs >= -180 && result.judgement.timingOffsetMs <= 180, "reversal hit must use original base timing window");
     } else for (const judgement of result.judgements) assert.equal(judgement.tier, "miss", "negative controls must not become hits or near judgements");
     if (recordingDirectory) {
       const pending = page.waitForEvent("download");
@@ -101,6 +102,28 @@ try {
       assert.equal(capture.movement?.complete, true, "the actual completed run must include its movement recording");
       assert.deepEqual(capture.judgements.map(j => ({ eventId: j.eventId, result: j.result, tier: j.tier, timingOffsetMs: j.timingOffsetMs })), result.judgements.map(j => ({ eventId: j.eventId, result: j.result, tier: j.tier, timingOffsetMs: j.timingOffsetMs })));
       writeFileSync(path.join(recordingDirectory, `${scenario}.json`), text);
+      if (process.env.AEROBEAT_DIRECTION_TEST_REPLAY === "1") {
+        const game = page.locator("aero-game");
+        await game.evaluate(async element => { await element.startSession("visual_test", { requireDownloaded: true }); element.setMenuOpen(false, { freshSession: true }); element.renderPresenters(); });
+        const chooser = page.waitForEvent("filechooser"); await game.locator("[data-role='recording-load']").click();
+        await (await chooser).setFiles(await download.path());
+        await page.waitForFunction(() => document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot().complete, null, { timeout: 15000 });
+        const replay = await game.evaluate(element => ({ gameplay: element.graph.gameplay.getSnapshot(), source: element.recordedTestPlayback.getSnapshot(), cv: element.graph.cv.getStatus(), lease: element.leaseSnapshotForGameplay().resources, error: element.lastError?.message ?? null }));
+        assert.equal(replay.error, null); assert.equal(replay.gameplay.session.purpose, "visual_test"); assert.equal(replay.gameplay.session.ranked, false);
+        assert.equal(replay.cv.running, false); assert.deepEqual(replay.lease, ["audio"]);
+        assert.equal(replay.source.index, capture.movement.ticks.length); assert.equal(replay.source.observationIndex, capture.movement.observations.length);
+        assert.equal(replay.gameplay.judgements.length, result.judgements.length);
+        for (const expected of result.judgements) {
+          const actual = replay.gameplay.judgements.find(j => j.eventId === expected.eventId);
+          assert(actual, `${scenario}: native replay lost ${expected.eventId}`);
+          for (const key of ["result", "tier", "beatCenterTimestampMs", "committedTimelinePositionMs"]) assert.equal(actual[key], expected[key], `${scenario}: replay ${key}`);
+          assert.deepEqual(actual.diagnostics, expected.diagnostics);
+          if (expected.timingOffsetMs === null) assert.equal(actual.timingOffsetMs, null);
+          else assert(Math.abs(actual.timingOffsetMs - expected.timingOffsetMs) < 1e-6, `${scenario}: qualifying contact changed`);
+        }
+        assert.match(await game.locator("[data-role='recording-status']").textContent(), /Recorded input/);
+        console.log(`PASS native ${scenario} Play download -> Test Load Recording: identical real judgement/contact, all ticks/observations, non-ranked audio-only scope.`);
+      }
     }
     results.push(result);
     console.log(JSON.stringify({ scenario, result: result.judgement.result, tier: result.judgement.tier, committed: result.judgement.committedTimelinePositionMs, timingOffsetMs: result.judgement.timingOffsetMs, maxAdvanceElapsedMs: Math.max(...result.ticks.map(t => t.advanceElapsedMs)) }));
