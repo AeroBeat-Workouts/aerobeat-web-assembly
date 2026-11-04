@@ -2,6 +2,18 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## 0.0.156 recording repair candidate — not live yet
+
+Initial calibration waiting no longer allocates or consumes the movement
+recording budget. Capture starts at the first ready countdown with the current
+calibration model/input/settings, then retains every observation and actual
+advance—including later pauses and recalibration. The48MiB budget and exact
+samples are unchanged. A previously truncated file cannot regain missing data.
+The measured-rate270s capacity check passes; signed native acceptance is next.
+Optional local capacity check: set `AEROBEAT_RECORDING_CAPACITY_FILE` to a local
+capture and run `node scripts/validate-full-song-recording-capacity.js`. It uses
+a clearly synthetic repeated continuation for storage, not recovered movement.
+
 ## Public 0.0.155 — reported playtest fixes
 
 This batch fixes Sonic Heroes import with automatic (missing/zero) note jump

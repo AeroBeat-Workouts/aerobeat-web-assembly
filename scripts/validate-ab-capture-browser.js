@@ -58,6 +58,12 @@ try {
     await harness.selectChart();
     await harness.setSetup({ flowColliderVolume: { colliderScale: 1.5, colliderDepthForward: 1, colliderDepthBackward: 0 } });
     await harness.startPlay();
+    // Initial waiting must not allocate a recording or spend the song budget.
+    // These are actual measured input publications through the connected graph.
+    for (let index = 0; index < 256; index++) harness.feedPose({ tPose: false, render: false });
+    harness.feedPose({ tPose: false });
+    if (harness.graph.gameplay.getSnapshot().session.state !== "calibrating") throw Error("Expected initial calibration wait");
+    if (element.playMovementRecorder !== null) throw Error("Initial calibration waiting must not allocate a recorder");
     await harness.calibrate();
     const liveNose = element.shadowRoot.querySelector("[data-game-setup-field='noseMarkerVisible']");
     if (!(liveNose instanceof HTMLInputElement) || liveNose.disabled || !liveNose.checked) throw Error("Expected live nose visibility control");

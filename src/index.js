@@ -2099,8 +2099,9 @@ export class AeroGame extends HTMLElement {
   }
 
   playMovementFrameContext(graph, timestampMs, input, surface, rawPose = null) {
+    if (this.playMovementRecordingSessionGeneration !== this.sessionGeneration || (this.playMovementRecorder && this.playMovementRecorder.getStatus().status !== "recording")) return null;
     const session = graph.gameplay.getSnapshot().session;
-    if (this.playMovementRecordingSessionGeneration !== this.sessionGeneration || session.purpose !== "play") return null;
+    if (session.purpose !== "play") return null;
     if (!this.playMovementRecorder) {
       if (!["countdown", "playing"].includes(session.state)) return null;
       this.startReadyPlayMovementRecording(graph);
