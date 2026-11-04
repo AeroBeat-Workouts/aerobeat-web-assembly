@@ -1,8 +1,12 @@
 # A/B judgement capture: "Download Data" button in the menu drawer
 
-Status: 0.0.154 PUBLISHED after Derrick's explicit approval. Source fix, local movement recording/Test replay, full normal suite and signed native acceptance pass. Main public HTTPS now matches frozen .154; authentic .149 remains unchanged. Engineering delivery is complete; physical phone accuracy/playability still awaits Derrick.
+Status: COMPLETE — Derrick replayed on public0.0.155 and confirmed the performance/tracking regression is fixed. This is real-play acceptance of nrrv/2bsk, in addition to the earlier source/signed checks. The subsequently supplied actual Undefeatable Expert capture records825/830 hits (99.40%), versus authentic149828/830 and regressed153573/830. No numerical phone FPS or additional bug acceptance is inferred.
 
-## Current action — 2026-11-04
+## Human acceptance — 2026-11-04
+
+Derrick: "just replayed on 0.0.155, bug is fixed with performance / tracking regression, so thats good". Close collision regression nrrv and performance regression2bsk. Current public155 source d30c9c8/stamp5517f32d47835b236e10dddf retains recording/replay. No additional implementation, deployment or repeat playtest is needed for this accepted regression. Other unrelated physical reports remain separate.
+
+## Publication history — 2026-11-04
 
 Published .154 source c0fbed7, stamp FRIEND-GAME-CPU-0.0.154-3d9b4e4f05d55d78c460c430, 59 signed files, frozen at `.tmp/cpu-r154-verified-c0fbed7`. Existing aerobeat-r153-abprobe unit now points there on4216. The .149 unit/path/4212 route are untouched. Actual public TLS HTML and entry JS match both expected snapshots; visible versions .154/.149, Download button and .154 recording control pass without page errors. Initial immediate request briefly saw502 during the one-second signed-listener startup; journal and loopback200 established readiness, then the same HTTPS check passed. No product/server gate was changed.
 

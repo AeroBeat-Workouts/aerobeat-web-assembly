@@ -18,6 +18,20 @@ release; authentic .149 remains unchanged. Physical-only open reports are not
 claimed solved by host checks. After a clean signed build, rerun
 `npm run test:playtest-bug-batch`.
 
+## Real-play acceptance on 0.0.155
+
+Derrick confirmed the performance/tracking regression is fixed. His completed
+Undefeatable Expert capture records **825 hits / 5 misses (99.40%)**. Authentic
+.149 had828/2 (99.76%); regressed .153 had573/257 (69.04%). All830 event IDs and
+the source map match;253 former misses are hits now. Closed nrrv and2bsk based
+on that human acceptance plus the actual data, not an inferred phone FPS.
+
+Known recording issue cqg1: this full-song file hit the48MiB movement budget at
+178.28s. All830 judgements remain present, but movement is truncated and the
+production Test reader correctly rejects it. Full-song recording needs a scoped
+follow-up; the live game was not changed during this inspection. Personal raw
+trajectories remain only in the local download, not committed to the repository.
+
 ## Previous public 0.0.154 — contact fix and local movement replay
 
 Derrick approved publication on 2026-11-04. The current public playtest serves
