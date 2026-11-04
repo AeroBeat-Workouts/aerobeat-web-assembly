@@ -16,8 +16,23 @@ Play export passes: all available markers and calibration map to real accepted
 input, and each actual advance is recorded once. The reader also parses that file
 without rewriting its numbers. Test Load/Clear Recording and existing playback
 controls are implemented, with recorded settings isolated from Play preferences.
-Source/controller checks pass; final signed native file-load/replay acceptance is
-next. No public deployment or physical recovery is claimed yet.
+The signed native flow now passes for tracked markers/equipment, pause, restart,
+seek, legacy-file errors, exact reversal/late-hit and miss controls, and unchanged
+Play preferences. QA found that recorded live visual/Boxing-height changes were
+being dropped; the local binding is repaired and its final built check is next.
+No public deployment or physical recovery is claimed yet.
+
+After a completed Play run, choose **Download Data**. In Test, select the matching
+song and difficulty, then **Load Recording**. Playback is local and unranked;
+**Clear Recording** returns to ordinary Test. Old judgement-only files cannot
+recreate movement. No camera or audio recording is stored or uploaded.
+
+Regression checks: `npm test` runs source/controller coverage. After a clean
+`npm run build:friend-game`, `npm run test:movement-replay` runs genuine signed
+Play downloads through the native file chooser and existing Test controls. It
+asserts markers/equipment, live versus locked settings, non-ranked/audio lease
+scope, layout, outcomes and qualifying contact times. No pixel-golden/mockup
+fidelity is claimed. Phone throughput and human-play acceptance remain separate.
 The earlier .149 probe was invalid and must not guide a rollback decision.
 
 Fresh authentic .149/.153 Expert runs now share all 830 event IDs and timestamps,

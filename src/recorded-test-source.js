@@ -9,6 +9,8 @@ import { readMovementTick } from "./play-movement-replay.js";
 
 export const recordedTestContentOptions = Object.freeze({ purpose: "visual_test", recordedPlayReplay: true });
 const startRequest = Object.freeze({ schema: "aerobeat/gameplay_session_start", version: 1, purpose: "visual_test" });
+// Match original Play's live overlays without importing next-run collider settings.
+const livePresentationFields = ["boxingHeightOffsets", "obstaclesEnabled", "guidanceBandMode", "showGameplayGrid", "noteScalePercent", "obstacleScalePercent", "bombScalePercent", "markerScalePercent", "noseMarkerVisible", "noseMarkerScale", "trackExtensionWorldUnits", "flowCorpseFade", "boxingCorpseFade"];
 const wallFields = new Set(["timestampMs", "measurementTimestampMs", "measuredAt", "semanticStartTimestampMs", "spatialStartTimestampMs", "startTimestampMs", "latestTargetTimestampMs", "targetTimestampMs"]);
 let namespaceSequence = 0;
 function freeze(value) { if (value && typeof value === "object" && !Object.isFrozen(value)) { for (const nested of Object.values(value)) freeze(nested); Object.freeze(value); } return value; }
@@ -31,11 +33,13 @@ export async function prepareRecordedTest(capture, content) {
   for (const value of capture.movement.configurations) {
     requireValue(value.gameplay && value.gameplay.packageId === content.packageId, "configuration belongs to another song.");
     assertRecordedContentMatches({ ...capture, movement: { metadata: { configuration: value.gameplay } } }, content);
-    const equipment = validateEquipmentConfig(value.equipment), setup = normalizeGameSetup(value.setup), identity = createEquipmentConfigIdentity(value.equipmentIdentity);
-    requireValue(setup !== null, "recorded Game Setup is invalid.");
+    const equipment = validateEquipmentConfig(value.equipment), setup = normalizeGameSetup(value.setup), presentationSetup = normalizeGameSetup(value.presentationSetup), identity = createEquipmentConfigIdentity(value.equipmentIdentity);
+    requireValue(setup !== null && presentationSetup !== null, "recorded Game Setup is invalid.");
+    const renderSetup = { ...setup };
+    for (const key of livePresentationFields) renderSetup[key] = presentationSetup[key];
     requireValue(await sha256Hex(canonicalEquipmentConfigIdentityInput(equipment)) === identity.value, "recorded equipment settings do not match their identity.");
     const { resolvedEvents: ignoredEvents, selectedVariant: ignoredVariant, packageId: ignoredPackage, ...rules } = value.gameplay;
-    bindings.push(freeze({ equipment, identity, setup, kneePadRotations: value.kneePadRotations, configuration: { ...rules, packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents } }));
+    bindings.push(freeze({ equipment, identity, setup, presentationSetup, renderSetup, kneePadRotations: value.kneePadRotations, configuration: { ...rules, packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents } }));
   }
   for (const row of capture.movement.ticks) if (row[5] >= 0) {
     const binding = bindings[row[8]], equipmentRow = capture.movement.equipment[row[5]], headers = capture.movement.equipmentHeaders[equipmentRow[0]];
@@ -121,7 +125,7 @@ export function createRecordedTestPlayback(prepared, { gameplay, durationSeconds
       authority = null;
       if (active) { gameplay.resume(timestampMs); authority = Object.freeze({ schema: "aerobeat/visual_test_interaction", version: 1, mode: "production_judgement", epoch: ++epoch, activationTimelineMs: source.clock.positionSeconds * 1000 }); }
     }
-    if (typeof gameplay.setBoxingHeightTuning === "function") gameplay.setBoxingHeightTuning({ shoulderWorldY: input?.calibratedShoulderWorldY ?? calibrationModel?.calibratedShoulderWorldY ?? 1, offsets: binding.setup.boxingHeightOffsets });
+    if (typeof gameplay.setBoxingHeightTuning === "function") gameplay.setBoxingHeightTuning({ shoulderWorldY: input?.calibratedShoulderWorldY ?? calibrationModel?.calibratedShoulderWorldY ?? 1, offsets: binding.renderSetup.boxingHeightOffsets });
     gameplay.advance({ timestampMs, clock: frame.clock, ...(input ? { input } : {}), ...(active ? { interaction: authority } : {}), ...(source.equipmentPoses ? { equipmentPoses: source.equipmentPoses } : {}), lease: leaseSnapshot() });
     if (!source.clock.playing && gameplay.getSnapshot().session.state === "paused_manual") gameplay.synchronizePausedClock({ timestampMs, clock: frame.clock });
     index++;

@@ -37,9 +37,9 @@ try {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: "networkidle" });
-    const result = await page.locator("aero-game").evaluate(async (element, { scenario, noteCount, captureRecording }) => {
+    const result = await page.locator("aero-game").evaluate(async (element, { scenario, noteCount, captureRecording, measureRecording }) => {
       const { installScoredPlayHarness } = await import("/scripts/fixtures/scored-play-browser-harness.js");
-      const advances = [];
+      const advances = [], recordingCosts = [];
       const factory = element.serviceGraphFactory;
       element.serviceGraphFactory = options => {
         const graph = factory(options);
@@ -54,6 +54,12 @@ try {
       await harness.waitForAssets(); await harness.selectChart();
       await harness.setSetup({ flowColliderVolume: { colliderScale: 1, colliderDepthForward: 1, colliderDepthBackward: 0 } });
       await harness.startPlay(); await harness.calibrate();
+      if (measureRecording) {
+        const recorder = element.playMovementRecorder;
+        if (!recorder) throw Error("Recording cost measurement requires the actual capture build");
+        const timed = method => (...args) => { const start = performance.now(); try { return recorder[method](...args); } finally { recordingCosts.push(performance.now() - start); } };
+        element.playMovementRecorder = Object.freeze({ ...recorder, observe: timed("observe"), record: timed("record") });
+      }
       const setup = element.activeSessionSetup;
       if (setup?.timingWindowMs !== 180 || setup.enforceAuthoredDirection !== true || setup.directionToleranceDegrees !== 45) throw Error("Original timing/direction defaults must remain active");
       const bounds = harness.graph.input.getSnapshot().calibration.bounds;
@@ -78,7 +84,10 @@ try {
       }
       const judgements = harness.graph.gameplay.getJudgements();
       if (judgements.length !== noteCount || new Set(judgements.map(j => j.eventId)).size !== noteCount) throw Error("Exactly one completed judgement per note required");
-      const output = { scenario, noteCount, judgement: judgements.find(j => j.eventId === "up-after-down-0"), judgements, ticks, calibrationBounds: bounds };
+      const sortedCosts = [...recordingCosts].sort((a, b) => a - b);
+      const recordingCost = sortedCosts.length ? { scope: "synchronous recorder observe+record method elapsed, not phone FPS or whole-frame CPU", calls: sortedCosts.length, meanMs: sortedCosts.reduce((a, b) => a + b, 0) / sortedCosts.length, perAdvanceMs: sortedCosts.reduce((a, b) => a + b, 0) / points.length, p95Ms: sortedCosts[Math.ceil(sortedCosts.length * .95) - 1], maxMs: sortedCosts.at(-1) } : null;
+      if (measureRecording && !recordingCost) throw Error("Actual recorder methods were not observed");
+      const output = { scenario, noteCount, judgement: judgements.find(j => j.eventId === "up-after-down-0"), judgements, ticks, calibrationBounds: bounds, recordingCost };
       if (captureRecording) {
         await harness.graph.audio.seek(10); await harness.graph.audio.pause();
         harness.feedPose(); await element.audioSyncTail;
@@ -86,7 +95,7 @@ try {
         element.setMenuOpen(true); element.renderPresenters();
       } else harness.dispose();
       return output;
-    }, { scenario, noteCount, captureRecording: Boolean(recordingDirectory) });
+    }, { scenario, noteCount, captureRecording: Boolean(recordingDirectory), measureRecording: process.env.AEROBEAT_DIRECTION_RECORDING_COST === "1" });
     assert.deepEqual(errors, []);
     assert.equal(result.judgement.result, ["reversal", "late-reversal"].includes(scenario) && expectFixed ? "hit" : "miss", `${scenario}: wrong signed scoring result`);
     if (result.judgement.result === "hit") {
@@ -108,9 +117,10 @@ try {
         const chooser = page.waitForEvent("filechooser"); await game.locator("[data-role='recording-load']").click();
         await (await chooser).setFiles(await download.path());
         await page.waitForFunction(() => document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot().complete, null, { timeout: 15000 });
-        const replay = await game.evaluate(element => ({ gameplay: element.graph.gameplay.getSnapshot(), source: element.recordedTestPlayback.getSnapshot(), cv: element.graph.cv.getStatus(), lease: element.leaseSnapshotForGameplay().resources, error: element.lastError?.message ?? null }));
+        const replay = await game.evaluate(async element => { await element.terminalServiceTail; return { gameplay: element.graph.gameplay.getSnapshot(), source: element.recordedTestPlayback.getSnapshot(), cv: element.graph.cv.getStatus(), lease: element.leaseSnapshotForGameplay().resources, error: element.lastError?.message ?? null }; });
         assert.equal(replay.error, null); assert.equal(replay.gameplay.session.purpose, "visual_test"); assert.equal(replay.gameplay.session.ranked, false);
-        assert.equal(replay.cv.running, false); assert.deepEqual(replay.lease, ["audio"]);
+        assert.equal(replay.gameplay.session.state, "completed");
+        assert.equal(replay.cv.running, false); assert.deepEqual(replay.lease, [], "terminal replay must release its audio-only lease");
         assert.equal(replay.source.index, capture.movement.ticks.length); assert.equal(replay.source.observationIndex, capture.movement.observations.length);
         assert.equal(replay.gameplay.judgements.length, result.judgements.length);
         for (const expected of result.judgements) {

@@ -64,6 +64,27 @@ function playback(prepared) {
 }
 const scoring = value => ({ eventId: value.eventId, result: value.result, tier: value.tier, timingOffsetMs: value.timingOffsetMs, diagnostics: value.diagnostics, committedTimelinePositionMs: value.committedTimelinePositionMs });
 
+test("recorded live visuals and Boxing heights stay separate from locked colliders and global preferences", async () => {
+  const { capture, content } = await fixture(), preferences = getGameSetupSnapshot();
+  const changed = JSON.parse(JSON.stringify(capture));
+  for (const configuration of changed.movement.configurations) {
+    configuration.presentationSetup = { ...configuration.presentationSetup, noseMarkerVisible: false, noteScalePercent: 150, boxingHeightOffsets: { ...configuration.presentationSetup.boxingHeightOffsets, hook: .5 }, flowColliderVolume: { ...configuration.presentationSetup.flowColliderVolume, colliderScale: 2 } };
+  }
+  const prepared = await prepareRecordedTest(parsePlayMovementCapture(JSON.stringify(changed)), content), binding = prepared.bindings[0];
+  assert.equal(binding.setup.noseMarkerVisible, true); assert.equal(binding.setup.noteScalePercent, 100); assert.equal(binding.setup.boxingHeightOffsets.hook, 0);
+  assert.equal(binding.renderSetup.noseMarkerVisible, false); assert.equal(binding.renderSetup.noteScalePercent, 150); assert.equal(binding.renderSetup.boxingHeightOffsets.hook, .5);
+  assert.equal(binding.presentationSetup.flowColliderVolume.colliderScale, 2);
+  assert.equal(binding.renderSetup.flowColliderVolume.colliderScale, binding.setup.flowColliderVolume.colliderScale, "next-run collider changes must not enter the recorded run");
+  let projector;
+  const heights = [], native = createAeroGameplaySessionCoordinator({ instanceId: "recorded-test", reprojectEquipmentPose: value => projector ? projector(value) : value });
+  const gameplay = Object.freeze({ ...native, setBoxingHeightTuning(value) { heights.push(value.offsets.hook); return native.setBoxingHeightTuning(value); } });
+  const source = createRecordedTestPlayback(prepared, { gameplay, durationSeconds: 3, leaseSnapshot: () => lease, onFrame: frame => { projector = createFrameSplineEquipmentProjector(frame.binding.equipment, frame.pivots); } });
+  source.start(50000); while (!source.getSnapshot().complete) source.advance(100000, 32);
+  assert.ok(heights.length > 0 && heights.every(value => value === .5), "real coordinator must receive the captured live height offset");
+  assert.deepEqual(getGameSetupSnapshot(), preferences, "loading live overlays must not persist Play preferences");
+  native.destroy();
+});
+
 test("real coordinator prefix playback matches recorded Play, preserves every tick/observation and locks local settings", async () => {
   const { capture, content, expected } = await fixture(), preferences = getGameSetupSnapshot();
   const prepared = await prepareRecordedTest(capture, content), { source, gameplay, frame } = playback(prepared);

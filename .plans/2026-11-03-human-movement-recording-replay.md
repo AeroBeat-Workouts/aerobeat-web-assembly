@@ -53,6 +53,66 @@ There is an observed comparison trap: Play permits the existing 1000 ms late dea
 - Reuse the real coordinator and recorded full endpoints. Use recorded body shoulders for Flow spline reprojection, not pointer Test's neutral center. Preserve source confidence/frozen states, timing spacing and configuration. Do not mutate global Play preferences when binding recorded Test settings.
 - Matching content is mandatory. Report old judgement-only files, incomplete files or mismatched song/chart clearly. Loader parsing is not evidence authority.
 
+## Current repair: live settings lost on replay (xkrs, from QA nvnb)
+
+### Exact observed failure / expected behavior
+
+QA parsed a valid saved synthetic file with recorded presentationSetup nose=false, note scale=150 and hook height=+.5. prepareRecordedTest accepted it but returned original nose=true, scale=100, hook=0. Replay must use the same live visual/height values as the original run, without importing desired next-run collider changes.
+
+### Execution path / root cause
+
+The producer records active setup and current presentationSetup. prepareRecordedTest normalizes only setup and drops presentationSetup. Replay renderer locks its values to that setup, and both controller and component Boxing-height code read its old offsets. Original Play deliberately overlays the live desired values. The omitted binding causes the demonstrated mismatch.
+
+### Alternatives / previous fixes / unknowns
+
+Invalid recorded settings are ruled out by successful parse/normalization and valid control ranges. This is not the trusted-upload/terminal-lease fixture issue; those native flows now pass. No product fix attempted yet for this defect. Remaining unknown is post-fix built behavior, not whether the values were discarded.
+
+### Minimal reproduction / proposed verification
+
+Use one configuration with different run-locked and live settings, then parse/prepare it. Assert the live visual/height values survive while locked collider scale and global Play preferences remain unchanged. Observe actual controller setBoxingHeightTuning arguments. Add a live visual change to the native signed capture/replay check; rerun only affected checks, then the final normal suite.
+
+### Recommended fix
+
+Normalize and retain presentationSetup separately. Derive a private render setup by copying only the original Play live overlay fields onto the recorded active setup. Use that for replay rendering and Boxing height, not for locked collision rules. Do not add a new UI, format, scorer or authority path.
+
+Problem: recorded live settings discarded. Symptom: wrong marker/target appearance and potentially wrong Boxing heights. Root cause: preparation drops presentationSetup. Evidence: QA scoped reproduction and source path. Failed approaches: none. Action: local live overlay binding. Verification: focused binding/controller regression plus native visual change. Related: recorded-test-source.js and index.js. Uncertainty: post-fix acceptance pending.
+
+## Native UI diagnostic: Clear then legacy-file load
+
+### Exact observed failure
+
+Signed a49bf87 built successfully. Native capture/replay check passed marker/equipment equality, real Test result, audio-only/unranked scope, unchanged preferences, paused prefix seek, resume/complete and portrait bounds. It timed out at validate-ab-capture-browser.js:181 waiting for the legacy-file error caption after Clear -> Load (30000 ms).
+
+### Expected behavior
+
+Clearing returns to ordinary Test. A subsequent old judgement-only file must show the explicit missing-movement error and must not create a recorded source.
+
+### Execution path
+
+Trusted Clear click -> clearRecordedTest clears the prepared source synchronously, then awaits startSession(Test). Test waits only for prepared=null, clicks Load, chooses legacy JSON. handleRecordedTestFile checks captured connection/session scope before and after async reads, parses, and writes the status output on error.
+
+### Most likely cause and alternatives
+
+Hypothesis: Load can open during Clear's still-pending Test restart because recordedTestCanLoad does not check menuStarting/pending action; the session-generation guard then silently discards the chosen stale file. Alternative: parser error text or output rendering differs; standalone parser has the expected judgement-only message. No root cause is confirmed yet.
+
+### Previous fixes and unknowns
+
+No product fix attempted for this failure. The earlier delegate native failure had no recoverable result and is not this observed timeout. Need actual caption/value, picker request generation, current generation and pending-action state at the negative file change.
+
+### Minimal reproduction and verification
+
+Run the signed native capture validator with AEROBEAT_AB_TEST_REPLAY=1. Add test-only event/state diagnostics around the second file chooser and on timeout. Distinguish stale-session discard from a parser/rendering failure before editing product code.
+
+### Recommended fix
+
+Pending diagnostic result. If the pending-restart hypothesis is confirmed, disable/open-guard Load while the serialized session action is pending; keep existing stale-file guards intact. Then rerun the same native flow.
+
+Confirmed diagnostic: the negative fixture's in-memory Playwright upload emitted isTrusted=false. The real downloaded-file path emitted isTrusted=true. Both had matching/current session scope, menuStarting=false and pending action empty. This refutes the Clear/restart race hypothesis. The existing trusted-file guard correctly ignored the synthetic upload. Corrective action is test-only: write the legacy JSON to a real local file and select its path through the native chooser. No product guard is changed.
+
+A separate new direction-replay assertion expected an audio lease after EOF. The actual app correctly released it during terminal cleanup. Await terminalServiceTail and assert an empty lease there; the paused/active replay already independently asserts audio-only ownership. This is a test lifecycle-point correction, not a runtime gate change.
+
+Problem: two native test-fixture expectations were wrong. Observed symptoms: missing legacy caption for untrusted buffer upload; empty lease at completed EOF. Root causes: upload event trust and normal terminal resource release. Evidence: captured event/scope diagnostics and source terminal path. Failed approaches: no product fixes attempted. Corrective actions: native file path and awaited terminal cleanup assertion. Verification: rerun the same signed UI flows. Remaining uncertainty: final rerun results only.
+
 ## Delivery slices and checks
 
 1. Implement observational capture/export with the existing button. Verify marker samples, calibration/model changes, timing and settings survive a real built Play export. Check recording adds no duplicate gameplay updates or scoring changes and has bounded measured overhead.

@@ -59,6 +59,7 @@ try {
     await harness.setSetup({ flowColliderVolume: { colliderScale: 1.5, colliderDepthForward: 1, colliderDepthBackward: 0 } });
     await harness.startPlay();
     await harness.calibrate();
+    await harness.setSetup({ noseMarkerVisible: false, noteScalePercent: 150 });
     const legs = { left: { hip: { x: .43, y: .68 }, knee: { x: .4, y: .8 }, ankle: { x: .43, y: .97 } }, right: { hip: { x: .57, y: .68 }, knee: { x: .6, y: .8 }, ankle: { x: .57, y: .97 } } };
     await harness.seekSong(5500, { legs });
     const model = harness.graph.input.getCalibrationModel();
@@ -74,7 +75,7 @@ try {
     element.setMenuOpen(true);
     element.renderPresenters();
     // Change the next-run control: export must retain the just-finished run.
-    await harness.setSetup({ flowColliderVolume: { colliderScale: 2 } });
+    await harness.setSetup({ flowColliderVolume: { colliderScale: 2 }, noseMarkerVisible: true, noteScalePercent: 100 });
     return { judgements: gameplay.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), state: gameplay.session.state, model, equipment, surface, recordedAdvances };
   });
   assert(await button.isEnabled(), "completed run with real judgement must enable download");
@@ -125,6 +126,11 @@ try {
     await game.evaluate(async element => {
       await element.startSession("visual_test", { requireDownloaded: true });
       element.stopFrameLoop(); element.setMenuOpen(false, { freshSession: true }); element.renderPresenters();
+      element.__recordingFileEvents = [];
+      element.shadowRoot.querySelector("[data-role='recording-file']").addEventListener("change", event => {
+        const request = element.recordedTestPickerRequest;
+        element.__recordingFileEvents.push({ trusted: event.isTrusted, file: event.target.files?.[0]?.name, session: element.sessionGeneration, requestSession: request?.session, menuStarting: element.menuStarting, pending: element.pendingSessionAction, canLoad: element.recordedTestCanLoad(), state: element.graph.gameplay.getSnapshot().session.state });
+      }, true);
       element.__recordingEquipmentBefore = element.equipmentConfig;
       element.__recordingPrefsBefore = localStorage.getItem("aerobeat.game-setup.v3");
       if (!element.__recordingPrefsBefore) throw Error("Expected real persisted Play preferences before replay");
@@ -158,6 +164,11 @@ try {
     assert.deepEqual(paused.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), expected.judgements);
     assert(paused.partitions.every(p => p.ranked === false && p.localOnly === true));
     assert.equal(paused.scene.state, "running"); assert.equal(paused.scene.equipment.instanceCount, 2); assert(paused.nonblack > 0);
+    assert.equal(paused.scene.cursors.instanceCount, 0, "replay must retain recorded live nose visibility, not the current Play preference");
+    assert.equal(paused.scene.visualScalesId.split("|")[0], "1.5", "replay must render the captured live 150% note scale");
+    const capturedSetup = movement.configurations[tick[8]];
+    assert.equal(capturedSetup.setup.noseMarkerVisible, true); assert.equal(capturedSetup.presentationSetup.noseMarkerVisible, false);
+    assert.equal(capturedSetup.setup.noteScalePercent, 100); assert.equal(capturedSetup.presentationSetup.noteScalePercent, 150);
     const originalInput = movement.inputs[tick[4]];
     for (const anchor of originalInput.anchors.filter(a => a.valid)) {
       const actual = paused.anchors.find(a => a.anchor === anchor.anchor);
@@ -174,11 +185,33 @@ try {
     const completed = await game.evaluate(element => ({ purpose: element.graph.gameplay.getSnapshot().session.purpose, state: element.graph.gameplay.getSnapshot().session.state, judgements: element.graph.gameplay.getJudgements(), source: element.recordedTestPlayback.getSnapshot() }));
     assert.equal(completed.state, "completed"); assert.equal(completed.purpose, "visual_test"); assert.equal(completed.source.index, movement.ticks.length);
     assert.deepEqual(completed.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), expected.judgements);
+    await game.evaluate(async element => { await element.terminalServiceTail; await element.resume(); });
+    await page.waitForFunction(() => {
+      const source = document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot();
+      return source?.playing && !source.complete;
+    }, null, { timeout: 10000 });
+    await game.evaluate(async element => { await element.pause(); });
+    const restarted = await game.evaluate(element => ({ source: element.recordedTestPlayback.getSnapshot(), judgements: element.graph.gameplay.getJudgements() }));
+    assert(restarted.source.index < movement.ticks.length, "restart must rewind the source rather than fall through to pointer Test");
+    assert.equal(restarted.judgements.length, 0, "restart must clear the prior run's result");
+    await game.evaluate(async element => { await element.resume(); });
+    await page.waitForFunction(() => document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot().complete, null, { timeout: 10000 });
+    const secondEnd = await game.evaluate(async element => { await element.terminalServiceTail; return { lease: element.leaseSnapshotForGameplay().resources, judgements: element.graph.gameplay.getJudgements(), error: element.lastError?.message ?? null }; });
+    assert.equal(secondEnd.error, null); assert.deepEqual(secondEnd.lease, [], "restarted replay must also release its terminal audio lease");
+    assert.deepEqual(secondEnd.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), expected.judgements);
     await load.click();
     await page.waitForFunction(() => !document.querySelector("aero-game")?.recordedTestPrepared);
     const invalid = page.waitForEvent("filechooser"); await load.click();
-    await (await invalid).setFiles({ name: "old-judgements-only.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ ...capture, version: 1, movement: undefined })) });
-    await page.waitForFunction(() => /judgement-only/.test(document.querySelector("aero-game")?.shadowRoot.querySelector("[data-role='recording-status']")?.textContent ?? ""));
+    // An in-memory Playwright upload dispatches an untrusted change event.
+    // Use a real local file through the native chooser, as the positive case does.
+    const legacyPath = path.join(fixturesDir, "old-judgements-only.json");
+    writeFileSync(legacyPath, JSON.stringify({ ...capture, version: 1, movement: undefined }));
+    await (await invalid).setFiles(legacyPath);
+    try { await page.waitForFunction(() => /judgement-only/.test(document.querySelector("aero-game")?.shadowRoot.querySelector("[data-role='recording-status']")?.textContent ?? ""), null, { timeout: 5000 }); }
+    catch (error) {
+      const detail = await game.evaluate(element => ({ events: element.__recordingFileEvents, status: element.recordedTestStatus, caption: element.shadowRoot.querySelector("[data-role='recording-status']")?.textContent, outputValue: element.shadowRoot.querySelector("[data-role='recording-status']")?.value, session: element.sessionGeneration, pending: element.pendingSessionAction, menuStarting: element.menuStarting, prepared: Boolean(element.recordedTestPrepared), lastError: element.lastError?.message ?? null }));
+      throw Error(`Legacy file error was not visible: ${JSON.stringify(detail)}; ${error.message}`);
+    }
     assert.equal(await game.evaluate(element => element.recordedTestPrepared), null, "judgement-only data must not manufacture a movement source");
     console.log("PASS native Test Load Recording: original markers/equipment, real unranked judgements, paused seek/resume, current audio-only lease, unchanged Play preferences, portrait control and legacy-file error.");
   }

@@ -2271,7 +2271,7 @@ export class AeroGame extends HTMLElement {
   /** The captured T-pose shoulder is stable until the next calibration; offsets are live Game Setup truth. */
   boxingHeightTuning(graph=this.graph) {
     const captured=this.recordedTestPlayback ? this.recordedTestFrame?.input?.calibratedShoulderWorldY ?? this.recordedTestFrame?.calibrationModel?.calibratedShoulderWorldY : graph?.input.getSnapshot().calibratedShoulderWorldY;
-    return {shoulderWorldY:typeof captured==="number"&&Number.isFinite(captured)?captured:1,offsets:(this.recordedTestPlayback ? this.activeSessionSetup : this.desiredGameSetup)?.boxingHeightOffsets ?? this.desiredGameSetup.boxingHeightOffsets};
+    return {shoulderWorldY:typeof captured==="number"&&Number.isFinite(captured)?captured:1,offsets:(this.recordedTestPlayback ? this.recordedTestFrame?.binding.renderSetup ?? this.recordedTestPrepared.bindings[0].renderSetup : this.desiredGameSetup)?.boxingHeightOffsets ?? this.desiredGameSetup.boxingHeightOffsets};
   }
 
   /** Only the selected Boxing mode's Knee strikes toggle affects T-pose eligibility. */
@@ -2321,7 +2321,7 @@ export class AeroGame extends HTMLElement {
   rendererFrame() {
     const contentService=this.graph.content,content = contentService.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
     const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0),runSetup=this.activeSessionSetup??this.desiredGameSetup;const setup={...runSetup,boxingHeightOffsets:this.desiredGameSetup.boxingHeightOffsets,obstaclesEnabled:this.desiredGameSetup.obstaclesEnabled,guidanceBandMode:this.desiredGameSetup.guidanceBandMode,showGameplayGrid:this.desiredGameSetup.showGameplayGrid,noteScalePercent:this.desiredGameSetup.noteScalePercent,obstacleScalePercent:this.desiredGameSetup.obstacleScalePercent,bombScalePercent:this.desiredGameSetup.bombScalePercent,markerScalePercent:this.desiredGameSetup.markerScalePercent,noseMarkerVisible:this.desiredGameSetup.noseMarkerVisible,noseMarkerScale:this.desiredGameSetup.noseMarkerScale,trackExtensionWorldUnits:this.desiredGameSetup.trackExtensionWorldUnits};
-    if (this.recordedTestPlayback) Object.assign(setup, this.recordedTestFrame?.binding.setup ?? this.recordedTestPrepared.bindings[0].setup);
+    if (this.recordedTestPlayback) Object.assign(setup, this.recordedTestFrame?.binding.renderSetup ?? this.recordedTestPrepared.bindings[0].renderSetup);
     const presentation = rendererPresentationForVariant(selected),heightTuning=this.boxingHeightTuning(this.graph),timingWindowMs=selected?.rulesetId===gameplayRulesetIds.flow||presentation==="boxing_collider"?setup.timingWindowMs:prototypeJudgementDefaults.timingWindowAfterMs;
     const spawnDistanceWorldUnits=selectedNormalSpawnDistanceWorldUnits(/** @type {Record<PropertyKey,unknown>} */(contentService),content,setup);
     const renderProjection=/** @type {Record<PropertyKey,unknown>} */(contentService)[INTERNAL_CONTENT_RENDER_PROJECTION];
@@ -2595,7 +2595,7 @@ export class AeroGame extends HTMLElement {
   renderGameplay(graph = this.graph, equipmentOverride = null) {
     if (!graph) return null;
     // 4bj9: push live visual scales into the renderer each frame so a scale change takes effect on the very next rendered frame without a restart.
-    const visualSetup = this.recordedTestPlayback ? this.recordedTestFrame?.binding.setup ?? this.recordedTestPrepared.bindings[0].setup : this.desiredGameSetup;
+    const visualSetup = this.recordedTestPlayback ? this.recordedTestFrame?.binding.renderSetup ?? this.recordedTestPrepared.bindings[0].renderSetup : this.desiredGameSetup;
     const liveScalesId=rendererVisualScalesId(visualSetup);
     if(liveScalesId!==this.lastAppliedScaleId&&typeof graph.renderer.setVisualScales==="function"){graph.renderer.setVisualScales(rendererVisualScales(visualSetup));this.lastAppliedScaleId=liveScalesId;}
     // Equipment (Flow saber beam / Boxing glove) replaces the wrist markers;
