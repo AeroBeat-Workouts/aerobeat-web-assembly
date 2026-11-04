@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createPlayMovementRecorder, recordedEquipmentPair } from "../src/play-movement-recording.js";
+import { parsePlayMovementCapture } from "../src/play-movement-replay.js";
 
 const file = process.env.AEROBEAT_RECORDING_CAPACITY_FILE;
 assert(file, "Set AEROBEAT_RECORDING_CAPACITY_FILE to a local measured capture");
@@ -46,4 +47,7 @@ for (let index = 0; index <= total; index++) {
 }
 const status = recorder.getStatus();
 assert.equal(status.complete, true); assert.equal(status.tickCount, total + 1);
+// This is a capacity fixture, not a replacement for the incomplete human file.
+const decoded = parsePlayMovementCapture(JSON.stringify({ ...capture, movement: recorder.snapshot() }));
+assert.equal(decoded.movement.ticks.length, total + 1, "production reader must admit the complete full-length capacity fixture");
 console.log(JSON.stringify({ pass: true, kind: "measured-prefix with synthetic repeated continuation; storage only", durationSeconds: duration, renderRate, ...status }));

@@ -1,6 +1,16 @@
 # Keep calibration waiting out of the full-song recording budget
 
-Status: APPROVED for immediate repair by Derrick, Bead cqg1. Owner Pico.
+Status: FIXED, VERIFIED AND PUBLIC as0.0.156. Bead cqg1. Owner Pico.
+
+## Final result
+
+Source671e955 and integrationa16c43b defer initial allocation until ready countdown, immediately snapshot current input/model/settings and retain every later real observation/advance, including in-run recalibration. Parent restored cheap generation/completed guards before querying gameplay snapshots, avoiding extra unarmed-frame work.
+
+Source lifecycle test simulates41,902 waiting advances with no recorder/model reads;29 focused tests and npmcheck PASS. Real measured-rate270s storage fixture completes at46,005,984 of50,331,648 bytes and production reader accepts it (106/110). Its continuation is explicitly synthetic, never claimed recovered human movement. Genuine signed108 passes256 actual initial waiting publications with no allocation, then Download -> native Test Load Recording with markers/calibration/equipment, exact real outcome/contact, controls/currentlease/preferences and negative/late cases. Fullnormal109PASS. No further verification is required for this bounded fix.
+
+Published frozen59-file sourcea16c43b, stamp FRIEND-GAME-CPU-0.0.156-94c6de652202d7d1f748745d, `.tmp/cpu-r156-verified-a16c43b`, through existing4216unit only. PublicHTTPS111 confirms exactHTML/entryJS/version/controls and no pageerrors; authentic149 remains byte-identical, both services active. Earlier155snapshot retained. No scoring/tracking/schema/UI/budget/admission change.
+
+New human full-song capture remains future feedback. The old truncated human file remains invalid; extremelylong/highrate recordings can still reach the unchanged explicit bound. Optional chart compaction iomn is not required for this repair and stays deferred.
 Current live0.0.155 is accepted for performance/tracking; do not change scoring or tracking. Preserve authentic149. Publish a distinctly versioned successor after the affected signed flow passes, under Derrick's standing request to update live after fixes.
 
 ## Current decision and next acceptance

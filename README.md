@@ -2,19 +2,27 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## 0.0.156 recording repair candidate — not live yet
+## Public 0.0.156 — recording starts at ready countdown
 
 Initial calibration waiting no longer allocates or consumes the movement
 recording budget. Capture starts at the first ready countdown with the current
 calibration model/input/settings, then retains every observation and actual
 advance—including later pauses and recalibration. The48MiB budget and exact
 samples are unchanged. A previously truncated file cannot regain missing data.
-The measured-rate270s capacity check passes; signed native acceptance is next.
+The measured-rate270s capacity fixture completes at46005984 estimated bytes
+and passes the production reader. It is a synthetic continuation, not recovered
+human movement. The41,902-wait-advance source regression,29 focused tests,
+full normal suite and signed native Download Data -> Test replay all pass.
+Live HTTPS is verified0.0.156, sourcea16c43b, stamp
+`FRIEND-GAME-CPU-0.0.156-94c6de652202d7d1f748745d`,59 signed files frozen at
+`.tmp/cpu-r156-verified-a16c43b`. Authentic149 is unchanged. Extremely long or
+high-rate runs can still reach the unchanged explicit limit; recording is not
+unlimited. A new human full-song capture is not yet supplied.
 Optional local capacity check: set `AEROBEAT_RECORDING_CAPACITY_FILE` to a local
 capture and run `node scripts/validate-full-song-recording-capacity.js`. It uses
 a clearly synthetic repeated continuation for storage, not recovered movement.
 
-## Public 0.0.155 — reported playtest fixes
+## Previous public 0.0.155 — reported playtest fixes
 
 This batch fixes Sonic Heroes import with automatic (missing/zero) note jump
 speed, makes 100% repeated-punch switching alternate actual emitted hands without
@@ -38,10 +46,10 @@ Undefeatable Expert capture records **825 hits / 5 misses (99.40%)**. Authentic
 the source map match;253 former misses are hits now. Closed nrrv and2bsk based
 on that human acceptance plus the actual data, not an inferred phone FPS.
 
-Known recording issue cqg1: this full-song file hit the48MiB movement budget at
-178.28s. All830 judgements remain present, but movement is truncated and the
-production Test reader correctly rejects it. Full-song recording needs a scoped
-follow-up; the live game was not changed during this inspection. Personal raw
+Recording issue cqg1, repaired in0.0.156: this old full-song file hit the48MiB
+movement budget at178.28s after nearly five minutes of initial calibration wait.
+All830 judgements remain present, but its missing movement cannot be recovered.
+The production Test reader correctly rejects that old incomplete file. Personal raw
 trajectories remain only in the local download, not committed to the repository.
 
 ## Previous public 0.0.154 — contact fix and local movement replay
