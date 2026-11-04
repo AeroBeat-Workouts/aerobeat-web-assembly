@@ -2,7 +2,19 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Playtest data export and A/B deployment — 2026-11-03
+## Public 0.0.154 — contact fix and local movement replay
+
+Derrick approved publication on 2026-11-04. The current public playtest serves
+signed **0.0.154**, assembly `c0fbed7`, gameplay `a4ba863`, input `374de74`.
+Stamp: `FRIEND-GAME-CPU-0.0.154-3d9b4e4f05d55d78c460c430` (59 files).
+Frozen artifact: `.tmp/cpu-r154-verified-c0fbed7`. Existing user service
+`aerobeat-r153-abprobe` now serves it on loopback4216; the public route is unchanged.
+The authentic .149 comparison on4212/private8449 is untouched. Public HTTPS HTML
+and entry-JS bytes match both frozen snapshots; Chromium reports .154/.149 and
+correct controls without page errors. Release native replay checks pass again.
+Physical phone accuracy/playability is still Derrick's acceptance.
+
+## Playtest data export and retained A/B evidence — 2026-11-03
 
 The menu's **Download Data** button exports a finished run as JSON. The corrected
 probe records source difficulty/map ID, all run-locked Game Setup options, and
@@ -20,8 +32,8 @@ The signed native flow now passes for tracked markers/equipment, pause, restart,
 seek, legacy-file errors, exact reversal/late-hit and miss controls, and unchanged
 Play preferences. QA found that recorded live visual/Boxing-height changes were
 being dropped; the local binding is repaired and its signed check passes. The
-full normal `npm test` also passes. No public deployment or physical recovery is
-claimed yet.
+full normal `npm test` also passes. This behavior is now public in 0.0.154;
+physical recovery is not yet claimed.
 
 After a completed Play run, choose **Download Data**. In Test, select the matching
 song and difficulty, then **Load Recording**. Playback is local and unranked;
@@ -55,7 +67,7 @@ See `.plans/2026-11-03-real-play-analysis.md` for evidence and limitations.
   match the original `boxing-r149-ae07836` commit/tree/source digests exactly.
   Gameplay remains `6f5d6a6`; assembly is old source plus the export probe.
   Stamp: `FRIEND-GAME-CPU-0.0.149-bb26fd6c889f95b0c482ebaf`.
-- Current on existing public 443: `aerobeat-r153-abprobe`, loopback 4216,
+- Retained original .153 comparison (no longer on the public link):
   candidate `.tmp/boxing-r153-verified-probe-33d565d`. Its fourteen dependencies
   match original `boxing-r153-6aa7422` exactly, including gameplay `20a1697`.
   Stamp: `FRIEND-GAME-CPU-0.0.153-f2d26b97608cf1dcbee4e712`.
@@ -64,7 +76,7 @@ Both candidates reside under the sibling private-heights-candidate repository.
 The signed browser download check passed on each: actual input/coordinator,
 fixture camera/audio/content, real committed judgement and completion, native
 button click, parsed download matching the judgement and completed-run settings.
-Both public pages' HTML and entry JavaScript hashes match these exact snapshots.
+Before the approved .154 publication, both comparison pages' HTML and entry JavaScript hashes matched these exact snapshots; .149 still does.
 This proves deployment/export, not physical-phone playability.
 
 Current `npm test` and eight focused capture tests passed. Historical checks have

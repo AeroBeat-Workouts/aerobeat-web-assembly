@@ -1,6 +1,6 @@
 # Record human Play movement and replay it in Test
 
-Status: IMPLEMENTED AND VERIFIED LOCALLY. Derrick approved publication as 0.0.154 at the current .153 link; authentic .149 stays unchanged. Publication active; phone acceptance remains. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
+Status: PUBLISHED AND VERIFIED as 0.0.154. Native replay/full normal gates pass; public TLS bytes/version/control checks pass. Authentic .149 is unchanged. Engineering delivery is complete; physical phone acceptance belongs to Derrick. Derrick selected “Add recording and replay first” in native question next_delivery. The numeric recording and Test Load Recording control are approved before publishing the gameplay fix. Both public A/B builds stay unchanged during implementation.
 Owner: Pico. Feature Bead: aerobeat-web-assembly-1fnl.
 
 ## Current action
@@ -53,7 +53,15 @@ There is an observed comparison trap: Play permits the existing 1000 ms late dea
 - Reuse the real coordinator and recorded full endpoints. Use recorded body shoulders for Flow spline reprojection, not pointer Test's neutral center. Preserve source confidence/frozen states, timing spacing and configuration. Do not mutate global Play preferences when binding recorded Test settings.
 - Matching content is mandatory. Report old judgement-only files, incomplete files or mismatched song/chart clearly. Loader parsing is not evidence authority.
 
-## Latest actual acceptance (cd8330c, local signed candidate only)
+## Publication result — 2026-11-04
+
+Derrick approved Publish0.0.154 in native question publish_fixed_recording_build. Version-only source c0fbed7 built/signed59files and npm run test:movement-replay passed again (bash80). Frozen `.tmp/cpu-r154-verified-c0fbed7`, stamp FRIEND-GAME-CPU-0.0.154-3d9b4e4f05d55d78c460c430. Updated only existing user unit aerobeat-r153-abprobe description/workdir/ExecStart; port4216/publicroute unchanged. Its name is retained operationally; no duplicate server or route was added. Authentic .149 service/path/4212/8449 untouched, original .153 snapshot retained.
+
+Actual public HTTPS HTML+entry JS match the respective frozen .154 and .149 assets; visible versions, Download control and new recording control pass with no page errors (bash82). First immediate gateway request was502 while the signed listener started; journal/listening+loopback200 confirmed readiness before rerunning the same smoke successfully. This is not phone acceptance. Publication Bead gyol is complete; primary nrrv retains Derrick's physical feedback.
+
+Optional follow-up iomn: smaller files could reference shared chart data once, trading away standalone chart inspection. Safe to defer; no schema cleanup is required before testing .154.
+
+## Verified local implementation acceptance (cd8330c)
 
 - `npm run test:movement-replay` PASS (bash76). Genuine Play -> Download -> native file chooser -> same real Test scorer. Reversal Great at6050, qualified offset +35.41666666666697; late reversal Great at6550, +535.416666666667; reverse-only/no-contact remain Miss7050. Every recorded tick and observation is consumed.
 - Native UI passes marker/equipment equality, active audio-only ownership and terminal release, unranked Test, pause/prefix seek/resume, EOF restart with cleared scores and second terminal release, Clear, portrait control bounds, and old-file error. Play preferences/equipment globals stay unchanged.
