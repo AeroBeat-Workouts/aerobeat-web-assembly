@@ -103,6 +103,8 @@ try {
       if (scenario === "late-reversal") assert(result.judgement.timingOffsetMs > 180 && result.judgement.timingOffsetMs <= 1000, "late fixture must exercise existing Play rules beyond ordinary Test's base window");
       else assert(result.judgement.timingOffsetMs >= -180 && result.judgement.timingOffsetMs <= 180, "reversal hit must use original base timing window");
     } else for (const judgement of result.judgements) assert.equal(judgement.tier, "miss", "negative controls must not become hits or near judgements");
+    if (scenario === "no-contact") assert.deepEqual(result.judgement.diagnostics, ["wrong_collider"], "missing contact is not proven direction rejection");
+    if (scenario === "reverse-only") assert.deepEqual(result.judgement.diagnostics, ["wrong_direction"], "actual rejected contact retains the direction reason");
     if (recordingDirectory) {
       const pending = page.waitForEvent("download");
       await page.locator("aero-game").locator("[data-role='download-data']").click();

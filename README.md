@@ -2,6 +2,17 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
+## 0.0.155 bug-fix candidate — not public yet
+
+This batch fixes Sonic Heroes import with automatic (missing/zero) note jump
+speed, makes 100% repeated-punch switching alternate actual emitted hands without
+changing punch family, and reports wrong_direction only after an observed
+rejected contact. Saved Boxing charts need selected-song **Reimport** to apply
+new conversion rules; changing a setting does not silently rewrite saved songs.
+Owner normal tests pass, including the restored exact public-map fixtures.
+Signed import/reimport/scoring acceptance is next. Current live remains .154.
+After a clean signed build, run `npm run test:playtest-bug-batch`.
+
 ## Public 0.0.154 — contact fix and local movement replay
 
 Derrick approved publication on 2026-11-04. The current public playtest serves
