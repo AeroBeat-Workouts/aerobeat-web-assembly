@@ -2,6 +2,10 @@
 // Temporary numeric recordings: bounded admission, native gzip, IndexedDB and OPFS.
 export const MOVEMENT_STREAM_FORMAT = "aerobeat-movement-jsonl";
 export const MOVEMENT_STREAM_VERSION = 1;
+// Per-record/queue limits, never total recording limits. Event envelopes have a small allowance.
+export const MOVEMENT_MAX_RECORD_BYTES = 8 * 1024 * 1024;
+export const MOVEMENT_MAX_PENDING_BYTES = 16 * 1024 * 1024;
+export const MOVEMENT_MAX_LINE_BYTES = MOVEMENT_MAX_RECORD_BYTES + 1024;
 export const MOVEMENT_TABLES = Object.freeze(["inputs", "rawPoses", "models", "configurations", "equipmentHeaders", "equipment", "observations", "ticks", "metadata", "states"]);
 export const MOVEMENT_DB_NAME = "aerobeat-movement-temporary-v1";
 const ROOT = "aerobeat-movement-temporary-v1";
@@ -38,11 +42,11 @@ async function decode(blob) { return new Response(blob.stream().pipeThrough(new 
  * at the real commit/write boundary: commitChunk(record, commit), writeExport(bytes, write).
  */
 export function createMovementChunkStore(options = {}) {
-  const maxPendingBytes = positive(options.maxPendingBytes, 4 * 1024 * 1024);
+  const maxPendingBytes = positive(options.maxPendingBytes, MOVEMENT_MAX_PENDING_BYTES);
   const chunkBytes = positive(options.chunkBytes, 256 * 1024);
   const chunkRows = positive(options.chunkRows, 256);
   const maxReadRows = positive(options.maxReadRows, 1024);
-  const maxRowBytes = positive(options.maxRowBytes, 256 * 1024);
+  const maxRowBytes = positive(options.maxRowBytes, MOVEMENT_MAX_RECORD_BYTES);
   const run = crypto.randomUUID(), counts = Object.fromEntries(MOVEMENT_TABLES.map(t => [t, 0]));
   let db, root, directory, releaseLock, lockTask, failure = null, disposed = false, disposing = false, initialized = false;
   let pendingBytes = 0, pendingHighWaterBytes = 0, logicalBytes = 0, committedBytes = 0, commits = 0;
@@ -139,7 +143,9 @@ export function createMovementChunkStore(options = {}) {
   }
   async function performExport(header) {
     await flush();
-    const snapshot = { ...counts }, copiedHeader = parse(serialize(header));
+    const snapshot = { ...counts }, headerText = serialize(header);
+    if (encoder.encode(headerText).byteLength > MOVEMENT_MAX_RECORD_BYTES) throw new MovementStoreError("header_too_large", "Movement header exceeds bounded record size");
+    const copiedHeader = parse(headerText);
     const name = `movement-${crypto.randomUUID()}.jsonl.gz`;
     const handle = await directory.getFileHandle(name, { create: true });
     let writable;
@@ -197,8 +203,8 @@ export function createMovementChunkStore(options = {}) {
  * Per-line bound only. The consumer validates table schemas/references and header identity.
  * This iterator validates framing, sequential indexes, counts, and final completeness.
  */
-export async function* iterateMovementFile(file, { maxLineBytes = 1024 * 1024 } = {}) {
-  positive(maxLineBytes, 1024 * 1024);
+export async function* iterateMovementFile(file, { maxLineBytes = MOVEMENT_MAX_LINE_BYTES } = {}) {
+  positive(maxLineBytes, MOVEMENT_MAX_LINE_BYTES);
   const source = typeof file.stream === "function" ? file.stream() : file;
   const reader = source.pipeThrough(new DecompressionStream("gzip")).pipeThrough(new TextDecoderStream("utf-8", { fatal: true })).getReader();
   const counts = Object.fromEntries(MOVEMENT_TABLES.map(t => [t, 0]));
