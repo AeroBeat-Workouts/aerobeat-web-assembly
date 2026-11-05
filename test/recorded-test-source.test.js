@@ -58,6 +58,21 @@ async function fixture(kind = "late") {
   modelInput.destroy(); play.destroy();
   return { capture, content, expected };
 }
+test("Clear aborts post-import preparation before scanning further disk rows", async () => {
+  const { capture, content } = await fixture();
+  const controller = new AbortController(), reads = [];
+  const disk = { ...capture,
+    getCounts: () => Object.fromEntries(Object.entries(capture.movement).filter(([, value]) => Array.isArray(value)).map(([name, value]) => [name, value.length])),
+    async readRows(table, start, count) {
+      reads.push(table);
+      if (table === "ticks") controller.abort(new DOMException("Cleared", "AbortError"));
+      return capture.movement[table].slice(start, start + count);
+    }
+  };
+  await assert.rejects(prepareRecordedTest(disk, content, { signal: controller.signal }), { name: "AbortError" });
+  assert.deepEqual(reads, ["configurations", "ticks"], "no endpoint scan or additional rows after Clear");
+});
+
 function playback(prepared) {
   let projector, current;
   const gameplay = createAeroGameplaySessionCoordinator({ instanceId: "recorded-test", reprojectEquipmentPose: value => projector ? projector(value) : value });

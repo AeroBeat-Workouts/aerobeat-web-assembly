@@ -18,6 +18,12 @@ Recording starts at the initial ready countdown, as fixed in156. Keep exact raw/
 4. Parent integrates lifecycle/buttons and uses actual signed capture/download/native Load Recording early. Test beyond old48MiB/64MiB and old120000tick count, exact markers/numbers/settings/outcomes; quota/write/abort/cleanup and no new network requests. Existing short replay/control and accepted scoring regressions stay green. One focused QA pass for this privacy/lifecycle change; no recursive audits.
 5. Document numeric data retention/cleanup, file compatibility and disk-space failures. Commit/push coherent source and tests. Version/sign/freeze the successor, update only existing main4216 service, verify actual public HTTPS version/bytes and149 unchanged. No repair of missing data in old truncated files.
 
+## First signed integration diagnosis
+
+Storage browser checks pass79.9MiB logical/120002ticks, exact compressed export and bounded queue, quota/dispose/orphan/other-tab/abort paths. Parent37 focused tests and npmcheck pass. First signed157 build4523bb3 fails native capture after real completion: capture_error/invalid_row, zero ticks. Added diagnostic shows inputs1/models1/configurations0, while actual input/model/gameplay configuration have no invalid scalar fields. The configuration producer explicitly copies optional camera fields absent on some surfaces; new store rejects undefined properties whereas old JSON serialization omitted them. Smallest correction is to omit undefined OPTIONAL camera descriptor properties at that producer boundary. Keep strict finite values/row gates unchanged. Confirm by the same signed check, not by relaxing the failure assertion.
+
+QA1djz also found prepareRecordedTest scans lacked AbortSignal after parse; thread the existing signal through that validation loop and ensure finally disposes cancelled imports. Nonblocking repeated-export disk copies can be avoided by retaining a single finished export per run. No new audit/security framework is required.
+
 ## Gate review / limits
 
 The old48MiB capture and total64MiB JSON-file admission limits must not constrain the new streamed transport; replacing these limits is directly approved by this request. Retain bounded per-record parsing, structural validation, existing safety/provenance gates and truthful completion/error status. Bound working chunks/caches, not total song length. Any extra gate needs a concrete observed failure or requirement. Do not change physics, CV, authored timing/direction, song libraries or preferences.

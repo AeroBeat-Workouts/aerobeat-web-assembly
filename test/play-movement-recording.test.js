@@ -88,6 +88,17 @@ test("storage failures are explicit and completion waits for durable flush", asy
   assert.equal(bounded.getStatus().reason, "unit_append_failure");
 });
 
+test("repeated downloads share one finished disk export", async () => {
+  const unit = createUnitMovementStore(); let exports = 0;
+  const file = { fixture: true };
+  const store = { ...unit.store, async exportFile() { exports++; return file; } };
+  const recorder = createPlayMovementRecorder({ store });
+  recorder.record({ ...frame(), resultState: "completed" });
+  const [a, b] = await Promise.all([recorder.exportFile({}), recorder.exportFile({})]);
+  assert.equal(a, b); assert.equal(exports, 1);
+  await recorder.dispose();
+});
+
 test("capture failures are explicit and never escape into gameplay", () => {
   const recorder = createPlayMovementRecorder(), f = frame();
   f.getCalibrationModel = () => { throw new Error("observer read failed"); };
@@ -183,6 +194,7 @@ test("initial calibration waiting allocates no run budget; first countdown snaps
   assert.deepEqual(data.configurations[0].presentationSetup, f.owner.desiredGameSetup);
   assert.deepEqual(data.configurations[0].equipment, f.owner.equipmentConfig);
   assert.equal(data.configurations[0].camera.intrinsicWidth, 640);
+  assert(Object.values(data.configurations[0].camera).every(value => value !== undefined), "optional absent camera fields keep the previous JSON omission semantics");
   const boundaryAdvanceCount = f.advances.length;
   for (const state of ["countdown", "playing", "paused_manual", "paused_tracking", "calibrating", "countdown", "playing"]) {
     f.setState(state); f.sample(state !== "calibrating");

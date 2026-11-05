@@ -30,7 +30,7 @@ const compactGameplay = value => { if (!value || typeof value !== "object") retu
 /** Disk-backed per-run capture. Supplying a store also supports focused tests. */
 export function createPlayMovementRecorder({ metadata = {}, store: suppliedStore } = {}) {
   const states = [];
-  let status = "recording", reason = null, finalSessionState = null;
+  let status = "recording", reason = null, finalSessionState = null, exportedFile = null;
   let lastInput = null, inputIndex = -1, modelIndex = -1, configurationIndex = -1, rawPoseIndex = -1;
   let lastRawIdentity = null, lastRawSource = null, lastRawTimestamp = null;
   let lastModelKey = null, lastConfigurationKey = null, lastPoses = null, equipmentIndex = -1;
@@ -113,7 +113,12 @@ export function createPlayMovementRecorder({ metadata = {}, store: suppliedStore
         return index >= 0;
       } catch (error) { fail(error.code ?? "frame_unavailable"); return false; }
     },
-    async exportFile(header) { const movement = await flush(); return store.exportFile({ ...header, movement }); },
+    async exportFile(header) {
+      const movement = await flush();
+      // Finished run data is immutable: repeated downloads share one disk file.
+      if (!exportedFile) exportedFile = store.exportFile({ ...header, movement });
+      return exportedFile;
+    },
     readRows: (table, start, count) => store.readRows(table, start, count),
     async dispose() { status = "disposed"; await store.dispose(); }
   });

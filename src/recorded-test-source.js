@@ -49,15 +49,17 @@ export function assertRecordedContentMatches(capture, content) {
 }
 
 /** Validate all configurations/endpoints using bounded reads, not a binding per row. */
-export async function prepareRecordedTest(capture, content) {
-  assertRecordedContentMatches(capture, content);
+export async function prepareRecordedTest(capture, content, { signal } = {}) {
+  const check = () => signal?.throwIfAborted();
+  check(); assertRecordedContentMatches(capture, content);
   const resolvedEvents = content.resolvedEvents.filter(event => event.variantId === content.selectedVariant.variantId && event.chartId === content.selectedVariant.chartId);
   requireValue(resolvedEvents.length > 0, "matching content has no resolved events.");
   const rows = movementRows(capture), cache = new Map();
+  const read = async (table, index) => { check(); const value = await rows.get(table, index); check(); return value; };
   async function getBinding(index) {
-    if (index === -1) index = 0;
+    check(); if (index === -1) index = 0;
     if (cache.has(index)) return cache.get(index);
-    const value = await rows.get("configurations", index);
+    const value = await read("configurations", index);
     requireValue(value.gameplay && value.gameplay.packageId === content.packageId, "configuration belongs to another song.");
     assertRecordedContentMatches({ ...capture, movement: { metadata: { configuration: value.gameplay } } }, content);
     const equipment = validateEquipmentConfig(value.equipment), setup = normalizeGameSetup(value.setup), presentationSetup = normalizeGameSetup(value.presentationSetup), identity = createEquipmentConfigIdentity(value.equipmentIdentity);
@@ -70,13 +72,14 @@ export async function prepareRecordedTest(capture, content) {
   }
   for (let i = 0; i < rows.counts.configurations; i++) await getBinding(i);
   for (let i = 0; i < rows.counts.ticks; i++) {
-    const row = await rows.get("ticks", i);
+    const row = await read("ticks", i);
     if (row[5] < 0) continue;
     requireValue(row[8] >= 0, "equipment endpoints do not match recorded settings.");
-    const binding = await getBinding(row[8]), equipment = await rows.get("equipment", row[5]), headers = await rows.get("equipmentHeaders", equipment[0]);
+    const binding = await getBinding(row[8]), equipment = await read("equipment", row[5]), headers = await read("equipmentHeaders", equipment[0]);
     requireValue(headers.every(header => header.configIdentity.value === binding.identity.value), "equipment endpoints do not match recorded settings.");
   }
-  const first = await rows.get("ticks", 0), observation = rows.counts.observations ? await rows.get("observations", 0) : null;
+  const first = await read("ticks", 0), observation = rows.counts.observations ? await read("observations", 0) : null;
+  check();
   return Object.freeze({ capture, content, rows, getBinding, bindings: Object.freeze([await getBinding(0)]), firstWall: Math.min(first[0], observation?.[0] ?? first[0]) });
 }
 

@@ -2122,7 +2122,7 @@ export class AeroGame extends HTMLElement {
       modelKey: [calibration?.calibrationId, calibration?.state, calibration?.readiness, calibration?.bounds, input?.sourceIdentity, input?.tracking?.freshCalibrationRequired, this.midGameRecalibrationDisabled, this.desiredGameSetup.kneeStrikesEnabled, surface?.sourceAspectRatio],
       configurationKey: [this.activeGameplayConfiguration, this.activeSessionSetup, this.desiredGameSetup, this.equipmentConfig, this.equipmentConfigIdentity, this.kneePadRotationTuning, this.lastCameraIdentity, surface?.intrinsicWidth, surface?.intrinsicHeight, surface?.mirrored, surface?.fitMode, surface?.playbackState, surface?.readabilityState],
       getCalibrationModel: () => graph.input.getCalibrationModel(),
-      getConfiguration: () => ({ gameplay: this.activeGameplayConfiguration, setup: this.activeSessionSetup, presentationSetup: this.desiredGameSetup, equipment: this.equipmentConfig, equipmentIdentity: this.equipmentConfigIdentity, kneePadRotations: this.kneePadRotationTuning, camera: surface ? { sourceKind: surface.sourceKind, sourceId: surface.sourceId, intrinsicWidth: surface.intrinsicWidth, intrinsicHeight: surface.intrinsicHeight, sourceAspectRatio: surface.sourceAspectRatio, mirrored: surface.mirrored, fitMode: surface.fitMode, sourceChangeId: surface.sourceChangeId, calibrationSourceIdentity: surface.calibrationSourceIdentity, playbackState: surface.playbackState, readabilityState: surface.readabilityState } : null })
+      getConfiguration: () => ({ gameplay: this.activeGameplayConfiguration, setup: this.activeSessionSetup, presentationSetup: this.desiredGameSetup, equipment: this.equipmentConfig, equipmentIdentity: this.equipmentConfigIdentity, kneePadRotations: this.kneePadRotationTuning, camera: surface ? Object.fromEntries(Object.entries({ sourceKind: surface.sourceKind, sourceId: surface.sourceId, intrinsicWidth: surface.intrinsicWidth, intrinsicHeight: surface.intrinsicHeight, sourceAspectRatio: surface.sourceAspectRatio, mirrored: surface.mirrored, fitMode: surface.fitMode, sourceChangeId: surface.sourceChangeId, calibrationSourceIdentity: surface.calibrationSourceIdentity, playbackState: surface.playbackState, readabilityState: surface.readabilityState }).filter(([, value]) => value !== undefined)) : null })
     };
   }
 
@@ -2890,7 +2890,7 @@ export class AeroGame extends HTMLElement {
       if (!current()) return;
       capture = await parsePlayMovementFile(file, { signal: controller.signal });
       if (!current()) return;
-      const prepared = await prepareRecordedTest(capture, this.graph.content.getSnapshot());
+      const prepared = await prepareRecordedTest(capture, this.graph.content.getSnapshot(), { signal: controller.signal });
       if (!current()) return;
       const previous = this.recordedTestPrepared;
       this.recordedTestPlayback?.dispose(); this.recordedTestPlayback = null;

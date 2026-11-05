@@ -84,7 +84,10 @@ try {
     // Completed gameplay is synchronous; persisted recording completion is not.
     if (!element.playMovementRecorder) throw Error("Expected real movement recorder");
     await element.playMovementRecorder.flush();
-    if (element.playMovementRecorder.getStatus().status !== "completed") throw Error("Recording did not persist completely");
+    if (element.playMovementRecorder.getStatus().status !== "completed") {
+      const invalid = (value, path = "") => value === undefined || typeof value === "number" && !Number.isFinite(value) ? [path] : value && typeof value === "object" ? Object.entries(value).flatMap(([key, item]) => invalid(item, `${path}.${key}`)) : [];
+      throw Error(`Recording did not persist completely: ${JSON.stringify({ status: element.playMovementRecorder.getStatus(), modelInvalid: invalid(harness.graph.input.getCalibrationModel()), configurationInvalid: invalid(element.activeGameplayConfiguration), inputInvalid: invalid(harness.graph.input.getSnapshot()), cameraInvalid: invalid(surface), counts: element.playMovementRecorder.snapshot().counts })}`);
+    }
     element.setMenuOpen(true);
     element.renderPresenters();
     // Change the next-run control: export must retain the just-finished run.
