@@ -167,7 +167,7 @@ test("stream import preserves numeric rows and legacy File compatibility; facade
   for (const table of Object.keys(imported.getCounts()).filter(name => !["metadata", "states"].includes(name))) assert.deepEqual(await imported.readRows(table, 0, imported.getCounts()[table]), capture.movement[table]);
   const legacy = await parsePlayMovementFile(new Blob([JSON.stringify(capture)]));
   assert.deepEqual(legacy, parse(capture));
-  await imported.dispose(); assert.equal(unit.isDisposed(), true);
+  await imported.dispose(); assert.equal(unit.store.getStatus().state === "disposed", true);
   await assert.rejects(imported.readRows("ticks", 0, 1), /disposed/);
 });
 
@@ -186,17 +186,17 @@ test("stream structural, reference, footer, truncation and nonfinite failures di
   for (const mutate of changes) {
     const unit = createUnitMovementStore(), { file } = await streamUnitFile(fixture(), { mutate });
     await assert.rejects(parsePlayMovementFile(file, { createStore: () => unit.store }));
-    assert.equal(unit.isDisposed(), true);
+    assert.equal(unit.store.getStatus().state === "disposed", true);
   }
   const { file } = await streamUnitFile(fixture());
   const unit = createUnitMovementStore();
   await assert.rejects(parsePlayMovementFile(file.slice(0, file.size - 10), { createStore: () => unit.store }));
-  assert.equal(unit.isDisposed(), true);
+  assert.equal(unit.store.getStatus().state === "disposed", true);
   const overflowing = new Blob([new TextEncoder().encode('{"type":"header","format":"aerobeat-movement-jsonl","version":1,"header":1e999}\n')]);
   const gzip = await new Response(overflowing.stream().pipeThrough(new CompressionStream("gzip"))).blob();
   const bad = createUnitMovementStore();
   await assert.rejects(parsePlayMovementFile(gzip, { createStore: () => bad.store }), /nonfinite/);
-  assert.equal(bad.isDisposed(), true);
+  assert.equal(bad.store.getStatus().state === "disposed", true);
 });
 
 test("import cancellation and storage failures dispose admitted partial rows", async () => {
@@ -205,8 +205,21 @@ test("import cancellation and storage failures dispose admitted partial rows", a
     const unit = createUnitMovementStore(), controller = new AbortController(), append = unit.store.append;
     unit.store.append = (...args) => { const index = append(...args); if (abort) controller.abort(); else throw new Error("unit quota failure"); return index; };
     await assert.rejects(parsePlayMovementFile(file, { signal: controller.signal, createStore: () => unit.store }), abort ? /abort/i : /quota/);
-    assert.equal(unit.isDisposed(), true);
+    assert.equal(unit.store.getStatus().state === "disposed", true);
   }
+});
+
+test("shared unit-only store fault options reject writes/flushes and report disposal", async () => {
+  const append = createUnitMovementStore({ failAfter: 1 });
+  assert.equal(append.store.append("inputs", {}), 0);
+  assert.throws(() => append.store.append("inputs", {}), /unit_append_failure/);
+  assert.equal(append.store.getStatus().error.code, "unit_append_failure");
+  const flush = createUnitMovementStore({ failFlush: true });
+  flush.store.append("inputs", {});
+  await assert.rejects(flush.store.flush(), /unit_flush_failure/);
+  assert.equal(flush.rows.inputs.length, 1);
+  await flush.store.dispose(); assert.equal(flush.rows.inputs.length, 0);
+  assert.equal(flush.store.getStatus().state, "disposed");
 });
 
 test("abort interrupts a blocked native stream read and bounded records reject oversized/nested input", async () => {
@@ -218,12 +231,12 @@ test("abort interrupts a blocked native stream read and bounded records reject o
   const importing = parsePlayMovementFile(blocked, { signal: controller.signal, createStore: () => unit.store });
   await waiting; controller.abort(); await assert.rejects(importing, /abort/i);
   await cancellation;
-  assert.equal(cancelled, true); assert.equal(unit.isDisposed(), true);
+  assert.equal(cancelled, true); assert.equal(unit.store.getStatus().state === "disposed", true);
   for (const large of [false, true]) {
     const malformed = await streamUnitFile(fixture(), { mutate(event) { if (event.type === "header") { if (large) event.header.options.extra = "x".repeat(MOVEMENT_MAX_LINE_BYTES); else { let next = event.header.options; for (let i = 0; i < 70; i++) { next.next = {}; next = next.next; } } } return event; } });
     const target = createUnitMovementStore();
     await assert.rejects(parsePlayMovementFile(malformed.file, { createStore: () => target.store }), large ? /bounded record size/ : /nesting/);
-    assert.equal(target.isDisposed(), true);
+    assert.equal(target.store.getStatus().state === "disposed", true);
   }
 });
 

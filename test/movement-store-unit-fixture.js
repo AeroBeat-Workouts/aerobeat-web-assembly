@@ -1,21 +1,7 @@
 // @ts-check
 // UNIT FIXTURE ONLY. Bounded small in-memory tables, not browser-storage proof.
 import { MOVEMENT_TABLES } from "../src/movement-chunk-store.js";
-export function createUnitMovementStore() {
-  const tables = Object.fromEntries(MOVEMENT_TABLES.map(name => [name, []]));
-  let disposed = false;
-  const check = () => { if (disposed) throw new Error("unit fixture disposed"); };
-  const store = {
-    ready: Promise.resolve(),
-    append(table, value) { check(); if (tables[table].length >= 512) throw new Error("small unit fixture row bound"); tables[table].push(structuredClone(value)); return tables[table].length - 1; },
-    async flush() { check(); },
-    async readRows(table, start, count) { check(); if (count > 1024) throw new Error("unit fixture read bound"); return structuredClone(tables[table].slice(start, start + count)); },
-    getCounts() { return Object.fromEntries(MOVEMENT_TABLES.map(name => [name, tables[name].length])); },
-    getStatus() { return { state: disposed ? "disposed" : "ready", error: null, logicalBytes: 2048, pendingBytes: 0, pendingHighWaterBytes: 0, committedBytes: 1024 }; },
-    async dispose() { disposed = true; for (const rows of Object.values(tables)) rows.length = 0; }
-  };
-  return { store, tables, isDisposed: () => disposed };
-}
+export { createUnitMovementStore } from "./fixtures/movement-memory-store.js";
 export async function streamUnitFile(capture, { mutate = value => value, ticks = null, padding = 0 } = {}) {
   const original = capture.movement, counts = Object.fromEntries(MOVEMENT_TABLES.map(name => [name, name === "states" || name === "metadata" ? 0 : name === "ticks" && ticks !== null ? ticks : original[name].length]));
   const { inputs, rawPoses, models, configurations, equipmentHeaders, equipment, observations, ticks: ignoredTicks, maxBytes, ...metadata } = original;
@@ -39,5 +25,5 @@ export async function streamUnitFile(capture, { mutate = value => value, ticks =
 // switches to v2 disk storage. This is not a second production recording path.
 export function legacyUnitMovement(recorder, fixture) {
   const m = recorder.snapshot();
-  return { schema: m.schema, version: 1, coordinateSpaces: m.coordinateSpaces, tickFields: m.tickFields, observationFields: m.observationFields, equipmentValueFields: m.equipmentValueFields, status: "completed", reason: null, complete: true, finalSessionState: "completed", tickCount: fixture.tables.ticks.length, measuredFrames: fixture.tables.rawPoses.length, estimatedBytes: 2048, maxBytes: 48 * 1024 * 1024, metadata: m.metadata, states: m.states, ...Object.fromEntries(Object.entries(fixture.tables).filter(([name]) => name !== "metadata" && name !== "states")) };
+  return { schema: m.schema, version: 1, coordinateSpaces: m.coordinateSpaces, tickFields: m.tickFields, observationFields: m.observationFields, equipmentValueFields: m.equipmentValueFields, status: "completed", reason: null, complete: true, finalSessionState: "completed", tickCount: fixture.rows.ticks.length, measuredFrames: fixture.rows.rawPoses.length, estimatedBytes: 2048, maxBytes: 48 * 1024 * 1024, metadata: m.metadata, states: m.states, ...Object.fromEntries(Object.entries(fixture.rows).filter(([name]) => name !== "metadata" && name !== "states")) };
 }
