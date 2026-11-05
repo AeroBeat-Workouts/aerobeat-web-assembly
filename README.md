@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## 0.0.157 disk-backed recording candidate — not live yet
+## Public 0.0.157 — compact disk-backed recordings
 
 Derrick approved temporary browser-local storage for numeric movement recordings.
 New captures use bounded compressed disk chunks instead of retaining the whole
@@ -15,7 +15,14 @@ cleanup on the next load preserves other active tabs. Browser quota, unavailable
 storage or write-backpressure failures are explicit; the judgement report remains
 available. There is no total song-byte/tick cutoff on the new path, but storage
 is not infinite. Existing ready-countdown capture and scoring are unchanged.
-Source/storage checks pass; signed whole-workflow acceptance is next.
+Verified source1b3596c, frozen at `.tmp/cpu-r157-verified-1b3596c`, stamp
+`FRIEND-GAME-CPU-0.0.157-7d6449b9c054e651f99a5dd0`.40focused tests,
+normal full suite, browser79,869,563-byte logical storage/120002ticks and genuine
+signed Download -> native Test controls/markers/scoring all pass. Actual public
+HTTPS matches the frozen HTML/entry script; authentic149 remains unchanged.
+Large capacity evidence is synthetic, not a new human full-song recording.
+Use `npm run test:movement-storage` for browser capacity/failure/cleanup checks,
+or `npm run test:disk-recording` for storage plus signed native replay checks.
 
 ## Previous public 0.0.156 — recording starts at ready countdown
 
