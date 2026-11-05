@@ -202,11 +202,17 @@ export function createMovementChunkStore(options = {}) {
 /** Iterate a gzip JSONL File/Blob/ReadableStream without materializing the file.
  * Per-line bound only. The consumer validates table schemas/references and header identity.
  * This iterator validates framing, sequential indexes, counts, and final completeness.
+ * signal actively cancels pending native reads; the caller still owns destination-store disposal.
  */
-export async function* iterateMovementFile(file, { maxLineBytes = MOVEMENT_MAX_LINE_BYTES } = {}) {
+export async function* iterateMovementFile(file, { maxLineBytes = MOVEMENT_MAX_LINE_BYTES, signal } = {}) {
   positive(maxLineBytes, MOVEMENT_MAX_LINE_BYTES);
+  signal?.throwIfAborted();
   const source = typeof file.stream === "function" ? file.stream() : file;
   const reader = source.pipeThrough(new DecompressionStream("gzip")).pipeThrough(new TextDecoderStream("utf-8", { fatal: true })).getReader();
+  // Cancellation must settle an outstanding read, not wait for the next decoded line.
+  const abort = () => { reader.cancel(signal.reason).catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
+  if (signal?.aborted) abort();
   const counts = Object.fromEntries(MOVEMENT_TABLES.map(t => [t, 0]));
   let buffer = "", header = false, footer = false;
   function event(line) {
@@ -221,13 +227,18 @@ export async function* iterateMovementFile(file, { maxLineBytes = MOVEMENT_MAX_L
   }
   try {
     for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
+      signal?.throwIfAborted();
+      const { value, done } = await reader.read(); signal?.throwIfAborted(); if (done) break;
       buffer += value;
       let end;
-      while ((end = buffer.indexOf("\n")) >= 0) { const line = buffer.slice(0, end); buffer = buffer.slice(end + 1); yield event(line); }
+      while ((end = buffer.indexOf("\n")) >= 0) { signal?.throwIfAborted(); const line = buffer.slice(0, end); buffer = buffer.slice(end + 1); yield event(line); }
       if (encoder.encode(buffer).byteLength > maxLineBytes) throw new MovementStoreError("invalid_stream", "Movement line exceeds bounded record size");
     }
+    signal?.throwIfAborted();
     if (buffer) yield event(buffer);
     if (!header || !footer) throw new MovementStoreError("invalid_stream", "Movement stream is incomplete");
-  } finally { await reader.cancel(); reader.releaseLock(); }
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    try { await reader.cancel(); } finally { reader.releaseLock(); }
+  }
 }

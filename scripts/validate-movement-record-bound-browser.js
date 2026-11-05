@@ -48,4 +48,46 @@ try {
   });
   assert.equal(result.maxRecordBytes, 8 * 1024 * 1024); assert.equal(result.maxPendingBytes, 16 * 1024 * 1024);
   console.log("PASS native Chromium large chart records and bounded JSONL envelopes", result);
+  const cancellation = await page.evaluate(async () => {
+    const { createMovementChunkStore, iterateMovementFile, MOVEMENT_DB_NAME } = await import("/src/movement-chunk-store.js");
+    const must = (value, message) => { if (!value) throw Error(message); };
+    const text = JSON.stringify({ type: "header", format: "aerobeat-movement-jsonl", version: 1, header: { version: 2 } }) + "\n" + JSON.stringify({ type: "row", table: "ticks", index: 0, row: [Math.PI, 123] }) + "\n";
+    const gzip = await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+    let held, admitted, cancelled = false, cancellationReason;
+    const holding = new Promise(resolve => { held = resolve; });
+    const admission = new Promise(resolve => { admitted = resolve; });
+    const source = new ReadableStream({
+      start(controller) { controller.enqueue(new Uint8Array(gzip)); },
+      pull() { held(); return new Promise(() => {}); }, // Real pending underlying read; no more input ever arrives.
+      cancel(reason) { cancelled = true; cancellationReason = reason; }
+    });
+    const store = createMovementChunkStore(); await store.ready;
+    const controller = new AbortController();
+    const task = (async () => {
+      try {
+        for await (const event of iterateMovementFile(source, { signal: controller.signal })) {
+          if (event.type === "row") { store.append(event.table, event.row); await store.flush(); admitted(); }
+        }
+        throw Error("Import unexpectedly completed");
+      } catch (error) { must(error === controller.signal.reason, "preserve abort reason"); }
+      finally { await store.dispose(); }
+    })();
+    let timeout;
+    try {
+      await Promise.race([Promise.all([holding, admission]), new Promise((_resolve, reject) => { timeout = setTimeout(() => reject(Error("held-read fixture did not admit row")), 3000); })]);
+    } finally { clearTimeout(timeout); }
+    const started = performance.now(); controller.abort();
+    try {
+      await Promise.race([task, new Promise((_resolve, reject) => { timeout = setTimeout(() => reject(Error("abort stranded pending native read/import")), 3000); })]);
+    } finally { clearTimeout(timeout); }
+    must(cancelled && cancellationReason === controller.signal.reason, "abort must cancel underlying stream");
+    const root = await (await navigator.storage.getDirectory()).getDirectoryHandle(MOVEMENT_DB_NAME);
+    let removed = false; try { await root.getDirectoryHandle(store.getStatus().runId); } catch (error) { removed = error.name === "NotFoundError"; }
+    must(removed && store.getStatus().state === "disposed", "cancelled import temporary directory cleanup");
+    const db = await new Promise((resolve, reject) => { const req = indexedDB.open(MOVEMENT_DB_NAME); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
+    const remaining = await new Promise((resolve, reject) => { const req = db.transaction("chunks").objectStore("chunks").count(IDBKeyRange.bound([store.getStatus().runId], [store.getStatus().runId, []])); req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); }); db.close();
+    must(remaining === 0, "cancelled import temporary IDB chunks cleanup");
+    return { heldReadCancelled: cancelled, abortReason: controller.signal.reason.name, disposed: removed, remainingChunks: remaining, elapsedMs: performance.now() - started };
+  });
+  console.log("PASS native Chromium pending-read abort and imported-store disposal", cancellation);
 } finally { await browser.close(); await vite.close(); }
