@@ -23,7 +23,7 @@ import { createLiveCameraSourceDescriptor } from "@aerobeat/web-video";
 import { appMetadata } from "./release-metadata.js";
 import { abCaptureFilename, abCaptureReadiness, buildAbJudgementCapture } from "./ab-judgement-capture.js";
 import { createPlayMovementRecorder } from "./play-movement-recording.js";
-import { maximumPlayMovementCaptureBytes, parsePlayMovementCapture } from "./play-movement-replay.js";
+import { parsePlayMovementFile } from "./play-movement-replay.js";
 import { assertRecordedContentMatches, prepareRecordedTest, createRecordedTestPlayback, recordedTestContentOptions } from "./recorded-test-source.js";
 import {
   defaultEnvironmentAssetId,
@@ -337,6 +337,9 @@ export class AeroGame extends HTMLElement {
     this.boundTestPresentationFile = (event) => { void this.handleTestPresentationFile(event); };
     this.recordedTestPrepared = null;
     this.recordedTestPlayback = null;
+    this.recordedTestLoadAbort = null;
+    this.recordedTestAdvancePending = null;
+    this.abDownloadPending = false;
     this.recordedTestFrame = null;
     this.recordedTestStatus = "";
     this.recordedTestPickerRequest = null;
@@ -386,7 +389,7 @@ export class AeroGame extends HTMLElement {
     this.connectedGeneration += 1;
     this.lifecycle = "connected";
     this.activeAbort = new AbortController(); this.audioSyncPending = false;
-    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.activeGameplayConfiguration=null; this.endPlayMovementRecording("stopped"); this.playMovementRecorder=null; this.playMovementRecordingSessionGeneration=-1; this.playMovementCameraSurface=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
+    this.latestPoseTimestampMs = -1; this.lastFreshPoseAtMs = -Infinity; this.lastInputAdvanceAtMs = -Infinity; this.lastContentSyncAtMs = -Infinity; this.runtimeUiSignature = ""; this.contentPresenterSignature = ""; this.desiredGameSetup=getGameSetupSnapshot(); this.activeSessionSetup=null; this.activeGameplayConfiguration=null; this.endPlayMovementRecording("stopped", true); this.playMovementRecorder=null; this.playMovementRecordingSessionGeneration=-1; this.playMovementCameraSurface=null; this.lastAppliedScaleId=null; this.gameSetupDrafts.clear();
     this.menuOpen = true; this.menuPauseArmed = false; this.menuDisposition = "none"; this.menuTransitionGeneration += 1; this.menuPauseTail = Promise.resolve(); this.terminalServiceTail = Promise.resolve(); this.terminalReconciledSessionGeneration = -1; this.menuStarting = false; this.sessionStartRequested = false; this.sessionGeneration += 1; this.sessionActionGeneration += 1; this.sessionActionIntentOrdinal = 0; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.activeSessionAction = ""; this.audioSyncTail = Promise.resolve(); this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.transportIntentTail = Promise.resolve(); this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.environmentMode = "aero"; this.cameraCompositeMode = null; this.selectedEnvironmentId = defaultEnvironmentAssetId; this.environmentConfigs = new Map(environmentAssetCatalog.map((entry) => [entry.descriptor.id, entry.defaultConfig])); this.environmentControlsCollapsed = false; this.environmentPickerRequest = null; this.environmentStatus = ""; this.environmentLoadState = "idle"; this.resetEnvironmentLoadObservation(); this.environmentConfigInput().value = ""; this.musicPrerequisite = ""; this.pendingLibrarySelection = null; this.menuFocusRestore = null; this.debugCameraControlPointers.clear(); this.debugCameraSpeedMode = "normal"; this.debugCameraUiSignature = ""; this.debugCameraPosePickerRequest = null; this.cameraPoseInput().value = ""; this.testPresentationConfig = defaultTestPresentationConfig; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.testPresentationStatus = ""; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = true; this.testAutomaticFeedbackEnabled = true; this.testEquipmentMouseHand = "right"; this.testEquipmentPointerPosition = null; this.testEquipmentTouchPointerId = null;
     this.equipmentConfigIdentity = null; this.equipmentConfigIdentityGeneration += 1; this.equipmentConfigCommitTail = Promise.resolve(false); this.visualTestInteractionEpoch = 0; this.visualTestInteractionActivationMs = null; this.visualTestEvidenceFrameSequence = 0; this.visualTestEvidenceTimestampMs = -1; this.currentEquipmentPoses = Object.freeze([]); this.lastValidEquipmentPoses = Object.freeze([]);
     this.stopPreview({ render: false });
@@ -512,8 +515,9 @@ export class AeroGame extends HTMLElement {
     this.assertConnected();
     if (purpose !== "play" && purpose !== "visual_test") throw new TypeError("Session purpose is invalid");
     if (this.recordedTestPlayback) { this.recordedTestPlayback.pause(performance.now()); this.stopFrameLoop(); }
+    if (this.recordedTestLoadAbort) { this.recordedTestLoadAbort.abort(); this.recordedTestLoadAbort = null; }
     if (purpose === "play" && this.recordedTestPrepared) await this.clearRecordedTest(false);
-    if (purpose === "visual_test") this.recordedTestPlayback = null;
+    if (purpose === "visual_test") { this.recordedTestPlayback?.dispose(); this.recordedTestPlayback = null; this.recordedTestAdvancePending = null; }
     const graph = this.graph; const connectionGeneration = this.connectedGeneration; const action = purpose === "visual_test" ? "test" : "start"; const actionGeneration = this.sessionActionGeneration; const actionIntentOrdinal = ++this.sessionActionIntentOrdinal;
     this.pendingSessionActionOrdinal = actionIntentOrdinal; this.pendingSessionAction = action; this.menuStarting = true; this.lastError = null; this.musicPrerequisite = ""; this.renderPresenters();
     const intent = this.enqueueLifecycleIntent(`session-${action}`, async (owner) => {
@@ -609,7 +613,7 @@ export class AeroGame extends HTMLElement {
         if (ownershipBailed || checkOwnership()) return this.getSnapshot();
         sessionCommitted = true;
         if (purpose === "play") this.beginPlayMovementRecording(graph);
-        else { this.endPlayMovementRecording("stopped"); this.playMovementRecorder = null; this.playMovementRecordingSessionGeneration = -1; }
+        else { this.endPlayMovementRecording("stopped", true); this.playMovementRecorder = null; this.playMovementRecordingSessionGeneration = -1; }
         this.startFrameLoop(); this.syncContentPlayback();
         this.publish("session_changed");
         return this.getSnapshot();
@@ -2058,7 +2062,7 @@ export class AeroGame extends HTMLElement {
   }
 
   beginPlayMovementRecording(graph) {
-    this.endPlayMovementRecording("stopped");
+    this.endPlayMovementRecording("stopped", true);
     this.playMovementRecorder = null;
     this.playMovementRecordingSessionGeneration = this.sessionGeneration;
     const generation = this.sessionGeneration;
@@ -2092,9 +2096,11 @@ export class AeroGame extends HTMLElement {
     }
   }
 
-  endPlayMovementRecording(state) {
-    this.playMovementRecorder?.finish(state);
+  endPlayMovementRecording(state, dispose = false) {
+    const recorder = this.playMovementRecorder;
+    recorder?.finish(state);
     this.playMovementUnsubscribe?.(); this.playMovementUnsubscribe = null;
+    if (dispose && recorder) { this.playMovementRecorder = null; void recorder.dispose().catch(() => {}); }
     if (!this.playMovementRecorder) this.playMovementRecordingSessionGeneration = -1;
   }
 
@@ -2874,25 +2880,41 @@ export class AeroGame extends HTMLElement {
   async handleRecordedTestFile(event) {
     const element = event.currentTarget, file = element.files?.[0], request = this.recordedTestPickerRequest;
     element.value = ""; this.recordedTestPickerRequest = null;
-    const current = () => request && request.graph === this.graph && request.connection === this.connectedGeneration && request.session === this.sessionGeneration && this.recordedTestCanLoad();
-    if (!event.isTrusted || !file || !current()) return;
+    if (!event.isTrusted || !file || !request || !this.recordedTestCanLoad()) return;
+    this.recordedTestLoadAbort?.abort();
+    const controller = new AbortController(); this.recordedTestLoadAbort = controller;
+    const current = () => !controller.signal.aborted && request.graph === this.graph && request.connection === this.connectedGeneration && request.session === this.sessionGeneration && this.recordedTestCanLoad();
+    let capture = null, adopted = false;
+    this.recordedTestStatus = "Loading recording locally…"; this.renderRecordedTestControls();
     try {
-      if (file.size > maximumPlayMovementCaptureBytes) throw new Error("Recording exceeds the 64 MiB limit.");
-      const capture = parsePlayMovementCapture(await file.text());
+      if (!current()) return;
+      capture = await parsePlayMovementFile(file, { signal: controller.signal });
       if (!current()) return;
       const prepared = await prepareRecordedTest(capture, this.graph.content.getSnapshot());
       if (!current()) return;
-      this.recordedTestPrepared = prepared; this.recordedTestStatus = "";
+      const previous = this.recordedTestPrepared;
+      this.recordedTestPlayback?.dispose(); this.recordedTestPlayback = null;
+      if (previous?.capture !== capture) await previous?.capture.dispose?.();
+      this.recordedTestPrepared = prepared; adopted = true; this.recordedTestStatus = "";
+      this.recordedTestLoadAbort = null;
       await this.startSession("visual_test", { requireDownloaded: false });
     } catch (error) {
-      if (this.graph === request.graph) this.recordedTestStatus = String(error?.message ?? error).slice(0, 220);
+      if (this.graph === request.graph && !controller.signal.aborted) this.recordedTestStatus = String(error?.message ?? error).slice(0, 220);
+    } finally {
+      if (!adopted) await capture?.dispose?.();
+      if (this.recordedTestLoadAbort === controller) this.recordedTestLoadAbort = null;
+      this.renderRecordedTestControls();
     }
-    this.renderRecordedTestControls();
   }
 
   async clearRecordedTest(restart = true) {
-    this.recordedTestPrepared = null; this.recordedTestPlayback = null; this.recordedTestFrame = null; this.recordedTestBoundBinding = null; this.recordedTestPickerRequest = null; this.recordedTestStatus = "";
+    this.recordedTestLoadAbort?.abort(); this.recordedTestLoadAbort = null;
+    const prepared = this.recordedTestPrepared;
+    this.recordedTestPlayback?.dispose();
+    this.recordedTestPrepared = null; this.recordedTestPlayback = null; this.recordedTestAdvancePending = null; this.recordedTestFrame = null; this.recordedTestBoundBinding = null; this.recordedTestPickerRequest = null; this.recordedTestStatus = "";
     this.scoringFrameEquipmentProjector = null; this.activeSessionSetup = null;
+    try { await prepared?.capture.dispose?.(); }
+    catch (error) { this.recordedTestStatus = `Local recording cleanup failed: ${String(error?.message ?? error)}`.slice(0, 220); }
     if (restart && this.recordedTestCanLoad()) await this.startSession("visual_test", { requireDownloaded: false });
     this.renderRecordedTestControls();
   }
@@ -2901,10 +2923,12 @@ export class AeroGame extends HTMLElement {
     const prepared = this.recordedTestPrepared;
     assertRecordedContentMatches(prepared.capture, graph.content.getSnapshot());
     this.recordedTestFrame = null; this.recordedTestBoundBinding = null;
-    this.recordedTestPlayback = createRecordedTestPlayback(prepared, {
+    this.recordedTestPlayback?.dispose();
+    const playback = createRecordedTestPlayback(prepared, {
       gameplay: graph.gameplay, durationSeconds: graph.audio.getStatus().durationSeconds,
       leaseSnapshot: () => this.leaseSnapshotForGameplay(),
       onFrame: frame => {
+        if (this.recordedTestPlayback !== playback || this.graph !== graph) return;
         this.recordedTestFrame = frame;
         this.currentEquipmentPoses = frame.equipmentPoses ?? Object.freeze([]);
         this.scoringFrameEquipmentProjector = createFrameSplineEquipmentProjector(frame.binding.equipment, frame.pivots);
@@ -2914,21 +2938,32 @@ export class AeroGame extends HTMLElement {
         }
       }
     });
-    this.recordedTestPlayback.start(performance.now());
+    this.recordedTestPlayback = playback; this.recordedTestAdvancePending = null;
+    playback.start(performance.now());
   }
 
-  runRecordedTestFrame(graph, now) {
-    const playback = this.recordedTestPlayback;
-    try { assertRecordedContentMatches(this.recordedTestPrepared.capture, graph.content.getSnapshot()); }
-    catch (error) { playback.pause(now); this.stopFrameLoop(); this.recordedTestStatus = String(error.message); this.renderRecordedTestControls(); return; }
-    try { playback.advance(now, 32); } finally { this.scoringFrameEquipmentProjector = null; }
-    this.syncRecordedTestAudio(graph, playback);
-    this.syncContentPlayback(); this.renderGameplay(graph, this.recordedTestFrame?.equipmentPoses ?? Object.freeze([]));
-    this.renderVisualTestTransport(); this.renderRecordedTestControls(); this.renderRuntimePresentation();
-    this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = now;
-    const state = playback.getSnapshot();
-    if (!state.playing && !state.rebuilding) this.stopFrameLoop();
-    if (state.complete && graph.gameplay.getSnapshot().session.state === "completed") void this.reconcileTerminalServices(graph);
+  async runRecordedTestFrame(graph, now) {
+    const playback = this.recordedTestPlayback, generation = this.sessionGeneration;
+    if (this.recordedTestAdvancePending === playback) return;
+    this.recordedTestAdvancePending = playback;
+    const current = () => this.graph === graph && this.recordedTestPlayback === playback && this.sessionGeneration === generation;
+    try {
+      assertRecordedContentMatches(this.recordedTestPrepared.capture, graph.content.getSnapshot());
+      await playback.advance(now, 32);
+      if (!current()) return;
+      this.syncRecordedTestAudio(graph, playback);
+      this.syncContentPlayback(); this.renderGameplay(graph, this.recordedTestFrame?.equipmentPoses ?? Object.freeze([]));
+      this.renderVisualTestTransport(); this.renderRecordedTestControls(); this.renderRuntimePresentation();
+      this.displayFrameCount += 1; this.cadenceLatestFrameAtMs = now;
+      const state = playback.getSnapshot();
+      if (!state.playing && !state.rebuilding) this.stopFrameLoop();
+      if (state.complete && graph.gameplay.getSnapshot().session.state === "completed") void this.reconcileTerminalServices(graph);
+    } catch (error) {
+      if (current()) { playback.pause(now); this.stopFrameLoop(); this.recordedTestStatus = String(error?.message ?? error).slice(0, 220); this.renderRecordedTestControls(); }
+    } finally {
+      if (current()) this.scoringFrameEquipmentProjector = null;
+      if (this.recordedTestAdvancePending === playback) this.recordedTestAdvancePending = null;
+    }
   }
 
   syncRecordedTestAudio(graph, playback) {
@@ -2968,7 +3003,7 @@ export class AeroGame extends HTMLElement {
 
   renderRecordedTestControls() {
     const button = this.shadowRoot?.querySelector("[data-role='recording-load']"), output = this.shadowRoot?.querySelector("[data-role='recording-status']");
-    if (button) { button.disabled = !this.recordedTestCanLoad(); button.textContent = this.recordedTestPrepared ? "Clear Recording" : "Load Recording"; }
+    if (button) { button.disabled = !this.recordedTestCanLoad(); button.textContent = this.recordedTestPrepared || this.recordedTestLoadAbort ? "Clear Recording" : "Load Recording"; }
     if (output) {
       const status = this.recordedTestPlayback?.getSnapshot();
       let comparison = "";
@@ -3502,7 +3537,7 @@ export class AeroGame extends HTMLElement {
     else if (action === "environment-config-load" && event.isTrusted) this.openEnvironmentConfigPicker(event);
     else if (action === "environment-config-save" && event.isTrusted) this.exportEnvironmentConfig(event);
     else if (action === "environment-asset-retry") this.retryEnvironmentAsset();
-    else if (action === "recording-load" && event.isTrusted) { if (this.recordedTestPrepared) void this.clearRecordedTest(); else this.openRecordedTestPicker(event); }
+    else if (action === "recording-load" && event.isTrusted) { if (this.recordedTestPrepared || this.recordedTestLoadAbort) void this.clearRecordedTest(); else this.openRecordedTestPicker(event); }
     else if (action === "test-presentation-reset") this.resetTestPresentation();
     else if (action === "test-presentation-load" && event.isTrusted) this.openTestPresentationPicker(event);
     else if (action === "test-presentation-save" && event.isTrusted) this.exportTestPresentation(event);
@@ -3793,19 +3828,38 @@ export class AeroGame extends HTMLElement {
   drawerElement() { const value = this.shadowRoot?.querySelector("[data-role='drawer']"); return value instanceof HTMLElement ? value : null; }
   /** Keep the A/B download button in step with whether a finished run has judgements.
    * Called every frame, so it only touches the DOM when the displayed state changes. */
-  syncAbDownloadButton(gameplay){const button=this.shadowRoot?.querySelector("[data-role='download-data']");if(!(button instanceof HTMLButtonElement))return;const state=abCaptureReadiness(gameplay);const key=`${state.ready}|${state.count}|${state.reason}`;if(this.abDownloadButtonKey===key)return;this.abDownloadButtonKey=key;const label=state.count>0?`Download Data (${state.count} notes)`:"Download Data";if(button.textContent!==label)button.textContent=label;button.disabled=!state.ready;button.title=state.ready?"Download the judgement record for this run":`No data to download yet: ${state.reason}`;}
+  syncAbDownloadButton(gameplay) {
+    const button = this.shadowRoot?.querySelector("[data-role='download-data']"); if (!(button instanceof HTMLButtonElement)) return;
+    const state = abCaptureReadiness(gameplay), recording = this.playMovementRecorder?.getStatus();
+    const key = `${state.ready}|${state.count}|${state.reason}|${Boolean(this.abDownloadPending)}|${recording?.status}|${recording?.reason}`;
+    if (this.abDownloadButtonKey === key) return; this.abDownloadButtonKey = key;
+    const label = state.count > 0 ? `Download Data (${state.count} notes)` : "Download Data";
+    if (button.textContent !== label) button.textContent = label;
+    button.disabled = !state.ready || Boolean(this.abDownloadPending);
+    button.title = this.abDownloadPending ? "Preparing local recording download" : recording?.status === "capture_error" ? `Movement recording failed (${recording.reason}); judgement report is still available` : state.ready ? "Download the judgement record and local movement for this run" : `No data to download yet: ${state.reason}`;
+  }
   /** Capture the finished run and download it as JSON. Reads snapshots only. */
-  downloadAbJudgementCapture() {
-    const graph = this.graph; if (!graph) return;
-    const gameplay = graph.gameplay.getSnapshot();
-    const movement = gameplay.session.purpose === "play" && this.playMovementRecordingSessionGeneration === this.sessionGeneration ? this.playMovementRecorder?.snapshot() ?? null : null;
-    const capture = buildAbJudgementCapture({ build: { version: appMetadata.packageVersion, buildStamp: appMetadata.buildStamp }, gameplay, content: graph.content.getSnapshot(), colliderSettings: this.activeSessionSetup ?? getGameSetupSnapshot(), movement });
+  async downloadAbJudgementCapture() {
+    const graph = this.graph; if (!graph || this.abDownloadPending) return;
+    const generation = this.sessionGeneration, gameplay = graph.gameplay.getSnapshot();
+    const recorder = gameplay.session.purpose === "play" && this.playMovementRecordingSessionGeneration === generation ? this.playMovementRecorder : null;
+    const capture = buildAbJudgementCapture({ build: { version: appMetadata.packageVersion, buildStamp: appMetadata.buildStamp }, gameplay, content: graph.content.getSnapshot(), colliderSettings: this.activeSessionSetup ?? getGameSetupSnapshot() });
     if (capture.summary.totalJudgements === 0) return;
-    // Compact numeric tables avoid multiplying a long recording's file size.
-    const blob = new Blob([JSON.stringify(capture)], { type: "application/json" });
-    const url = URL.createObjectURL(blob), link = document.createElement("a");
-    link.href = url; link.download = abCaptureFilename(capture, "json"); link.rel = "noopener";
-    this.shadowRoot?.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    this.abDownloadPending = true; this.abDownloadButtonKey = ""; this.syncAbDownloadButton(gameplay);
+    try {
+      let blob, extension = "json";
+      if (recorder) {
+        try { blob = (await recorder.exportFile(capture)).file; extension = "jsonl.gz"; }
+        catch (error) {
+          // Storage failure must not lose the complete judgement report.
+          blob = new Blob([JSON.stringify({ ...capture, movement: null, recordingError: { ...recorder.getStatus(), message: String(error?.message ?? error) } })], { type: "application/json" });
+        }
+      } else blob = new Blob([JSON.stringify(capture)], { type: "application/json" });
+      if (this.graph !== graph || this.sessionGeneration !== generation) return;
+      const url = URL.createObjectURL(blob), link = document.createElement("a");
+      link.href = url; link.download = abCaptureFilename(capture, extension); link.rel = "noopener";
+      this.shadowRoot?.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } finally { this.abDownloadPending = false; this.abDownloadButtonKey = ""; if (this.graph === graph) this.syncAbDownloadButton(graph.gameplay.getSnapshot()); }
   }
   menuButtonElement() { const value = this.shadowRoot?.querySelector("[data-role='menu-button']"); return value instanceof HTMLButtonElement ? value : null; }
 
@@ -3965,14 +4019,14 @@ export class AeroGame extends HTMLElement {
     if (this.lifecycle !== "connected") { this.lifecycle = finalState; return; }
     this.stopPreview({ render: false });
     this.resetTestEquipmentAuthoringState({ render:false });
-    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.endPlayMovementRecording("stopped"); this.playMovementRecorder = null; this.playMovementRecordingSessionGeneration = -1; this.playMovementCameraSurface = null; this.activeGameplayConfiguration = null; this.lifecycle = finalState; this.activeAbort.abort(); this.detachPrivateCameraPresentation(); this.stopFrameLoop();
+    this.connectedGeneration += 1; this.visibilityGeneration += 1; this.sessionActionGeneration += 1; this.sessionGeneration += 1; this.pendingSessionActionOrdinal = 0; this.pendingSessionAction = ""; this.visualTestTransportArmedOrdinal = -1; this.menuStarting = false; this.audioSyncTail = Promise.resolve(); this.audioSyncPending = false; this.lifecycleIntentGeneration += 1; this.lifecycleIntentActiveGeneration = 0; this.lifecycleIntentTail = Promise.resolve(null); this.librarySelectionGeneration += 1; this.pendingLibrarySelection = null; this.resetEnvironmentLoadObservation(); this.renderEventSource = null; this.renderEventIndex = null; this.renderPresentationConfig = null; this.renderSpawnDistanceWorldUnits = null; this.testPresentationConfig = defaultTestPresentationConfig; this.testPresentationStatus = ""; this.invalidateTestPresentationPicker(); this.testPresentationAuthoringEnabled = false; this.equipmentConfig = validateEquipmentConfig(equipmentConfigDefaults); this.equipmentConfigDraft = this.equipmentConfig; this.equipmentConfigStatus = ""; this.kneePadRotationTuning = DEFAULT_KNEE_PAD_ROTATIONS; this.testEquipmentVisible = false; this.desiredTransportSeekMs = null; this.transportSeekQueued = false; this.transportIntentTail = Promise.resolve(); this.endPlayMovementRecording("stopped", true); this.playMovementRecorder = null; this.playMovementRecordingSessionGeneration = -1; this.playMovementCameraSurface = null; this.activeGameplayConfiguration = null; this.lifecycle = finalState; this.activeAbort.abort(); this.detachPrivateCameraPresentation(); this.stopFrameLoop();
     this.resizeObserver?.disconnect(); this.resizeObserver = null;
     document.removeEventListener("visibilitychange", this.boundVisibility); document.removeEventListener("fullscreenchange", this.boundFullscreen); globalThis.removeEventListener("resize", this.boundFullscreen); document.removeEventListener("pointermove", this.boundBottomUiPointer); document.removeEventListener("pointerdown", this.boundBottomUiPointerDown); for(const type of ["pointerup","pointercancel"]) document.removeEventListener(type, this.boundBottomUiPointerRelease); document.removeEventListener("touchend", this.boundBottomUiPointerRelease); document.removeEventListener("touchcancel", this.boundBottomUiPointerRelease);
     this.canvasElement().removeEventListener("webglcontextrestored", this.boundEnvironmentContextRestored);
     this.canvasElement().removeEventListener("pointerdown", this.boundTestEquipmentPointerDown);
     this.canvasElement().removeEventListener("pointermove", this.boundTestEquipmentPointerMove);
     for (const type of ["pointerup", "pointercancel"]) document.removeEventListener(type, this.boundTestEquipmentPointerRelease);
-    this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("input", this.boundInteractionInput); this.shadowRoot?.removeEventListener("change", this.boundInteractionInput); this.shadowRoot?.removeEventListener("focusout", this.boundInteractionBlur); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.fpsCounterElement()?.removeEventListener("click", this.boundFpsCounterClick); this.stopFpsCounter(); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.environmentConfigInput().removeEventListener("change", this.boundEnvironmentConfigFile); this.testPresentationInput().removeEventListener("change", this.boundTestPresentationFile); this.recordedTestInput().removeEventListener("change", this.boundRecordedTestFile); this.recordedTestPrepared = null; this.recordedTestPlayback = null; this.recordedTestFrame = null; this.recordedTestPickerRequest = null; this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = ""; this.testPresentationInput().value = "";
+    this.shadowRoot?.removeEventListener(aeroUiIntentEventName, this.boundUiIntent); this.shadowRoot?.removeEventListener("click", this.boundInteractionClick); this.shadowRoot?.removeEventListener("input", this.boundInteractionInput); this.shadowRoot?.removeEventListener("change", this.boundInteractionInput); this.shadowRoot?.removeEventListener("focusout", this.boundInteractionBlur); this.shadowRoot?.removeEventListener("keydown", this.boundInteractionKeydown); this.shadowRoot?.removeEventListener("pointerdown", this.boundDebugCameraPointerDown); for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) this.shadowRoot?.removeEventListener(type, this.boundDebugCameraPointerRelease); this.shadowRoot?.removeEventListener("pointerleave", this.boundDebugCameraPointerRelease, true); this.fpsCounterElement()?.removeEventListener("click", this.boundFpsCounterClick); this.stopFpsCounter(); this.localZipInput().removeEventListener("change", this.boundLocalZip); this.cameraPoseInput().removeEventListener("change", this.boundCameraPoseFile); this.environmentConfigInput().removeEventListener("change", this.boundEnvironmentConfigFile); this.testPresentationInput().removeEventListener("change", this.boundTestPresentationFile); this.recordedTestInput().removeEventListener("change", this.boundRecordedTestFile); void this.clearRecordedTest(false); this.recordedTestPrepared = null; this.recordedTestPlayback = null; this.recordedTestFrame = null; this.recordedTestPickerRequest = null; this.debugCameraPosePickerRequest = null; this.environmentPickerRequest = null; this.cameraPoseInput().value = ""; this.environmentConfigInput().value = ""; this.testPresentationInput().value = "";
     this.releaseDebugCameraControls();
     for (const stop of this.unsubscribe.splice(0)) { try { stop(); } catch { /* isolated */ } }
     if (finalState === "destroyed") this.emitGameEvent("destroyed", { instanceId: this.instanceId });
@@ -4261,7 +4315,7 @@ function template() { return `<style>
    canvas. --aero-ui-scale is set on :host by the assembly (persisted). */
 .hud,.drawer,.menu-button,.status,.transient-cue,.debug-camera-controls,.backdrop,.hud-presenter{zoom:var(--aero-ui-scale,1)}
 .flow-hud.play-calibration-hidden{display:none!important}.play-calibration-checklist{font-family:system-ui,sans-serif;position:absolute;z-index:24;left:50%;top:calc(18% + clamp(78px,10vw,90px) + 12px);transform:translateX(-50%);width:min(92vw,420px);max-height:calc(100% - 18% - clamp(78px,10vw,90px) - 27px);overflow:auto;overscroll-behavior:contain;pointer-events:none;border:1px solid #ffffff57;border-radius:12px;background:#03131fee;box-shadow:0 16px 48px #0008;padding:12px 14px 13px;color:#eaf9ff}.play-calibration-checklist header{padding-bottom:8px;margin-bottom:8px;border-bottom:1px solid #ffffff38}.checklist-eyebrow{font:800 10px/1.3 system-ui;text-transform:uppercase;letter-spacing:.12em;color:#87e2f0}.play-calibration-checklist h2{font:800 17px/1.15 system-ui;margin:3px 0}.play-calibration-checklist p{font:600 11px/1.35 system-ui;color:#bbd8df;margin:2px 0 0}.checklist-rows{list-style:none;padding:0;margin:0;display:grid;gap:3px}.checklist-row{display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:24px;font:650 12px/1.2 system-ui}.checklist-icon{width:16px;height:16px;border:1.5px solid #86dbd1;border-radius:4px;display:grid;place-items:center;color:#081d27;background:#82ddc2;font:900 12px/1 system-ui}.checklist-value{color:#9af0d0;font:800 11px/1 system-ui}.checklist-row[data-state=missing] .checklist-icon{background:#432724;border-color:#ffb390;color:#ffcaac}.checklist-row[data-state=missing] .checklist-value{color:#ffbf9e}.checklist-row[data-state=waiting] .checklist-icon{background:#1b3541;border-color:#87b0bf;color:#a4d8e5}.checklist-row[data-state=waiting] .checklist-value{color:#b4d0dd}.checklist-row[data-state=holding] .checklist-icon{background:#31512d;border-color:#c7ed78;color:#eaffbb}.checklist-row[data-state=holding] .checklist-value{color:#dbf39a}.checklist-row[data-state=done] .checklist-icon{background:#b9f4c3;color:#082b25}.checklist-row[data-state=done] .checklist-value{color:#d5ffda}.checklist-divider{border-top:1px solid #ffffff38;margin:7px 0}.checklist-progress{height:4px;border-radius:4px;background:#375160;margin:7px 0 0;overflow:hidden}.checklist-progress>span{display:block;height:100%;background:#d7f88f;width:var(--progress,0%)}.checklist-foot{display:flex;justify-content:space-between;gap:8px;margin-top:6px;color:#c4dfe3;font:700 10px/1.3 system-ui}.hud:has(.play-calibration-checklist:not([hidden])) .transient-cue::before{content:'PLAY CALIBRATION';display:block;font:700 11px/1.25 system-ui;letter-spacing:.08em;color:#a2d8e5;text-shadow:none;margin:0 0 5px}@media(max-height:480px){.hud:has(.play-calibration-checklist:not([hidden])) .transient-cue{top:9%;left:25%;right:auto;margin:0;transform:translateX(-50%);font-size:clamp(22px,4vw,30px)}.play-calibration-checklist{top:calc(9% + 56px);left:auto;right:10px;transform:none;width:min(57vw,440px);max-height:calc(91% - 56px - 8px);padding:3px 11px 6px}.play-calibration-checklist header{padding-bottom:3px;margin-bottom:3px}.checklist-row{min-height:16px;gap:6px}.checklist-rows{gap:0}.checklist-divider{margin:3px 0}.checklist-progress{margin-top:3px}.checklist-foot{margin-top:2px}.play-calibration-checklist h2{font-size:14px}.play-calibration-checklist p{font-size:10px}}\n</style><div class="game"><aero-background-environment class="environment"></aero-background-environment><video data-role="media" class="media"></video><audio data-role="preview" preload="none" hidden></audio><canvas data-role="renderer" class="renderer" style="touch-action:none"></canvas><div class="hud"><aero-calibration-badge class="hud-presenter" aria-hidden="true"></aero-calibration-badge><aero-tracking-pause class="hud-presenter" aria-hidden="true"></aero-tracking-pause><aero-resume-countdown class="hud-presenter" aria-hidden="true"></aero-resume-countdown><aero-flow-hud class="hud-presenter flow-hud" aria-hidden="true"></aero-flow-hud><div data-role="transient-cue" class="transient-cue" role="status" aria-live="polite" hidden></div>${playCalibrationChecklistTemplate()}<div data-role="fps-counter" class="fps-counter" aria-label="Frames per second counter; click to hide">-- fps</div></div><aero-visual-test-transport data-role="visual-test-transport"></aero-visual-test-transport><aside data-role="debug-camera-controls" class="debug-camera-controls" role="group" aria-label="Visual Test authoring controls" aria-describedby="debug-camera-state environment-config-status test-presentation-status equipment-config-status" aria-hidden="true" hidden><button class="debug-controls-collapse" data-action="debug-controls-collapse" type="button" aria-controls="visual-test-authoring-body" aria-expanded="true" aria-label="Collapse Visual Test controls">⌄</button><div id="visual-test-authoring-body" data-role="visual-test-authoring-body" class="visual-test-authoring-body"><div class="debug-camera-grid" role="group" aria-label="Camera movement"><button data-action="debug-camera-move" data-debug-camera-intent="forward" type="button" aria-label="Move camera forward" aria-keyshortcuts="W" aria-pressed="false"><span aria-hidden="true">F</span></button><button data-action="debug-camera-move" data-debug-camera-intent="back" type="button" aria-label="Move camera back" aria-keyshortcuts="S" aria-pressed="false"><span aria-hidden="true">B</span></button><button data-action="debug-camera-move" data-debug-camera-intent="up" type="button" aria-label="Move camera up" aria-keyshortcuts="E" aria-pressed="false"><span aria-hidden="true">U</span></button><button data-action="debug-camera-speed" type="button" aria-label="Camera movement speed Normal. Activate Boost." aria-pressed="false"><span data-role="debug-camera-speed-symbol" aria-hidden="true">N</span></button><button data-action="debug-camera-move" data-debug-camera-intent="left" type="button" aria-label="Move camera left" aria-keyshortcuts="A" aria-pressed="false"><span aria-hidden="true">L</span></button><button data-action="debug-camera-move" data-debug-camera-intent="right" type="button" aria-label="Move camera right" aria-keyshortcuts="D" aria-pressed="false"><span aria-hidden="true">R</span></button><button data-action="debug-camera-move" data-debug-camera-intent="down" type="button" aria-label="Move camera down" aria-keyshortcuts="Q" aria-pressed="false"><span aria-hidden="true">D</span></button></div><div class="debug-camera-actions" role="group" aria-label="Camera pose actions"><button data-action="debug-camera-reset" type="button" aria-label="Reset camera"><span aria-hidden="true">↺ Reset</span></button><button data-action="debug-camera-load" type="button" aria-label="Load camera pose"><span aria-hidden="true">Load</span></button><button data-action="debug-camera-export" type="button" aria-label="Export camera pose"><span aria-hidden="true">Export</span></button></div><output id="debug-camera-state" data-role="debug-camera-state" aria-live="polite" aria-label="Camera look not captured; movement speed Normal; 0 active movement intents.">○ · Normal</output><output data-role="debug-camera-pose-status" aria-live="polite"></output><section class="environment-authoring" aria-label="Environment alignment"><label for="environment-asset-select">Environment</label><select id="environment-asset-select" data-action="environment-asset-select">${environmentAssetOptions()}</select><output data-role="environment-background-mode">Background: Aero</output><div class="environment-fields"><label for="environment-position-x">Position X</label><input id="environment-position-x" data-environment-field="position-x" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-x-value"><span id="environment-position-x-value" class="environment-value"><output for="environment-position-x" data-environment-output="position-x"></output></span><label for="environment-position-y">Position Y</label><input id="environment-position-y" data-environment-field="position-y" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-y-value"><span id="environment-position-y-value" class="environment-value"><output for="environment-position-y" data-environment-output="position-y"></output></span><label for="environment-position-z">Position Z</label><input id="environment-position-z" data-environment-field="position-z" type="number" min="-30" max="30" step="any" aria-describedby="environment-position-z-value"><span id="environment-position-z-value" class="environment-value"><output for="environment-position-z" data-environment-output="position-z"></output></span><label for="environment-pitch">Pitch</label><input id="environment-pitch" data-environment-field="pitch" type="range" min="-180" max="180" step="any" aria-describedby="environment-pitch-value"><span id="environment-pitch-value" class="environment-value"><output for="environment-pitch" data-environment-output="pitch"></output><span aria-label=" degrees">°</span></span><label for="environment-yaw">Yaw</label><input id="environment-yaw" data-environment-field="yaw" type="range" min="-180" max="180" step="any" aria-describedby="environment-yaw-value"><span id="environment-yaw-value" class="environment-value"><output for="environment-yaw" data-environment-output="yaw"></output><span aria-label=" degrees">°</span></span><label for="environment-roll">Roll</label><input id="environment-roll" data-environment-field="roll" type="range" min="-180" max="180" step="any" aria-describedby="environment-roll-value"><span id="environment-roll-value" class="environment-value"><output for="environment-roll" data-environment-output="roll"></output><span aria-label=" degrees">°</span></span><label for="environment-scale">Sphere radius scale</label><input id="environment-scale" data-environment-field="scale" type="range" min="0.25" max="4" step="any" aria-describedby="environment-scale-value"><span id="environment-scale-value" class="environment-value"><output for="environment-scale" data-environment-output="scale"></output></span></div><div class="environment-actions"><button data-action="environment-config-load" type="button">Load config</button><button data-action="environment-config-save" type="button">Save config</button><button data-action="environment-asset-retry" type="button">Retry</button></div><output data-role="environment-config-status" id="environment-config-status" role="status" aria-live="polite"></output></section><fieldset class="test-presentation-authoring"><legend>Beats</legend><p id="test-presentation-help">Presentation-only. Values apply on the next frame.</p><label for="test-presentation-lead">Lead (beats)</label><input id="test-presentation-lead" data-test-presentation-field="bounceLeadBeats" type="number" min="0.25" max="8" step="any" value="4" aria-describedby="test-presentation-lead-help"><small id="test-presentation-lead-help">0.25 to 8 beats</small><label for="test-presentation-height">Height (world units)</label><input id="test-presentation-height" data-test-presentation-field="bounceHeightWorldUnits" type="number" min="0" max="1.5" step="any" value="0.9" aria-describedby="test-presentation-height-help"><small id="test-presentation-height-help">0 to 1.5 world units</small><label for="test-presentation-apex">Apex (%)</label><input id="test-presentation-apex" data-test-presentation-field="bounceApexPercent" type="number" min="15" max="85" step="any" value="40" aria-describedby="test-presentation-apex-help"><small id="test-presentation-apex-help">15% to 85%</small><label for="test-presentation-rise">Rise easing</label><select id="test-presentation-rise" data-test-presentation-field="bounceRiseEasing"><option>linear</option><option>in_quad</option><option selected>out_quad</option><option>in_out_sine</option></select><label for="test-presentation-fall">Fall easing</label><select id="test-presentation-fall" data-test-presentation-field="bounceFallEasing"><option>linear</option><option selected>in_quad</option><option>out_quad</option><option>in_out_sine</option></select><label>Normal spawn distance <input data-test-presentation-field="normalSpawnDistanceWorldUnits" type="number" min="3" max="72" step="any"></label><label>Sky mode <select data-test-presentation-field="skyMode"><option value="off">Off</option><option value="prelude">Prelude</option></select></label><label>Sky prelude height <input data-test-presentation-field="skyPreludeHeightWorldUnits" type="number" min="0" max="50" step="any"></label><label>Sky prelude duration ms <input data-test-presentation-field="skyPreludeDurationMs" type="number" min="100" max="10000" step="any"></label><label>Sky prelude easing <select data-test-presentation-field="skyPreludeEasing"><option value="linear">Linear</option><option value="in_quad">In quad</option><option value="out_quad">Out quad</option><option value="in_out_sine">In/out sine</option></select></label><label>Boxing lane separation <input data-test-presentation-field="boxingLaneSeparationWorldUnits" type="number" min="1.7" max="4" step="any"></label><div class="environment-actions"><button data-action="test-presentation-reset" data-test-presentation-action type="button">Reset beats</button><button data-action="test-presentation-load" data-test-presentation-action type="button">Load beats JSON</button><button data-action="test-presentation-save" data-test-presentation-action type="button">Save beats JSON</button></div><output data-role="test-presentation-status" id="test-presentation-status" role="status" aria-live="polite"></output></fieldset><fieldset class="equipment-authoring"><legend>Equipment config</legend><p id="equipment-config-help">Tune private Test equipment live. Export deterministic YAML to bake finalized defaults.</p><label class="equipment-preview-toggle"><input type="checkbox" data-equipment-preview-toggle="true" disabled>Show hand equipment in Test</label><label class="equipment-preview-toggle"><input type="checkbox" data-test-automatic-feedback-toggle="true" checked disabled>Automatic GREAT/MISS feedback</label><label>Simulated webcam FPS (0 = native)<input type="number" min="0" max="60" step="any" value="0"
- data-test-webcam-fps="true" aria-label="Simulated webcam FPS" disabled></label><fieldset class="equipment-mouse-hand"><legend>Mouse or touch-controlled hand</legend><div><label><input type="radio" name="equipment-mouse-hand" value="off" data-equipment-mouse-hand="off" checked disabled>Off</label><label><input type="radio" name="equipment-mouse-hand" value="left" data-equipment-mouse-hand="left" disabled>Left</label><label><input type="radio" name="equipment-mouse-hand" value="right" data-equipment-mouse-hand="right" disabled>Right</label></div></fieldset><div class="equipment-actions"><button data-role="recording-load" data-action="recording-load" type="button" disabled>Load Recording</button><input data-role="recording-file" type="file" accept="application/json,.json" hidden></div><output data-role="recording-status" role="status" aria-live="polite"></output>${equipmentControlMarkup()}<div class="equipment-actions"><button data-action="equipment-config-reset" data-equipment-config-action disabled type="button">Reset</button><button data-action="equipment-config-export" data-equipment-config-action disabled type="button">Export YAML</button></div><output data-role="equipment-config-status" id="equipment-config-status" role="status" aria-live="polite"></output></fieldset></div></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><div class="drawer-version-row"><p class="drawer-version" data-role="app-version"></p><button data-role="download-data" data-action="download-data" class="drawer-version-action" type="button" disabled aria-label="Download the judgement record for the finished run">Download Data</button></div><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="display" aria-labelledby="drawer-display-heading"><h2 id="drawer-display-heading">Display</h2><div class="game-setup-select-row"><label for="ui-scale-select">UI scale (menus &amp; HUD only)</label><select id="ui-scale-select" data-action="ui-scale-select" aria-label="UI scale preset"></select></div><div class="game-setup-select-row"><label for="render-quality-select">Gameplay render quality</label><select id="render-quality-select" data-action="render-quality-select" data-game-setup-field="renderScale" aria-label="Gameplay render quality"><option value="1">Full (1.0)</option><option value="0.75">High (0.75)</option><option value="0.5">Medium (0.5)</option><option value="0.25">Low (0.25)</option></select></div></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p></section></div></div></section></div>`; }
+ data-test-webcam-fps="true" aria-label="Simulated webcam FPS" disabled></label><fieldset class="equipment-mouse-hand"><legend>Mouse or touch-controlled hand</legend><div><label><input type="radio" name="equipment-mouse-hand" value="off" data-equipment-mouse-hand="off" checked disabled>Off</label><label><input type="radio" name="equipment-mouse-hand" value="left" data-equipment-mouse-hand="left" disabled>Left</label><label><input type="radio" name="equipment-mouse-hand" value="right" data-equipment-mouse-hand="right" disabled>Right</label></div></fieldset><div class="equipment-actions"><button data-role="recording-load" data-action="recording-load" type="button" disabled>Load Recording</button><input data-role="recording-file" type="file" accept="application/json,application/gzip,.json,.jsonl.gz,.gz" hidden></div><output data-role="recording-status" role="status" aria-live="polite"></output>${equipmentControlMarkup()}<div class="equipment-actions"><button data-action="equipment-config-reset" data-equipment-config-action disabled type="button">Reset</button><button data-action="equipment-config-export" data-equipment-config-action disabled type="button">Export YAML</button></div><output data-role="equipment-config-status" id="equipment-config-status" role="status" aria-live="polite"></output></fieldset></div></aside><span data-role="status" class="status" aria-live="polite">Connecting…</span><button data-role="menu-button" data-action="menu-toggle" data-menu-state="closed" class="menu-button" type="button" aria-label="Open configuration menu" aria-controls="aero-game-drawer" aria-expanded="false"><span class="menu-icon" aria-hidden="true"><span class="menu-icon-line"></span></span></button><button data-role="menu-backdrop" data-action="menu-backdrop" class="backdrop" type="button" aria-label="Close configuration menu" hidden></button><section id="aero-game-drawer" data-role="drawer" class="drawer" role="dialog" aria-modal="true" aria-label="Game configuration" tabindex="-1" hidden><div data-role="drawer-surface" class="drawer-surface"><div class="drawer-version-row"><p class="drawer-version" data-role="app-version"></p><button data-role="download-data" data-action="download-data" class="drawer-version-action" type="button" disabled aria-label="Download the judgement record for the finished run">Download Data</button></div><aero-session-actions class="start-action"></aero-session-actions><div class="drawer-content"><section class="drawer-section" data-section="gameplay" aria-labelledby="drawer-gameplay-heading"><h2 id="drawer-gameplay-heading">Gameplay</h2><aero-prototype-selector compact scope="gameplay"></aero-prototype-selector></section><section class="drawer-section" data-section="visuals" aria-labelledby="drawer-visuals-heading"><h2 id="drawer-visuals-heading">Visuals</h2><fieldset class="environment-choice"><legend>Environment</legend><div class="environment-options" role="radiogroup" aria-label="Environment"><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="aero" checked> <span>Aero</span></label><label class="environment-option"><input data-action="environment-select" type="radio" name="environment" value="camera"> <span>Camera</span></label></div></fieldset></section><section class="drawer-section" data-section="display" aria-labelledby="drawer-display-heading"><h2 id="drawer-display-heading">Display</h2><div class="game-setup-select-row"><label for="ui-scale-select">UI scale (menus &amp; HUD only)</label><select id="ui-scale-select" data-action="ui-scale-select" aria-label="UI scale preset"></select></div><div class="game-setup-select-row"><label for="render-quality-select">Gameplay render quality</label><select id="render-quality-select" data-action="render-quality-select" data-game-setup-field="renderScale" aria-label="Gameplay render quality"><option value="1">Full (1.0)</option><option value="0.75">High (0.75)</option><option value="0.5">Medium (0.5)</option><option value="0.25">Low (0.25)</option></select></div></section><section class="drawer-section" data-section="music" aria-labelledby="drawer-music-heading" tabindex="-1"><h2 id="drawer-music-heading">Music</h2><p data-role="music-prerequisite" class="drawer-action" role="alert" hidden></p><aero-beatsaver-browser compact></aero-beatsaver-browser><aero-content-import-progress compact></aero-content-import-progress><aero-content-library compact></aero-content-library></section><section class="drawer-section" data-section="info" aria-labelledby="drawer-info-heading"><h2 id="drawer-info-heading">Info</h2><p data-role="info-action" class="drawer-action" role="alert" hidden></p></section></div></div></section></div>`; }
 
 /** @param {AeroGame} host @param {string} selector @param {unknown} snapshot */
 function setPresenter(host, selector, snapshot) { const element = host.shadowRoot?.querySelector(selector); if (element && typeof element.setSnapshot === "function") element.setSnapshot(snapshot && typeof snapshot === "object" ? snapshot : {}); }

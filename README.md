@@ -2,7 +2,22 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Public 0.0.156 — recording starts at ready countdown
+## 0.0.157 disk-backed recording candidate — not live yet
+
+Derrick approved temporary browser-local storage for numeric movement recordings.
+New captures use bounded compressed disk chunks instead of retaining the whole
+song in RAM. Download Data exports a portable `.jsonl.gz` file; Test loads it
+incrementally and uses bounded row caches. Complete older JSON files remain
+readable. No video, images or audio are recorded or uploaded.
+
+Temporary run/import data is removed on replacement, Clear or disconnect. Orphan
+cleanup on the next load preserves other active tabs. Browser quota, unavailable
+storage or write-backpressure failures are explicit; the judgement report remains
+available. There is no total song-byte/tick cutoff on the new path, but storage
+is not infinite. Existing ready-countdown capture and scoring are unchanged.
+Source/storage checks pass; signed whole-workflow acceptance is next.
+
+## Previous public 0.0.156 — recording starts at ready countdown
 
 Initial calibration waiting no longer allocates or consumes the movement
 recording budget. Capture starts at the first ready countdown with the current
@@ -18,9 +33,9 @@ Live HTTPS is verified0.0.156, sourcea16c43b, stamp
 `.tmp/cpu-r156-verified-a16c43b`. Authentic149 is unchanged. Extremely long or
 high-rate runs can still reach the unchanged explicit limit; recording is not
 unlimited. A new human full-song capture is not yet supplied.
-Optional local capacity check: set `AEROBEAT_RECORDING_CAPACITY_FILE` to a local
-capture and run `node scripts/validate-full-song-recording-capacity.js`. It uses
-a clearly synthetic repeated continuation for storage, not recovered movement.
+That historical memory-only capacity harness is superseded by
+`npm run test:disk-recording`, which exercises actual browser disk storage beyond
+the old limits and the signed native download/replay workflow.
 
 ## Previous public 0.0.155 — reported playtest fixes
 

@@ -1,7 +1,20 @@
 // @ts-check
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPlayMovementRecorder, recordedEquipmentPair } from "../src/play-movement-recording.js";
+import { createPlayMovementRecorder as createDiskRecorder, recordedEquipmentPair } from "../src/play-movement-recording.js";
+import { createUnitMovementStore } from "./movement-store-unit-fixture.js";
+// Small in-memory stores are unit fixtures only; production has one disk path.
+const fixtures = new WeakMap();
+function createPlayMovementRecorder(options = {}) {
+  const fixture = createUnitMovementStore();
+  const recorder = createDiskRecorder({ ...options, store: options.store ?? fixture.store });
+  fixtures.set(recorder, fixture);
+  return recorder;
+}
+function inspect(recorder) {
+  const freeze = value => { if (value && typeof value === "object") { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
+  return freeze({ ...recorder.snapshot(), ...structuredClone(Object.fromEntries(Object.entries(fixtures.get(recorder).rows).filter(([key]) => !["metadata", "states"].includes(key)))) });
+}
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { buildAbJudgementCapture } from "../src/ab-judgement-capture.js";
@@ -12,17 +25,18 @@ function frame() {
   return { timestampMs: 100, clock: { contextTimeSeconds: .1, positionSeconds: 6, playing: true }, renderTimelineMs: 6000, sessionState: "playing", input: { sourceIdentity: "camera", calibration: { calibrationId: "cal", state: "calibrated" }, anchors: [{ anchor: "nose", x: .25, y: .2 }], latestEvidence: { measuredSourceFrameId: "measured-1", measurementTimestampMs: 99, provenance: "measured" } }, rawPose: { sourceId: "camera", timestampMs: 99, mirrored: true, landmarks: [{ name: "nose", x: .7, y: .2, confidence: .98, visibility: .9 }] }, equipmentPoses: poses(), modelKey: ["cal"], configurationKey: ["configuration"], getCalibrationModel: () => ({ schema: "aerobeat/calibration_model", bounds: { left: .1, right: .9, top: .1, bottom: .8 }, normalizedNoseBaseline: { x: .5, y: .2 } }), getConfiguration: () => ({ setup: { timingWindowMs: 180 }, equipmentIdentity: identity }) };
 }
 
-test("captures consumed input before scoring and records only actual advances", () => {
+test("captures consumed input before scoring and records only actual advances", async () => {
   const recorder = createPlayMovementRecorder({ metadata: { purpose: "play" } }), f = frame();
   let models = 0, configurations = 0;
   f.getCalibrationModel = () => { models++; return { calibrationId: "cal", normalizedNoseBaseline: { x: .5, y: .2 } }; };
   f.getConfiguration = () => { configurations++; return { value: 1 }; };
   assert.equal(recorder.observe(f), true);
-  assert.equal(recorder.snapshot().ticks.length, 0, "audio transitions need not advance gameplay");
+  assert.equal(inspect(recorder).ticks.length, 0, "audio transitions need not advance gameplay");
   assert.equal(recorder.record(f), true);
   assert.equal(recorder.record({ ...f, rawPose: null, timestampMs: 110, equipmentPoses: poses(), resultState: "completed" }), true);
   recorder.finish("stopped"); // Later teardown must not rewrite a completed capture.
-  const data = recorder.snapshot();
+  await recorder.flush();
+  const data = inspect(recorder);
   assert.equal(data.finalSessionState, "completed");
   assert.equal(data.complete, true); assert.equal(data.ticks.length, 2);
   assert.equal(data.rawPoses.length, 1); assert.equal(data.inputs.length, 1);
@@ -38,7 +52,7 @@ test("records calibration/config changes, frozen observations and both equipment
   const b = { ...a, timestampMs: 200, rawPose: null, modelKey: ["cal-2"], configurationKey: ["new"], input: { ...a.input, calibration: { calibrationId: "cal-2" }, latestEvidence: { ...a.input.latestEvidence, provenance: "frozen", frozenTickId: 1 } }, equipmentPoses: poses() };
   b.equipmentPoses[1].orientation.z = .6; b.equipmentPoses[1].orientation.w = .8;
   recorder.record(b);
-  const data = recorder.snapshot();
+  const data = inspect(recorder);
   assert.equal(data.models.length, 2); assert.equal(data.configurations.length, 2); assert.equal(data.inputs.length, 2);
   assert.equal(data.rawPoses.length, 1); assert.equal(data.equipment.length, 2);
   assert.equal(data.inputs[1].latestEvidence.provenance, "frozen");
@@ -48,7 +62,7 @@ test("records calibration/config changes, frozen observations and both equipment
 
 test("copies numeric data immediately and exposes immutable stable snapshots", () => {
   const recorder = createPlayMovementRecorder(), f = frame(); recorder.record(f);
-  const before = recorder.snapshot();
+  const before = inspect(recorder);
   f.input.anchors[0].x = 999; f.rawPose.landmarks[0].x = 999; f.equipmentPoses[0].anchor.x = 999;
   assert.equal(before.inputs[0].anchors[0].x, .25); assert.equal(before.rawPoses[0].landmarks[0].x, .7);
   assert.equal(recordedEquipmentPair(before, 0)[0].anchor.x, .5);
@@ -58,14 +72,20 @@ test("copies numeric data immediately and exposes immutable stable snapshots", (
   assert.equal(before.ticks.length, 1, "later capture cannot mutate a downloaded view");
 });
 
-test("tick/byte limits stop observation explicitly without dropping earlier data", () => {
-  const recorder = createPlayMovementRecorder({ maxTicks: 2 }), f = frame();
-  assert.equal(recorder.record(f), true); assert.equal(recorder.record({ ...f, timestampMs: 110 }), true);
-  assert.doesNotThrow(() => recorder.record({ ...f, timestampMs: 120 })); recorder.finish("completed");
-  const data = recorder.snapshot(); assert.equal(data.status, "truncated"); assert.equal(data.reason, "recording_limit");
-  assert.equal(data.complete, false); assert.equal(data.finalSessionState, "completed"); assert.equal(data.ticks.length, 2);
-  const small = createPlayMovementRecorder({ maxBytes: 2100, metadata: { large: "x".repeat(1000) } });
-  assert.equal(small.snapshot().status, "truncated"); assert(small.getStatus().estimatedBytes <= 2100);
+test("storage failures are explicit and completion waits for durable flush", async () => {
+  const failed = createUnitMovementStore({ failFlush: true });
+  const recorder = createPlayMovementRecorder({ store: failed.store }), f = frame();
+  assert.equal(recorder.record({ ...f, resultState: "completed" }), true);
+  assert.equal(recorder.getStatus().complete, false, "pending writes cannot claim a complete recording");
+  await recorder.flush();
+  assert.equal(recorder.getStatus().status, "capture_error");
+  assert.equal(recorder.getStatus().reason, "unit_flush_failure");
+  assert.equal(recorder.getStatus().complete, false);
+  const overflow = createUnitMovementStore({ failAfter: 2 });
+  const bounded = createPlayMovementRecorder({ store: overflow.store });
+  assert.doesNotThrow(() => bounded.record(f));
+  assert.equal(bounded.getStatus().status, "capture_error", "backpressure does not escape into gameplay");
+  assert.equal(bounded.getStatus().reason, "unit_append_failure");
 });
 
 test("capture failures are explicit and never escape into gameplay", () => {
@@ -144,14 +164,14 @@ function lifecycleFixture(initialState = "calibrating") {
   };
 }
 
-test("initial calibration waiting allocates no run budget; first countdown snapshots exact current data", () => {
+test("initial calibration waiting allocates no run budget; first countdown snapshots exact current data", async () => {
   const f = lifecycleFixture(); f.owner.beginPlayMovementRecording(f.graph);
   for (let i = 0; i < 41902; i++) { f.sample(); f.display(); }
   assert.equal(f.advances.length, 41902, "waiting still advances gameplay normally");
   assert.equal(f.owner.playMovementRecorder, null, "no metadata, input, raw pose or tick allocation during initial waiting");
   assert.equal(f.modelReads, 0);
   f.sample(true); f.display();
-  const data = f.owner.playMovementRecorder.snapshot();
+  const data = inspect(f.owner.playMovementRecorder);
   assert.equal(f.graph.gameplay.getSnapshot().session.state, "countdown");
   assert.equal(data.ticks.length, 0, "requestStart is not an advance; earlier calibrating advance is outside capture");
   assert.deepEqual(data.inputs, [f.input]);
@@ -169,7 +189,7 @@ test("initial calibration waiting allocates no run budget; first countdown snaps
     f.emit(); // Input observed even when media alignment skips a gameplay advance.
     f.display();
   }
-  const after = f.owner.playMovementRecorder.snapshot();
+  const after = inspect(f.owner.playMovementRecorder);
   const retained = f.advances.slice(boundaryAdvanceCount);
   assert.equal(after.ticks.length, retained.length);
   assert.deepEqual(after.ticks.map(row => row[0]), retained.map(value => value.timestampMs));
@@ -177,19 +197,21 @@ test("initial calibration waiting allocates no run budget; first countdown snaps
   assert.equal(after.inputs.length, 8); assert.equal(after.rawPoses.length, 8);
   assert(after.models.some(value => value.calibrationId === null), "later recalibration is retained, not filtered");
   f.setState("completed"); f.display();
-  assert.equal(f.owner.playMovementRecorder.snapshot().complete, true);
+  await f.owner.playMovementRecorder.flush();
+  assert.equal(inspect(f.owner.playMovementRecorder).complete, true);
   assert.equal(f.listeners.size, 0);
 });
 
-test("ready start, stop, reset and restart preserve generation-scoped recording ownership", () => {
+test("ready start, stop, reset and restart preserve generation-scoped recording ownership", async () => {
   const f = lifecycleFixture("countdown"); f.sample(true);
   f.owner.beginPlayMovementRecording(f.graph);
   const first = f.owner.playMovementRecorder;
-  assert.equal(first.snapshot().inputs.length, 1, "already-ready Play captures immediately without waiting for another pose");
-  f.display(); assert.equal(first.snapshot().ticks.length, 1);
+  assert.equal(inspect(first).inputs.length, 1, "already-ready Play captures immediately without waiting for another pose");
+  f.display(); assert.equal(inspect(first).ticks.length, 1);
   f.owner.endPlayMovementRecording("stopped");
   f.sample(true); f.emit(); f.display();
-  assert.equal(first.snapshot().status, "stopped"); assert.equal(first.snapshot().ticks.length, 1);
+  await first.flush();
+  assert.equal(inspect(first).status, "stopped"); assert.equal(inspect(first).ticks.length, 1);
   f.owner.sessionGeneration++; f.setState("calibrating");
   f.owner.beginPlayMovementRecording(f.graph);
   assert.equal(f.owner.playMovementRecorder, null); assert.equal(f.listeners.size, 1);
@@ -198,10 +220,10 @@ test("ready start, stop, reset and restart preserve generation-scoped recording 
   assert.equal(f.owner.playMovementRecorder, null, "stopping an armed wait must disarm lazy capture");
   f.owner.beginPlayMovementRecording(f.graph);
   const restarted = f.owner.playMovementRecorder;
-  assert.notEqual(restarted, first); assert.equal(restarted.snapshot().ticks.length, 0);
+  assert.notEqual(restarted, first); assert.equal(inspect(restarted).ticks.length, 0);
   f.owner.sessionGeneration++; // Reset invalidates old callbacks and ticks.
   f.sample(true); f.emit(); f.display();
-  assert.equal(restarted.snapshot().inputs.length, 1); assert.equal(restarted.snapshot().ticks.length, 0);
+  assert.equal(inspect(restarted).inputs.length, 1); assert.equal(inspect(restarted).ticks.length, 0);
   f.owner.endPlayMovementRecording("stopped");
   assert.equal(f.listeners.size, 0);
 });
