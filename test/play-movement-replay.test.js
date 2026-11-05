@@ -40,6 +40,17 @@ function fixture() {
   inputService.destroy();
   return result;
 }
+test("stream retains receipt/frame-start observation clocks without sorting or changing samples", async () => {
+  const capture = fixture(), original = capture.movement.observations;
+  const changed = structuredClone(original[1]); changed[0] = original[0][0] - .5;
+  const { file } = await streamUnitFile(capture, { mutate: event => event.type === "row" && event.table === "observations" && event.index === 1 ? { ...event, row: changed } : event });
+  const unit = createUnitMovementStore();
+  const loaded = await parsePlayMovementFile(file, { createStore: () => unit.store });
+  assert.deepEqual(await loaded.readRows("observations", 0, 2), [original[0], changed]);
+  assert.deepEqual(await loaded.readRows("ticks", 0, 1), [capture.movement.ticks[0]]);
+  await loaded.dispose();
+});
+
 const mutable = () => JSON.parse(JSON.stringify(fixture()));
 const parse = capture => parsePlayMovementCapture(JSON.stringify(capture));
 

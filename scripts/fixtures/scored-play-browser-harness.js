@@ -225,25 +225,25 @@ export async function installScoredPlayHarness(element, { events, songDurationMs
     // Render/input cadence varies greatly with software WebGL: CV samples use a
     // monotonic ~15fps measurement clock bounded by real wall time so a slow
     // render never invents a >=750ms no-frame tracking-loss window.
-    let measurementMs = Math.max(performance.now(), Number(element.latestPoseTimestampMs ?? 0) + 1);
-    const sampled = (tPose, render = true) => {
+    const sampled = async (tPose, render = true) => {
       const before = state.pose;
-      // Explicit 15fps measurement cadence: real performance.now() is still
-      // used by the display/coordinator for countdown, but a slow GLB render
-      // must not masquerade as lost camera frames in the measured input seam.
-      measurementMs = Math.max(performance.now(), measurementMs + 1000 / 15, Number(element.latestPoseTimestampMs ?? 0) + 1);
+      // Wait for a real15fps sample instead of advancing a synthetic clock
+      // faster than wall time. Capture records real subscription receipts too.
+      const delay = Math.max(0, Number(state.pose?.timestampMs ?? 0) + 1000 / 15 - performance.now());
+      if (delay > 0) await wait(Math.ceil(delay));
+      const measurementMs = performance.now();
       feedPose({ tPose, legs: tPose ? calibrationLegs : null, timestampMs: measurementMs, render });
       required(state.pose !== before && graph.input.getSnapshot().tracking.allRequiredAnchorsVisible, 'calibration measured upper-body sample unavailable');
     };
     // Rendering is not required for the input service's real 2000ms measured
     // hold. It remains required for session readiness, countdown and scoring.
-    while (performance.now() < deadline && !graph.input.getSnapshot().calibration.calibrationId) { sampled(true, false); await wait(35); }
+    while (performance.now() < deadline && !graph.input.getSnapshot().calibration.calibrationId) { await sampled(true, false); }
     if (!graph.input.getSnapshot().calibration.calibrationId) failure('T-pose calibration did not commit');
-    sampled(false);
-    while (performance.now() < deadline && graph.gameplay.getSnapshot().session.state !== 'playing') { sampled(false); await wait(35); }
+    await sampled(false);
+    while (performance.now() < deadline && graph.gameplay.getSnapshot().session.state !== 'playing') { await sampled(false); }
     if (graph.gameplay.getSnapshot().session.state !== 'playing') failure('release/countdown did not enter scored Play');
     await element.audioSyncTail;
-    sampled(false);
+    await sampled(false);
     const input = graph.input.getSnapshot(), session = graph.gameplay.getSnapshot().session;
     if (!(input.calibration.state === 'calibrated' && input.latestEvidence?.provenance === 'measured' && session.purpose === 'play' && session.state === 'playing' && state.audioState === 'playing')) failure('measured Play and audio not ready');
     return { input, session };

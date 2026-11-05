@@ -150,7 +150,10 @@ export async function parsePlayMovementFile(file, { signal, createStore = create
             if (!header) { header = (await store.readRows("equipmentHeaders", value[0], 1))[0]; equipmentHeaders.set(value[0], header); if (equipmentHeaders.size > 4) equipmentHeaders.delete(equipmentHeaders.keys().next().value); }
           }
           validateMovementRecord(table, value, { ...counts, states: capture.movement.states.length }, header);
-          if (table === "ticks" || table === "observations") { requireValue(value[0] >= lastWall[table], `${table} wall timestamps roll backwards`); lastWall[table] = value[0]; }
+          // Observation receipt time can precede/follow the same display's
+          // earlier frame-start clock. Preserve both numbers and original row
+          // order, as legacy admission does; only actual advance clocks sort.
+          if (table === "ticks") { requireValue(value[0] >= lastWall.ticks, "ticks wall timestamps roll backwards"); lastWall.ticks = value[0]; }
         }
         requireValue(store.append(table, value) === counts[table]++, "storage index differs from stream");
         // Backpressure is explicit for live capture; file import can await each

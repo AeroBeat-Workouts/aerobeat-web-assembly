@@ -100,6 +100,7 @@ try {
   const download = await pending;
   const downloadPath = await download.path();
   const capture = inspectShortMovementDownload(downloadPath);
+  if (process.env.AEROBEAT_AB_CAPTURE_OUTPUT) copyFileSync(downloadPath, process.env.AEROBEAT_AB_CAPTURE_OUTPUT);
   assert.equal(capture.build.version, snapshot.manifest.sourceManifest.packageVersion);
   assert.equal(capture.build.buildStamp, snapshot.manifest.buildStamp);
   assert.equal(capture.song.difficulty, "Expert");
@@ -156,7 +157,9 @@ try {
     assert(await load.isVisible() && await load.isEnabled(), "Test must expose the approved Load Recording control");
     const chooser = page.waitForEvent("filechooser"); await load.click();
     await (await chooser).setFiles(await download.path());
-    await page.waitForFunction(() => document.querySelector("aero-game")?.recordedTestPlayback, null, { timeout: 10000 });
+    await page.waitForFunction(() => { const element = document.querySelector("aero-game"); return element?.recordedTestPlayback || element?.recordedTestStatus && element.recordedTestStatus !== "Loading recording locally…"; }, null, { timeout: 10000 });
+    const loadResult = await game.evaluate(element => ({ loaded: Boolean(element.recordedTestPlayback), status: element.recordedTestStatus, error: element.lastError?.message ?? null, events: element.__recordingFileEvents }));
+    assert(loadResult.loaded, `Native streamed load failed: ${JSON.stringify(loadResult)}`);
     await game.evaluate(async element => { await element.pause(); element.enqueueVisualTestSeek(5500); await element.transportIntentTail; });
     await page.waitForFunction(() => {
       const source = document.querySelector("aero-game")?.recordedTestPlayback?.getSnapshot();
@@ -232,7 +235,7 @@ try {
     assert.equal(await game.evaluate(element => element.recordedTestPrepared), null, "judgement-only data must not manufacture a movement source");
     console.log("PASS native Test Load Recording: original markers/equipment, real unranked judgements, paused seek/resume, current audio-only lease, unchanged Play preferences, portrait control and legacy-file error.");
   }
-  if (process.env.AEROBEAT_AB_CAPTURE_OUTPUT) copyFileSync(downloadPath, process.env.AEROBEAT_AB_CAPTURE_OUTPUT);
+
   console.log(`PASS actual signed ${capture.build.version} numeric run download: ${movement.rawPoses.length} measured frames, ${movement.ticks.length} real advances; raw/model marker mapping, equipment, judgement and run-locked options match.`);
 } finally {
   await browser?.close();
