@@ -3,12 +3,13 @@
 // landmarks; production input, equipment projection, coordinator and renderer stay real.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { build } from "vite";
 import { chromium } from "playwright";
 import { loadSignedSnapshot, handlerForSnapshot } from "./serve-friend-game.js";
+import { inspectShortMovementDownload } from "./inspect-short-movement-download.js";
 
 assert(process.env.AEROBEAT_DIRECTION_SIGNED_DIR, "AEROBEAT_DIRECTION_SIGNED_DIR must identify the actual signed game");
 const snapshot = loadSignedSnapshot(path.resolve(process.env.AEROBEAT_DIRECTION_SIGNED_DIR));
@@ -92,6 +93,9 @@ try {
         await harness.graph.audio.seek(10); await harness.graph.audio.pause();
         harness.feedPose(); await element.audioSyncTail;
         if (harness.graph.gameplay.getSnapshot().session.state !== "completed") throw Error("Recording fixture must finish through the actual audio-end path");
+        if (!element.playMovementRecorder) throw Error("Expected real movement recorder");
+        await element.playMovementRecorder.flush();
+        if (element.playMovementRecorder.getStatus().status !== "completed") throw Error("Recording did not persist completely");
         element.setMenuOpen(true); element.renderPresenters();
       } else harness.dispose();
       return output;
@@ -109,10 +113,11 @@ try {
       const pending = page.waitForEvent("download");
       await page.locator("aero-game").locator("[data-role='download-data']").click();
       const download = await pending;
-      const text = readFileSync(await download.path(), "utf8"), capture = JSON.parse(text);
+      const downloadPath = await download.path();
+      const capture = inspectShortMovementDownload(downloadPath);
       assert.equal(capture.movement?.complete, true, "the actual completed run must include its movement recording");
       assert.deepEqual(capture.judgements.map(j => ({ eventId: j.eventId, result: j.result, tier: j.tier, timingOffsetMs: j.timingOffsetMs })), result.judgements.map(j => ({ eventId: j.eventId, result: j.result, tier: j.tier, timingOffsetMs: j.timingOffsetMs })));
-      writeFileSync(path.join(recordingDirectory, `${scenario}.json`), text);
+      copyFileSync(downloadPath, path.join(recordingDirectory, `${scenario}.jsonl.gz`));
       if (process.env.AEROBEAT_DIRECTION_TEST_REPLAY === "1") {
         const game = page.locator("aero-game");
         await game.evaluate(async element => { await element.startSession("visual_test", { requireDownloaded: true }); element.setMenuOpen(false, { freshSession: true }); element.renderPresenters(); });
@@ -123,6 +128,7 @@ try {
         assert.equal(replay.error, null); assert.equal(replay.gameplay.session.purpose, "visual_test"); assert.equal(replay.gameplay.session.ranked, false);
         assert.equal(replay.gameplay.session.state, "completed");
         assert.equal(replay.cv.running, false); assert.deepEqual(replay.lease, [], "terminal replay must release its audio-only lease");
+        assert.equal(replay.source.total, capture.movement.counts.ticks); assert.equal(replay.source.observations, capture.movement.counts.observations);
         assert.equal(replay.source.index, capture.movement.ticks.length); assert.equal(replay.source.observationIndex, capture.movement.observations.length);
         assert.equal(replay.gameplay.judgements.length, result.judgements.length);
         for (const expected of result.judgements) {

@@ -3,13 +3,14 @@
 // camera/audio/content fixture. This is download proof, not physical play proof.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { build } from "vite";
 import { chromium } from "playwright";
 import { loadSignedSnapshot, handlerForSnapshot } from "./serve-friend-game.js";
 import { recordedEquipmentPair } from "../src/play-movement-recording.js";
+import { inspectShortMovementDownload } from "./inspect-short-movement-download.js";
 
 const directory = process.env.AEROBEAT_AB_SIGNED_DIR;
 assert(directory, "AEROBEAT_AB_SIGNED_DIR must identify the signed build being tested");
@@ -80,6 +81,10 @@ try {
     const gameplay = harness.graph.gameplay.getSnapshot();
     if (gameplay.session.state !== "completed") throw Error(`Expected actual completed run, got ${gameplay.session.state}`);
     if (gameplay.judgements.length !== 1) throw Error("Expected one real committed judgement");
+    // Completed gameplay is synchronous; persisted recording completion is not.
+    if (!element.playMovementRecorder) throw Error("Expected real movement recorder");
+    await element.playMovementRecorder.flush();
+    if (element.playMovementRecorder.getStatus().status !== "completed") throw Error("Recording did not persist completely");
     element.setMenuOpen(true);
     element.renderPresenters();
     // Change the next-run control: export must retain the just-finished run.
@@ -90,7 +95,8 @@ try {
   const pending = page.waitForEvent("download", { timeout: 10000 });
   await button.click();
   const download = await pending;
-  const capture = JSON.parse(readFileSync(await download.path(), "utf8"));
+  const downloadPath = await download.path();
+  const capture = inspectShortMovementDownload(downloadPath);
   assert.equal(capture.build.version, snapshot.manifest.sourceManifest.packageVersion);
   assert.equal(capture.build.buildStamp, snapshot.manifest.buildStamp);
   assert.equal(capture.song.difficulty, "Expert");
@@ -128,7 +134,7 @@ try {
   assert.equal(expected.surface.intrinsicWidth, 640); assert.equal(expected.surface.intrinsicHeight, 480);
   assert(movement.configurations.some(c => c.camera?.intrinsicWidth === 640 && c.camera?.intrinsicHeight === 480 && c.camera?.mirrored === true && c.camera?.fitMode === "contain"));
   assert(movement.configurations.every(c => c.setup.flowColliderVolume.colliderScale === 1.5), "next-run edits cannot rewrite recorded configuration");
-  assert(download.suggestedFilename().endsWith("-Expert.json"));
+  assert(download.suggestedFilename().endsWith("-Expert.jsonl.gz"));
   assert.deepEqual(errors, []);
   if (process.env.AEROBEAT_AB_TEST_REPLAY === "1") {
     await game.evaluate(async element => {
@@ -167,6 +173,7 @@ try {
     assert.equal(paused.purpose, "visual_test"); assert.equal(paused.ranked, false); assert.equal(paused.calibrationId, null);
     assert.equal(paused.cvRunning, false); assert.deepEqual(paused.lease, ["audio"]);
     assert.equal(paused.preferencesUnchanged, true); assert.equal(paused.equipmentUnchanged, true); assert.equal(paused.lastError, null);
+    assert.equal(paused.source.total, movement.counts.ticks); assert.equal(paused.source.observations, movement.counts.observations);
     assert.equal(paused.source.playing, false); assert.equal(paused.source.index, tick === movement.ticks.at(-1) ? movement.ticks.length : movement.ticks.indexOf(tick) + 1);
     assert.deepEqual(paused.equipment, expected.equipment);
     assert.deepEqual(paused.judgements.map(j => ({ eventId: j.eventId, result: j.result, diagnostics: j.diagnostics })), expected.judgements);
@@ -222,7 +229,7 @@ try {
     assert.equal(await game.evaluate(element => element.recordedTestPrepared), null, "judgement-only data must not manufacture a movement source");
     console.log("PASS native Test Load Recording: original markers/equipment, real unranked judgements, paused seek/resume, current audio-only lease, unchanged Play preferences, portrait control and legacy-file error.");
   }
-  if (process.env.AEROBEAT_AB_CAPTURE_OUTPUT) writeFileSync(process.env.AEROBEAT_AB_CAPTURE_OUTPUT, JSON.stringify(capture));
+  if (process.env.AEROBEAT_AB_CAPTURE_OUTPUT) copyFileSync(downloadPath, process.env.AEROBEAT_AB_CAPTURE_OUTPUT);
   console.log(`PASS actual signed ${capture.build.version} numeric run download: ${movement.rawPoses.length} measured frames, ${movement.ticks.length} real advances; raw/model marker mapping, equipment, judgement and run-locked options match.`);
 } finally {
   await browser?.close();
