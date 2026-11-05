@@ -1,10 +1,12 @@
 // @ts-check
 import test from "node:test";
+import { createUnitMovementStore, legacyUnitMovement, streamUnitFile } from "./movement-store-unit-fixture.js";
 import assert from "node:assert/strict";
 import { createAeroBodyGridService } from "@aerobeat/web-input";
+import { MOVEMENT_MAX_LINE_BYTES } from "../src/movement-chunk-store.js";
 import { buildAbJudgementCapture } from "../src/ab-judgement-capture.js";
 import { createPlayMovementRecorder, recordedEquipmentPair } from "../src/play-movement-recording.js";
-import { maximumPlayMovementCaptureBytes, parsePlayMovementCapture, readMovementTick } from "../src/play-movement-replay.js";
+import { maximumPlayMovementCaptureBytes, parsePlayMovementCapture, parsePlayMovementFile, readMovementTick } from "../src/play-movement-replay.js";
 
 // Build a real writer fixture with the actual input model, not the ignored
 // signed download. Keep provider-neutral source identity and initial metadata.
@@ -17,7 +19,8 @@ function fixture() {
   const gameplay = state => ({ selectedVariant: variant, session: { purpose: "play", state, sessionId: "recorded-play", ranked: false }, judgements: [] });
   const configuration = { gameplay: { packageId: "fixture-song", selectedVariant: variant, resolvedEvents: [] }, setup: { timingWindowMs: 180 }, equipment: { schema: "aerobeat/equipment_config", version: 4 }, equipmentIdentity: identity };
   const initial = inputService.getCalibrationModel();
-  const recorder = createPlayMovementRecorder({ metadata: { capture: buildAbJudgementCapture({ build, content, gameplay: gameplay("calibrating"), capturedAtMs: 0 }), configuration: configuration.gameplay, equipment: configuration.equipment, equipmentIdentity: identity, initialCalibrationModel: initial } });
+  const unitStore = createUnitMovementStore();
+  const recorder = createPlayMovementRecorder({ store: unitStore.store, metadata: { capture: buildAbJudgementCapture({ build, content, gameplay: gameplay("calibrating"), capturedAtMs: 0 }), configuration: configuration.gameplay, equipment: configuration.equipment, equipmentIdentity: identity, initialCalibrationModel: initial } });
   const poses = ["left_wrist", "right_wrist"].map((role, i) => ({ role, mode: "flow", geometryIdentity: "aerobeat/saber_capsule_v1", configIdentity: identity, anchor: { x: i + .12500000000000003, y: .40000000000000036, z: 0 }, scale: 2, orientation: { x: 0, y: 0, z: 0, w: 1 + Number.EPSILON } }));
   const frame = (timestampMs, rawPose = null) => ({ timestampMs, input: inputService.getSnapshot(), rawPose, modelKey: [inputService.getSnapshot().calibration.calibrationId, inputService.getSnapshot().calibration.state], getCalibrationModel: () => inputService.getCalibrationModel(), configurationKey: ["run"], getConfiguration: () => configuration, clock: { contextTimeSeconds: timestampMs / 1000, positionSeconds: 0, playing: false }, renderTimelineMs: 0, sessionState: "calibrating", equipmentPoses: null });
   recorder.record(frame(10)); // Pre-camera/pre-calibration -1 raw/equipment refs.
@@ -33,7 +36,7 @@ function fixture() {
   recorder.record({ ...frame(2020, raw), equipmentPoses: poses, clock: { contextTimeSeconds: 2.02, positionSeconds: 2, playing: false }, renderTimelineMs: 2000, sessionState: "paused_manual" }); // Valid equal wall time, pause/seek.
   recorder.record({ ...frame(2030, raw), equipmentPoses: poses, clock: { contextTimeSeconds: 2.03, positionSeconds: 8, playing: false }, renderTimelineMs: 8000, sessionState: "playing", resultState: "completed" });
   const finalGameplay = { ...gameplay("completed"), judgements: [{ eventId: "note-1", result: "hit", tier: "great", timingOffsetMs: 35.41666666666674, evidenceTimestampMs: 2020, committedTimelinePositionMs: 6035.416666666667 }] };
-  const result = buildAbJudgementCapture({ build, content, gameplay: finalGameplay, colliderSettings: { timingWindowMs: 180 }, movement: recorder.snapshot(), capturedAtMs: 3000 });
+  const result = buildAbJudgementCapture({ build, content, gameplay: finalGameplay, colliderSettings: { timingWindowMs: 180 }, movement: legacyUnitMovement(recorder, unitStore), capturedAtMs: 3000 });
   inputService.destroy();
   return result;
 }
@@ -153,4 +156,85 @@ test("bounded JSON rejects malformed, nonfinite and excessively nested or large 
   const capture = mutable(); let node = capture.options;
   for (let i = 0; i < 70; i++) { node.next = {}; node = node.next; }
   assert.throws(() => parse(capture), /nesting\/item limit/);
+});
+
+test("stream import preserves numeric rows and legacy File compatibility; facade owns disposal", async () => {
+  const capture = fixture(); capture.movement.rawPoses[0].landmarks[0].z = -0;
+  const unit = createUnitMovementStore(), { file } = await streamUnitFile(capture);
+  const imported = await parsePlayMovementFile(file, { createStore: () => unit.store });
+  assert.equal(imported.movement.version, 2);
+  assert.equal(imported.movement.inputs, undefined);
+  for (const table of Object.keys(imported.getCounts()).filter(name => !["metadata", "states"].includes(name))) assert.deepEqual(await imported.readRows(table, 0, imported.getCounts()[table]), capture.movement[table]);
+  const legacy = await parsePlayMovementFile(new Blob([JSON.stringify(capture)]));
+  assert.deepEqual(legacy, parse(capture));
+  await imported.dispose(); assert.equal(unit.isDisposed(), true);
+  await assert.rejects(imported.readRows("ticks", 0, 1), /disposed/);
+});
+
+test("stream structural, reference, footer, truncation and nonfinite failures dispose partial imports", async () => {
+  const changes = [
+    event => event.type === "footer" ? null : event,
+    event => { if (event.type === "header") event.header.movement.counts.inputs++; return event; },
+    event => { if (event.type === "row" && event.table === "ticks") event.row[4] = 99999; return event; },
+    event => { if (event.type === "row" && event.table === "equipment") event.row[8] = 0; return event; },
+    event => { if (event.type === "row" && event.table === "ticks") event.row[3] = 3; return event; },
+    event => { if (event.type === "row" && event.table === "rawPoses") event.row.landmarks[0].x = "bad"; return event; },
+    event => { if (event.type === "header") event.header.movement.complete = false; return event; },
+    event => { if (event.type === "footer") event.counts.ticks++; return event; },
+    event => { if (event.type === "row" && event.table === "ticks") event.index++; return event; }
+  ];
+  for (const mutate of changes) {
+    const unit = createUnitMovementStore(), { file } = await streamUnitFile(fixture(), { mutate });
+    await assert.rejects(parsePlayMovementFile(file, { createStore: () => unit.store }));
+    assert.equal(unit.isDisposed(), true);
+  }
+  const { file } = await streamUnitFile(fixture());
+  const unit = createUnitMovementStore();
+  await assert.rejects(parsePlayMovementFile(file.slice(0, file.size - 10), { createStore: () => unit.store }));
+  assert.equal(unit.isDisposed(), true);
+  const overflowing = new Blob([new TextEncoder().encode('{"type":"header","format":"aerobeat-movement-jsonl","version":1,"header":1e999}\n')]);
+  const gzip = await new Response(overflowing.stream().pipeThrough(new CompressionStream("gzip"))).blob();
+  const bad = createUnitMovementStore();
+  await assert.rejects(parsePlayMovementFile(gzip, { createStore: () => bad.store }), /nonfinite/);
+  assert.equal(bad.isDisposed(), true);
+});
+
+test("import cancellation and storage failures dispose admitted partial rows", async () => {
+  const { file } = await streamUnitFile(fixture());
+  for (const abort of [false, true]) {
+    const unit = createUnitMovementStore(), controller = new AbortController(), append = unit.store.append;
+    unit.store.append = (...args) => { const index = append(...args); if (abort) controller.abort(); else throw new Error("unit quota failure"); return index; };
+    await assert.rejects(parsePlayMovementFile(file, { signal: controller.signal, createStore: () => unit.store }), abort ? /abort/i : /quota/);
+    assert.equal(unit.isDisposed(), true);
+  }
+});
+
+test("abort interrupts a blocked native stream read and bounded records reject oversized/nested input", async () => {
+  const { file } = await streamUnitFile(fixture()), controller = new AbortController(), unit = createUnitMovementStore();
+  let requested, cancelled = false, onCancelled;
+  const cancellation = new Promise(resolve => { onCancelled = resolve; });
+  const waiting = new Promise(resolve => { requested = resolve; });
+  const blocked = { slice: (...args) => file.slice(...args), stream: () => new ReadableStream({ pull() { requested(); return new Promise(() => {}); }, cancel() { cancelled = true; onCancelled(); } }) };
+  const importing = parsePlayMovementFile(blocked, { signal: controller.signal, createStore: () => unit.store });
+  await waiting; controller.abort(); await assert.rejects(importing, /abort/i);
+  await cancellation;
+  assert.equal(cancelled, true); assert.equal(unit.isDisposed(), true);
+  for (const large of [false, true]) {
+    const malformed = await streamUnitFile(fixture(), { mutate(event) { if (event.type === "header") { if (large) event.header.options.extra = "x".repeat(MOVEMENT_MAX_LINE_BYTES); else { let next = event.header.options; for (let i = 0; i < 70; i++) { next.next = {}; next = next.next; } } } return event; } });
+    const target = createUnitMovementStore();
+    await assert.rejects(parsePlayMovementFile(malformed.file, { createStore: () => target.store }), large ? /bounded record size/ : /nesting/);
+    assert.equal(target.isDisposed(), true);
+  }
+});
+
+test("stream import has no total64MiB or120000-tick gate (bounded procedural unit store)", async () => {
+  const capture = fixture(), total = 120001, { file, logicalBytes } = await streamUnitFile(capture, { ticks: total, padding: 512 });
+  assert.ok(logicalBytes > 64 * 1024 * 1024);
+  const unit = createUnitMovementStore(), counts = unit.store.getCounts, append = unit.store.append;
+  let ticks = 0, last = null;
+  unit.store.append = (table, row) => { if (table !== "ticks") return append(table, row); last = row; return ticks++; };
+  unit.store.getCounts = () => ({ ...counts(), ticks });
+  const imported = await parsePlayMovementFile(file, { createStore: () => unit.store });
+  assert.equal(imported.getCounts().ticks, total); assert.equal(last[0], total - 1);
+  await imported.dispose();
 });

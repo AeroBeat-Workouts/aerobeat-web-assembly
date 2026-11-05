@@ -1,5 +1,6 @@
 // @ts-check
 import test from "node:test";
+import { createUnitMovementStore, legacyUnitMovement, streamUnitFile } from "./movement-store-unit-fixture.js";
 import assert from "node:assert/strict";
 import { createAeroBodyGridService } from "@aerobeat/web-input";
 import { createAeroGameplaySessionCoordinator, defaultFlowColliderSettings } from "@aerobeat/web-gameplay";
@@ -7,7 +8,7 @@ import { createResolvedEquipmentPose } from "@aerobeat/web-contracts";
 import { sha256Hex } from "@aerobeat/web-hash";
 import { buildAbJudgementCapture } from "../src/ab-judgement-capture.js";
 import { createPlayMovementRecorder, recordedEquipmentPair } from "../src/play-movement-recording.js";
-import { parsePlayMovementCapture } from "../src/play-movement-replay.js";
+import { parsePlayMovementCapture, parsePlayMovementFile } from "../src/play-movement-replay.js";
 import { prepareRecordedTest, createRecordedTestPlayback } from "../src/recorded-test-source.js";
 import { defaultAeroGameSetupSnapshot, getGameSetupSnapshot } from "../src/game-setup-coordinator.js";
 import { equipmentConfigDefaults } from "../src/equipment-config-defaults.js";
@@ -33,7 +34,8 @@ async function fixture(kind = "late") {
   const initialInput = { schema: "aerobeat/body_grid_service_snapshot", version: 1, timestampMs: 0, anchors: [], entries: [], sourceIdentity: "original-camera-source", calibration: { calibrationId: model.calibrationId, readiness: "countdown" }, tracking: { gameplayPaused: false, freshCalibrationRequired: false }, countdownFrozen: false, latestEvidence: null, straightQualifications: [] };
   play.advance({ timestampMs: 0, clock: clock(0, false), input: initialInput }); play.requestStart(0);
   for (const t of [1, 2, 3]) play.advance({ timestampMs: t, clock: clock(0, false) });
-  const recorder = createPlayMovementRecorder({ metadata: { capture: buildAbJudgementCapture({ gameplay: { session: { purpose: "play", state: "calibrating" } }, content, capturedAtMs: 0 }), configuration, equipment: equipmentConfigDefaults, equipmentIdentity, initialCalibrationModel: model } });
+  const unitStore = createUnitMovementStore();
+  const recorder = createPlayMovementRecorder({ store: unitStore.store, metadata: { capture: buildAbJudgementCapture({ gameplay: { session: { purpose: "play", state: "calibrating" } }, content, capturedAtMs: 0 }), configuration, equipment: equipmentConfigDefaults, equipmentIdentity, initialCalibrationModel: model } });
   for (let song = 900; song <= 2100; song += 50) {
     const wall = 10000 + song, x = kind === "none" || song < 1250 ? 3.5 : 1, y = kind === "reverse" ? 1.15 - Math.min(400, song - 900) / 1000 : 1;
     const anchor = (name, sx, sy) => ({ schema: "aerobeat/body_grid_anchor_snapshot", version: 1, anchor: name, calibrationId: model.calibrationId, measurementTimestampMs: wall, valid: true, confidence: .95, rawX: .5, rawY: .5, x: (sx + .5) / 4, y: (2.5 - sy) / 3, cell: 5, subcell: 20 });
@@ -52,7 +54,7 @@ async function fixture(kind = "late") {
   }
   recorder.finish("completed");
   const expected = play.getJudgements();
-  const capture = parsePlayMovementCapture(JSON.stringify(buildAbJudgementCapture({ gameplay: { session: { purpose: "play", state: "completed" }, judgements: expected }, content, movement: recorder.snapshot(), capturedAtMs: 0 })));
+  const capture = parsePlayMovementCapture(JSON.stringify(buildAbJudgementCapture({ gameplay: { session: { purpose: "play", state: "completed" }, judgements: expected }, content, movement: legacyUnitMovement(recorder, unitStore), capturedAtMs: 0 })));
   modelInput.destroy(); play.destroy();
   return { capture, content, expected };
 }
@@ -79,7 +81,7 @@ test("recorded live visuals and Boxing heights stay separate from locked collide
   const heights = [], native = createAeroGameplaySessionCoordinator({ instanceId: "recorded-test", reprojectEquipmentPose: value => projector ? projector(value) : value });
   const gameplay = Object.freeze({ ...native, setBoxingHeightTuning(value) { heights.push(value.offsets.hook); return native.setBoxingHeightTuning(value); } });
   const source = createRecordedTestPlayback(prepared, { gameplay, durationSeconds: 3, leaseSnapshot: () => lease, onFrame: frame => { projector = createFrameSplineEquipmentProjector(frame.binding.equipment, frame.pivots); } });
-  source.start(50000); while (!source.getSnapshot().complete) source.advance(100000, 32);
+  source.start(50000); while (!source.getSnapshot().complete) await source.advance(100000, 32);
   assert.ok(heights.length > 0 && heights.every(value => value === .5), "real coordinator must receive the captured live height offset");
   assert.deepEqual(getGameSetupSnapshot(), preferences, "loading live overlays must not persist Play preferences");
   native.destroy();
@@ -90,7 +92,7 @@ test("real coordinator prefix playback matches recorded Play, preserves every ti
   const prepared = await prepareRecordedTest(capture, content), { source, gameplay, frame } = playback(prepared);
   source.start(50000);
   let iterations = 0;
-  while (!source.getSnapshot().complete) { const before = source.getSnapshot(); source.advance(100000, 3); const after = source.getSnapshot(); assert.ok(after.index - before.index + after.observationIndex - before.observationIndex <= 3); assert.ok(++iterations < 100); }
+  while (!source.getSnapshot().complete) { const before = source.getSnapshot(); await source.advance(100000, 3); const after = source.getSnapshot(); assert.ok(after.index - before.index + after.observationIndex - before.observationIndex <= 3); assert.ok(++iterations < 100); }
   assert.deepEqual(gameplay.getJudgements().map(scoring), expected.map(scoring));
   assert.equal(gameplay.getSnapshot().session.purpose, "visual_test"); assert.equal(gameplay.getSnapshot().session.ranked, false);
   assert.equal(source.getSnapshot().index, capture.movement.ticks.length);
@@ -109,23 +111,23 @@ test("real coordinator prefix playback matches recorded Play, preserves every ti
 
 test("wall pacing drains all due samples, user pause is observational, seek rebuilds the real prefix", async () => {
   const { capture, content } = await fixture(); const { source, gameplay } = playback(await prepareRecordedTest(capture, content));
-  source.start(100); source.advance(100.25, 32);
+  source.start(100); await source.advance(100.25, 32);
   const early = source.getSnapshot().index;
-  source.pause(100.25); source.advance(100000, 32); assert.equal(source.getSnapshot().index, early);
-  source.resume(200); source.advance(220, 32); assert.equal(source.getSnapshot().index, early, "no invented samples across capture gap");
-  while (!source.getSnapshot().complete) source.advance(100000, 5);
+  source.pause(100.25); await source.advance(100000, 32); assert.equal(source.getSnapshot().index, early);
+  source.resume(200); await source.advance(220, 32); assert.equal(source.getSnapshot().index, early, "no invented samples across capture gap");
+  while (!source.getSnapshot().complete) await source.advance(100000, 5);
   const expected = gameplay.getJudgements().map(scoring);
-  source.seek(1500, 100001); while (source.getSnapshot().rebuilding) source.advance(100002, 4);
+  source.seek(1500, 100001); while (source.getSnapshot().rebuilding) await source.advance(100002, 4);
   assert.equal(source.getSnapshot().playing, false);
   assert.equal(gameplay.getSnapshot().session.timelinePositionMs, 1500);
-  source.resume(100010); while (!source.getSnapshot().complete) source.advance(200000, 4);
+  source.resume(100010); while (!source.getSnapshot().complete) await source.advance(200000, 4);
   assert.deepEqual(gameplay.getJudgements().map(scoring), expected);
 });
 
 test("wrong-way and no-contact recordings stay negative through the same scorer", async () => {
   for (const kind of ["none", "reverse"]) {
     const { capture, content, expected } = await fixture(kind), { source, gameplay } = playback(await prepareRecordedTest(capture, content));
-    source.start(0); while (!source.getSnapshot().complete) source.advance(100000, 32);
+    source.start(0); while (!source.getSnapshot().complete) await source.advance(100000, 32);
     assert.deepEqual(gameplay.getJudgements().map(scoring), expected.map(scoring));
     assert.equal(gameplay.getJudgements()[0].result, "miss");
   }
@@ -140,9 +142,9 @@ test("frozen evidence keeps original held-frame equality and timestamps in a fre
   held.latestEvidence.provenance = "frozen"; held.latestEvidence.frozenTickId = 1;
   value.movement.inputs[secondRef] = held;
   const { source } = playback(await prepareRecordedTest(parsePlayMovementCapture(JSON.stringify(value)), content));
-  source.start(0); source.advance(.25, 32);
+  source.start(0); await source.advance(.25, 32);
   const measured = source.getSnapshot().frame.input.latestEvidence;
-  source.advance(50.25, 32);
+  await source.advance(50.25, 32);
   const frozen = source.getSnapshot().frame.input.latestEvidence;
   assert.equal(frozen.provenance, "frozen"); assert.equal(frozen.frozenTickId, 1);
   assert.equal(frozen.measurementTimestampMs, measured.measurementTimestampMs);
@@ -153,13 +155,13 @@ test("frozen evidence keeps original held-frame equality and timestamps in a fre
 
 test("external interruption recovers by bounded prefix reconstruction rather than relaxing continuity", async () => {
   const { capture, content } = await fixture(), { source, gameplay } = playback(await prepareRecordedTest(capture, content));
-  source.start(0); source.advance(400, 32);
+  source.start(0); await source.advance(400, 32);
   const count = source.getSnapshot().index;
   gameplay.pause(gameplay.getSnapshot().session.timestampMs, "media_lease_transferred");
   source.rebuild(count, 1000);
-  while (source.getSnapshot().rebuilding) source.advance(1001, 2);
+  while (source.getSnapshot().rebuilding) await source.advance(1001, 2);
   assert.equal(source.getSnapshot().playing, true);
-  while (!source.getSnapshot().complete) source.advance(100000, 8);
+  while (!source.getSnapshot().complete) await source.advance(100000, 8);
   assert.deepEqual(gameplay.getJudgements().map(scoring), capture.judgements.map(scoring));
 });
 
@@ -169,7 +171,46 @@ test("matching selected content and validated equipment identity are mandatory",
   await assert.rejects(prepareRecordedTest(capture, { ...content, selectedVariant: { ...content.selectedVariant, chartId: "another-chart" } }), /chartId/);
   const changed = JSON.parse(JSON.stringify(capture)); changed.movement.configurations[0].equipment.flow.perHand.left.scale = 3;
   await assert.rejects(prepareRecordedTest(changed, content), /do not match their identity/);
+  const unmatched = JSON.parse(JSON.stringify(capture)); unmatched.movement.ticks[0][8] = -1;
+  await assert.rejects(prepareRecordedTest(unmatched, content), /endpoints do not match/);
   const events = JSON.parse(JSON.stringify(capture)); events.movement.configurations[0].gameplay.resolvedEvents = [{ eventId: "untrusted-file-event" }];
   const prepared = await prepareRecordedTest(events, content);
   assert.equal(prepared.bindings[0].configuration.resolvedEvents[0], content.resolvedEvents[0], "file events never replace matching content events");
+});
+
+test("disk facade uses the same coordinator, prefixes, endpoints and32-event batches as legacy", async () => {
+  const { capture, content, expected } = await fixture(), { file } = await streamUnitFile(capture), unit = createUnitMovementStore();
+  const imported = await parsePlayMovementFile(file, { createStore: () => unit.store });
+  let maximumRead = 0;
+  const facade = { ...imported, async readRows(table, start, count) { maximumRead = Math.max(maximumRead, count); return imported.readRows(table, start, count); } };
+  const { source, gameplay, frame } = playback(await prepareRecordedTest(facade, content));
+  source.start(1000);
+  while (!source.getSnapshot().complete) { const before = source.getSnapshot(); await source.advance(100000, 1000); const after = source.getSnapshot(); assert.ok(after.index - before.index + after.observationIndex - before.observationIndex <= 32); }
+  assert.deepEqual(gameplay.getJudgements().map(scoring), expected.map(scoring));
+  assert.deepEqual(frame().equipmentPoses, recordedEquipmentPair(capture.movement, capture.movement.ticks[frame().index][5]));
+  source.seek(1500, 100001); while (source.getSnapshot().rebuilding) await source.advance(100002);
+  assert.equal(gameplay.getSnapshot().session.timelinePositionMs, 1500);
+  source.resume(100010); while (!source.getSnapshot().complete) await source.advance(200000);
+  assert.deepEqual(gameplay.getJudgements().map(scoring), expected.map(scoring));
+  assert.ok(maximumRead <= 32); source.dispose(); await imported.dispose(); gameplay.destroy();
+});
+
+test("seek and dispose invalidate pending row reads; storage errors surface", async () => {
+  const { capture, content } = await fixture();
+  for (const command of ["seek", "dispose", "error"]) {
+    const prepared = await prepareRecordedTest(capture, content);
+    const realRows = prepared.rows; let release, requested;
+    const waiting = new Promise(resolve => { requested = resolve; });
+    const rows = { ...realRows, async get(table, index) { await new Promise(resolve => { release = resolve; requested(); }); if (command === "error") throw new Error("unit read failure"); return realRows.get(table, index); } };
+    const { source, gameplay } = playback({ ...prepared, rows }); source.start(100);
+    const advancing = source.advance(100000); await waiting;
+    if (command === "seek") source.seek(1500, 200); else if (command === "dispose") source.dispose();
+    const timestamp = gameplay.getSnapshot().session.timestampMs;
+    // Only the first blocked read is relevant: stale advances check generation
+    // before requesting any further rows after it settles.
+    release();
+    if (command === "error") await assert.rejects(advancing, /unit read failure/);
+    else { await advancing; assert.equal(source.getSnapshot().index, 0); assert.equal(source.getSnapshot().frame, null); assert.equal(gameplay.getSnapshot().session.timestampMs, timestamp); }
+    gameplay.destroy();
+  }
 });
