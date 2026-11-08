@@ -58,6 +58,19 @@ async function fixture(kind = "late") {
   modelInput.destroy(); play.destroy();
   return { capture, content, expected };
 }
+test("new bomb-core recordings render their physical run size, not next-run menu edits", async () => {
+  const { capture, content } = await fixture();
+  const data = structuredClone(capture), configuration = data.movement.configurations[0];
+  configuration.gameplay.flowColliderSettings = { ...defaultFlowColliderSettings, bombScale: .5 };
+  configuration.setup.bombScalePercent = 50;
+  configuration.presentationSetup.bombScalePercent = 200;
+  const prepared = await prepareRecordedTest(data, content);
+  const binding = await prepared.getBinding(0);
+  assert.equal(binding.renderSetup.bombScalePercent, 50);
+  assert.equal(binding.presentationSetup.bombScalePercent, 200, "original next-run setting remains recorded, not rewritten");
+  assert.equal(binding.configuration.flowColliderSettings.bombScale, .5);
+});
+
 test("Clear aborts post-import preparation before scanning further disk rows", async () => {
   const { capture, content } = await fixture();
   const controller = new AbortController(), reads = [];

@@ -2,7 +2,21 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## Public 0.0.157 — compact disk-backed recordings
+## 0.0.158 bomb-core repair candidate — not live yet
+
+Bomb contact now targets the circular0.22WU central body of the canonical bomb,
+not its spikes or the old1x1grid-cell box. Only the independent measured wrist
+bomb sphere can trigger it; saber/glove geometry does not extend bomb reach.
+The bomb core follows Bomb Scale, while the wrist sphere retains its separate
+Wrist Bomb Collider Scale. Flow binds bomb mesh size and collision size together
+for each run; size changes apply on the next Play/Restart. Other live visual
+scales are unchanged. Recorded Test retains that actual bound bomb size.
+
+Native Boxing currently excludes bomb events. This repair preserves that rule
+rather than adding new hazards or penalties to Boxing. Owner tests pass; signed
+assembly acceptance and publication are next.
+
+## Previous public 0.0.157 — compact disk-backed recordings
 
 Derrick approved temporary browser-local storage for numeric movement recordings.
 New captures use bounded compressed disk chunks instead of retaining the whole

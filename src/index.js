@@ -2348,7 +2348,7 @@ export class AeroGame extends HTMLElement {
 
   rendererFrame() {
     const contentService=this.graph.content,content = contentService.getSnapshot(); const gameplay = this.graph.gameplay.getSnapshot(); const session = gameplay.session;
-    const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0),runSetup=this.activeSessionSetup??this.desiredGameSetup;const setup={...runSetup,boxingHeightOffsets:this.desiredGameSetup.boxingHeightOffsets,obstaclesEnabled:this.desiredGameSetup.obstaclesEnabled,guidanceBandMode:this.desiredGameSetup.guidanceBandMode,showGameplayGrid:this.desiredGameSetup.showGameplayGrid,noteScalePercent:this.desiredGameSetup.noteScalePercent,obstacleScalePercent:this.desiredGameSetup.obstacleScalePercent,bombScalePercent:this.desiredGameSetup.bombScalePercent,markerScalePercent:this.desiredGameSetup.markerScalePercent,noseMarkerVisible:this.desiredGameSetup.noseMarkerVisible,noseMarkerScale:this.desiredGameSetup.noseMarkerScale,trackExtensionWorldUnits:this.desiredGameSetup.trackExtensionWorldUnits};
+    const selected = content.selectedVariant; const nowMs = Number(session.timelinePositionMs ?? 0),runSetup=this.activeSessionSetup??this.desiredGameSetup;const setup={...runSetup,boxingHeightOffsets:this.desiredGameSetup.boxingHeightOffsets,obstaclesEnabled:this.desiredGameSetup.obstaclesEnabled,guidanceBandMode:this.desiredGameSetup.guidanceBandMode,showGameplayGrid:this.desiredGameSetup.showGameplayGrid,noteScalePercent:this.desiredGameSetup.noteScalePercent,obstacleScalePercent:this.desiredGameSetup.obstacleScalePercent,bombScalePercent:selected?.rulesetId===gameplayRulesetIds.flow?runSetup.bombScalePercent:this.desiredGameSetup.bombScalePercent,markerScalePercent:this.desiredGameSetup.markerScalePercent,noseMarkerVisible:this.desiredGameSetup.noseMarkerVisible,noseMarkerScale:this.desiredGameSetup.noseMarkerScale,trackExtensionWorldUnits:this.desiredGameSetup.trackExtensionWorldUnits};
     if (this.recordedTestPlayback) Object.assign(setup, this.recordedTestFrame?.binding.renderSetup ?? this.recordedTestPrepared.bindings[0].renderSetup);
     const presentation = rendererPresentationForVariant(selected),heightTuning=this.boxingHeightTuning(this.graph),timingWindowMs=selected?.rulesetId===gameplayRulesetIds.flow||presentation==="boxing_collider"?setup.timingWindowMs:prototypeJudgementDefaults.timingWindowAfterMs;
     const spawnDistanceWorldUnits=selectedNormalSpawnDistanceWorldUnits(/** @type {Record<PropertyKey,unknown>} */(contentService),content,setup);
@@ -2622,8 +2622,10 @@ export class AeroGame extends HTMLElement {
 
   renderGameplay(graph = this.graph, equipmentOverride = null) {
     if (!graph) return null;
-    // 4bj9: push live visual scales into the renderer each frame so a scale change takes effect on the very next rendered frame without a restart.
-    const visualSetup = this.recordedTestPlayback ? this.recordedTestFrame?.binding.renderSetup ?? this.recordedTestPrepared.bindings[0].renderSetup : this.desiredGameSetup;
+    // Notes/walls/markers remain live visual tuning. Flow bomb size now defines
+    // physical core reach, so its mesh and collision size share the run binding.
+    const activeBombSetup = this.activeSessionSetup && graph.gameplay.getSnapshot().session.rulesetId === gameplayRulesetIds.flow;
+    const visualSetup = this.recordedTestPlayback ? this.recordedTestFrame?.binding.renderSetup ?? this.recordedTestPrepared.bindings[0].renderSetup : activeBombSetup ? { ...this.desiredGameSetup, bombScalePercent: this.activeSessionSetup.bombScalePercent } : this.desiredGameSetup;
     const liveScalesId=rendererVisualScalesId(visualSetup);
     if(liveScalesId!==this.lastAppliedScaleId&&typeof graph.renderer.setVisualScales==="function"){graph.renderer.setVisualScales(rendererVisualScales(visualSetup));this.lastAppliedScaleId=liveScalesId;}
     // Equipment (Flow saber beam / Boxing glove) replaces the wrist markers;

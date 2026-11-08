@@ -66,6 +66,9 @@ export async function prepareRecordedTest(capture, content, { signal } = {}) {
     requireValue(setup !== null && presentationSetup !== null, "recorded Game Setup is invalid.");
     const renderSetup = { ...setup };
     for (const key of livePresentationFields) renderSetup[key] = presentationSetup[key];
+    // New bomb-core captures bind physical and visible size together. Older
+    // JSON captures retain their original presentation-only scale behavior.
+    if (value.gameplay.flowColliderSettings?.bombScale !== undefined) renderSetup.bombScalePercent = value.gameplay.flowColliderSettings.bombScale * 100;
     requireValue(await sha256Hex(canonicalEquipmentConfigIdentityInput(equipment)) === identity.value, "recorded equipment settings do not match their identity.");
     const { resolvedEvents: ignoredEvents, selectedVariant: ignoredVariant, packageId: ignoredPackage, ...rules } = value.gameplay;
     return remember(cache, index, freeze({ equipment, identity, setup, presentationSetup, renderSetup, kneePadRotations: value.kneePadRotations, configuration: { ...rules, packageId: content.packageId, selectedVariant: content.selectedVariant, resolvedEvents } }));
