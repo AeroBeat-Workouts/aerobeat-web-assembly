@@ -16,6 +16,8 @@ export { boxingColliderTargetCenter } from '@aerobeat/web-gameplay';
 export { flowSolidBladeRadiusWu, resolveSaberCapsule } from '@aerobeat/web-contracts';
 export { resolveGloveCylinder } from '@aerobeat/web-contracts/equipment-pose-contracts';
 export { equipmentColliderAnchors } from '../../src/equipment-collider-anchors.js';
+// Hidden stored preferences use the existing coordinator API, never fake controls.
+export { getGameSetupSnapshot, setGameSetupSnapshot } from '../../src/game-setup-coordinator.js';
 
 const HASH = 'a'.repeat(64);
 const PACKAGE_ID = 'scored-play-browser-fixture';

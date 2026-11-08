@@ -36,8 +36,26 @@ try {
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1000, height: 700 } });
+  const url = `http://127.0.0.1:${server.address().port}/`;
+  // Bomb Scale is a hidden stored/API preference, not a menu control. The
+  // bundled fixture has its own module instance: write via its canonical API in
+  // a same-origin companion tab so the game's real coordinator receives the
+  // browser's native storage event. Never inject an event or scorer settings.
+  const seedHiddenBombScale = async (game, bombScalePercent) => {
+    const settingsPage = await context.newPage();
+    try {
+      await settingsPage.goto(url, { waitUntil: "networkidle" });
+      await settingsPage.evaluate(async bombScalePercent => {
+        const { getGameSetupSnapshot, setGameSetupSnapshot } = await import("/scripts/fixtures/scored-play-browser-harness.js");
+        setGameSetupSnapshot({ ...getGameSetupSnapshot(), bombScalePercent });
+      }, bombScalePercent);
+      await game.page().waitForFunction(value => document.querySelector("aero-game")?.desiredGameSetup.bombScalePercent === value, bombScalePercent);
+      await game.evaluate(async element => { await element.lifecycleIntentTail; });
+    } finally { await settingsPage.close(); }
+  };
   for (const profile of profiles) {
-    const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    const page = await context.newPage();
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/`, { waitUntil: "networkidle" });
@@ -51,7 +69,13 @@ try {
       const harness = await installScoredPlayHarness(element, { events, mode: "flow", songDurationMs: 12000 });
       element.__bombHarness = harness;
       await harness.waitForAssets(); await harness.selectChart();
-      await harness.setSetup({ bombScalePercent: profile.bomb, wristBombColliderScale: profile.wrist });
+      if (element.shadowRoot.querySelector("[data-game-setup-field='bombScalePercent']")) throw Error("Bomb Scale must remain a hidden stored/API preference, with no new menu control");
+    }, profile);
+    await seedHiddenBombScale(game, profile.bomb);
+    await game.evaluate(async (element, profile) => {
+      const harness = element.__bombHarness;
+      // Unlike hidden Bomb Scale, wrist scale remains native menu-control proof.
+      await harness.setSetup({ wristBombColliderScale: profile.wrist });
       await harness.startPlay(); await harness.calibrate();
       if (element.activeGameplayConfiguration?.flowColliderSettings?.bombScale !== profile.bomb / 100) throw Error("Active Flow collision settings must carry actual bomb size");
       if (element.activeGameplayConfiguration.flowColliderSettings.wristBombColliderScale !== profile.wrist) throw Error("Active measured wrist scale missing");
@@ -59,13 +83,17 @@ try {
 
     if (profile.name === "default") {
       await game.evaluate(async element => {
-        const before = element.activeGameplayConfiguration;
-        await element.__bombHarness.setSetup({ bombScalePercent: 200 });
+        element.__bombConfigurationBeforeEdit = element.activeGameplayConfiguration;
+        element.setMenuOpen(true); element.renderPresenters();
         await element.menuPauseTail;
-        if (!element.menuOpen || element.graph.gameplay.getSnapshot().session.state !== "paused_manual") throw Error("Native menu must pause the actual run before editing next-run bomb size");
-        if (element.desiredGameSetup.bombScalePercent !== 200 || element.activeSessionSetup.bombScalePercent !== 100 || element.activeGameplayConfiguration !== before || before.flowColliderSettings.bombScale !== 1 || element.graph.renderer.tuning.bombScaleFactor !== 1) throw Error("Paused next-run edit changed active physical/rendered bomb size");
-        const control = element.shadowRoot.querySelector("[data-game-setup-field='bombScalePercent']");
-        if (!/next.*Play.*Restart/i.test(control?.title ?? "")) throw Error("Bomb Scale title must explain next Play/Restart application");
+        if (!element.menuOpen || element.graph.gameplay.getSnapshot().session.state !== "paused_manual") throw Error("Native menu must pause the actual run before editing hidden next-run bomb size");
+      });
+      await seedHiddenBombScale(game, 200);
+      await game.evaluate(element => {
+        const before = element.__bombConfigurationBeforeEdit;
+        if (element.desiredGameSetup.bombScalePercent !== 200 || element.activeSessionSetup.bombScalePercent !== 100 || element.activeGameplayConfiguration !== before || before.flowColliderSettings.bombScale !== 1 || element.graph.renderer.tuning.bombScaleFactor !== 1) throw Error("Paused hidden API preference edit changed active physical/rendered bomb size");
+        if (element.shadowRoot.querySelector("[data-game-setup-field='bombScalePercent']")) throw Error("Hidden Bomb Scale must not acquire a menu control");
+        delete element.__bombConfigurationBeforeEdit;
       });
       // Use the menu's real Escape handler and its camera recovery/resume path.
       // Do not reconfigure/resume the coordinator behind that UI.
@@ -131,7 +159,7 @@ try {
     console.log(JSON.stringify(result));
     await page.close();
   }
-  console.log(`PASS signed bomb-core Flow Play ${snapshot.manifest.buildStamp}: corner/spike negatives, inside/outside, small/large/disabled wrist, staged uniform scale and paused next-run size lock. Fixture movement, not physical-phone acceptance; Boxing bomb admission unchanged.`);
+  console.log(`PASS signed bomb-core Flow Play ${snapshot.manifest.buildStamp}: corner/spike negatives, inside/outside, small/large/disabled wrist, staged uniform scale and paused hidden-API next-run size lock (no Bomb Scale UI control). Fixture movement, not physical-phone acceptance; Boxing bomb admission unchanged.`);
 } finally {
   await browser?.close();
   if (server) await new Promise(resolve => server.close(resolve));
