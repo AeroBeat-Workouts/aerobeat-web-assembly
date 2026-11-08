@@ -2,7 +2,7 @@
 
 Deployable composition shell for the full-parent, reconnectable `<aero-game>` Web Component.
 
-## 0.0.158 bomb-core repair candidate — not live yet
+## Public 0.0.158 — circular bomb-core collision
 
 Bomb contact now targets the circular0.22WU central body of the canonical bomb,
 not its spikes or the old1x1grid-cell box. Only the independent measured wrist
@@ -13,8 +13,17 @@ for each run; size changes apply on the next Play/Restart. Other live visual
 scales are unchanged. Recorded Test retains that actual bound bomb size.
 
 Native Boxing currently excludes bomb events. This repair preserves that rule
-rather than adding new hazards or penalties to Boxing. Owner tests pass; signed
-assembly acceptance and publication are next.
+rather than adding new hazards or penalties to Boxing (separate proposal tw8d).
+
+Verified signed source `4ac9ba3`, frozen at `.tmp/cpu-r158-verified-4ac9ba3`,
+stamp `FRIEND-GAME-CPU-0.0.158-11cd43dc63635640d7453ea4`. The actual signed
+Play check (`npm run test:bomb-core`) passes core contacts, spike/corner negatives,
+independent wrist sizing, rendered small/default/large asset sizes, disabled
+wrist collisions, unchanged ordinary notes and paused size binding. Full normal
+checks,41focused recording/replay tests and actual signed Download-to-Test
+reversal/negative/late replay pass. Public HTTPS HTML and entry-script bytes
+match the frozen build; authentic149 remains unchanged. This is deterministic
+browser-fixture evidence, not a new human full-song playtest.
 
 ## Previous public 0.0.157 — compact disk-backed recordings
 
