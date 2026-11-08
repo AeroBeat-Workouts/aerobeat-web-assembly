@@ -1,6 +1,10 @@
 # Bomb collision matches the circular core
 
-Status: APPROVED for immediate repair by Derrick. Umbrella23yk. Assembly owns integration; gameplay owns deterministic collision. Public baseline157, authentic149 preserved. Goal cap Maximum safe integer.
+Status: IMPLEMENTED; signed bomb-core check PASS. Umbrella23yk; native regressionbyfu; gameplay owner689 closed. Public remains157 until final checks and publication.
+
+Current checkpoint: gameplay8f2f926 is pushed; assembly product4ac9ba3 has signed158 artifact in dist-friend-game, stamp FRIEND-GAME-CPU-0.0.158-11cd43dc63635640d7453ea4. Parent source check3 and41focusedtests4 PASS. Actual signed browser8 PASS on four Flow runs: original empty-cell corners and spike-only overlaps avoided, inside core contacts, outside does not, wristscale0 disables contact, actual rendered canonical asset scales match .1/1/2, ordinary notes still hit. Paused hidden preference change does not move current physical/visible core. Source owner normal/browser suites PASS. This is measured browser-fixture evidence, not a new physical playtest.
+
+Next: normal npmtest and existing signed movement-replay pipeline. Then freeze the verified artifact, update existing4216service to158, verify real mainHTTPS and149unchanged, close Beads, push docs/source and archive plan. No further bomb matrices or audits needed.
 
 ## Decision and next passing check
 
@@ -26,7 +30,13 @@ Retain all current safety and source/provenance gates. Change only the explicitl
 
 Boxing currently rejects bomb events (`event_type_invalid`) and has no bomb hazard dispatch; assembly uses one coordinator, not a hidden Flow hazard scorer. Preserve that admission and penalty contract. Verify existing Boxing notes/settings compatibility, but do not claim positive Boxing bomb contacts or add a new hazard feature as part of this Flow defect. Gameplay owner689 tracks implementation underassembly23yk.
 
-Bomb Scale was cosmetic/live, while gameplay collision settings are run-locked. Now that it defines the physical bomb core, bind its visual size and hit size together for each run, like the existing wrist bomb scale. Leave note/wall/marker live scaling alone. Retain the menu control and explain next-Play/Restart application in its existing title; no new UI. Native check will change next-run Bomb Scale while paused and prove current geometry/recording stays matched. Recorded Test must use active bomb size, not a next-run presentation edit. This avoids mutable scoring identities or a new runtime tuning API for one hazard.
+Bomb Scale was cosmetic/live, while gameplay collision settings are run-locked. Now that it defines the physical bomb core, bind its visual size and hit size together for each run, like the existing wrist bomb scale. Leave note/wall/marker live scaling alone. Bomb Scale itself is an existing hidden stored/API preference, not a visible menu control; keep it hidden and document next-Play/Restart application. The independent wrist scale remains the existing menu control; no new UI. Native check will change next-run Bomb Scale while paused and prove current geometry/recording stays matched. Recorded Test must use active bomb size, not a next-run presentation edit. This avoids mutable scoring identities or a new runtime tuning API for one hazard.
+
+## First signed-run diagnosis
+
+Signed158 build4ac9ba3 succeeds. Native test5 reaches its optional paused-size-edit section, then fails `release/countdown did not enter scored Play`, with sessionpaused_manual, camera running, audio paused, menu closed and no producterror. Runner assumed Escape both closes menu and resumes the manually paused run. Actual assembly public resume() separately reacquires lease/media and invokes guarded gameplay.resume; closing menu only recovers camera. Correct test to invoke the documented component resume API after Escape, not call gameplay directly or change production lifecycle. Same actual geometry assertions remain. This is the next minimal signed check; no product collision change is justified by this runner-state failure.
+
+Next native diagnostic6/7: component resume resolves the paused state. New failure is `Real staged canonical bomb ... undefined`; actual objects=[]/targets=[] at4800ms, hazards=[] before the window. Source gameplay-visual-runtime.js27-39 requires private generation-bound spawn timing unless the existing UI override is enabled. Fixture content deliberately has no such reader; createSessionTargetIndex then has null normalSpawnMs and does not render targets. Use the existing native Spawn Distance Override20WU via harness controls; do not fabricate timing authority, weaken renderer gating, or alter production. This is a fixture completeness correction. Same core collision/scale assertions remain strict.
 
 ## Validation record
 

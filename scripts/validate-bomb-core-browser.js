@@ -75,7 +75,10 @@ try {
     await game.evaluate(async (element, profile) => {
       const harness = element.__bombHarness;
       // Unlike hidden Bomb Scale, wrist scale remains native menu-control proof.
-      await harness.setSetup({ wristBombColliderScale: profile.wrist });
+      // Fixture content has no private generation-bound spawn-timing reader.
+      // Use the existing native override, not fabricated content timing or a
+      // relaxed renderer gate, so real canonical targets are actually staged.
+      await harness.setSetup({ spawnDistanceOverrideEnabled: true, spawnDistanceOverrideWorldUnits: 20, wristBombColliderScale: profile.wrist });
       await harness.startPlay(); await harness.calibrate();
       if (element.activeGameplayConfiguration?.flowColliderSettings?.bombScale !== profile.bomb / 100) throw Error("Active Flow collision settings must carry actual bomb size");
       if (element.activeGameplayConfiguration.flowColliderSettings.wristBombColliderScale !== profile.wrist) throw Error("Active measured wrist scale missing");
@@ -95,12 +98,13 @@ try {
         if (element.shadowRoot.querySelector("[data-game-setup-field='bombScalePercent']")) throw Error("Hidden Bomb Scale must not acquire a menu control");
         delete element.__bombConfigurationBeforeEdit;
       });
-      // Use the menu's real Escape handler and its camera recovery/resume path.
-      // Do not reconfigure/resume the coordinator behind that UI.
+      // Escape closes the menu and recovers camera. The documented component
+      // transport separately resumes manual pause with real lease/media gates.
       await page.keyboard.press("Escape");
       await page.waitForFunction(() => { const e = document.querySelector("aero-game"); return e && !e.menuOpen && e.graph.cv.getStatus().running; });
       await game.evaluate(async element => {
         await element.lifecycleIntentTail;
+        await element.resume();
         element.stopFrameLoop();
         await element.__bombHarness.calibrate();
       });
@@ -131,7 +135,7 @@ try {
           if (t === center - 200) {
             const renderer = harness.graph.renderer;
             const icon = renderer.lastModel?.objects.find(o => o.targetId === `bomb-${index}` && o.kind === "icon");
-            if (!icon || icon.assetId !== "bomb/urchin-v1" || ![icon.scale.x, icon.scale.y, icon.scale.z].every(n => Math.abs(n - profile.bomb / 100) < 1e-12)) throw Error(`Real staged canonical bomb must have uniform active scale: ${JSON.stringify(icon)}`);
+            if (!icon || icon.assetId !== "bomb/urchin-v1" || ![icon.scale.x, icon.scale.y, icon.scale.z].every(n => Math.abs(n - profile.bomb / 100) < 1e-12)) throw Error(`Real staged canonical bomb must have uniform active scale: ${JSON.stringify({ icon, time: t, objects: renderer.lastModel?.objects.filter(o => o.kind === "icon").map(o => ({ id: o.id, targetId: o.targetId, assetId: o.assetId, scale: o.scale })), targets: element.rendererFrame().targets, hazards: harness.graph.gameplay.getSnapshot().hazardOutcomes })}`);
             const scene = renderer.describe();
             if (scene.state !== "running" || scene.gameplayAssets?.state !== "ready" || scene.errorMessage) throw Error("Canonical bomb asset/actual renderer unavailable");
             rendered.push({ eventId: `bomb-${index}`, assetId: icon.assetId, scale: icon.scale });
