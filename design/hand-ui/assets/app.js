@@ -9,7 +9,11 @@ const WRIST_DIAMETER = 56;    // px; discs are treated as wrists that cover area
 
 const asset = src => (src ? `assets/${src}` : '');
 const allPlaylists = () => [DATA.playlistOfTheDay, ...DATA.recommended];
-const findPlaylist = key => allPlaylists().find(p => p.label === key || p.id === key);
+const findPlaylist = key => {
+  const wanted = String(key ?? '').trim().toLowerCase();
+  return allPlaylists().find(p => p.label === key || p.id === key
+    || String(p.label).toLowerCase() === wanted || String(p.name).toLowerCase() === wanted);
+};
 
 /** Playlist art: real cover when BeatSaver supplied one, otherwise the member
  *  thumbnails stand in — which is also how locally authored playlists will look. */
@@ -48,11 +52,15 @@ function overlapArea(a, b) {
   return w > 0 && h > 0 ? w * h : 0;
 }
 
+/** Anything a pointer or keyboard could act on is a hand target too. Deriving the
+ *  set from the DOM means a new control is hand-operable without being tagged. */
+const HAND_TARGET_SELECTOR = 'button, a[href], input, select, textarea, [role="button"], [data-hand-target]';
+
 /** Every hand target this wrist disc touches, with how much of the disc it covers. */
 function overlapped(x, y) {
   const disc = discRect(x, y);
   const hits = [];
-  for (const el of document.querySelectorAll('[data-hand-target]')) {
+  for (const el of document.querySelectorAll(HAND_TARGET_SELECTOR)) {
     const area = overlapArea(disc, el.getBoundingClientRect());
     if (area > 0) hits.push({ el, area });
   }
@@ -85,8 +93,9 @@ function agreementFor(left, right) {
 }
 
 function clearHover() {
-  document.querySelectorAll('.target.is-hover, .chip.is-hover, .play.is-hover')
-    .forEach(el => el.classList.remove('is-hover'));
+  document.querySelectorAll('.is-hover').forEach(el => {
+    if (!el.classList.contains('wrist')) el.classList.remove('is-hover');
+  });
   document.querySelectorAll('.wrist').forEach(el => el.classList.remove('is-hover'));
 }
 
@@ -102,10 +111,24 @@ function activate(el) {
   el.classList.add('is-select');
   setTimeout(() => el.classList.remove('is-select'), 140);
   el.click();
+  // A programmatic click does not move focus into a text field the way a real
+  // click does, so a wrist selecting the search box would do nothing visible.
+  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') el.focus();
+}
+
+/** Bubbles carry their own ring markup; a plain button or link does not. Give any
+ *  target a ring on first arming so every interactive shows the same feedback. */
+function ensureRing(el) {
+  if (el.querySelector(':scope > .dwell-ring')) return;
+  if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+  const ring = document.createElement('span');
+  ring.className = 'dwell-ring';
+  el.append(ring);
 }
 
 function startArming(el, now) {
   cancelArming();
+  ensureRing(el);
   el.classList.add('is-arming');
   hands.arming = { el, startedAt: now, raf: 0 };
   const step = () => {
@@ -167,6 +190,9 @@ function installHands() {
     hands.on = !hands.on;
     body.classList.toggle('hands-on', hands.on);
     toggle.setAttribute('aria-pressed', String(hands.on));
+    // The toggle is itself hand-selectable, and the wrists are sitting on it at the
+    // moment it turns hands mode on. Require a release first or it switches itself off.
+    hands.consumed = hands.on ? toggle : null;
     if (!hands.on) { clearHover(); cancelArming(); }
   });
   addEventListener('pointermove', event => {

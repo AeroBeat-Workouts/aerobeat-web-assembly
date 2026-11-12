@@ -74,11 +74,12 @@ body {
 .target.is-hover { transform: scale(1.045); filter: brightness(1.08) saturate(1.06); }
 .target.is-select { transform: scale(.985); filter: brightness(1.14); }
 
-/* dwell ring: the visible cost of committing a two-wrist selection */
-.dwell-ring { position: absolute; inset: -14px; border-radius: 50%; pointer-events: none; opacity: 0; }
-.target.is-arming .dwell-ring { opacity: 1; }
+/* dwell ring: the visible cost of committing a two-wrist selection.
+   Inherits its target's radius so it hugs pills, circles and rectangles alike. */
+.dwell-ring { position: absolute; inset: -14px; border-radius: inherit; pointer-events: none; opacity: 0; }
+.is-arming .dwell-ring { opacity: 1; }
 .dwell-ring::before {
-  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
   background: conic-gradient(from -90deg, #ffffff calc(var(--fill, 0) * 1%), rgba(255,255,255,.18) 0);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
   mask: radial-gradient(farthest-side, transparent calc(100% - 9px), #000 calc(100% - 8px));
@@ -323,7 +324,12 @@ body[data-screen="playlist"] .couch { display: none; }
   height: 52px; padding: 0 22px; border-radius: 999px;
   border: 1px solid rgba(255,255,255,.9); background: rgba(255,255,255,.62); backdrop-filter: blur(12px);
   font: 800 14px/1 var(--font); color: var(--ink); box-shadow: 0 8px 22px rgba(4,40,55,.3);
+  transition: transform 150ms cubic-bezier(.2,.9,.3,1.2), filter 150ms ease;
 }
+
+/* chrome controls react to a wrist the same way the bubbles do */
+.back.is-hover, .hands-toggle.is-hover { transform: scale(1.06); filter: brightness(1.08); }
+.back.is-select, .hands-toggle.is-select { transform: scale(.96); }
 
 .devmode {
   position: fixed; right: 12px; bottom: 12px; z-index: 20; max-width: 320px;

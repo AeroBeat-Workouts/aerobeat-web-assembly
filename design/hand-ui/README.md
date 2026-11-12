@@ -14,6 +14,8 @@ Open `index.html` directly in a browser. No build, no server, no dependencies.
 
 Press **Hands preview** in the top-right corner. Two wrist discs follow the mouse, spaced apart the way two real hands would be.
 
+Everything the pointer or keyboard could act on is a hand target: buttons, links, the search field, the Back pill, the Hands preview toggle itself. There is no list to maintain — the set is derived from the DOM, so a new control works with wrists the moment it exists.
+
 - Move so **one** disc touches a target: it highlights. That is aiming, and it is free.
 - Move so **both** discs touch the **same** target: a white ring fills over roughly half a second, then it activates. That is committing.
 - After it activates, both discs must leave that target before it can fire again.
