@@ -220,7 +220,8 @@ body {
 .hands-toggle[aria-pressed="true"] { background: linear-gradient(180deg,#fff,#b6ecff); }
 
 .wrist {
-  position: fixed; z-index: 19; width: 74px; height: 74px; margin: -37px 0 0 -37px;
+  position: fixed; top: 0; left: 0; z-index: 19;
+  width: 74px; height: 74px; margin: -37px 0 0 -37px;
   border-radius: 50%; pointer-events: none; opacity: 0;
   transition: opacity 160ms ease, transform 70ms linear;
   background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.96), rgba(180,240,255,.5) 44%, rgba(60,170,205,.30) 100%);
