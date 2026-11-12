@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AeroBeat · playlist (hand-ui prototype)</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body data-screen="playlist">
+
+  <div class="sky"><i></i><i></i><i></i><i></i><i></i></div>
+
+  <button class="hands-toggle" data-role="hands-toggle" aria-pressed="false" title="Preview two-wrist selection with the mouse">
+    Hands preview
+  </button>
+
+  <a class="back" href="index.html">‹ Back</a>
+
+  <main class="confirm">
+    <div class="confirm-art">
+      <div class="art" data-role="art"></div>
+    </div>
+
+    <div class="confirm-side">
+      <h1 class="confirm-title" data-role="title">Playlist</h1>
+      <p class="confirm-meta" data-role="meta"></p>
+
+      <p class="group-label">Difficulty preference — pick in order</p>
+      <div class="chips" data-role="difficulties" role="group" aria-label="Difficulty preference order"></div>
+
+      <p class="group-label">Game mode</p>
+      <div class="chips" data-role="modes" role="group" aria-label="Game mode"></div>
+
+      <div class="play-row">
+        <button class="play" data-role="play" data-hand-target type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.54.84l10-6.5a1 1 0 0 0 0-1.68l-10-6.5A1 1 0 0 0 8 5.5Z"/></svg>
+          <span>Play</span>
+          <span class="dwell-ring"></span>
+        </button>
+        <p class="confirm-meta" data-role="play-hint"></p>
+      </div>
+    </div>
+  </main>
+
+  <p class="hint">Prototype for feel-testing only · nothing here starts a song</p>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>

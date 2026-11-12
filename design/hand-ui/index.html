@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AeroBeat · couch home (hand-ui prototype)</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body data-screen="home">
+
+  <div class="sky"><i></i><i></i><i></i><i></i><i></i></div>
+
+  <button class="hands-toggle" data-role="hands-toggle" aria-pressed="false" title="Preview two-wrist selection with the mouse">
+    Hands preview
+  </button>
+
+  <header class="topbar">
+    <div class="glass search">
+      <input data-role="search-input" type="search" placeholder="Search songs and playlists" aria-label="Search songs and playlists">
+      <button class="search-action" data-role="search-action" type="button"></button>
+    </div>
+  </header>
+
+  <main class="couch">
+    <button class="target pod" data-role="daily" data-hand-target aria-label="Playlist of the day"></button>
+
+    <div class="recommended" data-role="recommended" role="group" aria-label="Recommended playlists"></div>
+
+    <button class="target pod pod--library" data-role="library" data-hand-target aria-label="Your library">
+      <span class="lib-glyph" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M7 3h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm1 3v10h8V6H8Z"/>
+          <path d="M4 7H3a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h11a1 1 0 0 0 1-1v-1H4V7Z"/>
+        </svg>
+      </span>
+      <span class="pod-caption">Your library</span>
+      <span class="dwell-ring"></span>
+    </button>
+  </main>
+
+  <div class="toast" data-role="library-hint" style="opacity:0;transition:opacity 200ms"></div>
+  <p class="hint">Prototype for feel-testing only · one wrist hovers · both wrists select</p>
+
+  <script src="assets/data.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
