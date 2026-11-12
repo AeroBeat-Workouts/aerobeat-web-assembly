@@ -4,7 +4,8 @@
 
 const DATA = window.AEROBEAT_PROTOTYPE;
 const HOLD_MS = 520;          // feel-test knob: how long both wrists must agree
-const WRIST_SPREAD = 74;      // px between the two simulated wrists
+const WRIST_SPREAD = 48;      // px between the two simulated wrists
+const WRIST_DIAMETER = 56;    // px; discs are treated as wrists that cover area
 
 const asset = src => (src ? `assets/${src}` : '');
 const allPlaylists = () => [DATA.playlistOfTheDay, ...DATA.recommended];
@@ -30,9 +31,57 @@ const hands = {
   consumed: null,      // element already activated; must be released before re-arming
 };
 
-function targetAt(x, y) {
-  const el = document.elementFromPoint(x, y);
-  return el ? el.closest('[data-hand-target]') : null;
+/** A wrist counts as over a target whenever its disc overlaps the target at all,
+ *  not only when the wrist centre is inside it. Overlap is what a person judging
+ *  their own hands calls being on the button, and it makes the whole target
+ *  usable instead of just its middle. */
+function discRect(x, y) {
+  return {
+    left: x - WRIST_DIAMETER / 2, right: x + WRIST_DIAMETER / 2,
+    top: y - WRIST_DIAMETER / 2, bottom: y + WRIST_DIAMETER / 2,
+  };
+}
+
+function overlapArea(a, b) {
+  const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+  const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+/** Every hand target this wrist disc touches, with how much of the disc it covers. */
+function overlapped(x, y) {
+  const disc = discRect(x, y);
+  const hits = [];
+  for (const el of document.querySelectorAll('[data-hand-target]')) {
+    const area = overlapArea(disc, el.getBoundingClientRect());
+    if (area > 0) hits.push({ el, area });
+  }
+  return hits;
+}
+
+/** Hover is per wrist: the target this wrist is most over. */
+function bestForWrist(x, y) {
+  let best = null;
+  let bestArea = 0;
+  for (const { el, area } of overlapped(x, y)) {
+    if (area > bestArea) { bestArea = area; best = el; }
+  }
+  return best;
+}
+
+/** Selection is shared: any target both discs overlap counts, so the pair does not
+ *  need to be centred, and a disc straddling two neighbours cannot split the vote. */
+function agreementFor(left, right) {
+  const rightAreas = new Map(overlapped(right.x, right.y).map(({ el, area }) => [el, area]));
+  let best = null;
+  let bestShare = 0;
+  for (const { el, area } of overlapped(left.x, left.y)) {
+    const other = rightAreas.get(el);
+    if (other === undefined) continue;
+    const share = Math.min(area, other);
+    if (share > bestShare) { bestShare = share; best = el; }
+  }
+  return best;
 }
 
 function clearHover() {
@@ -82,19 +131,19 @@ function updateHands() {
   wristEls[0].style.transform = `translate(${left.x}px, ${left.y}px)`;
   wristEls[1].style.transform = `translate(${right.x}px, ${right.y}px)`;
 
-  const leftTarget = targetAt(left.x, left.y);
-  const rightTarget = targetAt(right.x, right.y);
+  const leftHover = bestForWrist(left.x, left.y);
+  const rightHover = bestForWrist(right.x, right.y);
+  const agree = agreementFor(left, right);
 
   // Each wrist independently lights up whatever it is over: this is the
   // "aiming is cheap, committing is deliberate" half of the interaction.
   clearHover();
-  for (const [el, wrist] of [[leftTarget, wristEls[0]], [rightTarget, wristEls[1]]]) {
+  for (const [el, wrist] of [[leftHover, wristEls[0]], [rightHover, wristEls[1]]]) {
     if (!el) continue;
     el.classList.add('is-hover');
     wrist.classList.add('is-hover');
   }
-
-  const agree = leftTarget && rightTarget && leftTarget === rightTarget ? leftTarget : null;
+  if (agree) agree.classList.add('is-hover');
 
   // Release gate: after activating, both wrists must leave before it can fire again.
   if (hands.consumed) {
@@ -167,7 +216,7 @@ function installSearch() {
 function renderHome() {
   const daily = DATA.playlistOfTheDay;
   const dailyEl = document.querySelector('[data-role="daily"]');
-  dailyEl.innerHTML = `<span class="pod-badge">Playlist of the day</span>${artHtml(daily)}<span class="pod-caption">${escapeHtml(daily.name)}</span><span class="dwell-ring"></span>`;
+  dailyEl.innerHTML = `<span class="pod-badge">Playlist of the day</span>${artHtml(daily)}<span class="pod-caption"><span class="pod-name">${escapeHtml(daily.name)}</span><span class="pod-sub">${daily.maps.length} songs · ${escapeHtml(daily.owner || 'BeatSaver')}</span></span><span class="dwell-ring"></span>`;
   dailyEl.addEventListener('click', () => navigate(daily));
 
   const rec = document.querySelector('[data-role="recommended"]');

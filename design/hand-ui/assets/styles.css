@@ -147,10 +147,12 @@ body {
   box-shadow: 0 6px 16px rgba(6,60,80,.30);
 }
 .pod .pod-caption {
-  position: absolute; inset-inline: 0; bottom: -1.9em; text-align: center;
-  font: 700 clamp(13px, 1.1vw, 17px)/1.25 var(--font);
+  position: absolute; inset-inline: 0; bottom: -3.5em;
+  display: grid; gap: 3px; text-align: center;
   color: #fff; text-shadow: 0 2px 8px rgba(4,40,55,.75);
 }
+.pod .pod-name { font: 700 clamp(14px, 1.15vw, 18px)/1.2 var(--font); }
+.pod .pod-sub { font: 600 clamp(11px, .88vw, 13px)/1.2 var(--font); opacity: .88; }
 
 .recommended { display: flex; align-items: center; justify-content: center; gap: clamp(10px, 1.8vw, 30px); flex-wrap: wrap; }
 
@@ -221,7 +223,7 @@ body {
 
 .wrist {
   position: fixed; top: 0; left: 0; z-index: 19;
-  width: 74px; height: 74px; margin: -37px 0 0 -37px;
+  width: 56px; height: 56px; margin: -28px 0 0 -28px;
   border-radius: 50%; pointer-events: none; opacity: 0;
   transition: opacity 160ms ease, transform 70ms linear;
   background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.96), rgba(180,240,255,.5) 44%, rgba(60,170,205,.30) 100%);

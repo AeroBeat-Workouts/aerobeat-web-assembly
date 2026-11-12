@@ -14,11 +14,15 @@ Open `index.html` directly in a browser. No build, no server, no dependencies.
 
 Press **Hands preview** in the top-right corner. Two wrist discs follow the mouse, spaced apart the way two real hands would be.
 
-- Move so **one** disc is over a target: it highlights. That is aiming, and it is free.
-- Move so **both** discs are over the **same** target: a white ring fills over roughly half a second, then it activates. That is committing.
+- Move so **one** disc touches a target: it highlights. That is aiming, and it is free.
+- Move so **both** discs touch the **same** target: a white ring fills over roughly half a second, then it activates. That is committing.
 - After it activates, both discs must leave that target before it can fire again.
 
-That timing and the required grip are the two knobs most worth reacting to. The ring fill is 520 ms (`HOLD_MS` in `assets/app.js`); the wrist spacing is 74 px (`WRIST_SPREAD`).
+A wrist counts as being on a target when its disc *overlaps* the target at all, not when the wrist centre is inside it. So you can activate from anywhere over a button, including 4 px inside its edge, and the pair does not need to straddle the middle.
+
+If the two discs overlap two neighbouring buttons at once, nothing activates. Selection asks which single target both wrists touch, so a disc sitting across a boundary cannot split the vote.
+
+That timing and the required grip are the knobs most worth reacting to. The ring fill is 520 ms (`HOLD_MS`), the wrist spacing is 48 px (`WRIST_SPREAD`), and each disc is 56 px across (`WRIST_DIAMETER`), all in `assets/app.js`.
 
 Mouse clicks work normally throughout, which is also how the real thing must behave.
 
