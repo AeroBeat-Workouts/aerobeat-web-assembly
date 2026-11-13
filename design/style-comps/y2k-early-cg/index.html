@@ -1,0 +1,768 @@
+<!doctype html><html><head><meta charset="utf-8"><title>AeroBeat — Y2K early-CG comp</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#1E2C9E}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import * as pc from '../_shared/playcanvas.min.mjs';
+import { createHands } from '../_shared/hands.mjs';
+import { content, coverUrl } from '../_shared/content.mjs';
+
+window.__compReady = false;
+
+// ---------------------------------------------------------------- palette
+const C = {
+  cobalt: '#1E2C9E', ink: '#0D1460', peri: '#8FA6FF', haze: '#FFE4D8',
+  poolA: '#0E5D8C', poolB: '#1C82B4', white: '#F5F8FF', topaz: '#FFB21E',
+  ruby: '#F0325C', emerald: '#19C98A', amethyst: '#A65BFF',
+};
+const col = (hex, a = 1) => { const n = parseInt(hex.slice(1), 16); return new pc.Color(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, a); };
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ---------------------------------------------------------------- app + camera
+const canvas = document.getElementById('c');
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: true, alpha: false } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+app.scene.ambientLight = new pc.Color(0.42, 0.46, 0.66);
+app.scene.fog.type = pc.FOG_LINEAR;
+app.scene.fog.color = col(C.haze);
+app.scene.fog.start = 16;
+app.scene.fog.end = 95;
+app.start();
+window.__app = app;
+app.scene.layers.getLayerByName('World').opaqueSortMode = pc.SORTMODE_FRONT2BACK;
+
+const FOV = 40, CAM_Z = 10;
+const cam = new pc.Entity('cam');
+cam.addComponent('camera', { clearColor: col(C.peri), clearColorBuffer: false, fov: FOV, nearClip: 0.1, farClip: 400, toneMapping: pc.TONEMAP_NONE });
+cam.setPosition(0, 0, CAM_Z);
+app.root.addChild(cam);
+
+const sun = new pc.Entity('sun');
+sun.addComponent('light', { type: 'directional', color: new pc.Color(1, 0.94, 0.84), intensity: 1.15 });
+sun.setEulerAngles(48, 38, 0);
+app.root.addChild(sun);
+const rim = new pc.Entity('rim');
+rim.addComponent('light', { type: 'directional', color: col('#9FB2FF'), intensity: 0.45 });
+rim.setEulerAngles(-30, -140, 0);
+app.root.addChild(rim);
+
+const hands = createHands(app, cam);
+
+// Layout is authored in 1600x1000 screen pixels on the z=0 plane.
+const K = 2 * CAM_Z * Math.tan(FOV / 2 * Math.PI / 180) / 1000; // world units per px at z=0
+const S = (px) => px * K;
+
+// ---------------------------------------------------------------- helpers
+const SC = 2; // canvas supersampling for text
+function mkCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.ceil(w); c.height = Math.ceil(h); return c; }
+function tex(cv, { repeat = false, srgb = true, mips = true } = {}) {
+  const t = new pc.Texture(app.graphicsDevice, {
+    width: cv.width, height: cv.height, format: srgb ? pc.PIXELFORMAT_SRGBA8 : pc.PIXELFORMAT_RGBA8,
+    mipmaps: mips, minFilter: mips ? pc.FILTER_LINEAR_MIPMAP_LINEAR : pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR, anisotropy: 1,
+    addressU: repeat ? pc.ADDRESS_REPEAT : pc.ADDRESS_CLAMP_TO_EDGE, addressV: repeat ? pc.ADDRESS_REPEAT : pc.ADDRESS_CLAMP_TO_EDGE,
+  });
+  t.setSource(cv);
+  return t;
+}
+function unlit(t, { alpha = true, additive = false, fog = false, opacity = 1, depthTest = true } = {}) {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false; m.useSkybox = false; m.useFog = fog; m.useTonemap = false;
+  m.diffuse = new pc.Color(0, 0, 0); m.emissive = new pc.Color(1, 1, 1); m.emissiveMap = t;
+  if (alpha) {
+    m.opacityMap = t; m.opacityMapChannel = 'a';
+    m.blendType = additive ? pc.BLEND_ADDITIVEALPHA : pc.BLEND_NORMAL; m.depthWrite = false;
+  }
+  m.depthTest = depthTest; m.opacity = opacity; m.cull = pc.CULLFACE_NONE;
+  m.update();
+  return m;
+}
+function quad(parent, w, h, mat, name = 'quad') {
+  const e = new pc.Entity(name);
+  e.addComponent('render', { type: 'plane', castShadows: false, receiveShadows: false });
+  e.render.meshInstances[0].material = mat;
+  e.setLocalEulerAngles(90, 0, 0);
+  e.setLocalScale(w, 1, h);
+  parent.addChild(e);
+  return e;
+}
+function spinQuad(parent, w, h, mat, name = 'spin') {
+  const pivot = new pc.Entity(name); parent.addChild(pivot);
+  const q = quad(pivot, w, h, mat, name + '-q');
+  pivot.q = q; return pivot;
+}
+function prim(parent, type, mat, name = type) {
+  const e = new pc.Entity(name);
+  e.addComponent('render', { type, castShadows: false, receiveShadows: false });
+  e.render.meshInstances[0].material = mat;
+  parent.addChild(e);
+  return e;
+}
+function meshEntity(parent, mesh, mat, name) {
+  const e = new pc.Entity(name);
+  e.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, mat)], castShadows: false });
+  parent.addChild(e);
+  return e;
+}
+const easeOut = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+const easeInOut = (t) => { t = Math.min(1, Math.max(0, t)); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// ---------------------------------------------------------------- assets
+async function loadFont(family, url, descriptors) {
+  const buf = await (await fetch(url)).arrayBuffer();
+  const f = new FontFace(family, buf, descriptors);
+  await f.load(); document.fonts.add(f);
+}
+function loadImage(path) {
+  return new Promise((ok) => {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => ok(img);
+    img.onerror = () => { console.warn('cover failed', path); ok(null); };
+    img.src = coverUrl(path);
+  });
+}
+
+// ---------------------------------------------------------------- procedural textures
+// The one environment every reflective surface shares: a sphere map, i.e. the
+// exact cheap trick 90s renderers used for "chrome". Cobalt sky, a hard white
+// horizon line, warm ground, two studio-window highlights.
+function chromeSphereCanvas() {
+  const n = 512, cv = mkCanvas(n, n), g = cv.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, n);
+  gr.addColorStop(0.00, '#0A1150'); gr.addColorStop(0.22, '#1E2C9E'); gr.addColorStop(0.40, '#6F86F2');
+  gr.addColorStop(0.485, '#E6ECFF'); gr.addColorStop(0.50, '#FFFFFF'); gr.addColorStop(0.512, '#FFE4D8');
+  gr.addColorStop(0.53, '#5A3C5E'); gr.addColorStop(0.62, '#1C82B4'); gr.addColorStop(0.80, '#0E5D8C'); gr.addColorStop(1, '#041C30');
+  g.fillStyle = gr; g.fillRect(0, 0, n, n);
+  const blob = (x, y, rx, ry, a) => { g.save(); g.translate(x, y); g.scale(rx, ry); const r = g.createRadialGradient(0, 0, 0, 0, 0, 1); r.addColorStop(0, `rgba(255,255,255,${a})`); r.addColorStop(0.6, `rgba(255,255,255,${a * 0.5})`); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore(); };
+  blob(360, 130, 70, 42, 0.95); blob(150, 170, 40, 26, 0.55); blob(256, 420, 120, 18, 0.25);
+  return cv;
+}
+function skyCanvas() {
+  // Maps onto a 240x130 world plane at z=-150; the horizon is the middle row.
+  const w = 1024, h = 1024, cv = mkCanvas(w, h), g = cv.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0.00, '#101A7A'); gr.addColorStop(0.12, '#1E2C9E'); gr.addColorStop(0.28, '#3F58D6');
+  gr.addColorStop(0.40, '#8FA6FF'); gr.addColorStop(0.47, '#D8DEFF'); gr.addColorStop(0.50, '#FFE4D8');
+  gr.addColorStop(0.54, '#F4DCE0'); gr.addColorStop(0.62, '#9CC4E4'); gr.addColorStop(1, '#3A86BA');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  // airbrushed cirrus
+  g.save(); g.filter = 'blur(10px)';
+  const streak = (x, y, len, th, a) => { g.save(); g.translate(x, y); g.rotate(-0.06); g.scale(len, th); const r = g.createRadialGradient(0, 0, 0, 0, 0, 1); r.addColorStop(0, `rgba(255,245,250,${a})`); r.addColorStop(1, 'rgba(255,245,250,0)'); g.fillStyle = r; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore(); };
+  streak(700, 330, 260, 10, 0.35); streak(820, 360, 180, 7, 0.3); streak(560, 395, 300, 9, 0.28);
+  streak(860, 420, 220, 8, 0.32); streak(300, 300, 240, 9, 0.22); streak(640, 440, 330, 7, 0.35);
+  g.restore();
+  // distant fractal ridge, swallowed by the horizon fog the way Bryce did it
+  const ridge = (seed, base, amp, colTop, colBot) => {
+    let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const pts = new Array(257).fill(0);
+    const md = (a, b, d) => { if (b - a < 2) return; const m = (a + b) >> 1; pts[m] = (pts[a] + pts[b]) / 2 + (rnd() - 0.5) * d; md(a, m, d * 0.55); md(m, b, d * 0.55); };
+    pts[0] = rnd() * amp * 0.4; pts[256] = rnd() * amp * 0.4; md(0, 256, amp);
+    const rg = g.createLinearGradient(0, base - amp, 0, base);
+    rg.addColorStop(0, colTop); rg.addColorStop(1, colBot);
+    g.fillStyle = rg; g.beginPath(); g.moveTo(0, base);
+    for (let i = 0; i <= 256; i++) g.lineTo(i / 256 * w, base - Math.max(0, pts[i] + amp * 0.35));
+    g.lineTo(w, base); g.closePath(); g.fill();
+  };
+  ridge(11, 514, 34, 'rgba(160,150,214,0.85)', 'rgba(255,228,216,1)');
+  ridge(97, 516, 20, 'rgba(198,176,214,0.9)', 'rgba(255,228,216,1)');
+  // fog band across the horizon
+  const fb = g.createLinearGradient(0, 488, 0, 540);
+  fb.addColorStop(0, 'rgba(255,228,216,0)'); fb.addColorStop(0.45, 'rgba(255,236,226,0.9)'); fb.addColorStop(1, 'rgba(255,228,216,0)');
+  g.fillStyle = fb; g.fillRect(0, 488, w, 52);
+  return cv;
+}
+function slabCanvas() {
+  const w = 512, h = 320, cv = mkCanvas(w, h), g = cv.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, h);
+  gr.addColorStop(0, '#1A2690'); gr.addColorStop(0.45, '#3A52D0'); gr.addColorStop(0.75, '#6E86EE'); gr.addColorStop(0.9, '#C9CCF4'); gr.addColorStop(1, '#F2DCE0');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  // diagonal "glass" sheen bands
+  g.save(); g.globalCompositeOperation = 'lighter';
+  const band = (x, wd, a) => { const lg = g.createLinearGradient(x, 0, x + wd, 0); lg.addColorStop(0, 'rgba(255,255,255,0)'); lg.addColorStop(0.5, `rgba(190,205,255,${a})`); lg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = lg; g.save(); g.transform(1, 0, -0.55, 1, 0, 0); g.fillRect(x, 0, wd, h); g.restore(); };
+  band(260, 90, 0.18); band(380, 26, 0.22); band(470, 60, 0.12);
+  g.restore();
+  return cv;
+}
+function checkerCanvas() {
+  const n = 256, cv = mkCanvas(n, n), g = cv.getContext('2d');
+  g.fillStyle = C.poolA; g.fillRect(0, 0, n, n);
+  g.fillStyle = C.poolB; g.fillRect(0, 0, n / 2, n / 2); g.fillRect(n / 2, n / 2, n / 2, n / 2);
+  g.strokeStyle = 'rgba(190,232,255,0.35)'; g.lineWidth = 3;
+  g.strokeRect(1.5, 1.5, n / 2 - 3, n / 2 - 3); g.strokeRect(n / 2 + 1.5, 1.5, n / 2 - 3, n / 2 - 3);
+  g.strokeRect(1.5, n / 2 + 1.5, n / 2 - 3, n / 2 - 3); g.strokeRect(n / 2 + 1.5, n / 2 + 1.5, n / 2 - 3, n / 2 - 3);
+  return cv;
+}
+function planetCanvas() {
+  const w = 512, h = 256, cv = mkCanvas(w, h), g = cv.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, h);
+  const bands = ['#E9D6F2', '#F6E3DA', '#CDB8EE', '#F9EADF', '#D9C3EC', '#EED6E2', '#C6B2E8', '#F3E2DC'];
+  bands.forEach((c, i) => gr.addColorStop(i / (bands.length - 1), c));
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.globalAlpha = 0.25; g.filter = 'blur(3px)';
+  for (let i = 0; i < 14; i++) { g.fillStyle = i % 2 ? '#B9A2E0' : '#FFF1E6'; g.fillRect(0, 20 + i * 16 + Math.sin(i) * 5, w, 4 + (i % 3) * 2); }
+  return cv;
+}
+function radialCanvas(stops, n = 256) {
+  const cv = mkCanvas(n, n), g = cv.getContext('2d');
+  const r = g.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  for (const [o, c] of stops) r.addColorStop(o, c);
+  g.fillStyle = r; g.fillRect(0, 0, n, n);
+  return cv;
+}
+// four-point star glint
+function sparkleCanvas({ core = '#FFFFFF', tint = 'rgba(255,255,255,', ring = null, n = 256 } = {}) {
+  const cv = mkCanvas(n, n), g = cv.getContext('2d'), c = n / 2;
+  if (ring) { // wrist marker: ink-white-ink ring, legible on haze, sky and chrome
+    g.lineWidth = n * 0.13; g.strokeStyle = ring.outer; g.beginPath(); g.arc(c, c, n * 0.34, 0, Math.PI * 2); g.stroke();
+    g.lineWidth = n * 0.07; g.strokeStyle = ring.inner; g.beginPath(); g.arc(c, c, n * 0.34, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = 'rgba(13,20,96,0.35)'; g.beginPath(); g.arc(c, c, n * 0.27, 0, Math.PI * 2); g.fill();
+  }
+  const spike = (len, th, rot) => {
+    g.save(); g.translate(c, c); g.rotate(rot);
+    const lg = g.createLinearGradient(-len, 0, len, 0);
+    lg.addColorStop(0, tint + '0)'); lg.addColorStop(0.5, tint + '1)'); lg.addColorStop(1, tint + '0)');
+    g.fillStyle = lg; g.beginPath(); g.moveTo(-len, 0); g.lineTo(0, -th); g.lineTo(len, 0); g.lineTo(0, th); g.closePath(); g.fill(); g.restore();
+  };
+  if (ring) { g.save(); g.shadowColor = ring.outer; g.shadowBlur = n * 0.06; }
+  spike(n * 0.47, n * 0.06, 0); spike(n * 0.47, n * 0.06, Math.PI / 2);
+  spike(n * 0.22, n * 0.035, Math.PI / 4); spike(n * 0.22, n * 0.035, -Math.PI / 4);
+  if (ring) g.restore();
+  const r = g.createRadialGradient(c, c, 0, c, c, n * 0.16);
+  r.addColorStop(0, core); r.addColorStop(1, tint + '0)');
+  g.fillStyle = r; g.beginPath(); g.arc(c, c, n * 0.16, 0, Math.PI * 2); g.fill();
+  return cv;
+}
+function raysCanvas(n = 512) {
+  const cv = mkCanvas(n, n), g = cv.getContext('2d'), c = n / 2;
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 48; i++) {
+    const a = rnd() * Math.PI * 2, len = c * (0.35 + rnd() * 0.65), th = 1 + rnd() * 2.5;
+    g.save(); g.translate(c, c); g.rotate(a);
+    const lg = g.createLinearGradient(0, 0, len, 0);
+    lg.addColorStop(0, 'rgba(255,240,210,0.9)'); lg.addColorStop(1, 'rgba(255,200,120,0)');
+    g.fillStyle = lg; g.beginPath(); g.moveTo(0, -th); g.lineTo(len, 0); g.lineTo(0, th); g.fill(); g.restore();
+  }
+  return cv;
+}
+function ghostCanvas(kind, hue, n = 256) {
+  const cv = mkCanvas(n, n), g = cv.getContext('2d'), c = n / 2;
+  if (kind === 'ring') {
+    const r = g.createRadialGradient(c, c, n * 0.28, c, c, n * 0.48);
+    r.addColorStop(0, `hsla(${hue},100%,70%,0)`); r.addColorStop(0.5, `hsla(${hue},100%,72%,0.7)`); r.addColorStop(1, `hsla(${hue},100%,70%,0)`);
+    g.fillStyle = r; g.fillRect(0, 0, n, n);
+  } else {
+    g.fillStyle = `hsla(${hue},90%,72%,0.32)`; g.strokeStyle = `hsla(${hue},100%,85%,0.55)`; g.lineWidth = 4;
+    g.beginPath(); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + Math.PI / 6; g[i ? 'lineTo' : 'moveTo'](c + Math.cos(a) * n * 0.44, c + Math.sin(a) * n * 0.44); } g.closePath(); g.fill(); g.stroke();
+  }
+  return cv;
+}
+function streakCanvas() {
+  const w = 1024, h = 64, cv = mkCanvas(w, h), g = cv.getContext('2d');
+  g.save(); g.translate(w / 2, h / 2); g.scale(w / 2, h / 2);
+  const r = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.15, 'rgba(170,215,255,0.8)'); r.addColorStop(0.6, 'rgba(90,140,255,0.25)'); r.addColorStop(1, 'rgba(60,90,255,0)');
+  g.fillStyle = r; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore();
+  return cv;
+}
+
+// Text drawn into a canvas, shown on a plane. Returns entity plus size in px.
+function textBlock(parent, { lines, family = 'Jost', size, weight = 500, color = C.white, chrome = false, align = 'left',
+  lineH = 1.12, halo = C.ink, tracking = 0 }) {
+  const font = `${weight} ${size * SC}px "${family}"`;
+  const m = mkCanvas(4, 4).getContext('2d'); m.font = font;
+  if (tracking) m.letterSpacing = `${tracking * SC}px`;
+  const widths = lines.map((l) => m.measureText(l).width / SC);
+  const pad = Math.round(size * 0.35);
+  const wpx = Math.max(...widths) + pad * 2, hpx = lines.length * size * lineH + pad * 2;
+  const cv = mkCanvas(wpx * SC, hpx * SC), g = cv.getContext('2d');
+  g.font = font; g.textBaseline = 'middle'; g.lineJoin = 'round';
+  if (tracking) g.letterSpacing = `${tracking * SC}px`;
+  lines.forEach((line, i) => {
+    const lw = widths[i];
+    const x = (align === 'left' ? pad : align === 'right' ? wpx - pad - lw : (wpx - lw) / 2) * SC;
+    const yc = (pad + size * lineH * (i + 0.5)) * SC;
+    if (chrome) {
+      // classic airbrushed chrome lettering: sky top, hard horizon line, warm ground.
+      const top = yc - size * 0.42 * SC, bot = yc + size * 0.42 * SC;
+      g.save(); g.shadowColor = 'rgba(8,12,70,0.65)'; g.shadowBlur = size * 0.25 * SC; g.shadowOffsetY = size * 0.06 * SC;
+      g.lineWidth = size * 0.16 * SC; g.strokeStyle = C.ink; g.strokeText(line, x, yc); g.restore();
+      const gr = g.createLinearGradient(0, top, 0, bot);
+      gr.addColorStop(0, '#2A3CC4'); gr.addColorStop(0.28, '#9DB2FF'); gr.addColorStop(0.49, '#FFFFFF');
+      gr.addColorStop(0.505, '#7A4A3A'); gr.addColorStop(0.62, '#C47F4F'); gr.addColorStop(0.85, '#FFD7A8'); gr.addColorStop(1, '#FFF4E4');
+      g.fillStyle = gr; g.fillText(line, x, yc);
+      g.lineWidth = size * 0.025 * SC; g.strokeStyle = 'rgba(255,255,255,0.75)'; g.strokeText(line, x, yc);
+    } else {
+      g.save(); g.shadowColor = 'rgba(8,12,70,0.55)'; g.shadowBlur = size * 0.3 * SC;
+      g.lineWidth = size * 0.14 * SC; g.strokeStyle = halo; g.strokeText(line, x, yc); g.restore();
+      g.fillStyle = color; g.fillText(line, x, yc);
+    }
+  });
+  const e = quad(parent, S(wpx), S(hpx), unlit(tex(cv)), 'text');
+  return { e, wpx, hpx, pad };
+}
+// place a text block: x,y are the px position of its anchor (left/centre of first line's box top)
+function placeText(tb, ux, uy, x, y, z = 0.03, anchor = 'left') {
+  const cx = anchor === 'left' ? x - tb.pad + tb.wpx / 2 : x;
+  const cy = y - tb.pad + tb.hpx / 2;
+  tb.e.setLocalPosition(S(cx - ux), S(uy - cy), z);
+}
+
+// Faceted gem (brilliant-ish), flat shaded, table facing +Z.
+function gemMesh() {
+  const N = 8, girdle = [], table = [], P = [], Nn = [], U = [], I = [];
+  for (let i = 0; i < N; i++) { const a = i / N * Math.PI * 2 + Math.PI / 8; girdle.push([Math.cos(a), Math.sin(a), 0]); table.push([0.55 * Math.cos(a), 0.55 * Math.sin(a), 0.4]); }
+  const top = [0, 0, 0.42], culet = [0, 0, -0.85];
+  const tri = (a, b, c) => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2], vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; const l = Math.hypot(nx, ny, nz); nx /= l; ny /= l; nz /= l;
+    for (const p of [a, b, c]) { I.push(P.length / 3); P.push(...p); Nn.push(nx, ny, nz); U.push(p[0] * 0.5 + 0.5, p[1] * 0.5 + 0.5); }
+  };
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    tri(top, table[i], table[j]);
+    tri(table[i], girdle[i], girdle[j]); tri(table[i], girdle[j], table[j]);
+    tri(girdle[j], girdle[i], culet);
+  }
+  const geom = new pc.Geometry(); geom.positions = P; geom.normals = Nn; geom.uvs = U; geom.indices = I;
+  return pc.Mesh.fromGeometry(app.graphicsDevice, geom);
+}
+
+// ---------------------------------------------------------------- build
+async function build() {
+  await Promise.all([
+    loadFont('Michroma', 'fonts/Michroma-Regular.ttf', { weight: '400' }),
+    loadFont('Jost', 'fonts/Jost-Variable.ttf', { weight: '100 900' }),
+  ]);
+  const P = content.playlistOfTheDay, R = content.recommended;
+  const paths = new Set([P.cover, ...P.memberCovers]);
+  for (const r of R) { if (r.cover) paths.add(r.cover); else r.memberCovers.forEach((p) => paths.add(p)); }
+  const imgs = {};
+  await Promise.all([...paths].map(async (p) => { imgs[p] = await loadImage(p); }));
+  window.__coverLoaded = true;
+
+  // materials ------------------------------------------------------
+  const chromeTex = tex(chromeSphereCanvas());
+  const chrome = (tint = '#FFFFFF', gloss = 0.93) => {
+    const m = new pc.StandardMaterial();
+    m.useMetalness = true; m.metalness = 1; m.diffuse = col(tint); m.gloss = gloss;
+    m.sphereMap = chromeTex; m.reflectivity = 1; m.useSkybox = false; m.useFog = false; m.useLighting = false; m.update();
+    return m;
+  };
+  const glass = (tint, opacity, refl = 0.45) => {
+    const m = new pc.StandardMaterial();
+    m.diffuse = col(tint); m.specular = new pc.Color(1, 1, 1); m.gloss = 0.94; m.useMetalness = false;
+    m.sphereMap = chromeTex; m.reflectivity = refl; m.opacity = opacity; m.blendType = pc.BLEND_NORMAL;
+    m.depthWrite = false; m.useSkybox = false; m.useFog = false; m.update();
+    return m;
+  };
+  const gemMat = (tint, glow = 0) => {
+    const m = new pc.StandardMaterial();
+    m.diffuse = col(tint); m.specular = new pc.Color(1, 1, 1); m.gloss = 0.9; m.useMetalness = false;
+    m.sphereMap = chromeTex; m.reflectivity = 0.7; m.emissive = col(tint); m.emissiveIntensity = glow;
+    m.useSkybox = false; m.useFog = false; m.update();
+    return m;
+  };
+  const M = {
+    chrome: chrome(), chromeSoft: chrome('#DDE4FF', 0.86),
+    ruby: chrome(C.ruby), emerald: chrome(C.emerald), amethyst: chrome(C.amethyst),
+    slab: glass('#2236B4', 0.62, 0.5), libGlass: glass('#5A6CD0', 0.5, 0.55),
+    gemIdle: gemMat('#C9D8FF', 0.35), gemLit: gemMat(C.topaz, 1.1), gemFlash: gemMat('#FFFFFF', 1.6),
+    gemRuby: gemMat(C.ruby, 0.35), gemEmerald: gemMat(C.emerald, 0.35), gemAmethyst: gemMat(C.amethyst, 0.35),
+  };
+  const GEM = gemMesh();
+  const haloMat = unlit(tex(radialCanvas([[0, 'rgba(255,214,120,0.95)'], [0.35, 'rgba(255,178,30,0.45)'], [1, 'rgba(255,150,0,0)']])), { additive: true });
+  const glintTex = tex(sparkleCanvas());
+
+  // world: sky, ridge, floor, planet -----------------------------------
+  const skyMat = unlit(tex(skyCanvas(), { mips: false }), { alpha: false });
+  skyMat.emissiveMapTiling = new pc.Vec2(1, 0.56); skyMat.emissiveMapOffset = new pc.Vec2(0, 0.44); skyMat.update();
+  const sky = quad(app.root, 240, 130 * 0.56, skyMat, 'sky');
+  sky.setPosition(0, 130 * 0.22, -150);
+  const floorTex = tex(checkerCanvas(), { repeat: true });
+  const floorMat = new pc.StandardMaterial();
+  floorMat.useLighting = false; floorMat.useSkybox = false; floorMat.useFog = true; floorMat.diffuse = new pc.Color(0, 0, 0);
+  floorMat.emissive = new pc.Color(1, 1, 1); floorMat.emissiveMap = floorTex;
+  floorMat.emissiveMapTiling = new pc.Vec2(60, 24); floorMat.update();
+  const floor = prim(app.root, 'plane', floorMat, 'floor');
+  floor.setLocalScale(400, 1, 156); floor.setPosition(0, -4.2, -72);
+
+  const planetRoot = new pc.Entity('planet'); app.root.addChild(planetRoot);
+  { const d = CAM_Z + 60, k = K * d / CAM_Z;
+    planetRoot.setPosition((1150 - 800) * k, (500 - 392) * k, -60);
+    const pm = new pc.StandardMaterial(); pm.diffuseMap = tex(planetCanvas()); pm.diffuse = new pc.Color(1, 1, 1);
+    pm.specular = new pc.Color(0.2, 0.2, 0.25); pm.gloss = 0.4; pm.useFog = false; pm.useSkybox = false;
+    pm.emissive = col('#4A3E8C'); pm.emissiveIntensity = 0.35; pm.update();
+    const ball = prim(planetRoot, 'sphere', pm); ball.setLocalScale(2 * 52 * k, 2 * 52 * k, 2 * 52 * k); ball.setLocalEulerAngles(18, 0, -14);
+    const ringMat = new pc.StandardMaterial(); ringMat.useLighting = false; ringMat.diffuse = new pc.Color(0, 0, 0);
+    ringMat.emissive = col('#FFF2EA'); ringMat.opacity = 0.55; ringMat.blendType = pc.BLEND_NORMAL; ringMat.depthWrite = false; ringMat.useFog = false; ringMat.update();
+    const ring = new pc.Entity('ring'); ring.addComponent('render', { meshInstances: [new pc.MeshInstance(pc.Mesh.fromGeometry(app.graphicsDevice, new pc.TorusGeometry({ tubeRadius: 0.018, ringRadius: 1.85, segments: 96, sides: 6 })), ringMat)] });
+    ring.setLocalScale(52 * k, 52 * k * 0.6, 52 * k); ring.setLocalEulerAngles(14, 0, -16); planetRoot.addChild(ring);
+  }
+
+  // target units -------------------------------------------------------
+  const units = {};
+  function makeUnit(name, cx, cy) {
+    const unit = new pc.Entity(name + '-unit'); app.root.addChild(unit);
+    unit.setPosition(S(cx - 800), S(500 - cy), 0);
+    const hit = new pc.Entity(name); unit.addChild(hit);
+    const look = new pc.Entity(name + '-look'); unit.addChild(look);
+    const decor = new pc.Entity(name + '-decor'); unit.addChild(decor);
+    const u = { name, unit, hit, look, decor, cx, cy, home: unit.getPosition().clone(), hover: false, arm: 0, lift: 0, gems: [], phase: Math.random() * 6, bob: 0, flashT: -10, glint: null, scale: 1 };
+    units[name] = u;
+    return u;
+  }
+  // The registered entity holds only an invisible plane the size of the designed
+  // footprint, so the hit rectangle matches what the athlete sees instead of the
+  // inflated 3D bounding box of spheres and tori.
+  const proxyMat = new pc.StandardMaterial(); proxyMat.update();
+  function hitArea(u, x0, y0, x1, y1) {
+    const e = quad(u.hit, S(x1 - x0), S(y1 - y0), proxyMat, 'hit-area');
+    const [lx, ly] = L(u, (x0 + x1) / 2, (y0 + y1) / 2); e.setLocalPosition(lx, ly, 0);
+    e.render.meshInstances[0].visible = false;
+  }
+  // local px -> unit-local world
+  const L = (u, x, y) => [S(x - u.cx), S(u.cy - y)];
+  function addGems(u, pts, size, z = 0.16, haloK = 2.4) {
+    for (const [x, y] of pts) {
+      const g = new pc.Entity('gem'); u.decor.addChild(g);
+      const [lx, ly] = L(u, x, y); g.setLocalPosition(lx, ly, z);
+      const body = meshEntity(g, GEM, M.gemIdle, 'gem-body'); body.setLocalScale(S(size / 2), S(size / 2), S(size / 2));
+      const halo = quad(g, S(size * haloK), S(size * haloK), haloMat, 'halo'); halo.setLocalPosition(0, 0, -0.04); halo.enabled = false;
+      g.enabled = false;
+      u.gems.push({ g, body, halo, litAt: -1, spin: Math.random() * 360 });
+    }
+  }
+  function addGlint(u, x, y, size) {
+    const q = spinQuad(u.decor, S(size), S(size), unlit(glintTex, { additive: true }), 'glint');
+    const [lx, ly] = L(u, x, y); q.setLocalPosition(lx, ly, 0.3); q.enabled = false;
+    u.glint = { q, size };
+  }
+  const circlePts = (cx, cy, r, n) => Array.from({ length: n }, (_, i) => { const a = -Math.PI / 2 + i / n * Math.PI * 2; return [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; });
+
+  // tube between two px points on a unit (horizontal or vertical)
+  function tube(u, parent, x0, y0, x1, y1, d, mat, z = 0) {
+    const e = prim(parent, 'cylinder', mat, 'tube');
+    const [ax, ay] = L(u, x0, y0), [bx, by] = L(u, x1, y1);
+    e.setLocalPosition((ax + bx) / 2, (ay + by) / 2, z);
+    const len = Math.hypot(bx - ax, by - ay);
+    e.setLocalEulerAngles(0, 0, Math.abs(by - ay) > Math.abs(bx - ax) ? 0 : 90);
+    e.setLocalScale(S(d), len, S(d));
+    return e;
+  }
+  function ball(u, parent, x, y, d, mat, z = 0) {
+    const e = prim(parent, 'sphere', mat, 'ball');
+    const [lx, ly] = L(u, x, y); e.setLocalPosition(lx, ly, z); e.setLocalScale(S(d), S(d), S(d));
+    return e;
+  }
+
+  // ---- hero: a chrome tube-and-sphere frame holding a glass slab
+  const HX0 = 60, HX1 = 870, HY0 = 46, HY1 = 492;
+  const hero = makeUnit('hero', (HX0 + HX1) / 2, (HY0 + HY1) / 2);
+  {
+    const u = hero, h = hero.look;
+    const slab = prim(h, 'box', unlit(tex(slabCanvas(), { mips: false }), { alpha: false }), 'slab');
+    slab.setLocalPosition(0, 0, -0.06); slab.setLocalScale(S(HX1 - HX0), S(HY1 - HY0), S(14));
+    tube(u, h, HX0, HY0, HX1, HY0, 22, M.chrome); tube(u, h, HX0, HY1, HX1, HY1, 22, M.chrome);
+    tube(u, h, HX0, HY0, HX0, HY1, 22, M.chrome); tube(u, h, HX1, HY0, HX1, HY1, 22, M.chrome);
+    for (const [x, y] of [[HX0, HY0], [HX1, HY0], [HX0, HY1], [HX1, HY1]]) ball(u, h, x, y, 50, M.chrome);
+    // cover, with a thin chrome bezel that the arming gems sit on
+    const CX0 = 104, CY0 = 82, CS = 372;
+    const ccv = mkCanvas(800, 800), cg = ccv.getContext('2d');
+    if (imgs[P.cover]) cg.drawImage(imgs[P.cover], 0, 0, 800, 800); else { cg.fillStyle = C.cobalt; cg.fillRect(0, 0, 800, 800); }
+    const sheen = cg.createLinearGradient(0, 0, 800, 800);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.22)'); sheen.addColorStop(0.32, 'rgba(255,255,255,0.05)'); sheen.addColorStop(0.33, 'rgba(255,255,255,0)'); sheen.addColorStop(1, 'rgba(0,0,30,0.15)');
+    cg.fillStyle = sheen; cg.fillRect(0, 0, 800, 800);
+    const cover = quad(h, S(CS), S(CS), unlit(tex(ccv), { alpha: false }), 'cover');
+    { const [lx, ly] = L(u, CX0 + CS / 2, CY0 + CS / 2); cover.setLocalPosition(lx, ly, 0.02); }
+    const b = 12, o = 6;
+    tube(u, h, CX0 - o, CY0 - o, CX0 + CS + o, CY0 - o, b, M.chromeSoft, 0.04); tube(u, h, CX0 - o, CY0 + CS + o, CX0 + CS + o, CY0 + CS + o, b, M.chromeSoft, 0.04);
+    tube(u, h, CX0 - o, CY0 - o, CX0 - o, CY0 + CS + o, b, M.chromeSoft, 0.04); tube(u, h, CX0 + CS + o, CY0 - o, CX0 + CS + o, CY0 + CS + o, b, M.chromeSoft, 0.04);
+    // gems around the cover bezel, clockwise from the top-left corner
+    const pts = [], per = 6, x0 = CX0 - o, y0 = CY0 - o, side = CS + 2 * o;
+    for (let s = 0; s < 4; s++) for (let i = 0; i < per; i++) {
+      const t = i / per * side;
+      pts.push(s === 0 ? [x0 + t, y0] : s === 1 ? [x0 + side, y0 + t] : s === 2 ? [x0 + side - t, y0 + side] : [x0, y0 + side - t]);
+    }
+    addGems(u, pts, 30, 0.14, 3.4); // the hero gets the big glow
+    // text column
+    const TX = 524, TW = 316;
+    let size = 74; const meas = mkCanvas(4, 4).getContext('2d');
+    const words = P.name.split(' ');
+    while (size > 40) { meas.font = `400 ${size}px "Michroma"`; if (Math.max(...words.map((w) => meas.measureText(w).width)) <= TW) break; size -= 2; }
+    const title = textBlock(h, { lines: words, family: 'Michroma', size, chrome: true, lineH: 1.18 });
+    placeText(title, u.cx, u.cy, TX, 92);
+    const tY = 92 + title.hpx - title.pad * 2;
+    const count = textBlock(h, { lines: [`${P.songCount} songs`], size: 40, weight: 600 });
+    placeText(count, u.cx, u.cy, TX, tY + 26);
+    const why = textBlock(h, { lines: ['picked for today'], size: 30, weight: 400, color: '#DCE3FF' });
+    placeText(why, u.cx, u.cy, TX, tY + 26 + 48);
+    const cta = textBlock(h, { lines: ['Raise both hands', 'here to start'], size: 30, weight: 500, color: '#FFE2A8', lineH: 1.18 });
+    placeText(cta, u.cx, u.cy, TX, 394);
+    const go = textBlock(h, { lines: ['Opening', 'your playlist'], size: 30, weight: 600, color: '#FFE2A8', lineH: 1.18 });
+    placeText(go, u.cx, u.cy, TX, 394); go.e.enabled = false;
+    const hold = textBlock(h, { lines: ['Keep holding'], size: 30, weight: 600, color: '#FFE2A8' });
+    placeText(hold, u.cx, u.cy, TX, 394); hold.e.enabled = false;
+    u.cta = cta.e; u.go = go.e; u.holdTxt = hold.e;
+    // flare source: the chrome sphere at the frame's top-right corner
+    u.flareSrc = new pc.Entity('flare-src'); h.addChild(u.flareSrc);
+    { const [lx, ly] = L(u, HX1, HY0); u.flareSrc.setLocalPosition(lx, ly, S(26)); }
+    addGlint(u, HX1, HY0, 120);
+    hitArea(u, HX0 - 25, HY0 - 25, HX1 + 25, HY1 + 25);
+    u.cover = cover;
+  }
+
+  // ---- recommended: cover cabochons in gem-tinted chrome bezels
+  const recTint = [['ruby', M.ruby], ['emerald', M.emerald], ['amethyst', M.amethyst]];
+  const recX = [290, 790, 1290], RCY = 702, RR = 100;
+  R.slice(0, 3).forEach((r, i) => {
+    const u = makeUnit(`rec-${i + 1}`, recX[i], RCY + 95);
+    const h = u.look;
+    const torus = new pc.Entity('bezel');
+    torus.addComponent('render', { meshInstances: [new pc.MeshInstance(pc.Mesh.fromGeometry(app.graphicsDevice, new pc.TorusGeometry({ tubeRadius: 0.11, ringRadius: 1, segments: 64, sides: 20 })), recTint[i][1])] });
+    torus.setLocalEulerAngles(90, 0, 0); const [tx, ty] = L(u, recX[i], RCY); torus.setLocalPosition(tx, ty, 0);
+    torus.setLocalScale(S(RR + 8), S(RR + 8), S(RR + 8)); h.addChild(torus);
+    const dcv = mkCanvas(512, 512), g = dcv.getContext('2d');
+    g.save(); g.beginPath(); g.arc(256, 256, 252, 0, Math.PI * 2); g.clip();
+    if (r.cover && imgs[r.cover]) g.drawImage(imgs[r.cover], 0, 0, 512, 512);
+    else r.memberCovers.slice(0, 4).forEach((p, k) => { if (imgs[p]) g.drawImage(imgs[p], (k % 2) * 256, Math.floor(k / 2) * 256, 256, 256); });
+    if (!r.cover) { g.strokeStyle = 'rgba(255,255,255,0.85)'; g.lineWidth = 6; g.beginPath(); g.moveTo(256, 0); g.lineTo(256, 512); g.moveTo(0, 256); g.lineTo(512, 256); g.stroke(); }
+    // cabochon glaze: airbrushed highlight + inner rim shade
+    const rim = g.createRadialGradient(256, 256, 170, 256, 256, 256); rim.addColorStop(0, 'rgba(10,16,80,0)'); rim.addColorStop(1, 'rgba(10,16,80,0.55)');
+    g.fillStyle = rim; g.fillRect(0, 0, 512, 512);
+    g.save(); g.translate(200, 150); g.rotate(-0.5); g.scale(170, 80);
+    const hl = g.createRadialGradient(0, 0, 0, 0, 0, 1); hl.addColorStop(0, 'rgba(255,255,255,0.55)'); hl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = hl; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore();
+    g.restore();
+    const disc = quad(h, S(RR * 2), S(RR * 2), unlit(tex(dcv)), 'disc'); disc.setLocalPosition(tx, ty, 0.01);
+    const name = textBlock(h, { lines: [r.name], size: 38, weight: 600, align: 'center' });
+    placeText(name, u.cx, u.cy, recX[i], RCY + RR + 40, 0.03, 'center');
+    const n = textBlock(h, { lines: [`${r.songCount} songs`], size: 30, weight: 400, color: '#E2E8FF', align: 'center' });
+    placeText(n, u.cx, u.cy, recX[i], RCY + RR + 86, 0.03, 'center');
+    addGems(u, circlePts(recX[i], RCY, RR + 8, 16), 28, S(24));
+    addGlint(u, recX[i] + 78, RCY - 78, 90);
+    hitArea(u, recX[i] - 130, RCY - RR - 12, recX[i] + 130, RCY + RR + 124);
+    u.bobAmp = S(5);
+  });
+
+  // ---- library: a quiet glass capsule
+  {
+    const LX = 1132, LY = 170, LW = 340, LH = 184;
+    const u = makeUnit('library', LX, LY), h = u.look;
+    const cap = prim(h, 'capsule', M.libGlass, 'capsule');
+    cap.setLocalEulerAngles(0, 0, 90); cap.setLocalScale(S(LH), S(LW) / 2, S(60));
+    const t1 = textBlock(h, { lines: ['Library'], size: 42, weight: 600, align: 'center' });
+    placeText(t1, LX, LY, LX, LY - 44, 0.4, 'center');
+    const t2 = textBlock(h, { lines: ['Search and playlists'], size: 28, weight: 400, color: '#E2E8FF', align: 'center' });
+    placeText(t2, LX, LY, LX, LY + 10, 0.4, 'center');
+    const pts = [];
+    const rx = LW / 2 - LH / 2, rr = LH / 2 + 26;
+    for (let i = 0; i < 16; i++) {
+      // stadium path, clockwise from top-left
+      const per = 2 * (2 * rx) + 2 * Math.PI * rr; let d = i / 16 * per;
+      if (d < 2 * rx) pts.push([LX - rx + d, LY - rr]);
+      else if ((d -= 2 * rx) < Math.PI * rr) { const a = -Math.PI / 2 + d / rr; pts.push([LX + rx + Math.cos(a) * rr, LY + Math.sin(a) * rr]); }
+      else if ((d -= Math.PI * rr) < 2 * rx) pts.push([LX + rx - d, LY + rr]);
+      else { d -= 2 * rx; const a = Math.PI / 2 + d / rr; pts.push([LX - rx + Math.cos(a) * rr, LY + Math.sin(a) * rr]); }
+    }
+    addGems(u, pts, 22);
+    addGlint(u, LX + LW / 2 - 30, LY - LH / 2 + 10, 80);
+    hitArea(u, LX - LW / 2, LY - LH / 2, LX + LW / 2, LY + LH / 2);
+  }
+
+  // ---- more: the Spheroid orb with three gem dots (the recurring control)
+  {
+    const OX = 1452, OY = 150, OD = 150;
+    const u = makeUnit('more', OX, OY + 22), h = u.look;
+    const orb = ball(u, h, OX, OY, OD, M.chrome);
+    [[M.gemRuby, -40], [M.gemEmerald, 0], [M.gemAmethyst, 40]].forEach(([m, dx]) => {
+      const g = meshEntity(h, GEM, m, 'dot'); const [lx, ly] = L(u, OX + dx, OY);
+      const zd = Math.sqrt(Math.max(0, (OD / 2) ** 2 - dx * dx)) * K + 0.02, f = (CAM_Z - zd) / CAM_Z;
+      const ux = u.home.x, uy = u.home.y;
+      g.setLocalPosition((ux + lx) * f - ux, (uy + ly) * f - uy, zd); g.setLocalScale(S(17), S(17), S(17));
+    });
+    const t = textBlock(h, { lines: ['More'], size: 30, weight: 600, align: 'center' });
+    placeText(t, u.cx, u.cy, OX, OY + OD / 2 + 22, 0.05, 'center');
+    addGems(u, circlePts(OX, OY, OD / 2 + 4, 12), 24, S(10));
+    addGlint(u, OX + 40, OY - 44, 80);
+    hitArea(u, OX - OD / 2, OY - OD / 2, OX + OD / 2, OY + OD / 2 + 62);
+    u.bobAmp = S(4);
+    u.orb = orb;
+  }
+
+  // ---- hero transition props: member covers that arrive from the haze
+  const arrivals = P.memberCovers.slice(0, 4).map((p, i) => {
+    const cv = mkCanvas(384, 384), g = cv.getContext('2d');
+    if (imgs[p]) g.drawImage(imgs[p], 0, 0, 384, 384);
+    const sh = g.createLinearGradient(0, 0, 384, 384); sh.addColorStop(0, 'rgba(255,255,255,0.3)'); sh.addColorStop(0.35, 'rgba(255,255,255,0)'); g.fillStyle = sh; g.fillRect(0, 0, 384, 384);
+    const root = new pc.Entity('arrival'); app.root.addChild(root);
+    const card = quad(root, S(190), S(190), unlit(tex(cv), { alpha: false }), 'card');
+    const fr = prim(root, 'box', M.chrome, 'frame'); fr.setLocalScale(S(206), S(206), S(8)); fr.setLocalPosition(0, 0, -0.06);
+    root.enabled = false;
+    return { root, i };
+  });
+
+  // ---- KPT lens flare, used only for the hero selection
+  const flareRoot = new pc.Entity('flare'); app.root.addChild(flareRoot);
+  const FD = 5; // flare plane distance from camera
+  const flareEls = [];
+  const addFlare = (cv, w, h, t, rot = 0) => {
+    const m = unlit(tex(cv), { additive: true, depthTest: false });
+    const q = spinQuad(flareRoot, 1, 1, m, 'flare-el');
+    flareEls.push({ q, m, w, h, t, rot });
+  };
+  addFlare(radialCanvas([[0, 'rgba(255,255,255,1)'], [0.12, 'rgba(255,246,220,0.95)'], [0.35, 'rgba(255,190,80,0.45)'], [1, 'rgba(255,140,0,0)']]), 620, 620, 0);
+  addFlare(raysCanvas(), 1100, 1100, 0, 1);
+  addFlare(streakCanvas(), 2200, 70, 0);
+  addFlare(sparkleCanvas({ n: 512 }), 520, 520, 0);
+  [[0.35, 'ring', 200, 110], [0.62, 'hex', 90, 50], [0.85, 'hex', 60, 300], [1.2, 'ring', 260, 180], [1.45, 'hex', 120, 260], [1.7, 'ring', 70, 20]]
+    .forEach(([t, kind, size, hue]) => addFlare(ghostCanvas(kind, hue), size, size, t));
+  flareRoot.enabled = false;
+
+  // ---- wrist markers: white sparkle in a cobalt ring, readable on every surface
+  const MD = 3.5; // distance from camera
+  const markerIdle = unlit(tex(sparkleCanvas({ ring: { outer: C.ink, inner: '#FFFFFF' } })));
+  const markerHot = unlit(tex(sparkleCanvas({ ring: { outer: C.ink, inner: C.topaz }, tint: 'rgba(255,226,150,', core: '#FFF6DE' })));
+  const markers = [0, 1].map(() => { const q = spinQuad(app.root, 1, 1, markerIdle, 'wrist'); q.enabled = false; return q; });
+  const mpos = new pc.Vec3();
+  let wristState = null;
+  hands.onState((s) => { wristState = s; });
+
+  // ---- registration ----------------------------------------------------
+  const CHARGE = 0.35; // full ring holds for a beat before the flare fires
+  let heroSel = null; // { t0 } = flare start
+  let time = 0;
+  for (const u of Object.values(units)) {
+    hands.register(u.name, u.hit, {
+      onHover: (v) => { u.hover = v; },
+      onArm: (p) => { u.arm = p; },
+      onSelect: () => {
+        u.flashT = time;
+        if (u.name === 'hero' && !heroSel) { heroSel = { t0: time + CHARGE }; u.flashT = time + CHARGE; window.__selected = true; }
+      },
+    });
+  }
+
+  // ---- frame loop --------------------------------------------------------
+  app.on('update', (dt) => {
+    time += dt;
+    const hs = heroSel ? time - heroSel.t0 : -1;
+    // forward 0..HOLD_T, then return
+    const HOLD_T = 4.2, BACK_T = 0.9;
+    let tr = 0; // 0 = home, 1 = into playlist
+    const charging = heroSel && hs < 0;
+    if (heroSel && hs >= 0) {
+      tr = hs < HOLD_T ? easeOut(hs / 1.1) : 1 - easeInOut((hs - HOLD_T) / BACK_T);
+      if (hs > HOLD_T + BACK_T) { heroSel = null; tr = 0; }
+    }
+
+    for (const u of Object.values(units)) {
+      const big = u.name === 'hero' ? 0.35 : 1;
+      const target = ((u.hover ? 0.28 : 0) + (u.arm > 0 ? 0.1 : 0)) * big;
+      u.lift += (target - u.lift) * Math.min(1, dt * 9);
+      const bob = reduceMotion ? 0 : Math.sin(time * 1.2 + u.phase) * (u.bobAmp ?? S(2));
+      const keep = (CAM_Z - u.lift) / CAM_Z; // grow toward the athlete without sliding sideways
+      let x = u.home.x * keep, y = (u.home.y + bob) * keep, z = u.home.z + u.lift, sc = 1;
+      if (u.name === 'hero') {
+        // fly toward the athlete and settle as the head of the playlist screen
+        x = lerp(x, 0, tr); y = lerp(y, S(500 - 318) * (CAM_Z - 2.3) / CAM_Z, tr); z = lerp(z, 2.3, tr);
+        u.unit.setLocalEulerAngles(lerp(0, 6, Math.sin(Math.min(1, tr) * Math.PI)), lerp(0, 14, Math.sin(Math.min(1, tr) * Math.PI)), 0);
+      } else if (tr > 0) {
+        // everything else sinks into the horizon fog
+        const k = easeInOut(tr * 1.15);
+        y -= k * 5.5; z -= k * 10; sc = 1 - 0.3 * k;
+      }
+      // selection pulse for non-hero targets
+      const ft = time - u.flashT;
+      if (u.name !== 'hero' && ft < 0.5) sc *= 1 + 0.07 * Math.sin(Math.PI * ft / 0.5);
+      u.unit.setLocalPosition(x, y, z);
+      u.unit.setLocalScale(sc, sc, sc);
+
+      // gem ring
+      const charge = u.name === 'hero' && charging;
+      const showGems = u.hover || u.arm > 0 || (ft > -1 && ft < 0.7);
+      const N = u.gems.length, litN = charge ? N : u.arm > 0 ? Math.min(N, Math.ceil(u.arm * N)) : 0;
+      u.gems.forEach((gm, i) => {
+        gm.g.enabled = showGems && !(u.name === 'hero' && tr > 0.05 && ft > 0.7);
+        if (!gm.g.enabled) return;
+        const flashing = ft >= 0 && ft < 0.7;
+        const lit = i < litN;
+        if (lit && gm.litAt < 0) gm.litAt = time;
+        if (!lit) gm.litAt = -1;
+        const mi = gm.body.render.meshInstances[0];
+        mi.material = flashing ? M.gemFlash : lit ? M.gemLit : M.gemIdle;
+        gm.halo.enabled = lit || flashing;
+        const pop = lit ? 1 + 0.7 * Math.max(0, 1 - (time - gm.litAt) / 0.18) : 1;
+        const fl = flashing ? 1 + 0.5 * Math.max(0, 1 - ft / 0.7) : charge ? 1.15 + 0.25 * (1 + hs / CHARGE) : 1;
+        gm.g.setLocalScale(pop * fl, pop * fl, pop * fl);
+        gm.spin += dt * (charge ? 360 : lit ? 90 : 25);
+        gm.body.setLocalEulerAngles(0, 0, gm.spin);
+      });
+      // glint
+      if (u.glint) {
+        const on = u.hover || u.arm > 0 || (ft > -1 && ft < 0.7);
+        u.glint.q.enabled = on && !(u.name === 'hero' && tr > 0.05);
+        if (on) {
+          const pulse = ft < 0 ? 1.4 + 1.2 * (1 + ft / CHARGE) : ft < 0.7 ? 2.6 - 1.6 * (ft / 0.7) : 0.85 + 0.15 * Math.sin(time * 3);
+          u.glint.q.setLocalEulerAngles(0, 0, time * 40);
+          u.glint.q.setLocalScale(pulse, pulse, pulse);
+        }
+      }
+    }
+
+    if (units.hero.cta) { const hu = units.hero, holding = !heroSel && hu.arm > 0;
+      hu.cta.enabled = !heroSel && !holding; hu.holdTxt.enabled = holding || !!charging; hu.go.enabled = !!heroSel && !charging;
+      window.__phase = !heroSel ? 'home' : hs < 0 ? 'charge' : 'flare'; }
+    // arrivals: the playlist's songs float in from the haze
+    arrivals.forEach((a) => {
+      const k = heroSel && hs >= 0 ? easeOut((hs - 0.15 - a.i * 0.07) / 0.6) * (hs < HOLD_T ? 1 : tr) : 0;
+      a.root.enabled = k > 0.001;
+      if (!a.root.enabled) return;
+      const tx = S(455 + a.i * 230 - 800) * (CAM_Z - 0.6) / CAM_Z, ty = S(500 - 790) * (CAM_Z - 0.6) / CAM_Z;
+      a.root.setLocalPosition(lerp(tx + 6, tx, k), lerp(ty - 1.5, ty, k), lerp(-40, 0.6, k));
+      a.root.setLocalEulerAngles(0, lerp(-60, -8, k), lerp(10, 0, k));
+    });
+
+    // lens flare
+    let fa = 0;
+    if (heroSel && hs >= 0) fa = hs < 0.1 ? hs / 0.1 : hs < 0.8 ? 1 : Math.exp(-(hs - 0.8) * 2.2);
+    flareRoot.enabled = fa > 0.01;
+    if (flareRoot.enabled) {
+      // source rides the frame's top-right chrome sphere as it flies
+      const src = units.hero.flareSrc.getPosition();
+      const sp = cam.camera.worldToScreen(src);
+      const W = app.graphicsDevice.width / (window.devicePixelRatio || 1), H = app.graphicsDevice.height / (window.devicePixelRatio || 1);
+      const kd = K * FD / CAM_Z * (1000 / H);
+      flareEls.forEach((el) => {
+        const px = sp.x + (W / 2 - sp.x) * el.t * 2, py = sp.y + (H / 2 - sp.y) * el.t * 2;
+        el.q.setLocalPosition((px - W / 2) * kd, (H / 2 - py) * kd, CAM_Z - FD);
+        const grow = el.t === 0 ? 0.7 + 0.5 * Math.min(1, hs / 0.25) : 1;
+        el.q.setLocalScale(el.w * kd * grow, el.h * kd * grow, 1);
+        el.q.setLocalEulerAngles(0, 0, el.rot ? hs * 25 : 0);
+        el.m.opacity = fa * (el.t === 0 ? 1 : 0.8); el.m.update();
+      });
+    }
+
+    // wrist markers
+    const hot = wristState?.arming != null;
+    markers.forEach((q, i) => {
+      const w = wristState?.wrists?.[i];
+      q.enabled = !!w;
+      if (!w) return;
+      cam.camera.screenToWorld(w.x, w.y, MD, mpos);
+      q.setPosition(mpos);
+      const H = app.graphicsDevice.height / (window.devicePixelRatio || 1);
+      const s = 104 * K * MD / CAM_Z * (1000 / H);
+      q.setLocalScale(s, s, 1);
+      q.setLocalEulerAngles(0, 0, (i ? -1 : 1) * time * (hot ? 160 : 30));
+      q.q.render.meshInstances[0].material = hot || wristState.hover[i] ? markerHot : markerIdle;
+    });
+  });
+
+  // wait two frames so every texture is on the GPU before declaring ready
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  window.__compReady = true;
+}
+
+build().catch((e) => { console.error(e); });
+</script></body></html>
