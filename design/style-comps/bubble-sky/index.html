@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AeroBeat — Bubble Sky</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#1A86F0}canvas{width:100%;height:100%;display:block}</style>
+</head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import * as pc from '../_shared/playcanvas.min.mjs';
+import { createHands } from '../_shared/hands.mjs';
+import { content, coverUrl } from '../_shared/content.mjs';
+
+// ---------------------------------------------------------------- palette
+const HEX = {
+  sky: '#1A86F0', haze: '#B8F0FF', duck: '#FFD21F', gum: '#FF5FB0', navy: '#0D2C78', foam: '#FFFFFF',
+  soap: '#D8C4FF',
+};
+const col = (h) => new pc.Color().fromString(h);
+const NAVY = HEX.navy;
+
+// ---------------------------------------------------------------- app
+const canvas = document.getElementById('c');
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: false, alpha: false } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+const device = app.graphicsDevice;
+
+app.scene.ambientLight = new pc.Color(0.52, 0.68, 0.95);
+
+// Camera: narrow field of view so bubbles keep honest round silhouettes and hit
+// rectangles stay close to what the eye sees.
+const CAM_Z = 34, FOV = 13;
+const cam = new pc.Entity('cam');
+cam.addComponent('camera', {
+  clearColor: col(HEX.sky), fov: FOV, nearClip: 0.1, farClip: 200,
+  gammaCorrection: pc.GAMMA_NONE, toneMapping: pc.TONEMAP_LINEAR,
+});
+cam.setPosition(0, 0, CAM_Z);
+app.root.addChild(cam);
+
+// Front layer: wrist wands always draw over everything.
+const frontLayer = new pc.Layer({ name: 'Front', clearDepthBuffer: true });
+app.scene.layers.push(frontLayer);
+cam.camera.layers = [...cam.camera.layers, frontLayer.id];
+
+const sun = new pc.Entity('sun');
+sun.addComponent('light', { type: 'directional', color: new pc.Color(1, 0.97, 0.9), intensity: 1.0, castShadows: false });
+sun.setEulerAngles(40, -35, 0);
+app.root.addChild(sun);
+
+// Pixel <-> world at the z=0 target plane (viewport is designed at 1600 x 1000).
+const VIEW_H = 2 * CAM_Z * Math.tan((FOV / 2) * Math.PI / 180);
+const K = 1000 / VIEW_H; // px per world unit at z = 0
+const wx = (px) => (px - 800) / K;
+const wy = (py) => (500 - py) / K;
+const wu = (px) => px / K;
+
+// ---------------------------------------------------------------- geometry
+const sphereMesh = pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: 1, latitudeBands: 40, longitudeBands: 40 }));
+const lowSphere = pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: 1, latitudeBands: 14, longitudeBands: 14 }));
+const torusMesh = (tube, ring) => pc.Mesh.fromGeometry(device, new pc.TorusGeometry({ tubeRadius: tube, ringRadius: ring, segments: 48, sides: 12 }));
+const capsuleMesh = pc.Mesh.fromGeometry(device, new pc.CapsuleGeometry({ radius: 0.5, height: 2, sides: 40, heightSegments: 1 }));
+
+function quadMesh(w, h) {
+  const m = new pc.Mesh(device);
+  m.setPositions([-w / 2, -h / 2, 0, w / 2, -h / 2, 0, w / 2, h / 2, 0, -w / 2, h / 2, 0]);
+  m.setNormals([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+  m.setUvs(0, [0, 1, 1, 1, 1, 0, 0, 0]);
+  m.setIndices([0, 1, 2, 0, 2, 3]);
+  m.update();
+  return m;
+}
+function discMesh(r, seg = 72) {
+  const pos = [0, 0, 0], nor = [0, 0, 1], uv = [0.5, 0.5], idx = [];
+  for (let i = 0; i <= seg; i++) {
+    const a = (i / seg) * Math.PI * 2;
+    pos.push(Math.cos(a) * r, Math.sin(a) * r, 0); nor.push(0, 0, 1);
+    uv.push(0.5 + 0.5 * Math.cos(a), 0.5 - 0.5 * Math.sin(a));
+    if (i > 0) idx.push(0, i, i + 1);
+  }
+  const m = new pc.Mesh(device);
+  m.setPositions(pos); m.setNormals(nor); m.setUvs(0, uv); m.setIndices(idx); m.update();
+  return m;
+}
+
+function renderEntity(name, mesh, material, parent, layer) {
+  const e = new pc.Entity(name);
+  e.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, material)] });
+  if (layer) e.render.layers = [layer.id];
+  (parent ?? app.root).addChild(e);
+  return e;
+}
+
+// ---------------------------------------------------------------- shaders
+const ATTR = { vertex_position: pc.SEMANTIC_POSITION, vertex_normal: pc.SEMANTIC_NORMAL, vertex_texCoord0: pc.SEMANTIC_TEXCOORD0 };
+
+// Soap film. Iridescence is a cosine palette driven by view angle and a slowly
+// swirling thickness field. Alpha is almost zero facing the camera and climbs
+// steeply at the rim, so whatever sits inside the bubble stays readable.
+const BUBBLE_VS = `
+attribute vec3 vertex_position;
+attribute vec3 vertex_normal;
+uniform mat4 matrix_model;
+uniform mat4 matrix_viewProjection;
+uniform float uTime;
+uniform float uWobble;
+varying vec3 vN;
+varying vec3 vW;
+varying vec3 vP;
+void main(void) {
+  vec3 p = vertex_position;
+  float w = sin(p.y * 3.0 + uTime * 2.1) + sin(p.x * 2.6 - uTime * 1.7) + sin(p.z * 2.2 + uTime * 1.3);
+  p += vertex_normal * (w / 3.0) * uWobble;
+  vec4 wp = matrix_model * vec4(p, 1.0);
+  vW = wp.xyz;
+  vN = normalize(mat3(matrix_model) * vertex_normal);
+  vP = vertex_position;
+  gl_Position = matrix_viewProjection * wp;
+}`;
+const BUBBLE_FS = `
+uniform vec3 view_position;
+uniform float uTime;
+uniform float uSwirl;
+uniform float uHeat;
+uniform float uAlpha;
+uniform float uGlow;
+uniform float uCore;
+varying vec3 vN;
+varying vec3 vW;
+varying vec3 vP;
+void main(void) {
+  vec3 N = normalize(vN);
+  vec3 V = normalize(view_position - vW);
+  float ndv = clamp(dot(N, V), 0.0, 1.0);
+  float rim = 1.0 - ndv;
+  float fres = rim * rim * rim;
+  float t = uTime * uSwirl;
+  float thick = 0.9 * ndv
+    + 0.24 * sin(vP.x * 3.1 + t)
+    + 0.22 * sin(vP.y * 4.3 - t * 1.3 + vP.z * 2.0)
+    + 0.12 * sin((vP.x + vP.y) * 7.0 + t * 0.7);
+  vec3 film = 0.5 + 0.5 * cos(6.28318 * (thick * 1.6 + vec3(0.0, 0.33, 0.67)));
+  film = mix(film, vec3(1.0, 0.37, 0.69), uHeat * 0.55);
+  vec3 R = reflect(-V, N);
+  vec3 sky = mix(vec3(0.85, 0.97, 1.0), vec3(0.22, 0.58, 0.97), clamp(R.y * 0.6 + 0.5, 0.0, 1.0));
+  vec3 L = normalize(vec3(-0.45, 0.62, 0.65));
+  float rl = max(dot(R, L), 0.0);
+  float spec = pow(rl, 220.0) * 1.8;
+  float soft = pow(rl, 16.0) * 0.30;
+  vec3 Lh = normalize(vec3(-0.55, 0.62, 0.56));
+  float arc = smoothstep(0.80, 0.93, dot(N, Lh)) * smoothstep(0.30, 0.62, rim) * 0.85;
+  float bounce = smoothstep(0.45, 1.0, rim) * smoothstep(0.0, 0.7, dot(N, normalize(vec3(0.55, -0.75, 0.25))));
+  float a = clamp(uCore + fres * (0.88 + uGlow * 0.5), 0.0, 1.0) * uAlpha;
+  vec3 c = mix(sky, film, 0.78);
+  vec3 outc = c * a + (spec + soft + arc + bounce * 0.45) * uAlpha;
+  float outa = clamp(a + (spec + soft * 0.5 + arc * 0.8 + bounce * 0.2) * uAlpha, 0.0, 1.0);
+  gl_FragColor = vec4(outc, outa);
+}`;
+
+// Unlit textured quad (labels, covers). Canvas textures are straight alpha.
+const TEX_VS = `
+attribute vec3 vertex_position;
+attribute vec2 vertex_texCoord0;
+uniform mat4 matrix_model;
+uniform mat4 matrix_viewProjection;
+varying vec2 vUv;
+void main(void) {
+  vUv = vertex_texCoord0;
+  gl_Position = matrix_viewProjection * matrix_model * vec4(vertex_position, 1.0);
+}`;
+const TEX_FS = `
+uniform sampler2D uTex;
+uniform float uOpacity;
+uniform float uBright;
+varying vec2 vUv;
+void main(void) {
+  vec4 c = texture2D(uTex, vUv);
+  float a = c.a * uOpacity;
+  gl_FragColor = vec4(c.rgb * uBright * a, a);
+}`;
+
+// Sky: vertical gradient with a soft sun bloom.
+const SKY_FS = `
+uniform float uFlash;
+varying vec2 vUv;
+void main(void) {
+  float y = 1.0 - vUv.y;
+  vec3 top = vec3(0.07, 0.45, 0.92);
+  vec3 mid = vec3(0.22, 0.62, 0.98);
+  vec3 low = vec3(0.72, 0.94, 1.0);
+  vec3 c = mix(low, mid, smoothstep(0.18, 0.55, y));
+  c = mix(c, top, smoothstep(0.55, 1.0, y));
+  vec2 d = (vUv - vec2(0.36, 0.2)) * vec2(1.6, 1.0);
+  float glow = exp(-dot(d, d) * 9.0);
+  c += vec3(1.0, 0.98, 0.86) * glow * 0.55;
+  float rays = 0.5 + 0.5 * sin(atan(d.y, d.x) * 9.0);
+  c += vec3(1.0) * rays * glow * 0.08;
+  c = mix(c, vec3(1.0), uFlash);
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
+// Clouds: cheap wrapped lambert with sky-blue shadows and a warm top light.
+const CLOUD_VS = `
+attribute vec3 vertex_position;
+attribute vec3 vertex_normal;
+uniform mat4 matrix_model;
+uniform mat4 matrix_viewProjection;
+varying vec3 vN;
+void main(void) {
+  vN = normalize(mat3(matrix_model) * vertex_normal);
+  gl_Position = matrix_viewProjection * matrix_model * vec4(vertex_position, 1.0);
+}`;
+const CLOUD_FS = `
+uniform float uHaze;
+varying vec3 vN;
+void main(void) {
+  vec3 N = normalize(vN);
+  vec3 L = normalize(vec3(-0.45, 0.75, 0.5));
+  float d = dot(N, L) * 0.5 + 0.5;
+  vec3 shade = vec3(0.50, 0.64, 1.0);
+  vec3 lit = vec3(1.0, 0.995, 0.97);
+  vec3 c = mix(shade, lit, smoothstep(0.15, 0.85, d));
+  float rim = pow(1.0 - max(N.z, 0.0), 3.0);
+  c += vec3(0.75, 0.95, 1.0) * rim * 0.35 * step(0.0, N.y + 0.3);
+  c = mix(c, vec3(0.72, 0.93, 1.0), uHaze);
+  gl_FragColor = vec4(c, 1.0);
+}`;
+function cloudMaterial(haze) {
+  const m = new pc.ShaderMaterial({ uniqueName: 'cloud', vertexGLSL: CLOUD_VS, fragmentGLSL: CLOUD_FS, attributes: ATTR });
+  m.setParameter('uHaze', haze); m.update();
+  return m;
+}
+
+function bubbleMaterial() {
+  const m = new pc.ShaderMaterial({ uniqueName: 'bubbleFilm', vertexGLSL: BUBBLE_VS, fragmentGLSL: BUBBLE_FS, attributes: ATTR });
+  m.blendType = pc.BLEND_PREMULTIPLIED;
+  m.depthWrite = false;
+  m.cull = pc.CULLFACE_BACK;
+  m.setParameter('uTime', 0);
+  m.setParameter('uWobble', 0.012);
+  m.setParameter('uSwirl', 0.6);
+  m.setParameter('uHeat', 0);
+  m.setParameter('uAlpha', 1);
+  m.setParameter('uGlow', 0);
+  m.setParameter('uCore', 0.03);
+  m.update();
+  return m;
+}
+function texMaterial(tex, { opaque = false } = {}) {
+  const m = new pc.ShaderMaterial({ uniqueName: 'texUnlit', vertexGLSL: TEX_VS, fragmentGLSL: TEX_FS, attributes: ATTR });
+  m.setParameter('uTex', tex);
+  m.setParameter('uOpacity', 1);
+  m.setParameter('uBright', 1);
+  if (!opaque) { m.blendType = pc.BLEND_PREMULTIPLIED; m.depthWrite = false; }
+  m.cull = pc.CULLFACE_NONE;
+  m.update();
+  return m;
+}
+function litMaterial(hex, { emissive = 0, spec = 0.15, gloss = 0.3 } = {}) {
+  const m = new pc.StandardMaterial();
+  m.diffuse = col(hex);
+  m.specular = new pc.Color(spec, spec, spec);
+  m.gloss = gloss;
+  if (emissive) { const c = col(hex); m.emissive = new pc.Color(c.r * emissive, c.g * emissive, c.b * emissive); }
+  m.update();
+  return m;
+}
+function unlitColor(hex) {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false; m.diffuse = new pc.Color(0, 0, 0); m.emissive = col(hex); m.useFog = false;
+  m.update();
+  return m;
+}
+
+// ---------------------------------------------------------------- canvas textures
+const S = 2; // texture supersampling relative to on-screen pixels
+function canvasTexture(cv) {
+  const t = new pc.Texture(device, {
+    width: cv.width, height: cv.height, format: pc.PIXELFORMAT_RGBA8, mipmaps: true,
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE,
+  });
+  t.setSource(cv);
+  return t;
+}
+function font(size, weight = 'bold') { return `${weight === 'bold' ? 800 : 400} ${size * S}px ${weight === 'bold' ? 'SnigletX' : 'SnigletR'}`; }
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+
+// A toy-box label: white fill, thick Tub Navy stroke, small drop shadow.
+// lines: [{text, size, kind:'title'|'pill'|'plain'}]; returns quad entity sized in world units.
+function labelEntity(lines, parent, { gap = 10 } = {}) {
+  const meas = document.createElement('canvas').getContext('2d');
+  const items = lines.map((l) => {
+    meas.font = font(l.size, l.kind === 'plain' ? 'regular' : 'bold');
+    const w = meas.measureText(l.text).width / S;
+    const padX = l.kind === 'pill' ? l.size * 0.75 : l.size * 0.22;
+    const h = l.kind === 'pill' ? l.size * 1.55 : l.size * 1.3;
+    return { ...l, w: w + padX * 2, h };
+  });
+  const W = Math.ceil(Math.max(...items.map((i) => i.w)) + 16);
+  const H = Math.ceil(items.reduce((s, i) => s + i.h, 0) + gap * (items.length - 1) + 12);
+  const cv = document.createElement('canvas');
+  cv.width = W * S; cv.height = H * S;
+  const ctx = cv.getContext('2d');
+  ctx.scale(S, S);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  let y = 6;
+  for (const it of items) {
+    const cy = y + it.h / 2;
+    ctx.save(); ctx.scale(1 / S, 1 / S);
+    ctx.font = font(it.size, it.kind === 'plain' ? 'regular' : 'bold');
+    ctx.restore();
+    if (it.kind === 'pill') {
+      const pw = it.w, ph = it.h, px = (W - pw) / 2;
+      ctx.fillStyle = 'rgba(13,44,120,0.35)'; roundRect(ctx, px, y + 4, pw, ph, ph / 2); ctx.fill();
+      ctx.fillStyle = HEX.duck; roundRect(ctx, px, y, pw, ph, ph / 2); ctx.fill();
+      ctx.lineWidth = 3.5; ctx.strokeStyle = NAVY; ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; roundRect(ctx, px + ph * 0.3, y + ph * 0.14, pw - ph * 0.6, ph * 0.22, ph * 0.11); ctx.fill();
+      drawText(ctx, it, W / 2, cy + it.size * 0.04, { fill: NAVY });
+    } else if (it.kind === 'plain') {
+      drawText(ctx, it, W / 2, cy, { fill: NAVY, weight: 'regular' });
+    } else {
+      drawText(ctx, it, W / 2, cy, { fill: HEX.foam, stroke: NAVY, shadow: true });
+    }
+    y += it.h + gap;
+  }
+  const tex = canvasTexture(cv);
+  const mat = texMaterial(tex);
+  const e = renderEntity('label', quadMesh(wu(W), wu(H)), mat, parent);
+  e.mat = mat; e.pxW = W; e.pxH = H;
+  return e;
+}
+function drawText(ctx, it, x, y, { fill, stroke, shadow, weight = 'bold' }) {
+  ctx.save();
+  ctx.scale(1 / S, 1 / S);
+  ctx.font = font(it.size, weight);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const X = x * S, Y = y * S;
+  if (stroke) {
+    if (shadow) { ctx.fillStyle = 'rgba(13,44,120,0.45)'; ctx.lineWidth = it.size * 0.26 * S; ctx.strokeStyle = 'rgba(13,44,120,0.45)'; ctx.strokeText(it.text, X, Y + it.size * 0.09 * S); }
+    ctx.lineWidth = it.size * 0.24 * S; ctx.strokeStyle = stroke; ctx.strokeText(it.text, X, Y);
+  }
+  ctx.fillStyle = fill; ctx.fillText(it.text, X, Y);
+  ctx.restore();
+}
+
+// Cover sealed inside a bubble: circle-cropped art with a soft inner shadow so
+// it reads as sitting inside the sphere. Member covers become a 2 x 2 mosaic.
+function coverCanvas(images) {
+  const N = 512;
+  const cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const ctx = cv.getContext('2d');
+  ctx.save();
+  ctx.beginPath(); ctx.arc(N / 2, N / 2, N / 2, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = HEX.foam; ctx.fillRect(0, 0, N, N);
+  const draw = (img, x, y, s) => {
+    const k = Math.max(s / img.width, s / img.height);
+    const w = img.width * k, h = img.height * k;
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, s, s); ctx.clip();
+    ctx.drawImage(img, x + (s - w) / 2, y + (s - h) / 2, w, h); ctx.restore();
+  };
+  if (images.length === 1) draw(images[0], 0, 0, N);
+  else {
+    const g = 6, s = (N - g) / 2;
+    images.slice(0, 4).forEach((img, i) => draw(img, (i % 2) * (s + g), Math.floor(i / 2) * (s + g), s));
+  }
+  // inner shadow toward the rim + a cool sky tint at the very edge
+  const grad = ctx.createRadialGradient(N / 2, N / 2, N * 0.34, N / 2, N / 2, N / 2);
+  grad.addColorStop(0, 'rgba(13,44,120,0)');
+  grad.addColorStop(0.8, 'rgba(13,44,120,0.10)');
+  grad.addColorStop(1, 'rgba(13,44,120,0.42)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, N, N);
+  ctx.restore();
+  return cv;
+}
+
+// ---------------------------------------------------------------- loading
+function loadImage(url) {
+  return new Promise((ok, fail) => {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => ok(img); img.onerror = () => fail(new Error('image failed ' + url));
+    img.src = url;
+  });
+}
+async function loadFonts() {
+  const x = new FontFace('SnigletX', 'url(fonts/Sniglet-ExtraBold.ttf)', { weight: '800' });
+  const r = new FontFace('SnigletR', 'url(fonts/Sniglet-Regular.ttf)', { weight: '400' });
+  await Promise.all([x.load(), r.load()]);
+  document.fonts.add(x); document.fonts.add(r);
+}
+const coverSets = async (pl) => Promise.all((pl.cover ? [pl.cover] : pl.memberCovers.slice(0, 4)).map((p) => loadImage(coverUrl(p))));
+
+await loadFonts();
+const heroImgs = await coverSets(content.playlistOfTheDay);
+const songImgs = await Promise.all(content.playlistOfTheDay.memberCovers.map((p) => loadImage(coverUrl(p))));
+const recImgs = await Promise.all(content.recommended.map(coverSets));
+
+// ---------------------------------------------------------------- sky + clouds
+{
+  const skyMat = new pc.ShaderMaterial({ uniqueName: 'sky', vertexGLSL: TEX_VS, fragmentGLSL: SKY_FS, attributes: ATTR });
+  skyMat.setParameter('uFlash', 0); skyMat.depthWrite = false; skyMat.update();
+  const sky = renderEntity('sky', quadMesh(48, 30), skyMat);
+  sky.setPosition(0, 1.5, -40);
+  window.__skyMat = skyMat;
+}
+const cloudNear = cloudMaterial(0.0), cloudFar = cloudMaterial(0.45);
+const cloudSphere = pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: 1, latitudeBands: 22, longitudeBands: 22 }));
+const clouds = [];
+function cloud(x, y, z, s, puffs, far = false) {
+  const g = new pc.Entity('cloud'); app.root.addChild(g); g.setPosition(x, y, z);
+  for (const [px, py, pr] of puffs) {
+    const p = renderEntity('puff', cloudSphere, far ? cloudFar : cloudNear, g);
+    p.setLocalPosition(px * s, py * s, (Math.sin(px * 7) * 0.3) * s);
+    p.setLocalScale(pr * s, pr * s * 0.92, pr * s);
+  }
+  clouds.push({ g, x, y, z, ph: Math.random() * 6 });
+  return g;
+}
+const PUFF = [[-2.2, 0, 1.1], [-1.1, 0.5, 1.4], [0.3, 0.75, 1.65], [1.7, 0.35, 1.3], [2.8, -0.1, 1.0], [-0.4, -0.5, 1.5], [1.2, -0.6, 1.4]];
+const PUFF_S = [[-1.2, 0, 0.8], [0, 0.35, 1.05], [1.2, 0.05, 0.85], [0.3, -0.3, 0.9]];
+// foam floor across the bottom (behind the targets)
+cloud(-6.4, -5.2, -5, 1.15, PUFF);
+cloud(-0.6, -5.7, -6, 1.25, PUFF);
+cloud(5.6, -5.3, -5.5, 1.2, PUFF);
+cloud(9.8, -4.6, -7, 1.0, PUFF);
+// distant puffs high in the sky (fogged into the haze)
+cloud(-9, 4.6, -26, 1.3, PUFF_S, true);
+cloud(5.2, 6.9, -30, 1.25, PUFF_S, true);
+cloud(1.5, 2.6, -34, 1.1, PUFF_S, true);
+
+// drifting background bubbles
+const drifters = [];
+for (let i = 0; i < 9; i++) {
+  const m = bubbleMaterial();
+  m.setParameter('uCore', 0.015); m.update();
+  const e = renderEntity('drift', lowSphere, m);
+  const r = 0.14 + Math.random() * 0.32;
+  const d = { e, m, r, x: -7 + (i / 8) * 14 + (Math.random() - 0.5), y: -5 + Math.random() * 10, z: -5 - Math.random() * 8, sp: 0.18 + Math.random() * 0.25, ph: Math.random() * 6 };
+  e.setLocalScale(r, r, r);
+  drifters.push(d);
+}
+
+// ---------------------------------------------------------------- targets
+const hands = createHands(app, cam);
+const targets = [];
+const DUCK = col(HEX.duck);
+const beadOn = litMaterial(HEX.duck, { emissive: 0.35, spec: 0.7, gloss: 0.85 });
+const beadOff = bubbleMaterial(); beadOff.setParameter('uCore', 0.18); beadOff.setParameter('uGlow', 1); beadOff.update();
+const dropMat = litMaterial('#EAFBFF', { emissive: 0.55, spec: 0.8, gloss: 0.9 });
+const flashMat = unlitColor('#FFFFFF');
+
+function makeFx(t, beadCount, rx, ry, beadR, dropCount = 18) {
+  t.fx = new pc.Entity(t.name + '-fx');
+  app.root.addChild(t.fx);
+  t.beads = [];
+  for (let i = 0; i < beadCount; i++) {
+    const a = Math.PI / 2 - (i / beadCount) * Math.PI * 2; // clockwise from the top
+    const b = renderEntity('bead', lowSphere, beadOff, t.fx);
+    b.base = new pc.Vec3(Math.cos(a) * rx, Math.sin(a) * ry, 0.2);
+    b.setLocalPosition(b.base);
+    b.r = beadR;
+    b.enabled = false;
+    t.beads.push(b);
+  }
+  t.drops = [];
+  for (let i = 0; i < dropCount; i++) {
+    const a = (i / dropCount) * Math.PI * 2 + Math.random() * 0.3;
+    const d = renderEntity('drop', lowSphere, dropMat, t.fx);
+    d.dir = new pc.Vec3(Math.cos(a), Math.sin(a), (Math.random() - 0.3) * 0.6);
+    d.r = beadR * (0.35 + Math.random() * 0.5);
+    d.speed = 0.8 + Math.random() * 0.8;
+    d.enabled = false;
+    t.drops.push(d);
+  }
+  t.flash = renderEntity('flash', torusMesh(0.018, 1), flashMat, t.fx);
+  t.flash.setLocalEulerAngles(90, 0, 0);
+  t.flash.enabled = false;
+  t.rx = rx; t.ry = ry;
+}
+
+function bubbleTarget(name, { cx, cy, dPx, images, label, beads, beadR }) {
+  const R = wu(dPx) / 2;
+  const root = new pc.Entity(name);
+  app.root.addChild(root);
+  const base = new pc.Vec3(wx(cx), wy(cy), 0);
+  root.setPosition(base);
+  const body = new pc.Entity('body'); root.addChild(body);
+  const mat = bubbleMaterial();
+  const sphere = renderEntity('film', sphereMesh, mat, body);
+  sphere.setLocalScale(R, R, R);
+  let cover = null;
+  if (images) {
+    const coverMat = texMaterial(canvasTexture(coverCanvas(images)), { opaque: true });
+    cover = renderEntity('cover', discMesh(R * 0.8), coverMat, body);
+    cover.setLocalPosition(0, 0, -R * 0.12);
+    cover.mat = coverMat;
+  }
+  const t = { name, root, body, mat, sphere, cover, R, base, kind: 'bubble', hover: 0, hoverOn: false, arm: 0, popT: -1, seed: Math.random() * 10, enter: 0 };
+  if (label) {
+    t.label = labelEntity(label.lines, root, { gap: label.gap ?? 8 });
+    t.labelY = -R - wu(label.offset ?? 8) - wu(t.label.pxH) / 2;
+    t.label.setLocalPosition(0, t.labelY, 0.3);
+  }
+  makeFx(t, beads, R * 1.12, R * 1.12, beadR);
+  targets.push(t);
+  return t;
+}
+
+const P = content.playlistOfTheDay;
+const hero = bubbleTarget('hero', {
+  cx: 470, cy: 410, dPx: 440, images: heroImgs, beads: 16, beadR: wu(22),
+  label: { lines: [{ text: P.name, size: 76, kind: 'title' }, { text: `${P.songCount} songs`, size: 32, kind: 'pill' }], offset: 34, gap: 6 },
+});
+hero.coverImgs = heroImgs;
+const recSpots = [[980, 175], [1380, 345], [980, 545]];
+content.recommended.forEach((pl, i) => {
+  bubbleTarget(`rec-${i + 1}`, {
+    cx: recSpots[i][0], cy: recSpots[i][1], dPx: 196, images: recImgs[i], beads: 12, beadR: wu(11),
+    label: { lines: [{ text: pl.name, size: 38, kind: 'title' }], offset: 10 },
+  });
+});
+
+// Library: a bar of soap. Quieter, different silhouette, and where bubbles come from.
+{
+  const name = 'library';
+  const root = new pc.Entity(name); app.root.addChild(root);
+  const base = new pc.Vec3(wx(1380), wy(790), 0);
+  root.setPosition(base);
+  const body = new pc.Entity('body'); root.addChild(body);
+  const soapMat = litMaterial(HEX.soap, { spec: 0.55, gloss: 0.82 });
+  soapMat.emissive = new pc.Color(0.16, 0.12, 0.22); soapMat.update();
+  const bar = renderEntity('soap', capsuleMesh, soapMat, body);
+  const Wpx = 340, Hpx = 190;
+  bar.setLocalEulerAngles(-24, 0, 90);
+  bar.setLocalScale(wu(Hpx), wu(Wpx) / 2, 0.42);
+  const lbl = labelEntity([{ text: 'Your library', size: 38, kind: 'title' }, { text: 'Search and saved lists', size: 28, kind: 'plain' }], root, { gap: 0 });
+  lbl.setLocalPosition(0, wu(2), 1.0);
+  // three suds sitting on the bar
+  const suds = [];
+  [[-0.62, 0.62, 0.17], [-0.38, 0.66, 0.11], [0.66, 0.6, 0.13]].forEach(([x, y, r]) => {
+    const m = bubbleMaterial(); m.setParameter('uCore', 0.05); m.update();
+    const s = renderEntity('sud', lowSphere, m, root);
+    s.setLocalPosition(x * wu(Wpx) / 2 * 1.05, y * wu(Hpx) / 2 * 1.6 * 0.75, 0.1); s.setLocalScale(r, r, r);
+    s.m = m; suds.push(s);
+  });
+  const t = { name, root, body, soapMat, label: lbl, suds, base, kind: 'soap', hover: 0, hoverOn: false, arm: 0, popT: -1, seed: 3.3, enter: 0, R: wu(Hpx) / 2 };
+  makeFx(t, 14, wu(Wpx) / 2 + wu(30), wu(Hpx) / 2 + wu(28), wu(10), 14);
+  targets.push(t);
+}
+
+// More: the small recurring control. A bubble holding three duck-yellow dots.
+{
+  const t = bubbleTarget('more', { cx: 1500, cy: 98, dPx: 124, beads: 8, beadR: wu(8) });
+  const dotMat = unlitColor(HEX.duck);
+  const rimMat = unlitColor(NAVY);
+  [-1, 0, 1].forEach((k) => {
+    const d = renderEntity('dot', lowSphere, dotMat, t.body);
+    d.setLocalPosition(k * t.R * 0.42, 0, 0); d.setLocalScale(t.R * 0.17, t.R * 0.17, t.R * 0.17);
+    const o = renderEntity('dotRim', lowSphere, rimMat, t.body);
+    o.setLocalPosition(k * t.R * 0.42, 0, -t.R * 0.06); o.setLocalScale(t.R * 0.22, t.R * 0.22, t.R * 0.1);
+  });
+  t.mat.setParameter('uCore', 0.07); t.mat.update();
+}
+
+// Hover hint for the hero: what to do with both hands.
+const hint = labelEntity([{ text: 'Hold it with both hands', size: 30, kind: 'pill' }], hero.fx);
+hint.setLocalPosition(0, hero.R * 1.32 + wu(62), 0.4);
+hint.mat.setParameter('uOpacity', 0);
+
+// Hero transition: the hero bubble carries the athlete to the middle of the
+// sky and the playlist's songs spill out of it in their own small bubbles.
+const songBubbles = songImgs.map((img, i) => {
+  const R = wu(150) / 2;
+  const e = new pc.Entity('song'); app.root.addChild(e);
+  const m = bubbleMaterial(); m.setParameter('uCore', 0.03); m.update();
+  const f = renderEntity('film', sphereMesh, m, e); f.setLocalScale(R, R, R);
+  const c = renderEntity('cover', discMesh(R * 0.8, 48), texMaterial(canvasTexture(coverCanvas([img])), { opaque: true }), e);
+  c.setLocalPosition(0, 0, -R * 0.12);
+  e.enabled = false;
+  const spots = [[250, 300], [215, 650], [1350, 300], [1385, 650]];
+  return { e, m, to: new pc.Vec3(wx(spots[i][0]), wy(spots[i][1]), 0.6), delay: 0.12 + i * 0.07, seed: i * 1.7 };
+});
+const HERO_FLIGHT_TO = new pc.Vec3(wx(800), wy(430), 1.2);
+
+// register with the shared hands module
+const hTargets = [];
+for (const t of targets) {
+  hTargets.push(hands.register(t.name, t.root, {
+    inset: t.name === 'hero' ? 14 : 6,
+    onHover: (on) => { t.hoverOn = on; },
+    onArm: (p) => { t.arm = p; },
+    onSelect: () => select(t),
+  }));
+}
+
+// ---------------------------------------------------------------- wrist wands
+const wandRing = torusMesh(0.011, 0.07);
+const wandOutline = torusMesh(0.018, 0.07);
+const wandYellow = unlitColor(HEX.duck);
+const wandNavy = unlitColor(NAVY);
+const wands = [0, 1].map((i) => {
+  const w = new pc.Entity('wand' + i); app.root.addChild(w);
+  const o = renderEntity('outline', wandOutline, wandNavy, w, frontLayer); o.setLocalEulerAngles(90, 0, 0); o.setLocalPosition(0, 0, -0.02);
+  const r = renderEntity('loop', wandRing, wandYellow, w, frontLayer); r.setLocalEulerAngles(90, 0, 0);
+  const fm = bubbleMaterial(); fm.setParameter('uCore', 0.12); fm.setParameter('uSwirl', 1.4); fm.update();
+  const f = renderEntity('film', lowSphere, fm, w, frontLayer); f.setLocalScale(0.064, 0.064, 0.012);
+  const hs = (i ? 1 : -1);
+  const handleO = renderEntity('handleO', capsuleMesh, wandNavy, w, frontLayer);
+  handleO.setLocalPosition(hs * 0.03, -0.14, -0.02); handleO.setLocalEulerAngles(0, 0, hs * 14); handleO.setLocalScale(0.036, 0.07, 0.036);
+  const handle = renderEntity('handle', capsuleMesh, wandYellow, w, frontLayer);
+  handle.setLocalPosition(hs * 0.03, -0.14, 0); handle.setLocalEulerAngles(0, 0, hs * 14); handle.setLocalScale(0.022, 0.062, 0.022);
+  w.enabled = false;
+  w.fm = fm;
+  return w;
+});
+const tmpV = new pc.Vec3();
+hands.onState((state) => {
+  state.wrists.forEach((p, i) => {
+    const w = wands[i];
+    if (!p) { w.enabled = false; return; }
+    w.enabled = true;
+    cam.camera.screenToWorld(p.x, p.y, 11.2, tmpV);
+    w.setPosition(tmpV);
+  });
+});
+
+// ---------------------------------------------------------------- selection
+let transition = null; // hero carrying the athlete into its playlist
+function select(t) {
+  if (transition || t.pop) return;
+  t.burst = 0; // the completed bead ring bursts outward
+  if (t !== hero) { t.pop = { t: 0 }; t.fx.setPosition(t.root.getPosition()); return; }
+  transition = { t: 0 };
+  hero.from = hero.root.getPosition().clone();
+  for (const h of hTargets) h.disabled = true; // nothing else is pickable mid-transition
+  // every other bubble pops in a ripple running outward from the hero
+  for (const o of targets) {
+    if (o === hero) continue;
+    o.pop = { t: -o.base.distance(hero.base) * 0.012, final: true };
+    o.fx.setPosition(o.root.getPosition());
+  }
+  window.__selected = true;
+}
+
+// ---------------------------------------------------------------- animation
+const ease = {
+  outBack: (x) => { const c = 1.9; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); },
+  outCubic: (x) => 1 - Math.pow(1 - x, 3),
+  inOut: (x) => x * x * (3 - 2 * x),
+};
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const ENTER_DELAY = { hero: 0, 'rec-1': 0.14, 'rec-2': 0.24, 'rec-3': 0.34, library: 0.42, more: 0.5 };
+let clock = 0, readyAt = -1;
+
+function updatePopFx(t, p) {
+  for (const d of t.drops) {
+    const k = clamp01(p / 0.7);
+    d.enabled = p >= 0 && k < 1;
+    const dist = t.rx * 0.95 + ease.outCubic(k) * d.speed * (t.R * 1.1 + 0.5);
+    d.setLocalPosition(d.dir.x * dist, d.dir.y * dist * (t.ry / t.rx) - k * k * 0.6, d.dir.z * dist * 0.4 + 0.3);
+    const sc = d.r * (1 - k * k);
+    d.setLocalScale(sc, sc, sc);
+  }
+  const fk = clamp01(p / 0.24);
+  t.flash.enabled = p >= 0 && fk < 1;
+  const fr = (t.kind === 'soap' ? t.ry : t.rx) * (0.95 + ease.outCubic(fk) * 0.3);
+  t.flash.setLocalScale(fr * (t.kind === 'soap' ? t.rx / t.ry : 1), Math.max(0.05, 1 - fk) * 2.4, fr);
+}
+
+app.on('update', (dt) => {
+  clock += dt;
+  const since = readyAt < 0 ? 0 : clock - readyAt;
+
+  for (const d of drifters) {
+    d.y += d.sp * dt;
+    if (d.y > 6.5) d.y = -6;
+    d.e.setPosition(d.x + Math.sin(clock * 0.7 + d.ph) * 0.3, d.y, d.z);
+    d.m.setParameter('uTime', clock + d.ph);
+  }
+  for (const c of clouds) c.g.setPosition(c.x + Math.sin(clock * 0.12 + c.ph) * 0.25, c.y, c.z);
+
+  const tr = transition ? (transition.t += dt) : 0;
+
+  for (const t of targets) {
+    const e = clamp01((since - ENTER_DELAY[t.name]) / 0.55);
+    t.enter = readyAt < 0 ? 0 : ease.outBack(e);
+    t.hover += ((t.hoverOn ? 1 : 0) - t.hover) * Math.min(1, dt * 10);
+    const arm = transition ? 0 : t.arm;
+    const bob = Math.sin(clock * 1.1 + t.seed) * 0.06 + Math.sin(clock * 0.63 + t.seed * 2) * 0.03;
+    let px = t.base.x, py = t.base.y + bob, pz = t.hover * 0.45 + arm * 0.35;
+    let rootScale = 1;
+
+    if (t === hero && transition) {
+      // the hero bubble floats to the middle of the sky and grows: you are inside it now
+      const k = ease.outCubic(clamp01(tr / 0.62));
+      px = hero.from.x + (HERO_FLIGHT_TO.x - hero.from.x) * k;
+      py = hero.from.y + (HERO_FLIGHT_TO.y - hero.from.y) * k + Math.sin(tr * 2.2) * 0.05 * k;
+      pz = hero.from.z + (HERO_FLIGHT_TO.z - hero.from.z) * k;
+      rootScale = 1 + 0.22 * k;
+    }
+    t.root.setPosition(px, py, pz);
+    t.root.setLocalScale(rootScale, rootScale, rootScale);
+
+    // pop: film flashes and bursts, droplets spray; then either re-form or (during
+    // the hero transition) the contents tumble away
+    let filmAlpha = 1, filmBurst = 1, contents = 1, drop = 0;
+    if (t.pop) {
+      t.pop.t += dt;
+      const p = t.pop.t;
+      if (p >= 0) {
+        filmBurst = 1 + ease.outCubic(clamp01(p / 0.14)) * 0.3;
+        filmAlpha = 1 - clamp01(p / 0.14);
+        updatePopFx(t, p);
+        if (t.pop.final) {
+          const k = clamp01((p - 0.05) / 0.45);
+          contents = 1 - ease.inOut(k);
+          drop = k * k * 1.2;
+        } else if (p > 0.75) {
+          const rk = clamp01((p - 0.75) / 0.45);
+          filmBurst = ease.outBack(rk); filmAlpha = 1;
+          if (rk >= 1) { t.pop = null; t.flash.enabled = false; for (const d of t.drops) d.enabled = false; }
+        }
+      }
+    }
+    if (!t.pop || t.pop.t < 0) t.fx.setPosition(t.root.getPosition());
+    if (drop) t.root.setPosition(px, py - drop, pz);
+
+    const wob = 1 + Math.sin(clock * (3 + t.hover * 2.5) + t.seed) * (0.012 + t.hover * 0.02 + arm * 0.03);
+    const swell = 1 + arm * 0.12 + t.hover * 0.04;
+    const sc = t.enter * swell * contents;
+    if (t.kind === 'bubble') {
+      t.body.setLocalScale(sc * wob, sc / wob, sc);
+      const filmS = t.R * filmBurst;
+      t.sphere.setLocalScale(filmS, filmS, filmS);
+      const flying = t === hero && transition;
+      t.mat.setParameter('uTime', clock + t.seed);
+      t.mat.setParameter('uSwirl', flying ? 2.2 : 0.6 + t.hover * 0.6 + arm * 4.0);
+      t.mat.setParameter('uHeat', flying ? 0.35 * (1 - clamp01(tr / 1.2)) : arm);
+      t.mat.setParameter('uGlow', flying ? 1 : t.hover * 0.6 + arm);
+      t.mat.setParameter('uWobble', flying ? 0.03 : 0.012 + t.hover * 0.02 + arm * 0.025);
+      t.mat.setParameter('uAlpha', filmAlpha);
+    } else {
+      const sq = t.pop && !t.pop.final && t.pop.t >= 0 && t.pop.t < 0.5 ? Math.sin(clamp01(t.pop.t / 0.5) * Math.PI) * 0.12 : 0;
+      t.body.setLocalScale(sc * (1 + sq), sc * (1 - sq), sc);
+      t.label.setLocalScale(t.enter * contents, t.enter * contents, 1);
+      for (const sud of t.suds) {
+        sud.baseR ??= sud.getLocalScale().x;
+        sud.m.setParameter('uTime', clock + t.seed);
+        sud.m.setParameter('uSwirl', 0.6 + arm * 4);
+        sud.m.setParameter('uHeat', arm);
+        sud.m.setParameter('uAlpha', filmAlpha);
+        const k = t.enter * (1 + arm * 0.6) * contents;
+        sud.setLocalScale(sud.baseR * k, sud.baseR * k, sud.baseR * k);
+      }
+      const hl = t.hover * 0.12 + arm * 0.2;
+      t.soapMat.emissive.set(0.16 + hl, 0.12 + hl * 0.8, 0.22 + t.hover * 0.1);
+      t.soapMat.update();
+    }
+    if (t.label && t.kind === 'bubble') {
+      t.label.mat.setParameter('uOpacity', clamp01(t.enter) * contents);
+      if (!t.pop) t.label.setLocalScale(1, 1, 1);
+      // the swelling bubble and its bead ring nudge the name down out of the way
+      t.label.setLocalPosition(0, t.labelY - t.R * 0.2 * arm, 0.3);
+    }
+
+    // arming: a ring of beads inflates one at a time, clockwise from the top.
+    // When the hold completes the full ring bursts outward and fades.
+    const n = t.beads.length;
+    if (t.burst !== undefined && t.burst >= 0) {
+      t.burst += dt;
+      const k = clamp01(t.burst / 0.38);
+      t.beads.forEach((b, i) => {
+        b.enabled = k < 1;
+        b.render.meshInstances[0].material = beadOn;
+        const r = b.r * (1.15 - k) * (1 + Math.sin(i * 1.7) * 0.1);
+        b.setLocalScale(r, r, r);
+        const out = 1.12 + ease.outCubic(k) * 0.45;
+        b.setLocalPosition(b.base.x * out, b.base.y * out, b.base.z);
+      });
+      if (k >= 1) t.burst = -1;
+      continue;
+    }
+    const showBeads = arm > 0.001;
+    t.beads.forEach((b, i) => {
+      b.enabled = showBeads;
+      if (!showBeads) return;
+      const fill = clamp01(arm * n - i);
+      b.render.meshInstances[0].material = fill > 0 ? beadOn : beadOff;
+      const r = b.r * (fill > 0 ? 0.55 + 0.45 * ease.outBack(fill) + (fill > 0.999 ? Math.sin(clock * 9 + i) * 0.05 : 0) : 0.42);
+      b.setLocalScale(r, r, r);
+      b.setLocalPosition(b.base.x * swell, b.base.y * swell, b.base.z);
+    });
+  }
+
+  // two-hand hint on the hero
+  const hintOp = transition ? 0 : clamp01(hero.hover * 1.4);
+  hint.mat.setParameter('uOpacity', hintOp);
+  hint.setLocalScale(0.9 + hintOp * 0.1, 0.9 + hintOp * 0.1, 1);
+
+  // the playlist's songs spill out of the hero bubble in their own bubbles
+  for (const sb of songBubbles) {
+    if (!transition) { sb.e.enabled = false; continue; }
+    const k = clamp01((tr - sb.delay) / 0.55);
+    sb.e.enabled = k > 0;
+    if (!sb.e.enabled) continue;
+    const hp = hero.root.getPosition();
+    const m = ease.outCubic(k);
+    const bob = Math.sin(clock * 1.3 + sb.seed) * 0.05 * m;
+    sb.e.setPosition(hp.x + (sb.to.x - hp.x) * m, hp.y + (sb.to.y - hp.y) * m + bob, sb.to.z);
+    const g = ease.outBack(k) * (1 + Math.sin(clock * 3 + sb.seed) * 0.01);
+    sb.e.setLocalScale(g, g, g);
+    sb.m.setParameter('uTime', clock + sb.seed);
+    sb.m.setParameter('uWobble', 0.02 * (1 - k) + 0.01);
+  }
+  window.__skyMat.setParameter('uFlash', transition ? ease.inOut(clamp01(tr / 0.5)) * 0.12 : 0);
+  if (transition && tr > 4.5) resetTransition();
+});
+
+function resetTransition() {
+  transition = null;
+  for (const h of hTargets) h.disabled = false;
+  for (const t of targets) {
+    t.pop = null;
+    for (const d of t.drops) d.enabled = false;
+    t.flash.enabled = false;
+  }
+  readyAt = clock; // blow the bubbles in again
+}
+
+app.start();
+// present once a couple of frames have rendered with everything loaded
+// Pre-warm: draw every effect material once (tiny, in view) before presenting, so
+// no shader compiles mid-hold. Software renderers stall for a long time on first use.
+const warm = [];
+for (const t of targets) {
+  for (const b of t.beads) warm.push(b);
+  for (const d of t.drops) warm.push(d);
+  warm.push(t.flash);
+}
+for (const sb of songBubbles) warm.push(sb.e);
+const warmBeadOn = renderEntity('warm', lowSphere, beadOn); warmBeadOn.setLocalScale(0.001, 0.001, 0.001);
+let frames = 0;
+app.on('frameend', () => {
+  frames += 1;
+  if (frames === 4) {
+    warmBeadOn.destroy();
+    readyAt = clock; window.__compReady = true;
+  }
+});
+app.on('update', () => {
+  if (frames >= 3) return;
+  for (const e of warm) { e.enabled = true; e.setLocalScale(0.001, 0.001, 0.001); }
+});
+</script>
+</body>
+</html>
