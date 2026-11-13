@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AeroBeat home: skeuo hardware</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#15181d}canvas{width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as pc from '../_shared/playcanvas.min.mjs';
+import { createHands, WRIST_DIAMETER } from '../_shared/hands.mjs';
+import { content, coverUrl } from '../_shared/content.mjs';
+
+// ---------------------------------------------------------------------------
+// Rendering approach
+//   Flat faces that a real device would show as a near-constant colour (the
+//   faceplate, the deck face, the display glass, the drawer face) are painted once
+//   into unlit textures. Everything curved — bevels, chrome, jelly keys, the knob,
+//   the glass dome, the wrist beads — is live PBR lit by a procedural HDR studio,
+//   so the specular highlights are real and move as parts travel.
+// Layout is authored in 1600x1000 screen pixels on the z = 0 plane (faceplate front).
+// ---------------------------------------------------------------------------
+const DEG = Math.PI / 180;
+const VW = 1600, VH = 1000, CAMZ = 15, FOV = 20;
+const S = VH / (2 * CAMZ * Math.tan((FOV / 2) * DEG)); // px per world unit at z = 0
+const L = (px) => px / S;
+const WX = (px) => (px - VW / 2) / S;
+const WY = (py) => (VH / 2 - py) / S;
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+const easeOut = (t) => 1 - Math.pow(1 - clamp01(t), 3);
+const easeInOut = (t) => { t = clamp01(t); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const approach = (cur, target, rate, dt) => cur + (target - cur) * Math.min(1, rate * dt);
+
+const PALETTE = {
+  silver: '#C3C8CF',
+  graphite: '#262B33',
+  aqua: '#1F86FF',
+  amber: '#FFA826',
+  lamp: '#07090C',
+  room: '#15181D',
+};
+const col = (hex) => new pc.Color().fromString(hex);
+
+const canvas = document.getElementById('c');
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: true } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+const device = app.graphicsDevice;
+window.addEventListener('resize', () => app.resizeCanvas());
+
+// ---------------------------------------------------------------------------
+// Assets
+// ---------------------------------------------------------------------------
+async function loadFonts() {
+  const faces = [
+    new FontFace('Saira', 'url(fonts/SairaSemiCondensed-Bold.ttf)', { weight: '700' }),
+    new FontFace('Saira', 'url(fonts/SairaSemiCondensed-SemiBold.ttf)', { weight: '600' }),
+    new FontFace('Doto', 'url(fonts/Doto.ttf)', { weight: '100 900' }),
+  ];
+  await Promise.all(faces.map((f) => f.load()));
+  faces.forEach((f) => document.fonts.add(f));
+}
+function loadImage(url) {
+  return new Promise((ok, fail) => {
+    const img = new Image();
+    img.onload = () => ok(img);
+    img.onerror = () => fail(new Error('image failed ' + url));
+    img.src = url;
+  });
+}
+async function coverCanvas(pl) {
+  // Square artwork: the playlist cover, or a 2x2 of member covers when it has none.
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const x = c.getContext('2d');
+  if (pl.cover) x.drawImage(await loadImage(coverUrl(pl.cover)), 0, 0, 512, 512);
+  else {
+    const imgs = await Promise.all(pl.memberCovers.slice(0, 4).map((p) => loadImage(coverUrl(p))));
+    imgs.forEach((img, i) => x.drawImage(img, (i % 2) * 256, Math.floor(i / 2) * 256, 256, 256));
+  }
+  return c;
+}
+
+// ---------------------------------------------------------------------------
+// Canvas painting helpers
+// ---------------------------------------------------------------------------
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = Math.ceil(w); c.height = Math.ceil(h); return c; }
+function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function text(ctx, str, x, y, font, color, align = 'left', maxW = 0) {
+  ctx.font = font; ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = color;
+  if (maxW && ctx.measureText(str).width > maxW) {
+    const size = parseFloat(font.match(/(\d+(?:\.\d+)?)px/)[1]);
+    ctx.font = font.replace(/\d+(?:\.\d+)?px/, `${Math.floor(size * maxW / ctx.measureText(str).width)}px`);
+  }
+  ctx.fillText(str, x, y);
+}
+function brushStreaks(ctx, w, h, count, alpha) {
+  for (let i = 0; i < count; i++) {
+    const y = Math.random() * h, len = 60 + Math.random() * w * 0.6, x0 = Math.random() * w * 1.2 - w * 0.1;
+    const light = Math.random() < 0.5;
+    ctx.strokeStyle = light ? `rgba(255,255,255,${alpha * Math.random()})` : `rgba(40,44,50,${alpha * Math.random()})`;
+    ctx.lineWidth = 0.4 + Math.random() * 1.3;
+    ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x0 + len, y); ctx.stroke();
+  }
+}
+function vfdFace(ctx, w, h) {
+  // Black display glass with the unlit dot matrix of a powered vacuum-fluorescent display.
+  const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#0c0e12'); g.addColorStop(1, '#040506');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(255,168,38,0.075)';
+  const p = 5;
+  for (let y = p / 2; y < h; y += p) for (let x = p / 2; x < w; x += p) ctx.fillRect(x - 1, y - 1, 2, 2);
+  const s = ctx.createLinearGradient(0, 0, 0, h * 0.5); s.addColorStop(0, 'rgba(255,255,255,0.07)'); s.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = s; ctx.fillRect(0, 0, w, h * 0.5);
+}
+function vfdText(ctx, str, x, y, size, weight = 900, alpha = 1, maxW = 0) {
+  ctx.save();
+  ctx.shadowColor = `rgba(255,150,20,${0.85 * alpha})`; ctx.shadowBlur = size * 0.35;
+  text(ctx, str, x, y, `${weight} ${size}px Doto`, `rgba(255,190,80,${alpha})`, 'left', maxW);
+  ctx.shadowBlur = 0;
+  text(ctx, str, x, y, `${weight} ${size}px Doto`, `rgba(255,214,140,${alpha})`, 'left', maxW);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// Textures and materials
+// ---------------------------------------------------------------------------
+function canvasTex(c, srgb = true, mip = true) {
+  const t = new pc.Texture(device, {
+    width: c.width, height: c.height, format: srgb ? pc.PIXELFORMAT_SRGBA8 : pc.PIXELFORMAT_RGBA8,
+    mipmaps: mip, minFilter: mip ? pc.FILTER_LINEAR_MIPMAP_LINEAR : pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE,
+  });
+  t.setSource(c);
+  return t;
+}
+function lit(props) {
+  const m = new pc.StandardMaterial();
+  m.useMetalness = true; m.useFog = false;
+  for (const [k, v] of Object.entries(props)) m[k] = (typeof v === 'string' && v.startsWith('#')) ? col(v) : v;
+  m.update();
+  return m;
+}
+// Painted (baked) surface: shows the canvas exactly as painted.
+function baked(tex, { opacity = false, additive = false, intensity = 1 } = {}) {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false; m.useSkybox = false; m.useTonemap = false; m.useFog = false;
+  m.diffuse.set(0, 0, 0); m.emissive.set(1, 1, 1); m.emissiveMap = tex; m.emissiveIntensity = intensity;
+  if (opacity) { m.opacityMap = tex; m.opacityMapChannel = 'a'; m.blendType = pc.BLEND_NORMAL; m.depthWrite = false; }
+  if (additive) { m.blendType = pc.BLEND_ADDITIVE; m.depthWrite = false; }
+  m.update();
+  return m;
+}
+function shadowMat(tex) {
+  const m = new pc.StandardMaterial();
+  m.useLighting = false; m.useSkybox = false; m.useTonemap = false; m.useFog = false;
+  m.diffuse.set(0, 0, 0); m.emissive.set(0.02, 0.025, 0.03);
+  m.opacityMap = tex; m.opacityMapChannel = 'a'; m.blendType = pc.BLEND_NORMAL; m.depthWrite = false;
+  m.update();
+  return m;
+}
+
+// Procedural HDR studio. Camera looks down -z; azimuth 0 points back at the viewer.
+// Flat faces reflect the dim fill behind the viewer; top bevels catch an overhead
+// strip; upper-left bevels catch the key softbox; domes catch a low bar light.
+function smooth(e0, e1, v) { const t = clamp01((v - e0) / (e1 - e0)); return t * t * (3 - 2 * t); }
+function band(v, a, b, soft) { return smooth(a - soft, a + soft, v) * (1 - smooth(b - soft, b + soft, v)); }
+function envRadiance(dx, dy, dz) {
+  const el = Math.asin(Math.max(-1, Math.min(1, dy))) / DEG;
+  const az = Math.atan2(dx, dz) / DEG;
+  let r, g, b;
+  if (el < 0) { const k = 1 - smooth(-60, 0, el) * 0.6; r = 0.03 * k; g = 0.026 * k; b = 0.022 * k; }
+  else { const k = smooth(0, 70, el); r = 0.035 + 0.02 * k; g = 0.04 + 0.022 * k; b = 0.05 + 0.025 * k; }
+  let lum = 0;
+  lum += 0.12 * band(az, -70, 70, 30) * band(el, -12, 14, 8);                              // dim fill behind the viewer
+  lum += 14.0 * band(az, -38, 38, 8) * band(el, 15, 24, 2);                                // low bar light (jelly gloss)
+  lum += 7.5 * band(dx, -0.75, 0.75, 0.12) * band(el, 52, 74, 4) * smooth(-0.3, 0.2, dz);  // overhead strip
+  lum += 5.0 * band(az, -78, -34, 6) * band(el, 18, 50, 6);                                // key softbox, upper left
+  lum += 1.6 * band(az, 84, 104, 4) * band(el, -6, 48, 6);                                 // rim strip, right
+  lum += 0.35 * band(Math.abs(az), 120, 180, 20) * band(el, -5, 30, 10);                   // bounce from the room
+  const floor = 1.4 * band(az, -55, 55, 15) * band(el, -40, -14, 6);                       // floor bounce (jelly caustic)
+  return [r + lum + floor * 0.75, g + lum * 0.985 + floor * 0.85, b + lum * 0.96 + floor];
+}
+function buildEnvironment() {
+  const EW = 512, EH = 256;
+  const data = new Uint16Array(EW * EH * 4);
+  const h = pc.FloatPacking.float2Half;
+  for (let j = 0; j < EH; j++) {
+    const el = (0.5 - (j + 0.5) / EH) * Math.PI;
+    for (let i = 0; i < EW; i++) {
+      const phi = ((i + 0.5) / EW - 0.5) * 2 * Math.PI;
+      const [r, g, b] = envRadiance(Math.sin(phi) * Math.cos(el), Math.sin(el), Math.cos(phi) * Math.cos(el));
+      const o = (j * EW + i) * 4;
+      data[o] = h(r); data[o + 1] = h(g); data[o + 2] = h(b); data[o + 3] = h(1);
+    }
+  }
+  const tex = new pc.Texture(device, {
+    width: EW, height: EH, format: pc.PIXELFORMAT_RGBA16F, projection: pc.TEXTUREPROJECTION_EQUIRECT,
+    mipmaps: false, minFilter: pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_REPEAT, addressV: pc.ADDRESS_CLAMP_TO_EDGE, levels: [data],
+  });
+  app.scene.envAtlas = pc.EnvLighting.generateAtlas(pc.EnvLighting.generateLightingSource(tex));
+}
+
+// ---------------------------------------------------------------------------
+// Meshes
+// ---------------------------------------------------------------------------
+function makeMesh(P, N, U, I) {
+  const m = new pc.Mesh(device);
+  m.setPositions(P); m.setNormals(N); m.setUvs(0, U); m.setIndices(I);
+  m.update(pc.PRIMITIVE_TRIANGLES);
+  return m;
+}
+function outline(w, h, r, cs) {
+  const per = [];
+  const corners = [[w / 2 - r, h / 2 - r, 0], [-(w / 2 - r), h / 2 - r, 90], [-(w / 2 - r), -(h / 2 - r), 180], [w / 2 - r, -(h / 2 - r), 270]];
+  for (const [cx, cy, a0] of corners) for (let i = 0; i <= cs; i++) {
+    const a = (a0 + (90 * i) / cs) * DEG; per.push([cx, cy, Math.cos(a), Math.sin(a)]);
+  }
+  return per;
+}
+// Rounded slab: back at z = 0, quarter-round bevel up to the front at z = d.
+//   cap: 'flat' closes the front; 'none' leaves it open for a painted face;
+//   bulge > 0 pillows the front into a dome (jelly keys, knob cap, screws).
+function roundedSlab(w, h, d, r, b, { cs = 10, bs = 6, cap = 'flat', bulge = 0, rings = 9 } = {}) {
+  r = Math.min(r, w / 2, h / 2); b = Math.min(b, r, d);
+  const per = outline(w, h, r, cs);
+  const n = per.length;
+  const P = [], N = [], U = [], I = [], starts = [];
+  const uv = (x, y) => U.push(x / w + 0.5, 0.5 - y / h);
+  const ringDefs = [[r, 0, 0, 1]];
+  for (let j = 0; j <= bs; j++) { const t = (j / bs) * (Math.PI / 2); ringDefs.push([r - b + b * Math.cos(t), d - b + b * Math.sin(t), Math.sin(t), Math.cos(t)]); }
+  for (const [rad, z, nz, nxy] of ringDefs) {
+    starts.push(P.length / 3);
+    for (const [cx, cy, nx, ny] of per) { const x = cx + nx * rad, y = cy + ny * rad; P.push(x, y, z); N.push(nx * nxy, ny * nxy, nz); uv(x, y); }
+  }
+  if (bulge > 0) {
+    // Scaled copies of the inner outline rise into a dome: z = d + bulge * (1 - s^2).
+    const inner = per.map(([cx, cy, nx, ny]) => [cx + nx * (r - b), cy + ny * (r - b), nx, ny]);
+    for (let k = 1; k <= rings; k++) {
+      const s = 1 - k / (rings + 1), z = d + bulge * (1 - s * s);
+      starts.push(P.length / 3);
+      for (const [qx, qy, nx, ny] of inner) {
+        const support = Math.max(1e-4, qx * nx + qy * ny);
+        const slope = (2 * bulge * s) / support;
+        const len = Math.hypot(slope, 1);
+        P.push(qx * s, qy * s, z); N.push((nx * slope) / len, (ny * slope) / len, 1 / len); uv(qx * s, qy * s);
+      }
+    }
+  }
+  for (let k = 0; k < starts.length - 1; k++) for (let i = 0; i < n; i++) {
+    const i2 = (i + 1) % n, a = starts[k] + i, bb = starts[k] + i2, c = starts[k + 1] + i2, dd = starts[k + 1] + i;
+    I.push(a, bb, c, a, c, dd);
+  }
+  if (cap !== 'none') {
+    const center = P.length / 3; P.push(0, 0, d + bulge); N.push(0, 0, 1); uv(0, 0);
+    const last = starts[starts.length - 1];
+    for (let i = 0; i < n; i++) I.push(center, last + i, last + ((i + 1) % n));
+  }
+  return makeMesh(P, N, U, I);
+}
+// Flat rounded rectangle at z = 0 with 0..1 UVs (painted faces).
+function roundedFlat(w, h, r, cs = 10) {
+  const per = outline(w, h, r, cs);
+  const P = [0, 0, 0], N = [0, 0, 1], U = [0.5, 0.5], I = [];
+  per.forEach(([cx, cy, nx, ny], i) => {
+    const x = cx + nx * r, y = cy + ny * r;
+    P.push(x, y, 0); N.push(0, 0, 1); U.push(x / w + 0.5, 0.5 - y / h);
+    I.push(0, i + 1, ((i + 1) % per.length) + 1);
+  });
+  return makeMesh(P, N, U, I);
+}
+function discMesh(R, seg = 96) {
+  const P = [0, 0, 0], N = [0, 0, 1], U = [0.5, 0.5], I = [];
+  for (let i = 0; i <= seg; i++) {
+    const a = (i / seg) * Math.PI * 2, x = Math.cos(a) * R, y = Math.sin(a) * R;
+    P.push(x, y, 0); N.push(0, 0, 1); U.push(x / (2 * R) + 0.5, 0.5 - y / (2 * R));
+    if (i > 0) I.push(0, i, i + 1);
+  }
+  return makeMesh(P, N, U, I);
+}
+function knurlWall(R, h, ridges = 40, amp = 0.05, seg = 320) {
+  const P = [], N = [], U = [], I = [];
+  const rad = (a) => R * (1 - amp * (0.5 + 0.5 * Math.cos(ridges * a)));
+  const drad = (a) => R * amp * 0.5 * ridges * Math.sin(ridges * a);
+  for (let k = 0; k < 2; k++) for (let i = 0; i <= seg; i++) {
+    const a = (i / seg) * Math.PI * 2, r = rad(a), dr = drad(a);
+    const tx = dr * Math.cos(a) - r * Math.sin(a), ty = dr * Math.sin(a) + r * Math.cos(a), len = Math.hypot(tx, ty);
+    P.push(Math.cos(a) * r, Math.sin(a) * r, k * h); N.push(ty / len, -tx / len, 0); U.push(i / seg, k);
+  }
+  for (let i = 0; i < seg; i++) { const a = i, b = i + 1, c = seg + 2 + i, d = seg + 1 + i; I.push(a, b, c, a, c, d); }
+  return makeMesh(P, N, U, I);
+}
+const QUAD = makeMesh([-0.5, -0.5, 0, 0.5, -0.5, 0, 0.5, 0.5, 0, -0.5, 0.5, 0], [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1], [0, 1, 1, 1, 1, 0, 0, 0], [0, 1, 2, 0, 2, 3]);
+const SPHERE = pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: 1, latitudeBands: 28, longitudeBands: 40 }));
+const torusMesh = (ring, tube, segments = 96) => pc.Mesh.fromGeometry(device, new pc.TorusGeometry({ ringRadius: ring, tubeRadius: tube, segments, sides: 14 }));
+
+// ---------------------------------------------------------------------------
+// Entities
+// ---------------------------------------------------------------------------
+function meshEntity(parent, mesh, mat, name = 'mesh') {
+  const e = new pc.Entity(name);
+  e.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, mat)], castShadows: false, receiveShadows: false });
+  parent.addChild(e);
+  return e;
+}
+function setMat(e, m) { if (e.render.meshInstances[0].material !== m) e.render.meshInstances[0].material = m; }
+// A painted plane: w x h screen px, drawn at res x for crispness.
+function painted(parent, w, h, draw, { res = 2, opacity = true, additive = false, intensity = 1, mesh = null } = {}) {
+  const c = makeCanvas(w * res, h * res);
+  const ctx = c.getContext('2d');
+  const paint = (fn) => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height); ctx.scale(res, res); fn(ctx, w, h); };
+  paint(draw);
+  const tex = canvasTex(c, true);
+  const mat = baked(tex, { opacity, additive, intensity });
+  const e = meshEntity(parent, mesh || QUAD, mat, 'painted');
+  if (!mesh) e.setLocalScale(L(w), L(h), 1);
+  return { entity: e, mat, tex, redraw(fn) { paint(fn); tex.upload(); } };
+}
+// Soft contact shadow cast down-right by a raised part (key light is upper left).
+function dropShadow(w, h, r, blur, strength = 0.6) {
+  const pad = blur * 2.5;
+  const c = makeCanvas(w + pad * 2, h + pad * 2);
+  const x = c.getContext('2d');
+  x.filter = `blur(${blur}px)`; x.fillStyle = `rgba(0,0,0,${strength})`; rr(x, pad, pad, w, h, r); x.fill();
+  const mat = shadowMat(canvasTex(c, true));
+  const e = meshEntity(app.root, QUAD, mat, 'shadow');
+  let last = -1;
+  return {
+    place(cx, cy, height) { // height of the part's face above the faceplate, world units
+      const k = Math.max(0, height);
+      e.setLocalPosition(WX(cx) + 0.32 * k, WY(cy) - 0.42 * k, 0.004);
+      const s = 1 + 0.05 * k; e.setLocalScale(L(w + pad * 2) * s, L(h + pad * 2) * s, 1);
+      const o = Math.round(clamp01(0.25 + 2.2 * k) * (1 - 0.35 * clamp01(k - 0.4)) * 100) / 100;
+      if (o !== last) { last = o; mat.opacity = o; mat.update(); }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Build
+// ---------------------------------------------------------------------------
+async function build() {
+  await loadFonts();
+  const [heroArt, ...recArt] = await Promise.all([content.playlistOfTheDay, ...content.recommended].map(coverCanvas));
+  buildEnvironment();
+  app.scene.clusteredLightingEnabled = false;
+  app.scene.layers.getLayerById(pc.LAYERID_SKYBOX).enabled = false; // the env lights reflections only
+  app.scene.ambientLight = new pc.Color(0.05, 0.05, 0.06);
+
+  const cam = new pc.Entity('cam');
+  cam.addComponent('camera', { clearColor: col(PALETTE.room), fov: FOV, nearClip: 0.5, farClip: 40, toneMapping: pc.TONEMAP_NEUTRAL, gammaCorrection: pc.GAMMA_SRGB });
+  cam.setPosition(0, 0, CAMZ);
+  app.root.addChild(cam);
+
+  // Key light from the upper left, a little in front of the device.
+  const key = new pc.Entity('key');
+  key.addComponent('light', { type: 'directional', color: new pc.Color(1, 0.96, 0.9), intensity: 1.6, castShadows: false });
+  {
+    const dir = new pc.Vec3(0.45, -0.6, -0.66).normalize(), down = new pc.Vec3(0, -1, 0);
+    const axis = new pc.Vec3().cross(down, dir).normalize();
+    key.setRotation(new pc.Quat().setFromAxisAngle(axis, Math.acos(down.dot(dir)) / DEG));
+  }
+  app.root.addChild(key);
+
+  // ---- materials -----------------------------------------------------------
+  const brushC = makeCanvas(512, 512);
+  { const x = brushC.getContext('2d'); x.fillStyle = '#b8b8b8'; x.fillRect(0, 0, 512, 512); brushStreaks(x, 512, 512, 5000, 0.5); }
+  const brushGloss = canvasTex(brushC, false);
+  const spunC = makeCanvas(256, 256);
+  { const x = spunC.getContext('2d'); x.fillStyle = '#c0c0c0'; x.fillRect(0, 0, 256, 256); for (let r = 1; r < 182; r += 1.2) { const v = 120 + Math.random() * 135 | 0; x.strokeStyle = `rgb(${v},${v},${v})`; x.beginPath(); x.arc(128, 128, r, 0, 7); x.stroke(); } }
+  const M = {
+    alu: lit({ diffuse: '#D6DBE2', metalness: 1, gloss: 0.74, glossMap: brushGloss, glossMapChannel: 'g' }),
+    chrome: lit({ diffuse: '#F4F6F9', metalness: 1, gloss: 0.93 }),
+    darkChrome: lit({ diffuse: '#9EA6B1', metalness: 1, gloss: 0.9 }),
+    knobCap: lit({ diffuse: '#AEB5BF', metalness: 1, gloss: 0.84, glossMap: canvasTex(spunC, false), glossMapChannel: 'g' }),
+    graphite: lit({ diffuse: '#1B1F26', metalness: 0, gloss: 0.86, clearCoat: 1, clearCoatGloss: 0.95 }),
+    glassBlack: lit({ diffuse: '#06070A', metalness: 0, gloss: 0.92, clearCoat: 1, clearCoatGloss: 0.97 }),
+    ledOff: lit({ diffuse: '#0b0907', metalness: 0, gloss: 0.92, clearCoat: 1, clearCoatGloss: 0.95, emissive: '#FFA826', emissiveIntensity: 0.025 }),
+    ledDim: lit({ diffuse: '#1e1206', metalness: 0, gloss: 0.9, clearCoat: 1, clearCoatGloss: 0.95, emissive: '#FF8A10', emissiveIntensity: 0.22 }),
+    ledOn: lit({ diffuse: '#3a1a00', metalness: 0, gloss: 0.9, emissive: '#FFA21E', emissiveIntensity: 1.15, useTonemap: false }),
+  };
+  const haloC = makeCanvas(128, 128);
+  { const x = haloC.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 128, 128); const g = x.createRadialGradient(64, 64, 0, 64, 64, 62); g.addColorStop(0, 'rgb(190,112,30)'); g.addColorStop(0.35, 'rgb(120,66,14)'); g.addColorStop(0.7, 'rgb(36,18,4)'); g.addColorStop(1, 'rgb(0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  const haloTex = canvasTex(haloC, true);
+  const haloOn = baked(haloTex, { additive: true, intensity: 1.3 });
+  const haloDim = baked(haloTex, { additive: true, intensity: 0.35 });
+
+  // ---- layout (screen px) ----------------------------------------------------
+  const FP = { x: 20, y: 16, w: 1560, h: 968, r: 46, b: 22 };
+  const HERO = { x: 60, y: 226, w: 630, h: 718 };
+  const KEYS = { x: 758, y: 244, w: 206, h: 378, gap: 77 };
+  const LIB = { x: 760, y: 694, w: 772, h: 250 };
+  const KNOB = { x: 1448, y: 110, r: 60 };
+  const VFD = { x: 340, y: 58, w: 820, h: 96 };
+  const BADGE = { x: 70, y: 62, w: 236, h: 88 };
+
+  // ---- faceplate -------------------------------------------------------------
+  const face = new pc.Entity('faceplate'); app.root.addChild(face);
+  face.setLocalPosition(0, WY(FP.y + FP.h / 2), -0.3);
+  meshEntity(face, roundedSlab(L(FP.w), L(FP.h), 0.3, L(FP.r), L(FP.b), { cap: 'none', cs: 12, bs: 8 }), M.alu);
+  // Painted faceplate front: brushed aluminium, key-light falloff, the drawer slot,
+  // the engraved knob ring and legend, and contact shadows of the fixed parts.
+  const fx0 = FP.x + FP.b, fy0 = FP.y + FP.b, fw = FP.w - 2 * FP.b, fh = FP.h - 2 * FP.b;
+  const faceFront = painted(face, fw, fh, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, w * 0.55, h * 1.1);
+    g.addColorStop(0, '#e9edf2'); g.addColorStop(0.45, '#c4cad2'); g.addColorStop(1, '#868d97');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    brushStreaks(x, w, h, 16000, 0.22);
+    for (const [cy, a, hh] of [[0.12, 0.42, 0.10], [0.62, 0.16, 0.16]]) {
+      const s = x.createLinearGradient(0, h * (cy - hh), 0, h * (cy + hh));
+      s.addColorStop(0, 'rgba(255,255,255,0)'); s.addColorStop(0.5, `rgba(255,255,255,${a})`); s.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = s; x.fillRect(0, h * (cy - hh), w, h * hh * 2);
+    }
+    const v = x.createRadialGradient(w * 0.2, h * 0.1, h * 0.2, w * 0.5, h * 0.5, w * 0.75);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,14,20,0.32)'); x.fillStyle = v; x.fillRect(0, 0, w, h);
+    const X = (px) => px - fx0, Y = (py) => py - fy0;
+    x.fillStyle = '#121418'; rr(x, X(LIB.x - 10), Y(LIB.y - 10), LIB.w + 20, LIB.h + 20, 30); x.fill();
+    const sg = x.createLinearGradient(0, Y(LIB.y - 10), 0, Y(LIB.y + 30));
+    sg.addColorStop(0, 'rgba(0,0,0,0.7)'); sg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = sg; rr(x, X(LIB.x - 10), Y(LIB.y - 10), LIB.w + 20, 40, 30); x.fill();
+    x.strokeStyle = 'rgba(255,255,255,0.55)'; x.lineWidth = 2; rr(x, X(LIB.x - 11), Y(LIB.y - 11) + 1.5, LIB.w + 22, LIB.h + 22, 31); x.stroke();
+    x.save(); x.filter = 'blur(9px)'; x.fillStyle = 'rgba(10,12,16,0.55)';
+    rr(x, X(BADGE.x) + 7, Y(BADGE.y) + 9, BADGE.w, BADGE.h, 16); x.fill();
+    rr(x, X(VFD.x) + 7, Y(VFD.y) + 9, VFD.w, VFD.h, 14); x.fill();
+    x.restore();
+    for (const [dy, c] of [[1.5, 'rgba(255,255,255,0.6)'], [0, 'rgba(20,24,30,0.55)']]) {
+      x.strokeStyle = c; x.lineWidth = 2; x.beginPath(); x.arc(X(KNOB.x), Y(KNOB.y) + dy, KNOB.r + 21, 0, Math.PI * 2); x.stroke();
+    }
+    text(x, 'More', X(KNOB.x - KNOB.r - 44), Y(KNOB.y) + 1 + 13, '700 40px Saira', 'rgba(255,255,255,0.7)', 'right');
+    text(x, 'More', X(KNOB.x - KNOB.r - 44), Y(KNOB.y) + 13, '700 40px Saira', '#2b3038', 'right');
+  }, { res: 1, opacity: false, mesh: roundedFlat(L(fw), L(fh), L(FP.r - FP.b)) });
+  faceFront.entity.setLocalPosition(WX(fx0 + fw / 2), WY(fy0 + fh / 2) - WY(FP.y + FP.h / 2), 0.3);
+
+  for (const [sx, sy] of [[48, 44], [1552, 44], [48, 956], [1552, 956]]) {
+    const s = meshEntity(app.root, roundedSlab(L(24), L(24), 0.04, L(12), L(6), { cs: 6, bs: 4, bulge: 0.012, rings: 3 }), M.chrome);
+    s.setLocalPosition(WX(sx), WY(sy), 0);
+    const slot = meshEntity(s, QUAD, M.glassBlack); slot.setLocalPosition(0, 0, 0.053); slot.setLocalScale(L(17), L(3.5), 1); slot.setLocalEulerAngles(0, 0, 35);
+  }
+
+  // Badge: polished chrome plate with the wordmark.
+  const badge = meshEntity(app.root, roundedSlab(L(BADGE.w), L(BADGE.h), 0.08, L(16), L(9), { cap: 'none', cs: 8, bs: 5 }), M.chrome);
+  badge.setLocalPosition(WX(BADGE.x + BADGE.w / 2), WY(BADGE.y + BADGE.h / 2), 0);
+  const bw = BADGE.w - 18, bh = BADGE.h - 18;
+  painted(badge, bw, bh, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#fbfcfe'); g.addColorStop(0.42, '#c9cfd8'); g.addColorStop(0.5, '#7c8591'); g.addColorStop(0.62, '#aeb6c1'); g.addColorStop(1, '#e8ecf1');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    text(x, 'AeroBeat', w / 2, h / 2 + 17 + 1.5, '700 46px Saira', 'rgba(255,255,255,0.8)', 'center');
+    text(x, 'AeroBeat', w / 2, h / 2 + 17, '700 46px Saira', '#1c2027', 'center');
+  }, { opacity: false, mesh: roundedFlat(L(bw), L(bh), L(7)) }).entity.setLocalPosition(0, 0, 0.0801);
+
+  // Guidance display (VFD).
+  const vfdBody = meshEntity(app.root, roundedSlab(L(VFD.w), L(VFD.h), 0.07, L(14), L(8), { cap: 'none', cs: 8, bs: 5 }), M.glassBlack);
+  vfdBody.setLocalPosition(WX(VFD.x + VFD.w / 2), WY(VFD.y + VFD.h / 2), 0);
+  const vw = VFD.w - 16, vh = VFD.h - 16;
+  const guide = painted(vfdBody, vw, vh, vfdFace, { opacity: false, mesh: roundedFlat(L(vw), L(vh), L(6)) });
+  guide.entity.setLocalPosition(0, 0, 0.0701);
+  // A copy of the guide face that floats above the dim layer during the hero transition,
+  // placed so it projects onto the original from the home camera position.
+  const GF_Z = 1.2, gk = (CAMZ - GF_Z) / (CAMZ - 0.0701);
+  const guideFront = meshEntity(app.root, guide.entity.render.meshInstances[0].mesh, guide.mat, 'guide-front');
+  guideFront.setLocalPosition(WX(VFD.x + VFD.w / 2) * gk, WY(VFD.y + VFD.h / 2) * gk, GF_Z);
+  guideFront.setLocalScale(gk, gk, 1); guideFront.enabled = false;
+
+  // Dimming glass for the hero transition.
+  const dimM = new pc.StandardMaterial(); dimM.useLighting = false; dimM.useSkybox = false; dimM.useTonemap = false;
+  dimM.diffuse.set(0, 0, 0); dimM.emissive.set(0.02, 0.022, 0.03); dimM.opacity = 0; dimM.blendType = pc.BLEND_NORMAL; dimM.depthWrite = false; dimM.update();
+  const dim = meshEntity(app.root, QUAD, dimM, 'dim'); dim.setLocalPosition(0, 0, 0.9); dim.setLocalScale(14, 9, 1); dim.enabled = false;
+
+  const hands = createHands(app, cam);
+  const T = {};
+  const newState = (name) => (T[name] = { hover: false, hv: 0, arm: 0, sel: 0, latched: false, selAt: -1e9 });
+
+  function led(parent, x, y, w, h, z, rotZ = 0, halo = 2.8) {
+    const e = meshEntity(parent, roundedSlab(L(w), L(h), 0.025, L(Math.min(w, h) / 2), L(Math.min(w, h) / 3), { cs: 4, bs: 2, bulge: 0.01, rings: 2 }), M.ledOff);
+    e.setLocalPosition(x, y, z); e.setLocalEulerAngles(0, 0, rotZ);
+    const hq = meshEntity(e, QUAD, haloOn); hq.setLocalPosition(0, 0, 0.04); hq.setLocalScale(L(w * halo), L(h + w * (halo - 1)), 1); hq.enabled = false;
+    return {
+      level: -1,
+      set(level) { // 0 off, 1 dim, 2 lit
+        if (level === this.level) return; this.level = level;
+        setMat(e, level === 2 ? M.ledOn : level === 1 ? M.ledDim : M.ledOff);
+        hq.enabled = level > 0; if (level > 0) setMat(hq, level === 2 ? haloOn : haloDim);
+      },
+    };
+  }
+
+  // ---- hero: the disc deck ---------------------------------------------------
+  const pod = content.playlistOfTheDay;
+  const heroRoot = new pc.Entity('hero'); app.root.addChild(heroRoot);
+  heroRoot.setLocalPosition(WX(HERO.x + HERO.w / 2), WY(HERO.y + HERO.h / 2), 0);
+  const deck = new pc.Entity('deck'); heroRoot.addChild(deck);
+  const DECK_D = 0.22, DECK_B = 18;
+  meshEntity(deck, roundedSlab(L(HERO.w), L(HERO.h), DECK_D, L(54), L(DECK_B), { cap: 'none', cs: 12, bs: 8 }), M.graphite);
+  const discY = 92; // disc centre above deck centre, px
+  const RING_R = 252;
+  const dw = HERO.w - 2 * DECK_B, dh = HERO.h - 2 * DECK_B;
+  painted(deck, dw, dh, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#2c323c'); g.addColorStop(0.55, '#1b1f26'); g.addColorStop(1, '#121519'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    const s = x.createLinearGradient(0, 0, w * 0.9, h * 0.6); s.addColorStop(0, 'rgba(255,255,255,0.09)'); s.addColorStop(0.45, 'rgba(255,255,255,0.02)'); s.addColorStop(0.46, 'rgba(255,255,255,0)'); x.fillStyle = s; x.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2 - discY;
+    x.strokeStyle = 'rgba(0,0,0,0.45)'; x.lineWidth = 50; x.beginPath(); x.arc(cx, cy, RING_R, 0, 7); x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,0.10)'; x.lineWidth = 1.5; for (const r of [RING_R - 26, RING_R + 26]) { x.beginPath(); x.arc(cx, cy + 1.5, r, 0, 7); x.stroke(); }
+    const rg = x.createRadialGradient(cx + 6, cy + 10, 214, cx + 6, cy + 10, 240); rg.addColorStop(0, 'rgba(0,0,0,0.6)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = rg; x.beginPath(); x.arc(cx + 6, cy + 10, 240, 0, 7); x.fill();
+  }, { res: 1, opacity: false, mesh: roundedFlat(L(dw), L(dh), L(54 - DECK_B)) }).entity.setLocalPosition(0, 0, DECK_D + 0.0005);
+
+  const heroLeds = [];
+  for (let i = 0; i < 36; i++) {
+    const a = 90 - i * 10; // clockwise from 12 o'clock
+    heroLeds.push(led(deck, Math.cos(a * DEG) * L(RING_R), L(discY) + Math.sin(a * DEG) * L(RING_R), 14, 34, DECK_D, a - 90, 2.4));
+  }
+  const bezel = meshEntity(deck, torusMesh(L(216), L(14), 120), M.chrome);
+  bezel.setLocalPosition(0, L(discY), DECK_D + L(5)); bezel.setLocalEulerAngles(90, 0, 0);
+  const well = meshEntity(deck, discMesh(L(216)), M.glassBlack); well.setLocalPosition(0, L(discY), DECK_D + 0.002);
+  const spinner = new pc.Entity('spinner'); deck.addChild(spinner);
+  const discMat = lit({ diffuse: '#ffffff', metalness: 0, gloss: 0.7, diffuseMap: canvasTex(heroArt) });
+  meshEntity(spinner, discMesh(L(200)), discMat);
+  const hub = meshEntity(spinner, roundedSlab(L(40), L(40), 0.03, L(20), L(10), { cs: 6, bs: 3, bulge: 0.03, rings: 4 }), M.chrome); hub.setLocalPosition(0, 0, 0.001);
+  const ringGlowC = makeCanvas(256, 256);
+  { const x = ringGlowC.getContext('2d'); x.fillStyle = '#000'; x.fillRect(0, 0, 256, 256); const g = x.createRadialGradient(128, 128, 0, 128, 128, 126); g.addColorStop(0, 'rgb(0,0,0)'); g.addColorStop(0.5, 'rgb(0,0,0)'); g.addColorStop(0.56, 'rgb(255,170,60)'); g.addColorStop(0.68, 'rgb(150,80,14)'); g.addColorStop(0.85, 'rgb(40,18,3)'); g.addColorStop(1, 'rgb(0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 256, 256); }
+  const discGlow = meshEntity(spinner, QUAD, baked(canvasTex(ringGlowC), { additive: true, intensity: 1.4 })); discGlow.setLocalPosition(0, 0, -0.02); discGlow.setLocalScale(L(720), L(720), 1); discGlow.enabled = false;
+  // Domed glass lid on a hinge at its top edge.
+  const lidHinge = new pc.Entity('hinge'); deck.addChild(lidHinge); lidHinge.setLocalPosition(0, L(discY + 214), DECK_D + 0.03);
+  const domeMat = lit({ diffuse: '#000000', metalness: 0, gloss: 0.97, opacity: 0.08, blendType: pc.BLEND_NORMAL, depthWrite: false, opacityFadesSpecular: false });
+  const dome = meshEntity(lidHinge, SPHERE, domeMat); dome.setLocalPosition(0, -L(214), 0); dome.setLocalScale(L(212), L(212), L(34));
+
+  const heroVfdW = 566, heroVfdH = 132;
+  const heroVfd = meshEntity(deck, roundedSlab(L(heroVfdW), L(heroVfdH), 0.05, L(16), L(8), { cap: 'none', cs: 8, bs: 5 }), M.glassBlack);
+  heroVfd.setLocalPosition(0, -L(HERO.h / 2 - 34 - heroVfdH / 2), DECK_D);
+  painted(heroVfd, heroVfdW - 16, heroVfdH - 16, (x, w, h) => {
+    vfdFace(x, w, h);
+    vfdText(x, pod.name, 20, 66, 64, 900, 1, w - 40);
+    vfdText(x, `${pod.songCount} songs, picked for today`, 22, 102, 30, 800, 0.85, w - 44);
+  }, { opacity: false, mesh: roundedFlat(L(heroVfdW - 16), L(heroVfdH - 16), L(8)) }).entity.setLocalPosition(0, 0, 0.0501);
+  const heroShadow = dropShadow(HERO.w, HERO.h, 54, 16, 0.75);
+  const hero = newState('hero');
+  hands.register('hero', heroRoot, {
+    onHover: (on) => { hero.hover = on; },
+    onArm: (p) => { hero.arm = p; },
+    onSelect: () => { hero.latched = true; hero.selAt = performance.now(); announce('hero'); },
+  });
+
+  // ---- rec-1..3: jelly keys --------------------------------------------------
+  const KD = 0.22, BULGE = 0.15;
+  // Jelly: dark blue plastic with light scattering inside it — glow pooled at the
+  // bottom of the key (as in Aqua-era gel buttons); the clearcoat carries the reflections.
+  const gelC = makeCanvas(8, 256);
+  { const x = gelC.getContext('2d'); const g = x.createLinearGradient(0, 0, 0, 256); g.addColorStop(0, 'rgb(4,26,90)'); g.addColorStop(0.45, 'rgb(10,60,170)'); g.addColorStop(0.8, 'rgb(40,150,255)'); g.addColorStop(1, 'rgb(120,215,255)'); x.fillStyle = g; x.fillRect(0, 0, 8, 256); }
+  const gelTex = canvasTex(gelC, true);
+  const recs = content.recommended.map((pl, i) => {
+    const name = `rec-${i + 1}`;
+    const cx = KEYS.x + KEYS.w / 2 + i * (KEYS.w + KEYS.gap), cy = KEYS.y + KEYS.h / 2;
+    const root = new pc.Entity(name); app.root.addChild(root);
+    root.setLocalPosition(WX(cx), WY(cy), 0);
+    const body = new pc.Entity('body'); root.addChild(body);
+    const jelly = lit({ diffuse: '#06204F', metalness: 0, gloss: 0.9, clearCoat: 1, clearCoatGloss: 0.98, emissive: '#ffffff', emissiveMap: gelTex, emissiveIntensity: 0.9 });
+    meshEntity(body, roundedSlab(L(KEYS.w), L(KEYS.h), KD, L(44), L(26), { cs: 12, bs: 7, bulge: BULGE, rings: 10 }), jelly);
+    const top = KEYS.h / 2;
+    const coverY = top - 12 - 93;
+    const frame = meshEntity(body, roundedSlab(L(186), L(186), KD + BULGE + 0.02, L(14), L(7), { cs: 6, bs: 4 }), M.chrome);
+    frame.setLocalPosition(0, L(coverY), 0);
+    const art = meshEntity(frame, QUAD, lit({ diffuse: '#ffffff', metalness: 0, gloss: 0.75, diffuseMap: canvasTex(recArt[i]) }));
+    art.setLocalPosition(0, 0, KD + BULGE + 0.021); art.setLocalScale(L(172), L(172), 1);
+    const meterY = coverY - 93 - 26;
+    const win = meshEntity(body, roundedSlab(L(180), L(30), KD + BULGE + 0.012, L(8), L(4), { cs: 4, bs: 3 }), M.glassBlack);
+    win.setLocalPosition(0, L(meterY), 0);
+    const segs = [];
+    for (let s = 0; s < 8; s++) segs.push(led(win, L(-75.5 + s * 21.6), 0, 16, 16, KD + BULGE + 0.012, 0, 2.4));
+    const lz = KD + BULGE + 0.006;
+    const legend = painted(body, KEYS.w - 14, 92, (x, w) => {
+      x.shadowColor = 'rgba(0,30,90,0.55)'; x.shadowBlur = 6; x.shadowOffsetY = 2;
+      text(x, pl.name, w / 2, 38, '700 36px Saira', '#ffffff', 'center', w - 8);
+      text(x, `${pl.songCount} songs`, w / 2, 80, '600 30px Saira', '#e3f0ff', 'center');
+    });
+    legend.entity.setLocalPosition(0, L(meterY - 24 - 46), lz);
+    const shadow = dropShadow(KEYS.w, KEYS.h, 44, 12, 0.7);
+    const st = newState(name);
+    hands.register(name, root, {
+      onHover: (on) => { st.hover = on; },
+      onArm: (p) => { st.arm = p; },
+      onSelect: () => { latch(name); announce(name); },
+    });
+    return { name, pl, cx, cy, body, jelly, segs, st, shadow };
+  });
+
+  // ---- library: brushed drawer ----------------------------------------------
+  const libRoot = new pc.Entity('library'); app.root.addChild(libRoot);
+  libRoot.setLocalPosition(WX(LIB.x + LIB.w / 2), WY(LIB.y + LIB.h / 2), 0);
+  const drawer = new pc.Entity('drawer'); libRoot.addChild(drawer);
+  const DD = 0.12, DB = 12;
+  meshEntity(drawer, roundedSlab(L(LIB.w), L(LIB.h), DD, L(22), L(DB), { cap: 'none', cs: 8, bs: 6 }), M.alu);
+  const lw = LIB.w - 2 * DB, lh = LIB.h - 2 * DB;
+  painted(drawer, lw, lh, (x, w, h) => {
+    const g = x.createLinearGradient(0, 0, w * 0.4, h * 1.4); g.addColorStop(0, '#e4e8ed'); g.addColorStop(1, '#a7aeb7'); x.fillStyle = g; x.fillRect(0, 0, w, h);
+    brushStreaks(x, w, h, 3200, 0.25);
+    const s = x.createLinearGradient(0, 0, 0, h * 0.5); s.addColorStop(0, 'rgba(255,255,255,0.35)'); s.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = s; x.fillRect(0, 0, w, h * 0.5);
+    text(x, 'Library', 36, 86 + 1.5, '700 64px Saira', 'rgba(255,255,255,0.7)');
+    text(x, 'Library', 36, 86, '700 64px Saira', '#1f242b');
+    text(x, 'Search, saved songs and your playlists', 38, 136, '600 30px Saira', '#363c46');
+  }, { res: 1, opacity: false, mesh: roundedFlat(L(lw), L(lh), L(22 - DB)) }).entity.setLocalPosition(0, 0, DD + 0.0005);
+  const libWin = meshEntity(drawer, roundedSlab(L(470), L(26), DD + 0.012, L(7), L(4), { cs: 4, bs: 3 }), M.glassBlack);
+  libWin.setLocalPosition(L(-LIB.w / 2 + 48 + 235), -L(LIB.h / 2 - 50), 0);
+  const libSegs = [];
+  for (let s = 0; s < 16; s++) libSegs.push(led(libWin, L(-219 + s * 29.2), 0, 22, 13, DD + 0.012, 0, 2.2));
+  const pull = new pc.Entity('pull'); drawer.addChild(pull); pull.setLocalPosition(L(LIB.w / 2 - 128), -L(LIB.h / 2 - 50), DD);
+  meshEntity(pull, roundedSlab(L(170), L(48), 0.12, L(24), L(20), { cs: 10, bs: 7 }), M.chrome);
+  const libShadow = dropShadow(LIB.w, LIB.h, 22, 10, 0.6);
+  const lib = newState('library');
+  hands.register('library', libRoot, {
+    onHover: (on) => { lib.hover = on; },
+    onArm: (p) => { lib.arm = p; },
+    onSelect: () => { latch('library'); announce('library'); },
+  });
+
+  // ---- more: knurled chrome knob --------------------------------------------
+  const knobRoot = new pc.Entity('more'); app.root.addChild(knobRoot);
+  knobRoot.setLocalPosition(WX(KNOB.x), WY(KNOB.y), 0);
+  const knob = new pc.Entity('knob'); knobRoot.addChild(knob);
+  const KH = 0.2;
+  meshEntity(knob, knurlWall(L(KNOB.r), KH), M.darkChrome);
+  const cap = meshEntity(knob, roundedSlab(L(KNOB.r * 2 - 10), L(KNOB.r * 2 - 10), 0.04, L(KNOB.r - 5), L(9), { cs: 10, bs: 5, bulge: 0.045, rings: 6 }), M.knobCap);
+  cap.setLocalPosition(0, 0, KH - 0.02);
+  const pointerPivot = new pc.Entity('pointer'); knob.addChild(pointerPivot); pointerPivot.setLocalPosition(0, 0, KH + 0.045);
+  const pointer = meshEntity(pointerPivot, roundedSlab(L(10), L(30), 0.02, L(5), L(3), { cs: 4, bs: 2 }), M.ledOn);
+  pointer.setLocalPosition(0, L(KNOB.r - 30), 0);
+  const knobDots = [];
+  for (let i = 0; i < 11; i++) {
+    const a = (225 - i * 27) * DEG;
+    knobDots.push(led(app.root, WX(KNOB.x) + Math.cos(a) * L(KNOB.r + 21), WY(KNOB.y) + Math.sin(a) * L(KNOB.r + 21), 9, 9, 0, 0, 3));
+  }
+  const knobShadow = dropShadow(KNOB.r * 2, KNOB.r * 2, KNOB.r, 9, 0.65);
+  const more = newState('more');
+  hands.register('more', knobRoot, {
+    onHover: (on) => { more.hover = on; },
+    onArm: (p) => { more.arm = p; },
+    onSelect: () => { latch('more'); announce('more'); },
+  });
+
+  // ---- wrist markers: glowing amber beads in chrome bezels -------------------
+  const MARKER_Z = 2.8;
+  const pxPerUnitAtMarker = S * CAMZ / (CAMZ - MARKER_Z);
+  const markerUnit = WRIST_DIAMETER / pxPerUnitAtMarker; // world size of one wrist disc
+  const beadM = lit({ diffuse: '#3a1600', metalness: 0, gloss: 0.95, clearCoat: 1, clearCoatGloss: 1, emissive: '#FF8A00', emissiveIntensity: 0.95 });
+  const markerHaloC = makeCanvas(128, 128);
+  { const x = markerHaloC.getContext('2d'); const g = x.createRadialGradient(64, 64, 20, 64, 64, 64); g.addColorStop(0, 'rgba(6,8,12,0.8)'); g.addColorStop(0.5, 'rgba(6,8,12,0.45)'); g.addColorStop(1, 'rgba(6,8,12,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  const markerHaloM = baked(canvasTex(markerHaloC), { opacity: true });
+  const markers = [0, 1].map(() => {
+    const m = new pc.Entity('wrist'); app.root.addChild(m);
+    const halo = meshEntity(m, QUAD, markerHaloM); halo.setLocalPosition(0, 0, -0.08); halo.setLocalScale(1.9, 1.9, 1);
+    const bez = meshEntity(m, torusMesh(0.4, 0.1, 48), M.chrome); bez.setLocalEulerAngles(90, 0, 0);
+    const bead = meshEntity(m, SPHERE, beadM); bead.setLocalScale(0.33, 0.33, 0.26);
+    m.setLocalScale(markerUnit, markerUnit, markerUnit);
+    m.enabled = false;
+    return m;
+  });
+  const tmp = new pc.Vec3();
+  let wristState = null;
+  hands.onState((s) => {
+    wristState = s;
+    s.wrists.forEach((w, i) => {
+      if (!w) { markers[i].enabled = false; return; }
+      markers[i].enabled = true;
+      cam.camera.screenToWorld(w.x, w.y, cam.getPosition().z - MARKER_Z, tmp);
+      markers[i].setPosition(tmp);
+    });
+  });
+
+  // ---- selection bookkeeping -----------------------------------------------
+  const names = { hero: pod.name, library: 'your library', more: 'more options' };
+  recs.forEach((r) => { names[r.name] = r.pl.name; });
+  const opening = { hero: `Loading ${pod.name}`, library: 'Opening your library', more: 'Opening more options' };
+  recs.forEach((r) => { opening[r.name] = `Opening ${r.pl.name}`; });
+  let message = null, messageUntil = 0;
+  function latch(name) {
+    for (const k of Object.keys(T)) if (k !== 'hero') T[k].latched = false;
+    T[name].latched = true; T[name].selAt = performance.now();
+  }
+  function announce(name) { message = opening[name]; messageUntil = performance.now() + (name === 'hero' ? 4500 : 2600); }
+
+  let lastGuide = '';
+  function drawGuide(msg, bar) {
+    const k = msg + '|' + (bar == null ? '' : Math.round(bar * 12));
+    if (k === lastGuide) return; lastGuide = k;
+    guide.redraw((x, w, h) => {
+      vfdFace(x, w, h);
+      const barW = bar == null ? 0 : 12 * 20 + 20;
+      vfdText(x, msg, 22, 54, 40, 850, 1, w - 44 - barW);
+      if (bar != null) {
+        const n = 12, x0 = w - 22 - n * 20;
+        for (let i = 0; i < n; i++) {
+          const on = i < Math.round(bar * n);
+          x.save(); if (on) { x.shadowColor = 'rgba(255,150,20,0.9)'; x.shadowBlur = 10; }
+          x.fillStyle = on ? '#ffd28a' : 'rgba(255,168,38,0.13)'; x.fillRect(x0 + i * 20, 20, 14, 40); x.restore();
+        }
+      }
+    });
+  }
+
+  // ---- animation (wall clock, so a slow renderer still animates at real speed) --
+  const startAt = performance.now();
+  let prevNow = startAt, spin = 0, heroT = 0;
+  const heroWorld = heroRoot.getPosition().clone();
+  const discWorld = new pc.Vec3(heroWorld.x, heroWorld.y + L(discY), 0);
+  app.on('update', () => {
+    const now = performance.now();
+    const dt = Math.min(0.25, (now - prevNow) / 1000); prevNow = now;
+    for (const [name, st] of Object.entries(T)) {
+      st.hv = approach(st.hv, st.hover ? 1 : 0, 14, dt);
+      if (st.latched && now - st.selAt > (name === 'hero' ? 4500 : 2600)) st.latched = false;
+      st.sel = approach(st.sel, st.latched ? 1 : 0, st.latched ? 9 : 4, dt);
+    }
+
+    // Hero: lifts on hover, presses in while arming; on select the lid swings
+    // open and the disc rises out of the deck toward the athlete.
+    heroT = hero.latched ? (now - hero.selAt) / 1000 : Math.max(0, Math.min(heroT, 1.1) - dt * 1.5);
+    const rise = easeOut(heroT / 0.8), lid = easeOut(heroT / 0.3), dimK = easeOut(heroT / 0.6);
+    const deckZ = 0.06 * hero.hv * (1 - hero.arm) - 0.18 * hero.arm - 0.12 * lid;
+    deck.setLocalPosition(0, 0, deckZ);
+    heroShadow.place(HERO.x + HERO.w / 2, HERO.y + HERO.h / 2, DECK_D + deckZ);
+    spin += dt * (0.4 * hero.hv + 3 * hero.arm + 10 * rise);
+    spinner.setLocalPosition(0, L(discY), DECK_D + 0.012 + 2.6 * rise);
+    spinner.setLocalEulerAngles(0, 0, -spin / DEG);
+    const sc = 1 + 0.12 * rise; spinner.setLocalScale(sc, sc, sc);
+    discGlow.enabled = rise > 0.02;
+    lidHinge.setLocalPosition(0, L(discY + 214) + 0.8 * lid, DECK_D + 0.03 + 0.4 * lid); dome.enabled = lid < 0.35;
+    dim.enabled = dimK > 0.01; guideFront.enabled = dim.enabled;
+    if (dim.enabled) { dimM.opacity = 0.72 * dimK; dimM.update(); }
+    const camK = easeOut(heroT / 1.1);
+    cam.setPosition(discWorld.x * 0.55 * camK, discWorld.y * 0.55 * camK, CAMZ - 1.4 * camK);
+
+    const boot = (now - startAt) / 900;
+    heroLeds.forEach((l, i) => {
+      let level = 0;
+      if (boot < 1) { const head = boot * 40; level = i <= head && i > head - 8 ? 2 : 0; }
+      else if (hero.latched && heroT < 0.5) level = Math.floor(heroT / 0.1) % 2 ? 1 : 2;
+      else if (hero.latched) level = 2;
+      else if (hero.arm > 0) level = i < hero.arm * 36 ? 2 : 1;
+      else if (hero.hv > 0.5) level = 1;
+      l.set(level);
+    });
+
+    for (const r of recs) {
+      const st = r.st, press = Math.max(st.arm, st.sel);
+      const z = 0.06 * st.hv * (1 - press) - 0.15 * press;
+      r.body.setLocalPosition(0, 0, z);
+      r.shadow.place(r.cx, r.cy, KD + z);
+      const e = Math.round((0.9 + 0.5 * st.hv + 0.9 * st.sel) * 50) / 50;
+      if (e !== r.jelly.emissiveIntensity) { r.jelly.emissiveIntensity = e; r.jelly.update(); }
+      r.segs.forEach((l, i) => l.set(st.latched ? 2 : st.arm > 0 ? (i < st.arm * 8 ? 2 : 1) : st.hv > 0.5 ? 1 : 0));
+    }
+
+    const lp = Math.max(lib.arm, lib.sel);
+    const dz = 0.04 * lib.hv + 0.4 * easeOut(lp);
+    drawer.setLocalPosition(0, 0, dz);
+    libShadow.place(LIB.x + LIB.w / 2, LIB.y + LIB.h / 2, DD + dz);
+    libSegs.forEach((l, i) => l.set(lib.latched ? 2 : lib.arm > 0 ? (i < lib.arm * 16 ? 2 : 1) : lib.hv > 0.5 ? 1 : 0));
+
+    const kp = Math.max(more.arm, more.sel);
+    pointerPivot.setLocalEulerAngles(0, 0, 135 - 270 * kp);
+    knob.setLocalPosition(0, 0, 0.03 * more.hv);
+    knobShadow.place(KNOB.x, KNOB.y, KH + 0.06 + 0.03 * more.hv);
+    knobDots.forEach((l, i) => l.set(more.latched ? 2 : more.arm > 0 ? (i <= more.arm * 10 ? 2 : 1) : more.hv > 0.5 ? 1 : 0));
+
+    if (boot < 0.5) drawGuide('', null);
+    else if (message && now < messageUntil) drawGuide(message, hero.latched ? clamp01(heroT / 3) : null);
+    else if (wristState?.arming) { const n = wristState.arming.target.name; drawGuide(`Hold for ${names[n]}`, T[n].arm); }
+    else {
+      const hv = wristState?.hover?.find(Boolean);
+      drawGuide(hv ? `Both hands on ${names[hv.name]}` : 'Hold both hands on a control', null);
+    }
+  });
+
+  // Frame pacing: on a slow (software) renderer, leave idle time between frames so
+  // input and the compositor are not starved. A normal GPU renders every frame.
+  app.autoRender = false;
+  let lastRender = 0, cost = 16, renderedPrev = false, prevT = performance.now();
+  app.on('update', () => {
+    const t = performance.now();
+    if (renderedPrev) cost = cost * 0.7 + (t - prevT) * 0.3;
+    prevT = t;
+    renderedPrev = t - lastRender >= (cost > 40 ? cost : 0);
+    if (renderedPrev) { app.renderNextFrame = true; lastRender = t; }
+    window.__frameMs = cost;
+  });
+
+  app.start();
+  await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+  window.__compReady = true;
+}
+
+build().catch((e) => { console.error(e); });
+</script>
+</body>
+</html>

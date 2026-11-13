@@ -7,7 +7,7 @@ Open each `index.html` in Workspace Explorer. The first load can take a while (P
 | Direction | Status | Open |
 |---|---|---|
 | Y2K early-CG | done: Bryce/Trapper Keeper chrome; gem-ring hold, one lens flare | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/y2k-early-cg/index.html` |
-| Skeuo hardware | running | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/skeuo-hardware/index.html` |
+| Skeuo hardware | done: mid-2000s hi-fi faceplate; hero is a disc deck with a 36-LED ring | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/skeuo-hardware/index.html` |
 | Wii channel | done: soft white plastic slabs; two coloured half-rings clasp like a high-five | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/wii-channel/index.html` |
 | Bubble sky | done: soap bubbles over cloud foam; wrists are duck-yellow bubble wands | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/bubble-sky/index.html` |
 | Dreamcast water | done: turquoise lagoon; raft billboard, buoys, beach sign; hold fills targets with water | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/dreamcast-water/index.html` |
