@@ -1,6 +1,17 @@
 # Playlist library and hands-mode UI
 
-Status: DESIGN AGREED IN PRINCIPLE; slice 1 not yet approved to execute. Derrick is designing the hands-mode visual language; playlists are buildable now. Owner Pico; assembly repo.
+Status: DESIGN REOPENED 2026-11-12. The visual direction and the UI runtime (DOM, PlayCanvas, or hybrid) are being explored again; see "Revised direction" below. The static prototype in `design/hand-ui/` proved that two-wrist selection works, not that its look or its DOM runtime are final. Playlist data work (slice 1) is unaffected. Owner Pico; assembly repo.
+
+## Revised direction (2026-11-12, from Derrick)
+
+- **Who and how.** Athletes stand in their living room and play with their full body, tracked by webcam. Wrist tracking is the primary menu input; mouse and touch are supported but secondary.
+- **First session.** Most people open the URL, enable the camera, stand up, and want to get into the workout of the day or a recommendation quickly. Search, the library and custom playlists are for regular athletes.
+- **Interactables per screen are a budget.** Every target costs arm movement and accuracy, so screens hold few of them. Less common options live behind one recurring settings or advanced control, so they still exist somewhere.
+- **A shared design language is needed.** Screens and panels need one transition and one recurring set of shapes and behaviours. That language depends on three open choices: the hand interaction itself, whether the UI moves into PlayCanvas, and which flavour of Frutiger Aero (plus any motif paired with it) we pick.
+- **Runtime is open again.** HTML/CSS was chosen because it is quick to iterate on, not because it is right for the game. The bubble motif may need PlayCanvas to sell it. Decision 9 below is no longer settled.
+- **Style exploration.** Render the same single screen in several directions and compare. Candidate directions from Derrick: 2000s skeuomorphism (Winamp-style physical design, scaled up for wrists); Wii-era big-button design; PS3-era bright bubble worlds (the PSN rubber duck bathtub-in-the-sky game); Dreamcast-era vibrant water and beaches (Sonic Adventure, Mario Sunshine); recent AI-community Frutiger Aero remixes; Y2K early-CG render style (Bejeweled on PSN, trapper-keeper art).
+- **Generated maps.** Every BeatSaver song gets bsgen-generated maps for the difficulties its mapper did not include. The UI must mark which maps are official and which are generated. A filter can exclude generated maps; it is on (generated included) by default.
+- **Later, not now.** Athlete profiles showing progress, possibly connected to fitness apps. Monetization is explicitly out of scope; the core game is free.
 
 ## Outcome
 
@@ -16,7 +27,7 @@ AeroBeat gains a Playlist concept beside the existing Library, plus a wrist-driv
 6. Playlists support shuffle.
 7. End of a song in a playlist: the score rises from 0 to the earned score at top center, then two album covers appear with artist and song name beneath. Choosing one plays it. Mouse click or wrist click selects. With no input, one is auto-selected on a visible countdown.
 8. Search and other text inputs get a microphone button for hands-mode compatibility. An on-screen keyboard popup is a later addition.
-9. UI stays in the DOM. A cursor layer maps wrist landmarks onto DOM elements. Each wrist independently activates hover; both wrists on the same element are required to select.
+9. ~~UI stays in the DOM.~~ Reopened 2026-11-12: runtime is being re-explored (DOM, PlayCanvas, or hybrid). Still settled: each wrist independently activates hover, and both wrists over the same element are required to select.
 10. Camera runs while the menu is open. The current UI is mouse/touch-sized, so hands mode needs real visual design iteration before it can feel good.
 11. A recommended playlist appears on the home page, rotating daily from playlists we prebuild or generate, later themed to movie, game and holiday releases.
 
@@ -42,7 +53,7 @@ Microphone scope. Browser speech recognition is Chromium-centric, network-depend
 
 ## Non-goals
 
-No change to scoring, judgement, recording or Test replay. Playlists sequence songs; each song remains one normal session with its own unchanged scoring identity. No upload of athlete data. No live playlist sync. No engine-rendered UI while the DOM path proves out the interaction.
+No change to scoring, judgement, recording or Test replay. Playlists sequence songs; each song remains one normal session with its own unchanged scoring identity. No upload of athlete data. No live playlist sync. No monetization.
 
 ## Risks
 
