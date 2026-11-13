@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AeroBeat: Aero Remix (Air Unit)</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#d8ecf0}canvas{width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+// AeroBeat home screen, "Air Unit" direction: Frutiger Aero rebuilt from performance-gear materials.
+// Every target is a printed EVA-foam tray carrying a clear air unit; holding it pumps gel into the unit.
+// Every surface uses a small custom shader with an analytic photo-studio reflection, so the glass,
+// gel and metal all mirror the same room and frames stay cheap even under software rendering.
+import * as pc from '../_shared/playcanvas.min.mjs';
+import { createHands, WRIST_DIAMETER } from '../_shared/hands.mjs';
+import { content, coverUrl } from '../_shared/content.mjs';
+
+// ---------------------------------------------------------------- tokens
+const C = {
+  foam:   '#F3F7F5', // Midsole White
+  mist:   '#D8ECF0', // Studio Mist
+  gel:    '#16AEE0', // Pool Gel
+  volt:   '#D2F31A', // Volt
+  navy:   '#0D2E58', // Lane Navy
+  silver: '#AEBCC3', // Reflective Silver
+};
+const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; };
+const col = (hex, k = 1) => { const [r, g, b] = rgb(hex); return new pc.Color(r * k, g * k, b * k); };
+const vec = (hex) => new Float32Array(rgb(hex));
+const FONT = 'Signika';
+
+// ---------------------------------------------------------------- app + camera
+const canvas = document.getElementById('c');
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: false, alpha: false } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+window.addEventListener('resize', () => app.resizeCanvas());
+const device = app.graphicsDevice;
+
+// 1 world unit = 100 px on the z = 0 plane of a 1600x1000 view.
+const CAM_Z = 16;
+const cam = new pc.Entity('cam');
+cam.addComponent('camera', {
+  clearColor: col(C.mist), fov: 2 * Math.atan(5 / CAM_Z) * 180 / Math.PI, nearClip: 0.5, farClip: 60,
+  toneMapping: pc.TONEMAP_LINEAR, gammaCorrection: pc.GAMMA_SRGB,
+});
+cam.setPosition(0, 0, CAM_Z);
+app.root.addChild(cam);
+const px = (x, y) => [(x - 800) / 100, (500 - y) / 100];
+
+// ---------------------------------------------------------------- shaders
+const KEY = 'normalize(vec3(-0.45, 0.62, 0.64))';
+const VS = `
+attribute vec3 aPosition; attribute vec3 aNormal; attribute vec2 aUv0;
+uniform mat4 matrix_model; uniform mat4 matrix_viewProjection; uniform mat3 matrix_normal;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec2 vUv;
+void main() {
+  vec4 w = matrix_model * vec4(aPosition, 1.0);
+  vW = w.xyz; vL = aPosition; vUv = aUv0;
+  vN = normalize(matrix_normal * aNormal);
+  gl_Position = matrix_viewProjection * w;
+}`;
+const VS_FLAT = `
+attribute vec3 aPosition; attribute vec2 aUv0;
+uniform mat4 matrix_model; uniform mat4 matrix_viewProjection;
+varying vec2 vUv; varying vec3 vW;
+void main() { vec4 w = matrix_model * vec4(aPosition, 1.0); vW = w.xyz; vUv = aUv0; gl_Position = matrix_viewProjection * w; }`;
+// Analytic photo studio: navy floor, aqua wall at the horizon, a ring of softbox windows above,
+// and one big key softbox upper left. Curved glass picks these up as the Aero gloss band.
+const STUDIO = `
+vec3 studio(vec3 r) {
+  vec3 c = mix(vec3(0.05, 0.18, 0.35), vec3(0.50, 0.78, 0.86), smoothstep(-0.55, 0.02, r.y));
+  c = mix(c, vec3(0.84, 0.93, 0.96), smoothstep(0.02, 0.32, r.y));
+  float band = smoothstep(0.36, 0.44, r.y) * (1.0 - smoothstep(0.80, 0.88, r.y));
+  float az = atan(r.x, r.z) * 1.6;
+  float pane = smoothstep(0.03, 0.09, abs(fract(az) - 0.5));
+  c = mix(c, vec3(1.25), band * (0.55 + 0.45 * pane));
+  c += 1.4 * smoothstep(0.93, 0.975, dot(r, normalize(vec3(-0.55, 0.55, 0.62))));
+  return c;
+}`;
+const FS_TRAY = `
+uniform sampler2D uPrint; uniform vec3 view_position; uniform float uDepth;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec2 vUv;
+${STUDIO}
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(view_position - vW);
+  vec3 L = ${KEY};
+  float ndl = dot(n, L);
+  float face = smoothstep(0.88, 0.97, n.z);
+  vec3 foam = vec3(0.953, 0.969, 0.961);
+  vec3 base = mix(foam, texture2D(uPrint, vUv).rgb, face);
+  // EVA foam: soft wrap light, darker toward the back (contact occlusion)
+  float wrap = 0.80 + 0.26 * max(ndl, -0.2);
+  float ao = mix(0.62, 1.0, smoothstep(0.0, uDepth * 0.85, vL.z));
+  // aqua midsole stripe moulded into the sidewall (visible where pods turn toward the athlete)
+  float stripe = (1.0 - face) * (smoothstep(uDepth * 0.30, uDepth * 0.33, vL.z) - smoothstep(uDepth * 0.45, uDepth * 0.48, vL.z));
+  base = mix(base, vec3(0.09, 0.68, 0.88), stripe);
+  vec3 c = base * wrap * ao;
+  // satin sheen on the rounded front edge
+  float fr = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+  c += (1.0 - face) * 0.22 * fr * studio(reflect(-v, n));
+  gl_FragColor = vec4(c, 1.0);
+}`;
+const FS_DOME = `
+uniform vec3 view_position; uniform vec2 uHalf; uniform float uLevel; uniform float uFlash; uniform float uHover;
+uniform float uFrost; uniform float uTime; uniform vec3 uGel; uniform vec3 uVolt; uniform float uRest;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec2 vUv;
+${STUDIO}
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(view_position - vW);
+  vec3 r = reflect(-v, n);
+  float ndv = max(dot(n, v), 0.0);
+  float fres = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
+  vec3 refl = studio(r);
+  float lum = dot(refl, vec3(0.3, 0.5, 0.2));
+  float spec = pow(max(dot(n, normalize(${KEY} + v)), 0.0), 220.0);
+  // clear air unit: a faint aqua body, reflections carry the form
+  vec3 c = vec3(0.62, 0.86, 0.94);
+  float a = 0.07 + uFrost * 0.35;
+  // gel pumped in from the bottom: flat surface at uLevel, gently waving
+  float y = vL.y / uHalf.y;                         // -1 bottom .. 1 top
+  float L = max(uLevel, uRest);
+  float has = step(0.001, L), full = step(0.999, L);
+  float wave = (0.018 + 0.02 * uLevel) * sin(vL.x * 7.0 + uTime * (2.0 + 4.0 * uLevel)) * (1.0 - full);
+  float lvl = -1.0 + 2.0 * L + wave;
+  float inGel = step(y, lvl) * has;
+  float caust = 0.5 + 0.5 * sin(vL.x * 13.0 + uTime * 1.7) * sin(vL.y * 11.0 - uTime * 1.3 + vL.x * 4.0);
+  vec3 gel = mix(uGel * 0.8, uGel * 1.2 + 0.1, caust * 0.5);
+  gel = mix(gel, vec3(0.92, 1.0, 1.0), uFlash * 0.7);
+  // air bubbles rising through the gel, faster while it is being pumped
+  vec2 g = vec2(vL.x * 4.0, vL.y * 4.0 - uTime * (0.5 + 2.2 * uLevel));
+  vec2 id = floor(g);
+  float rnd = fract(sin(dot(id, vec2(12.9898, 78.233))) * 43758.5453);
+  vec2 lp = fract(g) - 0.5 - (vec2(fract(rnd * 7.13), fract(rnd * 3.71)) - 0.5) * 0.4;
+  float br = 0.12 + 0.12 * fract(rnd * 11.7);
+  float d = length(lp);
+  float bubble = step(0.62, rnd) * (smoothstep(br, br - 0.03, d) - 0.65 * smoothstep(br - 0.04, br - 0.08, d));
+  float glint = step(0.62, rnd) * smoothstep(0.05, 0.0, length(lp - vec2(-0.35, 0.35) * br));
+  c = mix(c, gel, inGel);
+  a = mix(a, 0.30 + 0.08 * caust + uFlash * 0.25, inGel);
+  c = mix(c, vec3(0.88, 0.98, 1.0), clamp(bubble * 0.7 + glint, 0.0, 1.0) * inGel);
+  a = mix(a, max(a, 0.75), clamp(bubble + glint, 0.0, 1.0) * inGel);
+  // the gel surface: a bright volt meniscus line, thicker while it is being pumped
+  float men = (1.0 - smoothstep(0.0, 0.03 + 0.03 * uLevel, abs(y - lvl))) * has * (1.0 - full);
+  c = mix(c, mix(vec3(0.9, 1.0, 1.0), uVolt, uLevel), men); a = max(a, men);
+  // reflections and highlights on top of everything
+  float rw = clamp(fres * 1.4 + smoothstep(0.85, 1.2, lum) * (0.35 + 0.65 * (1.0 - ndv)), 0.0, 1.0);
+  c = mix(c, refl, rw);
+  a = a + rw * (1.0 - a);
+  c += spec * 1.4; a = max(a, spec);
+  // hover: the air unit's rim catches volt light
+  float rim = pow(1.0 - ndv, 2.2) * uHover;
+  c = mix(c, uVolt, rim * 0.8); a = max(a, rim * 0.7);
+  gl_FragColor = vec4(c, clamp(a, 0.0, 1.0));
+}`;
+const FS_SHADOW = `
+uniform sampler2D uMask; uniform float uOpacity; uniform float uFill; uniform float uTime; uniform vec3 uGel; uniform vec3 uVolt; uniform float uFlash;
+varying vec2 vUv; varying vec3 vW;
+void main() {
+  float m = texture2D(uMask, vUv).a;
+  // light passing through the gel throws a caustic onto the wall where the shadow was
+  vec2 p = vW.xy * 2.4;
+  float k = sin(p.x * 1.7 + uTime * 0.9 + sin(p.y * 2.3 + uTime * 0.7)) * sin(p.y * 1.9 - uTime * 0.8 + sin(p.x * 1.3));
+  float caust = pow(1.0 - abs(k), 6.0);
+  vec3 shadow = vec3(0.10, 0.27, 0.40);
+  vec3 lit = mix(uGel * 0.9 + caust * vec3(0.55, 0.9, 1.0), uVolt, uFlash);
+  vec3 c = mix(shadow, lit, uFill);
+  float a = m * uOpacity * mix(1.0, 0.55 + 0.6 * caust, uFill);
+  gl_FragColor = vec4(c, a);
+}`;
+const FS_WALL = `
+uniform float uFlood; uniform vec3 uFloodC; uniform vec4 uRip; uniform vec3 uRipSize; uniform vec3 uVolt;
+varying vec2 vUv; varying vec3 vW;
+float sdRound(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+void main() {
+  // painted studio wall: pale mist, brightest behind the hero, cooler toward the floor
+  vec3 top = vec3(0.90, 0.96, 0.97), bot = vec3(0.74, 0.86, 0.90);
+  vec3 c = mix(bot, top, smoothstep(-6.0, 4.0, vW.y));
+  c += 0.07 * (1.0 - smoothstep(0.0, 9.0, length(vW.xy - vec2(-3.6, 1.6))));
+  c = mix(c, uFloodC * mix(0.7, 1.15, smoothstep(-6.0, 5.0, vW.y)), uFlood);
+  // selection ripple: a volt ring spreading out from the pod's outline across the wall
+  if (uRip.w > 0.0) {
+    float d = sdRound(vW.xy - uRip.xy, uRipSize.xy, uRipSize.z);
+    float ring = 1.0 - smoothstep(0.0, 0.07, abs(d - uRip.z));
+    c = mix(c, uVolt, ring * uRip.w);
+  }
+  gl_FragColor = vec4(c, 1.0);
+}`;
+const FS_METAL = `
+uniform vec3 view_position; uniform vec3 uBase; uniform vec3 uGlow; uniform float uMetal;
+varying vec3 vN; varying vec3 vW; varying vec3 vL; varying vec2 vUv;
+${STUDIO}
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(view_position - vW);
+  vec3 r = reflect(-v, n);
+  float ndv = max(dot(n, v), 0.0);
+  vec3 env = studio(r);
+  float d = 0.55 + 0.45 * max(dot(n, ${KEY}), 0.0);
+  float f0 = mix(0.06, 1.0, uMetal);
+  float f = f0 + (1.0 - f0) * pow(1.0 - ndv, 5.0);
+  vec3 c = mix(uBase * d, env * mix(vec3(1.0), uBase, uMetal), f);
+  c += pow(max(dot(n, normalize(${KEY} + v)), 0.0), 120.0) * 0.8;
+  gl_FragColor = vec4(c + uGlow, 1.0);
+}`;
+const FS_DECAL = `
+uniform sampler2D uTex; uniform float uOpacity; varying vec2 vUv; varying vec3 vW;
+void main() { vec4 t = texture2D(uTex, vUv); gl_FragColor = vec4(t.rgb, t.a * uOpacity); }`;
+
+function shader(name, vs, fs, flat = false) {
+  const attributes = flat ? { aPosition: pc.SEMANTIC_POSITION, aUv0: pc.SEMANTIC_TEXCOORD0 }
+    : { aPosition: pc.SEMANTIC_POSITION, aNormal: pc.SEMANTIC_NORMAL, aUv0: pc.SEMANTIC_TEXCOORD0 };
+  return (opts = {}) => {
+    const m = new pc.ShaderMaterial({ uniqueName: name, attributes, vertexGLSL: vs, fragmentGLSL: fs });
+    if (opts.blend) { m.blendType = opts.blend; m.depthWrite = false; }
+    if (opts.cull !== undefined) m.cull = opts.cull;
+    m.update();
+    return m;
+  };
+}
+const trayShader = shader('ab-tray', VS, FS_TRAY);
+const domeShader = shader('ab-dome', VS, FS_DOME);
+const shadowShader = shader('ab-shadow', VS_FLAT, FS_SHADOW, true);
+const wallShader = shader('ab-wall', VS_FLAT, FS_WALL, true);
+const decalShader = shader('ab-decal', VS_FLAT, FS_DECAL, true);
+const metalShader = shader('ab-metal', VS, FS_METAL);
+function metal(hex, metalness, glowHex = null, glowK = 0) {
+  const m = metalShader();
+  m.setParameter('uBase', vec(hex)); m.setParameter('uMetal', metalness);
+  m.setParameter('uGlow', new Float32Array(glowHex ? rgb(glowHex).map((x) => x * glowK) : [0, 0, 0]));
+  return m;
+}
+
+// ---------------------------------------------------------------- geometry
+function outline(w, h, r, S) {
+  r = Math.max(0.0005, Math.min(r, w, h));
+  const pts = [];
+  const corners = [[w - r, h - r, 0], [-(w - r), h - r, 1], [-(w - r), -(h - r), 2], [w - r, -(h - r), 3]];
+  for (const [cx, cy, q] of corners) {
+    for (let i = 0; i <= S; i += 1) {
+      const a = (q + i / S) * Math.PI / 2;
+      pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a), Math.cos(a), Math.sin(a)]);
+    }
+  }
+  return pts;
+}
+function meshFrom(pos, idx, uvs, normals) {
+  const mesh = new pc.Mesh(device);
+  mesh.setPositions(pos);
+  mesh.setNormals(normals ?? pc.calculateNormals(pos, idx));
+  mesh.setUvs(0, uvs ?? new Array(pos.length / 3 * 2).fill(0));
+  mesh.setIndices(idx);
+  mesh.update(pc.PRIMITIVE_TRIANGLES);
+  return mesh;
+}
+// Rounded slab: vertical sides, rounded front edge, optional domed front. Planar UVs over [-uw,uw]x[-uh,uh].
+function pillow({ w, h, r, depth, er, bulge = 0, S = 8, E = 6, Cn = 8, uv = [w, h] }) {
+  const rings = [{ d: 0, z: 0, s: 1 }];
+  for (let k = 0; k <= E; k += 1) {
+    const a = k / E * Math.PI / 2;
+    rings.push({ d: er * (1 - Math.cos(a)), z: depth - er + er * Math.sin(a), s: 1 });
+  }
+  for (let k = 1; k <= Cn; k += 1) {
+    const t = k / Cn;
+    rings.push({ d: er, z: depth + bulge * (1 - (1 - t) * (1 - t)), s: 1 - t * 0.999 });
+  }
+  const pos = [], idx = [], uvs = [];
+  let n = 0;
+  for (const ring of rings) {
+    const o = outline(w - ring.d, h - ring.d, r - ring.d, S);
+    n = o.length;
+    for (const p of o) {
+      const x = p[0] * ring.s, y = p[1] * ring.s;
+      pos.push(x, y, ring.z);
+      uvs.push(0.5 + x / (2 * uv[0]), 0.5 - y / (2 * uv[1]));
+    }
+  }
+  for (let i = 0; i < rings.length - 1; i += 1) {
+    for (let j = 0; j < n; j += 1) {
+      const a = i * n + j, b = i * n + (j + 1) % n, c = (i + 1) * n + (j + 1) % n, d = (i + 1) * n + j;
+      idx.push(a, b, c, a, c, d);
+    }
+  }
+  return meshFrom(pos, idx, uvs);
+}
+// Tube swept along a rounded-rect outline (reflective piping).
+function piping({ w, h, r, tube, S = 8, T = 8 }) {
+  const o = outline(w, h, r, S);
+  const n = o.length;
+  const pos = [], idx = [];
+  for (const p of o) {
+    for (let k = 0; k < T; k += 1) {
+      const a = k / T * Math.PI * 2;
+      pos.push(p[0] + p[2] * tube * Math.cos(a), p[1] + p[3] * tube * Math.cos(a), tube * Math.sin(a));
+    }
+  }
+  for (let j = 0; j < n; j += 1) {
+    for (let k = 0; k < T; k += 1) {
+      const a = j * T + k, b = j * T + (k + 1) % T, c = ((j + 1) % n) * T + (k + 1) % T, d = ((j + 1) % n) * T + k;
+      idx.push(a, d, c, a, c, b);
+    }
+  }
+  return meshFrom(pos, idx);
+}
+// Canvas textures are drawn top-down, so v runs from 1 at the bottom edge to 0 at the top.
+function quad(w, h) {
+  return meshFrom([-w, -h, 0, w, -h, 0, w, h, 0, -w, h, 0], [0, 1, 2, 0, 2, 3], [0, 1, 1, 1, 1, 0, 0, 0], [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+}
+function entityWith(name, mesh, material) {
+  const e = new pc.Entity(name);
+  e.addComponent('render', { meshInstances: [new pc.MeshInstance(mesh, material)], castShadows: false, receiveShadows: false });
+  return e;
+}
+function canvasTex(cv, srgb = false) {
+  const t = new pc.Texture(device, { format: srgb ? pc.PIXELFORMAT_SRGBA8 : pc.PIXELFORMAT_RGBA8, mipmaps: true,
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE });
+  t.setSource(cv);
+  return t;
+}
+
+// ---------------------------------------------------------------- wall
+const WALL_Z = -1.4;
+let wall;
+function buildWall() {
+  const k = (CAM_Z - WALL_Z) / CAM_Z;
+  wall = wallShader();
+  wall.setParameter('uFlood', 0);
+  wall.setParameter('uFloodC', vec('#0f5f86'));
+  wall.setParameter('uRip', new Float32Array([0, 0, 0, 0]));
+  wall.setParameter('uRipSize', new Float32Array([1, 1, 0.5]));
+  wall.setParameter('uVolt', vec(C.volt));
+  const e = entityWith('wall', quad(8.6 * k, 5.4 * k), wall);
+  e.setPosition(0, 0, WALL_Z);
+  app.root.addChild(e);
+}
+function decal(name, draw, x, y, w, h, z) {
+  const S = 2;
+  const cv = document.createElement('canvas'); cv.width = w * S; cv.height = h * S;
+  const g = cv.getContext('2d'); g.scale(S, S); draw(g);
+  const m = decalShader({ blend: pc.BLEND_NORMAL });
+  m.setParameter('uTex', canvasTex(cv));
+  m.setParameter('uOpacity', 1);
+  const k = (CAM_Z - z) / CAM_Z;
+  const e = entityWith(name, quad(w / 200 * k, h / 200 * k), m);
+  const [wx, wy] = px(x + w / 2, y + h / 2);
+  e.setPosition(wx * k, wy * k, z);
+  app.root.addChild(e);
+  return { e, m };
+}
+
+// ---------------------------------------------------------------- printing onto foam
+function roundRectPath(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function drawCover(g, imgs, x, y, s, r) {
+  g.save(); roundRectPath(g, x, y, s, s, r); g.clip();
+  if (imgs.length === 1) g.drawImage(imgs[0], x, y, s, s);
+  else { const h = s / 2; imgs.slice(0, 4).forEach((im, i) => g.drawImage(im, x + (i % 2) * h, y + Math.floor(i / 2) * h, h, h)); }
+  // a moulded lip around the cover window
+  g.restore();
+  g.save(); roundRectPath(g, x - 1, y - 1, s + 2, s + 2, r + 1); g.lineWidth = 4; g.strokeStyle = 'rgba(13,46,88,0.22)'; g.stroke(); g.restore();
+}
+function perforations(g, x, y, w, h, step, rad, alpha) {
+  g.fillStyle = `rgba(13,46,88,${alpha})`;
+  let row = 0;
+  for (let yy = y; yy < y + h; yy += step * 0.87, row += 1) {
+    for (let xx = x + (row % 2 ? step / 2 : 0); xx < x + w; xx += step) { g.beginPath(); g.arc(xx, yy, rad, 0, Math.PI * 2); g.fill(); }
+  }
+}
+function printTexture(wpx, hpx, draw) {
+  const S = 2;
+  const cv = document.createElement('canvas'); cv.width = Math.round(wpx * S); cv.height = Math.round(hpx * S);
+  const g = cv.getContext('2d'); g.scale(S, S);
+  g.fillStyle = C.foam; g.fillRect(0, 0, wpx, hpx);
+  draw(g);
+  return canvasTex(cv);
+}
+function shadowMask(wpx, hpx, rpx, blur) {
+  const pad = blur * 3.2;
+  const cv = document.createElement('canvas'); cv.width = Math.round((wpx + pad * 2) / 2); cv.height = Math.round((hpx + pad * 2) / 2);
+  const g = cv.getContext('2d'); g.scale(0.5, 0.5);
+  g.filter = `blur(${blur / 2}px)`;
+  roundRectPath(g, pad, pad, wpx, hpx, rpx); g.fillStyle = '#000'; g.fill();
+  return { tex: canvasTex(cv), pad };
+}
+
+// ---------------------------------------------------------------- pods (the six targets)
+const hands = createHands(app, cam);
+const pods = [];
+const voltV = vec(C.volt), gelV = vec(C.gel);
+function makePod(name, { x, y, w, h, r, depth = 0.26, er = 0.09, bulge = 0.2, inset = 0.07, draw, frost = 0, pipe = true, rest = 0.12, yaw = 0, pitch = 0 }) {
+  const W = w / 200, H = h / 200, R = r / 100;
+  const root = new pc.Entity(name);
+  const [wx, wy] = px(x + w / 2, y + h / 2);
+  root.setPosition(wx, wy, 0);
+  root.setEulerAngles(pitch, yaw, 0);
+  app.root.addChild(root);
+
+  // printed EVA foam tray
+  const trayMat = trayShader();
+  trayMat.setParameter('uPrint', printTexture(w, h, draw));
+  trayMat.setParameter('uDepth', depth);
+  const tray = entityWith(name + '-tray', pillow({ w: W, h: H, r: R, depth, er }), trayMat);
+  root.addChild(tray);
+
+  // clear air unit over the print
+  const dw = W - inset, dh = H - inset, dr = Math.max(0.02, R - inset);
+  const domeMat = domeShader({ blend: pc.BLEND_NORMAL });
+  domeMat.setParameter('uHalf', new Float32Array([dw, dh]));
+  domeMat.setParameter('uGel', gelV); domeMat.setParameter('uVolt', voltV);
+  domeMat.setParameter('uFrost', frost);
+  for (const p of ['uLevel', 'uFlash', 'uHover', 'uTime']) domeMat.setParameter(p, 0);
+  domeMat.setParameter('uRest', rest);
+  const dome = entityWith(name + '-dome', pillow({ w: dw, h: dh, r: dr, depth: 0.03, er: 0.028, bulge, Cn: 10, E: 4 }), domeMat);
+  dome.setLocalPosition(0, 0, depth - 0.012);
+  root.addChild(dome);
+
+  // reflective piping hugging the foam's front edge
+  let pipeMat = null;
+  if (pipe) {
+    pipeMat = metal(C.silver, 0.9);
+    const pe = entityWith(name + '-pipe', piping({ w: W - er * 0.3, h: H - er * 0.3, r: Math.max(0.02, R - er * 0.3), tube: 0.024 }), pipeMat);
+    pe.setLocalPosition(0, 0, depth - er * 0.3);
+    root.addChild(pe);
+  }
+
+  // contact shadow on the wall (turns into a caustic as the unit fills with gel)
+  const blur = 18;
+  const sm = shadowMask(w, h, r, blur);
+  const shMat = shadowShader({ blend: pc.BLEND_NORMAL });
+  shMat.setParameter('uMask', sm.tex);
+  shMat.setParameter('uGel', gelV); shMat.setParameter('uVolt', voltV);
+  for (const p of ['uFill', 'uTime', 'uFlash']) shMat.setParameter(p, 0);
+  shMat.setParameter('uOpacity', 0.5);
+  const kz = (CAM_Z - (WALL_Z + 0.02)) / CAM_Z;
+  const shadow = entityWith(name + '-shadow', quad((w / 2 + sm.pad) / 100, (h / 2 + sm.pad) / 100), shMat);
+  app.root.addChild(shadow);
+
+  const pod = { name, root, tray, dome, domeMat, pipeMat, shadow, shMat, W, H, R, dh, depth, rest, yaw, pitch,
+    base: new pc.Vec3(wx, wy, 0), hover: 0, hoverT: 0, arm: 0, armShown: 0, selectAt: -1, introDelay: 0, extra: null, kz };
+  pods.push(pod);
+  hands.register(name, root, {
+    onHover: (on) => { pod.hoverT = on ? 1 : 0; },
+    onArm: (p) => { pod.arm = p; },
+    onSelect: () => select(pod),
+  });
+  return pod;
+}
+
+// ---------------------------------------------------------------- wrists: volt ring, navy rim, gel core
+const WRIST_DEPTH = 7; // distance from the camera; the opened hero comes forward to about 12
+const wristPx = WRIST_DEPTH / CAM_Z / 100;
+function makeWrist(i) {
+  const e = new pc.Entity('wrist-' + i);
+  const R = WRIST_DIAMETER / 2 * wristPx;
+  const ring = entityWith('ring', pc.Mesh.fromGeometry(device, new pc.TorusGeometry({ tubeRadius: R * 0.17, ringRadius: R * 0.8, segments: 36, sides: 10 })),
+    metal(C.volt, 0.05, C.volt, 0.55));
+  const outer = entityWith('outer', pc.Mesh.fromGeometry(device, new pc.TorusGeometry({ tubeRadius: R * 0.1, ringRadius: R * 1.04, segments: 36, sides: 8 })),
+    metal(C.navy, 0.15));
+  const core = entityWith('core', pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: R * 0.52, latitudeBands: 12, longitudeBands: 18 })),
+    metal(C.gel, 0.05, C.gel, 0.3));
+  for (const c of [ring, outer]) { c.setLocalEulerAngles(90, 0, 0); e.addChild(c); }
+  e.addChild(core);
+  e.enabled = false;
+  app.root.addChild(e);
+  return e;
+}
+const wrists = [makeWrist(0), makeWrist(1)];
+const tmpV = new pc.Vec3();
+hands.onState((s) => {
+  s.wrists.forEach((w, i) => {
+    if (!w) { wrists[i].enabled = false; return; }
+    wrists[i].enabled = true;
+    cam.camera.screenToWorld(w.x, w.y, WRIST_DEPTH, tmpV);
+    wrists[i].setPosition(tmpV);
+  });
+});
+
+// ---------------------------------------------------------------- selection
+let now = 0;
+let heroOpen = null;
+const STRIKE_BEAT = 0.2;
+let ripple = null;
+let tracklist = [];
+function select(pod) {
+  pod.selectAt = now;
+  const p = pod.root.getPosition();
+  const k = (CAM_Z - WALL_Z) / (CAM_Z - p.z);
+  ripple = { t0: now, x: p.x * k, y: p.y * k, w: pod.W * k, h: pod.H * k, r: Math.min(pod.R, pod.W, pod.H) * k };
+  // the heel strike lands first; the playlist opens a beat later
+  if (pod.name === 'hero') { heroOpen = { t0: now + STRIKE_BEAT }; window.__selected = true; }
+}
+const clamp01 = (t) => Math.min(1, Math.max(0, t));
+const easeOut = (t) => 1 - Math.pow(1 - clamp01(t), 3);
+const easeOutBack = (t) => { t = clamp01(t); const c1 = 1.6, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+let ready = false, readyAt = 0;
+const silverV = vec(C.silver), zero3 = new Float32Array(3);
+const lerp3 = (a, b, t) => new Float32Array([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]);
+
+app.on('update', (dt) => {
+  now += dt;
+  if (!ready) return;
+  const tIntro = now - readyAt;
+  const open = heroOpen ? now - heroOpen.t0 : -1;
+  const opening = heroOpen && open > 0;
+  for (const pod of pods) {
+    pod.hover += (pod.hoverT - pod.hover) * Math.min(1, dt * 16);
+    pod.armShown = pod.arm > pod.armShown ? pod.arm : pod.armShown + (pod.arm - pod.armShown) * Math.min(1, dt * 12);
+    if (pod.arm === 0 && pod.armShown < 0.01) pod.armShown = 0;
+    const intro = easeOut((tIntro - pod.introDelay) / 0.5);
+
+    // heel strike after select: compress, rebound, settle; the gel flashes volt
+    let strike = 0, flash = 0, held = 0;
+    if (pod.selectAt >= 0) {
+      const s = now - pod.selectAt;
+      if (s < 0.09) strike = -0.7 * (s / 0.09);
+      else if (s < 0.3) strike = -0.7 + 1.2 * easeOut((s - 0.09) / 0.21);
+      else strike = 0.5 * Math.max(0, 1 - (s - 0.3) / 0.35);
+      flash = Math.max(0, 1 - s / 0.5);
+      held = Math.max(0, 1 - Math.max(0, s - 0.2) / 0.6);
+    }
+    const level = Math.max(pod.armShown, held);
+    pod.dome.setLocalScale(1, 1, Math.max(0.05, intro * (1 + pod.armShown * 1.1 + strike)));
+    pod.tray.setLocalScale(1, 1, 0.25 + 0.75 * intro + Math.min(0, strike) * 0.2);
+    const dm = pod.domeMat;
+    dm.setParameter('uLevel', level);
+    dm.setParameter('uFlash', flash);
+    dm.setParameter('uHover', pod.hover);
+    dm.setParameter('uTime', now);
+
+    if (pod.pipeMat) {
+      // reflective piping lights up volt when a wrist is on it, like retroreflective trim in a headlight
+      const hv = Math.max(pod.hover, flash);
+      pod.pipeMat.setParameter('uBase', lerp3(silverV, voltV, hv));
+      pod.pipeMat.setParameter('uMetal', 0.9 - 0.6 * hv);
+      pod.pipeMat.setParameter('uGlow', lerp3(zero3, voltV, hv * 0.75));
+    }
+
+    // lift toward the athlete on hover; on hero select everything else drops away
+    let z = pod.hover * 0.35 + pod.armShown * 0.15 + (1 - intro) * -0.5, x = pod.base.x, y = pod.base.y, sc = 1, yaw = pod.yaw;
+    if (opening) {
+      if (pod.name === 'hero') {
+        const k = easeOut((open - 0.06) / 0.55);
+        x = pod.base.x + (0 - pod.base.x) * k; y = pod.base.y + (0.85 - pod.base.y) * k; z += k * 2.2; yaw *= 1 - k;
+      } else {
+        const k = easeOut(open / 0.45);
+        z -= k * 3; y -= k * 1.2;
+      }
+    }
+    if (pod.extra) pod.extra(pod, dt);
+    pod.root.setPosition(x, y, z);
+    pod.root.setLocalScale(sc, sc, sc);
+    pod.root.setEulerAngles(pod.pitch, yaw, 0);
+
+    // shadow follows the pod's projection onto the wall, offset away from the key light; softer and lighter as it lifts
+    const kk = (CAM_Z - WALL_Z) / (CAM_Z - z);
+    const lift = z - WALL_Z;
+    const off = 0.06 + lift * 0.11;
+    pod.shadow.setPosition(x * kk + off * 0.8, y * kk - off, WALL_Z + 0.02);
+    const spread = 1 + lift * 0.02;
+    pod.shadow.setLocalScale(kk * spread, kk * spread, 1);
+    pod.shMat.setParameter('uOpacity', (0.55 - Math.min(0.25, (lift - 1.4) * 0.12)) * intro * (opening && pod.name !== 'hero' ? 1 - easeOut(open / 0.3) : 1));
+    pod.shMat.setParameter('uFill', Math.max(level, pod.rest * 0.8));
+    pod.shMat.setParameter('uFlash', flash);
+    pod.shMat.setParameter('uTime', now);
+  }
+  // ripple across the wall
+  if (ripple) {
+    const t = (now - ripple.t0) / 0.9;
+    if (t >= 1) { ripple = null; wall.setParameter('uRip', new Float32Array([0, 0, 0, 0])); }
+    else {
+      wall.setParameter('uRip', new Float32Array([ripple.x, ripple.y, 0.05 + easeOut(t) * 2.6, (1 - t) * 0.9]));
+      wall.setParameter('uRipSize', new Float32Array([ripple.w, ripple.h, ripple.r]));
+    }
+  }
+  // the playlist opening: the wall deepens to pool blue and the tracklist rises out from under the unit
+  if (opening) {
+    wall.setParameter('uFlood', 0.85 * easeOut(open / 0.6));
+    const hp = pods[0].root.getPosition();
+    tracklist.forEach((t, i) => {
+      const k = easeOutBack((open - 0.18 - i * 0.06) / 0.45);
+      t.e.enabled = true;
+      t.e.setPosition(hp.x + t.x, hp.y - 1.6 + (t.y + 1.6) * k, hp.z - 0.05 + 0.25 * clamp01(k));
+      t.m.setParameter('uOpacity', clamp01(k * 1.5));
+    });
+    title.m.setParameter('uOpacity', 1 - easeOut(open / 0.3));
+    helper.m.setParameter('uOpacity', 1 - easeOut(open / 0.3));
+  }
+});
+
+// ---------------------------------------------------------------- assets + layout
+function loadImage(url) {
+  return new Promise((ok) => {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => ok(img);
+    img.onerror = () => { console.warn('cover failed ' + url); ok(null); };
+    img.src = url;
+  });
+}
+function wrapLines(g, text, maxW) {
+  const words = text.split(' '); const lines = []; let cur = '';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (g.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
+  if (cur) lines.push(cur);
+  return lines;
+}
+let title, helper;
+async function main() {
+  const face = new FontFace(FONT, 'url(./Signika.ttf)', { weight: '300 700' });
+  await face.load(); document.fonts.add(face);
+  await document.fonts.ready;
+
+  const potd = content.playlistOfTheDay;
+  const coverFor = async (pl) => {
+    if (pl.cover) { const im = await loadImage(coverUrl(pl.cover)); if (im) return [im]; }
+    return (await Promise.all(pl.memberCovers.map((c) => loadImage(coverUrl(c))))).filter(Boolean);
+  };
+  const [heroCover, heroMembers, ...recCovers] = await Promise.all([
+    coverFor(potd),
+    Promise.all(potd.memberCovers.map((c) => loadImage(coverUrl(c)))),
+    ...content.recommended.map(coverFor),
+  ]);
+
+  buildWall();
+
+  // hero: the big air unit
+  const hero = makePod('hero', { x: 96, y: 236, w: 780, h: 426, r: 72, depth: 0.5, er: 0.12, bulge: 0.3, rest: 0.16, yaw: 7,
+    draw: (g) => {
+      const pad = 38, s = 426 - pad * 2;
+      drawCover(g, heroCover, pad, pad, s, 36);
+      const tx = pad + s + 46;
+      perforations(g, tx + 4, 318, 780 - tx - 50, 80, 20, 3.6, 0.13);
+      g.fillStyle = C.navy; g.font = `700 78px ${FONT}`;
+      const lines = wrapLines(g, potd.name, 780 - tx - 40);
+      lines.forEach((l, i) => g.fillText(l, tx, 118 + i * 80));
+      const after = 118 + (lines.length - 1) * 80;
+      g.font = `400 34px ${FONT}`; g.fillText(`${potd.songCount} songs`, tx, after + 60);
+      g.font = `600 32px ${FONT}`; g.fillStyle = '#0a6e96'; g.fillText('Playlist of the day', tx, after + 106);
+    } });
+
+  // three recommended lozenges
+  const recY = [244, 492, 744];
+  content.recommended.forEach((pl, i) => {
+    const p = makePod(`rec-${i + 1}`, { x: 966, y: recY[i], w: 550, h: 170, r: 85, depth: 0.4, er: 0.09, bulge: 0.2, yaw: -8,
+      draw: (g) => {
+        const s = 170 - 34;
+        drawCover(g, recCovers[i], 20, 17, s, s / 2);
+        const tx = 20 + s + 30;
+        g.fillStyle = C.navy; g.font = `700 46px ${FONT}`; g.fillText(pl.name, tx, 78);
+        g.font = `400 30px ${FONT}`; g.fillText(`${pl.songCount} songs`, tx, 120);
+      } });
+    p.introDelay = 0.1 + i * 0.07;
+  });
+
+  // library: a low, frosted tray with no piping, barely pressurised
+  const lib = makePod('library', { x: 84, y: 750, w: 420, h: 168, r: 34, depth: 0.14, er: 0.05, bulge: 0.04, frost: 0.55, pipe: false, rest: 0, yaw: 6,
+    draw: (g) => {
+      g.fillStyle = C.navy; g.font = `700 44px ${FONT}`; g.fillText('Your library', 34, 72);
+      g.font = `400 30px ${FONT}`; g.fillText('Search and your playlists', 34, 116);
+    } });
+  lib.introDelay = 0.35;
+
+  // more: a lacing dial
+  const more = makePod('more', { x: 1396, y: 34, w: 120, h: 120, r: 60, depth: 0.22, er: 0.07, bulge: 0.2, inset: 0.12, rest: 0.2,
+    draw: (g) => { g.fillStyle = C.navy; for (const dx of [-22, 0, 22]) { g.beginPath(); g.arc(60 + dx, 60, 8, 0, Math.PI * 2); g.fill(); } } });
+  more.introDelay = 0.4;
+  const knurl = new pc.Entity('knurl');
+  const knurlMat = metal(C.silver, 0.85);
+  const knurlMesh = pc.Mesh.fromGeometry(device, new pc.BoxGeometry({ halfExtents: new pc.Vec3(0.02, 0.045, 0.06) }));
+  for (let i = 0; i < 20; i += 1) {
+    const a = i / 20 * Math.PI * 2;
+    const k = entityWith('k' + i, knurlMesh, knurlMat);
+    k.setLocalPosition(Math.cos(a) * 0.61, Math.sin(a) * 0.61, 0.16);
+    k.setLocalEulerAngles(0, 0, a * 180 / Math.PI);
+    knurl.addChild(k);
+  }
+  more.root.addChild(knurl);
+  let spin = 0;
+  more.extra = (pod, dt) => { spin += dt * (pod.armShown * 480 + pod.hover * 40); knurl.setLocalEulerAngles(0, 0, -spin); };
+
+  // tracklist tiles that rise out from under the hero when it opens (hidden behind it until then)
+  heroMembers.filter(Boolean).forEach((im, i) => {
+    const S = 2, s = 150, m0 = 14, c0 = s - m0 * 2;
+    const cv = document.createElement('canvas'); cv.width = s * S; cv.height = s * S;
+    const g = cv.getContext('2d'); g.scale(S, S);
+    g.save(); g.shadowColor = 'rgba(5,30,55,0.45)'; g.shadowBlur = 10; g.shadowOffsetY = 4;
+    roundRectPath(g, 6, 6, s - 12, s - 12, 30); g.fillStyle = C.foam; g.fill(); g.restore();
+    g.save(); roundRectPath(g, m0, m0, c0, c0, 22); g.clip(); g.drawImage(im, m0, m0, c0, c0); g.restore();
+    g.save(); roundRectPath(g, m0, m0, c0, c0, 22); g.lineWidth = 3; g.strokeStyle = 'rgba(13,46,88,0.25)'; g.stroke(); g.restore();
+    const m = decalShader({ blend: pc.BLEND_NORMAL });
+    m.setParameter('uTex', canvasTex(cv)); m.setParameter('uOpacity', 0);
+    const e = entityWith('track-' + i, quad(0.8, 0.8), m);
+    const tx = -2.7 + i * 1.8, ty = -3.35;
+    e.enabled = false;
+    app.root.addChild(e);
+    tracklist.push({ e, m, x: tx, y: ty });
+  });
+
+  // printed wall copy (not targets)
+  title = decal('wordmark', (g) => { g.font = `600 66px ${FONT}`; g.fillStyle = C.navy; g.fillText('AeroBeat', 0, 72); }, 80, 48, 420, 100, WALL_Z + 0.03);
+  helper = decal('helper', (g) => {
+    g.font = `400 30px ${FONT}`; g.fillStyle = C.navy;
+    g.fillText('Hold both hands', 0, 34); g.fillText('on a playlist to start', 0, 74);
+  }, 572, 784, 340, 100, WALL_Z + 0.03);
+
+  app.start();
+  await new Promise((ok) => { let n = 0; app.on('frameend', function f() { if (++n > 2) { app.off('frameend', f); ok(); } }); });
+  ready = true; readyAt = now;
+  window.__compReady = true;
+}
+main().catch((e) => { console.error(e); });
+</script>
+</body>
+</html>
