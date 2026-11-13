@@ -10,7 +10,7 @@ Open each `index.html` in Workspace Explorer. The first load can take a while (P
 | Skeuo hardware | running | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/skeuo-hardware/index.html` |
 | Wii channel | done: soft white plastic slabs; two coloured half-rings clasp like a high-five | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/wii-channel/index.html` |
 | Bubble sky | done: soap bubbles over cloud foam; wrists are duck-yellow bubble wands | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/bubble-sky/index.html` |
-| Dreamcast water | running | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/dreamcast-water/index.html` |
+| Dreamcast water | done: turquoise lagoon; raft billboard, buoys, beach sign; hold fills targets with water | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/dreamcast-water/index.html` |
 | Aero remix | done: "Air Unit", sneaker-gear Aero; hold pumps gel into the target | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/style-comps/aero-remix/index.html` |
 
 Each comp folder also has `DESIGN.md` (plan and critique log) and `shot-idle.png`, `shot-arming.png`, `shot-selected.png`.

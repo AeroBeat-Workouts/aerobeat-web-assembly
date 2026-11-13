@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AeroBeat — Dreamcast water</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#3AA8FF}canvas{width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as pc from '../_shared/playcanvas.min.mjs';
+import { createHands, WRIST_DIAMETER } from '../_shared/hands.mjs';
+import { content, coverUrl } from '../_shared/content.mjs';
+
+// ---------------------------------------------------------------------------
+// Palette (see DESIGN.md)
+// ---------------------------------------------------------------------------
+const C = {
+  lagoon: '#19D3C5', reef: '#0B5FD9', sky: '#3AA8FF', sand: '#FFF4DA',
+  sun: '#FFD23F', coral: '#FF5A4E', navy: '#0A2A6B', drift: '#E7CF9F',
+};
+const hex = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+const glv = (h) => { const c = hex(h); return `vec3(${c.map((v) => v.toFixed(4)).join(',')})`; };
+
+// ---------------------------------------------------------------------------
+// App + camera
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById('c');
+// Software rasterisers (SwiftShader, llvmpipe) fall behind at 60 fps and queue frames, so
+// on them we drop MSAA and pace rendering to a steady rate instead. GPUs are unaffected.
+const SOFTWARE = (() => {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    const name = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+    return /swiftshader|llvmpipe|software/i.test(name);
+  } catch { return false; }
+})();
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: !SOFTWARE } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+const device = app.graphicsDevice;
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const FOV = 45, PITCH = -10;
+const CAM_POS = new pc.Vec3(0, 2.2, 10);
+const cam = new pc.Entity('camera');
+cam.addComponent('camera', {
+  clearColor: new pc.Color(...hex(C.sky)), fov: FOV, nearClip: 0.3, farClip: 1400,
+  gammaCorrection: pc.GAMMA_NONE, toneMapping: pc.TONEMAP_LINEAR,
+});
+cam.setPosition(CAM_POS);
+cam.setEulerAngles(PITCH, 0, 0);
+app.root.addChild(cam);
+const CAM_ROT = cam.getRotation().clone();
+
+// Design space is 1600x1000. Rays are cast from the fixed home camera.
+const DW = 1600, DH = 1000, TAN = Math.tan(FOV / 2 * Math.PI / 180);
+function rayAt(sx, sy, aspect = DW / DH) {
+  const dir = new pc.Vec3((sx / DW * 2 - 1) * TAN * aspect, (1 - sy / DH * 2) * TAN, -1);
+  return CAM_ROT.transformVector(dir, new pc.Vec3());
+}
+/** Ground point under a screen pixel (plane y=0) and its camera depth + world size of one pixel there. */
+function groundAt(sx, sy) {
+  const dir = rayAt(sx, sy);
+  const t = -CAM_POS.y / dir.y;
+  const p = CAM_POS.clone().add(dir.clone().mulScalar(t));
+  return { p, depth: t, px: 2 * t * TAN / DH };
+}
+
+// Global uniforms shared by every shader.
+const uTime = device.scope.resolve('uTime');
+const uCamPos = device.scope.resolve('uCamPos');
+
+// ---------------------------------------------------------------------------
+// Shaders
+// ---------------------------------------------------------------------------
+const VS = `
+attribute vec3 aPosition; attribute vec3 aNormal; attribute vec2 aUv0;
+uniform mat4 matrix_model; uniform mat4 matrix_viewProjection; uniform mat3 matrix_normal;
+varying vec3 vWorld; varying vec3 vNormal; varying vec2 vUv; varying vec3 vLocal;
+void main(){
+  vec4 w = matrix_model * vec4(aPosition, 1.0);
+  vWorld = w.xyz; vLocal = aPosition; vUv = aUv0;
+  vNormal = normalize(matrix_normal * aNormal);
+  gl_Position = matrix_viewProjection * w;
+}`;
+
+const COMMON = `
+uniform float uTime; uniform vec3 uCamPos;
+const vec3 LAGOON = ${glv(C.lagoon)}; const vec3 REEF = ${glv(C.reef)};
+const vec3 SKY = ${glv(C.sky)}; const vec3 SAND = ${glv(C.sand)};
+const vec3 SUN = ${glv(C.sun)}; const vec3 CORAL = ${glv(C.coral)}; const vec3 NAVY = ${glv(C.navy)};
+const vec3 SUNDIR = vec3(0.40, 0.15, -0.90);
+// Caustic web from a baked tileable texture: two drifting layers summed and
+// thresholded. Two texture reads instead of a dozen sines (SwiftShader friendly).
+uniform sampler2D uCaus;
+float caustic(vec2 p, float t){
+  float a = texture2D(uCaus, p * 0.50 + vec2(0.030, 0.017) * t).r;
+  float b = texture2D(uCaus, p * 0.37 + vec2(-0.021, 0.026) * t).g;
+  return smoothstep(0.42, 1.05, a * 0.75 + b * 0.75);
+}
+// Lagoon water rising inside a target while it arms. wp = world pos.
+uniform float uFill; uniform float uFillY; uniform float uPx;
+vec3 applyFill(vec3 col, vec3 wp){
+  if (uFill <= 0.0) return col;
+  float wob = uPx * (5.0*sin(wp.x/uPx*0.045 + uTime*5.0) + 3.0*sin(wp.x/uPx*0.11 - uTime*3.0));
+  float lvl = uFillY + wob;
+  float under = step(wp.y, lvl);
+  vec2 cp = vec2(wp.x, wp.y) / uPx * 0.004;
+  vec3 water = mix(LAGOON*0.95, vec3(0.72, 1.0, 0.96), caustic(cp, uTime*1.6) * 0.8);
+  col = mix(col, mix(col*vec3(0.62,0.97,1.0), water, 0.42), under);
+  float foam = 1.0 - smoothstep(uPx*3.0, uPx*8.0, abs(wp.y - lvl));
+  return mix(col, vec3(1.0), foam);
+}
+`;
+
+const FS_SIGN = COMMON + `
+uniform sampler2D uTex; uniform vec2 uSizePx; uniform float uRadius; uniform float uBorder;
+uniform vec4 uBase; uniform vec3 uFrame; uniform float uHover; uniform float uFlash; uniform float uGlint; uniform float uGloss;
+varying vec3 vWorld; varying vec2 vUv;
+float sdRound(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+void main(){
+  vec2 p = (vUv - 0.5) * uSizePx;
+  float d = sdRound(p, uSizePx*0.5, uRadius);
+  float shape = clamp(0.5 - d, 0.0, 1.0);
+  if (shape <= 0.0) discard;
+  vec4 t = texture2D(uTex, vec2(vUv.x, 1.0 - vUv.y));
+  vec3 col = uBase.rgb;
+  // glass gloss: a soft diagonal sheen
+  float sheen = smoothstep(0.0, 1.0, 1.0 - abs((p.x*0.55 + p.y) / uSizePx.y - 0.18) * 4.0);
+  col = mix(col, vec3(1.0), sheen * uGloss);
+  col = mix(col, t.rgb, t.a);
+  float a = max(uBase.a, t.a);
+  // frame: navy outline outside, colored band inside
+  vec3 frameCol = mix(uFrame, SUN, uHover);
+  float band = smoothstep(-uBorder - 0.7, -uBorder + 0.7, d);
+  float outline = smoothstep(-3.6, -2.4, d);
+  col = mix(col, frameCol, band);
+  col = mix(col, NAVY, outline);
+  a = mix(a, 1.0, band);
+  // hover glint sweeping along the face
+  float g = exp(-pow((p.x + p.y*0.7 - uGlint) / 26.0, 2.0)) * uHover;
+  col = mix(col, vec3(1.0), g * 0.55 * (1.0 - outline));
+  col = applyFill(col, vWorld);
+  col = mix(col, vec3(1.0), uFlash);
+  gl_FragColor = vec4(col, a * shape);
+}`;
+
+// Toon-banded solid for floats, posts, the lifebuoy. Stripe modes: 0 none,
+// 1 angular segments around local Y (lifebuoy), 2 horizontal band in local Y (buoy belly).
+const FS_TOON = COMMON + `
+uniform vec3 uColor; uniform vec3 uColor2; uniform float uStripeMode; uniform float uStripes; uniform float uStripeW; uniform float uHover; uniform float uFlash;
+varying vec3 vWorld; varying vec3 vNormal; varying vec3 vLocal;
+void main(){
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(uCamPos - vWorld);
+  vec3 base = uColor;
+  if (uStripeMode > 0.5 && uStripeMode < 1.5) {
+    float ang = atan(vLocal.z, vLocal.x) / 6.28318 * uStripes;
+    base = mod(floor(ang + 0.25), 2.0) < 0.5 ? uColor : uColor2;
+  } else if (uStripeMode > 1.5 && uStripeMode < 2.5) {
+    base = abs(vLocal.y - uStripes) < uStripeW ? uColor2 : uColor;
+  } else if (uStripeMode > 3.5) {
+    base = mod(floor(vLocal.x / uStripeW), 2.0) < 0.5 ? uColor : uColor2;
+  } else if (uStripeMode > 2.5) {
+    base = mod(floor(vLocal.y / uStripeW + 0.5), 2.0) < 0.5 ? uColor : uColor2;
+  }
+  vec3 L = normalize(vec3(0.45, 0.8, 0.55));
+  float d = dot(n, L);
+  float shade = d > 0.45 ? 1.0 : (d > -0.05 ? 0.84 : 0.66);
+  vec3 col = base * shade;
+  col = mix(col, col * vec3(0.55, 0.75, 1.15), (1.0 - shade) * 1.2);
+  float rim = pow(1.0 - max(dot(n, v), 0.0), 3.0);
+  col += SKY * rim * 0.45;
+  float spec = pow(max(dot(reflect(-L, n), v), 0.0), 36.0);
+  col = mix(col, vec3(1.0), step(0.55, spec) * 0.85);
+  col = mix(col, mix(col, SUN, 0.35), uHover * 0.6);
+  col = applyFill(col, vWorld);
+  col = mix(col, vec3(1.0), uFlash);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// Sand + lagoon on one ground plane.
+const FS_GROUND = COMMON + `
+uniform float uShore;
+varying vec3 vWorld;
+void main(){
+  vec2 p = vWorld.xz;
+  float t = uTime;
+  vec3 rel = vWorld - uCamPos;
+  float dist = length(rel);
+  vec3 vdir = rel / dist;
+  float edge = uShore + 0.22*sin(p.x*0.55 + 1.3) + 0.09*sin(p.x*1.7 + 0.4) + 0.16*sin(t*0.8);
+  float s = p.y - edge;           // > 0 on the beach
+  float depth = max(-s, 0.0);
+  if (s > 0.0) {
+    vec3 sand = SAND * (0.97 + 0.03 * sin(p.y*10.0 + p.x*1.3));
+    float wet = 1.0 - smoothstep(0.0, 0.6, s);
+    sand = mix(sand, vec3(0.90, 0.84, 0.70), wet * 0.8);
+    float foam = 1.0 - smoothstep(0.03, 0.09, s);
+    gl_FragColor = vec4(mix(sand, vec3(1.0), foam), 1.0);
+    return;
+  }
+  // water body: shallows -> lagoon -> open sea -> reef blue
+  vec3 w = mix(vec3(0.62, 0.98, 0.90), LAGOON, smoothstep(0.0, 2.0, depth));
+  w = mix(w, vec3(0.05, 0.66, 0.86), smoothstep(4.0, 16.0, depth));
+  w = mix(w, REEF, smoothstep(14.0, 60.0, depth));
+  float near = 1.0 - smoothstep(12.0, 40.0, dist);
+  w += vec3(0.80, 1.0, 0.96) * caustic(p * 0.24, t) * near * 0.42;
+  // sun glitter: sparse baked sparkles, dense along the sun's reflection path
+  float sp = texture2D(uCaus, p * vec2(0.20, 0.55) + vec2(t * 0.05, -t * 0.03)).b
+           * texture2D(uCaus, p * vec2(0.16, 0.43) - vec2(t * 0.04, t * 0.02)).b;
+  float path = pow(max(dot(normalize(vdir.xz), normalize(SUNDIR.xz)), 0.0), 90.0);
+  float far = smoothstep(6.0, 30.0, dist);
+  w = mix(w, vec3(1.0), step(0.16 - 0.13 * path * far, sp) * mix(0.35, 1.0, path));
+  // sky reflection toward the horizon
+  float fres = pow(1.0 - max(-vdir.y, 0.0), 6.0);
+  w = mix(w, vec3(0.62, 0.88, 1.0), fres * 0.5);
+  // shore foam: a bold toon line plus a broken trailing line
+  float foam1 = 1.0 - smoothstep(0.03, 0.10, abs(s));
+  float trail = s + 0.6 + 0.12*sin(p.x*2.2 + t*1.3);
+  float foam2 = (1.0 - smoothstep(0.02, 0.06, abs(trail))) * step(0.2, sin(p.x*3.1 + t*0.7));
+  w = mix(w, vec3(1.0), max(foam1, foam2 * 0.85));
+  gl_FragColor = vec4(w, 1.0);
+}`;
+
+const FS_SKY = COMMON + `
+uniform sampler2D uSky;
+varying vec2 vUv;
+void main(){ gl_FragColor = vec4(texture2D(uSky, vec2(vUv.x, 1.0 - vUv.y)).rgb, 1.0); }`;
+
+const FS_RING = COMMON + `
+uniform vec3 uColor; uniform float uR; uniform float uWidth; uniform float uAlpha;
+varying vec2 vUv;
+void main(){
+  vec2 p = (vUv - 0.5) * 2.0;
+  float r = length(p);
+  float ang = atan(p.y, p.x);
+  float wob = 0.012 * sin(ang * 7.0 + uTime * 3.0);
+  float d = abs(r - uR - wob);
+  float a = (1.0 - smoothstep(uWidth * 0.7, uWidth, d)) * uAlpha;
+  if (a <= 0.003) discard;
+  gl_FragColor = vec4(uColor, a);
+}`;
+
+const FS_BALL = COMMON + `
+uniform float uSpin; uniform float uActive;
+varying vec2 vUv;
+void main(){
+  vec2 p = (vUv - 0.5) * 2.0;
+  float r = length(p);
+  if (r > 1.0) discard;
+  float body = 0.80;
+  vec3 col;
+  if (r > body + 0.12) col = vec3(1.0);                    // white halo for dark backdrops
+  else if (r > body) col = NAVY;                           // bold outline
+  else {
+    float ang = atan(p.y, p.x) + uSpin;
+    float seg = mod(floor(ang / 6.28318 * 6.0 + 6.0), 6.0);
+    vec3 c0 = seg < 0.5 ? CORAL : seg < 1.5 ? vec3(1.0) : seg < 2.5 ? SUN : seg < 3.5 ? vec3(1.0) : seg < 4.5 ? REEF : vec3(1.0);
+    float cap = 1.0 - smoothstep(0.17, 0.2, r);
+    c0 = mix(c0, vec3(1.0), cap);
+    float z = sqrt(max(1.0 - pow(r / body, 2.0), 0.0));
+    vec3 n = vec3(p / body, z);
+    float l = dot(n, normalize(vec3(-0.5, 0.6, 0.6)));
+    c0 *= l > 0.25 ? 1.0 : 0.78;
+    float hl = 1.0 - smoothstep(0.10, 0.13, length(p - vec2(-0.3, 0.32)));
+    col = mix(c0, vec3(1.0), hl * 0.9);
+  }
+  float alpha = 1.0 - smoothstep(0.96, 1.0, r);
+  gl_FragColor = vec4(col, alpha);
+}`;
+
+const FS_DROP = COMMON + `
+uniform float uAlpha;
+varying vec2 vUv;
+void main(){
+  vec2 p = (vUv - 0.5) * 2.0;
+  float r = length(p);
+  if (r > 1.0) discard;
+  vec3 col = r > 0.82 ? REEF : (dot(p, vec2(0.6, -0.6)) > 0.25 ? mix(LAGOON, vec3(1.0), 0.45) : vec3(1.0));
+  gl_FragColor = vec4(col, uAlpha);
+}`;
+
+// Full-screen lagoon wash that rises when the hero is chosen.
+const FS_WASH = COMMON + `
+uniform float uLevel;
+varying vec2 vUv;
+void main(){
+  float edge = uLevel + 0.025 * sin(vUv.x * 9.0 + uTime * 5.0) + 0.012 * sin(vUv.x * 23.0 - uTime * 7.0);
+  if (vUv.y > edge + 0.02) discard;
+  vec3 w = mix(LAGOON, vec3(0.06, 0.55, 0.85), clamp((edge - vUv.y) * 1.4, 0.0, 1.0));
+  w += vec3(0.7, 1.0, 0.95) * caustic(vUv * vec2(3.2, 2.0), uTime * 2.0) * 0.45;
+  float foam = smoothstep(edge - 0.035, edge - 0.012, vUv.y);
+  w = mix(w, vec3(1.0), foam);
+  float a = vUv.y > edge ? 0.0 : 1.0;
+  gl_FragColor = vec4(w, a);
+}`;
+
+// Baked tileable textures ------------------------------------------------------
+// R, G: two warped Voronoi-edge webs (caustic layers). B: sparse sparkle dots.
+function makeCausticTexture(N = 256) {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  function voronoi(cells, warp, mode) {
+    const pts = [];
+    for (let j = 0; j < cells; j++) for (let i = 0; i < cells; i++) pts.push([(i + rnd()) / cells, (j + rnd()) / cells]);
+    const out = new Float32Array(N * N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let u = (x + 0.5) / N, v = (y + 0.5) / N;
+      u += warp * Math.sin(v * Math.PI * 4 + 1.3); v += warp * Math.sin(u * Math.PI * 4 + 0.4);
+      const ci = Math.floor(u * cells), cj = Math.floor(v * cells);
+      let f1 = 9, f2 = 9;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        const wi = ci + di, wj = cj + dj;
+        const ii = ((wi % cells) + cells) % cells, jj = ((wj % cells) + cells) % cells;
+        const pt = pts[jj * cells + ii];
+        const dx = pt[0] + (wi - ii) / cells - u, dy = pt[1] + (wj - jj) / cells - v;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+      }
+      const e = mode === 'edge' ? (f2 - f1) * cells : f1 * cells;
+      out[y * N + x] = mode === 'edge' ? Math.pow(Math.max(0, 1 - e / 0.32), 1.6) : (e < 0.09 ? 1 : 0);
+    }
+    return out;
+  }
+  const r = voronoi(6, 0.035, 'edge'), g = voronoi(5, 0.045, 'edge'), b = voronoi(14, 0.0, 'dot');
+  const c = document.createElement('canvas'); c.width = c.height = N;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(N, N);
+  for (let i = 0; i < N * N; i++) {
+    img.data[i * 4] = r[i] * 255; img.data[i * 4 + 1] = g[i] * 255; img.data[i * 4 + 2] = b[i] * 255; img.data[i * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new pc.Texture(device, { width: N, height: N, format: pc.PIXELFORMAT_RGBA8, mipmaps: true,
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_REPEAT, addressV: pc.ADDRESS_REPEAT });
+  t.setSource(c);
+  return t;
+}
+const causTex = makeCausticTexture();
+
+const ATTR = { aPosition: pc.SEMANTIC_POSITION, aNormal: pc.SEMANTIC_NORMAL, aUv0: pc.SEMANTIC_TEXCOORD0 };
+const shaderCache = {};
+function material(name, fs, { blend = false, depthTest = true, depthWrite = true, cull = pc.CULLFACE_BACK, params = {} } = {}) {
+  const m = new pc.ShaderMaterial({ uniqueName: 'dw-' + name, vertexGLSL: VS, fragmentGLSL: fs, attributes: ATTR });
+  if (blend) m.blendType = pc.BLEND_NORMAL;
+  m.depthTest = depthTest; m.depthWrite = depthWrite; m.cull = cull;
+  m.setParameter('uFill', 0); m.setParameter('uFillY', -1e4); m.setParameter('uPx', 0.01);
+  m.setParameter('uCaus', causTex);
+  for (const [k, v] of Object.entries(params)) m.setParameter(k, v);
+  m.update();
+  return m;
+}
+
+function quadMesh(w, h) {
+  const m = new pc.Mesh(device);
+  m.setPositions([-w / 2, -h / 2, 0, w / 2, -h / 2, 0, w / 2, h / 2, 0, -w / 2, h / 2, 0]);
+  m.setNormals([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+  m.setUvs(0, [0, 0, 1, 0, 1, 1, 0, 1]);
+  m.setIndices([0, 1, 2, 0, 2, 3]);
+  m.update();
+  return m;
+}
+function addMesh(entity, mesh, mat) {
+  entity.addComponent('render', { castShadows: false, receiveShadows: false });
+  entity.render.meshInstances = [new pc.MeshInstance(mesh, mat)];
+  return entity;
+}
+function child(parent, name, mesh, mat, pos = [0, 0, 0], rot = [0, 0, 0], scale = [1, 1, 1]) {
+  const e = new pc.Entity(name);
+  addMesh(e, mesh, mat);
+  e.setLocalPosition(...pos); e.setLocalEulerAngles(...rot); e.setLocalScale(...scale);
+  parent.addChild(e);
+  return e;
+}
+const geo = {
+  sphere: (r) => pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: r, latitudeBands: 20, longitudeBands: 28 })),
+  cyl: (r, h) => pc.Mesh.fromGeometry(device, new pc.CylinderGeometry({ radius: r, height: h, capSegments: 20 })),
+  box: (x, y, z) => pc.Mesh.fromGeometry(device, new pc.BoxGeometry({ halfExtents: new pc.Vec3(x / 2, y / 2, z / 2) })),
+  torus: (R, r) => pc.Mesh.fromGeometry(device, new pc.TorusGeometry({ ringRadius: R, tubeRadius: r, segments: 48, sides: 18 })),
+};
+const toon = (name, color, color2 = color, stripeMode = 0, stripes = 0, stripeW = 12) => material('toon', FS_TOON, {
+  params: { uColor: hex(color), uColor2: hex(color2), uStripeMode: stripeMode, uStripes: stripes, uStripeW: stripeW, uHover: 0, uFlash: 0 },
+});
+
+// ---------------------------------------------------------------------------
+// World: sky, ground (sand + lagoon)
+// ---------------------------------------------------------------------------
+const SKY_D = 1200;
+const skyH = 2 * SKY_D * TAN * 1.25, skyW = skyH * 1.8;
+const SUNDIR = new pc.Vec3(0.40, 0.15, -0.90).normalize();
+const INV_ROT = CAM_ROT.clone().invert();
+/** Sky quad uv (0..1, v up) of a world direction, seen from the home camera. */
+function skyUv(dir) {
+  const c = INV_ROT.transformVector(dir, new pc.Vec3());
+  const k = SKY_D / -c.z;
+  return [c.x * k / skyW + 0.5, c.y * k / skyH + 0.5];
+}
+function makeSkyTexture() {
+  const W = 1024, H = 512;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  // gradient by elevation of each row (centre column)
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  const stops = [];
+  for (let i = 0; i <= 24; i++) {
+    const v = 1 - i / 24;
+    const dir = CAM_ROT.transformVector(new pc.Vec3(0, (v - 0.5) * skyH, -SKY_D), new pc.Vec3()).normalize();
+    const e = dir.y;
+    const mix = (a, b, k) => a.map((x, j) => x + (b[j] - x) * k);
+    const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    let col = mix([0.74, 0.94, 1.0], hex(C.sky), sm(-0.005, 0.10, e));
+    col = mix(col, [0.10, 0.42, 0.92], sm(0.10, 0.36, e));
+    g.addColorStop(i / 24, `rgb(${col.map((x) => Math.round(x * 255)).join(',')})`);
+  }
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const toPx = (dir) => { const [u, v] = skyUv(dir); return [u * W, (1 - v) * H]; };
+  const horizonY = toPx(new pc.Vec3(0, 0, -1))[1];
+  // sun: halo, rays, crisp disc
+  const [sx, sy] = toPx(SUNDIR);
+  const halo = ctx.createRadialGradient(sx, sy, 10, sx, sy, 230);
+  halo.addColorStop(0, 'rgba(255,250,215,0.95)'); halo.addColorStop(0.25, 'rgba(255,245,200,0.45)'); halo.addColorStop(1, 'rgba(255,245,200,0)');
+  ctx.fillStyle = halo; ctx.fillRect(0, 0, W, H);
+  const rays = ctx.createRadialGradient(0, 0, 30, 0, 0, 250); // gradient lives in the translated space
+  rays.addColorStop(0, 'rgba(255,255,235,0.30)'); rays.addColorStop(1, 'rgba(255,255,235,0)');
+  ctx.save(); ctx.translate(sx, sy); ctx.fillStyle = rays;
+  for (let i = 0; i < 12; i++) { ctx.rotate(Math.PI / 6); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(250, -18); ctx.lineTo(250, 18); ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  ctx.beginPath(); ctx.arc(sx, sy, 34, 0, Math.PI * 2); ctx.fillStyle = '#FFFDEB'; ctx.fill();
+  // far islands on the horizon
+  const island = (az, w, h, fill, top) => {
+    const [x] = toPx(new pc.Vec3(Math.sin(az), 0, -Math.cos(az)));
+    ctx.beginPath(); ctx.moveTo(x - w, horizonY + 1);
+    ctx.bezierCurveTo(x - w * 0.5, horizonY - h * 0.9, x - w * 0.2, horizonY - h, x, horizonY - h);
+    ctx.bezierCurveTo(x + w * 0.3, horizonY - h, x + w * 0.6, horizonY - h * 0.6, x + w, horizonY + 1);
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+    if (top) { ctx.lineWidth = 3; ctx.strokeStyle = top; ctx.stroke(); }
+  };
+  island(0.95, 120, 14, 'rgba(120,190,235,0.9)');
+  island(-0.62, 90, 22, '#1E9E6A', '#62D86E');
+  island(-0.45, 46, 12, '#1E9E6A', '#62D86E');
+  // toon clouds: flat light-blue belly under white puffs
+  const cloud = (x, y, s) => {
+    const puffs = [[0, 0, 1], [-1.05, 0.25, 0.72], [1.1, 0.2, 0.8], [0.45, -0.45, 0.72], [-0.5, -0.32, 0.62]];
+    for (const [layer, dy, col] of [[0, 6, '#BFDDF7'], [1, 0, '#FFFFFF']]) {
+      ctx.save(); ctx.beginPath(); ctx.rect(x - s * 3, y - s * 3, s * 6, s * 3 + s * 0.45 + (layer ? -s * 0.12 : 0)); ctx.clip();
+      ctx.fillStyle = col; ctx.beginPath();
+      for (const [px, py, r] of puffs) { ctx.moveTo(x + px * s + r * s, y + py * s + dy * (layer ? 0 : 1) - (layer ? 6 : 0)); ctx.ellipse(x + px * s, y + py * s - (layer ? 6 : 0), r * s, r * s * 0.7, 0, 0, Math.PI * 2); }
+      ctx.fill(); ctx.restore();
+    }
+  };
+  // visible band: texture x 148..876 and y horizonY-118..horizonY
+  cloud(405, horizonY - 84, 19);
+  cloud(640, horizonY - 76, 20);
+  cloud(185, horizonY - 52, 15);
+  cloud(470, horizonY - 40, 10);
+  const t = new pc.Texture(device, { width: W, height: H, format: pc.PIXELFORMAT_RGBA8, mipmaps: false,
+    minFilter: pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR, addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE });
+  t.setSource(c);
+  return t;
+}
+const skyMat = material('sky', FS_SKY, { depthWrite: false, cull: pc.CULLFACE_NONE, params: { uSky: makeSkyTexture() } });
+// Only the strip above the horizon is ever visible: crop the quad (and its uvs) there
+// so SwiftShader does not shade the whole screen twice.
+{
+  const vH = skyUv(new pc.Vec3(0, 0, -1))[1] - 0.03;
+  const m = new pc.Mesh(device);
+  const y0 = (vH - 0.5) * skyH, y1 = skyH / 2, x = skyW / 2;
+  m.setPositions([-x, y0, 0, x, y0, 0, x, y1, 0, -x, y1, 0]);
+  m.setNormals([0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1]);
+  m.setUvs(0, [0, vH, 1, vH, 1, 1, 0, 1]);
+  m.setIndices([0, 1, 2, 0, 2, 3]);
+  m.update();
+  child(cam, 'sky', m, skyMat, [0, 0, -SKY_D]);
+}
+
+const SHORE_Z = 4.6;
+const groundMat = material('ground', FS_GROUND, { cull: pc.CULLFACE_NONE, params: { uShore: SHORE_Z } });
+const ground = new pc.Entity('ground');
+addMesh(ground, quadMesh(1600, 1000), groundMat);
+ground.setEulerAngles(-90, 0, 0);
+ground.setPosition(0, 0, -480);
+app.root.addChild(ground);
+
+// ---------------------------------------------------------------------------
+// Fonts + images
+// ---------------------------------------------------------------------------
+const DISPLAY = '"Lilita One"', ROUND = '"M PLUS Rounded 1c"';
+async function loadFonts() {
+  const faces = [
+    new FontFace('Lilita One', 'url(fonts/LilitaOne-Regular.ttf)'),
+    new FontFace('M PLUS Rounded 1c', 'url(fonts/MPLUSRounded1c-ExtraBold.ttf)', { weight: '800' }),
+  ];
+  await Promise.all(faces.map(async (f) => { await f.load(); document.fonts.add(f); }));
+}
+function loadImage(src) {
+  return new Promise((ok) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => ok(img);
+    img.onerror = () => { console.warn('cover failed ' + src); ok(null); };
+    img.src = src;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Canvas sign textures. Drawn in screen-pixel units at 2x.
+// ---------------------------------------------------------------------------
+const RES = 2;
+function makeCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * RES); c.height = Math.round(h * RES);
+  const ctx = c.getContext('2d');
+  ctx.scale(RES, RES);
+  return { c, ctx };
+}
+function canvasTexture(c) {
+  const t = new pc.Texture(device, { width: c.width, height: c.height, format: pc.PIXELFORMAT_RGBA8, mipmaps: true,
+    minFilter: pc.FILTER_LINEAR_MIPMAP_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE });
+  t.setSource(c);
+  return t;
+}
+// Era title text: white fill, thick navy outline, hard navy drop.
+function titleText(ctx, text, x, y, size, { align = 'left', fill = '#fff', stroke = C.navy, drop = true, maxW = Infinity, min = 30 } = {}) {
+  let s = size;
+  ctx.font = `${s}px ${DISPLAY}`;
+  while (ctx.measureText(text).width > maxW && s > min) { s -= 1; ctx.font = `${s}px ${DISPLAY}`; }
+  ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
+  const lw = Math.max(5, s * 0.16);
+  if (drop) { ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.strokeText(text, x, y + s * 0.08); ctx.fillStyle = stroke; ctx.fillText(text, x, y + s * 0.08); }
+  ctx.lineWidth = lw; ctx.strokeStyle = stroke; ctx.strokeText(text, x, y);
+  ctx.fillStyle = fill; ctx.fillText(text, x, y);
+  return s;
+}
+function roundText(ctx, text, x, y, size, color, align = 'left') {
+  ctx.font = `800 ${size}px ${ROUND}`;
+  ctx.textAlign = align; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+}
+function coverInto(ctx, imgs, x, y, w, h, r) {
+  ctx.save();
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.clip();
+  ctx.fillStyle = C.reef; ctx.fillRect(x, y, w, h);
+  if (imgs.length === 1) ctx.drawImage(imgs[0], x, y, w, h);
+  else imgs.slice(0, 4).forEach((im, i) => { if (im) ctx.drawImage(im, x + (i % 2) * w / 2, y + Math.floor(i / 2) * h / 2, w / 2, h / 2); });
+  ctx.restore();
+}
+
+function heroTexture(w, h, cover) {
+  const { c, ctx } = makeCanvas(w, h);
+  const pl = content.playlistOfTheDay;
+  const cs = h - 92;
+  const cx = 38, cy = (h - cs) / 2;
+  // cover with a white mat + navy keyline
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.roundRect(cx - 8, cy - 8, cs + 16, cs + 16, 26); ctx.fill();
+  ctx.strokeStyle = C.navy; ctx.lineWidth = 4; ctx.stroke();
+  coverInto(ctx, [cover], cx, cy, cs, cs, 18);
+  // "Today's pick" sun sticker on the cover corner
+  ctx.save();
+  ctx.translate(cx + cs - 6, cy + 10); ctx.rotate(0.22);
+  ctx.beginPath();
+  for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2; const rr = i % 2 ? 58 : 66; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fillStyle = C.sun; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = C.navy; ctx.stroke();
+  ctx.fillStyle = C.navy; ctx.textAlign = 'center';
+  ctx.font = `30px ${DISPLAY}`; ctx.fillText("Today's", 0, -4);
+  ctx.fillText('pick', 0, 26);
+  ctx.restore();
+  // title block
+  const tx = cx + cs + 36, tw = w - tx - 28;
+  const words = pl.name.split(' ');
+  titleText(ctx, words[0], tx, 138, 92, { maxW: tw });
+  titleText(ctx, words.slice(1).join(' '), tx, 226, 92, { maxW: tw });
+  roundText(ctx, `${pl.songCount} songs`, tx + 2, 284, 36, C.navy);
+  roundText(ctx, `by ${pl.owner}`, tx + 2, 324, 28, '#2B5DA8');
+  return canvasTexture(c);
+}
+
+function recTexture(w, h, pl, imgs) {
+  const { c, ctx } = makeCanvas(w, h);
+  const d = 140, x = (w - d) / 2, y = 22;
+  // porthole: cover in a circle with a white ring and navy keylines
+  ctx.beginPath(); ctx.arc(w / 2, y + d / 2, d / 2 + 9, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill();
+  ctx.lineWidth = 4; ctx.strokeStyle = C.navy; ctx.stroke();
+  coverInto(ctx, imgs, x, y, d, d, d / 2);
+  ctx.beginPath(); ctx.arc(w / 2, y + d / 2, d / 2, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = C.navy; ctx.stroke();
+  // Names stay at least 32 px: a name too wide for one line breaks onto two.
+  ctx.font = `36px ${DISPLAY}`;
+  const words = pl.name.split(' ');
+  if (ctx.measureText(pl.name).width <= w - 28 || words.length < 2) {
+    titleText(ctx, pl.name, w / 2, y + d + 70, 36, { align: 'center', maxW: w - 28, min: 32 });
+  } else {
+    titleText(ctx, words[0], w / 2, y + d + 50, 34, { align: 'center', maxW: w - 28, min: 32 });
+    titleText(ctx, words.slice(1).join(' '), w / 2, y + d + 88, 34, { align: 'center', maxW: w - 28, min: 32 });
+  }
+  roundText(ctx, `${pl.songCount} songs`, w / 2, h - 24, 28, '#2B5DA8', 'center');
+  return canvasTexture(c);
+}
+
+function libraryTexture(w, h) {
+  const { c, ctx } = makeCanvas(w, h);
+  // driftwood grain
+  ctx.strokeStyle = 'rgba(120,80,40,0.22)'; ctx.lineWidth = 2.5;
+  for (let i = 0; i < 9; i++) {
+    const yy = 18 + i * (h - 30) / 8;
+    ctx.beginPath(); ctx.moveTo(10, yy);
+    for (let xx = 10; xx <= w - 10; xx += 20) ctx.lineTo(xx, yy + Math.sin(xx * 0.03 + i * 1.7) * 3);
+    ctx.stroke();
+  }
+  // knot
+  ctx.beginPath(); ctx.ellipse(w - 52, h - 34, 14, 8, 0.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = C.navy; ctx.textAlign = 'left';
+  ctx.font = `64px ${DISPLAY}`; ctx.fillText('Library', 30, 92);
+  roundText(ctx, 'Search and', 32, 136, 30, '#3E4E78');
+  roundText(ctx, 'your playlists', 32, 172, 30, '#3E4E78');
+  return canvasTexture(c);
+}
+
+function moreTexture(w, h) {
+  const { c, ctx } = makeCanvas(w, h);
+  ctx.fillStyle = C.navy; ctx.textAlign = 'center';
+  ctx.font = `36px ${DISPLAY}`; ctx.fillText('More', w / 2, h / 2 + 13);
+  return canvasTexture(c);
+}
+
+// ---------------------------------------------------------------------------
+// Targets
+// ---------------------------------------------------------------------------
+const signMat = (tex, w, h, { radius, border, base, frame, gloss = 0 }) => material('sign', FS_SIGN, {
+  blend: true,
+  params: { uTex: tex, uSizePx: [w, h], uRadius: radius, uBorder: border, uBase: base, uFrame: hex(frame),
+    uHover: 0, uFlash: 0, uGlint: -999, uGloss: gloss },
+});
+const ringMat = () => material('ring', FS_RING, { blend: true, depthWrite: false, cull: pc.CULLFACE_NONE,
+  params: { uColor: [1, 1, 1], uR: 0.6, uWidth: 0.04, uAlpha: 0 } });
+
+const targets = [];
+/**
+ * A target anchored at a ground pixel. Children are built in screen-pixel units,
+ * origin at the waterline/sand line, y up, facing the camera.
+ */
+function makeTarget(name, sx, sy, { floating, ring }) {
+  const g = groundAt(sx, sy);
+  const root = new pc.Entity(name);
+  root.setPosition(g.p);
+  root.setLocalScale(g.px, g.px, g.px);
+  app.root.addChild(root);
+  // The registered hit entity holds only the readable face (sign, lifebuoy). Floats,
+  // buoys and posts sit beside it so their depth does not inflate the projected hit box.
+  const hit = new pc.Entity(name + '-face');
+  root.addChild(hit);
+  // Ripple ring on the water (kept outside the root so it is not part of the hit area).
+  const ringE = new pc.Entity(name + '-ring');
+  const rm = ringMat();
+  addMesh(ringE, quadMesh(1, 1), rm);
+  ringE.setPosition(g.p.x, 0.012, g.p.z);
+  ringE.setEulerAngles(-90, 0, 0);
+  ringE.setLocalScale(ring[0] * g.px, ring[1] * g.px, 1);
+  app.root.addChild(ringE);
+  const t = { name, root, hit, base: g.p.clone(), px: g.px, floating, mats: [], ringMat: rm, ringE, ringBase: ring,
+    hover: false, hoverAmt: 0, arm: 0, flash: 0, sel: -1, phase: Math.random() * 6.28, height: 0, enter: 0 };
+  targets.push(t);
+  return t;
+}
+function track(t, m) { t.mats.push(m); return m; }
+
+function buildHero(cover) {
+  const W = 630, H = 380;
+  const t = makeTarget('hero', 392, 650, { floating: true, ring: [860, 300] });
+  const r = t.root;
+  const deck = track(t, toon('deck', '#F2B35A', '#D98F3A', 4, 0, 40));
+  const float = track(t, toon('float', C.coral, '#ffffff', 3, 0, 61));
+  const post = track(t, toon('post', '#ffffff'));
+  child(r, 'deck', geo.box(540, 20, 70), deck, [0, 18, 0]);
+  for (const z of [-22, 22]) child(r, 'float', geo.cyl(16, 550), float, [0, 4, z], [0, 0, 90]);
+  for (const x of [-225, 225]) child(r, 'post', geo.cyl(9, 60), post, [x, 52, -4]);
+  const sm = track(t, signMat(heroTexture(W, H, cover), W, H, { radius: 34, border: 12, base: [0.92, 0.99, 1.0, 0.86], frame: '#ffffff', gloss: 0.35 }));
+  child(t.hit, 'sign', quadMesh(W, H), sm, [0, 70 + H / 2, 0]);
+  t.sign = sm; t.height = 70 + H; t.signW = W;
+  return t;
+}
+
+function buildRec(i, pl, imgs) {
+  const W = 190, H = 324;
+  const cx = [882, 1160, 1436][i];
+  const t = makeTarget('rec-' + (i + 1), cx, 600, { floating: true, ring: [230, 230] });
+  const r = t.root;
+  const body = track(t, toon('buoy', C.coral, '#ffffff', 2, 14, 12));
+  const pole = track(t, toon('pole', '#ffffff'));
+  const b = child(r, 'buoy', geo.sphere(54), body, [0, 6, 0], [0, 0, 0], [1, 0.82, 1]);
+  child(r, 'cap', geo.cyl(16, 14), track(t, toon('cap', C.sun)), [0, 52, 0]);
+  child(r, 'pole', geo.cyl(7, 40), pole, [0, 66, 0]);
+  const sm = track(t, signMat(recTexture(W, H, pl, imgs), W, H, { radius: 44, border: 10, base: [...hex(C.sand), 1], frame: C.coral }));
+  child(t.hit, 'sign', quadMesh(W, H), sm, [0, 80 + H / 2, 0]);
+  t.sign = sm; t.height = 80 + H; t.signW = W;
+  b.name = 'buoy';
+  return t;
+}
+
+function buildLibrary() {
+  const W = 340, H = 186;
+  const t = makeTarget('library', 255, 975, { floating: false, ring: [420, 240] });
+  const r = t.root;
+  child(r, 'post', geo.cyl(13, 50), track(t, toon('drift-post', '#B98B57')), [0, 25, -3]);
+  const sm = track(t, signMat(libraryTexture(W, H), W, H, { radius: 14, border: 7, base: [...hex(C.drift), 1], frame: '#C49A62' }));
+  child(t.hit, 'sign', quadMesh(W, H), sm, [0, 44 + H / 2, 0], [0, 0, -2]);
+  t.sign = sm; t.height = 44 + H; t.signW = W;
+  return t;
+}
+
+function buildMore() {
+  const t = makeTarget('more', 1486, 968, { floating: false, ring: [220, 140] });
+  const r = t.root;
+  child(r, 'post', geo.cyl(8, 120), track(t, toon('more-post', '#ffffff')), [0, 60, -6]);
+  const pw = 112, ph = 46;
+  const sm = track(t, signMat(moreTexture(pw, ph), pw, ph, { radius: 12, border: 5, base: [...hex(C.sand), 1], frame: C.reef }));
+  child(t.hit, 'plaque', quadMesh(pw, ph), sm, [0, 52 + ph / 2, 4]);
+  const ringM = track(t, toon('lifebuoy', C.coral, '#ffffff', 1, 8));
+  child(t.hit, 'lifebuoy', geo.torus(44, 16), ringM, [0, 52 + ph + 10 + 60, 0], [90, 0, 0]);
+  t.sign = sm; t.height = 52 + ph + 10 + 120; t.signW = 124;
+  return t;
+}
+
+// ---------------------------------------------------------------------------
+// Splash + wash + wrist markers
+// ---------------------------------------------------------------------------
+const dropMesh = quadMesh(1, 1);
+const drops = [];
+for (let i = 0; i < 64; i++) {
+  const m = material('drop', FS_DROP, { blend: true, depthWrite: false, params: { uAlpha: 0 } });
+  const e = new pc.Entity('drop');
+  addMesh(e, dropMesh, m);
+  e.enabled = false;
+  app.root.addChild(e);
+  drops.push({ e, m, v: new pc.Vec3(), life: 0, size: 0 });
+}
+const crowns = [];
+function splash(t, count = 30, power = 1) {
+  const origin = t.base.clone();
+  const px = t.px;
+  let n = 0;
+  for (const d of drops) {
+    if (d.life > 0) continue;
+    if (n++ >= count) break;
+    const a = Math.random() * Math.PI * 2;
+    const spread = (t.signW * 0.5 + 30) * px;
+    d.e.setPosition(origin.x + Math.cos(a) * spread * Math.random(), 0.05, origin.z + Math.sin(a) * 0.4);
+    d.v.set(Math.cos(a) * (0.5 + Math.random() * 1.6) * power, (3.0 + Math.random() * 3.2) * power, 0.4 + Math.random() * 0.8);
+    d.life = 1; d.size = (16 + Math.random() * 22) * px;
+    d.e.enabled = true;
+  }
+  const rm = ringMat();
+  const ce = new pc.Entity('crown');
+  addMesh(ce, quadMesh(1, 1), rm);
+  ce.setPosition(origin.x, 0.015, origin.z);
+  ce.setEulerAngles(-90, 0, 0);
+  app.root.addChild(ce);
+  crowns.push({ e: ce, m: rm, age: 0, w: t.ringBase[0] * px, h: t.ringBase[1] * px });
+}
+
+const washMat = material('wash', FS_WASH, { blend: true, depthTest: false, depthWrite: false, cull: pc.CULLFACE_NONE, params: { uLevel: -0.1 } });
+const WASH_D = 0.5;
+const wash = child(cam, 'wash', quadMesh(2 * WASH_D * TAN * (DW / DH) * 1.02, 2 * WASH_D * TAN * 1.02), washMat, [0, 0, -WASH_D]);
+wash.enabled = false;
+
+const balls = [0, 1].map(() => {
+  const m = material('ball', FS_BALL, { blend: true, depthTest: false, depthWrite: false, cull: pc.CULLFACE_NONE, params: { uSpin: 0, uActive: 0 } });
+  const e = new pc.Entity('wrist');
+  addMesh(e, quadMesh(1, 1), m);
+  e.enabled = false;
+  app.root.addChild(e);
+  return { e, m, spin: Math.random() * 6 };
+});
+const BALL_D = 0.4;
+
+// ---------------------------------------------------------------------------
+// Interaction
+// ---------------------------------------------------------------------------
+const hands = createHands(app, cam);
+let wrists = [null, null];
+let armingTarget = null;
+hands.onState((s) => { wrists = s.wrists; armingTarget = s.arming?.target?.name ?? null; });
+
+let heroTransition = -1; // seconds since hero select, or -1
+function select(t) {
+  t.flash = 1; t.sel = 0;
+  splash(t, t.name === 'hero' ? 60 : 26, t.name === 'hero' ? 1.2 : 0.85);
+  if (t.name === 'hero') { heroTransition = 0; window.__selected = true; }
+}
+
+// ---------------------------------------------------------------------------
+// Frame loop
+// ---------------------------------------------------------------------------
+let time = 0, readyAt = -1;
+const easeOutBack = (x) => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => x * x * (3 - 2 * x);
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+const tmp = new pc.Vec3();
+const camTarget = new pc.Vec3();
+
+app.on('update', (dt) => {
+  dt = Math.min(dt, 0.05);
+  time += dt;
+  uTime.setValue(time);
+  const cp = cam.getPosition();
+  uCamPos.setValue([cp.x, cp.y, cp.z]);
+  if (readyAt < 0) return;
+  const since = time - readyAt;
+
+  // Hero transition: camera dives toward the raft, lagoon rises over the view.
+  if (heroTransition >= 0) {
+    heroTransition += dt;
+    const h = targets.find((x) => x.name === 'hero');
+    const k = REDUCED ? 0 : easeInOut(clamp01(heroTransition / 1.4));
+    camTarget.set(h.base.x, h.base.y + 220 * h.px, h.base.z + 1.6);
+    tmp.lerp(CAM_POS, camTarget, k);
+    cam.setPosition(tmp);
+    cam.setEulerAngles(PITCH * (1 - k) - 4 * k, 0, 0);
+    wash.enabled = true;
+    washMat.setParameter('uLevel', -0.06 + 1.2 * easeInOut(clamp01((heroTransition - 0.12) / 1.1)));
+    if (heroTransition > 3.4) {
+      heroTransition = -1; wash.enabled = false;
+      cam.setPosition(CAM_POS); cam.setEulerAngles(PITCH, 0, 0);
+    }
+  }
+
+  targets.forEach((t, i) => {
+    // entrance: pop up out of the water in sequence
+    const e = clamp01((since - i * 0.09) / 0.55);
+    const enter = e <= 0 ? 0 : easeOutBack(e);
+    t.hoverAmt += ((t.hover ? 1 : 0) - t.hoverAmt) * Math.min(1, dt * 12);
+    t.flash = Math.max(0, t.flash - dt * 3.2);
+    const bob = t.floating && !REDUCED ? Math.sin(time * 1.7 + t.phase) * 3.5 : 0;
+    let dunk = 0;
+    if (t.sel >= 0) {
+      t.sel += dt;
+      if (t.name !== 'hero') dunk = -Math.sin(Math.min(1, t.sel / 0.6) * Math.PI) * 46;
+      else dunk = Math.sin(Math.min(1, t.sel / 0.35) * Math.PI) * 22;
+      if (t.sel > 0.8) t.sel = -1;
+    }
+    // other targets sink away while the hero transition runs
+    let away = 0;
+    if (heroTransition >= 0 && t.name !== 'hero') away = -easeOutCubic(clamp01((heroTransition - i * 0.04) / 0.5)) * (t.height + 40);
+    const lift = t.hoverAmt * 16;
+    const off = ((enter - 1) * (t.height + 30) + bob + lift + dunk + away) * t.px;
+    t.root.setPosition(t.base.x, t.base.y + off, t.base.z);
+    if (t.floating && !REDUCED) t.root.setLocalEulerAngles(0, 0, Math.sin(time * 1.3 + t.phase) * 0.5);
+
+    // fill level in world space: from the waterline to the top of the object
+    const bottom = t.base.y + off - 6 * t.px;
+    const top = t.base.y + off + (t.height + 8) * t.px;
+    const fillY = bottom + (top - bottom) * t.arm;
+    const glint = ((time * 520) % (t.signW * 2.4)) - t.signW * 1.2;
+    for (const m of t.mats) {
+      m.setParameter('uFill', t.arm > 0 ? 1 : 0);
+      m.setParameter('uFillY', fillY);
+      m.setParameter('uPx', t.px);
+      m.setParameter('uHover', t.hoverAmt);
+      m.setParameter('uFlash', t.flash);
+    }
+    t.sign.setParameter('uGlint', glint);
+
+    // ripple ring: faint foam ring idle, sunshine ring on hover, tightening while arming
+    const rm = t.ringMat;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+    if (t.arm > 0) {
+      rm.setParameter('uColor', hex(C.sun));
+      rm.setParameter('uR', 0.92 - 0.5 * t.arm);
+      rm.setParameter('uWidth', 0.05 + 0.04 * t.arm);
+      rm.setParameter('uAlpha', 1);
+    } else if (t.hoverAmt > 0.02) {
+      rm.setParameter('uColor', hex(C.sun));
+      rm.setParameter('uR', 0.86 + 0.04 * pulse);
+      rm.setParameter('uWidth', 0.04);
+      rm.setParameter('uAlpha', t.hoverAmt * 0.95);
+    } else {
+      rm.setParameter('uColor', [1, 1, 1]);
+      rm.setParameter('uR', 0.55 + 0.04 * Math.sin(time * 1.7 + t.phase));
+      rm.setParameter('uWidth', 0.035);
+      rm.setParameter('uAlpha', t.floating ? 0.75 * enter : 0);
+    }
+    t.ringE.enabled = enter > 0.01 && away === 0;
+  });
+
+  // splash droplets
+  const camRot = cam.getRotation();
+  for (const d of drops) {
+    if (d.life <= 0) continue;
+    d.life -= dt * 1.1;
+    d.v.y -= 9.8 * dt;
+    const p = d.e.getPosition();
+    tmp.set(p.x + d.v.x * dt, p.y + d.v.y * dt, p.z + d.v.z * dt);
+    if (d.life <= 0 || tmp.y < -0.05) { d.life = 0; d.e.enabled = false; continue; }
+    d.e.setPosition(tmp);
+    d.e.setRotation(camRot);
+    d.e.setLocalScale(d.size, d.size, d.size);
+    d.m.setParameter('uAlpha', clamp01(d.life * 2));
+  }
+  for (let i = crowns.length - 1; i >= 0; i--) {
+    const c = crowns[i];
+    c.age += dt;
+    const k = c.age / 0.9;
+    if (k >= 1) { c.e.destroy(); crowns.splice(i, 1); continue; }
+    c.e.setLocalScale(c.w * (0.9 + k * 0.8), c.h * (0.9 + k * 0.8), 1);
+    c.m.setParameter('uColor', [1, 1, 1]);
+    c.m.setParameter('uR', 0.6);
+    c.m.setParameter('uWidth', 0.09 * (1 - k) + 0.02);
+    c.m.setParameter('uAlpha', 1 - k);
+  }
+
+  // wrist markers: beach balls pinned to the screen just in front of the camera
+  const cw = device.clientRect.width || DW, ch = device.clientRect.height || DH;
+  const aspect = cw / ch;
+  const fwd = cam.forward, up = cam.up, right = cam.right;
+  wrists.forEach((w, i) => {
+    const b = balls[i];
+    if (!w) { b.e.enabled = false; return; }
+    b.e.enabled = true;
+    const nx = (w.x / cw * 2 - 1) * TAN * aspect * BALL_D, ny = (1 - w.y / ch * 2) * TAN * BALL_D;
+    tmp.copy(cam.getPosition()).add(fwd.clone().mulScalar(BALL_D)).add(right.clone().mulScalar(nx)).add(up.clone().mulScalar(ny));
+    b.e.setPosition(tmp);
+    b.e.setRotation(camRot);
+    const size = (WRIST_DIAMETER + 22) * 2 * TAN * BALL_D / ch;
+    b.e.setLocalScale(size, size, size);
+    const active = armingTarget ? 1 : 0;
+    b.spin += dt * (active ? 9 : 1.6) * (i ? -1 : 1);
+    b.m.setParameter('uSpin', b.spin);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+app.start();
+if (SOFTWARE) {
+  const FRAME_MS = 1000 / 18;
+  let last = -1e9;
+  app.autoRender = false;
+  app.on('update', () => {
+    const now = performance.now();
+    if (now - last >= FRAME_MS) { last = now; app.renderNextFrame = true; }
+  });
+}
+(async () => {
+  const pl = content.playlistOfTheDay;
+  const recs = content.recommended;
+  const [, heroCover, ...recImgs] = await Promise.all([
+    loadFonts(),
+    loadImage(coverUrl(pl.cover)),
+    ...recs.map((r) => (r.cover ? loadImage(coverUrl(r.cover)).then((x) => [x]) : Promise.all(r.memberCovers.slice(0, 4).map((m) => loadImage(coverUrl(m)))))),
+  ]);
+  const built = [buildHero(heroCover), ...recs.map((r, i) => buildRec(i, r, recImgs[i])), buildLibrary(), buildMore()];
+  for (const t of built) {
+    hands.register(t.name, t.hit, {
+      onHover: (on) => { t.hover = on; },
+      onArm: (p) => { t.arm = p; },
+      onSelect: () => select(t),
+    });
+  }
+  readyAt = time;
+  // two frames so the first presentable frame is on screen
+  requestAnimationFrame(() => requestAnimationFrame(() => { window.__compReady = true; }));
+})();
+</script>
+</body>
+</html>
