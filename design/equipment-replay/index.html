@@ -1,0 +1,389 @@
+<!doctype html><html><head><meta charset="utf-8"><title>AeroBeat equipment replay</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}canvas{width:100%;height:100%;display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// Equipment replay: five held-equipment shapes driven by REAL recorded webcam pose data
+// (frames.json, made by extract.mjs). Design exploration only.
+//
+// Keys:  S or M  raw <-> smoothed      G  hindsight ghost      T  trail length
+//        Z  slow motion (0.25x)        Space  pause            R  restart excerpt
+//        , .  step 1 frame back/forward while paused (1/60 s)
+// URL:   ?mode=smooth  ?t=<songMs>  ?pause=1  ?speed=0.25  ?ghost=0  ?trail=500
+// Test hooks: window.__replay.seek(songMs) runs the simulation deterministically up to
+// songMs and pauses; window.__replay.step(ms) advances deterministically.
+import * as pc from '../style-comps/_shared/playcanvas.min.mjs';
+
+const data = await (await fetch('./frames.json')).json();
+const P = data.poses, NOTES = data.notes;
+const W0 = data.window.startMs, W1 = data.window.endMs;
+const qs = new URLSearchParams(location.search);
+
+// ---------- settings ----------
+const COL = { l: [0x26 / 255, 0x93 / 255, 1], r: [0x39 / 255, 0xc9 / 255, 0x6b / 255] }; // game note palette
+const TRAILS = [250, 500, 1000];
+const S = {
+  mode: qs.get('mode') === 'smooth' ? 'smooth' : 'raw',
+  ghost: qs.get('ghost') !== '0',
+  trailMs: Number(qs.get('trail') ?? 500),
+  speed: Number(qs.get('speed') ?? 1),
+  paused: qs.get('pause') === '1',
+  t: W0,
+};
+const SABER_LEN = 1.3;               // ~ shoulder->wrist (median upper arm 0.69 + forearm 0.64 cells)
+const BATON_LEN = SABER_LEN / 3;
+const WHIP_N = 12, WHIP_SEG = 0.1;   // 1.2 cells of chain
+const KINDS = ['saber', 'baton', 'glove', 'whip', 'orb'];
+const TITLES = { saber: '1  Saber', baton: '2  Short baton', glove: '3  Glove', whip: '4  Whip (verlet)', orb: '5  Hand orb' };
+const NOTES_TXT = { saber: `blade ${SABER_LEN} cells, along forearm`, baton: `${BATON_LEN.toFixed(2)} cells, along forearm`, glove: 'blob on the wrist, along forearm',
+  whip: `${WHIP_N} links, ${(WHIP_N * WHIP_SEG).toFixed(1)} cells, spring chain`, orb: 'sphere on the wrist, no direction' };
+
+// ---------- app ----------
+const canvas = document.getElementById('c');
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: true, alpha: false } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW); app.setCanvasResolution(pc.RESOLUTION_AUTO);
+app.graphicsDevice.maxPixelRatio = 1;
+app.scene.ambientLight = new pc.Color(0.35, 0.37, 0.45);
+const device = app.graphicsDevice;
+const light = new pc.Entity(); light.addComponent('light', { type: 'directional', intensity: 1.1 }); light.setEulerAngles(35, 25, 0); app.root.addChild(light);
+
+// ---------- materials ----------
+const c3 = (a, k = 1) => new pc.Color(a[0] * k, a[1] * k, a[2] * k);
+function lit(col, emissiveK = 0.2) { const m = new pc.StandardMaterial(); m.diffuse = c3(col); m.emissive = c3(col, emissiveK); m.gloss = 0.6; m.metalness = 0; m.useMetalness = true; m.update(); return m; }
+function glow(col, k = 1, additive = false) { const m = new pc.StandardMaterial(); m.useLighting = false; m.useSkybox = false; m.diffuse = new pc.Color(0, 0, 0); m.emissive = c3(col, k);
+  if (additive) { m.blendType = pc.BLEND_ADDITIVE; m.depthWrite = false; } m.update(); return m; }
+const mix = (a, b, f) => a.map((v, i) => v + (b[i] - v) * f);
+const WHITE = [1, 1, 1];
+const MAT = {};
+for (const h of ['l', 'r']) {
+  MAT[h] = {
+    core: glow(mix(COL[h], WHITE, 0.75), 1.3), glowHalo: glow(COL[h], 0.55, true), halo2: glow(COL[h], 0.22, true),
+    solid: glow(COL[h], 1.0), bright: glow(mix(COL[h], WHITE, 0.6), 1.5), glove: lit(COL[h], 0.28),
+    cuff: lit([0.92, 0.92, 0.95], 0.15), hilt: lit([0.25, 0.27, 0.32], 0.05),
+  };
+}
+
+// ---------- dynamic additive quad batch (trails, grid, skeleton, note cues) ----------
+class Batch {
+  constructor(max, depthTest, z) {
+    this.max = max; this.z = z; this.n = 0;
+    this.pos = new Float32Array(max * 12); this.col = new Uint8Array(max * 16);
+    const idx = new Uint16Array(max * 6);
+    for (let q = 0; q < max; q++) { const v = q * 4, i = q * 6; idx.set([v, v + 1, v + 2, v, v + 2, v + 3], i); }
+    this.mesh = new pc.Mesh(device);
+    this.mesh.setPositions(this.pos); this.mesh.setColors32(this.col); this.mesh.setIndices(idx);
+    this.mesh.update(pc.PRIMITIVE_TRIANGLES);
+    const m = new pc.StandardMaterial(); m.useLighting = false; m.useSkybox = false; m.useFog = false; m.diffuse = new pc.Color(0, 0, 0);
+    m.emissive = new pc.Color(1, 1, 1); m.emissiveVertexColor = true; m.emissiveVertexColorChannel = 'rgb'; m.vertexColorGamma = true;
+    m.blendType = pc.BLEND_ADDITIVE; m.depthWrite = false; m.depthTest = depthTest; m.cull = pc.CULLFACE_NONE; m.update();
+    this.mi = new pc.MeshInstance(this.mesh, m); this.mi.cull = false;
+    const e = new pc.Entity(); e.addComponent('render', { meshInstances: [this.mi], castShadows: false, receiveShadows: false }); app.root.addChild(e);
+  }
+  begin() { this.n = 0; }
+  // segment a->b with widths wa/wb and colours ca/cb (rgb 0..1, already faded)
+  seg(ax, ay, bx, by, wa, wb, ca, cb = ca) {
+    if (this.n >= this.max) return;
+    const dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy); if (l < 1e-6) return;
+    const nx = -dy / l, ny = dx / l, z = this.z, p = this.pos, o = this.n * 12;
+    p[o] = ax + nx * wa / 2; p[o + 1] = ay + ny * wa / 2; p[o + 2] = z;
+    p[o + 3] = ax - nx * wa / 2; p[o + 4] = ay - ny * wa / 2; p[o + 5] = z;
+    p[o + 6] = bx - nx * wb / 2; p[o + 7] = by - ny * wb / 2; p[o + 8] = z;
+    p[o + 9] = bx + nx * wb / 2; p[o + 10] = by + ny * wb / 2; p[o + 11] = z;
+    const c = this.col, k = this.n * 16, A = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+    for (let j = 0; j < 4; j++) { const s = j < 2 ? ca : cb; c[k + j * 4] = A(s[0]); c[k + j * 4 + 1] = A(s[1]); c[k + j * 4 + 2] = A(s[2]); c[k + j * 4 + 3] = 255; }
+    this.n++;
+  }
+  rect(cx, cy, hw, hh, col) { this.seg(cx - hw, cy, cx + hw, cy, hh * 2, hh * 2, col); }
+  box(cx, cy, h, w, col) { this.seg(cx - h, cy - h, cx + h, cy - h, w, w, col); this.seg(cx + h, cy - h, cx + h, cy + h, w, w, col); this.seg(cx + h, cy + h, cx - h, cy + h, w, w, col); this.seg(cx - h, cy + h, cx - h, cy - h, w, w, col); }
+  circle(cx, cy, r, w, col, n = 20) { for (let i = 0; i < n; i++) { const a = i / n * 2 * Math.PI, b = (i + 1) / n * 2 * Math.PI; this.seg(cx + r * Math.cos(a), cy + r * Math.sin(a), cx + r * Math.cos(b), cy + r * Math.sin(b), w, w, col); } }
+  end() { this.mesh.setPositions(this.pos); this.mesh.setColors32(this.col); this.mesh.update(pc.PRIMITIVE_TRIANGLES, false); this.mesh.primitive[0].count = this.n * 6; }
+}
+const back = new Batch(6000, true, -0.6), front = new Batch(8000, false, 0.6);
+const sc = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+
+// ---------- text planes ----------
+function textPlane(parent, wWorld, hWorld, pxW, pxH) {
+  const cv = document.createElement('canvas'); cv.width = pxW; cv.height = pxH;
+  const tex = new pc.Texture(device, { width: pxW, height: pxH, format: pc.PIXELFORMAT_SRGBA8, mipmaps: false, minFilter: pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR, addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE });
+  tex.setSource(cv);
+  const m = new pc.StandardMaterial(); m.useLighting = false; m.useSkybox = false; m.diffuse = new pc.Color(0, 0, 0); m.emissive = new pc.Color(1, 1, 1); m.emissiveMap = tex;
+  m.opacityMap = tex; m.opacityMapChannel = 'a'; m.blendType = pc.BLEND_NORMAL; m.depthWrite = false; m.depthTest = false; m.update();
+  const e = new pc.Entity(); e.addComponent('render', { type: 'plane', material: m, castShadows: false, receiveShadows: false });
+  e.setLocalEulerAngles(90, 0, 0); e.setLocalScale(wWorld, 1, hWorld); parent.addChild(e);
+  return { e, cv, ctx: cv.getContext('2d'), tex, upload() { tex.upload(); } };
+}
+
+// ---------- layout: 3x2 cells, five stages + info panel, one ortho camera per cell ----------
+const VIEW = { cx: 1.5, cy: 0.95, w: 6.0, h: 5.9 };   // judge-space window each stage shows
+const cells = [];
+function makeCell(i, ox) {
+  const cam = new pc.Entity('cam' + i);
+  cam.addComponent('camera', { projection: pc.PROJECTION_ORTHOGRAPHIC, clearColor: new pc.Color(0.035, 0.045, 0.08), priority: 1 + i, nearClip: 0.1, farClip: 50 });
+  cam.setPosition(ox + VIEW.cx, VIEW.cy, 10); app.root.addChild(cam);
+  cells.push({ cam, i });
+  return cam;
+}
+const stages = KINDS.map((kind, i) => {
+  const ox = i * 100; const root = new pc.Entity(kind); root.setPosition(ox, 0, 0); app.root.addChild(root);
+  makeCell(i, ox);
+  const title = textPlane(root, 3.6, 0.52, 840, 120); title.e.setLocalPosition(VIEW.cx - VIEW.w / 2 + 1.9, VIEW.cy + VIEW.h / 2 - 0.36, 1);
+  const t = title.ctx; t.font = 'bold 64px sans-serif'; t.fillStyle = '#e8ecf5'; t.textBaseline = 'top'; t.fillText(TITLES[kind], 6, 4);
+  t.font = '36px sans-serif'; t.fillStyle = '#8b96b0'; t.fillText(NOTES_TXT[kind], 8, 76); title.upload();
+  const badge = textPlane(root, 1.1, 0.32, 280, 80); badge.e.setLocalPosition(VIEW.cx + VIEW.w / 2 - 0.65, VIEW.cy + VIEW.h / 2 - 0.32, 1.5);
+  return { kind, ox, root, badge, hands: { l: makeEquip(kind, 'l', root), r: makeEquip(kind, 'r', root) } };
+});
+const infoRoot = new pc.Entity('info'); infoRoot.setPosition(500, 0, 0); app.root.addChild(infoRoot);
+const infoCam = makeCell(5, 500);
+const info = textPlane(infoRoot, VIEW.w, VIEW.h, 1040, 1000); info.e.setLocalPosition(VIEW.cx, VIEW.cy, 0);
+function layout() {
+  const Wp = device.width, Hp = device.height, m = 6;
+  const cw = Wp / 3, ch = Hp / 2;
+  for (const { cam, i } of cells) {
+    const col = i % 3, row = Math.floor(i / 3);
+    const x = (col * cw + m) / Wp, y = ((1 - row) * ch + m) / Hp, w = (cw - 2 * m) / Wp, h = (ch - 2 * m) / Hp;
+    cam.camera.rect = new pc.Vec4(x, y, w, h); cam.camera.scissorRect = new pc.Vec4(x, y, w, h);
+    const aspect = (w * Wp) / (h * Hp);
+    cam.camera.orthoHeight = Math.max(VIEW.h / 2, VIEW.w / (2 * aspect));
+  }
+}
+app.on('framerender', () => {});
+window.addEventListener('resize', () => setTimeout(layout, 0));
+
+// ---------- equipment builders ----------
+function prim(type, mat, parent) { const e = new pc.Entity(); e.addComponent('render', { type, material: mat, castShadows: false, receiveShadows: false }); parent.addChild(e); return e; }
+function placeSeg(e, ax, ay, bx, by, r, z = 0) {
+  const dx = bx - ax, dy = by - ay, l = Math.max(1e-4, Math.hypot(dx, dy));
+  e.setLocalPosition((ax + bx) / 2, (ay + by) / 2, z); e.setLocalEulerAngles(0, 0, Math.atan2(dy, dx) * 180 / Math.PI - 90); e.setLocalScale(r * 2, l, r * 2);
+}
+function makeEquip(kind, h, root) {
+  const M = MAT[h], q = { kind, h, trail: [], dir: [h === 'l' ? -0.3 : 0.3, 1] };
+  if (kind === 'saber') { q.hilt = prim('cylinder', M.hilt, root); q.halo = prim('cylinder', M.halo2, root); q.glow = prim('cylinder', M.glowHalo, root); q.core = prim('cylinder', M.core, root); }
+  if (kind === 'baton') { q.hilt = prim('cylinder', M.hilt, root); q.glow = prim('cylinder', M.glowHalo, root); q.core = prim('cylinder', M.solid, root); q.tip = prim('sphere', M.bright, root); }
+  if (kind === 'glove') { q.cuff = prim('cylinder', M.cuff, root); q.body = prim('sphere', M.glove, root); q.thumb = prim('sphere', M.glove, root); }
+  if (kind === 'orb') { q.halo = prim('sphere', M.halo2, root); q.glow = prim('sphere', M.glowHalo, root); q.core = prim('sphere', M.core, root); }
+  if (kind === 'whip') {
+    q.hilt = prim('cylinder', M.hilt, root); q.links = []; for (let i = 0; i < WHIP_N; i++) q.links.push(prim('cylinder', i % 2 ? M.solid : M.bright, root));
+    q.tip = prim('sphere', M.bright, root); q.x = new Float64Array(WHIP_N + 1); q.y = new Float64Array(WHIP_N + 1); q.px = new Float64Array(WHIP_N + 1); q.py = new Float64Array(WHIP_N + 1); q.init = false; q.acc = 0;
+  }
+  return q;
+}
+
+// ---------- pose lookup ----------
+function lastLE(key, t) { let lo = 0, hi = P.length - 1; if (P[0][key] > t) return 0; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (P[m][key] <= t) lo = m; else hi = m - 1; } return lo; }
+const KEYS = ['n', 'ls', 'rs', 'le', 're', 'lw', 'rw'];
+function lerpPose(a, b, f) { const o = {}; for (const k of KEYS) o[k] = [a[k][0] + (b[k][0] - a[k][0]) * f, a[k][1] + (b[k][1] - a[k][1]) * f]; return o; }
+// What the game had on screen at song time t: the newest pose that had ARRIVED (ta <= t).
+function shownPose(t) {
+  const k = lastLE('ta', t);
+  if (S.mode === 'raw' || k === 0) return { pose: P[k], k, measured: P[k].tm };
+  const a = P[k - 1], b = P[k], f = Math.min(1, Math.max(0, (t - b.ta) / (b.ta - a.ta)));
+  return { pose: lerpPose(a, b, f), k, measured: a.tm + (b.tm - a.tm) * f };   // interpolation buffer: +1 pose interval of delay
+}
+// Hindsight: where the wrist really was at t (interpolated on MEASUREMENT time, so no pipeline latency).
+function truePose(t) { const k = lastLE('tm', t); const a = P[k], b = P[Math.min(P.length - 1, k + 1)]; const f = b === a ? 0 : Math.min(1, Math.max(0, (t - a.tm) / (b.tm - a.tm))); return lerpPose(a, b, f); }
+
+// ---------- simulation ----------
+let lastK = -1;
+function resetSim() { for (const s of stages) for (const h of ['l', 'r']) { const q = s.hands[h]; q.trail = []; if (q.kind === 'whip') q.init = false; } lastK = -1; }
+function tipOf(q, w, u) {
+  if (q.kind === 'saber') return [w[0] + u[0] * SABER_LEN, w[1] + u[1] * SABER_LEN];
+  if (q.kind === 'baton') return [w[0] + u[0] * BATON_LEN, w[1] + u[1] * BATON_LEN];
+  if (q.kind === 'glove') return [w[0] + u[0] * 0.12, w[1] + u[1] * 0.12];
+  if (q.kind === 'whip') return [q.x[WHIP_N], q.y[WHIP_N]];
+  return [w[0], w[1]];
+}
+function stepWhip(q, w, u, dtMs) {
+  const N = WHIP_N, L = WHIP_SEG;
+  if (!q.init) { for (let i = 0; i <= N; i++) { q.x[i] = q.px[i] = w[0] + u[0] * L * i; q.y[i] = q.py[i] = w[1] + u[1] * L * i - 0.02 * i * i; } q.init = true; q.acc = 0; }
+  const dt = 1 / 240; q.acc += dtMs / 1000;
+  let steps = 0;
+  while (q.acc >= dt && steps < 60) {
+    q.acc -= dt; steps++;
+    for (let i = 1; i <= N; i++) { const vx = (q.x[i] - q.px[i]) * 0.992, vy = (q.y[i] - q.py[i]) * 0.992; q.px[i] = q.x[i]; q.py[i] = q.y[i]; q.x[i] += vx; q.y[i] += vy - 3.0 * dt * dt; }
+    q.x[0] = w[0]; q.y[0] = w[1];
+    for (let it = 0; it < 10; it++) {
+      // stiff handle: first link points along the forearm
+      q.x[1] += (w[0] + u[0] * L - q.x[1]) * 0.5; q.y[1] += (w[1] + u[1] * L - q.y[1]) * 0.5;
+      for (let i = 0; i < N; i++) {
+        const dx = q.x[i + 1] - q.x[i], dy = q.y[i + 1] - q.y[i], d = Math.hypot(dx, dy) || 1e-6, diff = (d - L) / d;
+        if (i === 0) { q.x[1] -= dx * diff; q.y[1] -= dy * diff; }
+        else { q.x[i] += dx * diff * 0.5; q.y[i] += dy * diff * 0.5; q.x[i + 1] -= dx * diff * 0.5; q.y[i + 1] -= dy * diff * 0.5; }
+      }
+    }
+  }
+}
+function updateEquip(q, w, e, dtMs, newSample) {
+  let dx = w[0] - e[0], dy = w[1] - e[1], l = Math.hypot(dx, dy);
+  if (l > 0.05) q.dir = [dx / l, dy / l];
+  const u = q.dir, [x, y] = w;
+  if (q.kind === 'saber') {
+    placeSeg(q.hilt, x - u[0] * 0.16, y - u[1] * 0.16, x + u[0] * 0.03, y + u[1] * 0.03, 0.05, 0.1);
+    const bx = x + u[0] * SABER_LEN, by = y + u[1] * SABER_LEN;
+    placeSeg(q.core, x, y, bx, by, 0.028); placeSeg(q.glow, x, y, bx, by, 0.07, -0.1); placeSeg(q.halo, x, y, bx, by, 0.13, -0.2);
+  } else if (q.kind === 'baton') {
+    placeSeg(q.hilt, x - u[0] * 0.1, y - u[1] * 0.1, x + u[0] * 0.03, y + u[1] * 0.03, 0.06, 0.1);
+    const bx = x + u[0] * BATON_LEN, by = y + u[1] * BATON_LEN;
+    placeSeg(q.core, x, y, bx, by, 0.05); placeSeg(q.glow, x, y, bx, by, 0.11, -0.1);
+    q.tip.setLocalPosition(bx, by, 0.1); q.tip.setLocalScale(0.15, 0.15, 0.15);
+  } else if (q.kind === 'glove') {
+    placeSeg(q.cuff, x - u[0] * 0.16, y - u[1] * 0.16, x + u[0] * 0.0, y + u[1] * 0.0, 0.15);
+    const cx = x + u[0] * 0.17, cy = y + u[1] * 0.17; const ang = Math.atan2(u[1], u[0]) * 180 / Math.PI - 90;
+    q.body.setLocalPosition(cx, cy, 0.05); q.body.setLocalEulerAngles(0, 0, ang); q.body.setLocalScale(0.44, 0.48, 0.4);
+    const side = q.h === 'l' ? 1 : -1; const nx = -u[1] * side, ny = u[0] * side;   // thumb on the inside
+    q.thumb.setLocalPosition(cx + nx * 0.2 - u[0] * 0.04, cy + ny * 0.2 - u[1] * 0.04, 0.25); q.thumb.setLocalEulerAngles(0, 0, ang + 20 * (q.h === 'l' ? -1 : 1)); q.thumb.setLocalScale(0.16, 0.26, 0.16);
+  } else if (q.kind === 'orb') {
+    q.core.setLocalPosition(x, y, 0.1); q.core.setLocalScale(0.3, 0.3, 0.3);
+    q.glow.setLocalPosition(x, y, 0); q.glow.setLocalScale(0.5, 0.5, 0.5); q.halo.setLocalPosition(x, y, -0.1); q.halo.setLocalScale(0.8, 0.8, 0.8);
+  } else if (q.kind === 'whip') {
+    stepWhip(q, w, u, dtMs);
+    placeSeg(q.hilt, x - u[0] * 0.14, y - u[1] * 0.14, x + u[0] * 0.02, y + u[1] * 0.02, 0.05, 0.1);
+    for (let i = 0; i < WHIP_N; i++) placeSeg(q.links[i], q.x[i], q.y[i], q.x[i + 1], q.y[i + 1], 0.05 - 0.025 * i / WHIP_N);
+    q.tip.setLocalPosition(q.x[WHIP_N], q.y[WHIP_N], 0.05); q.tip.setLocalScale(0.13, 0.13, 0.13);
+  }
+  // trail of tip positions (song-time stamped). Raw mode: points only at real samples, so the
+  // trail is a polyline of 15 Hz steps. Smooth mode / whip: a point every rendered frame.
+  const tip = tipOf(q, w, u), tr = q.trail, last = tr[tr.length - 1];
+  const moved = !last || Math.hypot(tip[0] - last.x, tip[1] - last.y) > 1e-5;
+  if (moved) tr.push({ x: tip[0], y: tip[1], t: S.t, sample: S.mode === 'raw' && q.kind !== 'whip' && newSample });
+  while (tr.length > 2 && tr[1].t < S.t - S.trailMs) tr.shift();
+}
+function advance(dtMs) {
+  const prevT = S.t;
+  S.t += dtMs;
+  if (S.t >= W1 || S.t < W0) { S.t = W0 + ((S.t - W0) % (W1 - W0) + (W1 - W0)) % (W1 - W0); resetSim(); }
+  const sp = shownPose(S.t), newSample = sp.k !== lastK; lastK = sp.k;
+  S.pose = sp.pose; S.k = sp.k; S.measured = sp.measured;
+  for (const s of stages) { updateEquip(s.hands.l, sp.pose.lw, sp.pose.le, dtMs, newSample); updateEquip(s.hands.r, sp.pose.rw, sp.pose.re, dtMs, newSample); }
+  if (newSample) S.infoDirty = true;
+  void prevT;
+}
+
+// ---------- per-frame overlay drawing ----------
+const GRID = [0.13, 0.16, 0.24], BOX = [0.26, 0.31, 0.44], BONE = [0.2, 0.21, 0.25];
+const ARROW = { up: [0, 1], down: [0, -1], left: [-1, 0], right: [1, 0], 'up-left': [-0.7071, 0.7071], 'up-right': [0.7071, 0.7071], 'down-left': [-0.7071, -0.7071], 'down-right': [0.7071, -0.7071] };
+function drawStage(s) {
+  const ox = s.ox, B = back, F = front;
+  const top = VIEW.cy + VIEW.h / 2, mc = S.mode === 'raw' ? [1, 0.6, 0.18] : [0.25, 0.85, 0.9];
+  B.rect(ox + VIEW.cx, top - 0.03, VIEW.w / 2, 0.06, mc);
+  // 4x3 note grid = calibration box (judge space x -0.5..3.5, y -0.5..2.5)
+  for (let i = 0; i <= 4; i++) B.seg(ox - 0.5 + i, -0.5, ox - 0.5 + i, 2.5, i % 4 ? 0.012 : 0.03, i % 4 ? 0.012 : 0.03, i % 4 ? GRID : BOX);
+  for (let j = 0; j <= 3; j++) B.seg(ox - 0.5, -0.5 + j, ox + 3.5, -0.5 + j, j % 3 ? 0.012 : 0.03, j % 3 ? 0.012 : 0.03, j % 3 ? GRID : BOX);
+  // note cues: approach square closes onto the cell at the beat; fill flash on the beat
+  for (const n of NOTES) {
+    const dt = S.t - n.t; if (dt < -650 || dt > 400 || n.placement == null) continue;
+    const col = COL[n.hand === 'left' ? 'l' : 'r'], cx = ox + (n.placement % 4), cy = 2 - Math.floor(n.placement / 4);
+    const k = dt < 0 ? Math.pow(1 + dt / 650, 1.5) : Math.max(0, 1 - dt / 400);
+    B.box(cx, cy, 0.42, 0.04, sc(col, 0.9 * k));
+    if (dt < 0) B.box(cx, cy, 0.42 + 0.55 * (-dt / 650), 0.025, sc(col, 0.6 * k));
+    if (dt >= 0 && dt < 160) B.rect(cx, cy, 0.4, 0.4, sc(col, 0.45 * (1 - dt / 160)));
+    const d = ARROW[n.dir];
+    if (d) { const ax = cx - d[0] * 0.2, ay = cy - d[1] * 0.2, bx = cx + d[0] * 0.2, by = cy + d[1] * 0.2, ac = sc(col, 0.8 * k);
+      B.seg(ax, ay, bx, by, 0.04, 0.04, ac);
+      for (const sgn of [1, -1]) { const rx = -d[0] * 0.7071 - sgn * d[1] * 0.7071, ry = -d[1] * 0.7071 + sgn * d[0] * 0.7071; B.seg(bx, by, bx + rx * 0.14, by + ry * 0.14, 0.04, 0.04, ac); } }
+    else B.circle(cx, cy, 0.12, 0.035, sc(col, 0.8 * k), 12);
+    if (n.hitT != null) { const f = (S.t - n.hitT) / 260; if (f >= 0 && f <= 1) F.circle(cx, cy, 0.3 + 0.35 * f, 0.035 * (1 - f) + 0.008, sc([1, 1, 1], 0.7 * (1 - f)), 24); }
+    if (n.result === 'miss') { const f = (S.t - n.t - 180) / 500; if (f >= 0 && f <= 1) { const c = sc([1, 0.2, 0.2], 1 - f); F.seg(cx - 0.3, cy - 0.3, cx + 0.3, cy + 0.3, 0.06, 0.06, c); F.seg(cx - 0.3, cy + 0.3, cx + 0.3, cy - 0.3, 0.06, 0.06, c); } }
+  }
+  // faint skeleton of the pose the game had (same pose that drives the equipment)
+  const p = S.pose, X = (a) => ox + a[0];
+  const bone = (a, b, w = 0.03) => B.seg(X(a), a[1], X(b), b[1], w, w, BONE);
+  bone(p.ls, p.rs); bone(p.ls, p.le); bone(p.le, p.lw); bone(p.rs, p.re); bone(p.re, p.rw); B.circle(X(p.n), p.n[1], 0.16, 0.03, BONE, 14);
+  // hindsight ghost: where the wrist actually was right now (no pipeline latency)
+  if (S.ghost) { const g = truePose(S.t); for (const h of ['l', 'r']) { const w = g[h + 'w'], d = p[h + 'w'];
+    F.seg(ox + d[0], d[1], ox + w[0], w[1], 0.03, 0.012, [0.9, 0.25, 0.2], [0.9, 0.25, 0.2]);           // lag: shown wrist -> real wrist
+    F.circle(ox + w[0], w[1], 0.13, 0.04, [0.95, 0.3, 0.25], 18); } }
+  // tip trails
+  for (const h of ['l', 'r']) {
+    const tr = s.hands[h].trail, col = mix(COL[h], [1, 0.95, 0.6], 0.35);
+    for (let i = 1; i < tr.length; i++) {
+      const a = tr[i - 1], b = tr[i];
+      const fa = Math.max(0, 1 - (S.t - a.t) / S.trailMs), fb = Math.max(0, 1 - (S.t - b.t) / S.trailMs);
+      B.seg(ox + a.x, a.y, ox + b.x, b.y, 0.012 + 0.05 * fa * fa, 0.012 + 0.05 * fb * fb, sc(col, 0.65 * fa), sc(col, 0.65 * fb));
+    }
+    for (const pt of tr) if (pt.sample) { const f = Math.max(0, 1 - (S.t - pt.t) / S.trailMs); B.rect(ox + pt.x, pt.y, 0.04, 0.04, sc(WHITE, 0.85 * f)); }
+  }
+}
+
+// ---------- info panel ----------
+const fmt = (ms) => { const s = ms / 1000; return `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`; };
+function drawInfo() {
+  const c = info.ctx, Wc = info.cv.width; c.clearRect(0, 0, Wc, info.cv.height);
+  const raw = S.mode === 'raw';
+  c.fillStyle = raw ? '#ffb347' : '#5ee0e6'; c.fillRect(30, 30, Wc - 60, 150);
+  c.fillStyle = '#0a0d16'; c.textBaseline = 'middle'; c.font = 'bold 84px sans-serif';
+  c.fillText(raw ? 'RAW' : 'SMOOTHED', 56, 92);
+  c.font = '34px sans-serif'; c.fillText(raw ? `held step-wise at the real ${data.latency.poseHz} Hz` : 'linear interpolation, +1 pose interval delay', 58, 150);
+  c.textBaseline = 'top'; c.fillStyle = '#e8ecf5'; c.font = 'bold 40px sans-serif';
+  c.fillText(`${data.song.split(' (')[0]}  ${data.difficulty} Flow`, 34, 210);
+  c.font = '34px sans-serif'; c.fillStyle = '#b7c0d6';
+  c.fillText(`song ${fmt(S.t)}   excerpt ${fmt(W0)} to ${fmt(W1)}   ${S.speed !== 1 ? S.speed + 'x  ' : ''}${S.paused ? 'PAUSED' : ''}`, 34, 262);
+  // progress bar with note ticks
+  const bx = 34, by = 318, bw = Wc - 68; c.fillStyle = '#1b2236'; c.fillRect(bx, by, bw, 26);
+  for (const n of NOTES) { if (n.t < W0 || n.t > W1) continue; c.fillStyle = n.result === 'miss' ? '#ff4d4d' : n.hand === 'left' ? '#2693FF' : '#39C96B'; c.fillRect(bx + (n.t - W0) / (W1 - W0) * bw, by + (n.hand === 'left' ? 0 : 13), 2, 13); }
+  c.fillStyle = '#fff'; c.fillRect(bx + (S.t - W0) / (W1 - W0) * bw - 2, by - 6, 4, 38);
+  c.fillStyle = '#e8ecf5'; c.font = 'bold 36px sans-serif'; c.fillText('Measured from this run', 34, 380);
+  c.font = '32px sans-serif'; c.fillStyle = '#b7c0d6';
+  const L = data.latency;
+  c.fillText(`camera frame to first rendered frame: ${L.medianMs} ms median, ${L.p90Ms} ms p90`, 34, 428);
+  c.fillText(`pose updates: ${L.poseHz} Hz (one every ~${Math.round(1000 / L.poseHz)} ms)`, 34, 470);
+  const age = S.t - (S.measured ?? S.t);
+  c.fillStyle = '#ffffff'; c.fillText(`age of pose on screen now: ${Math.round(age)} ms`, 34, 512);
+  c.fillStyle = '#e8ecf5'; c.font = 'bold 36px sans-serif'; c.fillText('Legend', 34, 576);
+  c.font = '32px sans-serif';
+  c.fillStyle = '#2693FF'; c.fillText('left hand', 34, 622); c.fillStyle = '#39C96B'; c.fillText('right hand', 230, 622);
+  c.fillStyle = '#b7c0d6'; c.fillText('white squares on trails = real pose samples', 34, 664);
+  c.fillStyle = '#f2564a'; c.fillText(`red ring + line = where the wrist really was ${S.ghost ? '' : '(off)'}`, 34, 706); c.fillStyle = '#b7c0d6';
+  c.fillText('note square closes on its cell at the beat; ring = hit', 34, 748);
+  c.fillStyle = '#e8ecf5'; c.font = 'bold 36px sans-serif'; c.fillText('Keys', 34, 812);
+  c.font = '32px sans-serif'; c.fillStyle = '#b7c0d6';
+  c.fillText(`S raw/smooth   G ghost   T trail ${S.trailMs} ms   Z slow-mo`, 34, 858);
+  c.fillText('Space pause   , . step   R restart', 34, 900);
+  info.upload(); S.infoDirty = false;
+  if (S.badgeMode !== S.mode) { S.badgeMode = S.mode; for (const st of stages) { const b = st.badge.ctx; b.clearRect(0, 0, 280, 80); b.fillStyle = raw ? '#ffb347' : '#5ee0e6'; b.beginPath(); b.roundRect(4, 4, 272, 72, 14); b.fill(); b.fillStyle = '#0a0d16'; b.font = 'bold 46px sans-serif'; b.textAlign = 'center'; b.textBaseline = 'middle'; b.fillText(raw ? 'RAW' : 'SMOOTH', 140, 42); st.badge.upload(); } }
+}
+
+// ---------- loop ----------
+let lastNow = performance.now(), frames = 0, fpsT = lastNow; S.fps = 0;
+function render() {
+  back.begin(); front.begin();
+  for (const s of stages) drawStage(s);
+  back.end(); front.end();
+  if (S.infoDirty || S.t - (S.infoT ?? -1e9) > 200 || S.t < (S.infoT ?? 0)) { drawInfo(); S.infoT = S.t; }
+}
+app.on('update', () => {
+  const now = performance.now(), dt = Math.min(100, now - lastNow); lastNow = now;
+  frames++; if (now - fpsT > 1000) { S.fps = frames * 1000 / (now - fpsT); frames = 0; fpsT = now; }
+  if (!S.paused && !S.manual) advance(dt * S.speed);
+  render();
+});
+function setMode(m) { S.mode = m; S.infoDirty = true; resetSim(); }
+window.addEventListener('keydown', (ev) => {
+  const k = ev.key.toLowerCase();
+  if (k === 's' || k === 'm') setMode(S.mode === 'raw' ? 'smooth' : 'raw');
+  else if (k === 'g') { S.ghost = !S.ghost; S.infoDirty = true; }
+  else if (k === 't') { S.trailMs = TRAILS[(TRAILS.indexOf(S.trailMs) + 1) % TRAILS.length]; S.infoDirty = true; }
+  else if (k === 'z') { S.speed = S.speed === 1 ? 0.25 : 1; S.infoDirty = true; }
+  else if (k === ' ') { S.paused = !S.paused; S.infoDirty = true; ev.preventDefault(); }
+  else if (k === 'r') { S.t = W0; resetSim(); }
+  else if (k === '.' && S.paused) advance(1000 / 60);
+  else if (k === ',' && S.paused) seek(S.t - 1000 / 60);
+});
+// deterministic hooks for captures
+function seek(ms, warmMs = 1500) {
+  const target = Math.max(W0, Math.min(W1 - 1, ms));
+  resetSim(); S.t = Math.max(W0, target - warmMs);
+  while (S.t < target - 1e-6) advance(Math.min(1000 / 60, target - S.t));
+  S.paused = true; S.infoDirty = true; render();
+}
+window.__replay = {
+  seek, setMode, data,
+  step(ms) { S.manual = true; advance(ms); render(); },
+  state: () => ({ t: S.t, mode: S.mode, k: S.k, fps: S.fps, trailMs: S.trailMs, paused: S.paused }),
+  set(o) { Object.assign(S, o); S.infoDirty = true; },
+};
+layout();
+const startT = Number(qs.get('t') ?? NaN);
+if (Number.isFinite(startT)) seek(startT); else { S.t = W0; advance(0); }
+if (qs.get('pause') !== '1' && Number.isFinite(startT)) S.paused = false;
+app.start();
+requestAnimationFrame(() => requestAnimationFrame(() => { layout(); window.__compReady = true; }));
+</script></body></html>

@@ -19,6 +19,6 @@ Each comp folder also has `DESIGN.md` (plan and critique log) and `shot-idle.png
 
 | Item | Status | Open |
 |---|---|---|
-| Equipment replay (real wrist motion) | running | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/equipment-replay/index.html` |
+| Equipment replay (real wrist motion) | done: saber worst, glove/orb hide lag, whip smooths but drifts; also see video-raw.webm, video-smooth.webm | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/equipment-replay/index.html` |
 | Attract / loading flow | running | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/attract-flow/index.html` |
 | Corner Pause check | done | `/home/derrick/.dsh/projects/aerobeat/aerobeat-web-assembly/design/corner-check/RESULTS.md` |

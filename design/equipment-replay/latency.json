@@ -1,0 +1,58 @@
+{
+  "method": "tick.timestampMs of the first display frame whose inputIndex references a body-grid snapshot, minus that snapshot's anchor measurementTimestampMs (both performance.now()).",
+  "playingPoses": 2661,
+  "latencyMs": {
+    "min": 35.5,
+    "p10": 37.1,
+    "median": 42.7,
+    "p90": 44.3,
+    "p99": 49.5,
+    "max": 61.3
+  },
+  "poseIntervalMs": {
+    "p10": 62.6,
+    "median": 68,
+    "p90": 70.3,
+    "max": 84.7,
+    "over100ms": 0
+  },
+  "poseRateHz": {
+    "fromMedianInterval": 14.7,
+    "fromCount": 14.9
+  },
+  "displayFrameMs": {
+    "median": 6.9,
+    "p90": 7.1,
+    "rateHz": 144.9
+  },
+  "ageOnScreenMs": {
+    "median": 71.7,
+    "p90": 99,
+    "mean": 72.1
+  },
+  "allAnchorsShareOneMeasurementTimestamp": true,
+  "provenance": [
+    [
+      "measured",
+      2661
+    ]
+  ],
+  "recordingStatus": {
+    "status": "truncated",
+    "reason": "recording_limit",
+    "lastSongMs": 178272
+  },
+  "window": {
+    "startMs": 76000,
+    "endMs": 121000,
+    "notes": 167
+  },
+  "windowStats": {
+    "medianMs": 42.7,
+    "p90Ms": 44.3,
+    "poseHz": 14.7,
+    "windowMedianMs": 42.8,
+    "windowP90Ms": 44.3,
+    "windowIntervalMedianMs": 66.7
+  }
+}
