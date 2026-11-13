@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AeroBeat — Wii Channel comp</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#F4F7FA}canvas{width:100%;height:100%;display:block;touch-action:none}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script type="module">
+import * as pc from '../_shared/playcanvas.min.mjs';
+import { createHands } from '../_shared/hands.mjs';
+import { content, coverUrl } from '../_shared/content.mjs';
+
+// ---------------------------------------------------------------- tokens
+const C = {
+  cloud: '#F4F7FA', mist: '#DDE4EB', pebble: '#667384', slate: '#2E3A48',
+  sky: '#1696E0', tangerine: '#FF8A1E', white: '#FFFFFF',
+};
+const WRIST = [C.sky, C.tangerine];            // left, right
+const FONT = 'ABRound';
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const BPM = 120;
+
+const rgb = (hex, a = 1) => {
+  const n = parseInt(hex.slice(1), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, a];
+};
+const pre = ([r, g, b, a]) => new Float32Array([r * a, g * a, b * a, a]); // premultiplied tint
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp01 = (t) => Math.max(0, Math.min(1, t));
+const easeOut = (t) => 1 - Math.pow(1 - clamp01(t), 3);
+const easeInOut = (t) => { t = clamp01(t); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const backOut = (t) => { t = clamp01(t); const s = 1.70158; return 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2); };
+
+// ---------------------------------------------------------------- app
+const canvas = document.getElementById('c');
+const app = new pc.Application(canvas, { graphicsDeviceOptions: { antialias: false, alpha: false } });
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+window.addEventListener('resize', () => app.resizeCanvas());
+const device = app.graphicsDevice;
+
+// Camera: at z=10 with a 53.13° vertical fov, the z=0 plane maps 100 screen px to 1 world unit
+// on a 1600x1000 viewport, so layout can be written in screen pixels.
+const camera = new pc.Entity('camera');
+camera.addComponent('camera', {
+  clearColor: new pc.Color(...rgb(C.cloud)), fov: 2 * Math.atan(0.5) * 180 / Math.PI,
+  nearClip: 1, farClip: 40,
+});
+camera.camera.toneMapping = pc.TONEMAP_LINEAR;
+camera.camera.gammaCorrection = pc.GAMMA_SRGB;
+camera.setPosition(0, 0, 10);
+app.root.addChild(camera);
+
+app.scene.ambientLight = new pc.Color(0.70, 0.73, 0.78);
+function dirLight(dir, intensity, color = [1, 1, 1]) {
+  const e = new pc.Entity();
+  e.addComponent('light', { type: 'directional', color: new pc.Color(...color), intensity, castShadows: false });
+  const q = new pc.Quat().setFromDirections(new pc.Vec3(0, -1, 0), new pc.Vec3(...dir).normalize());
+  e.setRotation(q);
+  app.root.addChild(e);
+  return e;
+}
+dirLight([0.42, -0.62, -0.66], 0.55);                    // key from upper left, in front
+dirLight([-0.5, 0.35, -0.8], 0.12, [0.85, 0.92, 1.0]);   // cool fill from lower right
+
+const px = (x) => x / 100;                       // screen px -> world units at z=0
+const wx = (x) => x / 100 - 8;
+const wy = (y) => 5 - y / 100;
+
+// ---------------------------------------------------------------- materials
+const UNLIT_VS = `
+attribute vec3 vertex_position;
+attribute vec2 vertex_texCoord0;
+uniform mat4 matrix_model;
+uniform mat4 matrix_viewProjection;
+varying vec2 vUv;
+void main(void) {
+  vUv = vertex_texCoord0;
+  gl_Position = matrix_viewProjection * matrix_model * vec4(vertex_position, 1.0);
+}`;
+const UNLIT_FS = `
+uniform sampler2D uTex;
+uniform vec4 uTint;
+varying vec2 vUv;
+void main(void) {
+  gl_FragColor = texture2D(uTex, vUv) * uTint;
+}`;
+function unlitMaterial({ blend = true, depthTest = true, name = 'unlit' } = {}) {
+  const m = new pc.ShaderMaterial({
+    uniqueName: 'wiiUnlit', vertexGLSL: UNLIT_VS, fragmentGLSL: UNLIT_FS,
+    attributes: { vertex_position: pc.SEMANTIC_POSITION, vertex_texCoord0: pc.SEMANTIC_TEXCOORD0 },
+  });
+  m.name = name;
+  m.cull = pc.CULLFACE_NONE;
+  if (blend) { m.blendType = pc.BLEND_PREMULTIPLIED; m.depthWrite = false; }
+  m.depthTest = depthTest;
+  m.update();
+  return m;
+}
+const MAT_UNLIT = unlitMaterial();
+const MAT_OPAQUE = unlitMaterial({ blend: false, name: 'opaque' }); // the shelf band
+const MAT_OVERLAY = unlitMaterial({ depthTest: false, name: 'overlay' });
+// Opaque with alpha-tested edges: for faces, covers and cards (no blending cost).
+const CUTOUT_FS = `
+uniform sampler2D uTex;
+uniform vec4 uTint;
+varying vec2 vUv;
+void main(void) {
+  vec4 c = texture2D(uTex, vUv);
+  if (c.a < 0.5) discard;
+  gl_FragColor = vec4(c.rgb / c.a * uTint.rgb, 1.0);
+}`;
+const MAT_CUTOUT = (() => {
+  const m = new pc.ShaderMaterial({
+    uniqueName: 'wiiCutout', vertexGLSL: UNLIT_VS, fragmentGLSL: CUTOUT_FS,
+    attributes: { vertex_position: pc.SEMANTIC_POSITION, vertex_texCoord0: pc.SEMANTIC_TEXCOORD0 },
+  });
+  m.cull = pc.CULLFACE_NONE; m.update();
+  return m;
+})();
+
+// Glossy plastic, lit per vertex (cheap enough for software rendering): a warm key light from
+// the upper left, a cool sky/floor hemisphere, and a Blinn highlight that slides along the bevels.
+const PLASTIC_VS = `
+attribute vec3 vertex_position;
+attribute vec3 vertex_normal;
+uniform mat4 matrix_model;
+uniform mat3 matrix_normal;
+uniform mat4 matrix_viewProjection;
+uniform vec3 view_position;
+uniform vec3 uBase;
+uniform float uGloss;
+uniform float uDim;
+varying vec3 vColor;
+void main(void) {
+  vec4 wp = matrix_model * vec4(vertex_position, 1.0);
+  vec3 n = normalize(matrix_normal * vertex_normal);
+  vec3 L = normalize(vec3(-0.45, 0.62, 0.64));
+  vec3 V = normalize(view_position - wp.xyz);
+  float hemi = 0.5 + 0.5 * n.y;
+  vec3 ambient = mix(vec3(0.70, 0.74, 0.80), vec3(0.93, 0.95, 0.98), hemi);
+  float diff = max(dot(n, L), 0.0);
+  float spec = pow(max(dot(n, normalize(L + V)), 0.0), 40.0) * uGloss * (1.0 - n.z * 0.85);
+  float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * 0.12;
+  // normalised so a surface facing the camera shows exactly uBase (matches the printed faces)
+  vec3 front = vec3(0.835, 0.852, 0.877);
+  vColor = (uBase * (ambient * 0.75 + diff * vec3(0.35, 0.34, 0.325)) / front + vec3(spec + rim)) * uDim;
+  gl_Position = matrix_viewProjection * wp;
+}`;
+const PLASTIC_FS = `
+varying vec3 vColor;
+void main(void) { gl_FragColor = vec4(vColor, 1.0); }`;
+function plastic(hex, gloss = 0.55) {
+  const m = new pc.ShaderMaterial({
+    uniqueName: 'wiiPlastic', vertexGLSL: PLASTIC_VS, fragmentGLSL: PLASTIC_FS,
+    attributes: { vertex_position: pc.SEMANTIC_POSITION, vertex_normal: pc.SEMANTIC_NORMAL },
+  });
+  m.setParameter('uBase', rgb(hex).slice(0, 3));
+  m.setParameter('uGloss', gloss);
+  m.setParameter('uDim', 1);
+  m.update();
+  return m;
+}
+const PLASTIC = '#F7F9FB', PLASTIC_MIST = '#E3E9EF';
+const MAT_WHITE = plastic(PLASTIC);
+const MAT_MIST = plastic(PLASTIC_MIST, 0.35);
+
+// ---------------------------------------------------------------- textures
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+function canvasTexture(cv, mipmaps = true) {
+  const t = new pc.Texture(device, {
+    width: cv.width, height: cv.height, format: pc.PIXELFORMAT_RGBA8, mipmaps,
+    minFilter: mipmaps ? pc.FILTER_LINEAR_MIPMAP_LINEAR : pc.FILTER_LINEAR, magFilter: pc.FILTER_LINEAR,
+    addressU: pc.ADDRESS_CLAMP_TO_EDGE, addressV: pc.ADDRESS_CLAMP_TO_EDGE, premultiplyAlpha: true,
+  });
+  t.anisotropy = 1;
+  t.setSource(cv);
+  return t;
+}
+function refresh(tex, cv) { tex.setSource(cv); }
+
+const WHITE_TEX = (() => { const c = makeCanvas(4, 4); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 4, 4); return canvasTexture(c, false); })();
+
+function softRectTexture(w, h, r, blur) {
+  const pad = blur * 2;
+  const c = makeCanvas(w + pad * 2, h + pad * 2); const g = c.getContext('2d');
+  g.filter = `blur(${blur}px)`; g.fillStyle = '#fff';
+  g.beginPath(); g.roundRect(pad, pad, w, h, r); g.fill();
+  return { tex: canvasTexture(c), pad };
+}
+function discTexture(size, draw) {
+  const c = makeCanvas(size, size); const g = c.getContext('2d'); draw(g, size); return canvasTexture(c);
+}
+const DISC_TEX = discTexture(64, (g, s) => { g.fillStyle = '#fff'; g.beginPath(); g.arc(s / 2, s / 2, s / 2 - 1, 0, Math.PI * 2); g.fill(); });
+
+// ---------------------------------------------------------------- meshes
+function quadMesh() {
+  const m = new pc.Mesh(device);
+  m.setPositions([-.5, -.5, 0, .5, -.5, 0, .5, .5, 0, -.5, .5, 0]);
+  m.setUvs(0, [0, 1, 1, 1, 1, 0, 0, 0]);
+  m.setIndices([0, 1, 2, 0, 2, 3]);
+  m.update(pc.PRIMITIVE_TRIANGLES);
+  return m;
+}
+const QUAD = quadMesh();
+
+// A quad with its middle cut out, for soft shadows and halos whose centre is always hidden
+// behind an opaque slab. Saves most of the blended fill on a software renderer.
+const frameMeshes = {};
+function frameMesh(mx, my) {
+  const key = mx.toFixed(3) + ':' + my.toFixed(3);
+  if (frameMeshes[key]) return frameMeshes[key];
+  const xs = [-.5, -.5 + mx, .5 - mx, .5], ys = [-.5, -.5 + my, .5 - my, .5];
+  const pos = [], uv = [], idx = [];
+  for (let j = 0; j < 4; j += 1) for (let i = 0; i < 4; i += 1) { pos.push(xs[i], ys[j], 0); uv.push(xs[i] + .5, .5 - ys[j]); }
+  for (let j = 0; j < 3; j += 1) for (let i = 0; i < 3; i += 1) {
+    if (i === 1 && j === 1) continue;
+    const a = j * 4 + i; idx.push(a, a + 1, a + 5, a, a + 5, a + 4);
+  }
+  const m = new pc.Mesh(device); m.setPositions(pos); m.setUvs(0, uv); m.setIndices(idx); m.update(pc.PRIMITIVE_TRIANGLES);
+  frameMeshes[key] = m;
+  return m;
+}
+
+function quad(parent, w, h, tex, { x = 0, y = 0, z = 0, tint = [1, 1, 1, 1], mat = MAT_UNLIT, name = 'quad', mesh = QUAD } = {}) {
+  const e = new pc.Entity(name);
+  const mi = new pc.MeshInstance(mesh, mat);
+  mi.setParameter('uTex', tex);
+  mi.setParameter('uTint', pre(tint));
+  e.addComponent('render', { meshInstances: [mi], castShadows: false, receiveShadows: false });
+  e.setLocalPosition(x, y, z);
+  e.setLocalScale(w, h, 1);
+  e.mi = mi;
+  e.tint = (t) => mi.setParameter('uTint', pre(t));
+  parent.addChild(e);
+  return e;
+}
+
+// Rounded-rectangle outline, counter-clockwise, with outward normals.
+function roundedOutline(w, h, R, seg = 10) {
+  const hw = w / 2, hh = h / 2; R = Math.min(R, hw, hh);
+  const pts = [];
+  const corners = [[hw - R, hh - R, 0], [-(hw - R), hh - R, 90], [-(hw - R), -(hh - R), 180], [hw - R, -(hh - R), 270]];
+  for (const [cx, cy, a0] of corners) {
+    for (let i = 0; i <= seg; i += 1) {
+      const a = (a0 + 90 * i / seg) * Math.PI / 180;
+      pts.push({ x: cx + R * Math.cos(a), y: cy + R * Math.sin(a), nx: Math.cos(a), ny: Math.sin(a) });
+    }
+  }
+  return pts;
+}
+
+// A thick plastic slab: flat front face, quarter-round bevel, straight side walls.
+function slabMesh(w, h, R, depth, bevel) {
+  const o = roundedOutline(w, h, R, 12); const n = o.length; const K = 6;
+  const pos = [0, 0, 0], nor = [0, 0, 1], uv = [.5, .5], idx = [];
+  const rings = [];
+  for (let k = 0; k <= K; k += 1) {
+    const th = (k / K) * Math.PI / 2, s = Math.sin(th), c = Math.cos(th);
+    rings.push(pos.length / 3);
+    for (const p of o) {
+      const x = p.x - p.nx * bevel * (1 - s), y = p.y - p.ny * bevel * (1 - s), z = -bevel + bevel * c;
+      pos.push(x, y, z); nor.push(p.nx * s, p.ny * s, c); uv.push(x / w + .5, .5 - y / h);
+    }
+  }
+  const back = pos.length / 3;
+  for (const p of o) { pos.push(p.x, p.y, -depth); nor.push(p.nx, p.ny, 0); uv.push(p.x / w + .5, .5 - p.y / h); }
+  for (let i = 0; i < n; i += 1) { const j = (i + 1) % n; idx.push(0, rings[0] + i, rings[0] + j); }
+  const strip = (A, B) => {
+    for (let i = 0; i < n; i += 1) {
+      const j = (i + 1) % n; const a = A + i, b = A + j, c = B + i, d = B + j;
+      idx.push(a, c, b, b, c, d);
+    }
+  };
+  for (let k = 0; k < K; k += 1) strip(rings[k], rings[k + 1]);
+  strip(rings[K], back);
+  const m = new pc.Mesh(device);
+  m.setPositions(pos); m.setNormals(nor); m.setUvs(0, uv); m.setIndices(idx);
+  m.update(pc.PRIMITIVE_TRIANGLES);
+  return m;
+}
+function slab(parent, w, h, R, depth, bevel, mat, name = 'slab') {
+  const e = new pc.Entity(name);
+  const mi = new pc.MeshInstance(slabMesh(w, h, R, depth, bevel), mat);
+  e.addComponent('render', { meshInstances: [mi] });
+  e.dim = (v) => mi.setParameter('uDim', v);
+  parent.addChild(e);
+  return e;
+}
+
+// Half of a rounded-rect perimeter, from bottom centre round one side to top centre.
+function halfPath(w, h, R, side, seg = 14) {
+  const hw = w / 2, hh = h / 2; R = Math.min(R, hw, hh);
+  const pts = [];
+  const add = (x, y, nx, ny) => pts.push({ x: side * x, y, nx: side * nx, ny });
+  add(0, -hh, 0, -1);
+  for (let i = 0; i <= seg; i += 1) { const a = -Math.PI / 2 + (Math.PI / 2) * i / seg; add(hw - R + R * Math.cos(a), -(hh - R) + R * Math.sin(a), Math.cos(a), Math.sin(a)); }
+  for (let i = 0; i <= seg; i += 1) { const a = (Math.PI / 2) * i / seg; add(hw - R + R * Math.cos(a), (hh - R) + R * Math.sin(a), Math.cos(a), Math.sin(a)); }
+  add(0, hh, 0, 1);
+  let L = 0; pts[0].len = 0;
+  for (let i = 1; i < pts.length; i += 1) { L += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); pts[i].len = L; }
+  return { pts, total: L };
+}
+
+// A growing stroke along a half path. Unused vertices collapse onto the tip.
+class HalfRing {
+  constructor(parent, w, h, R, side, offset, width, color) {
+    this.path = halfPath(w + offset * 2, h + offset * 2, R + offset, side);
+    this.width = width;
+    const n = this.path.pts.length + 1;
+    this.n = n;
+    this.pos = new Float32Array(n * 2 * 3);
+    const idx = [];
+    for (let i = 0; i < n - 1; i += 1) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    this.mesh = new pc.Mesh(device);
+    this.mesh.setPositions(this.pos); this.mesh.setUvs(0, new Float32Array(n * 2 * 2).fill(.5)); this.mesh.setIndices(idx);
+    this.mesh.update(pc.PRIMITIVE_TRIANGLES);
+    this.entity = new pc.Entity('half-ring');
+    this.mi = new pc.MeshInstance(this.mesh, MAT_UNLIT);
+    this.mi.setParameter('uTex', WHITE_TEX);
+    this.color = color;
+    this.mi.setParameter('uTint', pre(rgb(color)));
+    this.entity.addComponent('render', { meshInstances: [this.mi], castShadows: false });
+    parent.addChild(this.entity);
+    this.tip = { x: 0, y: 0 };
+  }
+  set(progress, alpha = 1) {
+    const { pts, total } = this.path; const L = progress * total; const hw = this.width / 2;
+    let k = 0, tip = null;
+    for (let i = 0; i < pts.length; i += 1) {
+      let p = pts[i];
+      if (p.len > L) {
+        const a = pts[i - 1], t = (L - a.len) / Math.max(1e-6, p.len - a.len);
+        p = { x: lerp(a.x, p.x, t), y: lerp(a.y, p.y, t), nx: lerp(a.nx, p.nx, t), ny: lerp(a.ny, p.ny, t) };
+        tip = p;
+      }
+      this.pos.set([p.x - p.nx * hw, p.y - p.ny * hw, 0, p.x + p.nx * hw, p.y + p.ny * hw, 0], k * 6); k += 1;
+      if (tip) break;
+    }
+    if (!tip) tip = pts[pts.length - 1];
+    for (; k < this.n; k += 1) this.pos.set([tip.x, tip.y, 0, tip.x, tip.y, 0], k * 6);
+    this.tip = tip;
+    this.mesh.setPositions(this.pos); this.mesh.update(pc.PRIMITIVE_TRIANGLES);
+    this.mi.setParameter('uTint', pre(rgb(this.color, alpha)));
+  }
+}
+
+// ---------------------------------------------------------------- springs
+class Spring {
+  constructor(x = 0, k = 190, c = 13) { this.x = x; this.v = 0; this.t = x; this.k = k; this.c = c; }
+  step(dt) {
+    let rest = dt;
+    while (rest > 0) { const h = Math.min(rest, 1 / 120); const a = (this.t - this.x) * this.k - this.v * this.c; this.v += a * h; this.x += this.v * h; rest -= h; }
+    return this.x;
+  }
+}
+
+// ---------------------------------------------------------------- loading
+async function loadFonts() {
+  const faces = [
+    new FontFace(FONT, 'url(fonts/MPLUSRounded1c-Medium-latin.woff2)', { weight: '500' }),
+    new FontFace(FONT, 'url(fonts/MPLUSRounded1c-ExtraBold-latin.woff2)', { weight: '800' }),
+  ];
+  for (const f of faces) { await f.load(); document.fonts.add(f); }
+}
+function loadImage(url) {
+  return new Promise((ok) => {
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => ok(img);
+    img.onerror = () => { console.error('cover failed ' + url); ok(null); };
+    img.src = url;
+  });
+}
+
+// ---------------------------------------------------------------- canvas drawing
+const S = 2; // texture pixels per screen pixel
+function font(weight, size) { return `${weight} ${size * S}px ${FONT}`; }
+function drawCover(g, img, x, y, w, h, r) {
+  g.save(); g.beginPath(); g.roundRect(x, y, w, h, r); g.clip();
+  if (img) {
+    const s = Math.max(w / img.width, h / img.height);
+    g.drawImage(img, x + (w - img.width * s) / 2, y + (h - img.height * s) / 2, img.width * s, img.height * s);
+  } else { g.fillStyle = C.mist; g.fillRect(x, y, w, h); }
+  g.restore();
+}
+// Faces are printed onto the flat front of their slab: background colour inside the bevel line.
+function faceBase(g, w, h, r, bevel, col) {
+  g.fillStyle = col; g.beginPath(); g.roundRect(bevel * S, bevel * S, (w - bevel * 2) * S, (h - bevel * 2) * S, Math.max(2, r - bevel) * S); g.fill();
+}
+function drawMosaic(g, imgs, x, y, size, r) {
+  const gap = 4 * S, cell = (size - gap) / 2;
+  g.save(); g.beginPath(); g.roundRect(x, y, size, size, r); g.clip();
+  g.fillStyle = '#fff'; g.fillRect(x, y, size, size);
+  imgs.slice(0, 4).forEach((img, i) => drawCover(g, img, x + (i % 2) * (cell + gap), y + Math.floor(i / 2) * (cell + gap), cell, cell, 0));
+  g.restore();
+}
+function fitLines(g, words, weight, size, maxW) {
+  // Break a name into at most two lines that fit, shrinking only if a single word is too wide.
+  let s = size;
+  for (;;) {
+    g.font = font(weight, s);
+    const lines = [];
+    let cur = '';
+    for (const w of words.split(' ')) {
+      const t = cur ? cur + ' ' + w : w;
+      if (g.measureText(t).width <= maxW * S || !cur) cur = t; else { lines.push(cur); cur = w; }
+    }
+    lines.push(cur);
+    if ((lines.length <= 2 && lines.every((l) => g.measureText(l).width <= maxW * S)) || s <= 28) return { lines, size: s };
+    s -= 2;
+  }
+}
+
+// ---------------------------------------------------------------- scene
+const world = new pc.Entity('world'); app.root.addChild(world);
+const WALL_Z = -0.5;
+
+// Wall: the clear colour is Cloud; a Mist shelf band sits behind the recommended row, with a lit lip.
+const WALL_K = (10 - WALL_Z) / 10;
+const shelfCv = makeCanvas(64, 256);
+{
+  const g = shelfCv.getContext('2d');
+  g.fillStyle = C.mist; g.fillRect(0, 0, 64, 256);
+  const lip = g.createLinearGradient(0, 0, 0, 22);
+  lip.addColorStop(0, '#FFFFFF'); lip.addColorStop(1, C.mist);
+  g.fillStyle = lip; g.fillRect(0, 0, 64, 22);
+}
+const SHELF_TOP = 630;
+const shelfH = (1000 - SHELF_TOP + 120) / 100 * WALL_K;
+const wall = quad(world, 20 * WALL_K, shelfH, canvasTexture(shelfCv), {
+  y: wy(SHELF_TOP) * WALL_K - shelfH / 2, z: WALL_Z, mat: MAT_OPAQUE, name: 'wall' });
+
+// Text written straight on the wall (headings, instruction).
+function wallText(x, y, w, h, draw, z = WALL_Z + 0.02) {
+  const cv = makeCanvas(w * S, h * S); const g = cv.getContext('2d');
+  draw(g, cv);
+  const tex = canvasTexture(cv);
+  const scale = (10 - z) / 10; // keep on-screen size equal to the layout size at this depth
+  const e = quad(world, px(w) * scale, px(h) * scale, tex, { x: wx(x + w / 2) * scale, y: wy(y + h / 2) * scale, z, name: 'text' });
+  e.cv = cv; e.tex = tex; e.redraw = (fn) => { const gg = cv.getContext('2d'); gg.clearRect(0, 0, cv.width, cv.height); fn(gg, cv); refresh(tex, cv); };
+  return e;
+}
+
+// ---------------------------------------------------------------- layout (screen px, 1600x1000)
+const L = {
+  hero: { x: 80, y: 100, w: 880, h: 500, r: 54 },
+  library: { x: 1040, y: 330, w: 480, h: 270, r: 40 },
+  more: { x: 1390, y: 100, w: 130, h: 130, r: 65 },
+  'rec-1': { x: 80, y: 700, w: 424, h: 250, r: 46 },
+  'rec-2': { x: 588, y: 700, w: 424, h: 250, r: 46 },
+  'rec-3': { x: 1096, y: 700, w: 424, h: 250, r: 46 },
+};
+
+const shadowTex = {}; const haloTex = {};
+function shadowFor(key, w, h, r) {
+  if (!shadowTex[key]) shadowTex[key] = softRectTexture(Math.round(w * 0.5), Math.round(h * 0.5), r * 0.5, 11);
+  return shadowTex[key];
+}
+function haloFor(key, w, h, r) {
+  if (!haloTex[key]) haloTex[key] = softRectTexture(Math.round(w * 0.5), Math.round(h * 0.5), r * 0.5, 22);
+  return haloTex[key];
+}
+
+const T = {};          // targets by name
+const order = ['hero', 'rec-1', 'rec-2', 'rec-3', 'library', 'more'];
+function makeTarget(name, opts) {
+  const l = L[name];
+  const t = {
+    name, l, opts, w: px(l.w), h: px(l.h), r: px(l.r),
+    home: new pc.Vec3(wx(l.x + l.w / 2), wy(l.y + l.h / 2), 0),
+    lift: new Spring(0, 200, 12), tiltX: new Spring(0, 160, 12), tiltY: new Spring(0, 160, 12),
+    pop: new Spring(0, 260, 11), halo: new Spring(0, 120, 16), slide: 0,
+    hovered: false, by: [false, false], arm: 0, armShown: 0, selAt: -10, haloColor: rgb(C.white),
+  };
+  t.root = new pc.Entity(name); t.root.setPosition(t.home); world.addChild(t.root);
+  t.pose = new pc.Entity(name + '-pose'); t.root.addChild(t.pose);
+  // wall-side feedback: shadow and coloured halo (never part of the hit area)
+  const sh = shadowFor(opts.kind, l.w, l.h, l.r);
+  const shScale = (l.w * 0.5 + sh.pad * 2) / (l.w * 0.5);
+  t.shadowSize = [t.w * shScale, t.h * ((l.h * 0.5 + sh.pad * 2) / (l.h * 0.5))];
+  const hole = (W, inner) => Math.max(0.02, (W - inner) / 2 / W);
+  const keep = t.r * 0.35 + 0.16;
+  t.shadow = quad(world, t.shadowSize[0], t.shadowSize[1], sh.tex, { z: WALL_Z + 0.005, tint: rgb('#3A4A5E', 0.32), name: 'shadow',
+    mesh: frameMesh(hole(t.shadowSize[0], t.w - keep * 2), hole(t.shadowSize[1], t.h - keep * 2)) });
+  const ha = haloFor(opts.kind, l.w, l.h, l.r);
+  t.haloSize = [t.w * ((l.w * 0.5 + ha.pad * 2) / (l.w * 0.5)) * 1.08, t.h * ((l.h * 0.5 + ha.pad * 2) / (l.h * 0.5)) * 1.12];
+  // full quad (not hollow): it only renders while hovered, and a leaning slab must never reveal an edge
+  t.haloQ = quad(world, t.haloSize[0], t.haloSize[1], ha.tex, { z: WALL_Z + 0.01, tint: [1, 1, 1, 0], name: 'halo' });
+  // front-side feedback: the two half-rings, their tip beads, the burst
+  t.fx = new pc.Entity(name + '-fx'); world.addChild(t.fx);
+  const off = px(opts.ringOffset ?? 20), wid = px(opts.ringWidth ?? 16);
+  // a faint full track first, so the athlete can see how far the two hands still have to travel
+  t.tracks = [-1, 1].map((side) => {
+    const r = new HalfRing(t.fx, t.w, t.h, t.r, side, off, wid, '#8C99A8');
+    r.entity.setLocalPosition(0, 0, -0.004); r.set(1, 0.28);
+    return r;
+  });
+  t.rings = [
+    new HalfRing(t.fx, t.w, t.h, t.r, -1, off, wid, WRIST[0]),
+    new HalfRing(t.fx, t.w, t.h, t.r, 1, off, wid, WRIST[1]),
+  ];
+  // tip beads: white with a ring of the hand's colour
+  t.beads = WRIST.map((col) => {
+    const b = new pc.Entity('bead'); t.fx.addChild(b);
+    quad(b, wid * 2.3, wid * 2.3, DISC_TEX, { tint: rgb(col), z: 0.002 });
+    quad(b, wid * 1.3, wid * 1.3, DISC_TEX, { tint: rgb(C.white), z: 0.004 });
+    return b;
+  });
+  t.fx.enabled = false;
+  T[name] = t;
+  return t;
+}
+
+// ---------------------------------------------------------------- build targets
+const imgs = {};
+async function loadAll() {
+  const list = [content.playlistOfTheDay, ...content.recommended];
+  const jobs = [];
+  for (const p of list) {
+    jobs.push(loadImage(coverUrl(p.cover ?? p.memberCovers[0])).then((i) => { imgs[p.name] = i; }));
+    imgs[p.name + ':m'] = [];
+    p.memberCovers.forEach((m, k) => jobs.push(loadImage(coverUrl(m)).then((i) => { imgs[p.name + ':m'][k] = i; })));
+  }
+  await Promise.all([loadFonts(), ...jobs]);
+}
+
+function buildHero() {
+  const t = makeTarget('hero', { kind: 'hero', ringOffset: 22, ringWidth: 18 });
+  const p = content.playlistOfTheDay;
+  t.slab = slab(t.pose, t.w, t.h, t.r, 0.42, 0.11, MAT_WHITE);
+  // Sky channel face, inset in the white bezel
+  const fw = 840, fh = 460;
+  const cv = makeCanvas(fw * S, fh * S); const g = cv.getContext('2d');
+  g.fillStyle = C.sky; g.beginPath(); g.roundRect(0, 0, cv.width, cv.height, 34 * S); g.fill();
+  // a soft inner shade along the top edge so the face reads as recessed under the bezel
+  const sh = g.createLinearGradient(0, 0, 0, 26 * S); sh.addColorStop(0, 'rgba(10,60,110,0.28)'); sh.addColorStop(1, 'rgba(10,60,110,0)');
+  g.fillStyle = sh; g.beginPath(); g.roundRect(0, 0, cv.width, cv.height, 34 * S); g.fill();
+  const tx = 450 * S;
+  g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
+  const { lines, size } = fitLines(g, p.name, 800, 88, 360);
+  g.font = font(800, size);
+  lines.forEach((ln, i) => g.fillText(ln, tx, (150 + i * size * 1.0) * S));
+  g.font = font(500, 34); g.fillStyle = 'rgba(255,255,255,0.88)';
+  const countY = 150 + (lines.length - 1) * size + 70;
+  g.fillText(`${p.songCount} songs`, tx, countY * S);
+  g.font = font(500, 30); g.fillStyle = 'rgba(255,255,255,0.72)';
+  g.fillText(`by ${p.owner}`, tx, (countY + 44) * S);
+  t.face = quad(t.pose, px(fw), px(fh), canvasTexture(cv), { z: 0.004, name: 'face', mat: MAT_CUTOUT });
+
+  // the floating cover card, members fanned behind, and the beat ripple
+  const cx = -px(fw) / 2 + px(60 + 165), cy = 0;
+  t.cardHome = new pc.Vec3(cx, cy, 0.2);
+  t.card = new pc.Entity('card'); t.card.setLocalPosition(t.cardHome); t.pose.addChild(t.card);
+  slab(t.card, px(330), px(330), px(26), 0.14, 0.05, MAT_WHITE, 'card-slab');
+  const ccv = makeCanvas(300 * S, 300 * S); drawCover(ccv.getContext('2d'), imgs[p.name], 0, 0, 300 * S, 300 * S, 16 * S);
+  quad(t.card, px(300), px(300), canvasTexture(ccv), { z: 0.004, name: 'cover', mat: MAT_CUTOUT });
+
+  const members = imgs[p.name + ':m'];
+  t.members = members.map((img, i) => {
+    const mcv = makeCanvas(180 * S, 180 * S); const mg = mcv.getContext('2d');
+    mg.fillStyle = '#fff'; mg.beginPath(); mg.roundRect(0, 0, mcv.width, mcv.height, 18 * S); mg.fill();
+    drawCover(mg, img, 9 * S, 9 * S, 162 * S, 162 * S, 12 * S);
+    const e = quad(t.pose, px(180), px(180), canvasTexture(mcv), { name: 'member', mat: MAT_CUTOUT });
+    const home = [
+      { x: cx - px(112), y: cy + px(62), z: 0.07, r: 13 },
+      { x: cx - px(38), y: cy + px(84), z: 0.09, r: 5 },
+      { x: cx + px(42), y: cy + px(82), z: 0.11, r: -6 },
+      { x: cx + px(112), y: cy + px(58), z: 0.13, r: -14 },
+    ][i];
+    e.home = home;
+    e.deal = { x: -px(fw) / 2 + px(120) + i * px(200), y: -px(fh) / 2 - px(122), z: 0.3, r: 0 };
+    e.setLocalPosition(home.x, home.y, home.z); e.setLocalEulerAngles(0, 0, home.r);
+    return e;
+  });
+  // the beat ripple: rounded squares that leave the card on every beat
+  const rcv = makeCanvas(256, 256); const rg = rcv.getContext('2d');
+  rg.strokeStyle = '#fff'; rg.lineWidth = 7; rg.beginPath(); rg.roundRect(8, 8, 240, 240, 26); rg.stroke();
+  const rtex = canvasTexture(rcv);
+  t.ripples = [0, 1].map(() => quad(t.pose, px(340), px(340), rtex, { x: cx, y: cy, z: 0.03, tint: [1, 1, 1, 0], name: 'ripple', mesh: frameMesh(0.06, 0.06) }));
+  return t;
+}
+
+function buildRec(name, p) {
+  const t = makeTarget(name, { kind: 'rec', ringOffset: 18, ringWidth: 16 });
+  t.slab = slab(t.pose, t.w, t.h, t.r, 0.30, 0.09, MAT_WHITE);
+  const l = t.l; const cv = makeCanvas(l.w * S, l.h * S); const g = cv.getContext('2d');
+  faceBase(g, l.w, l.h, l.r, 9, PLASTIC);
+  const cs = 186, cx0 = 32, cy0 = (l.h - cs) / 2;
+  if (p.cover) drawCover(g, imgs[p.name], cx0 * S, cy0 * S, cs * S, cs * S, 26 * S);
+  else drawMosaic(g, imgs[p.name + ':m'], cx0 * S, cy0 * S, cs * S, 26 * S);
+  const tx = (cx0 + cs + 26) * S, maxW = l.w - cx0 - cs - 26 - 22;
+  const { lines, size } = fitLines(g, p.name, 800, 40, maxW);
+  g.font = font(800, size); g.fillStyle = C.slate; g.textBaseline = 'alphabetic';
+  const blockH = lines.length * size * 1.08 + 42;
+  let y = (l.h - blockH) / 2 + size * 0.86;
+  lines.forEach((ln) => { g.fillText(ln, tx, y * S); y += size * 1.08; });
+  g.font = font(500, 28); g.fillStyle = C.pebble;
+  g.fillText(`${p.songCount} songs`, tx, (y + 14) * S);
+  t.face = quad(t.pose, t.w, t.h, canvasTexture(cv), { z: 0.004, name: 'face', mat: MAT_CUTOUT });
+  return t;
+}
+
+function buildLibrary() {
+  const t = makeTarget('library', { kind: 'library', ringOffset: 18, ringWidth: 16 });
+  t.slab = slab(t.pose, t.w, t.h, t.r, 0.16, 0.06, MAT_MIST);
+  const l = t.l; const cv = makeCanvas(l.w * S, l.h * S); const g = cv.getContext('2d');
+  faceBase(g, l.w, l.h, l.r, 6, PLASTIC_MIST);
+  // icon: a little stack of record sleeves, each a rounded square, with a search lens
+  const ix = 42 * S, iy = 62 * S, s = 120 * S;
+  [[30, 0, '#C2CCD6'], [15, 10, '#E9EEF2'], [0, 20, '#FFFFFF']].forEach(([dx, dy, col]) => {
+    g.fillStyle = col; g.beginPath(); g.roundRect(ix + dx * S, iy + dy * S, s * 0.78, s * 0.78, 16 * S); g.fill();
+  });
+  g.fillStyle = C.mist; g.beginPath(); g.arc(ix + 47 * S, iy + 67 * S, 26 * S, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = C.slate; g.lineWidth = 9 * S; g.lineCap = 'round';
+  g.beginPath(); g.arc(ix + 47 * S, iy + 67 * S, 20 * S, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(ix + 62 * S, iy + 82 * S); g.lineTo(ix + 82 * S, iy + 102 * S); g.stroke();
+  const tx = 200 * S;
+  g.fillStyle = C.slate; g.font = font(800, 42); g.textBaseline = 'alphabetic';
+  g.fillText('Library', tx, 116 * S);
+  g.fillStyle = C.pebble; g.font = font(500, 28);
+  g.fillText('Search, songs and', tx, 164 * S);
+  g.fillText('your own playlists', tx, 200 * S);
+  t.face = quad(t.pose, t.w, t.h, canvasTexture(cv), { z: 0.004, name: 'face', mat: MAT_CUTOUT });
+  return t;
+}
+
+function buildMore() {
+  const t = makeTarget('more', { kind: 'more', ringOffset: 14, ringWidth: 14 });
+  t.slab = slab(t.pose, t.w, t.h, t.r, 0.30, 0.10, MAT_WHITE);
+  const l = t.l; const cv = makeCanvas(l.w * S, l.h * S); const g = cv.getContext('2d');
+  faceBase(g, l.w, l.h, l.r, 10, PLASTIC);
+  // icon: two slider knobs on rails, the universal "adjust" mark
+  g.lineWidth = 6 * S; g.lineCap = 'round';
+  for (const [y, knob] of [[38, 76], [60, 50]]) {
+    g.strokeStyle = '#C2CCD6'; g.beginPath(); g.moveTo(36 * S, y * S); g.lineTo(94 * S, y * S); g.stroke();
+    g.fillStyle = C.slate; g.beginPath(); g.arc(knob * S, y * S, 9 * S, 0, Math.PI * 2); g.fill();
+  }
+  g.fillStyle = C.slate; g.font = font(800, 28); g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.fillText('More', 65 * S, 102 * S);
+  t.face = quad(t.pose, t.w, t.h, canvasTexture(cv), { z: 0.004, name: 'face', mat: MAT_CUTOUT });
+  return t;
+}
+
+// ---------------------------------------------------------------- wrists
+function puckTexture(col) {
+  return discTexture(160, (g, s) => {
+    const c = s / 2;
+    g.fillStyle = 'rgba(20,32,48,0.35)'; g.filter = 'blur(6px)';
+    g.beginPath(); g.arc(c + 3, c + 7, 56, 0, Math.PI * 2); g.fill(); g.filter = 'none';
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(c, c, 62, 0, Math.PI * 2); g.fill();
+    g.fillStyle = C.slate; g.beginPath(); g.arc(c, c, 57, 0, Math.PI * 2); g.fill();
+    g.fillStyle = col; g.beginPath(); g.arc(c, c, 52, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff'; g.beginPath(); g.arc(c, c, 28, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.55)'; g.beginPath(); g.arc(c - 18, c - 22, 10, 0, Math.PI * 2); g.fill();
+  });
+}
+
+// ---------------------------------------------------------------- start
+await loadAll();
+
+const headingToday = wallText(80, 16, 500, 50, (g) => {
+  g.font = font(500, 32); g.fillStyle = C.pebble; g.textBaseline = 'middle'; g.fillText("Today's playlist", 0, 25 * S);
+});
+const headingPicked = wallText(80, 640, 500, 50, (g) => {
+  g.font = font(500, 32); g.fillStyle = C.pebble; g.textBaseline = 'middle'; g.fillText('Picked for you', 0, 25 * S);
+});
+function drawHint(g, text1, text2, accent = false) {
+  // two overlapping hand dots teach that each colour is one hand
+  g.fillStyle = C.sky; g.beginPath(); g.arc(24 * S, 46 * S, 20 * S, 0, Math.PI * 2); g.fill();
+  g.fillStyle = C.tangerine; g.beginPath(); g.arc(50 * S, 46 * S, 20 * S, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(24 * S, 46 * S, 8 * S, 0, Math.PI * 2); g.fill();
+  g.beginPath(); g.arc(50 * S, 46 * S, 8 * S, 0, Math.PI * 2); g.fill();
+  g.textBaseline = 'alphabetic';
+  g.font = font(accent ? 800 : 500, 30); g.fillStyle = C.slate; g.fillText(text1, 84 * S, 40 * S);
+  g.font = font(500, 30); g.fillStyle = accent ? C.slate : C.pebble; g.fillText(text2, 84 * S, 80 * S);
+}
+const hint = wallText(1030, 112, 320, 110, (g) => drawHint(g, 'Both hands on', 'a tile, then hold'));
+const setHint = (a, b, accent) => hint.redraw((g) => drawHint(g, a, b, accent));
+
+buildHero();
+content.recommended.forEach((p, i) => buildRec(`rec-${i + 1}`, p));
+buildLibrary();
+buildMore();
+
+const pucks = WRIST.map((col, i) => {
+  const e = quad(app.root, 1, 1, puckTexture(col), { mat: MAT_OVERLAY, name: 'wrist-' + i });
+  e.enabled = false;
+  return e;
+});
+
+// Flood disc for the hero opening, and sparks for the clasp.
+const flood = quad(world, 1, 1, DISC_TEX, { z: WALL_Z + 0.03, tint: rgb(C.sky, 0), name: 'flood' });
+flood.enabled = false;
+const sparks = Array.from({ length: 16 }, (_, i) => {
+  const e = quad(app.root, px(28), px(28), DISC_TEX, { tint: rgb(WRIST[i % 2], 0), mat: MAT_OVERLAY, name: 'spark' });
+  e.enabled = false; e.v = new pc.Vec3(); e.life = 0;
+  return e;
+});
+
+// ---------------------------------------------------------------- interaction
+const hands = createHands(app, camera);
+const t0 = performance.now() / 1000;
+let opening = null; // { at, back }
+
+function select(t) {
+  const now = performance.now() / 1000;
+  t.selAt = now;
+  t.pop.v += 6;
+  // clap sparks from the top centre where the two rings meet
+  const top = new pc.Vec3(0, t.h / 2 + px(t.opts.ringOffset ?? 20), 0.02);
+  t.pose.getWorldTransform().transformPoint(top, top);
+  sparks.forEach((s, i) => {
+    const a = Math.PI * (0.08 + 0.84 * (i / (sparks.length - 1)));
+    const sp = 2.6 + (i % 3) * 0.9;
+    s.setPosition(top.x, top.y, top.z + 0.3); s.v.set(Math.cos(a) * sp, Math.sin(a) * sp * 0.9 + 0.6, 0);
+    s.life = 0.85; s.enabled = true;
+  });
+  if (t.name === 'hero') {
+    opening = { at: now, back: null };
+    for (const o of Object.values(T)) if (o !== t) o.reg.disabled = true;
+    setHint('Opening', content.playlistOfTheDay.name, true);
+  } else {
+    const p = t.name.startsWith('rec') ? content.recommended[Number(t.name.slice(4)) - 1].name : t.name === 'library' ? 'your library' : 'more options';
+    setHint('Opening', p, true);
+    clearTimeout(select.timer);
+    select.timer = setTimeout(() => setHint('Both hands on', 'a tile, then hold'), 1700);
+  }
+  window.__selected = t.name;
+}
+
+for (const name of order) {
+  const t = T[name];
+  t.reg = hands.register(name, t.root, {
+    onHover: (v) => { t.hovered = v; },
+    onArm: (p) => { t.arm = p; },
+    onSelect: () => select(t),
+  });
+}
+
+let wrists = [null, null];
+hands.onState((state) => {
+  wrists = state.wrists;
+  for (const t of Object.values(T)) t.by = [state.hover[0] === t.reg, state.hover[1] === t.reg];
+});
+
+// ---------------------------------------------------------------- frame
+const tmpV = new pc.Vec3();
+const camPos = new pc.Vec3(0, 0, 10);
+const camTarget = new pc.Vec3();
+
+app.on('update', (dtRaw) => {
+  const dt = Math.min(dtRaw, 0.1);
+  const now = performance.now() / 1000;
+  const since = now - t0;
+
+  // hero opening timeline: 0..1 forward, holds, then returns
+  let open = 0;
+  if (opening) {
+    const age = now - opening.at;
+    // hold the clasp for a beat so the confirmation reads, then open
+    if (age < 3.4) open = easeOut((age - 0.32) / 1.0);
+    else { open = 1 - easeInOut((age - 3.4) / 0.9); if (age > 4.3) { opening = null; open = 0; for (const o of Object.values(T)) o.reg.disabled = false; setHint('Both hands on', 'a tile, then hold'); } }
+  }
+
+  // camera parallax with the pointer
+  const mid = wrists[0] && wrists[1] ? { x: (wrists[0].x + wrists[1].x) / 2, y: (wrists[0].y + wrists[1].y) / 2 } : null;
+  const W = device.clientRect.width || 1600, H = device.clientRect.height || 1000;
+  const sway = REDUCED ? 0 : 1;
+  const tx = mid ? (mid.x / W - 0.5) * 0.5 * sway : 0, ty = mid ? -(mid.y / H - 0.5) * 0.3 * sway : 0;
+  camPos.x = lerp(camPos.x, tx, Math.min(1, dt * 3)); camPos.y = lerp(camPos.y, ty, Math.min(1, dt * 3));
+  camera.setPosition(camPos);
+  camTarget.set(camPos.x * 0.85, camPos.y * 0.85, 0);
+  camera.lookAt(camTarget);
+
+  for (const [i, name] of order.entries()) {
+    const t = T[name];
+    // one page-load moment: each tile rises out of the wall in turn
+    const ent = backOut((since - 0.05 - i * 0.07) / 0.55);
+    const entZ = -0.5 * (1 - ent);
+
+    const p = t.arm;
+    const single = t.hovered && p === 0;
+    t.lift.t = t.hovered ? lerp(name === 'library' ? 0.16 : 0.3, -0.07, p) : 0;
+    // lean the touched edge toward the wrist
+    let lx = 0, ly = 0;
+    if (single) {
+      const w = t.by[0] ? wrists[0] : t.by[1] ? wrists[1] : mid;
+      const r = hands.targetsOnScreen()[name];
+      if (w && r) {
+        lx = clamp01(((w.x - r.left) / (r.right - r.left))) * 2 - 1;
+        ly = clamp01(((w.y - r.top) / (r.bottom - r.top))) * 2 - 1;
+      }
+    }
+    const lean = name === 'hero' ? 5 : 8;
+    t.tiltY.t = -lx * lean; t.tiltX.t = -ly * lean * 0.8;
+    t.halo.t = t.hovered ? 1 : 0;
+    t.lift.step(dt); t.tiltX.step(dt); t.tiltY.step(dt); t.pop.step(dt); t.halo.step(dt);
+
+    // slide away during the hero opening
+    let sx = 0, sy = 0, sz = 0, fade = 1;
+    if (name === 'hero') {
+      sx = lerp(0, -t.home.x, open); sy = lerp(0, 1.4 - t.home.y, open); sz = 1.6 * open;
+    } else if (name.startsWith('rec')) {
+      const k = easeOut(open * 1.25 - (Number(name.slice(4)) - 1) * 0.08); sy = -6 * k; fade = 1 - k;
+    } else {
+      const k = easeOut(open * 1.3); sx = 7 * k; fade = 1 - k;
+    }
+    t.root.setPosition(t.home.x + sx, t.home.y + sy, sz);
+    t.pose.setLocalPosition(0, 0, entZ + t.lift.x);
+    t.pose.setLocalEulerAngles(t.tiltX.x * (1 - open), t.tiltY.x * (1 - open), 0);
+    const sc = (0.92 + 0.08 * ent) * (1 + t.pop.x * 0.03) * (1 - p * 0.025);
+    t.pose.setLocalScale(sc, sc, sc);
+
+    // shadow drifts and softens as the slab lifts
+    const lift = Math.max(0, t.lift.x + entZ + sz);
+    t.shadow.setLocalPosition(t.home.x + sx + 0.07 + lift * 0.35, t.home.y + sy - 0.12 - lift * 0.45, WALL_Z + 0.005);
+    const ss = 1 + lift * 0.12;
+    t.shadow.setLocalScale(t.shadowSize[0] * ss, t.shadowSize[1] * ss, 1);
+    t.shadow.tint(rgb('#3A4A5E', (0.34 - lift * 0.35) * ent * fade * (1 - open * 0.8)));
+
+    // halo in the colour of the hand that is touching (both: white)
+    const hc = t.by[0] && !t.by[1] ? WRIST[0] : t.by[1] && !t.by[0] ? WRIST[1] : C.white;
+    const target = rgb(hc); t.haloColor = t.haloColor.map((c, k) => lerp(c, target[k], Math.min(1, dt * 10)));
+    const hA = clamp01(t.halo.x) * (hc === C.white ? 0.9 : 0.55) * (1 - open);
+    t.haloQ.setLocalPosition(t.home.x + sx, t.home.y + sy, WALL_Z + 0.01);
+    t.haloQ.tint([t.haloColor[0], t.haloColor[1], t.haloColor[2], hA]);
+    t.haloQ.enabled = hA > 0.01;
+
+    // the two half-rings follow the slab
+    const selAge = now - t.selAt;
+    const showRing = p > 0 || selAge < 0.8;
+    t.fx.enabled = showRing && open < 0.2;
+    if (t.fx.enabled) {
+      t.fx.setPosition(t.pose.getPosition());
+      t.fx.setRotation(t.pose.getRotation());
+      const ps = t.pose.getLocalScale().x;
+      if (p > 0) {
+        t.armShown = p;
+        t.fx.setLocalScale(ps, ps, ps);
+        t.tracks.forEach((r) => r.set(1, 0.28 * clamp01(p * 6)));
+        t.rings.forEach((r, k) => { r.set(easeInOut(p) * 0.985 + 0.015 * p, 1); t.beads[k].enabled = true; t.beads[k].setLocalPosition(r.tip.x, r.tip.y, 0.01); });
+      } else {
+        // the closed ring holds at full strength for a moment, then swells outward and fades
+        const k = clamp01((selAge - 0.3) / 0.5);
+        const s = ps * (1 + easeOut(k) * 0.08);
+        t.fx.setLocalScale(s, s, s);
+        t.rings.forEach((r, i) => { r.set(1, 1 - k); t.beads[i].enabled = false; });
+        t.tracks.forEach((r) => r.set(1, 0));
+      }
+    }
+
+    if (name !== 'hero') t.root.enabled = fade > 0.01 || open === 0;
+  }
+
+  // hero extras: beat ripple and member deal-out
+  const hero = T.hero;
+  const beat = 60 / BPM;
+  hero.ripples.forEach((r, i) => {
+    r.enabled = !(REDUCED || hero.arm > 0 || open > 0);
+    if (!r.enabled) return;
+    const ph = (((since + i * beat) % (beat * 2)) / (beat * 2));
+    const s = 1 + ph * 0.3; // stays inside the face
+    r.setLocalScale(px(340) * s, px(340) * s, 1);
+    r.tint([1, 1, 1, 0.8 * Math.pow(1 - ph, 2) * (since > 1 ? 1 : 0)]);
+  });
+  hero.members.forEach((m, i) => {
+    const k = easeOut(open * 1.4 - i * 0.07);
+    const a = m.home, b = m.deal;
+    m.setLocalPosition(lerp(a.x, b.x, k), lerp(a.y, b.y, k), lerp(a.z, b.z, k));
+    m.setLocalEulerAngles(0, 0, lerp(a.r, b.r, k));
+    const s = lerp(1, 1.05, k); m.setLocalScale(px(180) * s, px(180) * s, 1);
+  });
+  hero.card.setLocalPosition(hero.cardHome.x, hero.cardHome.y, hero.cardHome.z + 0.08 * Math.sin(open * Math.PI));
+  // the cover card thumps on every beat: a quick push toward the athlete that settles
+  const thump = REDUCED || hero.arm > 0 ? 0 : Math.exp(-((since % beat) / beat) * 7) * (since > 1 ? 1 : 0);
+  const cs = 1 + thump * 0.035; hero.card.setLocalScale(cs, cs, cs);
+
+  // wall flood for the opening, from the hero's centre
+  flood.enabled = open > 0;
+  if (open > 0) {
+    const d = 40 * easeOut(open * 1.05);
+    flood.setLocalPosition(hero.home.x * (1 - open * 0.5), hero.home.y, WALL_Z + 0.03);
+    flood.setLocalScale(d, d, 1);
+    flood.tint(rgb(C.sky, 1));
+  }
+  const textA = 1 - easeOut(open * 1.5);
+  headingToday.tint([1, 1, 1, textA]); headingPicked.tint([1, 1, 1, textA]);
+  hint.tint([1, 1, 1, open > 0 ? 0 : 1]);
+
+  // sparks
+  for (const s of sparks) {
+    if (!s.enabled) continue;
+    s.life -= dt;
+    if (s.life <= 0) { s.enabled = false; continue; }
+    s.v.y -= 6 * dt;
+    tmpV.copy(s.getPosition()).add(s.v.clone().mulScalar(dt));
+    s.setPosition(tmpV);
+    const a = clamp01(s.life / 0.85);
+    const sc = px(28) * (0.5 + a * 0.8);
+    s.setLocalScale(sc, sc, 1);
+    s.tint(rgb(WRIST[sparks.indexOf(s) % 2], a));
+  }
+
+  // wrist pucks, always on top, projected at a fixed depth in front of the scene
+  const dist = 6;
+  wrists.forEach((w, i) => {
+    const e = pucks[i];
+    e.enabled = !!w;
+    if (!w) return;
+    camera.camera.screenToWorld(w.x, w.y, dist, tmpV);
+    e.setPosition(tmpV);
+    e.setRotation(camera.getRotation());
+    const size = 66 * dist / 1000 * (160 / 120);
+    e.setLocalScale(size, size, 1);
+  });
+});
+
+app.start();
+// let the first frames render before declaring readiness
+let frames = 0;
+app.on('frameend', () => { frames += 1; if (frames === 3) window.__compReady = true; });
+</script>
+</body>
+</html>
