@@ -1,0 +1,674 @@
+[
+  {
+    "name": "phase1-loading",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": null,
+      "notice": null,
+      "pose": "download",
+      "loaded": 10406404,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "not requested",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [],
+      "health": null,
+      "timings": {
+        "fontReady": 585,
+        "firstFrame": 605,
+        "poseStart": 781,
+        "poseFirstByte": 915
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "phase1-desktop-xr",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": null,
+      "notice": null,
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "not requested",
+      "xr": "desktop",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "vr"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 221,
+        "firstFrame": 241,
+        "poseStart": 432,
+        "poseFirstByte": 551,
+        "poseReady": 1241
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "phase1-headset",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": null,
+      "notice": null,
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "not requested",
+      "xr": "headset",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 223,
+        "firstFrame": 246,
+        "poseStart": 425,
+        "poseFirstByte": 517,
+        "poseReady": 1227,
+        "startClick": 1456
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-denied",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "denied",
+      "notice": "camera-denied",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "denied",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 249,
+        "firstFrame": 272,
+        "poseStart": 479,
+        "startClick": 628,
+        "poseFirstByte": 653,
+        "poseReady": 1381
+      },
+      "cameraError": "NotAllowedError: Permission denied"
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-dismissed",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "dismissed",
+      "notice": "camera-dismissed",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "prompt",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 220,
+        "firstFrame": 241,
+        "poseStart": 430,
+        "startClick": 554,
+        "poseFirstByte": 601,
+        "poseReady": 1373
+      },
+      "cameraError": "NotAllowedError: Permission dismissed"
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-os-blocked",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "osBlocked",
+      "notice": "camera-osBlocked",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 224,
+        "firstFrame": 245,
+        "poseStart": 432,
+        "startClick": 582,
+        "poseFirstByte": 608,
+        "poseReady": 1491
+      },
+      "cameraError": "NotAllowedError: Permission denied by system"
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-not-found",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "notFound",
+      "notice": "camera-notFound",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 248,
+        "firstFrame": 271,
+        "poseStart": 479,
+        "startClick": 627,
+        "poseFirstByte": 669,
+        "poseReady": 1460
+      },
+      "cameraError": "NotFoundError: Requested device not found"
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-busy",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "busy",
+      "notice": "camera-busy",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": null,
+      "timings": {
+        "fontReady": 225,
+        "firstFrame": 246,
+        "poseStart": 439,
+        "startClick": 569,
+        "poseFirstByte": 618,
+        "poseReady": 1417
+      },
+      "cameraError": "NotReadableError: Could not start video source"
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-insecure",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "insecure",
+      "notice": "camera-insecure",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "locked",
+      "fullscreen": "not requested",
+      "xr": "none",
+      "permission": "denied",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [],
+      "health": null,
+      "timings": {
+        "fontReady": 233,
+        "firstFrame": 255,
+        "poseStart": 430,
+        "poseFirstByte": 516,
+        "poseReady": 1141
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "camera-unsupported",
+    "ok": true,
+    "s": {
+      "phase": "phase1",
+      "problem": "unsupported",
+      "notice": "camera-unsupported",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "locked",
+      "fullscreen": "not requested",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [],
+      "arm": {},
+      "selected": [],
+      "health": null,
+      "timings": {
+        "fontReady": 233,
+        "firstFrame": 255,
+        "poseStart": 433,
+        "poseFirstByte": 543,
+        "poseReady": 1192
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "touch",
+    "ok": true,
+    "s": {
+      "phase": "phase3",
+      "problem": null,
+      "notice": null,
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [
+        "fake_device_0",
+        "fake_device_1"
+      ],
+      "camera": "fake_device_1",
+      "arm": {},
+      "selected": [
+        "start",
+        "switch",
+        "cam-1"
+      ],
+      "health": {
+        "mean": 12.6,
+        "spread": 34.8,
+        "delta": 9.05,
+        "black": false,
+        "frozen": false
+      },
+      "timings": {
+        "fontReady": 234,
+        "firstFrame": 255,
+        "poseStart": 406,
+        "poseFirstByte": 427,
+        "poseReady": 869,
+        "startClick": 1261,
+        "cameraOn": 1395,
+        "phase2": 1395,
+        "phase3": 1401
+      }
+    },
+    "pokes": 1,
+    "errors": []
+  },
+  {
+    "name": "phase2-warmup",
+    "ok": true,
+    "s": {
+      "phase": "phase2",
+      "problem": null,
+      "notice": null,
+      "pose": "download",
+      "loaded": 9706762,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": true,
+      "cameras": [
+        "/tmp/af/person.y4m"
+      ],
+      "camera": "/tmp/af/person.y4m",
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": {
+        "mean": 113.5,
+        "spread": 52.2,
+        "delta": 3.45,
+        "black": false,
+        "frozen": false
+      },
+      "timings": {
+        "fontReady": 703,
+        "firstFrame": 724,
+        "poseStart": 906,
+        "startClick": 1035,
+        "poseFirstByte": 1076,
+        "cameraOn": 1245,
+        "phase2": 1246
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "phase2-black",
+    "ok": true,
+    "s": {
+      "phase": "phase2",
+      "problem": "black",
+      "notice": "feed-black",
+      "pose": "download",
+      "loaded": 6913206,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": true,
+      "cameras": [
+        "/tmp/af/black.y4m"
+      ],
+      "camera": "/tmp/af/black.y4m",
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": {
+        "mean": 0,
+        "spread": 0,
+        "delta": 0,
+        "black": true,
+        "frozen": true
+      },
+      "timings": {
+        "fontReady": 929,
+        "firstFrame": 952,
+        "poseStart": 1130,
+        "startClick": 1258,
+        "poseFirstByte": 1299,
+        "cameraOn": 1469,
+        "phase2": 1470
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "phase2-frozen",
+    "ok": true,
+    "s": {
+      "phase": "phase2",
+      "problem": "frozen",
+      "notice": "feed-frozen",
+      "pose": "download",
+      "loaded": 8146400,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": true,
+      "cameras": [
+        "/tmp/af/frozen.y4m"
+      ],
+      "camera": "/tmp/af/frozen.y4m",
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": {
+        "mean": 112,
+        "spread": 52.7,
+        "delta": 0,
+        "black": false,
+        "frozen": true
+      },
+      "timings": {
+        "fontReady": 933,
+        "firstFrame": 954,
+        "poseStart": 1136,
+        "startClick": 1266,
+        "poseFirstByte": 1306,
+        "cameraOn": 1489,
+        "phase2": 1490
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "phase3-nobody",
+    "ok": true,
+    "s": {
+      "phase": "phase3",
+      "problem": "nobody",
+      "notice": "feed-nobody",
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [
+        "fake_device_0"
+      ],
+      "camera": "fake_device_0",
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": {
+        "mean": 90.7,
+        "spread": 27.9,
+        "delta": 5.85,
+        "black": false,
+        "frozen": false
+      },
+      "timings": {
+        "fontReady": 229,
+        "firstFrame": 250,
+        "poseStart": 432,
+        "poseFirstByte": 651,
+        "poseReady": 1329,
+        "startClick": 1414,
+        "cameraOn": 1608,
+        "phase2": 1608,
+        "phase3": 1616
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "chooser",
+    "ok": true,
+    "s": {
+      "phase": "phase3",
+      "problem": null,
+      "notice": null,
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [
+        "fake_device_0",
+        "fake_device_1",
+        "fake_device_2"
+      ],
+      "camera": "fake_device_2",
+      "arm": {},
+      "selected": [
+        "start",
+        "switch",
+        "cam-2"
+      ],
+      "health": {
+        "mean": 76.6,
+        "spread": 11.1,
+        "delta": 0.37,
+        "black": false,
+        "frozen": false
+      },
+      "timings": {
+        "fontReady": 229,
+        "firstFrame": 249,
+        "poseStart": 431,
+        "startClick": 564,
+        "poseFirstByte": 605,
+        "cameraOn": 920,
+        "phase2": 921,
+        "poseReady": 1512,
+        "phase3": 1584
+      }
+    },
+    "after": "fake_device_2",
+    "stored": "c9b4a9fe4f2a46fc941943727a64c445ad18f925a4149476ee2eac1be641f3ef",
+    "errors": []
+  },
+  {
+    "name": "phase3-person",
+    "ok": true,
+    "s": {
+      "phase": "done",
+      "problem": null,
+      "notice": null,
+      "pose": "ready",
+      "loaded": 18013516,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [
+        "/tmp/af/person.y4m"
+      ],
+      "camera": "/tmp/af/person.y4m",
+      "arm": {},
+      "selected": [
+        "start",
+        "practice"
+      ],
+      "health": {
+        "mean": 106.9,
+        "spread": 52.7,
+        "delta": 11.73,
+        "black": false,
+        "frozen": false
+      },
+      "timings": {
+        "fontReady": 219,
+        "firstFrame": 240,
+        "poseStart": 424,
+        "poseFirstByte": 537,
+        "poseReady": 1240,
+        "startClick": 1328,
+        "cameraOn": 1529,
+        "phase2": 1530,
+        "phase3": 1531,
+        "firstBody": 1625,
+        "practiceSelected": 4003,
+        "done": 4752
+      }
+    },
+    "errors": []
+  },
+  {
+    "name": "pose-failed",
+    "ok": true,
+    "s": {
+      "phase": "phase2",
+      "problem": null,
+      "notice": "pose-failed",
+      "pose": "failed",
+      "loaded": 12235770,
+      "total": 18013516,
+      "audio": "running",
+      "fullscreen": "granted",
+      "xr": "none",
+      "permission": "granted",
+      "warmupShown": false,
+      "cameras": [
+        "fake_device_0"
+      ],
+      "camera": "fake_device_0",
+      "arm": {},
+      "selected": [
+        "start"
+      ],
+      "health": {
+        "mean": 86.9,
+        "spread": 22.2,
+        "delta": 4.49,
+        "black": false,
+        "frozen": false
+      },
+      "timings": {
+        "fontReady": 227,
+        "firstFrame": 248,
+        "poseStart": 432,
+        "poseFirstByte": 528,
+        "startClick": 1192,
+        "cameraOn": 1397,
+        "phase2": 1398
+      }
+    },
+    "errors": []
+  }
+]

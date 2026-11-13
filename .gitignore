@@ -35,3 +35,6 @@ public/models/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+design/attract-flow/vendor/mediapipe/*.task
+design/attract-flow/vendor/mediapipe/*.wasm
+design/attract-flow/vendor/mediapipe/*.txt
